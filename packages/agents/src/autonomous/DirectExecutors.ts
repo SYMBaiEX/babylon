@@ -312,7 +312,9 @@ export async function executeDirectTrade(
   const { agentUserId, marketType, marketId, side, reasoning } = params;
   let { amount } = params;
 
-  // Check if this is an NPC
+  // Check if this is an NPC (system-defined actor from static data files).
+  // User-created agents are NOT in StaticDataRegistry, so they won't match.
+  // This ensures only system NPCs skip broadcasting - user agents always broadcast.
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
 
@@ -1020,7 +1022,8 @@ export async function executeDirectPost(
     };
   }
 
-  // Check if this is an NPC
+  // Check if this is an NPC (system-defined actor from static data files).
+  // User-created agents are NOT in StaticDataRegistry, so they won't match.
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
 
