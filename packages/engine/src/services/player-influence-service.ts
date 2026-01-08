@@ -105,13 +105,21 @@ class LRUMentionCache {
 const memoryFallbackCache = new LRUMentionCache(MAX_MENTION_CACHE_SIZE);
 
 /**
- * Record a player mention in the cache (Redis with in-memory fallback)
+ * Record a player mention in the cache (Redis with in-memory fallback).
+ * Exported for testing purposes.
  */
-async function recordMention(actorId: string, timestamp: Date): Promise<void> {
+export async function recordMention(
+  actorId: string,
+  timestamp: Date
+): Promise<void> {
   const timestampIso = timestamp.toISOString();
 
+  // Always update local fallback cache for wasMentionedRecentlySync to work
+  // This ensures sync checks work even when Redis is the primary store
+  memoryFallbackCache.set(actorId, timestamp);
+
   try {
-    // Store in Redis with TTL
+    // Store in Redis with TTL for distributed access
     await setCache(
       actorId,
       { timestamp: timestampIso },
@@ -129,10 +137,9 @@ async function recordMention(actorId: string, timestamp: Date): Promise<void> {
 
     logger.debug('Mention recorded in Redis', { actorId }, 'PlayerInfluence');
   } catch {
-    // Fallback to in-memory cache
-    memoryFallbackCache.set(actorId, timestamp);
+    // Redis failed, but local cache is already set above
     logger.debug(
-      'Mention recorded in memory fallback',
+      'Redis unavailable, using memory fallback only',
       { actorId },
       'PlayerInfluence'
     );
@@ -445,6 +452,15 @@ export class PlayerInfluenceService {
     size: number
   ): Promise<void> {
     return handlePlayerTrade(playerId, stockTicker, side, size);
+  }
+
+  /**
+   * Record a mention in the cache (Redis with in-memory fallback).
+   * Use this for testing or when you only need to record the mention
+   * without adding to NPC memory.
+   */
+  async recordMention(actorId: string, timestamp: Date): Promise<void> {
+    return recordMention(actorId, timestamp);
   }
 
   async wasMentionedRecently(actorId: string): Promise<boolean> {

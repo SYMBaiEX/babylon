@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   extractMentions,
   playerInfluenceService,
+  recordMention,
   wasMentionedRecentlySync,
 } from '../services/player-influence-service';
 
@@ -62,6 +63,38 @@ describe('Player Influence Service - Synchronous Mention Check', () => {
   test('wasMentionedRecentlySync returns false for unknown actor', () => {
     const result = wasMentionedRecentlySync('non-existent-actor-12345');
     expect(result).toBe(false);
+  });
+
+  test('wasMentionedRecentlySync returns true after recording a mention', async () => {
+    // Use a unique actor ID to avoid interference with other tests
+    const testActorId = `test-actor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Verify actor is not mentioned initially
+    expect(wasMentionedRecentlySync(testActorId)).toBe(false);
+
+    // Record a mention for this actor
+    await recordMention(testActorId, new Date());
+
+    // Now the actor should be detected as recently mentioned
+    expect(wasMentionedRecentlySync(testActorId)).toBe(true);
+  });
+
+  test('wasMentionedRecentlySync works via service singleton', async () => {
+    // Use a unique actor ID to avoid interference with other tests
+    const testActorId = `singleton-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Verify actor is not mentioned initially via singleton
+    expect(playerInfluenceService.wasMentionedRecentlySync(testActorId)).toBe(
+      false
+    );
+
+    // Record a mention via singleton
+    await playerInfluenceService.recordMention(testActorId, new Date());
+
+    // Now the actor should be detected as recently mentioned
+    expect(playerInfluenceService.wasMentionedRecentlySync(testActorId)).toBe(
+      true
+    );
   });
 });
 
