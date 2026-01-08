@@ -17,6 +17,7 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -147,30 +148,36 @@ export class AgentPnLService {
       'AgentPnLService'
     );
 
-    // Broadcast activity to SSE channel for real-time UI updates
-    // This is fire-and-forget - if it fails, the trade is still recorded
-    const activityData: TradeActivityData = {
-      tradeId,
-      marketType,
-      marketId: marketId ?? null,
-      ticker: ticker ?? null,
-      action,
-      side: side ?? null,
-      amount,
-      price,
-      pnl: pnl ?? null,
-      reasoning: reasoning ?? null,
-    };
+    // Broadcast activity to SSE channel for real-time UI updates (only for user agents).
+    // NPCs (system-defined actors from static data files) don't need broadcasting
+    // since they aren't managed by users and won't have SSE subscriptions.
+    const isNpc = !!StaticDataRegistry.getActor(agentId);
 
-    broadcastAgentActivity(agentId, agentName, 'trade', activityData).catch(
-      (error: Error) => {
-        logger.warn(
-          `Failed to broadcast agent activity: ${error.message}`,
-          { agentId, tradeId },
-          'AgentPnLService'
-        );
-      }
-    );
+    if (!isNpc) {
+      // Fire-and-forget - if it fails, the trade is still recorded
+      const activityData: TradeActivityData = {
+        tradeId,
+        marketType,
+        marketId: marketId ?? null,
+        ticker: ticker ?? null,
+        action,
+        side: side ?? null,
+        amount,
+        price,
+        pnl: pnl ?? null,
+        reasoning: reasoning ?? null,
+      };
+
+      broadcastAgentActivity(agentId, agentName, 'trade', activityData).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast agent activity: ${error.message}`,
+            { agentId, tradeId },
+            'AgentPnLService'
+          );
+        }
+      );
+    }
   }
 
   /**
