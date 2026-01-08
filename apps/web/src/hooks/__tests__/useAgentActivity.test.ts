@@ -371,7 +371,9 @@ describe('Activity Merging', () => {
     expect(merged).toHaveLength(20);
   });
 
-  it('should prioritize realtime activities when duplicated', () => {
+  it('should keep first occurrence when IDs collide (realtime before fetched)', () => {
+    // Deduplication uses first-wins semantics - since realtime array is passed
+    // first to the merge function, the realtime entry is preserved
     const now = new Date();
     const realtimeActivity = createActivity('shared-id', 'trade', now);
     const fetchedActivity = createActivity('shared-id', 'trade', now);
@@ -419,6 +421,7 @@ describe('SSE Message Parsing', () => {
           marketType: 'prediction',
           marketId: 'market-1',
           ticker: null,
+          marketQuestion: null,
           action: 'open',
           side: 'yes',
           amount: 100,

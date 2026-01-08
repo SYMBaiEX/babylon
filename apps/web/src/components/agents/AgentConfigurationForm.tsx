@@ -137,9 +137,9 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
                   Autonomous Trading is currently disabled
                 </p>
                 <p className="mt-1 text-blue-300">
-                  It is enabled by default for new agents. When enabled, your
-                  agent will evaluate markets and execute trades. You can see
-                  all trades in the Activity tab and in the "My Moves" section.
+                  Enable the toggle below to allow your agent to evaluate
+                  markets and execute trades. You can see all trades in the
+                  Activity tab and in the "My Moves" section.
                 </p>
               </>
             )}

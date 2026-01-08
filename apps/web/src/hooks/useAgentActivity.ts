@@ -273,8 +273,14 @@ export function useAgentActivity(
         data: AgentActivity['data'];
       };
 
-      // Validate required fields exist
-      if (!activity.type || !activity.agentId || !activity.data) {
+      // Validate required fields exist (including timestamp to prevent Invalid Date)
+      if (
+        !activity.type ||
+        !activity.agentId ||
+        !activity.data ||
+        typeof activity.timestamp !== 'number' ||
+        !Number.isFinite(activity.timestamp)
+      ) {
         console.warn('Malformed SSE activity payload:', message);
         return;
       }
