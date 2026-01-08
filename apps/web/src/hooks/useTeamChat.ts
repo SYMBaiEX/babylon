@@ -190,7 +190,8 @@ export function useTeamChat(): UseTeamChatReturn {
       return;
     }
 
-    const response = await fetch(`/api/chats/${teamChat.chatId}/message`, {
+    // Use dedicated team chat message endpoint for @mention handling
+    const response = await fetch('/api/agents/team-chat/message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
