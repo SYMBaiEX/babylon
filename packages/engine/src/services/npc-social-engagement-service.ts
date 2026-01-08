@@ -132,7 +132,9 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
     const shuffled = [...allActors];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(secureRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
     }
     const sampledActors: ActorContext[] = shuffled
       .slice(0, ACTORS_TO_SAMPLE)

@@ -176,55 +176,55 @@ export class TimeframeArcProcessor {
         );
 
         for (const market of activeMarkets) {
-        try {
-          result.marketsProcessed++;
+          try {
+            result.marketsProcessed++;
 
-          // Check for resolution
-          if (now >= market.endTime) {
-            await this.resolveMarket(market);
-            result.transitionsOccurred++;
-            continue;
-          }
+            // Check for resolution
+            if (now >= market.endTime) {
+              await this.resolveMarket(market);
+              result.transitionsOccurred++;
+              continue;
+            }
 
-          // Check for state transition
-          const transition = await this.checkStateTransition(market, now);
-          if (transition.transitioned) {
-            result.transitionsOccurred++;
-          }
+            // Check for state transition
+            const transition = await this.checkStateTransition(market, now);
+            if (transition.transitioned) {
+              result.transitionsOccurred++;
+            }
 
-          // Check for event generation
-          const event = await this.tryGenerateEvent(market, now);
-          if (event.generated) {
-            result.eventsGenerated++;
+            // Check for event generation
+            const event = await this.tryGenerateEvent(market, now);
+            if (event.generated) {
+              result.eventsGenerated++;
 
-            // Record event trigger for article generation
-            if (event.eventType) {
-              result.eventTriggers.push({
-                marketId: market.id,
-                eventType: event.eventType,
-                timeframe: market.timeframe,
-                arcState: market.arcState,
-              });
+              // Record event trigger for article generation
+              if (event.eventType) {
+                result.eventTriggers.push({
+                  marketId: market.id,
+                  eventType: event.eventType,
+                  timeframe: market.timeframe,
+                  arcState: market.arcState,
+                });
 
-              // Check for sub-market spawning
-              const spawned = await this.trySpawnSubMarket(
-                market,
-                event.eventType
-              );
-              if (spawned) {
-                result.subMarketsSpawned++;
+                // Check for sub-market spawning
+                const spawned = await this.trySpawnSubMarket(
+                  market,
+                  event.eventType
+                );
+                if (spawned) {
+                  result.subMarketsSpawned++;
+                }
               }
             }
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            result.errors.push(`Market ${market.id}: ${msg}`);
+            logger.error(
+              `Error processing market`,
+              { marketId: market.id, error: msg },
+              'TimeframeArcProcessor'
+            );
           }
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          result.errors.push(`Market ${market.id}: ${msg}`);
-          logger.error(
-            `Error processing market`,
-            { marketId: market.id, error: msg },
-            'TimeframeArcProcessor'
-          );
-        }
         }
 
         offset += BATCH_SIZE;

@@ -162,6 +162,14 @@ export async function GET(
     questionsAnalyzed: questions.length,
     totalPosts: posts.length,
     questions: questionData,
+    // Posts not associated with any specific question
+    unassociatedPosts: unassociatedPosts.map((p) => ({
+      id: p.id,
+      content: p.content,
+      authorId: p.authorId,
+      dayNumber: p.dayNumber,
+      sentiment: p.sentiment,
+    })),
 
     // Metadata for training:
     trainingMetadata: {

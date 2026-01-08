@@ -428,7 +428,7 @@ export class MarketMetricsService {
         : oldestPrice;
 
       const priceChangePercent =
-        referencePrice > 0
+        referencePrice != null && referencePrice > 0
           ? ((currentPrice - referencePrice) / referencePrice) * 100
           : 0;
 
