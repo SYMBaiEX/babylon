@@ -1209,10 +1209,9 @@ export async function executeDirectComment(
     'DirectExecutors'
   );
 
-  // Broadcast activity for real-time UI updates
-  // Check if this is an NPC to skip broadcasting for them
-  const commentNpcActor = StaticDataRegistry.getActor(agentUserId);
-  if (!commentNpcActor) {
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  const isNpc = !!StaticDataRegistry.getActor(agentUserId);
+  if (!isNpc) {
     const agentName = await getAgentDisplayName(agentUserId);
     const activityData: CommentActivityData = {
       commentId,
@@ -1443,10 +1442,9 @@ export async function executeDirectMessage(
     'DirectExecutors'
   );
 
-  // Broadcast activity for real-time UI updates
-  // Check if this is an NPC to skip broadcasting for them
-  const messageNpcActor = StaticDataRegistry.getActor(agentUserId);
-  if (!messageNpcActor) {
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  const isNpc = !!StaticDataRegistry.getActor(agentUserId);
+  if (!isNpc) {
     const agentName = await getAgentDisplayName(agentUserId);
     const activityData: MessageActivityData = {
       messageId,
