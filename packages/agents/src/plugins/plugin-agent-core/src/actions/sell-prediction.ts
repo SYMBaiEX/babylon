@@ -209,6 +209,11 @@ export const sellPredictionAction: Action = {
       const proceeds =
         result.calculation.netProceeds ?? result.calculation.netAmount;
 
+      // Calculate realized PnL
+      const avgPrice = Number(position.avgPrice || 0.5);
+      const sellPrice = result.calculation.avgPrice ?? proceeds / sharesToSell;
+      const realizedPnL = (sellPrice - avgPrice) * sharesToSell;
+
       // Record trade for UI/performance tracking
       await agentPnLService.recordTrade({
         agentId: agentUserId,
@@ -220,6 +225,7 @@ export const sellPredictionAction: Action = {
         amount: proceeds,
         price: result.calculation.avgPrice ?? proceeds / sharesToSell,
         reasoning: (state?.data?.thought as string) || 'Chat-initiated sell',
+        pnl: realizedPnL,
       });
 
       logger.info('[SELL_PREDICTION] Trade successful', {

@@ -612,6 +612,7 @@ async function executePredictionSell(params: {
     side: isSellYes ? 'yes' : 'no',
     amount: result.netProceeds,
     price: sellPrice,
+    pnl: realizedPnL,
     reasoning,
   });
 
