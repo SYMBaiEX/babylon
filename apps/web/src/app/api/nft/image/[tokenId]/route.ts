@@ -70,7 +70,12 @@ const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
  */
 const imageCache = new Map<
   number,
-  { buffer: ArrayBuffer; contentType: string; cachedAt: number; byteLength: number }
+  {
+    buffer: ArrayBuffer;
+    contentType: string;
+    cachedAt: number;
+    byteLength: number;
+  }
 >();
 
 /** Tracks total cached bytes for memory budget enforcement */
@@ -108,7 +113,8 @@ function addToCache(
 
   // Evict oldest entries until we have room for the new entry (FIFO)
   while (
-    (imageCache.size >= MAX_CACHE_SIZE || totalCachedBytes + byteLength > MAX_CACHE_BYTES) &&
+    (imageCache.size >= MAX_CACHE_SIZE ||
+      totalCachedBytes + byteLength > MAX_CACHE_BYTES) &&
     imageCache.size > 0
   ) {
     const oldestKey = imageCache.keys().next().value;

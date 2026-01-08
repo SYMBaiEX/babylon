@@ -100,7 +100,7 @@ export async function GET(
 
   // Get all posts from this time period, filtered by related question if available
   const questionNumbers = questions.map((q) => q.questionNumber);
-  
+
   // Handle empty questionNumbers - avoid sending { in: [] } to Prisma
   const posts = await db.post.findMany({
     where: {
