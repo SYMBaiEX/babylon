@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 
+import { broadcastAgentActivity, type TradeActivityData } from '@babylon/api';
 import {
   agentLogs,
   agentTrades,
@@ -66,10 +67,21 @@ export class AgentPnLService {
       reasoning,
     } = params;
 
+    // Generate trade ID before transaction so we can use it for broadcasting
+    const tradeId = uuidv4();
+
+    // Fetch agent name for broadcast (outside transaction for efficiency)
+    const agentResult = await db
+      .select({ displayName: users.displayName })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
+    const agentName = agentResult[0]?.displayName ?? 'Agent';
+
     await withTransaction(async (tx) => {
       // Create trade record
       await tx.insert(agentTrades).values({
-        id: uuidv4(),
+        id: tradeId,
         agentUserId: agentId,
         marketType,
         marketId: marketId ?? null,
@@ -85,14 +97,14 @@ export class AgentPnLService {
       // Update agent P&L if provided
       if (pnl !== undefined && pnl !== null) {
         // Get current lifetimePnL
-        const agentResult = await tx
+        const agentPnLResult = await tx
           .select({ lifetimePnL: users.lifetimePnL })
           .from(users)
           .where(eq(users.id, agentId))
           .limit(1);
 
-        const currentPnL = agentResult[0]?.lifetimePnL
-          ? Number.parseFloat(String(agentResult[0].lifetimePnL))
+        const currentPnL = agentPnLResult[0]?.lifetimePnL
+          ? Number.parseFloat(String(agentPnLResult[0].lifetimePnL))
           : 0;
 
         await tx
@@ -125,6 +137,31 @@ export class AgentPnLService {
       `Trade recorded for agent ${agentId}`,
       undefined,
       'AgentPnLService'
+    );
+
+    // Broadcast activity to SSE channel for real-time UI updates
+    // This is fire-and-forget - if it fails, the trade is still recorded
+    const activityData: TradeActivityData = {
+      tradeId,
+      marketType,
+      marketId: marketId ?? null,
+      ticker: ticker ?? null,
+      action,
+      side: side ?? null,
+      amount,
+      price,
+      pnl: pnl ?? null,
+      reasoning: reasoning ?? null,
+    };
+
+    broadcastAgentActivity(agentId, agentName, 'trade', activityData).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast agent activity: ${error.message}`,
+          { agentId, tradeId },
+          'AgentPnLService'
+        );
+      }
     );
   }
 

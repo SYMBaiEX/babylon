@@ -6,6 +6,12 @@
  * LLM reasoning - these just execute the decided actions.
  */
 
+import {
+  broadcastAgentActivity,
+  type CommentActivityData,
+  type MessageActivityData,
+  type PostActivityData,
+} from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
@@ -44,6 +50,27 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
 import { resolvePerpTicker } from './utils/resolvePerpTicker';
+
+/**
+ * Helper to get agent display name for broadcasting.
+ * For NPCs, uses StaticDataRegistry. For users, queries the database.
+ */
+async function getAgentDisplayName(agentUserId: string): Promise<string> {
+  // Check if NPC first (faster, no DB query)
+  const npcActor = StaticDataRegistry.getActor(agentUserId);
+  if (npcActor) {
+    return npcActor.name;
+  }
+
+  // Query user table for display name
+  const [agent] = await db
+    .select({ displayName: users.displayName })
+    .from(users)
+    .where(eq(users.id, agentUserId))
+    .limit(1);
+
+  return agent?.displayName ?? 'Agent';
+}
 
 const SHARE_LIKE_MAX_INTEGER = 10;
 const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
@@ -1030,6 +1057,25 @@ export async function executeDirectPost(
     'DirectExecutors'
   );
 
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  if (!isNpc) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: PostActivityData = {
+      postId,
+      contentPreview: cleanContent.substring(0, 200),
+    };
+
+    broadcastAgentActivity(agentUserId, agentName, 'post', activityData).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast post activity: ${error.message}`,
+          { agentUserId, postId },
+          'DirectExecutors'
+        );
+      }
+    );
+  }
+
   return {
     success: true,
     postId,
@@ -1159,6 +1205,32 @@ export async function executeDirectComment(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast activity for real-time UI updates
+  // Check if this is an NPC to skip broadcasting for them
+  const commentNpcActor = StaticDataRegistry.getActor(agentUserId);
+  if (!commentNpcActor) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: CommentActivityData = {
+      commentId,
+      postId,
+      contentPreview: cleanContent.substring(0, 200),
+      parentCommentId: parentCommentId ?? null,
+    };
+
+    broadcastAgentActivity(
+      agentUserId,
+      agentName,
+      'comment',
+      activityData
+    ).catch((error: Error) => {
+      logger.warn(
+        `Failed to broadcast comment activity: ${error.message}`,
+        { agentUserId, commentId },
+        'DirectExecutors'
+      );
+    });
+  }
 
   return {
     success: true,
@@ -1367,6 +1439,32 @@ export async function executeDirectMessage(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast activity for real-time UI updates
+  // Check if this is an NPC to skip broadcasting for them
+  const messageNpcActor = StaticDataRegistry.getActor(agentUserId);
+  if (!messageNpcActor) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: MessageActivityData = {
+      messageId,
+      chatId,
+      recipientId: recipientId ?? null,
+      contentPreview: cleanContent.substring(0, 200),
+    };
+
+    broadcastAgentActivity(
+      agentUserId,
+      agentName,
+      'message',
+      activityData
+    ).catch((error: Error) => {
+      logger.warn(
+        `Failed to broadcast message activity: ${error.message}`,
+        { agentUserId, messageId },
+        'DirectExecutors'
+      );
+    });
+  }
 
   return {
     success: true,
