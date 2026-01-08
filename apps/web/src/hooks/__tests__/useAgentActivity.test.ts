@@ -81,14 +81,16 @@ function buildApiUrl(
 
 function extractActivityId(
   activityData: AgentActivity['data'],
-  type: AgentActivity['type'],
-  timestamp: number
+  _type: AgentActivity['type'],
+  timestamp: number,
+  agentId = 'agent-123'
 ): string {
+  // Order matters: check commentId before postId since comments have both fields
   if ('tradeId' in activityData) return activityData.tradeId;
-  if ('postId' in activityData && type === 'post') return activityData.postId;
   if ('commentId' in activityData) return activityData.commentId;
   if ('messageId' in activityData) return activityData.messageId;
-  return `${type}-${timestamp}`;
+  if ('postId' in activityData) return activityData.postId;
+  return `${_type}-${agentId}-${timestamp}`;
 }
 
 function mergeAndDeduplicateActivities(
@@ -250,10 +252,12 @@ describe('Activity ID Extraction', () => {
     // Edge case: data structure that doesn't match expected patterns
     const data = {} as AgentActivity['data'];
     const timestamp = 1234567890;
+    const agentId = 'agent-xyz';
 
-    const id = extractActivityId(data, 'trade', timestamp);
+    const id = extractActivityId(data, 'trade', timestamp, agentId);
 
-    expect(id).toBe('trade-1234567890');
+    // Fallback includes agentId to reduce collisions within same millisecond
+    expect(id).toBe('trade-agent-xyz-1234567890');
   });
 });
 

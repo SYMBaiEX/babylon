@@ -220,18 +220,26 @@ export function useAgentActivity(
         type: AgentActivity['type'];
         agentId: string;
         agentName: string;
+        profileImageUrl?: string | null;
         timestamp: number;
         data: AgentActivity['data'];
       };
 
-      // Extract ID from activity data based on type
+      // Validate required fields exist
+      if (!activity.type || !activity.agentId || !activity.data) {
+        console.warn('Malformed SSE activity payload:', message);
+        return;
+      }
+
+      // Extract ID from activity data based on type.
+      // Order matters: check commentId before postId since comments have both.
       const activityData = activity.data;
       const activityId =
         ('tradeId' in activityData && activityData.tradeId) ||
-        ('postId' in activityData && activityData.postId) ||
         ('commentId' in activityData && activityData.commentId) ||
         ('messageId' in activityData && activityData.messageId) ||
-        `${activity.type}-${activity.timestamp}`;
+        ('postId' in activityData && activityData.postId) ||
+        `${activity.type}-${activity.agentId}-${activity.timestamp}`;
 
       // Skip duplicates
       if (seenActivityIds.current.has(activityId)) {
@@ -253,7 +261,7 @@ export function useAgentActivity(
         agent: {
           id: activity.agentId,
           name: activity.agentName,
-          profileImageUrl: null,
+          profileImageUrl: activity.profileImageUrl ?? null,
         },
         data: activity.data,
       };
