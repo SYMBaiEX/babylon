@@ -76,6 +76,14 @@ export class AgentPnLService {
       .from(users)
       .where(eq(users.id, agentId))
       .limit(1);
+
+    if (!agentResult[0]) {
+      logger.warn(
+        `Agent ${agentId} not found in database when recording trade - broadcast will use fallback name`,
+        undefined,
+        'AgentPnLService'
+      );
+    }
     const agentName = agentResult[0]?.displayName ?? 'Agent';
 
     await withTransaction(async (tx) => {
