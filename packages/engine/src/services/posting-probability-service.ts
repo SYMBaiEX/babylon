@@ -56,23 +56,23 @@ export interface PostingContext {
 /**
  * SIMPLIFIED: Equal base probability for all tiers.
  * All NPCs have equal chance to post - creates natural entropy.
- * Reduced from 0.5 to encourage more action variety.
+ * Reduced from 0.25 to dial down posting frequency.
  */
-const BASE_PROBABILITY = 0.25;
+const BASE_PROBABILITY = 0.15;
 
 /**
  * Maximum posts per day per NPC to prevent spam.
  * Same for all tiers - fair rotation.
- * Reduced from 4 to limit feed saturation.
+ * Reduced from 3 to limit feed saturation.
  */
-const MAX_POSTS_PER_DAY = 3;
+const MAX_POSTS_PER_DAY = 2;
 
 /**
  * Minimum hours between posts for same NPC.
  * Prevents same NPC posting multiple times per tick.
- * Increased from 1 to spread posts out more.
+ * Increased from 2 to spread posts out more.
  */
-const MIN_HOURS_BETWEEN_POSTS = 2;
+const MIN_HOURS_BETWEEN_POSTS = 4;
 
 /**
  * Boost when actor was mentioned by player (keeps engagement reactive)
