@@ -1,0 +1,34 @@
+/**
+ * NFT Image Proxy Utilities
+ *
+ * Shared utilities for NFT image handling, extracted for reusability and testability.
+ */
+
+/**
+ * Validates that a URL is from a trusted GitHub domain.
+ * Accepts githubusercontent.com and github.com hostnames.
+ *
+ * @param url - The URL to validate (accepts unknown for type guard usage)
+ * @returns True if the URL is a valid GitHub URL, false otherwise
+ *
+ * @example
+ * ```ts
+ * isValidGitHubUrl('https://raw.githubusercontent.com/user/repo/main/image.png') // true
+ * isValidGitHubUrl('https://github.com/user/repo') // true
+ * isValidGitHubUrl('https://evil.com/malicious') // false
+ * isValidGitHubUrl(null) // false
+ * ```
+ */
+export function isValidGitHubUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    return (
+      hostname.endsWith('githubusercontent.com') ||
+      hostname.endsWith('github.com')
+    );
+  } catch {
+    return false;
+  }
+}

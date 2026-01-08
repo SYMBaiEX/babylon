@@ -18,6 +18,7 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { isValidGitHubUrl } from '../utils';
 
 const GITHUB_REPO = 'BabylonSocial/ProductManagementDocumentation';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -217,20 +218,6 @@ export async function GET(
     const downloadUrl = metadata.download_url;
 
     // Validate download URL exists and is from a trusted GitHub domain
-    const isValidGitHubUrl = (url: unknown): url is string => {
-      if (typeof url !== 'string') return false;
-      try {
-        const parsed = new URL(url);
-        const hostname = parsed.hostname.toLowerCase();
-        return (
-          hostname.endsWith('githubusercontent.com') ||
-          hostname.endsWith('github.com')
-        );
-      } catch {
-        return false;
-      }
-    };
-
     if (!downloadUrl) {
       logger.warn(
         `No download URL for NFT image #${tokenId}`,
