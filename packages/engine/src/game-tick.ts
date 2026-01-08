@@ -70,6 +70,7 @@ import {
   characterMappingService,
   createArcState,
   createParodyHeadlineGenerator,
+  FollowingMechanics,
   generateArcPulseEventsIfNeeded,
   generateArticleImageWithRetry,
   generateEvents,
@@ -128,6 +129,8 @@ export interface GameTickResult {
   npcSharesCreated?: number;
   npcCommentsCreated?: number;
   npcSocialActionsProcessed?: number;
+  npcFollowsCreated?: number;
+  npcUnfollows?: number;
   npcRebalanceActionsExecuted?: number;
   reputationSyncStats?: {
     total: number;
@@ -811,6 +814,39 @@ export async function executeGameTick(
     } catch (error) {
       logger.error(
         'NPC social actions failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC FOLLOWING (proactive follows and unfollow checks)
+  // NPCs follow active players and unfollow inactive ones
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      // Process proactive following of active players
+      const followResult = await FollowingMechanics.processProactiveFollowing();
+      result.npcFollowsCreated = followResult.followsCreated;
+
+      if (followResult.followsCreated > 0) {
+        logger.info(
+          'NPC proactive follows processed',
+          {
+            followsCreated: followResult.followsCreated,
+            playersConsidered: followResult.playersConsidered,
+          },
+          'GameTick'
+        );
+      }
+
+      // Process unfollow checks (runs probabilistically)
+      const unfollowCount = await FollowingMechanics.processUnfollowChecks();
+      result.npcUnfollows = unfollowCount;
+    } catch (error) {
+      logger.error(
+        'NPC following failed',
         { error: error instanceof Error ? error.message : String(error) },
         'GameTick'
       );

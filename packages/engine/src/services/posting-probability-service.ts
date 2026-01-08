@@ -17,6 +17,7 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { type ActorTier } from '@babylon/shared';
+import { NPC_POSTING_CONFIG } from '../config/npc-activity';
 import { secureRandom } from '../utils/entropy';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -52,38 +53,6 @@ export interface PostingContext {
     affectedStocks?: string[];
   }>;
 }
-
-/**
- * SIMPLIFIED: Equal base probability for all tiers.
- * All NPCs have equal chance to post - creates natural entropy.
- * Reduced from 0.5 to encourage more action variety.
- */
-const BASE_PROBABILITY = 0.25;
-
-/**
- * Maximum posts per day per NPC to prevent spam.
- * Same for all tiers - fair rotation.
- * Reduced from 4 to limit feed saturation.
- */
-const MAX_POSTS_PER_DAY = 3;
-
-/**
- * Minimum hours between posts for same NPC.
- * Prevents same NPC posting multiple times per tick.
- * Increased from 1 to spread posts out more.
- */
-const MIN_HOURS_BETWEEN_POSTS = 2;
-
-/**
- * Boost when actor was mentioned by player (keeps engagement reactive)
- */
-const MENTION_BOOST = 1.5;
-
-/**
- * Boost when actor is affiliated with an active event
- * (e.g., their org's stock is being affected by narrative events)
- */
-const AFFILIATION_BOOST = 1.5;
 
 /**
  * Development mode cache invalidation.
@@ -234,7 +203,7 @@ export function calculatePostingProbability(
   const postsToday = state?.postsToday ?? 0;
 
   // Daily cap check - prevent any single NPC from dominating
-  if (postsToday >= MAX_POSTS_PER_DAY) {
+  if (postsToday >= NPC_POSTING_CONFIG.maxPostsPerDay) {
     return 0;
   }
 
@@ -244,22 +213,22 @@ export function calculatePostingProbability(
     const hoursSinceLastPost =
       (context.currentTime.getTime() - state.lastPostAt.getTime()) /
       (1000 * 60 * 60);
-    if (hoursSinceLastPost < MIN_HOURS_BETWEEN_POSTS) {
+    if (hoursSinceLastPost < NPC_POSTING_CONFIG.minHoursBetweenPosts) {
       return 0; // Posted too recently
     }
   }
 
   // Base probability - equal for all
-  let prob = BASE_PROBABILITY;
+  let prob = NPC_POSTING_CONFIG.baseProbability;
 
   // Mention boost - keep this for player engagement reactivity
   if (context.recentlyMentionedActorIds.includes(actor.id)) {
-    prob *= MENTION_BOOST;
+    prob *= NPC_POSTING_CONFIG.mentionBoost;
   }
 
   // Affiliation boost - NPCs related to active events are more likely to post
   if (hasAffiliatedEvent(actor, context)) {
-    prob *= AFFILIATION_BOOST;
+    prob *= NPC_POSTING_CONFIG.affiliationBoost;
   }
 
   return Math.min(prob, 1.0);

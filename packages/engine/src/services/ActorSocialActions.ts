@@ -18,6 +18,7 @@ import {
   userInteractions,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { NPC_SOCIAL_ACTIONS_CONFIG } from '../config/npc-activity';
 import { GroupChatService } from './group-chat-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -31,12 +32,6 @@ export interface SocialAction {
 }
 
 export class ActorSocialActions {
-  // Probability thresholds
-  private static readonly BASE_INVITE_PROBABILITY = 0.05; // 5% base chance per check
-  private static readonly BASE_DM_PROBABILITY = 0.03; // 3% base chance per check
-  private static readonly MIN_INTERACTIONS_FOR_ACTION = 2; // Minimum interactions needed
-  private static readonly MIN_INTERACTION_QUALITY = 0.6; // Minimum average quality
-
   /**
    * Process random social actions for actors
    * Called periodically to randomly invite users or send DMs
@@ -93,7 +88,8 @@ export class ActorSocialActions {
       for (const { userId, interactions } of actorInteractions) {
         if (
           !userId ||
-          interactions.length < ActorSocialActions.MIN_INTERACTIONS_FOR_ACTION
+          interactions.length <
+            NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction
         ) {
           continue;
         }
@@ -101,7 +97,7 @@ export class ActorSocialActions {
         const avgQuality =
           interactions.reduce((sum, i) => sum + i.qualityScore, 0) /
           interactions.length;
-        if (avgQuality < ActorSocialActions.MIN_INTERACTION_QUALITY) {
+        if (avgQuality < NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality) {
           continue;
         }
 
@@ -157,20 +153,23 @@ export class ActorSocialActions {
 
         // Calculate probabilities based on interaction quality and count
         const qualityFactor = Math.min(
-          avgQuality / ActorSocialActions.MIN_INTERACTION_QUALITY,
+          avgQuality / NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality,
           1.5
         );
         const countFactor = Math.min(
-          interactions.length / ActorSocialActions.MIN_INTERACTIONS_FOR_ACTION,
+          interactions.length /
+            NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction,
           2.0
         );
 
         const inviteProbability =
-          ActorSocialActions.BASE_INVITE_PROBABILITY *
+          NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
           qualityFactor *
           countFactor;
         const dmProbability =
-          ActorSocialActions.BASE_DM_PROBABILITY * qualityFactor * countFactor;
+          NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
+          qualityFactor *
+          countFactor;
 
         if (!userId) throw new Error('User ID is required');
         if (!actor.id) throw new Error('Actor ID is required');

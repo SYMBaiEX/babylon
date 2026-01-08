@@ -1650,6 +1650,8 @@ ${prompt}`
         'open_short',
         'buy_yes',
         'buy_no',
+        'sell_yes',
+        'sell_no',
         'close_position',
         'hold',
       ];
@@ -1899,8 +1901,13 @@ ${prompt}`
         }
       }
 
-      // Validate prediction actions
-      if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
+      // Validate prediction actions (buy and sell)
+      if (
+        decision.action === 'buy_yes' ||
+        decision.action === 'buy_no' ||
+        decision.action === 'sell_yes' ||
+        decision.action === 'sell_no'
+      ) {
         if (decision.marketType !== 'prediction') {
           const errorMsg = `Prediction action with non-prediction market type for ${decision.npcName}`;
           logger.warn(errorMsg, {}, 'MarketDecisionEngine');

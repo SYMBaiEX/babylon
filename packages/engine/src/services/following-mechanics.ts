@@ -14,13 +14,21 @@
 
 import {
   and,
+  count,
   db,
   desc,
   eq,
   followStatuses,
+  gte,
+  posts,
+  reactions,
   userInteractions,
+  users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { NPC_FOLLOWING_CONFIG } from '../config/npc-activity';
+import { secureRandom } from '../utils/entropy';
+import { StaticDataRegistry } from './static-data-registry';
 // Notification handled by API layer - engine doesn't depend on api
 
 export interface FollowingChance {
@@ -333,5 +341,233 @@ export class FollowingMechanics {
     }
 
     return false;
+  }
+
+  /**
+   * Process proactive NPC following of active players.
+   * NPCs will follow players who are actively engaging with the game.
+   *
+   * Called periodically from the game tick.
+   *
+   * @returns Number of new follows created
+   */
+  static async processProactiveFollowing(): Promise<{
+    followsCreated: number;
+    playersConsidered: number;
+  }> {
+    const result = {
+      followsCreated: 0,
+      playersConsidered: 0,
+    };
+
+    try {
+      // Get active players (users who have posted in last 7 days)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const activePlayers = await db
+        .select({
+          userId: users.id,
+          username: users.username,
+          postCount: count(posts.id),
+        })
+        .from(users)
+        .leftJoin(posts, eq(posts.authorId, users.id))
+        .where(gte(posts.timestamp, sevenDaysAgo))
+        .groupBy(users.id, users.username)
+        .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
+        .limit(50);
+
+      result.playersConsidered = activePlayers.length;
+
+      if (activePlayers.length === 0) {
+        return result;
+      }
+
+      // Get all NPCs
+      const allNpcs = StaticDataRegistry.getAllActors();
+      if (allNpcs.length === 0) {
+        return result;
+      }
+
+      // Track follows per player this tick
+      const followsPerPlayer = new Map<string, number>();
+
+      for (const player of activePlayers) {
+        if (result.followsCreated >= NPC_FOLLOWING_CONFIG.maxFollowsPerTick) {
+          break;
+        }
+
+        const playerFollows = followsPerPlayer.get(player.userId) ?? 0;
+        if (playerFollows >= NPC_FOLLOWING_CONFIG.maxFollowsPerPlayerPerTick) {
+          continue;
+        }
+
+        // Get NPCs not already following this player
+        const existingFollows = await db
+          .select({ npcId: followStatuses.npcId })
+          .from(followStatuses)
+          .where(
+            and(
+              eq(followStatuses.userId, player.userId),
+              eq(followStatuses.isActive, true)
+            )
+          );
+
+        const followingNpcIds = new Set(existingFollows.map((f) => f.npcId));
+        const eligibleNpcs = allNpcs.filter(
+          (npc) => !followingNpcIds.has(npc.id)
+        );
+
+        if (eligibleNpcs.length === 0) {
+          continue;
+        }
+
+        // Randomly select NPCs to potentially follow
+        for (const npc of eligibleNpcs) {
+          if (result.followsCreated >= NPC_FOLLOWING_CONFIG.maxFollowsPerTick) {
+            break;
+          }
+
+          const currentPlayerFollows = followsPerPlayer.get(player.userId) ?? 0;
+          if (
+            currentPlayerFollows >=
+            NPC_FOLLOWING_CONFIG.maxFollowsPerPlayerPerTick
+          ) {
+            break;
+          }
+
+          // Probability check
+          if (
+            secureRandom() > NPC_FOLLOWING_CONFIG.proactiveFollowProbability
+          ) {
+            continue;
+          }
+
+          // Check affiliation boost - NPCs more likely to follow players posting about their org
+          let probabilityBoost = 1.0;
+          if (npc.affiliations && npc.affiliations.length > 0) {
+            // Check if player has engaged with content related to NPC's org
+            const orgEngagement = await db
+              .select({ count: count(reactions.id) })
+              .from(reactions)
+              .innerJoin(posts, eq(posts.id, reactions.postId))
+              .where(
+                and(
+                  eq(reactions.userId, player.userId),
+                  eq(posts.authorId, npc.id)
+                )
+              );
+
+            if (orgEngagement[0]?.count && orgEngagement[0].count > 0) {
+              probabilityBoost = 2.0; // Double chance if player engages with NPC's content
+            }
+          }
+
+          // Final probability check with boost
+          if (
+            secureRandom() >
+            NPC_FOLLOWING_CONFIG.proactiveFollowProbability * probabilityBoost
+          ) {
+            continue;
+          }
+
+          // Create the follow
+          try {
+            await FollowingMechanics.recordFollow(
+              player.userId,
+              npc.id,
+              `Proactive follow: ${player.username} is an active player`
+            );
+
+            result.followsCreated++;
+            followsPerPlayer.set(player.userId, currentPlayerFollows + 1);
+
+            logger.info(
+              `NPC ${npc.name} proactively followed player ${player.username}`,
+              { npcId: npc.id, userId: player.userId },
+              'FollowingMechanics'
+            );
+          } catch (followError) {
+            logger.warn(
+              'Failed to create proactive follow',
+              {
+                npcId: npc.id,
+                userId: player.userId,
+                error:
+                  followError instanceof Error
+                    ? followError.message
+                    : String(followError),
+              },
+              'FollowingMechanics'
+            );
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(
+        'Error in proactive following',
+        { error: error instanceof Error ? error.message : String(error) },
+        'FollowingMechanics'
+      );
+      return result;
+    }
+  }
+
+  /**
+   * Process unfollow checks for inactive players.
+   *
+   * @returns Number of unfollows processed
+   */
+  static async processUnfollowChecks(): Promise<number> {
+    // Only run occasionally
+    if (secureRandom() > NPC_FOLLOWING_CONFIG.unfollowCheckProbability) {
+      return 0;
+    }
+
+    let unfollowCount = 0;
+
+    try {
+      // Get all active follows
+      const activeFollows = await db
+        .select()
+        .from(followStatuses)
+        .where(eq(followStatuses.isActive, true))
+        .limit(50);
+
+      for (const follow of activeFollows) {
+        const shouldUnfollow = await FollowingMechanics.shouldUnfollow(
+          follow.userId,
+          follow.npcId
+        );
+
+        if (shouldUnfollow) {
+          await FollowingMechanics.unfollow(
+            follow.userId,
+            follow.npcId,
+            'Quality dropped or inactivity'
+          );
+          unfollowCount++;
+        }
+      }
+
+      if (unfollowCount > 0) {
+        logger.info(
+          `Processed ${unfollowCount} unfollows due to inactivity/quality`,
+          {},
+          'FollowingMechanics'
+        );
+      }
+
+      return unfollowCount;
+    } catch (error) {
+      logger.error(
+        'Error in unfollow checks',
+        { error: error instanceof Error ? error.message : String(error) },
+        'FollowingMechanics'
+      );
+      return unfollowCount;
+    }
   }
 }

@@ -1,0 +1,674 @@
+/**
+ * NPC Activity Configuration
+ *
+ * Centralized configuration for all NPC activity rates and probabilities.
+ * All values can be overridden via environment variables for easy tuning
+ * without code changes.
+ *
+ * @module engine/config/npc-activity
+ *
+ * @description
+ * This configuration controls how active NPCs are across all game systems:
+ * - Posting frequency and limits
+ * - Social engagement (likes, shares, comments)
+ * - Social actions (DMs, group invites)
+ * - Group dynamics (forming, joining, leaving groups)
+ * - Content pacing and timing
+ *
+ * **Environment Variable Naming Convention:**
+ * All env vars are prefixed with `NPC_` and use SCREAMING_SNAKE_CASE.
+ *
+ * @example
+ * ```bash
+ * # Increase NPC posting activity
+ * NPC_POST_PROBABILITY=0.45
+ * NPC_MAX_POSTS_PER_DAY=8
+ *
+ * # Increase social engagement
+ * NPC_LIKE_PROBABILITY=0.15
+ * NPC_SHARE_PROBABILITY=0.04
+ *
+ * # Process more NPCs per tick
+ * NPC_TICK_BATCH_SIZE=8
+ * ```
+ */
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Parse an environment variable as a number with a default fallback.
+ * Returns the default if the env var is not set or not a valid number.
+ */
+function envNumber(key: string, defaultValue: number): number {
+  const value = process.env[key];
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+
+// =============================================================================
+// POSTING CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC posting behavior.
+ *
+ * Controls how often NPCs create new posts on the feed.
+ */
+export const NPC_POSTING_CONFIG = {
+  /**
+   * Base probability for an NPC to post (0.0 - 1.0).
+   * All NPCs have equal chance - creates natural entropy.
+   * INTENTIONALLY LOW: NPCs should focus on engagement over posting.
+   *
+   * @default 0.15 (15% base, after boosts max ~20%)
+   * @env NPC_POST_PROBABILITY
+   */
+  baseProbability: envNumber('NPC_POST_PROBABILITY', 0.15),
+
+  /**
+   * Maximum posts per day per NPC to prevent spam.
+   * Same for all tiers - fair rotation.
+   *
+   * @default 2 (low - NPCs should engage more than post)
+   * @env NPC_MAX_POSTS_PER_DAY
+   */
+  maxPostsPerDay: envNumber('NPC_MAX_POSTS_PER_DAY', 2),
+
+  /**
+   * Minimum hours between posts for the same NPC.
+   * Prevents same NPC posting multiple times per tick.
+   *
+   * @default 3 (spread posts out more)
+   * @env NPC_MIN_HOURS_BETWEEN_POSTS
+   */
+  minHoursBetweenPosts: envNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
+
+  /**
+   * Boost multiplier when actor was mentioned by a player.
+   * Keeps engagement reactive to player actions.
+   *
+   * @default 1.3 (modest boost)
+   * @env NPC_MENTION_BOOST
+   */
+  mentionBoost: envNumber('NPC_MENTION_BOOST', 1.3),
+
+  /**
+   * Boost multiplier when actor is affiliated with an active event.
+   *
+   * @default 1.2 (modest boost)
+   * @env NPC_AFFILIATION_BOOST
+   */
+  affiliationBoost: envNumber('NPC_AFFILIATION_BOOST', 1.2),
+} as const;
+
+// =============================================================================
+// SOCIAL ENGAGEMENT CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC social engagement (likes, shares, comments).
+ *
+ * Controls how NPCs interact with existing posts on the feed.
+ */
+export const NPC_ENGAGEMENT_CONFIG = {
+  /**
+   * Base probability for an NPC to like a post (0.0 - 1.0).
+   * HIGHER than posting - NPCs should engage more than create.
+   *
+   * @default 0.12 (doubled from original)
+   * @env NPC_LIKE_PROBABILITY
+   */
+  baseLikeProbability: envNumber('NPC_LIKE_PROBABILITY', 0.12),
+
+  /**
+   * Base probability for an NPC to share/repost (0.0 - 1.0).
+   *
+   * @default 0.03 (doubled from original)
+   * @env NPC_SHARE_PROBABILITY
+   */
+  baseShareProbability: envNumber('NPC_SHARE_PROBABILITY', 0.03),
+
+  /**
+   * Base probability for an NPC to comment (0.0 - 1.0).
+   *
+   * @default 0.02 (increased - comments are valuable engagement)
+   * @env NPC_COMMENT_PROBABILITY
+   */
+  baseCommentProbability: envNumber('NPC_COMMENT_PROBABILITY', 0.02),
+
+  /**
+   * Boost multiplier when NPC shares an org affiliation with post author.
+   *
+   * @default 2.0 (increased for more org-based engagement)
+   * @env NPC_ENGAGEMENT_AFFILIATION_BOOST
+   */
+  affiliationBoost: envNumber('NPC_ENGAGEMENT_AFFILIATION_BOOST', 2.0),
+
+  /**
+   * Boost multiplier for article-type posts (higher quality content).
+   *
+   * @default 1.8 (increased - encourage engagement with quality content)
+   * @env NPC_ENGAGEMENT_ARTICLE_BOOST
+   */
+  articleBoost: envNumber('NPC_ENGAGEMENT_ARTICLE_BOOST', 1.8),
+
+  /**
+   * Maximum likes across all NPCs per tick.
+   *
+   * @default 20 (increased for more engagement)
+   * @env NPC_MAX_LIKES_PER_TICK
+   */
+  maxLikesPerTick: envNumber('NPC_MAX_LIKES_PER_TICK', 20),
+
+  /**
+   * Maximum shares across all NPCs per tick.
+   *
+   * @default 8 (doubled for more reposting)
+   * @env NPC_MAX_SHARES_PER_TICK
+   */
+  maxSharesPerTick: envNumber('NPC_MAX_SHARES_PER_TICK', 8),
+
+  /**
+   * Maximum comments across all NPCs per tick.
+   *
+   * @default 6 (doubled for more conversation)
+   * @env NPC_MAX_COMMENTS_PER_TICK
+   */
+  maxCommentsPerTick: envNumber('NPC_MAX_COMMENTS_PER_TICK', 6),
+
+  /**
+   * Number of NPCs to sample for engagement each tick.
+   *
+   * @default 20 (increased for broader engagement)
+   * @env NPC_ENGAGEMENT_ACTORS_TO_SAMPLE
+   */
+  actorsToSample: envNumber('NPC_ENGAGEMENT_ACTORS_TO_SAMPLE', 20),
+
+  /**
+   * Number of recent posts to consider for engagement.
+   *
+   * @default 40 (increased for more engagement opportunities)
+   * @env NPC_ENGAGEMENT_POSTS_TO_CONSIDER
+   */
+  postsToConsider: envNumber('NPC_ENGAGEMENT_POSTS_TO_CONSIDER', 40),
+} as const;
+
+// =============================================================================
+// SOCIAL ACTIONS CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC social actions (DMs, group invites).
+ *
+ * Controls how NPCs initiate direct interactions with players.
+ */
+export const NPC_SOCIAL_ACTIONS_CONFIG = {
+  /**
+   * Base probability for an NPC to invite a user to a group chat.
+   *
+   * @default 0.08 (increased for more player engagement)
+   * @env NPC_GROUP_INVITE_PROBABILITY
+   */
+  baseInviteProbability: envNumber('NPC_GROUP_INVITE_PROBABILITY', 0.08),
+
+  /**
+   * Base probability for an NPC to send a direct message.
+   *
+   * @default 0.05 (increased for more player engagement)
+   * @env NPC_DM_PROBABILITY
+   */
+  baseDmProbability: envNumber('NPC_DM_PROBABILITY', 0.05),
+
+  /**
+   * Minimum number of prior interactions needed before social action.
+   *
+   * @default 1 (lowered - engage players more readily)
+   * @env NPC_MIN_INTERACTIONS_FOR_ACTION
+   */
+  minInteractionsForAction: envNumber('NPC_MIN_INTERACTIONS_FOR_ACTION', 1),
+
+  /**
+   * Minimum average interaction quality score needed (0.0 - 1.0).
+   *
+   * @default 0.5 (lowered - be more inclusive)
+   * @env NPC_MIN_INTERACTION_QUALITY
+   */
+  minInteractionQuality: envNumber('NPC_MIN_INTERACTION_QUALITY', 0.5),
+} as const;
+
+// =============================================================================
+// GROUP DYNAMICS CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC group dynamics (forming, joining, leaving groups).
+ *
+ * Controls how NPCs interact with group chats.
+ */
+export const NPC_GROUP_DYNAMICS_CONFIG = {
+  /**
+   * Probability for an eligible NPC to form a new group.
+   *
+   * @default 0.06 (modest increase)
+   * @env NPC_FORM_GROUP_PROBABILITY
+   */
+  formGroupProbability: envNumber('NPC_FORM_GROUP_PROBABILITY', 0.06),
+
+  /**
+   * Probability for an eligible NPC to join an existing group.
+   *
+   * @default 0.12 (increased for more group activity)
+   * @env NPC_JOIN_GROUP_PROBABILITY
+   */
+  joinGroupProbability: envNumber('NPC_JOIN_GROUP_PROBABILITY', 0.12),
+
+  /**
+   * Probability for an NPC to leave a group per membership per tick.
+   *
+   * @default 0.02 (unchanged - churn should be low)
+   * @env NPC_LEAVE_GROUP_PROBABILITY
+   */
+  leaveGroupProbability: envNumber('NPC_LEAVE_GROUP_PROBABILITY', 0.02),
+
+  /**
+   * Probability for an NPC to invite a user to their group.
+   *
+   * @default 0.10 (increased to bring players into groups)
+   * @env NPC_USER_INVITE_PROBABILITY
+   */
+  inviteUserProbability: envNumber('NPC_USER_INVITE_PROBABILITY', 0.1),
+
+  /**
+   * Probability to check for kicks each tick.
+   *
+   * @default 0.15 (unchanged)
+   * @env NPC_KICK_CHECK_PROBABILITY
+   */
+  kickCheckProbability: envNumber('NPC_KICK_CHECK_PROBABILITY', 0.15),
+
+  /**
+   * Minimum group size before NPCs start leaving.
+   *
+   * @default 3
+   * @env NPC_MIN_GROUP_SIZE
+   */
+  minGroupSize: envNumber('NPC_MIN_GROUP_SIZE', 3),
+
+  /**
+   * Maximum group size before NPCs stop joining.
+   *
+   * @default 12
+   * @env NPC_MAX_GROUP_SIZE
+   */
+  maxGroupSize: envNumber('NPC_MAX_GROUP_SIZE', 12),
+
+  /**
+   * Ideal group size (influences join/leave decisions).
+   *
+   * @default 7
+   * @env NPC_IDEAL_GROUP_SIZE
+   */
+  idealGroupSize: envNumber('NPC_IDEAL_GROUP_SIZE', 7),
+} as const;
+
+// =============================================================================
+// CONTENT PACING CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for content pacing (timing and rate of content generation).
+ *
+ * Controls how content is distributed over time.
+ */
+export const NPC_CONTENT_PACING_CONFIG = {
+  /**
+   * Activity multiplier during peak hours (9am-9pm).
+   *
+   * @default 1.0
+   * @env NPC_PEAK_HOURS_MULTIPLIER
+   */
+  peakHoursMultiplier: envNumber('NPC_PEAK_HOURS_MULTIPLIER', 1.0),
+
+  /**
+   * Activity multiplier during off-peak hours (9pm-9am).
+   *
+   * @default 0.4 (increased - some global audience is awake)
+   * @env NPC_OFF_PEAK_MULTIPLIER
+   */
+  offPeakMultiplier: envNumber('NPC_OFF_PEAK_MULTIPLIER', 0.4),
+
+  /**
+   * Maximum posts any single actor can make in 24 hours.
+   *
+   * @default 3 (lowered - NPCs should engage more than post)
+   * @env NPC_CONTENT_MAX_POSTS_PER_ACTOR_PER_DAY
+   */
+  maxPostsPerActorPerDay: envNumber(
+    'NPC_CONTENT_MAX_POSTS_PER_ACTOR_PER_DAY',
+    3
+  ),
+
+  /**
+   * Minimum time in minutes between posts from the same actor.
+   *
+   * @default 45 (increased - spread posts out more)
+   * @env NPC_MIN_MINUTES_BETWEEN_POSTS
+   */
+  minMinutesBetweenPosts: envNumber('NPC_MIN_MINUTES_BETWEEN_POSTS', 45),
+
+  /**
+   * Maximum posts to generate across all actors in a single tick.
+   *
+   * @default 3 (lowered - fewer posts per tick)
+   * @env NPC_MAX_POSTS_PER_TICK
+   */
+  maxPostsPerTick: envNumber('NPC_MAX_POSTS_PER_TICK', 3),
+
+  /**
+   * Target number of posts per hour across all actors.
+   *
+   * @default 8 (lowered - focus on quality over quantity)
+   * @env NPC_TARGET_POSTS_PER_HOUR
+   */
+  targetPostsPerHour: envNumber('NPC_TARGET_POSTS_PER_HOUR', 8),
+
+  /**
+   * Start hour for peak activity (0-23).
+   *
+   * @default 9
+   * @env NPC_PEAK_HOUR_START
+   */
+  peakHourStart: envNumber('NPC_PEAK_HOUR_START', 9),
+
+  /**
+   * End hour for peak activity (0-23).
+   *
+   * @default 21
+   * @env NPC_PEAK_HOUR_END
+   */
+  peakHourEnd: envNumber('NPC_PEAK_HOUR_END', 21),
+} as const;
+
+// =============================================================================
+// FOLLOWING CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC following behavior.
+ *
+ * Controls how NPCs follow/unfollow players and each other.
+ */
+export const NPC_FOLLOWING_CONFIG = {
+  /**
+   * Base probability for an NPC to proactively follow an active player.
+   * Checked per active player per tick.
+   *
+   * @default 0.03 (3% chance per player per tick)
+   * @env NPC_PROACTIVE_FOLLOW_PROBABILITY
+   */
+  proactiveFollowProbability: envNumber(
+    'NPC_PROACTIVE_FOLLOW_PROBABILITY',
+    0.03
+  ),
+
+  /**
+   * Minimum posts by a player before NPCs consider following them.
+   *
+   * @default 3
+   * @env NPC_MIN_POSTS_TO_FOLLOW
+   */
+  minPostsToFollow: envNumber('NPC_MIN_POSTS_TO_FOLLOW', 3),
+
+  /**
+   * Minimum engagement score for a player to be follow-worthy.
+   * Calculated from likes, comments, and trading activity.
+   *
+   * @default 5 (accumulated engagement points)
+   * @env NPC_MIN_ENGAGEMENT_TO_FOLLOW
+   */
+  minEngagementToFollow: envNumber('NPC_MIN_ENGAGEMENT_TO_FOLLOW', 5),
+
+  /**
+   * Maximum NPCs that can follow a player per tick.
+   * Prevents sudden follower floods.
+   *
+   * @default 2
+   * @env NPC_MAX_FOLLOWS_PER_PLAYER_PER_TICK
+   */
+  maxFollowsPerPlayerPerTick: envNumber(
+    'NPC_MAX_FOLLOWS_PER_PLAYER_PER_TICK',
+    2
+  ),
+
+  /**
+   * Maximum total follows across all NPCs per tick.
+   *
+   * @default 5
+   * @env NPC_MAX_FOLLOWS_PER_TICK
+   */
+  maxFollowsPerTick: envNumber('NPC_MAX_FOLLOWS_PER_TICK', 5),
+
+  /**
+   * Probability to check for unfollows each tick.
+   *
+   * @default 0.05 (5% chance to check)
+   * @env NPC_UNFOLLOW_CHECK_PROBABILITY
+   */
+  unfollowCheckProbability: envNumber('NPC_UNFOLLOW_CHECK_PROBABILITY', 0.05),
+
+  /**
+   * Days of inactivity before considering unfollow.
+   *
+   * @default 7
+   * @env NPC_DAYS_BEFORE_UNFOLLOW
+   */
+  daysBeforeUnfollow: envNumber('NPC_DAYS_BEFORE_UNFOLLOW', 7),
+} as const;
+
+// =============================================================================
+// TICK PROCESSING CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC tick processing.
+ *
+ * Controls how many NPCs are processed per tick and rate limiting.
+ */
+export const NPC_TICK_CONFIG = {
+  /**
+   * Number of NPCs to process per tick.
+   *
+   * @default 3
+   * @env NPC_TICK_BATCH_SIZE
+   */
+  batchSize: envNumber('NPC_TICK_BATCH_SIZE', 3),
+
+  /**
+   * Maximum consecutive errors before aborting tick (circuit breaker).
+   *
+   * @default 5
+   * @env NPC_TICK_MAX_ERRORS
+   */
+  maxConsecutiveErrors: envNumber('NPC_TICK_MAX_ERRORS', 5),
+} as const;
+
+// =============================================================================
+// COMBINED CONFIGURATION EXPORT
+// =============================================================================
+
+/**
+ * Complete NPC activity configuration.
+ *
+ * Combines all configuration sections into a single export for convenience.
+ */
+export const NPC_ACTIVITY_CONFIG = {
+  posting: NPC_POSTING_CONFIG,
+  engagement: NPC_ENGAGEMENT_CONFIG,
+  socialActions: NPC_SOCIAL_ACTIONS_CONFIG,
+  groupDynamics: NPC_GROUP_DYNAMICS_CONFIG,
+  contentPacing: NPC_CONTENT_PACING_CONFIG,
+  following: NPC_FOLLOWING_CONFIG,
+  tick: NPC_TICK_CONFIG,
+} as const;
+
+/**
+ * Type for the complete NPC activity configuration.
+ */
+export type NPCActivityConfig = typeof NPC_ACTIVITY_CONFIG;
+
+// =============================================================================
+// PRESETS
+// =============================================================================
+
+/**
+ * Preset configurations for common use cases.
+ * These can be applied by setting NPC_ACTIVITY_PRESET environment variable.
+ *
+ * @example
+ * ```bash
+ * # Use the "active" preset for more NPC activity
+ * NPC_ACTIVITY_PRESET=active
+ * ```
+ */
+export const NPC_ACTIVITY_PRESETS = {
+  /**
+   * Default preset - engagement-focused (current defaults).
+   * Low posting, high engagement with other content.
+   */
+  default: {
+    // Low posting (max ~20% with boosts)
+    NPC_POST_PROBABILITY: '0.15',
+    NPC_MAX_POSTS_PER_DAY: '2',
+    NPC_MIN_HOURS_BETWEEN_POSTS: '3',
+    NPC_TICK_BATCH_SIZE: '3',
+    NPC_TARGET_POSTS_PER_HOUR: '8',
+    // High engagement
+    NPC_LIKE_PROBABILITY: '0.12',
+    NPC_SHARE_PROBABILITY: '0.03',
+    NPC_COMMENT_PROBABILITY: '0.02',
+    NPC_MAX_LIKES_PER_TICK: '20',
+    NPC_MAX_SHARES_PER_TICK: '8',
+    NPC_MAX_COMMENTS_PER_TICK: '6',
+    // Social actions
+    NPC_GROUP_INVITE_PROBABILITY: '0.08',
+    NPC_DM_PROBABILITY: '0.05',
+    NPC_MIN_INTERACTIONS_FOR_ACTION: '1',
+  },
+
+  /**
+   * Engagement-heavy preset - very low posting, very high engagement.
+   * NPCs mostly interact with existing content and play the game.
+   */
+  engagement: {
+    // Very low posting
+    NPC_POST_PROBABILITY: '0.08',
+    NPC_MAX_POSTS_PER_DAY: '1',
+    NPC_MIN_HOURS_BETWEEN_POSTS: '4',
+    NPC_TICK_BATCH_SIZE: '4',
+    NPC_TARGET_POSTS_PER_HOUR: '4',
+    NPC_MAX_POSTS_PER_TICK: '2',
+    // Very high engagement
+    NPC_LIKE_PROBABILITY: '0.18',
+    NPC_SHARE_PROBABILITY: '0.05',
+    NPC_COMMENT_PROBABILITY: '0.035',
+    NPC_MAX_LIKES_PER_TICK: '30',
+    NPC_MAX_SHARES_PER_TICK: '12',
+    NPC_MAX_COMMENTS_PER_TICK: '10',
+    NPC_ENGAGEMENT_ACTORS_TO_SAMPLE: '30',
+    NPC_ENGAGEMENT_POSTS_TO_CONSIDER: '50',
+    // High social activity
+    NPC_GROUP_INVITE_PROBABILITY: '0.12',
+    NPC_DM_PROBABILITY: '0.08',
+    NPC_MIN_INTERACTIONS_FOR_ACTION: '1',
+    NPC_MIN_INTERACTION_QUALITY: '0.4',
+    NPC_JOIN_GROUP_PROBABILITY: '0.15',
+    NPC_USER_INVITE_PROBABILITY: '0.12',
+  },
+
+  /**
+   * Active preset - balanced but higher activity overall.
+   * More posting AND more engagement.
+   */
+  active: {
+    NPC_POST_PROBABILITY: '0.25',
+    NPC_MAX_POSTS_PER_DAY: '4',
+    NPC_MIN_HOURS_BETWEEN_POSTS: '2',
+    NPC_TICK_BATCH_SIZE: '6',
+    NPC_LIKE_PROBABILITY: '0.15',
+    NPC_SHARE_PROBABILITY: '0.04',
+    NPC_COMMENT_PROBABILITY: '0.025',
+    NPC_MAX_LIKES_PER_TICK: '25',
+    NPC_MAX_SHARES_PER_TICK: '10',
+    NPC_MAX_COMMENTS_PER_TICK: '8',
+    NPC_ENGAGEMENT_ACTORS_TO_SAMPLE: '25',
+    NPC_ENGAGEMENT_POSTS_TO_CONSIDER: '50',
+    NPC_GROUP_INVITE_PROBABILITY: '0.10',
+    NPC_DM_PROBABILITY: '0.07',
+    NPC_MIN_INTERACTIONS_FOR_ACTION: '1',
+    NPC_MIN_INTERACTION_QUALITY: '0.4',
+    NPC_FORM_GROUP_PROBABILITY: '0.08',
+    NPC_JOIN_GROUP_PROBABILITY: '0.15',
+    NPC_USER_INVITE_PROBABILITY: '0.12',
+    NPC_TARGET_POSTS_PER_HOUR: '15',
+  },
+
+  /**
+   * Quiet preset - reduced NPC activity.
+   * Good for testing player-centric features.
+   */
+  quiet: {
+    NPC_POST_PROBABILITY: '0.05',
+    NPC_MAX_POSTS_PER_DAY: '1',
+    NPC_TICK_BATCH_SIZE: '2',
+    NPC_LIKE_PROBABILITY: '0.04',
+    NPC_SHARE_PROBABILITY: '0.01',
+    NPC_COMMENT_PROBABILITY: '0.005',
+    NPC_TARGET_POSTS_PER_HOUR: '3',
+  },
+
+  /**
+   * Test preset - very high activity for automated testing.
+   */
+  test: {
+    NPC_POST_PROBABILITY: '0.8',
+    NPC_MAX_POSTS_PER_DAY: '20',
+    NPC_MIN_HOURS_BETWEEN_POSTS: '0',
+    NPC_TICK_BATCH_SIZE: '15',
+    NPC_LIKE_PROBABILITY: '0.5',
+    NPC_SHARE_PROBABILITY: '0.2',
+    NPC_COMMENT_PROBABILITY: '0.1',
+    NPC_TARGET_POSTS_PER_HOUR: '60',
+  },
+} as const;
+
+/**
+ * Get preset values by name.
+ *
+ * @param presetName - Name of the preset
+ * @returns Object with environment variable key-value pairs
+ */
+export function getPreset(
+  presetName: keyof typeof NPC_ACTIVITY_PRESETS
+): Record<string, string> {
+  return NPC_ACTIVITY_PRESETS[presetName] ?? NPC_ACTIVITY_PRESETS.default;
+}
+
+/**
+ * Log the current NPC activity configuration.
+ * Useful for debugging and verifying environment variable overrides.
+ */
+export function logCurrentConfig(): void {
+  console.log('=== NPC Activity Configuration ===');
+  console.log('Posting:', NPC_POSTING_CONFIG);
+  console.log('Engagement:', NPC_ENGAGEMENT_CONFIG);
+  console.log('Social Actions:', NPC_SOCIAL_ACTIONS_CONFIG);
+  console.log('Group Dynamics:', NPC_GROUP_DYNAMICS_CONFIG);
+  console.log('Content Pacing:', NPC_CONTENT_PACING_CONFIG);
+  console.log('Tick Processing:', NPC_TICK_CONFIG);
+  console.log('================================');
+}
