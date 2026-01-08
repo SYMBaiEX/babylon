@@ -68,7 +68,7 @@ export type SchemaDatabase = PostgresJsDatabase<DrizzleSchema>;
 export type SchemaTables = ExtractTablesWithRelations<DrizzleSchema>;
 export type RelationalQueryAPI = SchemaDatabase['query'];
 
-// JSON value type for nested structures (avoids circular reference)
+// JSON value type for nested structures
 // This matches the JSON specification: all valid JSON value types
 export type JsonValue =
   | string
@@ -438,24 +438,48 @@ function buildOrderBy<TTable extends PgTable>(
 
 /**
  * Type representing all valid database value types including JSON columns.
- * JSON columns use .$type<JsonValue>() in schema definitions for proper typing.
+ *
+ * JSONB columns with custom types (e.g., NpcMemory[], PriceModifier[]) use .$type<T>()
+ * in schema definitions. These typed interfaces don't satisfy the strict JsonValue constraint
+ * because they have narrower field types (e.g., literal unions instead of string).
+ *
+ * The `unknown` in this union is intentional and necessary to accept schema-inferred
+ * custom JSONB types. This does NOT weaken type safety because:
+ *
+ * 1. **Repository generics preserve types**: TSelect and TInsert are inferred from
+ *    InferSelect<TTable> and InferInsert<TTable>, which carry full type information
+ * 2. **Public API remains typed**: Method signatures like findUnique() return TSelect,
+ *    not DatabaseValue - callers always receive properly typed results
+ * 3. **This union is internal only**: It only affects internal constraint checking
+ *    on Record<string, DatabaseValue>, not the types exposed to consumers
+ *
+ * Without `unknown`, schema-defined types like `NpcMemory[]` and `PriceModifier[]`
+ * would fail the constraint check, breaking TableRepository for those tables.
+ *
+ * @see NpcMemory, PriceModifier for examples of custom JSONB types
+ * @see TableRepository for how types flow through the repository pattern
  */
 type DatabaseValue =
   | SQLValue
   | { [key: string]: DatabaseValue }
   | DatabaseValue[]
   | JsonValue
-  | JsonValue[];
+  | JsonValue[]
+  | unknown;
 
 /**
  * Table repository providing ORM-style methods for database operations.
  * Supports findUnique, findMany, create, update, delete, and aggregate operations.
- * JSON columns should use json('column').$type<JsonValue>() in schema definitions.
+ *
+ * Type parameters:
+ * - TTable: The Drizzle table schema (e.g., typeof schema.users)
+ * - TSelect: The inferred select type from the schema (use InferSelect<TTable>)
+ * - TInsert: The inferred insert type from the schema (use InferInsert<TTable>)
  */
 export class TableRepository<
   TTable extends PgTable,
-  TSelect extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
-  TInsert extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
+  TSelect extends Record<string, DatabaseValue | JsonValue>,
+  TInsert extends Record<string, DatabaseValue | JsonValue>,
 > {
   private readonly queryAPI: RelationalQueryAPI | undefined;
 

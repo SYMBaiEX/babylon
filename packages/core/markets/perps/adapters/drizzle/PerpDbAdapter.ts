@@ -51,6 +51,7 @@ export class PerpDbAdapter implements PerpDbPort {
       volume24h: Number(s.volume24h ?? 0),
       openInterest: Number(s.openInterest ?? 0),
       fundingRate: (s.fundingRate ?? {
+        ticker: s.ticker,
         rate: 0,
         nextFundingTime: new Date().toISOString(),
         predictedRate: 0,

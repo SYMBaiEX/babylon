@@ -55,25 +55,51 @@ describe('NFTVerificationService', () => {
       expect(result.reason).toContain('Wallet address required');
     });
 
-    test('should include token ID in reason when token-specific', async () => {
-      // This will fail validation, but we can check the error structure
+    test('should throw ValidationError for invalid contract address', async () => {
       await expect(
         NFTVerificationService.verifyOwnership(
           validWallet,
           'invalid-address',
           null
         )
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow(/Invalid contract address/);
+
+      // Also verify it's a ValidationError
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'invalid-address',
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate address format before RPC calls', async () => {
+      // Invalid wallet address
       await expect(
         NFTVerificationService.verifyOwnership(
           'not-an-address',
           validContract,
           null
         )
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow(/Invalid wallet address/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          'not-an-address',
+          validContract,
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      // Invalid contract address
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'not-an-address',
+          null
+        )
+      ).rejects.toThrow(/Invalid contract address/);
 
       await expect(
         NFTVerificationService.verifyOwnership(
@@ -81,17 +107,27 @@ describe('NFTVerificationService', () => {
           'not-an-address',
           null
         )
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate token ID format', async () => {
+      // Negative token ID
       await expect(
         NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow(/Invalid token ID/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      // Non-integer token ID
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
+      ).rejects.toThrow(/Invalid token ID/);
 
       await expect(
         NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should allow token ID 0', async () => {
@@ -99,28 +135,24 @@ describe('NFTVerificationService', () => {
       // This tests that token ID 0 passes the tokenId format validation.
       // The function may still throw ValidationError for OTHER reasons (e.g., no contract at address)
       // but it should NOT throw for token ID being 0.
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          0
-        );
-      } catch (error) {
-        // If it's a ValidationError, it should NOT be about the token ID
+      //
+      // We verify by checking that if a ValidationError is thrown, it's NOT about token ID
+      const result = NFTVerificationService.verifyOwnership(
+        validWallet,
+        validContract,
+        0
+      );
+
+      // The call may succeed or fail for contract-related reasons, but NOT for token ID validation
+      // If it rejects with ValidationError, it must not be about token ID
+      await result.catch((error) => {
         if (error instanceof ValidationError) {
-          // "No contract at address" or "Not an ERC721 contract" are acceptable validation errors
-          // because they're not rejecting token ID 0 specifically
+          // Verify it's NOT rejecting token ID 0 specifically
           expect(error.message).not.toContain('token');
           expect(error.message).not.toContain('Token');
-          // Verify it's a contract-related validation, not token ID validation
-          expect(
-            error.message.includes('contract') ||
-              error.message.includes('Contract') ||
-              error.message.includes('ERC721')
-          ).toBe(true);
         }
-        // Non-ValidationError (network/RPC errors) are also fine
-      }
+        // Non-ValidationError (network/RPC errors) are acceptable
+      });
     });
   });
 

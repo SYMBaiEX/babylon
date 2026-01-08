@@ -23,6 +23,7 @@ export interface PerpMarketRecord {
   volume24h: number;
   openInterest: number;
   fundingRate: {
+    ticker: string;
     rate: number;
     nextFundingTime: string;
     predictedRate: number;

@@ -15,6 +15,7 @@ import {
 import {
   actorRelationships,
   and,
+  arcStates,
   count,
   db,
   getDbInstance as dbService,
@@ -59,45 +60,42 @@ import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
-import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+// Services - using barrel exports from services/index.ts
 import {
-  generateArticleImageWithRetry,
-  initFalClient,
-} from './services/article-image-service';
-import { characterMappingService } from './services/character-mapping-service';
-// Content generation helpers
-import {
-  generateArcPulseEventsIfNeeded,
-  generateEvents,
-} from './services/event-generation-helpers';
-import { bootstrapGameIfNeeded } from './services/game-bootstrap-service';
-import { MarketContextService } from './services/market-context-service';
-import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
-import { getOracleService } from './services/oracle/oracle-service';
-import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
-import {
-  generateOrgArticle,
-  generateOrgPost,
-} from './services/post-generation-helpers';
-import { PriceUpdateService } from './services/price-update-service';
-import {
-  ReputationService,
-  syncReputationIfAvailable,
-} from './services/reputation-service';
-import { rssFeedService } from './services/rss-feed-service';
-import { StaticDataRegistry } from './services/static-data-registry';
-import { getStorySeedService } from './services/story-seed-service';
-import { TokenStatsService } from './services/token-stats-service';
-import { getTopicDiversityService } from './services/topic-diversity-service';
-// Migrated services - local imports
-import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
-import { TradeExecutionService } from './services/trade-execution-service';
-import {
+  ActorSocialActions,
+  AlphaGroupInviteService,
+  bootstrapGameIfNeeded,
   calculateTrendingIfNeeded,
   calculateTrendingTags,
+  characterMappingService,
+  createArcState,
+  createParodyHeadlineGenerator,
+  generateArcPulseEventsIfNeeded,
+  generateArticleImageWithRetry,
+  generateEvents,
+  generateOrgArticle,
+  generateOrgPost,
+  getOracleService,
+  getStorySeedService,
+  getTopicDiversityService,
   getTrendingPromptContext,
-} from './services/trending-calculation-service';
-import { WalletService } from './services/wallet-service';
+  initFalClient,
+  invalidateAfterPredictionTrade,
+  MarketContextService,
+  NPCGroupDynamicsService,
+  npcSocialEngagementService,
+  PriceUpdateService,
+  processArcTick,
+  processNPCSocialEngagements,
+  ReputationService,
+  rssFeedService,
+  StaticDataRegistry,
+  syncReputationIfAvailable,
+  TokenStatsService,
+  TradeExecutionService,
+  timeframeArcProcessor,
+  WalletService,
+} from './services';
 import type { TradingExecutionResult } from './types/market-decisions';
 import type {
   ActorTier,
@@ -109,7 +107,9 @@ import type {
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
+import { deriveStrategyFromPersonality } from './utils/shared-utils';
 import { worldFactsService } from './world-facts-service';
+// Note: Event-market pipeline is called from within narrative-event-processor
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
 
@@ -123,6 +123,12 @@ export interface GameTickResult {
   widgetCachesUpdated: number;
   trendingCalculated: boolean;
   reputationSynced: boolean;
+  /** NPC social engagement metrics */
+  npcLikesCreated?: number;
+  npcSharesCreated?: number;
+  npcCommentsCreated?: number;
+  npcSocialActionsProcessed?: number;
+  npcRebalanceActionsExecuted?: number;
   reputationSyncStats?: {
     total: number;
     successful: number;
@@ -152,6 +158,26 @@ export interface GameTickResult {
   relationshipsUpdated?: number;
   /** Number of markets with simulated price volatility applied */
   priceVolatilitySimulated?: number;
+  /** Narrative arc processing stats */
+  narrativeArcs?: {
+    arcsProcessed: number;
+    transitioned: number;
+    eventsGenerated: number;
+  };
+  /** Timeframed market processing stats */
+  timeframedMarkets?: {
+    marketsProcessed: number;
+    transitionsOccurred: number;
+    eventsGenerated: number;
+    subMarketsSpawned: number;
+    errors: string[];
+    eventTriggers: Array<{
+      marketId: string;
+      eventType: string;
+      timeframe: string;
+      arcState: string;
+    }>;
+  };
   /** Token usage statistics for this tick */
   tokenStats?: {
     totalCalls: number;
@@ -229,11 +255,21 @@ export async function executeGameTick(
 
   // Compute game-relative day numbers for new writes (forward-only)
   const [continuousGame] = await db
-    .select({ startedAt: games.startedAt })
+    .select({ startedAt: games.startedAt, id: games.id })
     .from(games)
     .where(eq(games.isContinuous, true))
     .limit(1);
   const gameStartedAt = continuousGame?.startedAt ?? null;
+
+  // Validate startedAt is set - critical for day calculation
+  if (!gameStartedAt) {
+    logger.error(
+      'Game startedAt is NULL - day calculation will fail. Game day will default to 1.',
+      { gameId: continuousGame?.id },
+      'GameTick'
+    );
+  }
+
   const dayNumberForTimestamp = (t: Date): number | undefined => {
     if (!gameStartedAt) return undefined;
     return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
@@ -603,7 +639,7 @@ export async function executeGameTick(
       );
     }
 
-    // Generate world events
+    // Generate world events based on active questions
     const eventsGenerated = await generateEvents(
       currentActiveQuestions.slice(0, 3),
       timestamp,
@@ -712,6 +748,200 @@ export async function executeGameTick(
     result.marketsUpdated += marketsUpdated;
   }
 
+  // =========================================================================
+  // NPC SOCIAL ENGAGEMENT (likes, shares, comments)
+  // Creates organic social activity to make the feed feel alive
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      // Set LLM client for NPC comment generation
+      npcSocialEngagementService.setLLMClient(llmClient);
+
+      const socialEngagementResult = await processNPCSocialEngagements();
+      result.npcLikesCreated = socialEngagementResult.likesCreated;
+      result.npcSharesCreated = socialEngagementResult.sharesCreated;
+      result.npcCommentsCreated = socialEngagementResult.commentsCreated;
+
+      if (
+        socialEngagementResult.likesCreated > 0 ||
+        socialEngagementResult.sharesCreated > 0 ||
+        socialEngagementResult.commentsCreated > 0
+      ) {
+        logger.info(
+          'NPC social engagements processed',
+          {
+            likes: socialEngagementResult.likesCreated,
+            shares: socialEngagementResult.sharesCreated,
+            comments: socialEngagementResult.commentsCreated,
+            actors: socialEngagementResult.actorsEngaged,
+          },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC social engagement failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC SOCIAL ACTIONS (DMs, group invites based on interactions)
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      const socialActions =
+        await ActorSocialActions.processRandomSocialActions();
+      result.npcSocialActionsProcessed = socialActions.length;
+
+      if (socialActions.length > 0) {
+        logger.info(
+          'NPC social actions processed',
+          {
+            total: socialActions.length,
+            invites: socialActions.filter((a) => a.type === 'group_chat_invite')
+              .length,
+            dms: socialActions.filter((a) => a.type === 'dm').length,
+          },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC social actions failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC PORTFOLIO REBALANCING
+  // Monitor NPC portfolios and execute rebalancing actions
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      // Get all active NPC pools and monitor them
+      const activePools = await db
+        .select({ id: pools.id, npcActorId: pools.npcActorId })
+        .from(pools)
+        .where(eq(pools.isActive, true))
+        .limit(10); // Limit to prevent overwhelming the tick
+
+      let rebalanceActionsExecuted = 0;
+      // Cap on total rebalance actions per tick to prevent expensive ticks
+      const maxActionsPerTick = 20;
+
+      for (const pool of activePools) {
+        if (Date.now() >= deadline) break;
+        if (rebalanceActionsExecuted >= maxActionsPerTick) {
+          logger.debug(
+            'Rebalance action cap reached, stopping pool processing',
+            { maxActionsPerTick, poolsRemaining: activePools.length },
+            'GameTick'
+          );
+          break;
+        }
+
+        // Skip pools without an NPC actor ID
+        if (!pool.npcActorId) {
+          continue;
+        }
+
+        const poolStartTime = Date.now();
+        const actor = StaticDataRegistry.getActor(pool.npcActorId);
+
+        // Determine trading strategy from actor data
+        // Prefer explicit strategy property if available, otherwise derive from personality
+        let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced';
+        if (actor) {
+          // Check for explicit strategy property first (preferred)
+          if ('strategy' in actor && typeof actor.strategy === 'string') {
+            const explicitStrategy = actor.strategy.toLowerCase();
+            if (
+              explicitStrategy === 'aggressive' ||
+              explicitStrategy === 'conservative' ||
+              explicitStrategy === 'balanced'
+            ) {
+              strategy = explicitStrategy;
+            }
+          } else {
+            // Use utility function to derive strategy from personality
+            strategy = deriveStrategyFromPersonality(actor.personality);
+          }
+        }
+
+        const rebalanceActions = await NPCInvestmentManager.monitorPortfolio(
+          pool.id,
+          pool.npcActorId,
+          strategy
+        );
+
+        let poolActionsExecuted = 0;
+        if (rebalanceActions.length > 0) {
+          // Execute rebalance actions through NPCInvestmentManager
+          for (const action of rebalanceActions) {
+            if (rebalanceActionsExecuted >= maxActionsPerTick) break;
+            try {
+              await NPCInvestmentManager.executeRebalanceAction(
+                pool.npcActorId,
+                pool.id,
+                action
+              );
+              rebalanceActionsExecuted++;
+              poolActionsExecuted++;
+            } catch (actionError) {
+              logger.warn(
+                'Failed to execute rebalance action',
+                {
+                  poolId: pool.id,
+                  action: action.type,
+                  error:
+                    actionError instanceof Error
+                      ? actionError.message
+                      : String(actionError),
+                },
+                'GameTick'
+              );
+            }
+          }
+        }
+
+        // Log per-pool timing for performance tuning
+        const poolDuration = Date.now() - poolStartTime;
+        if (poolDuration > 100 || poolActionsExecuted > 0) {
+          logger.debug(
+            'Pool rebalance processed',
+            {
+              poolId: pool.id,
+              durationMs: poolDuration,
+              actionsExecuted: poolActionsExecuted,
+            },
+            'GameTick'
+          );
+        }
+      }
+
+      result.npcRebalanceActionsExecuted = rebalanceActionsExecuted;
+
+      if (rebalanceActionsExecuted > 0) {
+        logger.info(
+          'NPC portfolio rebalancing completed',
+          { actionsExecuted: rebalanceActionsExecuted },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC portfolio rebalancing failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
   // Generate articles AFTER market decisions (lower priority, but parallelized)
   // Skip if buffer is sufficient (content generation handled by lookahead service)
   if (!skipContentGeneration) {
@@ -764,11 +994,66 @@ export async function executeGameTick(
     }
   }
 
+  // Process narrative arcs for active questions
+  // Each question can have an arc that progresses through phases
+  // Arc events now create world events and can trigger article generation
+  if (Date.now() < deadline) {
+    const narrativeStats = await processNarrativeArcs(
+      currentActiveQuestions,
+      dayNumberForTimestamp(timestamp) ?? 1,
+      llmClient
+    );
+    result.narrativeArcs = narrativeStats;
+    if (narrativeStats.transitioned > 0 || narrativeStats.eventsGenerated > 0) {
+      logger.info('Narrative arcs processed', narrativeStats, 'GameTick');
+    }
+  }
+
+  // Process timeframed markets (multi-timeframe arcs: flash, intraday, daily, etc.)
+  // These use timestamp-based progression rather than day-based
+  if (Date.now() < deadline) {
+    const timeframeStats = await timeframeArcProcessor.processTick(timestamp);
+    result.timeframedMarkets = timeframeStats;
+    if (timeframeStats.marketsProcessed > 0) {
+      logger.info(
+        'Timeframed markets processed',
+        {
+          processed: timeframeStats.marketsProcessed,
+          transitions: timeframeStats.transitionsOccurred,
+          events: timeframeStats.eventsGenerated,
+          spawns: timeframeStats.subMarketsSpawned,
+        },
+        'GameTick'
+      );
+    }
+  }
+
+  // Calculate and update currentDay based on game start time
+  const currentDay = dayNumberForTimestamp(timestamp);
+
+  // Log day calculation for diagnostics
+  logger.info(
+    'Game day calculation',
+    {
+      startedAt: gameStartedAt?.toISOString(),
+      currentTimestamp: timestamp.toISOString(),
+      calculatedDay: currentDay,
+      willSetTo: currentDay ?? 1,
+      hoursElapsed: gameStartedAt
+        ? Math.floor(
+            (timestamp.getTime() - gameStartedAt.getTime()) / (1000 * 60 * 60)
+          )
+        : null,
+    },
+    'GameTick'
+  );
+
   await db
     .update(games)
     .set({
       lastTickAt: timestamp,
       updatedAt: timestamp,
+      currentDay: currentDay ?? 1,
     })
     .where(eq(games.isContinuous, true));
 
@@ -1322,7 +1607,7 @@ async function generateOrganizationContent(
   deadlineMs: number,
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<{ posts: number; articles: number }> {
-  const postsToGenerate = 4; // Organization posts/articles per tick
+  const postsToGenerate = 1; // Organization posts/articles per tick (reduced from 4)
 
   if (questions.length === 0) {
     logger.warn(
@@ -3463,4 +3748,83 @@ function generateVolatilityMove(
   // Cap individual tick move at 5% (but still allow through fat tail distribution)
   const maxMove = 0.05;
   return Math.max(-maxMove, Math.min(move, maxMove));
+}
+
+/**
+ * Process narrative arcs for active questions.
+ * Each question can have an arc that progresses through phases based on game day.
+ * Arc events now create world events and can trigger article generation.
+ *
+ * @param activeQuestions - Questions with active arcs to process
+ * @param dayNumber - Current game day number
+ * @param llmClient - LLM client for generating articles on significant events
+ */
+async function processNarrativeArcs(
+  activeQuestions: Array<{ id: string }>,
+  dayNumber: number,
+  llmClient: BabylonLLMClient
+): Promise<{
+  arcsProcessed: number;
+  transitioned: number;
+  eventsGenerated: number;
+}> {
+  // arcStates is now statically imported at the top of the file
+
+  let arcsProcessed = 0;
+  let transitioned = 0;
+  let eventsGenerated = 0;
+
+  // Batch fetch all existing arc states in one query to reduce DB round-trips
+  const questionIds = activeQuestions.map((q) => q.id);
+  const existingArcsList =
+    questionIds.length > 0
+      ? await db
+          .select({ id: arcStates.id, questionId: arcStates.questionId })
+          .from(arcStates)
+          .where(inArray(arcStates.questionId, questionIds))
+      : [];
+
+  // Build a map of questionId -> arcState for O(1) lookup
+  const arcStateByQuestionId = new Map<string, { id: string }>();
+  for (const arc of existingArcsList) {
+    arcStateByQuestionId.set(arc.questionId, { id: arc.id });
+  }
+
+  for (const question of activeQuestions) {
+    try {
+      // Look up existing arc from preloaded map
+      const existingArc = arcStateByQuestionId.get(question.id);
+
+      let arcId: string;
+      if (!existingArc) {
+        // Create arc state for this question
+        arcId = await createArcState(question.id);
+      } else {
+        arcId = existingArc.id;
+      }
+
+      // Process the arc tick, passing LLM client for article generation
+      const result = await processArcTick(arcId, dayNumber, llmClient);
+      arcsProcessed++;
+
+      if (result.transitioned) {
+        transitioned++;
+      }
+      if (result.eventGenerated) {
+        eventsGenerated++;
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to process narrative arc for question ${question.id}`,
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  return {
+    arcsProcessed,
+    transitioned,
+    eventsGenerated,
+  };
 }

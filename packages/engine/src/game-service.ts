@@ -9,8 +9,10 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { db, eq, getDbInstance, markets } from '@babylon/db';
+import { db, desc, eq, games, getDbInstance, markets } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import { StaticDataRegistry } from './services/static-data-registry';
+import { getGameDayNumber } from './utils/date-utils';
 
 /**
  * Active market summary for NPC context (lightweight)
@@ -87,7 +89,7 @@ class GameService {
     return {
       isRunning: false,
       initialized: false,
-      currentDay: gameState?.currentDay || 0,
+      currentDay: gameState?.currentDay ?? 1,
       currentDate: gameState?.currentDate?.toISOString(),
       speed: 60000,
       lastTickAt: gameState?.lastTickAt?.toISOString(),
@@ -122,27 +124,36 @@ class GameService {
 
   /**
    * Get the current game day from the active continuous game.
-   * Returns 0 if no game is running.
+   * Returns 1 if no game is running (Day 1 is the default).
+   * Uses startedAt as single source of truth for day calculation.
    */
   async getCurrentGameDay(): Promise<number> {
-    const game = await db.game.findFirst({
-      where: { isContinuous: true, isRunning: true },
-      select: { currentDay: true, startedAt: true },
-    });
+    const [game] = await db
+      .select({
+        currentDay: games.currentDay,
+        startedAt: games.startedAt,
+      })
+      .from(games)
+      .where(eq(games.isContinuous, true))
+      .orderBy(desc(games.startedAt))
+      .limit(1);
 
-    // Use currentDay from DB if available
-    if (game?.currentDay !== undefined && game.currentDay !== null) {
-      return game.currentDay;
+    if (!game) {
+      logger.warn('No continuous game found', {}, 'GameService');
+      return 1;
     }
 
-    // Fall back to calculating from startedAt
-    if (!game?.startedAt) {
-      return 0;
+    if (!game.startedAt) {
+      logger.warn(
+        'Game startedAt is null - using stored currentDay',
+        { currentDay: game.currentDay },
+        'GameService'
+      );
+      return game.currentDay ?? 1;
     }
 
-    const now = new Date();
-    const dayMs = 24 * 60 * 60 * 1000;
-    return Math.floor((now.getTime() - game.startedAt.getTime()) / dayMs);
+    // Calculate fresh from epoch (single source of truth)
+    return getGameDayNumber(game.startedAt, new Date());
   }
 
   /**

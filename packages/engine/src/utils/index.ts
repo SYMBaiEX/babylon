@@ -84,6 +84,7 @@ export {
 export {
   buildCharacterFeedContext,
   buildPhaseContext,
+  deriveStrategyFromPersonality,
   formatActorVoiceContext,
   formatCharacterInfoWithEntropy,
   type GamePhase,

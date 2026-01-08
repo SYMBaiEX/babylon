@@ -1,4 +1,5 @@
-import { relations } from 'drizzle-orm';
+import type { GameOnboardingStep } from '@babylon/shared';
+import { relations, sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -7,6 +8,7 @@ import {
   index,
   integer,
   json,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -16,6 +18,77 @@ import type { JsonValue } from '../types';
 import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';
 import { userAgentConfigs } from './user-agent-configs';
+
+// Re-export for consumers
+export type { GameOnboardingStep } from '@babylon/shared';
+
+/**
+ * Game onboarding state stored in JSONB
+ * Note: startedAt and completedAt are ISO date strings since JSONB serializes dates as strings
+ */
+export interface GameOnboardingState {
+  completedSteps: GameOnboardingStep[];
+  currentStep: GameOnboardingStep;
+  startedAt: string | null;
+  completedAt: string | null;
+  rewards: Array<{ step: GameOnboardingStep; points: number }>;
+}
+
+/**
+ * Default game onboarding state.
+ * This constant is used to generate the SQL default for the state column,
+ * ensuring TypeScript validates the default against the GameOnboardingState interface.
+ */
+export const DEFAULT_GAME_ONBOARDING_STATE: GameOnboardingState = {
+  completedSteps: [],
+  currentStep: 'welcome',
+  startedAt: null,
+  completedAt: null,
+  rewards: [],
+};
+
+/**
+ * GameOnboarding - Tracks user's game tutorial progress
+ */
+export const gameOnboarding = pgTable(
+  'GameOnboarding',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Current step in the tutorial
+    currentStep: text('currentStep')
+      .$type<GameOnboardingStep>()
+      .notNull()
+      .default('welcome'),
+
+    // Full state as JSONB for flexibility
+    // The default is generated from DEFAULT_GAME_ONBOARDING_STATE constant,
+    // ensuring TypeScript validates the default against the GameOnboardingState interface.
+    state: jsonb('state')
+      .$type<GameOnboardingState>()
+      .default(sql`${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}::jsonb`),
+
+    // Quick access flags
+    isComplete: boolean('isComplete').notNull().default(false),
+    skippedAt: timestamp('skippedAt', { mode: 'date' }),
+
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Note: userId already has unique() constraint which creates an implicit unique index
+    // so a separate index on userId would be redundant
+    index('GameOnboarding_isComplete_idx').on(table.isComplete),
+    index('GameOnboarding_currentStep_idx').on(table.currentStep),
+  ]
+);
+
+export type GameOnboardingRow = typeof gameOnboarding.$inferSelect;
+export type NewGameOnboardingRow = typeof gameOnboarding.$inferInsert;
 
 // User - Main user table
 export const users = pgTable(
@@ -540,6 +613,17 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   agentConfig: one(userAgentConfigs, {
     fields: [users.id],
     references: [userAgentConfigs.userId],
+  }),
+  gameOnboarding: one(gameOnboarding, {
+    fields: [users.id],
+    references: [gameOnboarding.userId],
+  }),
+}));
+
+export const gameOnboardingRelations = relations(gameOnboarding, ({ one }) => ({
+  user: one(users, {
+    fields: [gameOnboarding.userId],
+    references: [users.id],
   }),
 }));
 

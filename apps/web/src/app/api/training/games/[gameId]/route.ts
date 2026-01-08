@@ -98,12 +98,21 @@ export async function GET(
     orderBy: { createdDate: 'asc' },
   });
 
-  // Get all posts from this time period
-  // TODO: Add relatedQuestion field to Post model for better filtering
+  // Get all posts from this time period, filtered by related question if available
+  const questionNumbers = questions.map((q) => q.questionNumber);
+
+  // Handle empty questionNumbers - avoid sending { in: [] } to Prisma
   const posts = await db.post.findMany({
     where: {
       gameId: gameId,
-      // relatedQuestion: { in: questions.map(q => q.questionNumber) }  // TODO: Add field
+      ...(questionNumbers.length === 0
+        ? { relatedQuestion: null } // Only get posts without question association
+        : {
+            OR: [
+              { relatedQuestion: { in: questionNumbers } },
+              { relatedQuestion: null }, // Include posts without question association
+            ],
+          }),
     },
     select: {
       id: true,
@@ -113,13 +122,20 @@ export async function GET(
       dayNumber: true,
       sentiment: true,
       createdAt: true,
+      relatedQuestion: true,
     },
     orderBy: { createdAt: 'asc' },
   });
 
-  // Group posts by question (simplified for now):
+  // Collect posts that aren't associated with any question
+  const unassociatedPosts = posts.filter((p) => p.relatedQuestion === null);
+
+  // Group posts by question (only include posts with matching relatedQuestion)
   const questionData = questions.map((q) => {
-    const questionPosts = posts; // TODO: Filter by relatedQuestion when field added
+    // Filter posts to those strictly related to this question
+    const questionPosts = posts.filter(
+      (p) => p.relatedQuestion === q.questionNumber
+    );
 
     return {
       questionId: q.questionNumber,
@@ -152,6 +168,14 @@ export async function GET(
     questionsAnalyzed: questions.length,
     totalPosts: posts.length,
     questions: questionData,
+    // Posts not associated with any specific question
+    unassociatedPosts: unassociatedPosts.map((p) => ({
+      id: p.id,
+      content: p.content,
+      authorId: p.authorId,
+      dayNumber: p.dayNumber,
+      sentiment: p.sentiment,
+    })),
 
     // Metadata for training:
     trainingMetadata: {

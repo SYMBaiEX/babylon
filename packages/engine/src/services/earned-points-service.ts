@@ -22,6 +22,31 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
  * Provides methods for converting P&L to points and syncing earned points.
  */
 export class EarnedPointsService {
+  /** Base reputation points for all users */
+  private static readonly BASE_POINTS = 100;
+
+  /**
+   * Calculate total reputation points from component values.
+   * Centralizes the reputation formula to ensure consistency.
+   *
+   * @param invitePoints - Points earned from invites
+   * @param earnedPoints - Points earned from trading P&L
+   * @param bonusPoints - Bonus points from onboarding, events, etc.
+   * @returns Total reputation points
+   */
+  private static calculateReputationPoints(
+    invitePoints: number,
+    earnedPoints: number,
+    bonusPoints: number
+  ): number {
+    return (
+      EarnedPointsService.BASE_POINTS +
+      invitePoints +
+      earnedPoints +
+      bonusPoints
+    );
+  }
+
   /**
    * Convert P&L to earned points
    *
@@ -85,11 +110,12 @@ export class EarnedPointsService {
       return;
     }
 
-    // Calculate new total reputation points
-    // Total = Invite Points + Earned Points + Bonus Points + Base (100)
-    const basePoints = 100;
-    const newReputationPoints =
-      basePoints + user.invitePoints + newEarnedPoints + user.bonusPoints;
+    // Calculate new total reputation points using centralized helper
+    const newReputationPoints = EarnedPointsService.calculateReputationPoints(
+      user.invitePoints,
+      newEarnedPoints,
+      user.bonusPoints
+    );
 
     await db
       .update(users)
@@ -194,9 +220,12 @@ export class EarnedPointsService {
     }
 
     const newEarnedPoints = computedEarnedPoints;
-    const basePoints = 100;
-    const newReputationPoints =
-      basePoints + user.invitePoints + newEarnedPoints + user.bonusPoints;
+    // Calculate new total reputation points using centralized helper
+    const newReputationPoints = EarnedPointsService.calculateReputationPoints(
+      user.invitePoints,
+      newEarnedPoints,
+      user.bonusPoints
+    );
 
     // Update user and create transaction
     await database
@@ -239,6 +268,111 @@ export class EarnedPointsService {
     );
 
     return earnedPointsDelta;
+  }
+
+  /**
+   * Award bonus points to a user
+   *
+   * @description Awards bonus points for actions like onboarding completion,
+   * referrals, special events, etc. Updates bonusPoints and recalculates
+   * total reputationPoints.
+   *
+   * @param {string} userId - User ID to award points to
+   * @param {number} points - Number of bonus points to award (must be finite and non-negative)
+   * @param {string} reason - Reason for the bonus (e.g., 'onboarding_welcome')
+   * @param {Transaction} [tx] - Optional transaction for atomic operations
+   * @returns {Promise<number>} New total bonus points
+   * @throws {Error} If points is not a finite non-negative number
+   */
+  static async awardBonusPoints(
+    userId: string,
+    points: number,
+    reason: string,
+    tx: Transaction | typeof db = db
+  ): Promise<number> {
+    // Validate points parameter
+    if (!Number.isFinite(points)) {
+      throw new Error(
+        `Invalid points value: ${points}. Points must be a finite number.`
+      );
+    }
+    if (points < 0) {
+      throw new Error(
+        `Invalid points value: ${points}. Bonus points must be non-negative.`
+      );
+    }
+
+    // Early return for zero points - no DB mutation needed.
+    // We intentionally skip fetching bonusPoints here because awarding 0 points
+    // should be a pure no-op. If callers need the current balance, they should
+    // query it separately. This saves a DB round-trip for the common case.
+    if (points === 0) {
+      return 0;
+    }
+
+    const result = await tx
+      .select({
+        earnedPoints: users.earnedPoints,
+        invitePoints: users.invitePoints,
+        bonusPoints: users.bonusPoints,
+        reputationPoints: users.reputationPoints,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = result[0];
+
+    if (!user) {
+      throw new Error(`User not found: ${userId}`);
+    }
+
+    const newBonusPoints = user.bonusPoints + points;
+
+    // Calculate new total reputation points using centralized helper
+    const newReputationPoints = EarnedPointsService.calculateReputationPoints(
+      user.invitePoints,
+      user.earnedPoints,
+      newBonusPoints
+    );
+
+    // Update user
+    await tx
+      .update(users)
+      .set({
+        bonusPoints: newBonusPoints,
+        reputationPoints: newReputationPoints,
+      })
+      .where(eq(users.id, userId));
+
+    // Create transaction record
+    await tx.insert(pointsTransactions).values({
+      id: await generateSnowflakeId(),
+      userId,
+      amount: points,
+      pointsBefore: user.reputationPoints,
+      pointsAfter: newReputationPoints,
+      reason,
+      metadata: JSON.stringify({
+        pointsAwarded: points,
+        previousBonusPoints: user.bonusPoints,
+        newBonusPoints,
+      }),
+    });
+
+    logger.info(
+      'Awarded bonus points',
+      {
+        userId,
+        points,
+        reason,
+        totalBonusPoints: newBonusPoints,
+        totalReputationPoints: newReputationPoints,
+      },
+      'EarnedPointsService'
+    );
+
+    return newBonusPoints;
   }
 
   /**

@@ -88,7 +88,7 @@ describe('Rate Limiting', () => {
       expect(result.remaining).toBe(9); // 10 max - 1 used
     });
 
-    it('should provide accurate rate limit status', () => {
+    it('should provide accurate rate limit status', async () => {
       const userId = 'test-user-6';
       const config = RATE_LIMIT_CONFIGS.CREATE_POST;
 
@@ -96,8 +96,8 @@ describe('Rate Limiting', () => {
       checkRateLimit(userId, config);
       checkRateLimit(userId, config);
 
-      // Check status
-      const status = getRateLimitStatus(userId, config);
+      // Check status (async now for Redis support)
+      const status = await getRateLimitStatus(userId, config);
       expect(status.count).toBe(2);
       expect(status.remaining).toBe(1);
       expect(status.resetAt).toBeInstanceOf(Date);
@@ -238,6 +238,25 @@ describe('Rate Limiting', () => {
 
       // Uploads
       expect(RATE_LIMIT_CONFIGS.UPLOAD_IMAGE.maxRequests).toBe(5);
+    });
+
+    it('should have stricter limits for anonymous IP requests vs identified IPs', () => {
+      // Anonymous requests should have much stricter limits
+      // since they share a single bucket
+      expect(
+        RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH_ANONYMOUS.maxRequests
+      ).toBe(10);
+      expect(RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH.maxRequests).toBe(60);
+
+      // Anonymous limit should be significantly lower than identified IP limit
+      expect(
+        RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH_ANONYMOUS.maxRequests
+      ).toBeLessThan(RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH.maxRequests);
+
+      // Both should use the same time window
+      expect(RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH_ANONYMOUS.windowMs).toBe(
+        RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH.windowMs
+      );
     });
 
     it('should use 1-minute windows for all actions', () => {

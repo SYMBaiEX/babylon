@@ -1051,7 +1051,9 @@ export class AgentServiceV2 {
         | 'system'
         | 'post'
         | 'comment'
-        | 'dm';
+        | 'dm'
+        | 'like'
+        | 'repost';
       level: 'info' | 'warn' | 'error' | 'debug';
       message: string;
       prompt?: string;

@@ -20,20 +20,27 @@
     },
     "src/app/api/cron/weekly-dataset-upload/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/cron/organization-tick/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/cron/game-tick",
-      "schedule": "*/1 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/npc-tick",
-      "schedule": "*/1 * * * *"
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/organization-tick",
+      "schedule": "1-59/2 * * * *"
     },
     {
       "path": "/api/cron/agent-tick",
-      "schedule": "* * * * *"
+      "schedule": "*/3 * * * *"
     },
     {
       "path": "/api/cron/reputation-sync",

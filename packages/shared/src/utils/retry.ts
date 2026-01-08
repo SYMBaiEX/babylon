@@ -5,6 +5,8 @@
  * Automatically retries on network errors, 5xx server errors, and rate limit (429) responses.
  */
 
+import { logger } from './logger';
+
 /**
  * Retry configuration options
  */
@@ -180,4 +182,110 @@ export async function retryWithCondition<T>(
   }
 
   throw lastError || new Error('Operation failed with unknown error');
+}
+
+/**
+ * Configuration options for fire-and-forget retry operations.
+ *
+ * Shares common retry fields with `RetryOptions` (maxAttempts, initialDelayMs,
+ * maxDelayMs, backoffMultiplier) but is specialized for fire-and-forget use cases:
+ * - Omits `onRetry` callback (uses logging instead)
+ * - Provides `logContext` and `metadata` for error logging
+ * - Does not extend `RetryOptions` to keep the interfaces decoupled
+ */
+export interface FireAndForgetRetryOptions {
+  /** Maximum number of retry attempts (default: 3) */
+  maxAttempts?: number;
+  /** Initial delay in milliseconds before first retry (default: 100) - aligned with RetryOptions */
+  initialDelayMs?: number;
+  /** Maximum delay in milliseconds (default: 2000) - caps exponential backoff */
+  maxDelayMs?: number;
+  /** Multiplier for exponential backoff (default: 2) */
+  backoffMultiplier?: number;
+  /** Context for logging (e.g., 'PerpOpen', 'PerpClose') */
+  logContext?: string;
+  /** Additional metadata to include in error logs */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Fire-and-forget async operation with retry
+ *
+ * @description Executes an async operation in the background with retry logic.
+ * Only retries on retryable errors (network errors, 5xx, 429). Logs errors
+ * after all retries are exhausted. Does not throw - meant for non-critical
+ * side effects that shouldn't block the main flow.
+ *
+ * @param {() => Promise<void>} operation - Async operation to execute
+ * @param {FireAndForgetRetryOptions} options - Configuration options
+ *
+ * @example
+ * ```typescript
+ * fireAndForgetWithRetry(
+ *   () => handlePlayerTrade(userId, ticker, side, size),
+ *   { logContext: 'PerpOpen', metadata: { userId, ticker } }
+ * );
+ * ```
+ */
+export function fireAndForgetWithRetry(
+  operation: () => Promise<void>,
+  options: FireAndForgetRetryOptions = {}
+): void {
+  const {
+    maxAttempts = 3,
+    initialDelayMs = 100,
+    maxDelayMs = 2000,
+    backoffMultiplier = 2,
+    logContext = 'FireAndForget',
+    metadata = {},
+  } = options;
+
+  void (async () => {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await operation();
+        return; // Success
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if error is retryable - if not, log and exit immediately
+        if (!isRetryableError(error)) {
+          logger.error(
+            'Fire-and-forget operation failed with non-retryable error',
+            {
+              // Spread metadata first; explicit properties (error, attempt) override metadata values
+              ...metadata,
+              error: lastError.message,
+              attempt: attempt + 1,
+            },
+            logContext
+          );
+          return; // Don't retry non-retryable errors
+        }
+
+        if (attempt < maxAttempts - 1) {
+          // Exponential backoff with cap using shared sleep utility
+          const delay = Math.min(
+            initialDelayMs * backoffMultiplier ** attempt,
+            maxDelayMs
+          );
+          await sleep(delay);
+        }
+      }
+    }
+
+    // All retries exhausted - log as error for monitoring
+    logger.error(
+      'Fire-and-forget operation failed after retries',
+      {
+        // Spread metadata first; explicit properties (error, retriesAttempted) override metadata values
+        ...metadata,
+        error: lastError?.message ?? 'Unknown error',
+        retriesAttempted: maxAttempts,
+      },
+      logContext
+    );
+  })();
 }
