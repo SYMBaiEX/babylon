@@ -685,16 +685,14 @@ async function executePredictionSell(params: {
       );
     }
 
-    // Update market shares
+    // Update market shares using calculated values from CPMM
+    // Matches PredictionMarketService pattern - use the calculated new shares directly
+    // rather than mixing SQL arithmetic with calculated values
     await txDb
       .update(markets)
       .set({
-        yesShares: isSellYes
-          ? sql`${markets.yesShares} - ${sharesToSell}`
-          : String(calculation.newYesShares),
-        noShares: isSellYes
-          ? String(calculation.newNoShares)
-          : sql`${markets.noShares} - ${sharesToSell}`,
+        yesShares: String(calculation.newYesShares),
+        noShares: String(calculation.newNoShares),
       })
       .where(eq(markets.id, market.id));
 
@@ -889,26 +887,27 @@ async function executeClosePerpPosition(params: {
       },
     });
 
-    await service.closePosition({
+    // Capture the result from closePosition to get accurate realizedPnL
+    const result = await service.closePosition({
       positionId: existingPosition.id,
       userId: agentUserId,
     });
+
+    return result;
   };
 
-  // Execute with appropriate context
-  if (isNpc) {
-    await asSystem(closeOperation, 'npc_perp_close');
-  } else {
-    await asUser({ userId: agentUserId }, closeOperation);
-  }
+  // Execute with appropriate context and capture the result
+  const closeResult = isNpc
+    ? await asSystem(closeOperation, 'npc_perp_close')
+    : await asUser({ userId: agentUserId }, closeOperation);
 
-  // Calculate realized P&L
-  const entryPrice = Number(existingPosition.entryPrice || 100);
-  const currentPrice = Number(existingPosition.currentPrice || entryPrice);
-  const size = Number(existingPosition.size || 0);
-  const isLong = existingPosition.side === 'long';
-  const priceChange = currentPrice - entryPrice;
-  const realizedPnL = (priceChange / entryPrice) * size * (isLong ? 1 : -1);
+  // Use the realized P&L from the service (computed with actual exit price)
+  // This is more accurate than recalculating from potentially stale position data
+  const realizedPnL = closeResult.realizedPnL ?? 0;
+  const size = closeResult.size ?? Number(existingPosition.size || 0);
+  const exitPrice =
+    closeResult.exitPrice ??
+    Number(existingPosition.currentPrice || existingPosition.entryPrice);
 
   // Record trade
   await agentPnLService.recordTrade({
@@ -919,7 +918,7 @@ async function executeClosePerpPosition(params: {
     action: 'close',
     side: existingPosition.side as 'long' | 'short',
     amount: size,
-    price: currentPrice,
+    price: exitPrice,
     pnl: realizedPnL,
     reasoning,
   });
