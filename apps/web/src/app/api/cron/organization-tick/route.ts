@@ -28,6 +28,7 @@ import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
   BabylonLLMClient,
   getActiveEventsForPosting,
+  secureRandom,
   StaticDataRegistry,
   worldFactsService,
 } from '@babylon/engine';
@@ -87,7 +88,7 @@ export async function POST(_req: NextRequest) {
   }
 
   const startTime = Date.now();
-  const processId = `org-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const processId = `org-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('Organization tick started', { processId }, 'OrganizationTick');
 
   // Relay to staging if configured
@@ -198,8 +199,8 @@ export async function POST(_req: NextRequest) {
   // Get world facts for context
   const worldFactsContext = await worldFactsService.generatePromptContext();
 
-  // Randomly select organizations for this tick
-  const shuffledOrgs = [...allOrgs].sort(() => Math.random() - 0.5);
+  // Randomly select organizations for this tick using secureRandom for consistency
+  const shuffledOrgs = [...allOrgs].sort(() => secureRandom() - 0.5);
   const orgsThisTick = shuffledOrgs.slice(0, ORGS_PER_TICK);
 
   logger.info(
@@ -230,7 +231,7 @@ export async function POST(_req: NextRequest) {
 
     try {
       // Determine if this should be an article or a post
-      const isArticle = Math.random() < ARTICLE_PROBABILITY;
+      const isArticle = secureRandom() < ARTICLE_PROBABILITY;
       const postType = isArticle ? 'article' : 'post';
 
       // Generate content based on active events and world context

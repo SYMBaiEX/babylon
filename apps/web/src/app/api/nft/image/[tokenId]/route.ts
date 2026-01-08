@@ -23,7 +23,16 @@ const COLLECTION_SIZE = Number(process.env.NFT_COLLECTION_SIZE) || 100;
 /** Max cache size to prevent memory leaks (LRU eviction when exceeded) */
 const MAX_CACHE_SIZE = 100;
 
-/** In-memory cache for image data (survives across requests in same worker) */
+/**
+ * In-memory cache for image data (survives across requests in same worker).
+ *
+ * Note: In serverless environments, each instance maintains a separate cache.
+ * This means cache hits are not shared across instances, but this is acceptable
+ * because:
+ * 1. Vercel CDN provides the primary caching layer (immutable headers)
+ * 2. This cache only reduces GitHub API calls for warm instances
+ * 3. Images are immutable, so inconsistency between instances is not an issue
+ */
 const imageCache = new Map<
   number,
   { buffer: ArrayBuffer; contentType: string; cachedAt: number }

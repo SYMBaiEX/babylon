@@ -92,7 +92,7 @@ export async function POST(_req: NextRequest) {
   }
 
   const startTime = Date.now();
-  const processId = `npc-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const processId = `npc-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('NPC tick started', { processId }, 'NPCTick');
 
   // Relay to staging if configured
