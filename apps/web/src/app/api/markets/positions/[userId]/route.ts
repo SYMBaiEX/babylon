@@ -227,7 +227,7 @@ export const GET = withErrorHandling(
         positions: perpPositions.map((p: (typeof perpPositions)[number]) => ({
           id: p.id,
           ticker: p.ticker,
-          side: (p.side as string).toUpperCase() as 'LONG' | 'SHORT',
+          side: (p.side as string).toLowerCase() as 'long' | 'short',
           entryPrice: Number(p.entryPrice),
           currentPrice: Number(p.currentPrice),
           size: Number(p.size),

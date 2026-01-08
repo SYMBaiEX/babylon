@@ -162,13 +162,18 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   >(null);
 
   // Calculate points in positions from actual position data
-  // Sum of currentValue from predictions + size from perpetuals
+  // Sum of currentValue from predictions + margin from perpetuals
+  // For perps, we use size/leverage to get actual capital tied up (margin), not notional value
   const pointsInPositions = useMemo(() => {
     const predictionValue = predictions.reduce(
       (sum, pos) => sum + (pos.currentValue ?? pos.shares * pos.currentPrice),
       0
     );
-    const perpValue = perps.reduce((sum, pos) => sum + Math.abs(pos.size), 0);
+    // Use margin (size/leverage) for perps to represent actual capital at risk
+    const perpValue = perps.reduce(
+      (sum, pos) => sum + Math.abs(pos.size / (pos.leverage || 1)),
+      0
+    );
     return predictionValue + perpValue;
   }, [predictions, perps]);
 

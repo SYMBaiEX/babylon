@@ -112,9 +112,8 @@ export interface PredictionMarketWithPosition extends PredictionMarket {
 /**
  * Side of a perpetual trade position (frontend format).
  *
- * Note: API responses use uppercase 'LONG' | 'SHORT' (see PerpPositionFromAPI in @babylon/shared).
- * The frontend normalizes these to lowercase for consistency with UI conventions.
- * Convert with: side.toLowerCase() as TradeSide
+ * Note: API responses use lowercase 'long' | 'short' (matches PerpPositionFromAPI in @babylon/shared).
+ * This is consistent with the PerpPosition type and UI conventions.
  */
 export type TradeSide = 'long' | 'short';
 

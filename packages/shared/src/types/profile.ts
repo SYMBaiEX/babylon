@@ -87,7 +87,7 @@ export interface UserProfileStats {
 export interface PerpPositionFromAPI {
   id: string;
   ticker: string;
-  side: 'LONG' | 'SHORT';
+  side: 'long' | 'short';
   entryPrice: number;
   currentPrice: number;
   size: number;

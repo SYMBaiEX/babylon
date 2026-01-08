@@ -47,6 +47,8 @@ import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 const SHARE_LIKE_MAX_INTEGER = 10;
 const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
+// Minimum shares threshold - positions with fewer shares are considered closed
+const MIN_SHARES_THRESHOLD = 0.01;
 
 // =============================================================================
 // Wallet Adapter Helper
@@ -637,7 +639,9 @@ async function executePredictionSell(params: {
   // If amount is 0 or greater than position value, sell all
   let sharesToSell = currentShares;
   if (amount > 0) {
-    // Estimate shares based on current price
+    // Estimate shares based on current probability (not actual CPMM price impact).
+    // This is an approximation - actual proceeds will differ for large sells due to
+    // price impact from the CPMM. The actual sale uses PredictionPricing.calculateSellWithFees.
     const yesShares = Number(market.yesShares || 1);
     const noShares = Number(market.noShares || 1);
     const total = yesShares + noShares;
@@ -667,6 +671,10 @@ async function executePredictionSell(params: {
     const netProceeds = calculation.netProceeds ?? 0;
 
     // Credit proceeds to agent
+    // Note: For non-NPC users, WalletService.credit runs in its own transaction.
+    // This is acceptable as wallet credits are idempotent and a partial failure
+    // would leave the user with their funds but position state may be inconsistent.
+    // TODO: Consider passing transaction to WalletService for full atomicity.
     if (isNpc) {
       await txDb
         .update(actorState)
@@ -700,7 +708,7 @@ async function executePredictionSell(params: {
 
     // Update or close position
     const remainingShares = currentShares - sharesToSell;
-    if (remainingShares <= 0.01) {
+    if (remainingShares <= MIN_SHARES_THRESHOLD) {
       // Close position
       await txDb
         .update(positions)
