@@ -44,13 +44,13 @@ export * from './tiered-group-service';
 // Market Services
 // =============================================================================
 
-// Event-market pipeline for narrative-driven market impacts
-export * from './event-market-pipeline';
 export {
   type EventArcValidationResult,
   EventArcValidator,
 } from './event-arc-validator';
 export * from './event-market-linker'; // BAB-5: Event-market connection
+// Event-market pipeline for narrative-driven market impacts
+export * from './event-market-pipeline';
 export * from './market-metrics-service'; // BAB-5: Metrics-based question generation
 export * from './market-mover-agent';
 export * from './market-timeframes'; // Multi-timeframe market system

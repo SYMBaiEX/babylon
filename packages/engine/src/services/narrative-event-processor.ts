@@ -516,7 +516,11 @@ async function getQuestionDetails(
   if (!question) {
     logger.warn(
       'Question not found for world event creation, using fallback values',
-      { questionId, fallbackText: 'Unknown question', fallbackQuestionNumber: null },
+      {
+        questionId,
+        fallbackText: 'Unknown question',
+        fallbackQuestionNumber: null,
+      },
       'NarrativeEventProcessor'
     );
   }
