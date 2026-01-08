@@ -11,60 +11,16 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import {
+  extractActivityId as hookExtractActivityId,
+  type AgentActivity,
+  type TradeActivityData,
+  type PostActivityData,
+  type CommentActivityData,
+  type MessageActivityData,
+} from '../useAgentActivity';
 
-// Types matching the hook implementation
-interface AgentInfo {
-  id: string;
-  name: string;
-  profileImageUrl: string | null;
-}
-
-interface TradeActivityData {
-  tradeId: string;
-  marketType: 'prediction' | 'perp';
-  marketId: string | null;
-  ticker: string | null;
-  marketQuestion: string | null;
-  action: string;
-  side: string | null;
-  amount: number;
-  price: number;
-  pnl: number | null;
-  reasoning: string | null;
-}
-
-interface PostActivityData {
-  postId: string;
-  contentPreview: string;
-}
-
-interface CommentActivityData {
-  commentId: string;
-  postId: string;
-  contentPreview: string;
-  parentCommentId: string | null;
-}
-
-interface MessageActivityData {
-  messageId: string;
-  chatId: string;
-  recipientId: string | null;
-  contentPreview: string;
-}
-
-interface AgentActivity {
-  type: 'trade' | 'post' | 'comment' | 'message';
-  id: string;
-  timestamp: string;
-  agent?: AgentInfo;
-  data:
-    | TradeActivityData
-    | PostActivityData
-    | CommentActivityData
-    | MessageActivityData;
-}
-
-// Helper functions (replicating hook logic)
+// Helper functions (replicating hook logic for testing)
 function buildApiUrl(
   agentId: string | undefined,
   limit: number,
@@ -79,18 +35,17 @@ function buildApiUrl(
   return `${base}?${params.toString()}`;
 }
 
+/**
+ * Test wrapper for extractActivityId - uses the actual hook implementation
+ * but with an interface that matches test usage patterns.
+ */
 function extractActivityId(
   activityData: AgentActivity['data'],
-  _type: AgentActivity['type'],
+  type: AgentActivity['type'],
   timestamp: number,
   agentId = 'agent-123'
 ): string {
-  // Order matters: check commentId before postId since comments have both fields
-  if ('tradeId' in activityData) return activityData.tradeId;
-  if ('commentId' in activityData) return activityData.commentId;
-  if ('messageId' in activityData) return activityData.messageId;
-  if ('postId' in activityData) return activityData.postId;
-  return `${_type}-${agentId}-${timestamp}`;
+  return hookExtractActivityId(activityData, `${type}-${agentId}-${timestamp}`);
 }
 
 function mergeAndDeduplicateActivities(

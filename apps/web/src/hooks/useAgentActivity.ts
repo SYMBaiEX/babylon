@@ -15,7 +15,7 @@ interface AgentInfo {
   profileImageUrl: string | null;
 }
 
-interface TradeActivityData {
+export interface TradeActivityData {
   tradeId: string;
   marketType: 'prediction' | 'perp';
   marketId: string | null;
@@ -29,19 +29,19 @@ interface TradeActivityData {
   reasoning: string | null;
 }
 
-interface PostActivityData {
+export interface PostActivityData {
   postId: string;
   contentPreview: string;
 }
 
-interface CommentActivityData {
+export interface CommentActivityData {
   commentId: string;
   postId: string;
   contentPreview: string;
   parentCommentId: string | null;
 }
 
-interface MessageActivityData {
+export interface MessageActivityData {
   messageId: string;
   chatId: string;
   recipientId: string | null;
@@ -78,6 +78,50 @@ interface UseAgentActivityOptions {
   type?: 'all' | 'trade' | 'post' | 'comment';
   pollInterval?: number;
   enableSSE?: boolean;
+}
+
+/**
+ * Extracts the canonical ID from activity data based on its type.
+ * Order matters: commentId is checked before postId since comments have both.
+ *
+ * @param data - The activity data object
+ * @param fallback - Fallback ID if no recognized field is found
+ * @returns The activity's unique identifier
+ */
+export function extractActivityId(
+  data: AgentActivity['data'],
+  fallback: string
+): string {
+  if ('tradeId' in data && data.tradeId) return data.tradeId;
+  if ('commentId' in data && data.commentId) return data.commentId;
+  if ('messageId' in data && data.messageId) return data.messageId;
+  if ('postId' in data && data.postId) return data.postId;
+  return fallback;
+}
+
+// Type guards for discriminated union
+export function isTradeActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { data: TradeActivityData } {
+  return activity.type === 'trade';
+}
+
+export function isPostActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { data: PostActivityData } {
+  return activity.type === 'post';
+}
+
+export function isCommentActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { data: CommentActivityData } {
+  return activity.type === 'comment';
+}
+
+export function isMessageActivity(
+  activity: AgentActivity
+): activity is AgentActivity & { data: MessageActivityData } {
+  return activity.type === 'message';
 }
 
 interface UseAgentActivityReturn {
@@ -137,8 +181,10 @@ export function useAgentActivity(
     []
   );
 
-  // Ref to track activities we've already seen to prevent duplicates
-  // Capped at MAX_SEEN_IDS to prevent memory leaks in long sessions
+  // Ref to track activities we've already seen to prevent duplicates.
+  // Capped at MAX_SEEN_IDS to prevent memory leaks in long sessions.
+  // Note: Set preserves insertion order in ES2015+, so iterator.next()
+  // returns the oldest entry first, enabling LRU-style eviction.
   const MAX_SEEN_IDS = 500;
   const seenActivityIds = useRef(new Set<string>());
 
@@ -233,15 +279,11 @@ export function useAgentActivity(
         return;
       }
 
-      // Extract ID from activity data based on type.
-      // Order matters: check commentId before postId since comments have both.
-      const activityData = activity.data;
-      const activityId =
-        ('tradeId' in activityData && activityData.tradeId) ||
-        ('commentId' in activityData && activityData.commentId) ||
-        ('messageId' in activityData && activityData.messageId) ||
-        ('postId' in activityData && activityData.postId) ||
-        `${activity.type}-${activity.agentId}-${activity.timestamp}`;
+    // Extract activity ID using type guard function
+    const activityId = extractActivityId(
+      activity.data,
+      `${activity.type}-${activity.agentId}-${activity.timestamp}`
+    );
 
       // Skip duplicates
       if (seenActivityIds.current.has(activityId)) {
