@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Rationalist. AI Safety. We are all going to die. Harry Potter and the Methods of Rationality.',
   domain: ['ai', 'philosophy', 'rationality'],
+  ignoreTopics: ['politics', 'sports', 'entertainment', 'celebrity', 'fashion'],
+  engagementThreshold: 0.8, // Very high - only posts about AI safety
   personality: 'doom prophet',
   tier: 'B_TIER',
   affiliations: [],

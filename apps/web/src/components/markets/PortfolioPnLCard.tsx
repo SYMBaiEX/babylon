@@ -41,7 +41,8 @@ interface PortfolioPnLCardProps {
 /**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points, defaulting to 0 if invalid.
+ * Uses shared formatCurrency utility for consistency across the codebase.
  *
  * @param value - Value to format
  * @returns Formatted currency string
@@ -49,7 +50,7 @@ interface PortfolioPnLCardProps {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatCurrencyShared(safeValue);
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 export function PortfolioPnLCard({

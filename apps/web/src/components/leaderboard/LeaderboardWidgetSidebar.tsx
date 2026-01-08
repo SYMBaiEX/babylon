@@ -4,10 +4,12 @@ import { formatCurrency } from '@babylon/shared';
 import { ExternalLink, TrendingUp, Trophy, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
+import { FollowButton } from '@/components/interactions/FollowButton';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import { Avatar } from '@/components/shared/Avatar';
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge';
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface SelectedUser {
   id: string;
@@ -43,6 +45,7 @@ export function LeaderboardWidgetSidebar({
   selectedUser,
   pointsCategory,
 }: LeaderboardWidgetSidebarProps) {
+  const { authenticated, user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
 
@@ -293,14 +296,23 @@ export function LeaderboardWidgetSidebar({
                 )}
               </div>
 
-              {/* View Profile Button */}
-              <Link
-                href={`/profile/${selectedUser.username || selectedUser.id}`}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-[#2952d9]"
-              >
-                View Profile
-                <ExternalLink className="h-4 w-4" />
-              </Link>
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/profile/${selectedUser.username || selectedUser.id}`}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-[#2952d9]"
+                >
+                  View Profile
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+                {authenticated && user && selectedUser.id !== user.id && (
+                  <FollowButton
+                    userId={selectedUser.id}
+                    size="md"
+                    className="w-full justify-center"
+                  />
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">

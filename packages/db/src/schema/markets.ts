@@ -12,6 +12,17 @@ import {
 } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
+/**
+ * Funding rate for perpetual markets
+ * Note: Dates stored as ISO strings for JSONB compatibility
+ */
+export interface FundingRate {
+  ticker: string;
+  rate: number; // APR as decimal (e.g., 0.01 = 1%)
+  nextFundingTime: string; // ISO timestamp
+  predictedRate: number; // Next period's estimated rate
+}
+
 // Market - Prediction markets
 export const markets = pgTable(
   'Market',
@@ -77,6 +88,13 @@ export const questions = pgTable(
     oracleSessionId: text('oracleSessionId').unique(),
     resolutionProofUrl: text('resolutionProofUrl'),
     resolutionDescription: text('resolutionDescription'),
+    resolutionConfidence: doublePrecision('resolutionConfidence'),
+    requiresManualReview: boolean('requiresManualReview')
+      .notNull()
+      .default(false),
+    resolutionReviewStatus: text('resolutionReviewStatus'),
+    resolutionReviewedAt: timestamp('resolutionReviewedAt', { mode: 'date' }),
+    resolutionReviewedBy: text('resolutionReviewedBy'),
   },
   (table) => [
     index('Question_createdDate_idx').on(table.createdDate),
@@ -85,6 +103,11 @@ export const questions = pgTable(
     index('Question_status_resolutionDate_idx').on(
       table.status,
       table.resolutionDate
+    ),
+    index('Question_requiresManualReview_status_idx').on(
+      table.status,
+      table.requiresManualReview,
+      table.resolutionReviewStatus
     ),
   ]
 );
@@ -215,7 +238,7 @@ export const perpMarketSnapshots = pgTable(
     low24h: doublePrecision('low24h').notNull(),
     volume24h: doublePrecision('volume24h').notNull().default(0),
     openInterest: doublePrecision('openInterest').notNull().default(0),
-    fundingRate: jsonb('fundingRate').notNull(),
+    fundingRate: jsonb('fundingRate').$type<FundingRate>().notNull(),
     maxLeverage: integer('maxLeverage').notNull().default(100),
     minOrderSize: integer('minOrderSize').notNull().default(10),
     markPrice: doublePrecision('markPrice'),

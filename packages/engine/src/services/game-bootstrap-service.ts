@@ -35,6 +35,11 @@ const MINIMUM_BALANCE_BY_TIER: Record<string, number> = {
 const DEFAULT_MINIMUM_BALANCE = 5000;
 const MAX_TOP_UP_AMOUNT = 100000;
 
+/** Funding interval in hours for perpetual markets */
+const FUNDING_INTERVAL_HOURS = 8;
+/** Funding interval in milliseconds */
+const FUNDING_INTERVAL_MS = FUNDING_INTERVAL_HOURS * 60 * 60 * 1000;
+
 // RSS Feed sources for news generation
 const RSS_FEEDS = [
   {
@@ -343,6 +348,7 @@ export class GameBootstrapService {
     await db.insert(organizationState).values({
       id: org.id,
       currentPrice: org.initialPrice,
+      basePrice: org.initialPrice ?? 100.0,
       updatedAt: new Date(),
     });
 
@@ -630,13 +636,9 @@ export class GameBootstrapService {
     );
 
     const now = new Date();
-    const defaultFundingRate = {
-      rate: 0.01, // 1% APR base
-      nextFundingTime: new Date(
-        now.getTime() + 8 * 60 * 60 * 1000
-      ).toISOString(), // 8 hours
-      predictedRate: 0.01,
-    };
+    const nextFundingTime = new Date(
+      now.getTime() + FUNDING_INTERVAL_MS
+    ).toISOString();
 
     for (const org of tradeableOrgs) {
       if (!org.ticker || existingTickers.has(org.ticker)) {
@@ -660,7 +662,12 @@ export class GameBootstrapService {
         low24h: currentPrice,
         volume24h: 0,
         openInterest: 0,
-        fundingRate: defaultFundingRate,
+        fundingRate: {
+          ticker: org.ticker,
+          rate: 0.01, // 1% APR base
+          nextFundingTime,
+          predictedRate: 0.01,
+        },
         maxLeverage: 100,
         minOrderSize: 10,
         markPrice: currentPrice,

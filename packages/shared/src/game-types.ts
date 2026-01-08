@@ -37,6 +37,13 @@ export interface Actor {
   postStyle?: string; // Style guide for how they write posts
   postExample?: string[]; // Example posts demonstrating their voice
   tier?: ActorTier;
+
+  // Content relevance filtering
+  /** Topics this actor explicitly ignores (won't post about these) */
+  ignoreTopics?: string[];
+  /** Minimum engagement threshold (0-1) for off-domain topics. Default: 0.5 */
+  engagementThreshold?: number;
+
   // Database-specific fields (optional, populated when stored in DB)
   initialLuck?: 'low' | 'medium' | 'high';
   initialMood?: number; // -1 to 1

@@ -29,7 +29,7 @@ import {
   ROLE_PERMISSIONS,
   users,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { checkForAdminEmail, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import type { AuthenticatedUser } from './auth-middleware';
 import { authenticate, getPrivyClient } from './auth-middleware';
@@ -37,23 +37,6 @@ import { getDevAdminUser, isValidDevAdminToken } from './dev-credentials';
 import { AuthorizationError } from './errors';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
-
-/**
- * Check if a user should be auto-promoted to SUPER_ADMIN based on their email domain.
- * Uses ADMIN_EMAIL_DOMAIN env variable (e.g., 'elizalabs.ai').
- * Requires email to be verified to prevent unverified email attacks.
- */
-function shouldAutoPromoteToSuperAdmin(
-  email: string | null | undefined,
-  emailVerified: boolean
-): boolean {
-  if (!emailVerified || !email) return false;
-
-  const adminDomain = process.env.ADMIN_EMAIL_DOMAIN?.trim();
-  if (!adminDomain) return false;
-
-  return email.toLowerCase().endsWith(`@${adminDomain.toLowerCase()}`);
-}
 
 /**
  * Authenticated admin user with role information
@@ -107,6 +90,7 @@ export async function getAdminRole(
 
   // Check admin email domain - fetch verified email directly from Privy for security
   // This ensures we're using Privy's verified email, not a potentially tampered database value
+  // Check ALL linked emails, not just the primary one (handles users who linked admin email later)
   const adminDomain = process.env.ADMIN_EMAIL_DOMAIN?.trim();
   const effectivePrivyId = privyId ?? user?.privyId;
 
@@ -114,14 +98,18 @@ export async function getAdminRole(
     const privyClient = getPrivyClient();
     const privyUser = await privyClient.getUser(effectivePrivyId);
 
-    // Privy's email object indicates verification status
-    // The email.address is only present if the email has been verified
-    const verifiedEmail = privyUser?.email?.address;
+    // Check all verified emails including linkedAccounts
+    const { adminEmail, allVerifiedEmails } = checkForAdminEmail(privyUser);
 
-    if (verifiedEmail && shouldAutoPromoteToSuperAdmin(verifiedEmail, true)) {
+    if (adminEmail) {
       logger.info(
         'Auto-promoting user to SUPER_ADMIN via verified Privy email domain',
-        { userId, email: verifiedEmail, privyId: effectivePrivyId },
+        {
+          userId,
+          emailDomain: adminEmail.split('@')[1] ?? null,
+          emailCount: allVerifiedEmails.length,
+          privyId: effectivePrivyId,
+        },
         'getAdminRole'
       );
       return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };

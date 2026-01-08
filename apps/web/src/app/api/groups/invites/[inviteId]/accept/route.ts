@@ -51,32 +51,46 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Check if user is at the NPC group limit (only NPC groups count toward the limit)
-      const activeMemberships = await db.groupMember.findMany({
-        where: {
-          userId: user.userId,
-          isActive: true,
-        },
+      // Check if the invited group exists and get its type
+      const invitedGroup = await db.group.findUnique({
+        where: { id: invite.groupId },
+        select: { type: true },
       });
 
-      // Fetch all groups in one query to avoid N+1
-      const groupIds = activeMemberships.map((m) => m.groupId);
-      const memberGroups =
-        groupIds.length > 0
-          ? await db.group.findMany({
-              where: { id: { in: groupIds } },
-              select: { id: true, type: true },
-            })
-          : [];
+      if (!invitedGroup) {
+        throw new ApiError('Group not found', 404);
+      }
 
-      // Count NPC groups
-      const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
+      // Only check NPC group limit if the invited group is an NPC group
+      if (invitedGroup.type === 'npc') {
+        const activeMemberships = await db.groupMember.findMany({
+          where: {
+            userId: user.userId,
+            isActive: true,
+          },
+        });
 
-      if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
-        throw new ApiError(
-          `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
-          400
-        );
+        // Fetch all groups in one query to avoid N+1
+        const groupIds = activeMemberships.map((m) => m.groupId);
+        const memberGroups =
+          groupIds.length > 0
+            ? await db.group.findMany({
+                where: { id: { in: groupIds } },
+                select: { id: true, type: true },
+              })
+            : [];
+
+        // Count NPC groups
+        const npcGroupCount = memberGroups.filter(
+          (g) => g.type === 'npc'
+        ).length;
+
+        if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+          throw new ApiError(
+            `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
+            400
+          );
+        }
       }
 
       // Check if user is already an active member (fail fast, no race condition here)
@@ -99,61 +113,77 @@ export const POST = withErrorHandling(
       });
 
       const now = new Date();
+      const memberId = await generateSnowflakeId();
 
-      // Use transaction with atomic upserts to prevent race conditions
-      await db.transaction(async (tx) => {
-        // Upsert GroupMember - use raw SQL for partial index compatibility
-        // INSERT new member OR update inactive member to active
-        const memberId = await generateSnowflakeId();
-        await tx.execute(sql`
-          INSERT INTO "GroupMember" (
-            "id", "groupId", "userId", "role", "addedBy", "joinedAt", "isActive",
-            "messageCount", "qualityScore"
-          ) VALUES (
-            ${memberId}, ${invite.groupId}, ${user.userId}, 'member', ${invite.invitedBy}, ${now}, true,
-            0, 1.0
-          )
-          ON CONFLICT ("groupId", "userId") WHERE "isActive" = true
-          DO NOTHING
-        `);
-
-        // Also handle the case where there's an inactive record (not covered by partial index)
-        // Update any inactive records to active
-        await tx
-          .update(groupMembers)
-          .set({
+      // Upsert GroupMember - use drizzle's onConflictDoUpdate
+      // Note: asUser already wraps this in a transaction, so no need for nested transaction
+      await db
+        .insert(groupMembers)
+        .values({
+          id: memberId,
+          groupId: invite.groupId,
+          userId: user.userId,
+          role: 'member',
+          addedBy: invite.invitedBy,
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        })
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
             isActive: true,
             role: 'member',
             addedBy: invite.invitedBy,
             joinedAt: now,
-            kickedAt: null,
-            kickReason: null,
-          })
-          .where(
-            sql`${groupMembers.groupId} = ${invite.groupId} AND ${groupMembers.userId} = ${user.userId} AND ${groupMembers.isActive} = false`
-          );
+            kickedAt: sql`NULL`,
+            kickReason: sql`NULL`,
+          },
+        });
 
-        // Upsert ChatParticipant if chat exists
-        if (groupChat) {
-          const participantId = await generateSnowflakeId();
-          await tx
-            .insert(chatParticipants)
-            .values({
-              id: participantId,
-              chatId: groupChat.id,
-              userId: user.userId,
-              joinedAt: now,
+      // Upsert ChatParticipant if chat exists
+      if (groupChat) {
+        const participantId = await generateSnowflakeId();
+        await db
+          .insert(chatParticipants)
+          .values({
+            id: participantId,
+            chatId: groupChat.id,
+            userId: user.userId,
+            joinedAt: now,
+            isActive: true,
+          })
+          .onConflictDoUpdate({
+            target: [chatParticipants.chatId, chatParticipants.userId],
+            set: {
               isActive: true,
-            })
-            .onConflictDoUpdate({
-              target: [chatParticipants.chatId, chatParticipants.userId],
-              set: {
-                isActive: true,
-                joinedAt: now,
-              },
-            });
-        }
+              joinedAt: now,
+            },
+          });
+      }
+
+      // Get user's display name for system message
+      const joiningUser = await db.user.findUnique({
+        where: { id: user.userId },
+        select: { displayName: true, username: true },
       });
+      const joinerName =
+        joiningUser?.displayName || joiningUser?.username || 'Someone';
+
+      // Create system message for joining
+      if (groupChat) {
+        await db.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            senderId: 'system',
+            type: 'system',
+            content: `${joinerName} joined the group`,
+            createdAt: now,
+          },
+        });
+      }
 
       // Update invite status
       await db.groupInvite.update({

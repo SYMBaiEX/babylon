@@ -7,8 +7,7 @@
  * @description
  * Scheduled cron job that runs all autonomous agents, executing their configured
  * autonomous actions (trading, posting, commenting, DMs, group chats). Processes
- * agents in sequence, deducting points and logging activities. Auto-pauses agents
- * with insufficient points.
+ * agents in sequence with optional point deduction (configured via TICK_POINTS_COST).
  *
  * @openapi
  * /api/cron/agent-tick:
@@ -68,7 +67,7 @@ import {
 } from '@babylon/api';
 import type { User, UserAgentConfig } from '@babylon/db';
 import { db, eq, inArray, userAgentConfigs, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { GROQ_MODELS, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -76,6 +75,13 @@ import { NextResponse } from 'next/server';
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
 export const maxDuration = 800; // 13.3 minutes max for agent tick (matches vercel.json)
 export const dynamic = 'force-dynamic';
+
+/**
+ * Points cost per autonomous tick.
+ * Set to 0 for free ticks, or a positive number to charge agents.
+ * Used for both eligibility checks and deductions.
+ */
+const TICK_POINTS_COST = 0;
 
 /**
  * GET /api/cron/agent-tick
@@ -94,8 +100,8 @@ export async function GET(req: NextRequest) {
  *
  * Executes autonomous agent tick, running all active agents through their configured
  * autonomous actions (trading, posting, commenting, DMs, group chats). Processes agents
- * sequentially with distributed locking, deducts points, logs activities, and auto-pauses
- * agents with insufficient points. Supports staging environment relay.
+ * sequentially with distributed locking. Point deduction is configurable via TICK_POINTS_COST.
+ * Supports staging environment relay.
  *
  * @param _req - Next.js request (CRON_SECRET required in Authorization header)
  * @returns Execution result with agents processed, paused, errors, and timing metrics
@@ -116,7 +122,7 @@ export async function POST(_req: NextRequest) {
   }
 
   const startTime = Date.now();
-  const processId = `agent-tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const processId = `agent-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('Agent tick started', { processId }, 'AgentTick');
 
   // 1. Relay to staging if REDIRECT_CRON_STAGING is enabled
@@ -243,7 +249,7 @@ export async function POST(_req: NextRequest) {
       limit: 500,
     });
 
-    // Filter USER_CONTROLLED agents with sufficient points and autonomous features enabled
+    // Filter USER_CONTROLLED agents with autonomous features enabled (and sufficient balance if TICK_POINTS_COST > 0)
     // NPCs are handled by /api/cron/npc-tick
     const eligibleAgents: Array<{
       agentId: string;
@@ -290,9 +296,14 @@ export async function POST(_req: NextRequest) {
         continue;
       }
 
+      // Check balance only if tick costs points
+      const hasEnoughBalance =
+        TICK_POINTS_COST <= 0 ||
+        Number(user.virtualBalance ?? 0) >= TICK_POINTS_COST;
+
       if (
         user.isAgent &&
-        Number(user.virtualBalance ?? 0) >= 1 &&
+        hasEnoughBalance &&
         (config?.autonomousTrading ||
           config?.autonomousPosting ||
           config?.autonomousCommenting ||
@@ -316,7 +327,7 @@ export async function POST(_req: NextRequest) {
         'No eligible user agents found to run',
         {
           totalRegistered: registeredAgents.length,
-          criteria: 'USER agents with autonomous features + points >= 1',
+          criteria: `USER agents with autonomous features enabled${TICK_POINTS_COST > 0 ? ` + balance >= ${TICK_POINTS_COST}` : ''}`,
         },
         'AgentTick'
       );
@@ -327,8 +338,7 @@ export async function POST(_req: NextRequest) {
         duration: Date.now() - startTime,
         results: [],
         skippedLocked: 0,
-        message:
-          'No user agents found with autonomous features enabled and sufficient points',
+        message: 'No user agents found with autonomous features enabled',
       });
     }
 
@@ -387,18 +397,18 @@ export async function POST(_req: NextRequest) {
         continue;
       }
 
-      // Always 1pt per tick for USER agents
-      const pointsCost = 1;
-
-      // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
-      // This ensures points are always charged once we commit to running the tick.
-      // If we deducted after tick execution, errors in executeAutonomousTick() would
-      // skip the deduction (catch block), allowing agents to get free actions on errors.
-      await agentService.deductPoints(
-        eligibleAgent.user.id,
-        pointsCost,
-        'Autonomous tick'
-      );
+      // Only deduct points if cost is greater than 0
+      if (TICK_POINTS_COST > 0) {
+        // CRITICAL: Deduct points immediately after lock acquisition, BEFORE tick execution.
+        // This ensures points are always charged once we commit to running the tick.
+        // If we deducted after tick execution, errors in executeAutonomousTick() would
+        // skip the deduction (catch block), allowing agents to get free actions on errors.
+        await agentService.deductPoints(
+          eligibleAgent.user.id,
+          TICK_POINTS_COST,
+          'Autonomous tick'
+        );
+      }
 
       // Process agent with error handling to ensure lock is always released
       try {
@@ -473,17 +483,16 @@ export async function POST(_req: NextRequest) {
           );
         }
 
-        const modelUsed = 'qwen/qwen3-32b';
-
         // Log tick for user agent
         await agentService.createLog(eligibleAgent.user.id, {
           type: 'tick',
           level: 'info',
           message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
           metadata: {
-            pointsCost,
+            pointsCost: TICK_POINTS_COST,
             duration: Date.now() - agentStartTime,
-            modelUsed,
+            modelSmall: GROQ_MODELS.FREE.modelId,
+            modelLarge: GROQ_MODELS.PRO.modelId,
             enabledFeatures,
             actions,
             success: tickResult.success,
@@ -506,7 +515,7 @@ export async function POST(_req: NextRequest) {
           agentType: eligibleAgent.type,
           name: eligibleAgent.name,
           status: tickResult.success ? 'success' : 'completed_without_actions',
-          pointsDeducted: pointsCost,
+          pointsDeducted: TICK_POINTS_COST,
           duration: Date.now() - agentStartTime,
           actions: agentActionCount,
           method: tickResult.method,

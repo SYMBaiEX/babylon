@@ -111,12 +111,12 @@ export class AgentPnLService {
         type: 'trade',
         level: 'info',
         message: `Trade executed: ${action} ${side || ''} ${amount} @ ${price}`,
+        thinking: reasoning ?? null,
         metadata: {
           marketType,
           marketId,
           ticker,
           pnl,
-          reasoning,
         } as JsonValue,
       });
     });

@@ -35,6 +35,7 @@ import {
   posts,
   reactions,
   shares,
+  sql,
   userInteractions,
   users,
 } from '@babylon/db';
@@ -398,8 +399,8 @@ export class NPCGroupDynamicsService {
                   .set({
                     isActive: true,
                     joinedAt: new Date(),
-                    kickedAt: null,
-                    kickReason: null,
+                    kickedAt: sql`NULL`,
+                    kickReason: sql`NULL`,
                   })
                   .where(eq(groupMembers.id, existingMember.id));
               }

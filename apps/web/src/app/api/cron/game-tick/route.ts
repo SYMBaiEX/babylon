@@ -95,7 +95,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const startTime = Date.now();
-  const lockId = `tick-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const lockId = `tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
   // 1.5. Relay to staging if REDIRECT_CRON_STAGING is enabled
   const relayResult = await relayCronToStaging(request, 'game-tick');

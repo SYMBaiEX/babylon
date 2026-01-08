@@ -1,10 +1,14 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatNumberWithSeparators,
+} from '@babylon/shared';
 import {
   Activity,
   BarChart3,
-  DollarSign,
+  Coins,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -116,9 +120,9 @@ export function MarketOverviewPanel() {
   }, [predictionMarkets]);
 
   const formatVolume = (v: number) => {
-    if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-    if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-    return `$${(v / 1e3).toFixed(2)}K`;
+    if (v >= 1e9) return `${BABYLON_POINTS_SYMBOL}${(v / 1e9).toFixed(2)}B`;
+    if (v >= 1e6) return `${BABYLON_POINTS_SYMBOL}${(v / 1e6).toFixed(2)}M`;
+    return `${BABYLON_POINTS_SYMBOL}${(v / 1e3).toFixed(2)}K`;
   };
 
   return (
@@ -145,7 +149,7 @@ export function MarketOverviewPanel() {
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                <Coins className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground text-sm">
                   24h Volume
                 </span>
@@ -217,7 +221,8 @@ export function MarketOverviewPanel() {
                 Total Volume
               </span>
               <span className="font-semibold text-foreground text-sm">
-                {predictionOverview.totalVolume.toFixed(0)} shares
+                {formatNumberWithSeparators(predictionOverview.totalVolume)}{' '}
+                shares
               </span>
             </div>
           </div>

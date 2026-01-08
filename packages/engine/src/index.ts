@@ -34,6 +34,14 @@ export {
 } from './actors-loader';
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
+// Content Pacing Configuration
+export {
+  CONTENT_PACING,
+  calculatePostsForTick,
+  getTimeOfDayMultiplier,
+  isNewDay,
+  shouldActorPost,
+} from './config/content-pacing';
 // Configuration
 export {
   FEE_CONFIG,
@@ -196,8 +204,9 @@ export {
 export {
   checkDuplicate,
   checkRateLimit,
+  checkRateLimitAsync,
   cleanupDuplicates,
-  cleanupRateLimits,
+  cleanupMemoryRateLimits,
   clearAllDuplicates,
   clearAllRateLimits,
   clearDuplicates,

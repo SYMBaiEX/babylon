@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCurrency } from '@babylon/shared';
 import {
   AlertTriangle,
   CheckCircle,
@@ -154,14 +154,9 @@ export function TradeConfirmationDialog({
 }: TradeConfirmationDialogProps) {
   if (!tradeDetails) return null;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-  };
+  /** Use shared formatCurrency for price formatting */
+  const formatPrice = (amount: number) =>
+    formatCurrency(amount, { useThousandsSeparator: true });
 
   const getTitle = () => {
     switch (tradeDetails.type) {

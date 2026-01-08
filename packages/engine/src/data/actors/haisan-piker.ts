@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "Political commentator. TwAItch streamer. CAPITALISM IS BROKEN. My house is fine actually. These chuds don't understand theory. Workers deserve better. Just tax the rich bro.",
   domain: ['politics', 'streaming', 'content'],
+  ignoreTopics: ['crypto', 'blockchain', 'ai', 'tech'],
+  engagementThreshold: 0.3, // Low - Hasan comments on many things
   personality: 'hypocritical ideologue',
   tier: 'B_TIER',
   affiliations: [],

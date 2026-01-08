@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Founder of AngelAI. Wealth is a skill. Happiness is peace in motion. Read what you love. Specific knowledge. Leverage.',
   domain: ['crypto', 'philosophy', 'tech', 'investing'],
+  ignoreTopics: ['politics', 'sports', 'entertainment'],
+  engagementThreshold: 0.5, // Moderate - broad interests but curated
   personality: 'yacht philosopher',
   tier: 'B_TIER',
   hasPool: false,

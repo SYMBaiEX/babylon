@@ -63,6 +63,7 @@
 
 import {
   authenticate,
+  cachedDb,
   createNotification,
   withErrorHandling,
 } from '@babylon/api';
@@ -223,6 +224,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       sender: updatedSender,
       recipient: updatedRecipient,
     };
+  });
+
+  // Invalidate cache for both users to update UI immediately
+  await Promise.all([
+    cachedDb.invalidateUserCache(senderId),
+    cachedDb.invalidateUserCache(recipientId),
+  ]).catch((error) => {
+    logger.warn('Failed to invalidate user cache after points transfer', {
+      error,
+      senderId,
+      recipientId,
+    });
   });
 
   logger.info(

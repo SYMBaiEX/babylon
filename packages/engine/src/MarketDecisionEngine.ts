@@ -863,10 +863,18 @@ ${prompt}`
         if (xmlResult.success && xmlResult.data) {
           logger.info(
             'Successfully extracted XML from string response',
-            {},
+            {
+              hasThinkingContent: !!xmlResult.thinkingContent,
+            },
             'MarketDecisionEngine'
           );
           rawResponse = xmlResult.data as typeof rawResponse;
+
+          // Store thinking content for fallback reasoning
+          if (xmlResult.thinkingContent) {
+            (rawResponse as Record<string, unknown>).__thinkingContent =
+              xmlResult.thinkingContent;
+          }
           // Continue to structure validation below
         }
       }
@@ -1031,12 +1039,29 @@ ${prompt}`
       return [];
     }
 
+    // Populate empty reasoning fields with thinking content fallback
+    const thinkingFallback = (rawResponse as Record<string, unknown>)
+      ?.__thinkingContent as string | undefined;
+    let reasoningPopulatedCount = 0;
+
+    for (const decision of response) {
+      if (!decision.reasoning || decision.reasoning.trim() === '') {
+        if (thinkingFallback) {
+          // Use first 500 chars of thinking as reasoning (avoid bloat)
+          decision.reasoning = thinkingFallback.substring(0, 500).trim();
+          reasoningPopulatedCount++;
+        }
+      }
+    }
+
     logger.info(
       `Processed ${response.length} decisions for ${contexts.length} NPCs`,
       {
         responseLength: response.length,
         npcCount: contexts.length,
         sampleDecision: response.length > 0 ? response[0] : null,
+        reasoningPopulatedFromThinking: reasoningPopulatedCount,
+        hasThinkingFallback: !!thinkingFallback,
       },
       'MarketDecisionEngine'
     );
@@ -1202,6 +1227,11 @@ ${prompt}`
     originalTickerToActualTickerMap.set('meta', 'METAI');
     originalTickerToActualTickerMap.set('sol', 'SOLAI');
     originalTickerToActualTickerMap.set('solana', 'SOLAI');
+    // NVIDIA variations - LLM uses company name "NVAIDAI" but ticker is "NVDAI"
+    originalTickerToActualTickerMap.set('nvaidai', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvidia', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvda', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvdai', 'NVDAI');
 
     // Get companies from static registry
     const orgs = StaticDataRegistry.getAllOrganizations()
@@ -1322,6 +1352,12 @@ ${prompt}`
     // Check if running in test environment - skip fail-fast throws in tests
     const isTestEnv =
       process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+
+    // Strict validation mode: throw errors instead of logging (original behavior)
+    // Set STRICT_LLM_VALIDATION=true to enable fail-fast mode in development
+    const isStrictMode =
+      process.env.STRICT_LLM_VALIDATION === 'true' ||
+      process.env.STRICT_LLM_VALIDATION === '1';
 
     for (const decision of decisions) {
       // Skip decisions missing required fields early
@@ -1630,10 +1666,17 @@ ${prompt}`
         const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
         logger.warn(errorMsg, {}, 'MarketDecisionEngine');
 
-        // FAIL FAST in development (but not tests)
+        // Log loudly in development, throw in strict mode
         if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
-          throw new Error(
-            `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
           );
         }
         continue;
@@ -1660,13 +1703,17 @@ ${prompt}`
           'MarketDecisionEngine'
         );
 
-        // FAIL FAST in development (but not tests): LLM should respect balance constraints
-        // In tests, NPCs may have $0 balance in database - just skip these decisions
+        // Log loudly in development, throw in strict mode
         if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
-          throw new Error(
-            `[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()}. Decision: ${JSON.stringify(
-              decision
-            )}`
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
           );
         }
         // REJECT the decision instead of scaling - this forces LLM to respect constraints
@@ -1707,10 +1754,17 @@ ${prompt}`
           'MarketDecisionEngine'
         );
 
-        // FAIL FAST in development (but not tests)
+        // Log loudly in development, throw in strict mode
         if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
-          throw new Error(
-            `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
           );
         }
         continue;
@@ -1735,10 +1789,17 @@ ${prompt}`
           'MarketDecisionEngine'
         );
 
-        // FAIL FAST in development (but not tests)
+        // Log loudly in development, throw in strict mode
         if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
-          throw new Error(
-            `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
           );
         }
         continue;
@@ -1821,12 +1882,17 @@ ${prompt}`
             continue;
           }
 
-          // FAIL FAST in development (but not tests): ticker doesn't exist
+          // Log loudly in development, throw in strict mode
           if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
-            throw new Error(
-              `[DEV] ${errorMsg}. Ticker mapping failed. Decision: ${JSON.stringify(
-                decision
-              )}`
+            if (isStrictMode) {
+              throw new Error(
+                `[DEV] ${errorMsg}. Ticker mapping failed. Decision: ${JSON.stringify(decision)}`
+              );
+            }
+            logger.error(
+              `[DEV] ${errorMsg}. Ticker mapping failed - skipping decision`,
+              { decision: JSON.stringify(decision) },
+              'MarketDecisionEngine'
             );
           }
           continue;

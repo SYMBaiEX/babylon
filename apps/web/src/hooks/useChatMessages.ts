@@ -1,5 +1,8 @@
+import type { MessageType } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MessageTypeEnum } from '@/components/chats/types';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useSSEChannel } from './useSSE';
 
 /**
@@ -14,6 +17,8 @@ export interface ChatMessage {
   chatId: string;
   /** ID of the user who sent the message */
   senderId: string;
+  /** Message type: 'user' for regular messages, 'system' for system notifications */
+  type?: MessageType;
   /** ISO timestamp when the message was created */
   createdAt: string;
   /** Whether this is a game chat message */
@@ -86,7 +91,9 @@ export function useChatMessages(chatId: string | null) {
       'useChatMessages'
     );
     setIsLoading(true);
-    const response = await fetch(`/api/chats/${chatId}?limit=50`);
+    const response = await fetch(
+      `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
+    );
     logger.debug(
       `Response status: ${response.status}`,
       { chatId, status: response.status },
@@ -101,12 +108,14 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
+            type?: MessageType;
             createdAt: string | Date;
           }) => ({
             id: msg.id,
             content: msg.content,
             chatId: chatId,
             senderId: msg.senderId,
+            type: msg.type,
             createdAt:
               typeof msg.createdAt === 'string'
                 ? msg.createdAt
@@ -157,7 +166,7 @@ export function useChatMessages(chatId: string | null) {
     setIsLoadingMore(true);
 
     const response = await fetch(
-      `/api/chats/${chatId}?cursor=${nextCursor}&limit=50`
+      `/api/chats/${chatId}?cursor=${nextCursor}&limit=${CHAT_PAGE_SIZE}`
     );
 
     if (response.ok) {
@@ -169,12 +178,14 @@ export function useChatMessages(chatId: string | null) {
             id: string;
             content: string;
             senderId: string;
+            type?: MessageType;
             createdAt: string | Date;
           }) => ({
             id: msg.id,
             content: msg.content,
             chatId: chatId,
             senderId: msg.senderId,
+            type: msg.type,
             createdAt:
               typeof msg.createdAt === 'string'
                 ? msg.createdAt
@@ -227,6 +238,11 @@ export function useChatMessages(chatId: string | null) {
             content: messageData.content,
             chatId: messageData.chatId,
             senderId: messageData.senderId,
+            type:
+              messageData.type === MessageTypeEnum.USER ||
+              messageData.type === MessageTypeEnum.SYSTEM
+                ? (messageData.type as MessageType)
+                : undefined,
             createdAt: messageData.createdAt,
             isGameChat:
               typeof messageData.isGameChat === 'boolean'
@@ -293,7 +309,9 @@ export function useChatMessages(chatId: string | null) {
         'useChatMessages'
       );
 
-      const response = await fetch(`/api/chats/${chatId}?limit=50`);
+      const response = await fetch(
+        `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.messages) {

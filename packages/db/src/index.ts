@@ -519,6 +519,7 @@ export {
 } from '@babylon/shared';
 export type { SQL } from 'drizzle-orm';
 export {
+  aliasedTable,
   and,
   asc,
   avg,

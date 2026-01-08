@@ -212,8 +212,11 @@ export default function ActorProfilePage() {
           const cleanUsername = user.username.startsWith('@')
             ? user.username.slice(1)
             : user.username;
-          router.replace(`/profile/${cleanUsername}`);
-          return;
+          // Only redirect if we're not already on the target URL (case-insensitive comparison)
+          if (cleanUsername.toLowerCase() !== actorId.toLowerCase()) {
+            router.replace(`/profile/${cleanUsername}`);
+            return;
+          }
         }
 
         setLoading(false);
@@ -258,8 +261,11 @@ export default function ActorProfilePage() {
             const cleanUsername = user.username.startsWith('@')
               ? user.username.slice(1)
               : user.username;
-            router.replace(`/profile/${cleanUsername}`);
-            return;
+            // Only redirect if we're not already on the target URL (case-insensitive comparison)
+            if (cleanUsername.toLowerCase() !== actorId.toLowerCase()) {
+              router.replace(`/profile/${cleanUsername}`);
+              return;
+            }
           }
 
           setLoading(false);
@@ -269,13 +275,20 @@ export default function ActorProfilePage() {
     }
 
     // Try to load from API endpoint (uses optimized server-side loader)
-    const response = await fetch('/api/actors');
-    if (!response.ok) throw new Error('Failed to load actors');
-
-    const actorsDb = (await response.json()) as {
-      actors?: Actor[];
-      organizations?: Organization[];
+    let actorsDb: { actors?: Actor[]; organizations?: Organization[] } = {
+      actors: [],
+      organizations: [],
     };
+    try {
+      const response = await fetch('/api/actors');
+      if (response.ok) {
+        actorsDb = await response.json();
+      } else {
+        console.error('Failed to load actors:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching actors:', error);
+    }
 
     // Find actor by id, username, or name
     let actor = actorsDb.actors?.find((a) => a.id === actorId);
@@ -337,6 +350,14 @@ export default function ActorProfilePage() {
         username: ('username' in actor
           ? (actor.username as string)
           : actor.id) as string | undefined, // Use username if available, fallback to ID
+        // Explicitly set profile image URL with fallback to static actor image
+        // Use same defensive pattern as organization fallback below
+        profileImageUrl:
+          'profileImageUrl' in actor &&
+          typeof actor.profileImageUrl === 'string' &&
+          actor.profileImageUrl
+            ? actor.profileImageUrl
+            : `/images/actors/${actor.id}.jpg`,
         stats,
       });
       setLoading(false);
@@ -369,6 +390,14 @@ export default function ActorProfilePage() {
         }
       }
 
+      // Check if org has a non-empty profileImageUrl property
+      const orgProfileImageUrl =
+        'profileImageUrl' in org &&
+        typeof org.profileImageUrl === 'string' &&
+        org.profileImageUrl
+          ? org.profileImageUrl
+          : `/images/organizations/${org.id}.jpg`;
+
       setActorInfo({
         id: org.id,
         name: org.name,
@@ -376,6 +405,7 @@ export default function ActorProfilePage() {
         profileDescription: org.profileDescription,
         type: 'organization' as const,
         role: 'Organization',
+        profileImageUrl: orgProfileImageUrl,
         stats,
       });
       setLoading(false);
@@ -968,8 +998,8 @@ export default function ActorProfilePage() {
           </div>
         </div>
 
-        {/* Widget Sidebar - Show for all user profiles */}
-        {actorInfo && actorInfo.isUser && (
+        {/* Widget Sidebar - Show for all profiles (users, actors, organizations) */}
+        {actorInfo && (
           <div className="hidden w-96 flex-shrink-0 flex-col overflow-y-auto bg-sidebar p-4 xl:flex">
             <ProfileWidget userId={actorInfo.id} />
           </div>

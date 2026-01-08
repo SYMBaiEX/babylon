@@ -51,6 +51,8 @@ export interface StaticActor {
   realName?: string;
   description?: string;
   domain: string[];
+  ignoreTopics?: string[];
+  engagementThreshold?: number;
   personality?: string;
   tier: ActorTier | null;
   affiliations: string[];
@@ -86,6 +88,8 @@ export interface StaticOrganization {
   imageUrl?: string;
   originalName?: string;
   originalHandle?: string;
+  /** Custom editorial style for organization posts */
+  postStyle?: string;
 }
 
 /**
@@ -156,6 +160,8 @@ export class StaticDataRegistry {
         realName?: string;
         description?: string;
         domain?: string[];
+        ignoreTopics?: string[];
+        engagementThreshold?: number;
         personality?: string;
         tier?: string;
         affiliations?: string[];
@@ -173,6 +179,8 @@ export class StaticDataRegistry {
         realName: actorAny.realName,
         description: actorAny.description,
         domain: actorAny.domain ?? [],
+        ignoreTopics: actorAny.ignoreTopics,
+        engagementThreshold: actorAny.engagementThreshold,
         personality: actorAny.personality,
         tier: (actorAny.tier as ActorTier) ?? null,
         affiliations: actorAny.affiliations ?? [],
@@ -225,6 +233,7 @@ export class StaticDataRegistry {
         initialPrice?: number;
         originalName?: string;
         originalHandle?: string;
+        postStyle?: string;
       };
 
       const staticOrg: StaticOrganization = {
@@ -238,6 +247,7 @@ export class StaticDataRegistry {
         imageUrl: this.getOrgImageUrl(orgAny.id),
         originalName: orgAny.originalName,
         originalHandle: orgAny.originalHandle,
+        postStyle: orgAny.postStyle,
       };
 
       this.orgMap.set(orgAny.id, staticOrg);

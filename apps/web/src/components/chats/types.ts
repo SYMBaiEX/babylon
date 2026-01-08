@@ -18,6 +18,10 @@ export interface Chat {
     displayName: string | null;
     username: string | null;
     profileImageUrl: string | null;
+    /** Whether this user is an AI agent */
+    isAgent?: boolean;
+    /** The user ID that manages this agent (for detecting own agents) */
+    managedBy?: string | null;
   };
   nftRequirement?: {
     contractAddress: string;
@@ -27,10 +31,19 @@ export interface Chat {
   };
 }
 
+import type { MessageType } from '@babylon/db';
+
+// Enum for runtime checks, type-guarded by MessageType from db
+export const MessageTypeEnum = {
+  USER: 'user' as MessageType,
+  SYSTEM: 'system' as MessageType,
+} as const;
+
 export interface Message {
   id: string;
   content: string;
   senderId: string;
+  type?: MessageType;
   createdAt: string;
 }
 
@@ -53,6 +66,10 @@ export interface ChatDetails {
       displayName: string | null;
       username: string | null;
       profileImageUrl: string | null;
+      /** Whether this user is an AI agent */
+      isAgent?: boolean;
+      /** The user ID that manages this agent (for detecting own agents) */
+      managedBy?: string | null;
     } | null;
     nftRequirement?: {
       contractAddress: string;

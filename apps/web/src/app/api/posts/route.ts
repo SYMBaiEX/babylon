@@ -264,6 +264,7 @@ import {
 import {
   type GeneratedTag,
   generateTagsFromPost,
+  handlePlayerMention,
   StaticDataRegistry,
   storeTagsForPost,
 } from '@babylon/engine';
@@ -1071,6 +1072,51 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     'POST /api/posts'
   );
+
+  // Handle player influence for mentioned NPCs (boosts their response probability)
+  // Check if any mentioned users are NPCs/actors
+  const mentionedActorIds = mentionedUsers
+    .filter((u) => {
+      // Check if this user is an actor (NPC)
+      const actor = StaticDataRegistry.getActor(u.id);
+      return actor !== null;
+    })
+    .map((u) => u.id);
+
+  if (mentionedActorIds.length > 0) {
+    // Use Promise.allSettled to handle each mention independently
+    // This ensures one failure doesn't prevent processing others
+    void Promise.allSettled(
+      mentionedActorIds.map((actorId) =>
+        handlePlayerMention(canonicalUserId, actorId, post.id)
+      )
+    ).then((results) => {
+      // Log failures from settled results
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const actorId = mentionedActorIds[index];
+          logger.warn(
+            'Failed to handle player mention for NPC',
+            {
+              actorId,
+              postId: post.id,
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+            },
+            'POST /api/posts'
+          );
+        }
+      });
+      // Log summary after all handlePlayerMention calls have settled
+      logger.info(
+        'Triggered NPC mention influence',
+        { postId: post.id, npcCount: mentionedActorIds.length },
+        'POST /api/posts'
+      );
+    });
+  }
 
   trackServerEvent(canonicalUserId, 'post_created', {
     postId: post.id,

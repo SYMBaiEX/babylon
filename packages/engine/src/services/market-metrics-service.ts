@@ -15,7 +15,9 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   markets,
+  perpMarketSnapshots,
   positions,
   predictionPriceHistories,
   sql,
@@ -339,10 +341,69 @@ export class MarketMetricsService {
       pricesByOrg.set(p.orgId, existing);
     }
 
-    // Note: PerpMarketSnapshot table provides additional context but may not exist
-    // in all environments. The stockPrices table is the primary data source.
-    // When PerpMarketSnapshot is migrated to all environments, add:
-    // TODO(BAB-5): Add perpMarketSnapshots query once table is in production
+    // Enhance with PerpMarketSnapshot data if available (provides 24h price comparison)
+    // Only fetch snapshots for organizations we actually have price data for
+    const snapshotMap = new Map<
+      string,
+      { price24hAgo: number | null; price24hAgoUpdatedAt: Date | null }
+    >();
+    const orgIds = Array.from(pricesByOrg.keys());
+
+    if (orgIds.length > 0) {
+      try {
+        const snapshots = await db
+          .select({
+            organizationId: perpMarketSnapshots.organizationId,
+            price24hAgo: perpMarketSnapshots.price24hAgo,
+            price24hAgoUpdatedAt: perpMarketSnapshots.price24hAgoUpdatedAt,
+          })
+          .from(perpMarketSnapshots)
+          .where(inArray(perpMarketSnapshots.organizationId, orgIds));
+
+        for (const snapshot of snapshots) {
+          snapshotMap.set(snapshot.organizationId, {
+            price24hAgo: snapshot.price24hAgo,
+            price24hAgoUpdatedAt: snapshot.price24hAgoUpdatedAt,
+          });
+        }
+      } catch (error) {
+        // Only swallow "missing table" errors (Postgres error code 42P01)
+        // Other errors (connection, permission, query issues) should propagate
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const errorCode =
+          error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined;
+
+        // Prefer Postgres error code 42P01 for missing table detection
+        // Fallback message check only for non-Postgres drivers (simplified pattern)
+        const isMissingTableError =
+          errorCode === '42P01' ||
+          errorMessage.toLowerCase().includes('does not exist');
+
+        if (isMissingTableError) {
+          // Table may not exist in all environments - continue without snapshot data
+          logger.debug(
+            'PerpMarketSnapshot table not available, using stockPrices only',
+            { error: errorMessage },
+            'MarketMetrics'
+          );
+        } else {
+          // Real DB error - log as error and rethrow
+          logger.error(
+            'Failed to query PerpMarketSnapshot',
+            { error: errorMessage, errorCode },
+            'MarketMetrics'
+          );
+          throw error;
+        }
+      }
+    }
+
+    // Freshness window for 24h snapshot (25 hours to allow for slight delays)
+    const SNAPSHOT_FRESHNESS_MS = 25 * 60 * 60 * 1000;
+    const now = Date.now();
 
     const metrics: PerpMarketMetrics[] = [];
 
@@ -354,9 +415,21 @@ export class MarketMetricsService {
 
       const currentPrice = prices[0]!.price;
       const oldestPrice = prices[prices.length - 1]!.price;
+
+      // Use 24h ago price from snapshot if available and fresh (more accurate)
+      // Explicit null check to ensure TypeScript narrows snapshot from T | undefined
+      const snapshot = snapshotMap.get(orgId);
+      const referencePrice =
+        snapshot != null &&
+        snapshot.price24hAgo != null &&
+        snapshot.price24hAgoUpdatedAt != null &&
+        now - snapshot.price24hAgoUpdatedAt.getTime() <= SNAPSHOT_FRESHNESS_MS
+          ? snapshot.price24hAgo
+          : oldestPrice;
+
       const priceChangePercent =
-        oldestPrice > 0
-          ? ((currentPrice - oldestPrice) / oldestPrice) * 100
+        referencePrice != null && referencePrice > 0
+          ? ((currentPrice - referencePrice) / referencePrice) * 100
           : 0;
 
       const volatility = this.calculateVolatility(

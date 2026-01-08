@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Creator of EtherAIm. Working on scalability, decentralization, and security. wrote about this in 2017. unicorns.',
   domain: ['crypto', 'ethereum', 'tech', 'mathematics'],
+  ignoreTopics: ['politics', 'entertainment', 'sports', 'celebrity', 'fashion'],
+  engagementThreshold: 0.7, // High - focused on crypto/tech
   personality: 'autistic genius',
   tier: 'S_TIER',
   hasPool: false,

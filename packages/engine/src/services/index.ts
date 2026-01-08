@@ -12,9 +12,11 @@
 // =============================================================================
 
 export * from './ActorSocialActions';
+export * from './activity-pattern-service';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
 export * from './following-mechanics';
+export * from './game-onboarding-service';
 // Group Chat Service
 export {
   GroupChatService,
@@ -23,11 +25,17 @@ export {
 } from './group-chat-service';
 export * from './InteractionTracker';
 export * from './initial-investment-service';
+export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
+export * from './narrative-event-processor';
 export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
+export * from './npc-memory-service';
 export * from './npc-persona-generator';
+export * from './npc-social-engagement-service';
+export * from './player-influence-service';
+export * from './posting-probability-service';
 export * from './reply-rate-limiter';
 export * from './tier-config';
 export * from './tiered-group-service';
@@ -41,11 +49,16 @@ export {
   EventArcValidator,
 } from './event-arc-validator';
 export * from './event-market-linker'; // BAB-5: Event-market connection
+// Event-market pipeline for narrative-driven market impacts
+export * from './event-market-pipeline';
 export * from './market-metrics-service'; // BAB-5: Metrics-based question generation
 export * from './market-mover-agent';
+export * from './market-timeframes'; // Multi-timeframe market system
 export * from './onchain-market-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
+export * from './sub-market-service'; // Sub-market spawning
+export * from './timeframe-arc-processor'; // Time-based arc state machine
 export * from './trajectory-market-engine';
 
 // =============================================================================
@@ -60,7 +73,7 @@ export * from './npc-character-config';
 export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
-
+export * from './story-seed-service';
 // Tag Service
 export {
   type GeneratedTag,
@@ -74,7 +87,7 @@ export {
   storeTagsForPost,
   storeTrendingTags,
 } from './tag-service';
-
+export * from './topic-diversity-service';
 export * from './trending-calculation-service';
 export * from './trending-grouping-service';
 

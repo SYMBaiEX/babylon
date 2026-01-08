@@ -157,11 +157,10 @@ export function FollowButton({
     });
 
     if (response.ok) {
-      const newFollowingState = !isFollowing;
-      setIsFollowing(newFollowingState);
-      onFollowChange?.(newFollowingState);
+      // Success! State was already updated optimistically above
+      // Just track the action, don't update state again (causes race condition)
       trackFollow(userId, newFollowingState);
-      // Success! The follower count is already updated via onFollowerCountChange callback
+      // Follower count is already updated via onFollowerCountChange callback
     } else {
       // Revert optimistic update on error
       setIsFollowing(!newFollowingState);
@@ -199,11 +198,8 @@ export function FollowButton({
         user.username.startsWith('@') &&
         user.username.slice(1) === userId));
 
-  if (isChecking || isOwnProfile) {
-    return null;
-  }
-
-  if (!authenticated) {
+  // Don't show for own profile or when not authenticated
+  if (isOwnProfile || !authenticated) {
     return null;
   }
 
@@ -214,40 +210,75 @@ export function FollowButton({
   };
 
   const iconSizes = {
-    sm: 'w-3 h-3',
-    md: 'w-4 h-4',
-    lg: 'w-5 h-5',
+    sm: 'w-4 h-4', // Increased from w-3 h-3
+    md: 'w-5 h-5', // Increased from w-4 h-4
+    lg: 'w-6 h-6', // Increased from w-5 h-5
   };
 
-  const skeletonSizes = {
-    sm: 'w-3 h-3',
-    md: 'w-4 h-4',
-    lg: 'w-5 h-5',
+  const iconButtonSizes = {
+    sm: 'p-1.5', // Consistent padding for touch targets
+    md: 'p-2',
+    lg: 'p-2.5',
   };
 
   if (variant === 'icon') {
+    // Show subtle skeleton during loading to prevent layout shift
+    if (isChecking) {
+      return (
+        <div
+          className={cn(
+            'flex items-center justify-center rounded transition-colors',
+            iconButtonSizes[size],
+            className
+          )}
+          aria-label="Loading follow status"
+        >
+          <Skeleton
+            className={cn(iconSizes[size], 'rounded-full opacity-40')}
+          />
+        </div>
+      );
+    }
+
     return (
       <button
         onClick={handleFollow}
         disabled={isLoading}
         className={cn(
-          'rounded p-2 transition-colors',
+          'rounded transition-colors',
+          iconButtonSizes[size],
           isFollowing
-            ? 'text-muted-foreground hover:text-foreground'
-            : 'text-primary hover:text-primary/80',
+            ? 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+            : 'text-primary hover:bg-primary/10 hover:text-primary/80',
           isLoading && 'cursor-not-allowed opacity-50',
           className
         )}
         aria-label={isFollowing ? 'Unfollow' : 'Follow'}
       >
         {isLoading ? (
-          <Skeleton className={cn(skeletonSizes[size], 'rounded')} />
+          <Skeleton className={cn(iconSizes[size], 'rounded')} />
         ) : isFollowing ? (
           <UserMinus className={iconSizes[size]} />
         ) : (
           <UserPlus className={iconSizes[size]} />
         )}
       </button>
+    );
+  }
+
+  // For button variant, show subtle skeleton during checking
+  if (isChecking) {
+    return (
+      <div
+        className={cn(
+          'flex items-center justify-center rounded-full border border-muted',
+          sizeClasses[size],
+          className
+        )}
+        aria-label="Loading follow status"
+      >
+        <Skeleton className="h-4 w-12 rounded opacity-40" />
+      </div>
     );
   }
 

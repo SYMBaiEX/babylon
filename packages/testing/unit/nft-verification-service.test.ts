@@ -18,7 +18,8 @@
  */
 
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { NFTVerificationService, ValidationError } from '@babylon/api';
+import { NFTVerificationService } from '@babylon/api';
+import { ValidationError } from '@babylon/shared';
 import type { Address } from 'viem';
 
 describe('NFTVerificationService', () => {
@@ -54,90 +55,104 @@ describe('NFTVerificationService', () => {
       expect(result.reason).toContain('Wallet address required');
     });
 
-    test('should include token ID in reason when token-specific', async () => {
-      // Check that invalid contract address throws with correct message
-      try {
-        await NFTVerificationService.verifyOwnership(
+    test('should throw ValidationError for invalid contract address', async () => {
+      await expect(
+        NFTVerificationService.verifyOwnership(
           validWallet,
           'invalid-address',
           null
-        );
-        expect(true).toBe(false); // Should not reach here
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid contract address');
-      }
+        )
+      ).rejects.toThrow(/Invalid contract address/);
+
+      // Also verify it's a ValidationError
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'invalid-address',
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate address format before RPC calls', async () => {
       // Invalid wallet address
-      try {
-        await NFTVerificationService.verifyOwnership(
+      await expect(
+        NFTVerificationService.verifyOwnership(
           'not-an-address',
           validContract,
           null
-        );
-        expect(true).toBe(false); // Should not reach here
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid wallet address');
-      }
+        )
+      ).rejects.toThrow(/Invalid wallet address/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          'not-an-address',
+          validContract,
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
 
       // Invalid contract address
-      try {
-        await NFTVerificationService.verifyOwnership(
+      await expect(
+        NFTVerificationService.verifyOwnership(
           validWallet,
           'not-an-address',
           null
-        );
-        expect(true).toBe(false); // Should not reach here
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid contract address');
-      }
+        )
+      ).rejects.toThrow(/Invalid contract address/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(
+          validWallet,
+          'not-an-address',
+          null
+        )
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should validate token ID format', async () => {
       // Negative token ID
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          -1
-        );
-        expect(true).toBe(false); // Should not reach here
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid token ID');
-      }
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
+      ).rejects.toThrow(/Invalid token ID/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, -1)
+      ).rejects.toBeInstanceOf(ValidationError);
 
       // Non-integer token ID
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          1.5
-        );
-        expect(true).toBe(false); // Should not reach here
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid token ID');
-      }
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
+      ).rejects.toThrow(/Invalid token ID/);
+
+      await expect(
+        NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5)
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     test('should allow token ID 0', async () => {
-      // Token ID 0 is valid - this will attempt RPC call (may fail if no contract, but validation passes)
-      // We're just checking validation, not RPC success
-      try {
-        await NFTVerificationService.verifyOwnership(
-          validWallet,
-          validContract,
-          0
-        );
-      } catch (error) {
-        // If it fails, it should be an RPC/contract error, not validation
-        expect(error).not.toBeInstanceOf(ValidationError);
-      }
+      // Token ID 0 is a valid token ID (unlike -1 or 1.5 which are invalid)
+      // This tests that token ID 0 passes the tokenId format validation.
+      // The function may still throw ValidationError for OTHER reasons (e.g., no contract at address)
+      // but it should NOT throw for token ID being 0.
+      //
+      // We verify by checking that if a ValidationError is thrown, it's NOT about token ID
+      const result = NFTVerificationService.verifyOwnership(
+        validWallet,
+        validContract,
+        0
+      );
+
+      // The call may succeed or fail for contract-related reasons, but NOT for token ID validation
+      // If it rejects with ValidationError, it must not be about token ID
+      await result.catch((error) => {
+        if (error instanceof ValidationError) {
+          // Verify it's NOT rejecting token ID 0 specifically
+          expect(error.message).not.toContain('token');
+          expect(error.message).not.toContain('Token');
+        }
+        // Non-ValidationError (network/RPC errors) are acceptable
+      });
     });
   });
 

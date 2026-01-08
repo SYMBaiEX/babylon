@@ -1,6 +1,6 @@
 'use client';
 
-import { BABYLON_POINTS_SYMBOL, calculateUnrealizedPnL, cn } from '@babylon/shared';
+import { calculateUnrealizedPnL, cn, formatCurrency } from '@babylon/shared';
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -128,8 +128,12 @@ export function PerpPositionsList({
           ? data.realizedPnL
           : 0;
 
+    const pnlSign = pnl >= 0 ? '+' : '-';
     toast.success('Position closed!', {
-      description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}${BABYLON_POINTS_SYMBOL}${pnl.toFixed(2)} PnL`,
+      description: `${pendingClose.position.ticker}: ${pnlSign}${formatCurrency(
+        Math.abs(pnl),
+        { useThousandsSeparator: true }
+      )} PnL`,
     });
 
     // Invalidate cache to ensure fresh data on next fetch
@@ -139,14 +143,9 @@ export function PerpPositionsList({
     setPendingClose(null);
   }, [closePerpPosition, onPositionClosed, pendingClose]);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-  };
+  /** Use shared formatCurrency for price formatting */
+  const formatPrice = (amount: number) =>
+    formatCurrency(amount, { useThousandsSeparator: true });
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

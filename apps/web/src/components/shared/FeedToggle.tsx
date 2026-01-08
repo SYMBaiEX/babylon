@@ -1,11 +1,12 @@
 'use client';
 
 import { cn } from '@babylon/shared';
+import { Flame } from 'lucide-react';
 
 /**
  * Feed toggle component for switching between feed views.
  *
- * Provides tab navigation between Latest, Following, and Trades feed views.
+ * Provides tab navigation between Latest, Hot, Following, and Trades feed views.
  * Shows active tab with underline indicator and hover states.
  *
  * @param props - FeedToggle component props
@@ -20,8 +21,8 @@ import { cn } from '@babylon/shared';
  * ```
  */
 interface FeedToggleProps {
-  activeTab: 'latest' | 'following' | 'trades';
-  onTabChange: (tab: 'latest' | 'following' | 'trades') => void;
+  activeTab: 'latest' | 'hot' | 'following' | 'trades';
+  onTabChange: (tab: 'latest' | 'hot' | 'following' | 'trades') => void;
 }
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
@@ -36,6 +37,21 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
       >
         Latest
         {activeTab === 'latest' && (
+          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
+        )}
+      </button>
+      <button
+        onClick={() => onTabChange('hot')}
+        className={cn(
+          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+          activeTab === 'hot' ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        <span className="flex items-center justify-center gap-1">
+          <Flame className="h-4 w-4" />
+          Hot
+        </span>
+        {activeTab === 'hot' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}
       </button>

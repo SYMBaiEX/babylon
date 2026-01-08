@@ -147,11 +147,12 @@
 
 import {
   authenticate,
+  notifyGroupMemberAdded,
   notifyUserGroupInvite,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { asUser } from '@babylon/db';
+import { asUser, generateSnowflakeId, groupInvites } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 import type { NextRequest } from 'next/server';
@@ -262,6 +263,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
   const data = CreateGroupSchema.parse(body);
 
+  // Note: asUser wraps all operations in a database transaction,
+  // ensuring atomicity for group creation + member additions
   const result = await asUser(user, async (db) => {
     // Create the group
     const groupId = nanoid();
@@ -315,69 +318,167 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    // Send invitations to initial members (they must accept to join)
+    // Process initial members: humans get invites, agents get direct add
+    const addedMemberIds: string[] = [];
+    const invitedMemberIds: string[] = [];
+    // Notification work list - sent AFTER transaction commits
+    const agentNotifications: string[] = [];
+    const humanInviteNotifications: Array<{
+      humanId: string;
+      inviteId: string;
+    }> = [];
+    let creatorName = 'Someone';
+
     if (data.memberIds.length > 0) {
       const otherMembers = data.memberIds.filter((id) => id !== user.userId);
 
       if (otherMembers.length > 0) {
-        // Check which users are agents (agents get auto-added, users get invites)
-        const memberUsers = await db.user.findMany({
-          where: { id: { in: otherMembers } },
-          select: { id: true, isAgent: true },
+        // Verify users exist and are not banned, get their details including type
+        const validMembers = await db.user.findMany({
+          where: {
+            id: { in: otherMembers },
+            isBanned: false,
+          },
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            isAgent: true,
+            isActor: true,
+          },
         });
 
-        const agentIds = memberUsers.filter((u) => u.isAgent).map((u) => u.id);
-        const humanIds = memberUsers.filter((u) => !u.isAgent).map((u) => u.id);
-
-        // Auto-add agents directly (they don't need to accept invites)
-        if (agentIds.length > 0) {
-          await db.groupMember.createMany({
-            data: agentIds.map((userId) => ({
-              id: nanoid(),
-              groupId,
-              userId,
-              role: 'member',
-              addedBy: user.userId,
-            })),
+        if (validMembers.length > 0) {
+          // Get creator's name for messages
+          const creator = await db.user.findUnique({
+            where: { id: user.userId },
+            select: { displayName: true, username: true },
           });
+          creatorName = creator?.displayName || creator?.username || 'Someone';
 
-          await db.chatParticipant.createMany({
-            data: agentIds.map((userId) => ({
-              id: nanoid(),
-              chatId,
-              userId,
-              joinedAt: new Date(),
-            })),
-          });
-        }
+          // Separate humans from agents/NPCs
+          const agents = validMembers.filter((m) => m.isAgent || m.isActor);
+          const humans = validMembers.filter((m) => !m.isAgent && !m.isActor);
 
-        // Send invitations to human users (they must accept)
-        if (humanIds.length > 0) {
-          const inviteData = humanIds.map((userId) => ({
-            id: nanoid(),
-            groupId,
-            invitedUserId: userId,
-            invitedBy: user.userId,
-            status: 'pending' as const,
-            message: `You've been invited to join "${data.name}"`,
-          }));
+          // AGENTS/NPCs: Direct add (they don't need to accept)
+          if (agents.length > 0) {
+            const agentIds = agents.map((u) => u.id);
 
-          await db.groupInvite.createMany({
-            data: inviteData,
-          });
-
-          // Send notifications to all invited users
-          await Promise.all(
-            inviteData.map((invite) =>
-              notifyUserGroupInvite(
-                invite.invitedUserId,
-                user.userId,
+            await db.groupMember.createMany({
+              data: agentIds.map((uId) => ({
+                id: nanoid(),
                 groupId,
-                data.name,
-                invite.id
-              )
-            )
-          );
+                userId: uId,
+                role: 'member',
+                addedBy: user.userId,
+              })),
+            });
+
+            await db.chatParticipant.createMany({
+              data: agentIds.map((uId) => ({
+                id: nanoid(),
+                chatId,
+                userId: uId,
+                joinedAt: new Date(),
+              })),
+            });
+
+            addedMemberIds.push(...agentIds);
+            agentNotifications.push(...agentIds);
+
+            // Create system message for agents added
+            const agentNames = agents.map(
+              (m) => m.displayName || m.username || 'Unknown'
+            );
+            const agentNamesText =
+              agentNames.length <= 3
+                ? agentNames.join(', ')
+                : `${agentNames.slice(0, 2).join(', ')} and ${agentNames.length - 2} others`;
+
+            await db.message.create({
+              data: {
+                id: await generateSnowflakeId(),
+                chatId,
+                senderId: 'system',
+                type: 'system',
+                content: `${creatorName} added ${agentNamesText} to the group`,
+                createdAt: new Date(),
+              },
+            });
+
+            // Note: Agent notifications are sent AFTER the transaction commits (see below)
+          }
+
+          // HUMANS: Send invites (they need to accept/decline)
+          if (humans.length > 0) {
+            const humanIds = humans.map((u) => u.id);
+            const invitedAt = new Date();
+
+            // Create group invites for humans
+            // Use onConflictDoUpdate to allow re-inviting users who previously declined
+            for (const humanId of humanIds) {
+              const newInviteId = await generateSnowflakeId();
+              const result = await db
+                .insert(groupInvites)
+                .values({
+                  id: newInviteId,
+                  groupId,
+                  invitedUserId: humanId,
+                  invitedBy: user.userId,
+                  status: 'pending',
+                  invitedAt,
+                })
+                .onConflictDoUpdate({
+                  target: [groupInvites.groupId, groupInvites.invitedUserId],
+                  set: {
+                    invitedBy: user.userId,
+                    status: 'pending',
+                    invitedAt,
+                  },
+                })
+                .returning({ id: groupInvites.id });
+
+              // Use actual ID from DB (may be existing ID on conflict, or new ID on insert)
+              const actualInviteId = result[0]?.id ?? newInviteId;
+              if (!result[0]?.id) {
+                logger.warn(
+                  'Invite returning() returned empty result, using generated ID',
+                  {
+                    groupId,
+                    invitedUserId: humanId,
+                    generatedId: newInviteId,
+                  },
+                  'POST /api/groups'
+                );
+              }
+              humanInviteNotifications.push({
+                humanId,
+                inviteId: actualInviteId,
+              });
+              invitedMemberIds.push(humanId);
+            }
+            // Note: Human invite notifications are sent AFTER the transaction commits (see below)
+
+            // Create system message for invites sent
+            const humanNames = humans.map(
+              (m) => m.displayName || m.username || 'Unknown'
+            );
+            const humanNamesText =
+              humanNames.length <= 3
+                ? humanNames.join(', ')
+                : `${humanNames.slice(0, 2).join(', ')} and ${humanNames.length - 2} others`;
+
+            await db.message.create({
+              data: {
+                id: await generateSnowflakeId(),
+                chatId,
+                senderId: 'system',
+                type: 'system',
+                content: `${creatorName} invited ${humanNamesText} to the group`,
+                createdAt: new Date(),
+              },
+            });
+          }
         }
       }
     }
@@ -385,12 +486,57 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return {
       group: newGroup,
       chatId,
+      memberCount: 1 + addedMemberIds.length, // creator + direct-added members (not invites)
+      invitedCount: invitedMemberIds.length,
+      // Notification work list for post-transaction dispatch
+      notifications: {
+        agents: agentNotifications,
+        humanInvites: humanInviteNotifications,
+        creatorName,
+      },
     };
   });
 
+  // Send notifications AFTER transaction commits (prevents orphan notifications on rollback)
+  if (result.notifications.agents.length > 0) {
+    await Promise.allSettled(
+      result.notifications.agents.map((memberId) =>
+        notifyGroupMemberAdded(
+          memberId,
+          user.userId,
+          result.group.id,
+          data.name,
+          result.chatId,
+          result.notifications.creatorName
+        )
+      )
+    );
+  }
+
+  if (result.notifications.humanInvites.length > 0) {
+    await Promise.allSettled(
+      result.notifications.humanInvites.map(({ humanId, inviteId }) =>
+        notifyUserGroupInvite(
+          humanId,
+          user.userId,
+          result.group.id,
+          data.name,
+          inviteId,
+          result.notifications.creatorName // Pass pre-fetched name to avoid N+1
+        )
+      )
+    );
+  }
+
   logger.info(
     'Group created',
-    { userId: user.userId, groupId: result.group.id, chatId: result.chatId },
+    {
+      userId: user.userId,
+      groupId: result.group.id,
+      chatId: result.chatId,
+      memberCount: result.memberCount,
+      invitedCount: result.invitedCount,
+    },
     'POST /api/groups'
   );
 
@@ -401,6 +547,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       type: result.group.type,
       createdAt: result.group.createdAt,
       chatId: result.chatId,
+      memberCount: result.memberCount,
+      invitedCount: result.invitedCount,
     },
   });
 });

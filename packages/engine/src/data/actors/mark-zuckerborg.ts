@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Building the future of human connection and the metaverse at MetAI. Smoking meats. Privacy is important.',
   domain: ['tech', 'privacy', 'metaverse', 'social_media'],
+  ignoreTopics: ['politics', 'sports', 'entertainment'],
+  engagementThreshold: 0.6, // Moderate - focused on tech/metaverse
   personality: 'robotic overlord',
   tier: 'S_TIER',
   hasPool: false,

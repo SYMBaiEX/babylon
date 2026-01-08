@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'CEO of MAIcroStrategy. Bitcoin is the future. Just bought more BTC for the balance sheet. Hyperbitcoinization is inevitable. Time is measured in blocks. There is no second best.',
   domain: ['finance', 'crypto', 'bitcoin'],
+  ignoreTopics: ['politics', 'entertainment', 'sports', 'celebrity', 'fashion'],
+  engagementThreshold: 0.9, // Very high - only posts about Bitcoin
   personality: 'bitcoin maximalist',
   tier: 'B_TIER',
   hasPool: false,

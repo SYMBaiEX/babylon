@@ -31,6 +31,7 @@ import {
 import type { IAgentRuntime } from '@elizaos/core';
 import { parseKeyValueXml } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
+import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { type AgentContext, getAgentContext } from './agent-context';
@@ -891,6 +892,7 @@ LEAVE EMPTY IF:
 
 # Required Output Format
 <response>
+<thought>Brief reasoning for your response</thought>
 <text>your response here (or leave empty to skip)</text>
 </response>`;
 
@@ -912,7 +914,7 @@ LEAVE EMPTY IF:
         try {
           const isRetry = attempt > 1;
           const currentPrompt = isRetry
-            ? `${finalRespPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <text> with your response.`
+            ? `${finalRespPrompt}\n\nREMINDER: You MUST output valid XML. Start with <response> and include <thought> and <text> tags.`
             : finalRespPrompt;
 
           const responseContent = await Promise.race([
@@ -953,6 +955,7 @@ LEAVE EMPTY IF:
           // Parse the extracted XML response
           const parsed = parseKeyValueXml(responseMatch[0]) as {
             text?: string;
+            thought?: string;
           } | null;
 
           if (!parsed?.text || parsed.text.trim().length === 0) {
@@ -970,15 +973,63 @@ LEAVE EMPTY IF:
 
           // Success!
           cleanContent = parsed.text.trim().replace(/^["']|["']$/g, '');
+          const thought = parsed.thought?.trim();
 
           // Check if LLM decided to skip (empty response)
           if (!cleanContent || cleanContent.length === 0) {
             logger.info(
               `LLM chose to skip interaction ${interaction.id} (empty response)`,
-              undefined,
+              { thought },
               'AutonomousBatchResponse'
             );
+
+            // Log skipped interaction if there was reasoning
+            if (thought) {
+              agentService
+                .createLog(agentUserId, {
+                  type: 'system',
+                  level: 'debug',
+                  message: `Skipped automated response to ${interaction.type}`,
+                  prompt: currentPrompt,
+                  completion: responseContent,
+                  thinking: thought,
+                  metadata: {
+                    interactionId: interaction.id,
+                    interactionType: interaction.type,
+                    skipped: true,
+                  },
+                })
+                .catch(() => {});
+            }
+
             cleanContent = null; // Mark as skipped
+          }
+
+          // Log the response generation context including reasoning
+          if (cleanContent) {
+            // We use setTimeout to not block the main loop, but here we want to ensure it's logged
+            // No await needed if we don't care about the result
+            agentService
+              .createLog(agentUserId, {
+                type: interaction.type === 'comment_reply' ? 'comment' : 'chat',
+                level: 'info',
+                message: `Generated automated response to ${interaction.type}`,
+                prompt: currentPrompt,
+                completion: responseContent,
+                thinking: thought,
+                metadata: {
+                  interactionId: interaction.id,
+                  interactionType: interaction.type,
+                  content: cleanContent,
+                },
+              })
+              .catch((err) => {
+                logger.error(
+                  'Failed to create log for automated response',
+                  { error: err },
+                  'AutonomousBatchResponse'
+                );
+              });
           }
           break;
         } catch (error) {

@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'Building the future. AIX, TeslAI, SpAIceX, NeurAIlink. Making humanity multiplanetary. Working on AGI. Memes. Mars.',
   domain: ['tech', 'space', 'crypto', 'automotive', 'social_media'],
+  ignoreTopics: ['fashion', 'sports', 'entertainment'],
+  engagementThreshold: 0.2, // Very low - Elon posts about everything
   personality: 'erratic visionary',
   tier: 'S_TIER',
   hasPool: false,

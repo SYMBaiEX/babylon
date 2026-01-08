@@ -15,6 +15,7 @@ import {
 import {
   actorRelationships,
   and,
+  arcStates,
   count,
   db,
   getDbInstance as dbService,
@@ -22,13 +23,14 @@ import {
   eq,
   games,
   gte,
-  isNotNull,
+  inArray,
   isNull,
   type JsonValue,
   lte,
   markets as marketsSchema,
-  organizationState,
-  poolPositions,
+  organizations,
+  perpMarketSnapshots,
+  perpPositions,
   pools,
   positions,
   posts,
@@ -42,10 +44,12 @@ import {
   worldEvents,
 } from '@babylon/db';
 import {
+  calculatePriceFromHoldings,
   DIAMOND_ADDRESS,
   generateSnowflakeId,
   getCurrentRpcUrl,
   logger,
+  PERP_MARKET_CONFIG,
   PREDICTION_MARKET_ABI,
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
@@ -56,42 +60,42 @@ import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { generateWorldContext } from './prompts';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
-import { AlphaGroupInviteService } from './services/alpha-group-invite-service';
+// Services - using barrel exports from services/index.ts
 import {
-  generateArticleImageWithRetry,
-  initFalClient,
-} from './services/article-image-service';
-import { characterMappingService } from './services/character-mapping-service';
-// Content generation helpers
-import { generateEvents } from './services/event-generation-helpers';
-import { bootstrapGameIfNeeded } from './services/game-bootstrap-service';
-import { MarketContextService } from './services/market-context-service';
-import { NPCGroupDynamicsService } from './services/npc-group-dynamics-service';
-import { getOracleService } from './services/oracle/oracle-service';
-import { createParodyHeadlineGenerator } from './services/parody-headline-generator';
-import {
-  generateOrgArticle,
-  generateOrgPost,
-} from './services/post-generation-helpers';
-import { PriceUpdateService } from './services/price-update-service';
-import {
-  ReputationService,
-  syncReputationIfAvailable,
-} from './services/reputation-service';
-import { rssFeedService } from './services/rss-feed-service';
-import { StaticDataRegistry } from './services/static-data-registry';
-import { getStorySeedService } from './services/story-seed-service';
-import { TokenStatsService } from './services/token-stats-service';
-import { getTopicDiversityService } from './services/topic-diversity-service';
-// Migrated services - local imports
-import { invalidateAfterPredictionTrade } from './services/trade-cache-invalidation';
-import { TradeExecutionService } from './services/trade-execution-service';
-import {
+  ActorSocialActions,
+  AlphaGroupInviteService,
+  bootstrapGameIfNeeded,
   calculateTrendingIfNeeded,
   calculateTrendingTags,
+  characterMappingService,
+  createArcState,
+  createParodyHeadlineGenerator,
+  generateArcPulseEventsIfNeeded,
+  generateArticleImageWithRetry,
+  generateEvents,
+  generateOrgArticle,
+  generateOrgPost,
+  getOracleService,
+  getStorySeedService,
+  getTopicDiversityService,
   getTrendingPromptContext,
-} from './services/trending-calculation-service';
-import { WalletService } from './services/wallet-service';
+  initFalClient,
+  invalidateAfterPredictionTrade,
+  MarketContextService,
+  NPCGroupDynamicsService,
+  npcSocialEngagementService,
+  PriceUpdateService,
+  processArcTick,
+  processNPCSocialEngagements,
+  ReputationService,
+  rssFeedService,
+  StaticDataRegistry,
+  syncReputationIfAvailable,
+  TokenStatsService,
+  TradeExecutionService,
+  timeframeArcProcessor,
+  WalletService,
+} from './services';
 import type { TradingExecutionResult } from './types/market-decisions';
 import type {
   ActorTier,
@@ -103,7 +107,9 @@ import type {
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
+import { deriveStrategyFromPersonality } from './utils/shared-utils';
 import { worldFactsService } from './world-facts-service';
+// Note: Event-market pipeline is called from within narrative-event-processor
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
 
@@ -117,6 +123,12 @@ export interface GameTickResult {
   widgetCachesUpdated: number;
   trendingCalculated: boolean;
   reputationSynced: boolean;
+  /** NPC social engagement metrics */
+  npcLikesCreated?: number;
+  npcSharesCreated?: number;
+  npcCommentsCreated?: number;
+  npcSocialActionsProcessed?: number;
+  npcRebalanceActionsExecuted?: number;
   reputationSyncStats?: {
     total: number;
     successful: number;
@@ -144,6 +156,28 @@ export interface GameTickResult {
     headlinesCleaned: number;
   };
   relationshipsUpdated?: number;
+  /** Number of markets with simulated price volatility applied */
+  priceVolatilitySimulated?: number;
+  /** Narrative arc processing stats */
+  narrativeArcs?: {
+    arcsProcessed: number;
+    transitioned: number;
+    eventsGenerated: number;
+  };
+  /** Timeframed market processing stats */
+  timeframedMarkets?: {
+    marketsProcessed: number;
+    transitionsOccurred: number;
+    eventsGenerated: number;
+    subMarketsSpawned: number;
+    errors: string[];
+    eventTriggers: Array<{
+      marketId: string;
+      eventType: string;
+      timeframe: string;
+      arcState: string;
+    }>;
+  };
   /** Token usage statistics for this tick */
   tokenStats?: {
     totalCalls: number;
@@ -221,11 +255,21 @@ export async function executeGameTick(
 
   // Compute game-relative day numbers for new writes (forward-only)
   const [continuousGame] = await db
-    .select({ startedAt: games.startedAt })
+    .select({ startedAt: games.startedAt, id: games.id })
     .from(games)
     .where(eq(games.isContinuous, true))
     .limit(1);
   const gameStartedAt = continuousGame?.startedAt ?? null;
+
+  // Validate startedAt is set - critical for day calculation
+  if (!gameStartedAt) {
+    logger.error(
+      'Game startedAt is NULL - day calculation will fail. Game day will default to 1.',
+      { gameId: continuousGame?.id },
+      'GameTick'
+    );
+  }
+
   const dayNumberForTimestamp = (t: Date): number | undefined => {
     if (!gameStartedAt) return undefined;
     return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
@@ -415,12 +459,34 @@ export async function executeGameTick(
     ];
 
     const questionManager = new QuestionManager(llmClient);
+    const questionsToReveal: Array<{ id: string; outcome: boolean }> = [];
 
     // Resolve payouts
     // Each question resolution is wrapped in try/catch to prevent partial failures
     // from breaking the entire tick. Failed resolutions will be retried next tick.
     for (const question of questionsToResolve) {
       try {
+        const isApproved = question.resolutionReviewStatus === 'approved';
+        const isPendingManualReview =
+          question.requiresManualReview && !isApproved;
+        const hasStoredProof =
+          Boolean(question.resolutionProofUrl) &&
+          Boolean(question.resolutionDescription);
+
+        if (isPendingManualReview && hasStoredProof) {
+          logger.info(
+            'Skipping question resolution (pending manual review)',
+            {
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence: question.resolutionConfidence ?? null,
+              reviewStatus: question.resolutionReviewStatus ?? 'pending',
+            },
+            'GameTick'
+          );
+          continue;
+        }
+
         // Generate resolution proof content
         // We cast question to Question type - database question fields are compatible
         const questionForManager: Question = {
@@ -432,58 +498,103 @@ export async function executeGameTick(
           status: 'active',
         };
 
-        const { description, proof } =
-          await questionManager.generateResolutionWithProof(
+        // Only generate proof if we don't have one stored
+        // Avoids regenerating existing proofs when only confidence is missing
+        const shouldGenerateProof = !hasStoredProof;
+
+        let generatedProof: Awaited<
+          ReturnType<QuestionManager['generateResolutionWithProof']>
+        > | null = null;
+
+        if (shouldGenerateProof) {
+          const proofResult = await questionManager.generateResolutionWithProof(
             questionForManager,
             allActors,
             organizations,
             recentTimelines
           );
 
-        // Save proof article and update question atomically if proof exists
-        if (proof && proof.type === 'article') {
-          await db.transaction(async (tx) => {
-            // Create article in database
-            await tx.insert(posts).values({
-              id: proof.article.id,
-              type: 'article',
-              content: proof.article.summary, // Use summary for content preview
-              fullContent: proof.article.content,
-              articleTitle: proof.article.title,
-              authorId: proof.article.authorOrgId,
-              gameId: 'continuous',
-              timestamp: new Date(),
-              category: proof.article.category,
-              sentiment: proof.article.sentiment,
-              slant: proof.article.slant,
-              biasScore: proof.article.biasScore,
-            });
+          generatedProof = proofResult;
 
-            // Update question with proof URL
+          const reviewStatus = proofResult.requiresManualReview
+            ? 'pending'
+            : null;
+
+          // Save proof article (if any) and update question atomically.
+          await db.transaction(async (tx) => {
+            if (proofResult.proof?.type === 'article') {
+              await tx.insert(posts).values({
+                id: proofResult.proof.article.id,
+                type: 'article',
+                content: proofResult.proof.article.summary,
+                fullContent: proofResult.proof.article.content,
+                articleTitle: proofResult.proof.article.title,
+                authorId: proofResult.proof.article.authorOrgId,
+                gameId: 'continuous',
+                timestamp: new Date(),
+                category: proofResult.proof.article.category,
+                sentiment: proofResult.proof.article.sentiment,
+                slant: proofResult.proof.article.slant,
+                biasScore: proofResult.proof.article.biasScore,
+              });
+            }
+
             await tx
               .update(questionsSchema)
               .set({
-                resolutionDescription: description,
-                resolutionProofUrl: proof.url,
+                resolutionDescription: proofResult.description,
+                resolutionProofUrl: proofResult.proof?.url ?? null,
+                resolutionConfidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                resolutionReviewStatus: reviewStatus,
                 updatedAt: new Date(),
               })
               .where(eq(questionsSchema.id, question.id));
           });
 
-          logger.info(
-            `Generated resolution proof for Q${question.questionNumber}`,
+          if (proofResult.proof?.type === 'article') {
+            logger.info(
+              `Generated resolution proof for Q${question.questionNumber}`,
+              {
+                proofUrl: proofResult.proof.url,
+                articleId: proofResult.proof.article.id,
+                confidence: proofResult.confidence,
+                requiresManualReview: proofResult.requiresManualReview,
+                confidenceSignals: proofResult.confidenceSignals,
+              },
+              'GameTick'
+            );
+          }
+        }
+
+        const requiresManualReview =
+          generatedProof?.requiresManualReview ?? question.requiresManualReview;
+        const reviewStatus =
+          generatedProof?.requiresManualReview === true
+            ? 'pending'
+            : question.resolutionReviewStatus;
+
+        // If low-confidence, queue for manual review instead of resolving now.
+        if (requiresManualReview && reviewStatus !== 'approved') {
+          logger.warn(
+            'Queued question for manual resolution review',
             {
-              proofUrl: proof.url,
-              articleId: proof.article.id,
+              questionId: question.id,
+              questionNumber: question.questionNumber,
+              confidence:
+                generatedProof?.confidence ?? question.resolutionConfidence,
+              reviewStatus: reviewStatus ?? 'pending',
             },
             'GameTick'
           );
+          continue;
         }
 
         // resolveQuestionPayouts has its own internal transaction for payout operations
         // and updates question status to 'resolved' atomically
         await resolveQuestionPayouts(question.questionNumber);
         result.questionsResolved++;
+        questionsToReveal.push({ id: question.id, outcome: question.outcome });
       } catch (error) {
         // Log error but continue with other questions
         // Failed question will remain in 'active' status and be retried next tick
@@ -500,7 +611,7 @@ export async function executeGameTick(
     }
 
     // Publish reveals to blockchain oracle
-    const oracleResult = await publishOracleReveals(questionsToResolve);
+    const oracleResult = await publishOracleReveals(questionsToReveal);
     result.oracleReveals += oracleResult.revealed;
     result.oracleErrors += oracleResult.errors;
   }
@@ -528,13 +639,18 @@ export async function executeGameTick(
       );
     }
 
-    // Generate world events
+    // Generate world events based on active questions
     const eventsGenerated = await generateEvents(
       currentActiveQuestions.slice(0, 3),
       timestamp,
       dayNumberForTimestamp(timestamp)
     );
-    result.eventsCreated = eventsGenerated;
+    const pulseEventsGenerated = await generateArcPulseEventsIfNeeded(
+      currentActiveQuestions.slice(0, 3),
+      timestamp,
+      dayNumberForTimestamp(timestamp)
+    );
+    result.eventsCreated = eventsGenerated + pulseEventsGenerated;
 
     // NPC posts and replies are now handled by /api/cron/npc-tick
     // This removes the old generateMixedPosts and generateNPCRepliesFromPreviousTicks calls
@@ -632,6 +748,200 @@ export async function executeGameTick(
     result.marketsUpdated += marketsUpdated;
   }
 
+  // =========================================================================
+  // NPC SOCIAL ENGAGEMENT (likes, shares, comments)
+  // Creates organic social activity to make the feed feel alive
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      // Set LLM client for NPC comment generation
+      npcSocialEngagementService.setLLMClient(llmClient);
+
+      const socialEngagementResult = await processNPCSocialEngagements();
+      result.npcLikesCreated = socialEngagementResult.likesCreated;
+      result.npcSharesCreated = socialEngagementResult.sharesCreated;
+      result.npcCommentsCreated = socialEngagementResult.commentsCreated;
+
+      if (
+        socialEngagementResult.likesCreated > 0 ||
+        socialEngagementResult.sharesCreated > 0 ||
+        socialEngagementResult.commentsCreated > 0
+      ) {
+        logger.info(
+          'NPC social engagements processed',
+          {
+            likes: socialEngagementResult.likesCreated,
+            shares: socialEngagementResult.sharesCreated,
+            comments: socialEngagementResult.commentsCreated,
+            actors: socialEngagementResult.actorsEngaged,
+          },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC social engagement failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC SOCIAL ACTIONS (DMs, group invites based on interactions)
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      const socialActions =
+        await ActorSocialActions.processRandomSocialActions();
+      result.npcSocialActionsProcessed = socialActions.length;
+
+      if (socialActions.length > 0) {
+        logger.info(
+          'NPC social actions processed',
+          {
+            total: socialActions.length,
+            invites: socialActions.filter((a) => a.type === 'group_chat_invite')
+              .length,
+            dms: socialActions.filter((a) => a.type === 'dm').length,
+          },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC social actions failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC PORTFOLIO REBALANCING
+  // Monitor NPC portfolios and execute rebalancing actions
+  // =========================================================================
+  if (Date.now() < deadline) {
+    try {
+      // Get all active NPC pools and monitor them
+      const activePools = await db
+        .select({ id: pools.id, npcActorId: pools.npcActorId })
+        .from(pools)
+        .where(eq(pools.isActive, true))
+        .limit(10); // Limit to prevent overwhelming the tick
+
+      let rebalanceActionsExecuted = 0;
+      // Cap on total rebalance actions per tick to prevent expensive ticks
+      const maxActionsPerTick = 20;
+
+      for (const pool of activePools) {
+        if (Date.now() >= deadline) break;
+        if (rebalanceActionsExecuted >= maxActionsPerTick) {
+          logger.debug(
+            'Rebalance action cap reached, stopping pool processing',
+            { maxActionsPerTick, poolsRemaining: activePools.length },
+            'GameTick'
+          );
+          break;
+        }
+
+        // Skip pools without an NPC actor ID
+        if (!pool.npcActorId) {
+          continue;
+        }
+
+        const poolStartTime = Date.now();
+        const actor = StaticDataRegistry.getActor(pool.npcActorId);
+
+        // Determine trading strategy from actor data
+        // Prefer explicit strategy property if available, otherwise derive from personality
+        let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced';
+        if (actor) {
+          // Check for explicit strategy property first (preferred)
+          if ('strategy' in actor && typeof actor.strategy === 'string') {
+            const explicitStrategy = actor.strategy.toLowerCase();
+            if (
+              explicitStrategy === 'aggressive' ||
+              explicitStrategy === 'conservative' ||
+              explicitStrategy === 'balanced'
+            ) {
+              strategy = explicitStrategy;
+            }
+          } else {
+            // Use utility function to derive strategy from personality
+            strategy = deriveStrategyFromPersonality(actor.personality);
+          }
+        }
+
+        const rebalanceActions = await NPCInvestmentManager.monitorPortfolio(
+          pool.id,
+          pool.npcActorId,
+          strategy
+        );
+
+        let poolActionsExecuted = 0;
+        if (rebalanceActions.length > 0) {
+          // Execute rebalance actions through NPCInvestmentManager
+          for (const action of rebalanceActions) {
+            if (rebalanceActionsExecuted >= maxActionsPerTick) break;
+            try {
+              await NPCInvestmentManager.executeRebalanceAction(
+                pool.npcActorId,
+                pool.id,
+                action
+              );
+              rebalanceActionsExecuted++;
+              poolActionsExecuted++;
+            } catch (actionError) {
+              logger.warn(
+                'Failed to execute rebalance action',
+                {
+                  poolId: pool.id,
+                  action: action.type,
+                  error:
+                    actionError instanceof Error
+                      ? actionError.message
+                      : String(actionError),
+                },
+                'GameTick'
+              );
+            }
+          }
+        }
+
+        // Log per-pool timing for performance tuning
+        const poolDuration = Date.now() - poolStartTime;
+        if (poolDuration > 100 || poolActionsExecuted > 0) {
+          logger.debug(
+            'Pool rebalance processed',
+            {
+              poolId: pool.id,
+              durationMs: poolDuration,
+              actionsExecuted: poolActionsExecuted,
+            },
+            'GameTick'
+          );
+        }
+      }
+
+      result.npcRebalanceActionsExecuted = rebalanceActionsExecuted;
+
+      if (rebalanceActionsExecuted > 0) {
+        logger.info(
+          'NPC portfolio rebalancing completed',
+          { actionsExecuted: rebalanceActionsExecuted },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC portfolio rebalancing failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
   // Generate articles AFTER market decisions (lower priority, but parallelized)
   // Skip if buffer is sufficient (content generation handled by lookahead service)
   if (!skipContentGeneration) {
@@ -655,13 +965,26 @@ export async function executeGameTick(
   const currentActiveCount =
     currentActiveQuestions.length - result.questionsResolved;
   if (currentActiveCount < 10) {
-    if (Date.now() < deadline) {
+    const shouldForceGeneration = currentActiveCount <= 0;
+    if (Date.now() < deadline || shouldForceGeneration) {
+      if (shouldForceGeneration && Date.now() >= deadline) {
+        logger.warn(
+          'No active prediction questions – forcing generation past tick budget',
+          { budgetMs, currentActiveCount },
+          'GameTick'
+        );
+      }
+
+      // If we've exceeded the tick budget, still allow a small window to avoid
+      // periods with zero active prediction markets.
+      const generationDeadline =
+        Date.now() < deadline ? deadline : Date.now() + 30_000;
       const questionsGenerated = await generateNewQuestions(
         Math.min(3, 15 - currentActiveCount),
         llmClient,
-        deadline
+        generationDeadline
       );
-      result.questionsCreated = questionsGenerated;
+      result.questionsCreated += questionsGenerated;
     } else {
       logger.warn(
         'Skipping question generation – tick budget exceeded',
@@ -671,11 +994,66 @@ export async function executeGameTick(
     }
   }
 
+  // Process narrative arcs for active questions
+  // Each question can have an arc that progresses through phases
+  // Arc events now create world events and can trigger article generation
+  if (Date.now() < deadline) {
+    const narrativeStats = await processNarrativeArcs(
+      currentActiveQuestions,
+      dayNumberForTimestamp(timestamp) ?? 1,
+      llmClient
+    );
+    result.narrativeArcs = narrativeStats;
+    if (narrativeStats.transitioned > 0 || narrativeStats.eventsGenerated > 0) {
+      logger.info('Narrative arcs processed', narrativeStats, 'GameTick');
+    }
+  }
+
+  // Process timeframed markets (multi-timeframe arcs: flash, intraday, daily, etc.)
+  // These use timestamp-based progression rather than day-based
+  if (Date.now() < deadline) {
+    const timeframeStats = await timeframeArcProcessor.processTick(timestamp);
+    result.timeframedMarkets = timeframeStats;
+    if (timeframeStats.marketsProcessed > 0) {
+      logger.info(
+        'Timeframed markets processed',
+        {
+          processed: timeframeStats.marketsProcessed,
+          transitions: timeframeStats.transitionsOccurred,
+          events: timeframeStats.eventsGenerated,
+          spawns: timeframeStats.subMarketsSpawned,
+        },
+        'GameTick'
+      );
+    }
+  }
+
+  // Calculate and update currentDay based on game start time
+  const currentDay = dayNumberForTimestamp(timestamp);
+
+  // Log day calculation for diagnostics
+  logger.info(
+    'Game day calculation',
+    {
+      startedAt: gameStartedAt?.toISOString(),
+      currentTimestamp: timestamp.toISOString(),
+      calculatedDay: currentDay,
+      willSetTo: currentDay ?? 1,
+      hoursElapsed: gameStartedAt
+        ? Math.floor(
+            (timestamp.getTime() - gameStartedAt.getTime()) / (1000 * 60 * 60)
+          )
+        : null,
+    },
+    'GameTick'
+  );
+
   await db
     .update(games)
     .set({
       lastTickAt: timestamp,
       updatedAt: timestamp,
+      currentDay: currentDay ?? 1,
     })
     .where(eq(games.isContinuous, true));
 
@@ -957,6 +1335,21 @@ export async function executeGameTick(
     );
   }
 
+  // Simulate market volatility (independent of NPC trades)
+  // This keeps markets "alive" with realistic price movements
+  try {
+    const volatilityUpdates = await simulateMarketVolatility();
+    if (volatilityUpdates > 0) {
+      result.priceVolatilitySimulated = volatilityUpdates;
+    }
+  } catch (error) {
+    logger.warn(
+      'Volatility simulation failed',
+      { error: error instanceof Error ? error.message : String(error) },
+      'GameTick'
+    );
+  }
+
   logger.info(
     'Game tick completed',
     {
@@ -1214,7 +1607,7 @@ async function generateOrganizationContent(
   deadlineMs: number,
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<{ posts: number; articles: number }> {
-  const postsToGenerate = 4; // Organization posts/articles per tick
+  const postsToGenerate = 1; // Organization posts/articles per tick (reduced from 4)
 
   if (questions.length === 0) {
     logger.warn(
@@ -2279,162 +2672,116 @@ async function updateMarketPricesFromTrades(
   _timestamp: Date,
   executionResult: TradingExecutionResult
 ): Promise<number> {
-  if (!executionResult.executedTrades.length) {
-    return 0;
-  }
+  if (!executionResult.executedTrades.length) return 0;
 
-  // Get all companies with current holdings (static + dynamic data)
-  const orgStates = await dbService().getAllOrganizationStates();
-  const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+  const hasPerpTrades = executionResult.executedTrades.some(
+    (t) => t.marketType === 'perp'
+  );
+  if (!hasPerpTrades) return 0;
 
-  const companiesList = StaticDataRegistry.getAllOrganizations()
-    .filter((org) => org.type === 'company')
-    .map((org) => ({
-      id: org.id,
-      name: org.name,
-      currentPrice: priceMap.get(org.id) ?? org.initialPrice,
-      initialPrice: org.initialPrice,
-    }));
+  // Recompute perp prices from open PerpPosition rows.
+  // NPC perps now trade via PerpMarketService (perpPositions table), so using
+  // legacy poolPositions would keep prices effectively static.
+  const snapshots = await db
+    .select({
+      ticker: perpMarketSnapshots.ticker,
+      organizationId: perpMarketSnapshots.organizationId,
+      currentPrice: perpMarketSnapshots.currentPrice,
+    })
+    .from(perpMarketSnapshots);
 
-  type CompanyData = (typeof companiesList)[0];
-  // Use raw org IDs as keys since positions now store raw IDs
-  const companyMap = new Map<string, CompanyData>(
-    companiesList.map((c: CompanyData) => [c.id, c])
+  if (snapshots.length === 0) return 0;
+
+  // Scope recomputation to tickers actually traded this tick (when available).
+  const tradedTickers = new Set(
+    executionResult.executedTrades
+      .filter(
+        (
+          t
+        ): t is (typeof executionResult.executedTrades)[number] & {
+          ticker: string;
+        } => t.marketType === 'perp' && typeof t.ticker === 'string'
+      )
+      .map((t) => t.ticker.toUpperCase())
   );
 
-  // Calculate total holdings for each company from ALL positions
-  const holdingsByTicker = new Map<string, number>();
+  const selected =
+    tradedTickers.size > 0
+      ? snapshots.filter((s) => tradedTickers.has(s.ticker.toUpperCase()))
+      : snapshots;
 
-  const allPositions = await db
+  if (selected.length === 0) return 0;
+
+  const orgIds = [...new Set(selected.map((s) => s.organizationId))];
+  const orgs = await db
     .select({
-      ticker: poolPositions.ticker,
-      side: poolPositions.side,
-      size: poolPositions.size,
+      id: organizations.id,
+      initialPrice: organizations.initialPrice,
     })
-    .from(poolPositions)
+    .from(organizations)
+    .where(inArray(organizations.id, orgIds));
+  const initialByOrgId = new Map(
+    orgs.map((o) => [o.id, Number(o.initialPrice ?? 100)])
+  );
+
+  const tickers = selected.map((s) => s.ticker);
+  const positionsOpen = await db
+    .select({
+      ticker: perpPositions.ticker,
+      side: perpPositions.side,
+      size: perpPositions.size,
+    })
+    .from(perpPositions)
     .where(
       and(
-        eq(poolPositions.marketType, 'perp'),
-        isNull(poolPositions.closedAt),
-        isNotNull(poolPositions.ticker)
+        inArray(perpPositions.ticker, tickers),
+        isNull(perpPositions.closedAt)
       )
     );
 
-  for (const pos of allPositions) {
-    if (!pos.ticker) continue;
-
-    const current = holdingsByTicker.get(pos.ticker) || 0;
-    // Long positions add to holdings, short positions subtract
-    const delta = pos.side === 'long' ? pos.size : -pos.size;
+  const holdingsByTicker = new Map<string, number>();
+  for (const pos of positionsOpen) {
+    const current = holdingsByTicker.get(pos.ticker) ?? 0;
+    const delta = pos.side === 'long' ? Number(pos.size) : -Number(pos.size);
     holdingsByTicker.set(pos.ticker, current + delta);
   }
 
-  let updates = 0;
-  const priceUpdatesForChain: Array<{
-    organizationId: string;
-    newPrice: number;
-  }> = [];
+  const updates = selected
+    .map((snap) => {
+      const initialPrice = initialByOrgId.get(snap.organizationId) ?? 100;
+      const currentPrice = Number(snap.currentPrice ?? initialPrice);
+      const netHoldings = holdingsByTicker.get(snap.ticker) ?? 0;
 
-  // Update prices based on total capital deployed
-  // Market cap = initialPrice × syntheticSupply + totalDeployed
-  // ticker is now a raw org ID, not a transformed ticker
-  for (const [ticker, netHoldings] of holdingsByTicker) {
-    const company = companyMap.get(ticker);
-    if (!company) continue;
-
-    const initialPrice = company.initialPrice ?? 100;
-    const currentPrice = company.currentPrice ?? initialPrice;
-
-    // Fixed synthetic supply per company
-    const syntheticSupply = 10000;
-    const baseMarketCap = initialPrice * syntheticSupply; // e.g. $100 × 10k = $1M
-
-    // Market cap increases with net long holdings
-    const newMarketCap = baseMarketCap + netHoldings;
-
-    // Price = marketCap / supply, with floor and ceiling
-    const rawPrice = newMarketCap / syntheticSupply;
-
-    // Price change limits: ±20% per tick, with absolute bounds
-    const maxChangePerTick = currentPrice * 0.2; // Max 20% move per tick
-    const absoluteMin = initialPrice * 0.25; // Never below 25% of initial
-    const absoluteMax = initialPrice * 4.0; // Never above 400% of initial
-
-    const minPrice = Math.max(absoluteMin, currentPrice - maxChangePerTick);
-    const maxPrice = Math.min(absoluteMax, currentPrice + maxChangePerTick);
-    const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
-
-    const change = newPrice - currentPrice;
-    const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
-
-    // Only update if price actually changed
-    if (Math.abs(change) < 0.01) continue;
-
-    await db
-      .update(organizationState)
-      .set({ currentPrice: newPrice, updatedAt: new Date() })
-      .where(eq(organizationState.id, company.id));
-
-    await dbService().recordPriceUpdate(
-      company.id,
-      newPrice,
-      change,
-      changePercent
-    );
-
-    logger.info(
-      `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
-      { ticker, currentPrice, newPrice, netHoldings, marketCap: newMarketCap },
-      'GameTick'
-    );
-
-    // Add to on-chain publish queue
-    priceUpdatesForChain.push({
-      organizationId: company.id,
-      newPrice,
-    });
-
-    updates++;
-  }
-
-  // Publish all price updates to blockchain in batch
-  if (priceUpdatesForChain.length > 0) {
-    try {
-      await PriceUpdateService.applyUpdates(
-        priceUpdatesForChain.map((u) => ({
-          ...u,
-          source: 'npc_trade',
-          reason: 'NPC trading price impact',
-        }))
-      );
-    } catch (error) {
-      // Log with special marker for monitoring/retry systems
-      logger.error(
-        'PRICE_SYNC_FAILED: Failed to publish prices to blockchain - queueing for retry',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          count: priceUpdatesForChain.length,
-          retryable: true,
-        },
-        'GameTick'
+      const newPrice = calculatePriceFromHoldings(
+        initialPrice,
+        currentPrice,
+        netHoldings,
+        PERP_MARKET_CONFIG
       );
 
-      // Log each failed update for potential manual recovery
-      for (const update of priceUpdatesForChain) {
-        logger.warn(
-          'PRICE_SYNC_FAILED',
-          {
-            organizationId: update.organizationId,
-            newPrice: update.newPrice,
-            retryable: true,
-          },
-          'GameTick'
-        );
-      }
-    }
-  }
+      if (Math.abs(newPrice - currentPrice) < 0.001) return null;
 
-  return updates;
+      return {
+        organizationId: snap.organizationId,
+        newPrice,
+        source: 'npc_trade' as const,
+        reason: 'NPC trading price impact',
+        metadata: { ticker: snap.ticker },
+      };
+    })
+    .filter((u): u is NonNullable<typeof u> => u !== null);
+
+  if (updates.length === 0) return 0;
+
+  const applied = await PriceUpdateService.applyUpdates(updates);
+
+  logger.info(
+    `Perp price recomputation applied ${applied.length} updates`,
+    { count: applied.length },
+    'GameTick'
+  );
+
+  return applied.length;
 }
 
 /**
@@ -3180,5 +3527,304 @@ async function updateWorldFactsIfNeeded(): Promise<{
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
     },
+  };
+}
+
+// ============================================================================
+// MARKET VOLATILITY SIMULATION
+// ============================================================================
+
+/**
+ * Market volatility state for realistic price movements.
+ * Tracks recent volatility and momentum per market for clustering effects.
+ */
+const marketVolatilityState = new Map<
+  string,
+  {
+    recentVolatility: number;
+    momentum: number;
+    lastMove: number;
+  }
+>();
+
+/**
+ * Simulates natural market volatility for all perp markets.
+ *
+ * This creates realistic price movements independent of user/NPC trades:
+ * - Volatility clustering (volatile periods follow volatile periods)
+ * - Fat tails (occasional large moves)
+ * - Random jumps (sudden price gaps)
+ * - Momentum (trends persist slightly)
+ * - Asymmetry (crashes faster than rallies)
+ *
+ * Called every game tick (~1 minute) to keep markets "alive".
+ */
+export async function simulateMarketVolatility(): Promise<number> {
+  try {
+    // Get all active perp market snapshots
+    const markets = await db
+      .select({
+        ticker: perpMarketSnapshots.ticker,
+        organizationId: perpMarketSnapshots.organizationId,
+        currentPrice: perpMarketSnapshots.currentPrice,
+      })
+      .from(perpMarketSnapshots);
+
+    if (markets.length === 0) {
+      return 0;
+    }
+
+    // Get organization initial prices for bounds
+    const orgIds = [...new Set(markets.map((m) => m.organizationId))];
+    const orgs = await db
+      .select({
+        id: organizations.id,
+        initialPrice: organizations.initialPrice,
+        currentPrice: organizations.currentPrice,
+      })
+      .from(organizations)
+      .where(inArray(organizations.id, orgIds));
+
+    const orgMap = new Map(orgs.map((o) => [o.id, o]));
+
+    let updatedCount = 0;
+    const priceUpdates: Array<{
+      organizationId: string;
+      ticker: string;
+      newPrice: number;
+    }> = [];
+
+    for (const market of markets) {
+      const org = orgMap.get(market.organizationId);
+      if (!org) continue;
+
+      const currentPrice = Number(market.currentPrice);
+      const initialPrice = Number(org.initialPrice ?? 100);
+
+      // Get or initialize volatility state for this market
+      let state = marketVolatilityState.get(market.ticker);
+      if (!state) {
+        state = {
+          recentVolatility: 0.003, // Start with 0.3% base volatility
+          momentum: 0,
+          lastMove: 0,
+        };
+        marketVolatilityState.set(market.ticker, state);
+      }
+
+      // Calculate price move
+      const move = generateVolatilityMove(state, initialPrice, currentPrice);
+
+      // Apply move
+      const newPrice = currentPrice * (1 + move);
+
+      // Apply absolute bounds (25% - 400% of initial)
+      const minPrice = initialPrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO;
+      const maxPrice = initialPrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO;
+      const clampedPrice = Math.max(minPrice, Math.min(newPrice, maxPrice));
+
+      // Update state for next tick
+      state.lastMove = move;
+      state.momentum = move * 0.3; // 30% momentum carries forward
+      // Volatility clustering: if big move, stay volatile
+      state.recentVolatility =
+        state.recentVolatility * 0.8 + Math.abs(move) * 0.2;
+
+      // Only update if price changed meaningfully (> 0.01%)
+      if (Math.abs(clampedPrice - currentPrice) / currentPrice > 0.0001) {
+        priceUpdates.push({
+          organizationId: market.organizationId,
+          ticker: market.ticker,
+          newPrice: clampedPrice,
+        });
+        updatedCount++;
+      }
+    }
+
+    // Apply all price updates
+    if (priceUpdates.length > 0) {
+      // Update perpMarketSnapshots
+      // Note: Don't update change24h/changePercent24h here - those should reflect
+      // true 24h deltas calculated elsewhere using price24hAgo reference
+      for (const update of priceUpdates) {
+        await db
+          .update(perpMarketSnapshots)
+          .set({
+            currentPrice: update.newPrice,
+            updatedAt: new Date(),
+          })
+          .where(eq(perpMarketSnapshots.ticker, update.ticker));
+      }
+
+      // Update organizations and broadcast via PriceUpdateService
+      await PriceUpdateService.applyUpdates(
+        priceUpdates.map((u) => ({
+          organizationId: u.organizationId,
+          newPrice: u.newPrice,
+          source: 'volatility_simulation',
+          reason: 'Simulated market volatility',
+          metadata: { ticker: u.ticker },
+        }))
+      );
+
+      logger.info(
+        `Simulated volatility for ${updatedCount} markets`,
+        {
+          updatedCount,
+          samples: priceUpdates.slice(0, 3).map((u) => ({
+            ticker: u.ticker,
+            newPrice: u.newPrice.toFixed(2),
+          })),
+        },
+        'MarketVolatility'
+      );
+    }
+
+    return updatedCount;
+  } catch (error) {
+    logger.error(
+      'Failed to simulate market volatility',
+      { error: error instanceof Error ? error.message : String(error) },
+      'MarketVolatility'
+    );
+    return 0;
+  }
+}
+
+/**
+ * Generates a realistic price movement with fat tails and volatility clustering.
+ */
+function generateVolatilityMove(
+  state: { recentVolatility: number; momentum: number; lastMove: number },
+  initialPrice: number,
+  currentPrice: number
+): number {
+  // Base volatility with clustering effect
+  const baseVolatility = state.recentVolatility;
+  const volatilityMultiplier = 0.5 + Math.random(); // 0.5x to 1.5x
+  const currentVolatility = baseVolatility * volatilityMultiplier;
+
+  // Generate move with fat tails
+  let move: number;
+  const fatTailChance = Math.random();
+
+  if (fatTailChance < 0.01) {
+    // 1% chance: LARGE jump (3-6x normal volatility)
+    const direction = Math.random() > 0.5 ? 1 : -1;
+    move = direction * currentVolatility * (3 + Math.random() * 3);
+  } else if (fatTailChance < 0.05) {
+    // 4% chance: Notable move (2-3x normal)
+    move = (Math.random() - 0.5) * 2 * currentVolatility * (2 + Math.random());
+  } else if (fatTailChance < 0.15) {
+    // 10% chance: Above average move (1.5-2x normal)
+    move =
+      (Math.random() - 0.5) *
+      2 *
+      currentVolatility *
+      (1.5 + Math.random() * 0.5);
+  } else {
+    // 85% chance: Normal move
+    move = (Math.random() - 0.5) * 2 * currentVolatility;
+  }
+
+  // Add momentum (trend continuation)
+  move += state.momentum * (0.5 + Math.random() * 0.5);
+
+  // Mean reversion - slight pull toward initial price
+  const priceRatio = currentPrice / initialPrice;
+  if (priceRatio > 1.5) {
+    // If price is >150% of initial, slight downward pressure
+    move -= 0.001 * (priceRatio - 1);
+  } else if (priceRatio < 0.7) {
+    // If price is <70% of initial, slight upward pressure
+    move += 0.001 * (1 - priceRatio);
+  }
+
+  // Asymmetry: crashes are 20% faster than rallies
+  if (move < 0) {
+    move *= 1.2;
+  }
+
+  // Cap individual tick move at 5% (but still allow through fat tail distribution)
+  const maxMove = 0.05;
+  return Math.max(-maxMove, Math.min(move, maxMove));
+}
+
+/**
+ * Process narrative arcs for active questions.
+ * Each question can have an arc that progresses through phases based on game day.
+ * Arc events now create world events and can trigger article generation.
+ *
+ * @param activeQuestions - Questions with active arcs to process
+ * @param dayNumber - Current game day number
+ * @param llmClient - LLM client for generating articles on significant events
+ */
+async function processNarrativeArcs(
+  activeQuestions: Array<{ id: string }>,
+  dayNumber: number,
+  llmClient: BabylonLLMClient
+): Promise<{
+  arcsProcessed: number;
+  transitioned: number;
+  eventsGenerated: number;
+}> {
+  // arcStates is now statically imported at the top of the file
+
+  let arcsProcessed = 0;
+  let transitioned = 0;
+  let eventsGenerated = 0;
+
+  // Batch fetch all existing arc states in one query to reduce DB round-trips
+  const questionIds = activeQuestions.map((q) => q.id);
+  const existingArcsList =
+    questionIds.length > 0
+      ? await db
+          .select({ id: arcStates.id, questionId: arcStates.questionId })
+          .from(arcStates)
+          .where(inArray(arcStates.questionId, questionIds))
+      : [];
+
+  // Build a map of questionId -> arcState for O(1) lookup
+  const arcStateByQuestionId = new Map<string, { id: string }>();
+  for (const arc of existingArcsList) {
+    arcStateByQuestionId.set(arc.questionId, { id: arc.id });
+  }
+
+  for (const question of activeQuestions) {
+    try {
+      // Look up existing arc from preloaded map
+      const existingArc = arcStateByQuestionId.get(question.id);
+
+      let arcId: string;
+      if (!existingArc) {
+        // Create arc state for this question
+        arcId = await createArcState(question.id);
+      } else {
+        arcId = existingArc.id;
+      }
+
+      // Process the arc tick, passing LLM client for article generation
+      const result = await processArcTick(arcId, dayNumber, llmClient);
+      arcsProcessed++;
+
+      if (result.transitioned) {
+        transitioned++;
+      }
+      if (result.eventGenerated) {
+        eventsGenerated++;
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to process narrative arc for question ${question.id}`,
+        { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  return {
+    arcsProcessed,
+    transitioned,
+    eventsGenerated,
   };
 }

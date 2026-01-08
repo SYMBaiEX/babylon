@@ -35,7 +35,12 @@ import {
   PriceUpdateService,
   WalletService,
 } from '@babylon/engine';
-import { type JsonValue, logger } from '@babylon/shared';
+import {
+  calculatePriceFromHoldings,
+  type JsonValue,
+  logger,
+  PERP_MARKET_CONFIG,
+} from '@babylon/shared';
 
 /**
  * Creates a WalletPort adapter that wraps WalletService methods.
@@ -159,23 +164,19 @@ export function createPerpMarketService(
 }
 
 /**
- * Price impact constants for user trades.
+ * Price impact uses centralized config from @babylon/shared.
  *
- * The synthetic supply determines price sensitivity:
- * - Lower supply = more price impact per trade
- * - Higher supply = less price impact per trade
+ * With LIQUIDITY_FACTOR = 20 and SYNTHETIC_SUPPLY = 10000:
+ * - effectiveSupply = 500
+ * - $100 trade → ~0.02% impact
+ * - $1000 trade → ~0.2% impact
+ * - $5000 trade → ~1% impact
  *
- * With SYNTHETIC_SUPPLY = 10000:
- * - $100 trade → ~0.006% impact
- * - $1000 trade → ~0.06% impact
- * - $10000 trade → ~0.6% impact
+ * This makes our simulation markets 20x less liquid than real exchanges,
+ * providing visible price impact from user trades.
  *
- * This provides minimal price impact per trade, similar to real markets.
+ * @see PERP_MARKET_CONFIG in @babylon/shared
  */
-const SYNTHETIC_SUPPLY = 10000;
-const MAX_CHANGE_PER_TRADE = 0.1; // Max 10% move per single trade (safety limit)
-const ABSOLUTE_MIN_RATIO = 0.25; // Never below 25% of initial
-const ABSOLUTE_MAX_RATIO = 4.0; // Never above 400% of initial
 
 /**
  * Applies price impact from a user trade in real-time.
@@ -194,6 +195,8 @@ const ABSOLUTE_MAX_RATIO = 4.0; // Never above 400% of initial
  */
 export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
   try {
+    const normalizedTicker = ticker.toUpperCase();
+
     // 1. Get organizationId and 24h stats from perpMarketSnapshots
     const [snapshot] = await db
       .select({
@@ -203,13 +206,13 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
         low24h: perpMarketSnapshots.low24h,
       })
       .from(perpMarketSnapshots)
-      .where(eq(perpMarketSnapshots.ticker, ticker))
+      .where(eq(perpMarketSnapshots.ticker, normalizedTicker))
       .limit(1);
 
     if (!snapshot) {
       logger.warn(
         'PerpMarketSnapshot not found for price impact',
-        { ticker },
+        { ticker: normalizedTicker },
         'PerpPriceImpact'
       );
       return;
@@ -231,7 +234,7 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     if (!org) {
       logger.warn(
         'Organization not found for price impact',
-        { ticker, organizationId },
+        { ticker: normalizedTicker, organizationId },
         'PerpPriceImpact'
       );
       return;
@@ -249,7 +252,10 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
       })
       .from(perpPositions)
       .where(
-        and(eq(perpPositions.ticker, ticker), isNull(perpPositions.closedAt))
+        and(
+          eq(perpPositions.ticker, normalizedTicker),
+          isNull(perpPositions.closedAt)
+        )
       );
 
     // 4. Calculate net holdings (longs - shorts)
@@ -259,25 +265,29 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
       netHoldings += pos.side === 'long' ? size : -size;
     }
 
-    // 5. Calculate new price using AMM formula
-    const baseMarketCap = initialPrice * SYNTHETIC_SUPPLY;
-    const newMarketCap = baseMarketCap + netHoldings;
-    const rawPrice = newMarketCap / SYNTHETIC_SUPPLY;
+    // 5. Calculate new price using centralized vAMM formula with liquidity factor
+    const newPrice = calculatePriceFromHoldings(
+      initialPrice,
+      currentPrice,
+      netHoldings,
+      PERP_MARKET_CONFIG
+    );
 
-    // 6. Apply price change limits
-    const maxChangePerTrade = currentPrice * MAX_CHANGE_PER_TRADE;
-    const absoluteMin = initialPrice * ABSOLUTE_MIN_RATIO;
-    const absoluteMax = initialPrice * ABSOLUTE_MAX_RATIO;
-
-    const minPrice = Math.max(absoluteMin, currentPrice - maxChangePerTrade);
-    const maxPrice = Math.min(absoluteMax, currentPrice + maxChangePerTrade);
-    const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
-
-    // 7. Only update if price actually changed meaningfully (at least 0.001% or $0.01)
+    // 6. Only update if price actually changed meaningfully (at least 0.001% or $0.01)
     const change = newPrice - currentPrice;
+    const effectiveSupply =
+      PERP_MARKET_CONFIG.SYNTHETIC_SUPPLY / PERP_MARKET_CONFIG.LIQUIDITY_FACTOR;
     logger.info(
-      `Price impact calculation: netHoldings=${netHoldings}, rawPrice=${rawPrice.toFixed(4)}, change=${change.toFixed(4)}`,
-      { ticker, netHoldings, rawPrice, change, currentPrice, initialPrice },
+      `Price impact calculation: netHoldings=${netHoldings}, newPrice=${newPrice.toFixed(4)}, change=${change.toFixed(4)}, effectiveSupply=${effectiveSupply}`,
+      {
+        ticker: normalizedTicker,
+        netHoldings,
+        newPrice,
+        change,
+        currentPrice,
+        initialPrice,
+        liquidityFactor: PERP_MARKET_CONFIG.LIQUIDITY_FACTOR,
+      },
       'PerpPriceImpact'
     );
 
@@ -293,8 +303,15 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
     const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
 
     logger.info(
-      `User trade price impact: ${ticker} (${organizationId}) ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`,
-      { ticker, organizationId, currentPrice, newPrice, netHoldings, change },
+      `User trade price impact: ${normalizedTicker} (${organizationId}) ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`,
+      {
+        ticker: normalizedTicker,
+        organizationId,
+        currentPrice,
+        newPrice,
+        netHoldings,
+        change,
+      },
       'PerpPriceImpact'
     );
 
@@ -305,59 +322,17 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
         newPrice,
         source: 'user_trade',
         reason: 'User trade price impact',
+        metadata: { ticker: normalizedTicker },
       },
     ]);
-
-    // 9. Broadcast with ticker explicitly for UI hooks (useMarketPrices)
-    // PriceUpdateService broadcasts with organizationId, but UI uses ticker
-    try {
-      await broadcastToChannel('markets', {
-        type: 'perp_price_update',
-        updates: [
-          {
-            ticker, // The ticker that UI hooks listen for (e.g., "AIPHB")
-            organizationId,
-            newPrice,
-            price: newPrice,
-            change,
-            changePercent,
-          },
-        ],
-      });
-    } catch {
-      // Non-critical, ignore broadcast errors
-    }
-
-    // 10. Also update perpMarketSnapshots for consistency
-    // Only update high24h/low24h if newPrice exceeds existing bounds
-    // Don't recalculate change24h here - it's properly computed by game-tick
-    // using the actual price24hAgo reference
-    const existingHigh = Number(snapshot.high24h ?? newPrice);
-    const existingLow = Number(snapshot.low24h ?? newPrice);
-
-    const updateData: Record<string, unknown> = {
-      currentPrice: newPrice,
-      updatedAt: new Date(),
-    };
-
-    // Only update high24h if new price is higher
-    if (newPrice > existingHigh) {
-      updateData.high24h = newPrice;
-    }
-    // Only update low24h if new price is lower
-    if (newPrice < existingLow) {
-      updateData.low24h = newPrice;
-    }
-
-    await db
-      .update(perpMarketSnapshots)
-      .set(updateData)
-      .where(eq(perpMarketSnapshots.ticker, ticker));
   } catch (error) {
     // Don't throw - price impact is enhancement, not critical path
     logger.error(
       'Failed to apply user trade price impact',
-      { ticker, error: error instanceof Error ? error.message : String(error) },
+      {
+        ticker: ticker.toUpperCase(),
+        error: error instanceof Error ? error.message : String(error),
+      },
       'PerpPriceImpact'
     );
   }

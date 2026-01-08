@@ -3,6 +3,9 @@
 # dependencies
 /node_modules
 
+# cursor
+.cursor/commands/
+
 # next.js
 /.next/
 /out/
@@ -99,6 +102,7 @@ circular-deps.*
 
 # Continuous Claude cache (local only)
 .claude/cache/
+.claude/tsc-cache/
 /thoughts
 
 # START Ruler Generated Files

@@ -27,7 +27,8 @@ export type NotificationType =
   | 'report_evaluated'
   | 'appeal_status'
   | 'points_received'
-  | 'group_invite';
+  | 'group_invite'
+  | 'nft_access_revoked';
 
 interface CreateNotificationParams {
   userId: string; // Who receives the notification
@@ -36,6 +37,8 @@ interface CreateNotificationParams {
   postId?: string;
   commentId?: string;
   chatId?: string; // For DM/chat message notifications
+  groupId?: string; // For group-related notifications
+  inviteId?: string; // For invite-related notifications
   title: string;
   message: string;
 }
@@ -155,6 +158,8 @@ export async function createNotification(
     postId: params.postId,
     commentId: params.commentId,
     chatId: params.chatId,
+    groupId: params.groupId,
+    inviteId: params.inviteId,
     title: params.title,
     message: params.message,
   });
@@ -515,35 +520,43 @@ export async function notifyGroupChatInvite(
 
 /**
  * Create notification for user group invite
+ *
+ * Uses createNotification for proper safety checks (user existence, blocked users, deduplication).
+ *
+ * @param inviterName - Optional pre-fetched inviter name to avoid N+1 queries when called in bulk
  */
 export async function notifyUserGroupInvite(
   userId: string,
   inviterId: string,
   groupId: string,
   groupName: string,
-  inviteId?: string
+  inviteId?: string,
+  inviterName?: string
 ): Promise<void> {
   // Don't notify if user invited themselves
   if (userId === inviterId) {
     return;
   }
 
-  const result = await db
-    .select({
-      displayName: users.displayName,
-      username: users.username,
-    })
-    .from(users)
-    .where(eq(users.id, inviterId))
-    .limit(1);
+  let finalInviterName = inviterName;
+  if (!finalInviterName) {
+    const result = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, inviterId))
+      .limit(1);
 
-  const inviter = result[0];
-  const inviterName = inviter?.displayName || inviter?.username || 'Someone';
-  const message = `${inviterName} invited you to join ${groupName}`;
+    const inviter = result[0];
+    finalInviterName = inviter?.displayName || inviter?.username || 'Someone';
+  }
 
-  // Create notification with groupId and inviteId for proper linking
-  await db.insert(notifications).values({
-    id: await generateSnowflakeId(),
+  const message = `${finalInviterName} invited you to join ${groupName}`;
+
+  // Use createNotification for proper safety checks (user existence, blocked users)
+  await createNotification({
     userId,
     type: 'group_invite',
     actorId: inviterId,
@@ -551,6 +564,57 @@ export async function notifyUserGroupInvite(
     message,
     groupId,
     inviteId,
+  });
+}
+
+/**
+ * Create notification when a user is directly added to a group
+ * (without requiring invite acceptance)
+ *
+ * Uses createNotification for proper safety checks (user existence, blocked users, deduplication).
+ *
+ * @param adderName - Optional pre-fetched adder name to avoid N+1 queries when called in bulk
+ */
+export async function notifyGroupMemberAdded(
+  userId: string,
+  addedById: string,
+  groupId: string,
+  groupName: string,
+  chatId?: string,
+  adderName?: string
+): Promise<void> {
+  // Don't notify if user added themselves
+  if (userId === addedById) {
+    return;
+  }
+
+  // Use provided adderName or fetch it (for backwards compatibility)
+  let resolvedAdderName = adderName;
+  if (!resolvedAdderName) {
+    const result = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, addedById))
+      .limit(1);
+
+    const adder = result[0];
+    resolvedAdderName = adder?.displayName || adder?.username || 'Someone';
+  }
+
+  const message = `${resolvedAdderName} added you to ${groupName}`;
+
+  // Use createNotification for proper safety checks (user existence, blocked users)
+  await createNotification({
+    userId,
+    type: 'group_invite', // Reuse type for notification grouping in UI
+    actorId: addedById,
+    title: 'Added to Group',
+    message,
+    groupId,
+    chatId,
   });
 }
 
@@ -643,4 +707,28 @@ export async function notifyGroupChatMessage(
     );
 
   await Promise.all(notificationPromises);
+}
+
+/**
+ * Create notification when user is removed from an NFT-gated chat
+ * This happens when the user no longer owns the required NFT
+ */
+export async function notifyNftAccessRevoked(
+  userId: string,
+  chatId: string,
+  chatName: string,
+  reason: string
+): Promise<void> {
+  const message =
+    reason === 'No wallet connected'
+      ? `You were removed from "${chatName}" because your wallet was disconnected`
+      : `You were removed from "${chatName}" because you no longer own the required NFT`;
+
+  await createNotification({
+    userId,
+    type: 'nft_access_revoked',
+    chatId,
+    title: 'NFT Access Revoked',
+    message,
+  });
 }

@@ -1,11 +1,26 @@
 'use client';
 
+import type { MessageType } from '@babylon/db';
 import { cn } from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
+import { SystemMessage } from './SystemMessage';
 import type { ChatParticipant, Message } from './types';
+import { MessageTypeEnum } from './types';
+
+/**
+ * Determines the message type for rendering.
+ * Uses message.type field if available (new messages), falls back to default user type.
+ */
+function getMessageType(message: Message): MessageType {
+  // Prefer explicit type field (new messages after migration)
+  if (message.type) {
+    return message.type;
+  }
+  return MessageTypeEnum.USER;
+}
 
 interface MessageListProps {
   messages: Message[];
@@ -16,7 +31,6 @@ interface MessageListProps {
   hasMore: boolean;
   pullDistance: number;
   authenticated: boolean;
-  onTagClick?: (tag: string) => void;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -30,19 +44,21 @@ export function MessageList({
   hasMore,
   pullDistance,
   authenticated,
-  onTagClick,
   topSentinelRef,
   messagesEndRef,
 }: MessageListProps) {
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="w-full max-w-md space-y-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+      <>
+        <div className="flex h-full items-center justify-center">
+          <div className="w-full max-w-md space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         </div>
-      </div>
+        <div ref={messagesEndRef} />
+      </>
     );
   }
 
@@ -83,20 +99,29 @@ export function MessageList({
 
       {/* Messages */}
       {messages.map((msg) => {
-        const sender = participants.find((p) => p.id === msg.senderId);
-        const isCurrentUser = currentUserId
-          ? msg.senderId === currentUserId
-          : false;
+        const messageType = getMessageType(msg);
 
-        return (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            sender={sender}
-            isCurrentUser={isCurrentUser}
-            onTagClick={onTagClick}
-          />
-        );
+        switch (messageType) {
+          case MessageTypeEnum.SYSTEM:
+            return <SystemMessage key={msg.id} message={msg} />;
+
+          case MessageTypeEnum.USER:
+          default: {
+            const sender = participants.find((p) => p.id === msg.senderId);
+            const isCurrentUser = currentUserId
+              ? msg.senderId === currentUserId
+              : false;
+
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                sender={sender}
+                isCurrentUser={isCurrentUser}
+              />
+            );
+          }
+        }
       })}
 
       {/* Empty state */}

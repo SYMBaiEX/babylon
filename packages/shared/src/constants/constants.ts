@@ -170,4 +170,6 @@ export const GROUP_CONFIG = {
   IDEAL_GROUP_SIZE: 7,
   /** Hours after joining before next invite eligible */
   INVITE_COOLDOWN_HOURS: 4,
+  /** UI warning threshold for group member count (soft cap, not enforced) */
+  MEMBER_WARNING_THRESHOLD: 100,
 } as const;

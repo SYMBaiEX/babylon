@@ -103,9 +103,13 @@ export const GET = withErrorHandling(
 
     const yesShares = market.yesShares;
     const noShares = market.noShares;
-    const total = yesShares + noShares;
-    const yesProb = total > 0 ? yesShares / total : 0.5;
-    const noProb = total > 0 ? noShares / total : 0.5;
+    // Probability should reflect the CPMM price, not the raw share ratio.
+    const yesProb = PredictionPricing.getCurrentPrice(
+      yesShares,
+      noShares,
+      'yes'
+    );
+    const noProb = PredictionPricing.getCurrentPrice(yesShares, noShares, 'no');
 
     let userPositions: UserPositionSnapshot[] = [];
     let primaryPosition: UserPositionSnapshot | null = null;

@@ -14,6 +14,9 @@ import {
 // Enum for group types
 export const groupTypeEnum = pgEnum('group_type', ['user', 'npc', 'agent']);
 
+// Enum for message types
+export const messageTypeEnum = pgEnum('message_type', ['user', 'system']);
+
 // Chat
 export const chats = pgTable(
   'Chat',
@@ -33,6 +36,7 @@ export const chats = pgTable(
     requiredNftTokenId: integer('requiredNftTokenId'),
     requiredNftChainId: integer('requiredNftChainId'),
     nftGated: boolean('nftGated').notNull().default(false),
+    lastNftRevalidatedAt: timestamp('lastNftRevalidatedAt', { mode: 'date' }),
   },
   (table) => [
     index('Chat_gameId_dayNumber_idx').on(table.gameId, table.dayNumber),
@@ -82,11 +86,13 @@ export const messages = pgTable(
     chatId: text('chatId').notNull(),
     senderId: text('senderId').notNull(),
     content: text('content').notNull(),
+    type: messageTypeEnum('type').notNull().default('user'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
     index('Message_senderId_idx').on(table.senderId),
+    index('Message_type_idx').on(table.type),
   ]
 );
 
@@ -197,12 +203,9 @@ export const groups = pgTable(
 /**
  * GroupMember - membership table with roles and quality tracking
  *
- * Note: Unique constraint is a PARTIAL INDEX created via migration:
- * CREATE UNIQUE INDEX "GroupMember_groupId_userId_active_key"
- *   ON "GroupMember" ("groupId", "userId") WHERE "isActive" = true;
- *
- * This allows multiple inactive records (history) but ensures only one
- * active member per (groupId, userId) pair.
+ * Unique constraint: Full unique constraint on (groupId, userId).
+ * This enables idempotent upserts via onConflictDoUpdate.
+ * Soft deletes use the isActive flag (no multiple inactive history rows).
  */
 export const groupMembers = pgTable(
   'GroupMember',
@@ -231,8 +234,9 @@ export const groupMembers = pgTable(
     previousTier: integer('previousTier'),
   },
   (table) => [
-    // Note: Partial unique index is managed via migration, not here
-    // See migration 0011_fix_group_member_partial_unique.sql
+    // Full unique constraint on (groupId, userId) required for onConflictDoUpdate upserts
+    // Note: This replaced the partial index approach - we now use isActive flag for soft deletes
+    unique('GroupMember_groupId_userId_key').on(table.groupId, table.userId),
     index('GroupMember_groupId_idx').on(table.groupId),
     index('GroupMember_userId_idx').on(table.userId),
     index('GroupMember_groupId_isActive_idx').on(table.groupId, table.isActive),
@@ -357,4 +361,5 @@ export type NewGroupInvite = typeof groupInvites.$inferInsert;
 export type GroupType = 'user' | 'npc' | 'agent';
 export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
+export type MessageType = 'user' | 'system';
 // TierLevel is exported from @babylon/shared - use that canonical definition

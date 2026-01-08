@@ -25,6 +25,36 @@ const POSTGRES_CONTAINER = 'babylon-postgres';
 const REDIS_CONTAINER = 'babylon-redis';
 const MINIO_CONTAINER = 'babylon-minio';
 
+/**
+ * Valid Docker service names for the development environment
+ */
+type DockerService = 'postgres' | 'redis' | 'minio';
+
+// Detect docker compose command (docker compose vs docker-compose)
+let useDockerComposePlugin = false;
+const dockerComposeCheck = await $`docker compose version`.quiet().nothrow();
+if (dockerComposeCheck.exitCode === 0) {
+  useDockerComposePlugin = true;
+} else {
+  const dockerComposeStandalone = await $`docker-compose version`
+    .quiet()
+    .nothrow();
+  if (dockerComposeStandalone.exitCode !== 0) {
+    console.error(
+      '❌ Neither "docker compose" nor "docker-compose" is available'
+    );
+    process.exit(1);
+  }
+}
+
+async function dockerComposeUp(service: DockerService) {
+  if (useDockerComposePlugin) {
+    return $`docker compose up -d ${service}`;
+  } else {
+    return $`docker-compose up -d ${service}`;
+  }
+}
+
 async function killPort(port: number): Promise<number> {
   const pids = await $`lsof -t -i:${port}`.quiet().nothrow().text();
   const pidList = pids.trim().split('\n').filter(Boolean);
@@ -194,7 +224,7 @@ const postgresRunning =
 
 if (postgresRunning.trim() !== POSTGRES_CONTAINER) {
   console.info('Starting PostgreSQL...');
-  await $`docker-compose up -d postgres`;
+  await dockerComposeUp('postgres');
 
   let attempts = 0;
   while (attempts < 30) {
@@ -228,7 +258,7 @@ const redisRunning =
 
 if (redisRunning.trim() !== REDIS_CONTAINER) {
   console.info('Starting Redis...');
-  await $`docker-compose up -d redis`
+  await dockerComposeUp('redis')
     .then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       console.info('✅ Redis started');
@@ -248,7 +278,7 @@ const minioRunning =
 
 if (minioRunning.trim() !== MINIO_CONTAINER) {
   console.info('Starting MinIO...');
-  await $`docker-compose up -d minio`
+  await dockerComposeUp('minio')
     .then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       console.info('✅ MinIO started');

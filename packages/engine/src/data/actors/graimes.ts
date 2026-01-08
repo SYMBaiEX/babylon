@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     'artist. musician. my AI clone is sentient now. we live in a simulation obvs. making music for the elves. communism but make it cyber. reality is negotiable.',
   domain: ['ai', 'art', 'tech', 'music'],
+  ignoreTopics: ['politics', 'sports', 'regulation', 'compliance'],
+  engagementThreshold: 0.4, // Lower - chaotic energy, posts about random things
   personality: 'cyborg artist',
   tier: 'B_TIER',
   affiliations: [],

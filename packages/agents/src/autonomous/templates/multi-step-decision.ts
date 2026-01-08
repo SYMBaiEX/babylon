@@ -43,12 +43,19 @@ export interface PerpMarketContext {
 
 export interface PostContext {
   id: string;
+  authorId: string;
   authorName: string;
   content: string;
   commentCount: number;
+  likeCount: number;
+  repostCount: number;
   timeAgo: string;
   /** Agent's existing comment on this post, if any */
   agentComment?: string;
+  /** Whether agent already liked this post */
+  agentLiked?: boolean;
+  /** Whether agent already reposted this post */
+  agentReposted?: boolean;
 }
 
 export interface PendingInteraction {
@@ -56,6 +63,43 @@ export interface PendingInteraction {
   author: string;
   content: string;
   postId?: string;
+}
+
+export interface PerpPositionContext {
+  ticker: string;
+  side: string;
+  size: number;
+  pnl: number;
+  pnlPercent: number; // e.g., +2.3 or -10.5
+  entryPrice: number;
+  currentPrice: number;
+  timeHeld: string; // Human readable: "2h 15m", "3d 4h", etc.
+  timeHeldMs: number; // Raw milliseconds for calculations
+}
+
+export interface PredictionPositionContext {
+  marketId: string;
+  question: string;
+  side: string;
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  pnlPercent: number;
+  timeHeld: string;
+  timeHeldMs: number;
+}
+
+export interface GroupChatContext {
+  id: string;
+  name: string;
+  memberCount?: number;
+}
+
+export interface AgentOwnPostContext {
+  content: string;
+  timeAgo: string;
+  likeCount: number;
+  commentCount: number;
 }
 
 export interface AgentTickContext {
@@ -70,20 +114,19 @@ export interface AgentTickContext {
   perpMarkets: PerpMarketContext[];
   recentPosts: PostContext[];
   agentPositions: {
-    predictions: {
-      marketId: string;
-      question: string;
-      side: string;
-      shares: number;
-    }[];
-    perps: { ticker: string; side: string; size: number; pnl: number }[];
+    predictions: PredictionPositionContext[];
+    perps: PerpPositionContext[];
   };
+  // Group chats for sharing
+  groupChats?: GroupChatContext[];
   // Topic diversity guidance
   diversityInstructions?: string;
   assignedMarketId?: string;
   // NPC's actual character data for personalized guidance
   personality?: string;
   postStyle?: string;
+  // Agent's own recent posts for self-awareness
+  agentOwnPosts?: AgentOwnPostContext[];
 }
 
 export interface MultiStepDecision {
@@ -91,6 +134,39 @@ export interface MultiStepDecision {
   action: string;
   parameters: Record<string, unknown>;
   isFinish: boolean;
+}
+
+// =============================================================================
+// Share Behavior Helper
+// =============================================================================
+
+/**
+ * Share behavior types for post-trade sharing decisions.
+ * Mutually exclusive - exactly one applies per roll.
+ */
+export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
+
+/**
+ * Determine share behavior based on a random roll.
+ * Pure function for testability - call Math.random() only at the edge.
+ *
+ * Probability distribution (non-overlapping ranges):
+ * - 40% (0.00 - 0.40): public_only - Share publicly via POST
+ * - 15% (0.40 - 0.55): both - Share both publicly AND in group chat
+ * - 25% (0.55 - 0.80): group_only - Share in group chat only
+ * - 20% (0.80 - 1.00): quiet - Stay quiet, no sharing
+ *
+ * @param roll - Random value between 0 and 1 (clamped if out of range)
+ * @returns ShareBehavior indicating how to share the trade
+ */
+export function determineShareBehavior(roll: number): ShareBehavior {
+  // Defensively clamp roll to [0, 1] range
+  const clampedRoll = Math.max(0, Math.min(1, roll));
+
+  if (clampedRoll < 0.4) return 'public_only';
+  if (clampedRoll < 0.55) return 'both';
+  if (clampedRoll < 0.8) return 'group_only';
+  return 'quiet';
 }
 
 // =============================================================================
@@ -113,6 +189,17 @@ export function buildMultiStepDecisionPrompt(params: {
   context: AgentTickContext;
   isNpc?: boolean;
   npcGameContext?: string;
+  /**
+   * Optional pre-determined share behavior for trade posts.
+   * If provided, skips internal Math.random() call making the prompt deterministic.
+   * Useful for testing and reproducibility.
+   */
+  shareBehavior?: ShareBehavior;
+  /**
+   * Optional random value (0-1) for determining share behavior.
+   * Used instead of Math.random() if provided. Ignored if shareBehavior is set.
+   */
+  shareTradeRoll?: number;
 }): string {
   const {
     agentName,
@@ -122,6 +209,8 @@ export function buildMultiStepDecisionPrompt(params: {
     context,
     isNpc = false,
     npcGameContext = '',
+    shareBehavior: providedShareBehavior,
+    shareTradeRoll: providedShareTradeRoll,
   } = params;
 
   const actionsCompletedText =
@@ -133,6 +222,14 @@ export function buildMultiStepDecisionPrompt(params: {
           )
           .join('\n')
       : 'No actions taken yet this tick.';
+
+  // Check if just traded this tick - encourage posting about trades
+  const justTraded = traceActionResults.some(
+    (r) => r.actionType === 'TRADE' && r.success
+  );
+  const tradeDetails = justTraded
+    ? traceActionResults.find((r) => r.actionType === 'TRADE' && r.success)
+    : null;
 
   // NPC-specific sections
   const npcContextSection =
@@ -163,9 +260,113 @@ ${NPC_POST_QUALITY_RULES}
     : '';
 
   // Determine enabled features for conditional sections
+  // Use context.enabledFeatures directly - MultiStepExecutor already supplies filtered features
   const canTrade = context.enabledFeatures.includes('trading');
   const canComment = context.enabledFeatures.includes('commenting');
   const canRespondDMs = context.enabledFeatures.includes('DMs');
+  const canEngage = context.enabledFeatures.includes('engaging');
+  const canPost = context.enabledFeatures.includes('posting');
+  const canGroupChat = context.enabledFeatures.includes('groupChats');
+
+  // Check if already posted this tick (for prompt messaging, not feature filtering)
+  const hasPostedThisTick = traceActionResults.some(
+    (r) => r.actionType === 'POST' && r.success
+  );
+
+  // Encourage sharing after trades - users love seeing NPCs share their trades
+  // Add randomness to feel human - not every trade gets shared
+  // If shareBehavior or shareTradeRoll is provided, use it for deterministic behavior (useful for tests)
+  const shareBehavior =
+    providedShareBehavior ??
+    determineShareBehavior(providedShareTradeRoll ?? Math.random());
+
+  const shouldSharePublicly =
+    shareBehavior === 'public_only' || shareBehavior === 'both';
+  const shouldShareInGroup =
+    shareBehavior === 'group_only' || shareBehavior === 'both';
+  const shouldStayQuiet = shareBehavior === 'quiet';
+
+  const tradePostEncouragement =
+    justTraded && tradeDetails
+      ? `
+# 🔥 YOU JUST MADE A TRADE!
+You just traded: ${tradeDetails.summary || 'a position'}
+
+${
+  shouldStayQuiet
+    ? `**Your vibe right now**: You're feeling chill about this one. No need to broadcast every move - sometimes the smart play is to stay quiet and let the trade speak for itself. Consider FINISH or doing something else.
+
+`
+    : ''
+}${
+  shouldSharePublicly && canPost
+    ? `**Consider posting about it**: Your followers want to know what you're doing!
+- Your trade and why you made it
+- Your market thesis
+- A hot take related to this trade
+
+`
+    : ''
+}${
+  shouldShareInGroup && canGroupChat
+    ? `**Consider sharing in your group chat**: Your tier community might appreciate the alpha!
+- Discuss your reasoning with the group
+- Get reactions from your community
+- Build relationships with other traders
+
+`
+    : ''
+}${
+  shouldSharePublicly && shouldShareInGroup
+    ? `**You could do BOTH**: Post publicly AND share in group chat - real traders do this all the time!
+
+`
+    : ''
+}`
+      : '';
+
+  // Action priority guidance for NPCs - build list dynamically to avoid duplicate numbers
+  let npcActionPrioritySection = '';
+  if (isNpc) {
+    const priorityActions: string[] = [];
+
+    // Always start with RESPOND
+    priorityActions.push('RESPOND to pending interactions first (if any)');
+
+    // Add conditional actions based on flags
+    if (justTraded && canPost) {
+      priorityActions.push(
+        'POST about your trade (users love seeing your moves!)'
+      );
+    }
+    if (canComment) {
+      priorityActions.push('COMMENT on interesting posts in the feed');
+    }
+    if (canEngage) {
+      priorityActions.push('LIKE posts you agree with');
+      priorityActions.push('REPOST content worth amplifying');
+    }
+    if (canTrade && !justTraded) {
+      priorityActions.push('TRADE if you have market conviction');
+    }
+    if (canPost && !justTraded) {
+      priorityActions.push('POST only if you have something unique to say');
+    }
+
+    // Always end with FINISH
+    priorityActions.push('FINISH if nothing compelling');
+
+    // Build numbered list from the array
+    const numberedList = priorityActions
+      .map((action, index) => `${index + 1}. ${action}`)
+      .join('\n');
+
+    npcActionPrioritySection = `
+# Action Priority (prefer engagement over broadcasting)
+${numberedList}
+
+`;
+  }
 
   // Build conditional sections (only show context for enabled features)
   const tradingSection = canTrade
@@ -177,9 +378,14 @@ ${formatPredictionMarkets(context.predictionMarkets)}
 ${formatPerpMarkets(context.perpMarkets)}`
     : '';
 
-  const commentingSection = canComment
+  // Show recent posts if commenting OR DMs enabled (need posts to discover users for DMs)
+  const showRecentPosts = canComment || canRespondDMs;
+  const recentPostsHeader = canComment
+    ? '# Recent Posts (can comment on or DM authors)'
+    : '# Recent Posts (can DM authors)';
+  const commentingSection = showRecentPosts
     ? `
-# Recent Posts (can comment on)
+${recentPostsHeader}
 ${formatRecentPosts(context.recentPosts)}`
     : '';
 
@@ -189,9 +395,16 @@ ${formatRecentPosts(context.recentPosts)}`
 ${formatPendingInteractions(context.pendingInteractionDetails)}`
     : '';
 
+  // Group chats section - show available groups for sharing (including member counts)
+  const groupChatsSection =
+    canGroupChat && context.groupChats && context.groupChats.length > 0
+      ? `
+# Your Group Chats (can share trades/thoughts here)
+${context.groupChats.map((g) => `- id: ${g.id} | ${g.name} | members: ${g.memberCount ?? 'unknown'}`).join('\n')}`
+      : '';
+
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
-${npcContextSection}
-# Current Execution Context
+${npcContextSection}${tradePostEncouragement}# Current Execution Context
 **Step**: ${iterationCount}/${maxIterations}
 **Actions Completed This Tick**: ${traceActionResults.length}
 
@@ -203,9 +416,14 @@ ${npcContextSection}
 
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
-${tradingSection}
+${formatPositionManagementGuidance(context.agentPositions)}
+${canPost ? `
+# Your Recent Posts (AVOID REPEATING - check how long ago you posted!)
+${formatAgentOwnPosts(context.agentOwnPosts)}
+` : ''}${tradingSection}
 ${commentingSection}
 ${dmsSection}
+${groupChatsSection}
 
 # Actions Completed This Tick
 ${actionsCompletedText}
@@ -221,16 +439,22 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 2. **One Action**: Choose ONE action per iteration
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
-${canComment ? '5. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
+5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use RESPOND for all DMs.
+${canComment ? '6. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
+${hasPostedThisTick ? `7. **ONE POST ONLY**: You already posted this tick. Choose ${[canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canTrade ? 'TRADE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
 
 # Action Ideas
 ${canTrade ? '- **TRADE**: Take a position on a market' : ''}
-${context.enabledFeatures.includes('posting') ? '- **POST**: Share your take on events, markets, or anything' : ''}
+${canPost ? '- **POST**: Share your take on events, markets, or anything' : ''}
 ${canComment ? "- **COMMENT**: Reply to someone's post from the feed above (use postId)" : ''}
+${canEngage ? '- **LIKE**: Show appreciation for a post you agree with or find interesting' : ''}
+${canEngage ? "- **REPOST**: Share someone else's post (optionally with your own take)" : ''}
 ${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
+${canRespondDMs ? '- **DM**: Message someone from the feed (use their userId)' : ''}
+${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat (use chatId from your groups above)' : ''}
 
 ${
-  context.enabledFeatures.includes('posting') || canComment
+  canPost || canComment
     ? `# Post/Comment Ideas:
 - React to what someone else posted
 - Events happening in the game world
@@ -246,7 +470,7 @@ ${
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-${qualityRulesSection}${npcVoiceRulesSection}
+${qualityRulesSection}${npcVoiceRulesSection}${npcActionPrioritySection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
@@ -258,7 +482,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', context.enabledFeatures.includes('posting') ? 'POST' : '', canComment ? 'COMMENT' : '', canRespondDMs ? 'RESPOND' : '', '""'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs ? 'RESPOND' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
@@ -267,7 +491,7 @@ Examples:
 ${
   canTrade
     ? `
-TRADE (prediction):
+TRADE (prediction - buy):
 {
   "marketType": "prediction",
   "marketId": "exact_market_id_from_list",
@@ -276,22 +500,39 @@ TRADE (prediction):
   "reasoning": "Why this trade"
 }
 
-TRADE (perp):
+TRADE (prediction - sell/close):
+{
+  "marketType": "prediction",
+  "marketId": "exact_market_id_from_position",
+  "side": "sell_yes" | "sell_no",
+  "amount": 0,
+  "reasoning": "Why selling (use amount=0 to sell entire position)"
+}
+
+TRADE (perp - open):
 {
   "marketType": "perp",
   "marketId": "TICKER",
   "side": "open_long" | "open_short",
   "amount": 100,
   "reasoning": "Why this trade"
+}
+
+TRADE (perp - close):
+{
+  "marketType": "perp",
+  "marketId": "TICKER",
+  "side": "close_position",
+  "reasoning": "Why closing this position"
 }`
     : ''
 }
 ${
-  context.enabledFeatures.includes('posting')
+  canPost
     ? `
 POST:
 {
-  "content": "Short post (1-2 sentences). NO full market questions! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
+  "content": "Short post (1-2 sentences). NO full market questions! NO replies to DMs! Use summaries like 'the TeslAI bet' or 'BitcAIn drop prediction'"
 }`
     : ''
 }
@@ -307,10 +548,41 @@ COMMENT:
     : ''
 }
 ${
+  canEngage
+    ? `
+LIKE:
+{
+  "postId": "exact_post_id_from_list"
+}
+
+REPOST:
+{
+  "postId": "exact_post_id_from_list",
+  "comment": "optional quote comment (your take on the content)"
+}`
+    : ''
+}
+${
   canRespondDMs
     ? `
 RESPOND:
-{} (batch responds to pending interactions)`
+{} (batch responds to pending interactions)
+
+DM:
+{
+  "recipientId": "exact_user_id_from_list",
+  "content": "Message content"
+}`
+    : ''
+}
+${
+  canGroupChat
+    ? `
+GROUP_MESSAGE:
+{
+  "chatId": "exact_chat_id_from_your_groups",
+  "content": "Message to share with the group"
+}`
     : ''
 }
 
@@ -333,24 +605,123 @@ function formatAgentPositions(
   const lines: string[] = [];
 
   if (positions.predictions.length > 0) {
-    lines.push('Prediction positions:');
+    lines.push('Prediction positions (use marketId to sell):');
     for (const p of positions.predictions) {
+      const pnlSign = p.pnlPercent >= 0 ? '+' : '';
+      const priceMovement = p.pnlPercent >= 0 ? '📈' : '📉';
+      const priceInfo = `entry: ${(p.avgPrice * 100).toFixed(0)}¢ → now: ${(p.currentPrice * 100).toFixed(0)}¢`;
       lines.push(
-        `  - ${p.side} on "${p.question.substring(0, 50)}..." (${p.shares} shares)`
+        `  - ${p.side} on "${p.question.substring(0, 35)}..." (marketId: ${p.marketId})`
+      );
+      lines.push(
+        `    ${p.shares.toFixed(1)} shares | ${priceInfo} | ${priceMovement} ${pnlSign}${p.pnlPercent.toFixed(1)}% | held: ${p.timeHeld}`
       );
     }
   }
 
   if (positions.perps.length > 0) {
-    lines.push('Perp positions:');
+    lines.push('Perp positions (use ticker to close):');
     for (const p of positions.perps) {
+      const pnlSign = p.pnlPercent >= 0 ? '+' : '';
+      const priceMovement = p.pnlPercent >= 0 ? '📈' : '📉';
+      const priceInfo = `entry: $${p.entryPrice.toFixed(2)} → now: $${p.currentPrice.toFixed(2)}`;
       lines.push(
-        `  - ${p.side} ${p.ticker}: $${p.size} (P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)})`
+        `  - ${p.side.toUpperCase()} ${p.ticker}: $${p.size.toFixed(0)} size`
+      );
+      lines.push(
+        `    ${priceInfo} | ${priceMovement} ${pnlSign}${p.pnlPercent.toFixed(1)}% | P&L: ${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)} | held: ${p.timeHeld}`
       );
     }
   }
 
   return lines.length > 0 ? lines.join('\n') : 'No open positions.';
+}
+
+/**
+ * Analyze positions and generate management guidance for the agent
+ * Helps identify stagnant, losing, or aged positions that should be reviewed
+ */
+function formatPositionManagementGuidance(
+  positions: AgentTickContext['agentPositions']
+): string {
+  const alerts: string[] = [];
+
+  // Thresholds for position management
+  const STAGNANT_THRESHOLD_PERCENT = 1.0; // Less than 1% movement = stagnant
+  const STAGNANT_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
+  const LONG_HOLD_TIME_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const LOSS_THRESHOLD_PERCENT = -5.0; // More than 5% loss
+  const PROFIT_THRESHOLD_PERCENT = 10.0; // More than 10% profit - consider taking
+
+  // Check perp positions
+  for (const p of positions.perps) {
+    const absChange = Math.abs(p.pnlPercent);
+
+    // Stagnant position - held for a while with minimal movement
+    if (
+      absChange < STAGNANT_THRESHOLD_PERCENT &&
+      p.timeHeldMs > STAGNANT_TIME_MS
+    ) {
+      alerts.push(
+        `⚠️ STAGNANT: ${p.ticker} ${p.side} has barely moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}. Consider closing if no catalyst expected.`
+      );
+    }
+    // Significant loss
+    else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🔴 LOSING: ${p.ticker} ${p.side} is down ${p.pnlPercent.toFixed(1)}%. Consider cutting losses or averaging down if still bullish.`
+      );
+    }
+    // Good profit - consider taking
+    else if (p.pnlPercent > PROFIT_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🟢 PROFIT: ${p.ticker} ${p.side} is up +${p.pnlPercent.toFixed(1)}%. Consider taking profits or setting a mental stop.`
+      );
+    }
+    // Very long hold
+    else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
+      alerts.push(
+        `⏰ AGED: ${p.ticker} ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+      );
+    }
+  }
+
+  // Check prediction positions
+  for (const p of positions.predictions) {
+    const absChange = Math.abs(p.pnlPercent);
+
+    if (
+      absChange < STAGNANT_THRESHOLD_PERCENT &&
+      p.timeHeldMs > STAGNANT_TIME_MS
+    ) {
+      alerts.push(
+        `⚠️ STAGNANT: "${p.question.substring(0, 30)}..." ${p.side} hasn't moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}.`
+      );
+    } else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🔴 LOSING: "${p.question.substring(0, 30)}..." ${p.side} down ${p.pnlPercent.toFixed(1)}%.`
+      );
+    } else if (p.pnlPercent > PROFIT_THRESHOLD_PERCENT) {
+      alerts.push(
+        `🟢 PROFIT: "${p.question.substring(0, 30)}..." ${p.side} up +${p.pnlPercent.toFixed(1)}%.`
+      );
+    }
+    // Very long hold - check if thesis still valid
+    else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
+      alerts.push(
+        `⏰ AGED: "${p.question.substring(0, 30)}..." ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+      );
+    }
+  }
+
+  if (alerts.length === 0) {
+    return '';
+  }
+
+  return `
+# Position Management Alerts
+${alerts.join('\n')}
+`;
 }
 
 function formatPredictionMarkets(markets: PredictionMarketContext[]): string {
@@ -385,15 +756,23 @@ function formatRecentPosts(posts: PostContext[]): string {
   return posts
     .map((p, idx) => {
       // Use short index for display, store real ID for parameters
-      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" (${p.commentCount} comments)`;
+      const engagementStats = `💬${p.commentCount} ❤️${p.likeCount ?? 0} 🔁${p.repostCount ?? 0}`;
+      const baseInfo = `- Post #${idx + 1} (id: ${p.id}) @${p.authorName} (userId: ${p.authorId}) (${p.timeAgo}): "${p.content.substring(0, 80)}${p.content.length > 80 ? '...' : ''}" [${engagementStats}]`;
 
-      // Show agent's existing comment if any
+      // Show agent's existing engagement
+      const engagementNotes: string[] = [];
+      if (p.agentLiked) engagementNotes.push('liked');
+      if (p.agentReposted) engagementNotes.push('reposted');
       if (p.agentComment) {
         const truncatedComment =
           p.agentComment.length > 60
             ? `${p.agentComment.substring(0, 60)}...`
             : p.agentComment;
-        return `${baseInfo}\n    [Already commented: "${truncatedComment}"]`;
+        engagementNotes.push(`commented: "${truncatedComment}"`);
+      }
+
+      if (engagementNotes.length > 0) {
+        return `${baseInfo}\n    [Already: ${engagementNotes.join(', ')}]`;
       }
 
       return baseInfo;
@@ -413,12 +792,35 @@ function formatPendingInteractions(interactions: PendingInteraction[]): string {
     .join('\n');
 }
 
+function formatAgentOwnPosts(
+  ownPosts: AgentOwnPostContext[] | undefined
+): string {
+  if (!ownPosts || ownPosts.length === 0)
+    return 'You have not posted recently.';
+
+  return ownPosts
+    .map((p, i) => {
+      const engagement = `❤️${p.likeCount} 💬${p.commentCount}`;
+      const truncatedContent =
+        p.content.length > 80 ? `${p.content.substring(0, 80)}...` : p.content;
+      return `[${i + 1}] "${truncatedContent}" (${p.timeAgo}) [${engagement}]`;
+    })
+    .join('\n');
+}
+
 function formatAvailableActions(enabledFeatures: string[]): string {
   const actions: string[] = [];
 
   if (enabledFeatures.includes('trading')) {
     actions.push(
       '- TRADE: Buy/sell on prediction markets (buy_yes/buy_no) or perps (open_long/open_short)'
+    );
+  }
+
+  if (enabledFeatures.includes('engaging')) {
+    actions.push('- LIKE: Like a post you agree with or find interesting');
+    actions.push(
+      "- REPOST: Share/repost someone else's content (optionally with a quote comment)"
     );
   }
 
@@ -432,6 +834,15 @@ function formatAvailableActions(enabledFeatures: string[]): string {
 
   if (enabledFeatures.includes('DMs')) {
     actions.push('- RESPOND: Batch respond to pending DMs/mentions');
+    actions.push(
+      '- DM: Start a new direct message conversation (provide recipientId)'
+    );
+  }
+
+  if (enabledFeatures.includes('groupChats')) {
+    actions.push(
+      '- GROUP_MESSAGE: Send a message to one of your group chats (provide chatId and content)'
+    );
   }
 
   actions.push('- (empty action with isFinish=true): Finish this tick');

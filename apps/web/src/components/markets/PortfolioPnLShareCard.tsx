@@ -1,3 +1,4 @@
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
 import type { User } from '@/stores/authStore';
 
@@ -32,18 +33,18 @@ interface PortfolioPnLShareCardProps {
   className?: string;
 }
 
-import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
-
 /**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points, defaulting to 0 if invalid.
+ * Uses shared formatCurrency utility for consistency across the codebase.
  *
  * @param value - Value to format
  * @returns Formatted currency string
  */
 function formatCurrency(value: number) {
-  return formatCurrencyShared(Number.isFinite(value) ? value : 0);
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 export function PortfolioPnLShareCard({

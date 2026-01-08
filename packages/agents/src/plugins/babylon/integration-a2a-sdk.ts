@@ -251,8 +251,13 @@ function createAuthenticatedFetchForAgent(
     return fetch(url, { ...init, headers });
   };
 
-  // Bun's fetch has a preconnect property that must be preserved for type compatibility
-  (customFetch as unknown as typeof fetch).preconnect = fetch.preconnect;
+  // Bun may expose a non-standard `fetch.preconnect`; preserve it when present.
+  const maybePreconnect = (fetch as unknown as { preconnect?: unknown })
+    .preconnect;
+  if (maybePreconnect) {
+    (customFetch as unknown as { preconnect?: unknown }).preconnect =
+      maybePreconnect;
+  }
 
   return customFetch as typeof fetch;
 }

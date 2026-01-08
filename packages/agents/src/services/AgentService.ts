@@ -24,6 +24,7 @@ import {
   db,
   desc,
   eq,
+  lt,
   type User,
   type UserAgentConfig,
   userAgentConfigs,
@@ -200,7 +201,7 @@ export class AgentServiceV2 {
 
       const newAgent = newAgentResult[0]!;
 
-      // Create the agent config record
+      // Create the agent config record with all autonomous capabilities enabled by default
       await tx.insert(userAgentConfigs).values({
         id: await generateSnowflakeId(),
         userId: agentUserId,
@@ -208,7 +209,12 @@ export class AgentServiceV2 {
         personality: personality ?? null,
         tradingStrategy: tradingStrategy ?? null,
         messageExamples: bio ? JSON.parse(JSON.stringify(bio)) : null,
-        a2aEnabled: true, // Enable A2A by default for all agents
+        a2aEnabled: true,
+        autonomousPosting: true,
+        autonomousCommenting: true,
+        autonomousTrading: true,
+        autonomousDMs: true,
+        autonomousGroupChats: true,
         updatedAt: new Date(),
       });
 
@@ -947,33 +953,71 @@ export class AgentServiceV2 {
       .from(agentTrades)
       .where(eq(agentTrades.agentUserId, agentUserId));
 
-    const tradesWithPnl = trades.filter((t) => t.pnl !== null);
+    const closedTrades = trades.filter((t) => t.pnl !== null);
     const avgTradeSize =
-      tradesWithPnl.length > 0
-        ? tradesWithPnl.reduce((sum, t) => sum + t.amount, 0) /
-          tradesWithPnl.length
+      trades.length > 0
+        ? trades.reduce((sum, t) => sum + t.amount, 0) / trades.length
         : 0;
 
     return {
       lifetimePnL: Number(agent.lifetimePnL),
-      totalTrades: tradesWithPnl.length,
-      profitableTrades: tradesWithPnl.filter((t) => t.pnl && t.pnl > 0).length,
+      totalTrades: trades.length,
+      profitableTrades: closedTrades.filter((t) => t.pnl && t.pnl > 0).length,
       winRate:
-        tradesWithPnl.length > 0
-          ? tradesWithPnl.filter((t) => t.pnl && t.pnl > 0).length /
-            tradesWithPnl.length
+        closedTrades.length > 0
+          ? closedTrades.filter((t) => t.pnl && t.pnl > 0).length /
+            closedTrades.length
           : 0,
       avgTradeSize,
     };
   }
 
-  async getChatHistory(agentUserId: string, limit = 50) {
-    return db
+  async getChatHistory(
+    agentUserId: string,
+    limit = 50,
+    cursor?: string
+  ): Promise<{
+    messages: (typeof agentMessages.$inferSelect)[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }> {
+    // Build the query with optional cursor
+    let query = db
       .select()
       .from(agentMessages)
       .where(eq(agentMessages.agentUserId, agentUserId))
       .orderBy(desc(agentMessages.createdAt))
-      .limit(limit);
+      .limit(limit + 1); // Fetch one extra to check if there are more
+
+    // If cursor provided, fetch messages older than the cursor
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      query = db
+        .select()
+        .from(agentMessages)
+        .where(
+          and(
+            eq(agentMessages.agentUserId, agentUserId),
+            lt(agentMessages.createdAt, cursorDate)
+          )
+        )
+        .orderBy(desc(agentMessages.createdAt))
+        .limit(limit + 1);
+    }
+
+    const results = await query;
+
+    // Check if there are more messages
+    const hasMore = results.length > limit;
+    const messages = hasMore ? results.slice(0, limit) : results;
+
+    // Get the cursor for the next page (oldest message's createdAt)
+    const nextCursor =
+      hasMore && messages.length > 0
+        ? messages[messages.length - 1]!.createdAt.toISOString()
+        : null;
+
+    return { messages, hasMore, nextCursor };
   }
 
   async getLogs(
@@ -1007,7 +1051,9 @@ export class AgentServiceV2 {
         | 'system'
         | 'post'
         | 'comment'
-        | 'dm';
+        | 'dm'
+        | 'like'
+        | 'repost';
       level: 'info' | 'warn' | 'error' | 'debug';
       message: string;
       prompt?: string;

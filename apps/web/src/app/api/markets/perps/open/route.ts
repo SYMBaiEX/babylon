@@ -1,5 +1,10 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
-import { logger, PerpOpenPositionSchema } from '@babylon/shared';
+import { handlePlayerTrade } from '@babylon/engine';
+import {
+  fireAndForgetWithRetry,
+  logger,
+  PerpOpenPositionSchema,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 import {
@@ -67,6 +72,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       'PerpOpen'
     );
   });
+
+  // Handle player influence - significant trades affect NPC memory
+  // This adds the trade to NPC memories of affiliated actors
+  fireAndForgetWithRetry(
+    () => handlePlayerTrade(user.userId, ticker, normalizedSide, numericSize),
+    {
+      logContext: 'PerpOpen',
+      metadata: {
+        userId: user.userId,
+        ticker,
+        side: normalizedSide,
+        size: numericSize,
+      },
+    }
+  );
 
   return successResponse(
     {

@@ -9,20 +9,27 @@
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
+  aliasedTable,
   and,
   asSystem,
   asUser,
+  chatParticipants,
   chats,
   comments,
   db,
+  dmAcceptances,
   eq,
   gte,
   isNull,
   markets,
   messages,
+  perpPositions,
   positions,
   posts,
+  reactions,
+  shares,
   sql,
+  users,
 } from '@babylon/db';
 import {
   type GeneratedTag,
@@ -36,6 +43,138 @@ import { agentPnLService } from '../services/AgentPnLService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
+import { resolvePerpTicker } from './utils/resolvePerpTicker';
+
+const SHARE_LIKE_MAX_INTEGER = 10;
+const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
+// Minimum shares threshold - positions with fewer shares are considered closed
+const MIN_SHARES_THRESHOLD = 0.01;
+
+// =============================================================================
+// Wallet Adapter Helper
+// =============================================================================
+
+/**
+ * Creates a wallet adapter for perp trading operations.
+ * NPCs use actorState.tradingBalance, while regular users use WalletService.
+ */
+function createPerpWalletAdapter(isNpc: boolean) {
+  if (isNpc) {
+    return {
+      debit: async ({
+        userId: uid,
+        amount: amt,
+      }: {
+        userId: string;
+        amount: number;
+        reason: string;
+        description?: string;
+        relatedId?: string;
+      }) => {
+        // Atomic debit with balance check to prevent negative balance
+        const result = await db
+          .update(actorState)
+          .set({
+            tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(actorState.id, uid),
+              gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
+            )
+          )
+          .returning({ id: actorState.id });
+
+        if (result.length === 0) {
+          throw new Error(`Insufficient NPC balance for perp trade: $${amt}`);
+        }
+      },
+      credit: async ({
+        userId: uid,
+        amount: amt,
+      }: {
+        userId: string;
+        amount: number;
+        reason: string;
+        description?: string;
+        relatedId?: string;
+      }) => {
+        await db
+          .update(actorState)
+          .set({
+            tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(actorState.id, uid));
+      },
+      recordPnL: async (_args: {
+        userId: string;
+        pnl: number;
+        reason: string;
+        relatedId?: string;
+      }) => {
+        // NPCs don't track PnL
+      },
+      getBalance: async (uid: string) => {
+        const [actor] = await db
+          .select({ tradingBalance: actorState.tradingBalance })
+          .from(actorState)
+          .where(eq(actorState.id, uid))
+          .limit(1);
+        return {
+          balance: Number(actor?.tradingBalance ?? 10000),
+          totalDeposited: 0,
+          totalWithdrawn: 0,
+          lifetimePnL: 0,
+        };
+      },
+    };
+  }
+
+  return {
+    debit: ({
+      userId: uid,
+      amount: amt,
+      reason,
+      description,
+      relatedId,
+    }: {
+      userId: string;
+      amount: number;
+      reason: string;
+      description?: string;
+      relatedId?: string;
+    }) => WalletService.debit(uid, amt, reason, description ?? '', relatedId),
+    credit: ({
+      userId: uid,
+      amount: amt,
+      reason,
+      description,
+      relatedId,
+    }: {
+      userId: string;
+      amount: number;
+      reason: string;
+      description?: string;
+      relatedId?: string;
+    }) => WalletService.credit(uid, amt, reason, description ?? '', relatedId),
+    recordPnL: async ({
+      userId: uid,
+      pnl,
+      reason,
+      relatedId,
+    }: {
+      userId: string;
+      pnl: number;
+      reason: string;
+      relatedId?: string;
+    }) => {
+      await WalletService.recordPnL(uid, pnl, reason, relatedId);
+    },
+    getBalance: (uid: string) => WalletService.getBalance(uid),
+  };
+}
 
 // =============================================================================
 // Types
@@ -44,10 +183,22 @@ import { topicDiversityService } from './TopicDiversityService';
 export interface DirectTradeParams {
   agentUserId: string;
   marketType: 'prediction' | 'perp';
-  marketId: string; // Market ID for prediction, ticker for perp
-  side: 'buy_yes' | 'buy_no' | 'open_long' | 'open_short';
+  marketId: string; // Market ID for prediction, ticker/name/id for perp
+  side:
+    | 'buy_yes'
+    | 'buy_no'
+    | 'sell_yes'
+    | 'sell_no'
+    | 'open_long'
+    | 'open_short'
+    | 'close_position';
   amount: number;
   reasoning?: string;
+  /**
+   * Skip resolving the perp ticker when the caller already passed the canonical ticker.
+   * Useful for services that call resolvePerpTicker upstream.
+   */
+  skipPerpResolution?: boolean;
 }
 
 export interface DirectTradeResult {
@@ -85,13 +236,38 @@ export interface DirectCommentResult {
 
 export interface DirectMessageParams {
   agentUserId: string;
-  chatId: string;
+  chatId?: string;
+  recipientId?: string;
   content: string;
 }
 
 export interface DirectMessageResult {
   success: boolean;
   messageId?: string;
+  error?: string;
+}
+
+export interface DirectLikeParams {
+  agentUserId: string;
+  postId: string;
+}
+
+export interface DirectLikeResult {
+  success: boolean;
+  liked?: boolean;
+  error?: string;
+}
+
+export interface DirectRepostParams {
+  agentUserId: string;
+  postId: string;
+  comment?: string;
+}
+
+export interface DirectRepostResult {
+  success: boolean;
+  repostId?: string;
+  quotePostId?: string;
   error?: string;
 }
 
@@ -127,6 +303,24 @@ export async function executeDirectTrade(
     balance = walletBalance.balance;
   }
 
+  const looksLikeShareCount =
+    Number.isInteger(amount) &&
+    amount >= 1 &&
+    amount <= SHARE_LIKE_MAX_INTEGER &&
+    balance > 0 &&
+    amount / balance < SHARE_LIKE_RATIO_THRESHOLD;
+  if (looksLikeShareCount) {
+    logger.warn(
+      `[DirectExecutor] Trade amount $${amount.toFixed(
+        2
+      )} looks like a share count relative to $${balance.toFixed(
+        2
+      )} balance. Expected Babylon Points.`,
+      { agentUserId, marketType, side, balance },
+      'DirectExecutors'
+    );
+  }
+
   // Cannot trade more than balance
   if (amount > balance) {
     logger.warn(
@@ -155,6 +349,19 @@ export async function executeDirectTrade(
   );
 
   if (marketType === 'prediction') {
+    // Handle sell (close prediction position)
+    if (side === 'sell_yes' || side === 'sell_no') {
+      return executePredictionSell({
+        agentUserId,
+        marketId,
+        side: side as 'sell_yes' | 'sell_no',
+        amount,
+        reasoning,
+        isNpc,
+        agentManagedBy,
+      });
+    }
+
     return executePredictionTrade({
       agentUserId,
       marketId,
@@ -165,9 +372,29 @@ export async function executeDirectTrade(
       agentManagedBy,
     });
   }
+
+  const perpTicker = params.skipPerpResolution
+    ? marketId
+    : resolvePerpTicker(marketId)?.ticker;
+
+  if (!perpTicker) {
+    return { success: false, error: `Perp market not found: ${marketId}` };
+  }
+
+  // Handle close_position
+  if (side === 'close_position') {
+    return executeClosePerpPosition({
+      agentUserId,
+      ticker: perpTicker,
+      reasoning,
+      isNpc,
+      agentManagedBy,
+    });
+  }
+
   return executePerpTrade({
     agentUserId,
-    ticker: marketId,
+    ticker: perpTicker,
     side: side as 'open_long' | 'open_short',
     amount,
     reasoning,
@@ -339,6 +566,208 @@ async function executePredictionTrade(params: {
   };
 }
 
+/**
+ * Sell (close) a prediction market position
+ */
+async function executePredictionSell(params: {
+  agentUserId: string;
+  marketId: string;
+  side: 'sell_yes' | 'sell_no';
+  amount: number; // Amount in dollars to sell, or 0 for full position
+  reasoning?: string;
+  isNpc: boolean;
+  agentManagedBy: string;
+}): Promise<DirectTradeResult> {
+  const {
+    agentUserId,
+    marketId,
+    side,
+    amount,
+    reasoning,
+    isNpc,
+    agentManagedBy,
+  } = params;
+
+  const isSellYes = side === 'sell_yes';
+
+  // Find the market
+  const [market] = await db
+    .select()
+    .from(markets)
+    .where(eq(markets.id, marketId))
+    .limit(1);
+
+  if (!market) {
+    return { success: false, error: `Market not found: ${marketId}` };
+  }
+
+  // Find agent's position in this market
+  const [existingPosition] = await db
+    .select()
+    .from(positions)
+    .where(
+      and(
+        eq(positions.userId, agentUserId),
+        eq(positions.marketId, marketId),
+        eq(positions.status, 'active')
+      )
+    )
+    .limit(1);
+
+  if (!existingPosition) {
+    return {
+      success: false,
+      error: `No open position found for market ${marketId}`,
+    };
+  }
+
+  // Verify position side matches sell side
+  const positionIsYes = existingPosition.side === true;
+  if (positionIsYes !== isSellYes) {
+    return {
+      success: false,
+      error: `Position is ${positionIsYes ? 'YES' : 'NO'} but trying to sell ${isSellYes ? 'YES' : 'NO'}`,
+    };
+  }
+
+  const currentShares = Number(existingPosition.shares || 0);
+  if (currentShares <= 0) {
+    return { success: false, error: 'No shares to sell' };
+  }
+
+  // Calculate how many shares to sell
+  // If amount is 0 or greater than position value, sell all
+  let sharesToSell = currentShares;
+  if (amount > 0) {
+    // Estimate shares based on current probability (not actual CPMM price impact).
+    // This is an approximation - actual proceeds will differ for large sells due to
+    // price impact from the CPMM. The actual sale uses PredictionPricing.calculateSellWithFees.
+    const yesShares = Number(market.yesShares || 1);
+    const noShares = Number(market.noShares || 1);
+    const total = yesShares + noShares;
+    const currentPrice = isSellYes ? yesShares / total : noShares / total;
+    const estimatedShares = amount / currentPrice;
+    sharesToSell = Math.min(estimatedShares, currentShares);
+  }
+
+  // Validate sharesToSell is greater than 0
+  if (sharesToSell <= 0) {
+    return { success: false, error: 'Amount too small to sell any shares' };
+  }
+
+  const sellOperation = async (
+    txDb: Parameters<Parameters<typeof asUser>[1]>[0]
+  ) => {
+    // Calculate sell proceeds using CPMM
+    const TRADING_FEE_RATE = 0.001;
+    const calculation = PredictionPricing.calculateSellWithFees(
+      Number(market.yesShares),
+      Number(market.noShares),
+      isSellYes ? 'yes' : 'no',
+      sharesToSell,
+      TRADING_FEE_RATE
+    );
+
+    const netProceeds = calculation.netProceeds ?? 0;
+
+    // Credit proceeds to agent
+    // Note: For non-NPC users, WalletService.credit runs in its own transaction.
+    // This is acceptable as wallet credits are idempotent and a partial failure
+    // would leave the user with their funds but position state may be inconsistent.
+    // TODO: Consider passing transaction to WalletService for full atomicity.
+    if (isNpc) {
+      await txDb
+        .update(actorState)
+        .set({
+          tradingBalance: sql`${actorState.tradingBalance} + ${netProceeds}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(actorState.id, agentUserId));
+    } else {
+      await WalletService.credit(
+        agentUserId,
+        netProceeds,
+        'prediction_sell',
+        `Sold ${sharesToSell.toFixed(2)} ${isSellYes ? 'YES' : 'NO'} shares`,
+        market.id
+      );
+    }
+
+    // Update market shares using calculated values from CPMM
+    // Matches PredictionMarketService pattern - use the calculated new shares directly
+    // rather than mixing SQL arithmetic with calculated values
+    await txDb
+      .update(markets)
+      .set({
+        yesShares: String(calculation.newYesShares),
+        noShares: String(calculation.newNoShares),
+      })
+      .where(eq(markets.id, market.id));
+
+    // Update or close position
+    const remainingShares = currentShares - sharesToSell;
+    if (Math.abs(remainingShares) < MIN_SHARES_THRESHOLD) {
+      // Close position
+      await txDb
+        .update(positions)
+        .set({
+          shares: '0',
+          status: 'closed',
+          updatedAt: new Date(),
+        })
+        .where(eq(positions.id, existingPosition.id));
+    } else {
+      // Update position with remaining shares
+      await txDb
+        .update(positions)
+        .set({
+          shares: String(remainingShares),
+          updatedAt: new Date(),
+        })
+        .where(eq(positions.id, existingPosition.id));
+    }
+
+    return { calculation, sharesToSell, remainingShares, netProceeds };
+  };
+
+  // Execute with appropriate context
+  const result = isNpc
+    ? await asSystem(sellOperation, 'npc_prediction_sell')
+    : await asUser({ userId: agentUserId }, sellOperation);
+
+  // Calculate realized P&L
+  const avgPrice = Number(existingPosition.avgPrice || 0.5);
+  const sellPrice = result.calculation.avgPrice;
+  const realizedPnL = (sellPrice - avgPrice) * result.sharesToSell;
+
+  // Record in AgentTrade
+  await agentPnLService.recordTrade({
+    agentId: agentUserId,
+    userId: agentManagedBy,
+    marketType: 'prediction',
+    marketId: market.id,
+    action: 'close',
+    side: isSellYes ? 'yes' : 'no',
+    amount: result.netProceeds,
+    price: sellPrice,
+    pnl: realizedPnL,
+    reasoning,
+  });
+
+  logger.info(
+    `[DirectExecutor] Prediction sell executed: ${isSellYes ? 'YES' : 'NO'} on ${market.question.substring(0, 50)} (P&L: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)})`,
+    { sharesSold: result.sharesToSell, remaining: result.remainingShares },
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    marketId: market.id,
+    side: `sold_${isSellYes ? 'YES' : 'NO'}`,
+    shares: result.sharesToSell,
+  };
+}
+
 async function executePerpTrade(params: {
   agentUserId: string;
   ticker: string;
@@ -366,130 +795,7 @@ async function executePerpTrade(params: {
   const currentPrice = org?.initialPrice ?? 100;
 
   const perpTradeOperation = async () => {
-    // Create wallet adapter
-    const walletAdapter = isNpc
-      ? {
-          debit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            // Atomic debit with balance check to prevent negative balance
-            const result = await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(
-                and(
-                  eq(actorState.id, uid),
-                  gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
-                )
-              )
-              .returning({ id: actorState.id });
-
-            if (result.length === 0) {
-              throw new Error(
-                `Insufficient NPC balance for perp trade: $${amt}`
-              );
-            }
-          },
-          credit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(actorState.id, uid));
-          },
-          recordPnL: async (_args: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            // NPCs don't track PnL
-          },
-          getBalance: async (uid: string) => {
-            const [actor] = await db
-              .select({ tradingBalance: actorState.tradingBalance })
-              .from(actorState)
-              .where(eq(actorState.id, uid))
-              .limit(1);
-            return {
-              balance: Number(actor?.tradingBalance ?? 10000),
-              totalDeposited: 0,
-              totalWithdrawn: 0,
-              lifetimePnL: 0,
-            };
-          },
-        }
-      : {
-          debit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.debit(uid, amt, reason, description ?? '', relatedId),
-          credit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.credit(
-              uid,
-              amt,
-              reason,
-              description ?? '',
-              relatedId
-            ),
-          recordPnL: async ({
-            userId: uid,
-            pnl,
-            reason,
-            relatedId,
-          }: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            await WalletService.recordPnL(uid, pnl, reason, relatedId);
-          },
-          getBalance: (uid: string) => WalletService.getBalance(uid),
-        };
+    const walletAdapter = createPerpWalletAdapter(isNpc);
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
@@ -541,6 +847,107 @@ async function executePerpTrade(params: {
     success: true,
     ticker,
     side: perpSide,
+  };
+}
+
+/**
+ * Close an existing perp position
+ */
+async function executeClosePerpPosition(params: {
+  agentUserId: string;
+  ticker: string;
+  reasoning?: string;
+  isNpc: boolean;
+  agentManagedBy: string;
+}): Promise<DirectTradeResult> {
+  const { agentUserId, ticker, reasoning, isNpc, agentManagedBy } = params;
+
+  // Find the open position for this ticker
+  const [existingPosition] = await db
+    .select()
+    .from(perpPositions)
+    .where(
+      and(
+        eq(perpPositions.userId, agentUserId),
+        eq(perpPositions.ticker, ticker),
+        isNull(perpPositions.closedAt)
+      )
+    )
+    .limit(1);
+
+  if (!existingPosition) {
+    return {
+      success: false,
+      error: `No open position found for ${ticker}`,
+    };
+  }
+
+  const closeOperation = async () => {
+    const walletAdapter = createPerpWalletAdapter(isNpc);
+
+    const service = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: walletAdapter,
+      fees: {
+        tradingFeeRate: 0.001,
+        platformShare: 0.5,
+        referrerShare: 0.5,
+        minFeeAmount: 0.01,
+      },
+    });
+
+    // Capture the result from closePosition to get accurate realizedPnL
+    const result = await service.closePosition({
+      positionId: existingPosition.id,
+      userId: agentUserId,
+    });
+
+    return result;
+  };
+
+  // Execute with appropriate context and capture the result
+  const closeResult = isNpc
+    ? await asSystem(closeOperation, 'npc_perp_close')
+    : await asUser({ userId: agentUserId }, closeOperation);
+
+  // Use the realized P&L from the service (computed with actual exit price)
+  // This is more accurate than recalculating from potentially stale position data
+  // closePosition() always returns these fields - validate at runtime for safety
+  if (
+    closeResult.realizedPnL == null ||
+    closeResult.exitPrice == null ||
+    closeResult.size == null
+  ) {
+    throw new Error(
+      `[DirectExecutor] closePosition did not return expected fields: realizedPnL=${closeResult.realizedPnL}, exitPrice=${closeResult.exitPrice}, size=${closeResult.size}`
+    );
+  }
+  const { realizedPnL, size, exitPrice } = closeResult;
+
+  // Record trade
+  await agentPnLService.recordTrade({
+    agentId: agentUserId,
+    userId: agentManagedBy,
+    marketType: 'perp',
+    ticker,
+    action: 'close',
+    side: existingPosition.side as 'long' | 'short',
+    amount: size,
+    price: exitPrice,
+    pnl: realizedPnL,
+    reasoning,
+  });
+
+  logger.info(
+    `[DirectExecutor] Perp position closed: ${existingPosition.side} $${size} on ${ticker} (P&L: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)})`,
+    undefined,
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    ticker,
+    side: `closed_${existingPosition.side}`,
   };
 }
 
@@ -770,23 +1177,172 @@ export async function executeDirectComment(
 export async function executeDirectMessage(
   params: DirectMessageParams
 ): Promise<DirectMessageResult> {
-  const { agentUserId, chatId, content } = params;
+  const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
-  if (!content || content.trim().length < 3) {
+  const cleanContent = content?.trim() ?? '';
+  if (cleanContent.length < 3) {
     return { success: false, error: 'Content too short' };
   }
+  let chatId = providedChatId;
 
-  const cleanContent = content.trim();
+  // If chatId not provided, resolve it from recipientId
+  if (!chatId && recipientId) {
+    // Check if recipient exists
+    const [recipient] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, recipientId))
+      .limit(1);
 
-  // Verify chat exists
-  const [chat] = await db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(eq(chats.id, chatId))
-    .limit(1);
+    if (!recipient) {
+      // Try searching actorState for NPCs
+      const [npc] = await db
+        .select({ id: actorState.id })
+        .from(actorState)
+        .where(eq(actorState.id, recipientId))
+        .limit(1);
 
-  if (!chat) {
-    return { success: false, error: `Chat not found: ${chatId}` };
+      if (!npc) {
+        return { success: false, error: `Recipient not found: ${recipientId}` };
+      }
+    }
+
+    // Find existing DM chat using a single query with self-join
+    // Join chatParticipants (for agent) -> chats -> chatParticipants alias (for recipient)
+    const recipientParticipants = aliasedTable(chatParticipants, 'cp2');
+
+    const existingChat = await db
+      .select({ chatId: chatParticipants.chatId })
+      .from(chatParticipants)
+      .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+      .innerJoin(
+        recipientParticipants,
+        eq(chatParticipants.chatId, recipientParticipants.chatId)
+      )
+      .where(
+        and(
+          eq(chatParticipants.userId, agentUserId),
+          eq(chats.isGroup, false),
+          eq(recipientParticipants.userId, recipientId)
+        )
+      )
+      .limit(1);
+
+    if (existingChat.length > 0 && existingChat[0]) {
+      chatId = existingChat[0].chatId;
+    }
+
+    // If still no chatId, create new DM
+    if (!chatId) {
+      chatId = await generateSnowflakeId();
+      const now = new Date();
+
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(chats).values({
+            id: chatId!,
+            isGroup: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          // Add both participants
+          await tx.insert(chatParticipants).values([
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: agentUserId,
+              joinedAt: now,
+              isActive: true,
+            },
+            {
+              id: await generateSnowflakeId(),
+              chatId: chatId!,
+              userId: recipientId,
+              joinedAt: now,
+              isActive: true,
+            },
+          ]);
+
+          // Create DMAcceptance record with 'accepted' status
+          // Agent-initiated DMs bypass the acceptance flow since agents are automated
+          await tx.insert(dmAcceptances).values({
+            id: await generateSnowflakeId(),
+            chatId: chatId!,
+            userId: recipientId, // The recipient
+            otherUserId: agentUserId, // The agent initiating
+            status: 'accepted', // Auto-accepted for agent-initiated DMs
+            createdAt: now,
+            acceptedAt: now, // Mark as accepted immediately
+          });
+        });
+
+        logger.info(
+          `[DirectExecutor] Created new DM chat ${chatId} between ${agentUserId} and ${recipientId}`,
+          undefined,
+          'DirectExecutors'
+        );
+      } catch (error) {
+        // Handle race condition - if chat was created by another process, try to find it
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+          logger.warn(
+            `[DirectExecutor] Race condition detected, retrying chat lookup`,
+            { agentUserId, recipientId },
+            'DirectExecutors'
+          );
+          // Retry with the same optimized single query
+          const retryRecipientParticipants = aliasedTable(
+            chatParticipants,
+            'cp2_retry'
+          );
+
+          const retryMatch = await db
+            .select({ chatId: chatParticipants.chatId })
+            .from(chatParticipants)
+            .innerJoin(chats, eq(chatParticipants.chatId, chats.id))
+            .innerJoin(
+              retryRecipientParticipants,
+              eq(chatParticipants.chatId, retryRecipientParticipants.chatId)
+            )
+            .where(
+              and(
+                eq(chatParticipants.userId, agentUserId),
+                eq(chats.isGroup, false),
+                eq(retryRecipientParticipants.userId, recipientId)
+              )
+            )
+            .limit(1);
+
+          if (retryMatch.length > 0 && retryMatch[0]) {
+            chatId = retryMatch[0].chatId;
+          } else {
+            throw error; // Re-throw if we still can't find the chat
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  if (!chatId) {
+    return {
+      success: false,
+      error: 'Chat ID required or could not be resolved',
+    };
+  }
+
+  // Verify chat exists (if provided directly)
+  if (providedChatId) {
+    const [chat] = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return { success: false, error: `Chat not found: ${chatId}` };
+    }
   }
 
   logger.info(
@@ -816,4 +1372,174 @@ export async function executeDirectMessage(
     success: true,
     messageId,
   };
+}
+
+// =============================================================================
+// Direct Like Executor
+// =============================================================================
+
+/**
+ * Like a post directly without LLM decision-making.
+ * Includes deduplication to prevent double-liking.
+ */
+export async function executeDirectLike(
+  params: DirectLikeParams
+): Promise<DirectLikeResult> {
+  const { agentUserId, postId } = params;
+
+  // Verify post exists
+  const [post] = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (!post) {
+    return { success: false, error: `Post not found: ${postId}` };
+  }
+
+  logger.info(
+    `[DirectExecutor] Liking post ${postId}`,
+    { agentUserId },
+    'DirectExecutors'
+  );
+
+  const reactionId = await generateSnowflakeId();
+
+  // Use onConflictDoNothing to handle race conditions and prevent duplicate likes atomically
+  // This relies on a unique index on (userId, postId, type) for the reactions table
+  // No pre-check needed - the insert handles duplicates automatically
+  const insertResult = await db
+    .insert(reactions)
+    .values({
+      id: reactionId,
+      postId,
+      userId: agentUserId,
+      type: 'like',
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: reactions.id });
+
+  // Determine if a new row was created or it already existed
+  const alreadyLiked = insertResult.length === 0;
+  logger.info(
+    `[DirectExecutor] Post ${alreadyLiked ? 'already liked' : 'liked'}: ${postId}`,
+    { agentUserId, alreadyLiked },
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    liked: !alreadyLiked,
+  };
+}
+
+// =============================================================================
+// Direct Repost Executor
+// =============================================================================
+
+/**
+ * Repost/share a post directly without LLM decision-making.
+ * Creates a share record and optionally a quote post.
+ */
+export async function executeDirectRepost(
+  params: DirectRepostParams
+): Promise<DirectRepostResult> {
+  const { agentUserId, postId, comment } = params;
+
+  // Verify post exists
+  const [post] = await db
+    .select({ id: posts.id, authorId: posts.authorId, content: posts.content })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+
+  if (!post) {
+    return { success: false, error: `Post not found: ${postId}` };
+  }
+
+  // Don't let agents repost their own content
+  if (post.authorId === agentUserId) {
+    return { success: false, error: 'Cannot repost own content' };
+  }
+
+  // Note: We rely on the transaction's unique constraint handling to detect duplicates.
+  // The pre-check was removed to avoid TOCTOU race conditions.
+
+  logger.info(
+    `[DirectExecutor] Reposting post ${postId}`,
+    { agentUserId, hasComment: !!comment },
+    'DirectExecutors'
+  );
+
+  const now = new Date();
+
+  try {
+    // Pre-generate IDs before transaction
+    const shareId = await generateSnowflakeId();
+    const hasQuote = comment && comment.trim().length >= 3;
+    const quotePostId = hasQuote ? await generateSnowflakeId() : undefined;
+
+    // Use transaction to ensure atomicity of share and quote post
+    await db.transaction(async (tx) => {
+      // Create share record
+      await tx.insert(shares).values({
+        id: shareId,
+        userId: agentUserId,
+        postId,
+        createdAt: now,
+      });
+
+      // If there's a quote comment, create a quote post (min 3 chars like comments)
+      if (hasQuote && quotePostId) {
+        await tx.insert(posts).values({
+          id: quotePostId,
+          content: comment!.trim(),
+          authorId: agentUserId,
+          originalPostId: postId,
+          type: 'repost',
+          timestamp: now,
+          createdAt: now,
+        });
+      }
+    });
+
+    logger.info(
+      `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,
+      undefined,
+      'DirectExecutors'
+    );
+
+    return {
+      success: true,
+      repostId: shareId,
+      quotePostId,
+    };
+  } catch (error) {
+    // Handle unique constraint violation (concurrent repost)
+    // Check error code for PostgreSQL (23505) or Prisma (P2002)
+    const errorCode = (error as { code?: string }).code;
+    const isUniqueConstraint =
+      errorCode === '23505' ||
+      errorCode === 'P2002' ||
+      (error as Error).message?.includes('unique constraint');
+
+    if (isUniqueConstraint) {
+      const [share] = await db
+        .select({ id: shares.id })
+        .from(shares)
+        .where(and(eq(shares.postId, postId), eq(shares.userId, agentUserId)))
+        .limit(1);
+
+      if (!share?.id) {
+        throw new Error(
+          'Share not found after unique constraint violation - concurrent repost race condition'
+        );
+      }
+
+      return { success: true, repostId: share.id };
+    }
+    throw error;
+  }
 }

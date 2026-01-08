@@ -2,21 +2,22 @@
  * Agent Detail Page
  *
  * @description Detailed view for a single AI agent, displaying agent profile,
- * chat interface, wallet, logs, performance metrics, and settings. Allows the
- * agent owner to manage the agent's configuration and monitor its activity.
+ * wallet, logs, performance metrics, and settings. Allows the agent owner to
+ * manage the agent's configuration and monitor its activity.
  *
  * @page /agents/[agentId]
  * @access Authenticated (agent owner)
  *
  * @features
  * - Agent profile display (name, description, avatar, bio, personality, trading strategy)
- * - Real-time chat interface with the agent
  * - Wallet management (balance, deposit, withdraw, transaction history)
  * - Activity logs (autonomous actions, AI interactions, trading decisions)
  * - Performance metrics (P&L, win rate, total trades, profitable trades)
  * - Agent settings (autonomous mode, model tier, on-chain registration)
  * - Agent deletion
  * - Error handling and status display
+ *
+ * @note Chat with agent is available via the Chats page (/chats)
  *
  * @example
  * ```tsx
@@ -35,7 +36,6 @@ import {
   Bot,
   ExternalLink,
   FileText,
-  MessageCircle,
   Settings,
   TrendingUp,
 } from 'lucide-react';
@@ -53,14 +53,6 @@ import { useAuth } from '@/hooks/useAuth';
 
 // Performance: Lazy load tab components - only one is visible at a time
 // Each tab component is ~10-30KB, lazy loading reduces initial bundle significantly
-const AgentChat = dynamic(
-  () =>
-    import('@/components/agents/AgentChat').then((m) => ({
-      default: m.AgentChat,
-    })),
-  { ssr: false, loading: () => <TabLoadingSkeleton /> }
-);
-
 const AgentLogs = dynamic(
   () =>
     import('@/components/agents/AgentLogs').then((m) => ({
@@ -154,10 +146,6 @@ export default function AgentDetailPage() {
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const handleBalanceUpdate = useCallback((newBalance: number) => {
-    setAgent((prev) => (prev ? { ...prev, virtualBalance: newBalance } : prev));
-  }, []);
 
   const fetchAgent = useCallback(async () => {
     setLoading(true);
@@ -356,15 +344,8 @@ export default function AgentDetailPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="chat" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 bg-muted/50">
-            <TabsTrigger
-              value="chat"
-              className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground"
-            >
-              <MessageCircle className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Chat</span>
-            </TabsTrigger>
+        <Tabs defaultValue="performance" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 bg-muted/50">
             <TabsTrigger
               value="performance"
               className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground"
@@ -396,10 +377,6 @@ export default function AgentDetailPage() {
           </TabsList>
 
           <div className="mt-6">
-            <TabsContent value="chat">
-              <AgentChat agent={agent} onBalanceUpdate={handleBalanceUpdate} />
-            </TabsContent>
-
             <TabsContent value="performance">
               <AgentPerformance agent={agent} />
             </TabsContent>

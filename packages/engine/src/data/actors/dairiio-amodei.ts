@@ -10,6 +10,8 @@ export const data = {
   profileDescription:
     "CEO of Anthropic. Safety and capability aren't trade-offs. Responsible scaling policy updated. We're different from OpenAGI. Long-term AI safety requires. Our models are helpful, harmless, and honest.",
   domain: ['ai', 'safety', 'tech', 'research'],
+  ignoreTopics: ['crypto', 'sports', 'entertainment', 'celebrity', 'fashion'],
+  engagementThreshold: 0.7, // High - stays focused on AI safety
   personality: 'safety theater director',
   tier: 'S_TIER',
   hasPool: false,
