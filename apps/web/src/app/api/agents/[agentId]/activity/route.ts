@@ -17,6 +17,7 @@ import {
   db,
   desc,
   eq,
+  inArray,
   markets,
   posts,
 } from '@babylon/db';
@@ -112,16 +113,20 @@ export async function GET(
       .limit(limit);
 
     // Fetch market questions for prediction trades
-    const marketIds = trades
-      .filter((t) => t.marketType === 'prediction' && t.marketId)
-      .map((t) => t.marketId!);
+    const marketIds = [
+      ...new Set(
+        trades
+          .filter((t) => t.marketType === 'prediction' && t.marketId)
+          .map((t) => t.marketId!)
+      ),
+    ];
 
     const marketQuestions = new Map<string, string>();
     if (marketIds.length > 0) {
       const marketsData = await db
         .select({ id: markets.id, question: markets.question })
         .from(markets)
-        .where(eq(markets.id, marketIds[0]!));
+        .where(inArray(markets.id, marketIds));
 
       for (const m of marketsData) {
         marketQuestions.set(m.id, m.question);

@@ -3,7 +3,7 @@ import {
   issueRealtimeToken,
   type RealtimeChannel,
 } from '@babylon/api';
-import { db, eq, inArray, users } from '@babylon/db';
+import { and, db, eq, inArray, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -126,23 +126,20 @@ export async function POST(request: NextRequest) {
   const allowedAgentIds = new Set<string>();
 
   if (derivedAgentIds.length > 0) {
+    // Single query: fetch agents that match requested IDs AND are owned by this user
     const ownedAgents = await db
       .select({ id: users.id })
       .from(users)
-      .where(inArray(users.id, derivedAgentIds));
+      .where(
+        and(
+          inArray(users.id, derivedAgentIds),
+          eq(users.managedBy, user.userId),
+          eq(users.isAgent, true)
+        )
+      );
 
-    // Filter to only agents owned by this user
     for (const agent of ownedAgents) {
-      // Verify ownership by checking managedBy field
-      const [agentCheck] = await db
-        .select({ managedBy: users.managedBy, isAgent: users.isAgent })
-        .from(users)
-        .where(eq(users.id, agent.id))
-        .limit(1);
-
-      if (agentCheck?.isAgent && agentCheck.managedBy === user.userId) {
-        allowedAgentIds.add(agent.id);
-      }
+      allowedAgentIds.add(agent.id);
     }
   }
 

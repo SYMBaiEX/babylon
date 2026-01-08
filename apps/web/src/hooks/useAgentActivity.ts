@@ -204,26 +204,19 @@ export function useAgentActivity(
         data: AgentActivity['data'];
       };
 
-      // Generate unique ID based on activity type and content
-      let activityId: string;
+      // Extract ID from activity data based on type
       const activityData = activity.data;
-      if (activity.type === 'trade' && 'tradeId' in activityData) {
-        activityId = activityData.tradeId;
-      } else if (activity.type === 'post' && 'postId' in activityData) {
-        activityId = activityData.postId;
-      } else if (activity.type === 'comment' && 'commentId' in activityData) {
-        activityId = activityData.commentId;
-      } else if (activity.type === 'message' && 'messageId' in activityData) {
-        activityId = activityData.messageId;
-      } else {
-        activityId = `${activity.type}-${activity.timestamp}`;
-      }
+      const activityId =
+        ('tradeId' in activityData && activityData.tradeId) ||
+        ('postId' in activityData && activityData.postId) ||
+        ('commentId' in activityData && activityData.commentId) ||
+        ('messageId' in activityData && activityData.messageId) ||
+        `${activity.type}-${activity.timestamp}`;
 
-      // Skip if we've already seen this activity
+      // Skip duplicates
       if (seenActivityIds.current.has(activityId)) {
         return;
       }
-
       seenActivityIds.current.add(activityId);
 
       const newActivity: AgentActivity = {
@@ -273,10 +266,13 @@ export function useAgentActivity(
   const refresh = useCallback(async () => {
     setRealtimeActivities([]);
     setIsLoading(true);
-    await fetchActivities().catch((err: Error) => {
-      setError(err);
-    });
-    setIsLoading(false);
+    setError(null);
+    try {
+      await fetchActivities();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+    }
   }, [fetchActivities]);
 
   return {
@@ -287,16 +283,4 @@ export function useAgentActivity(
     hasMore,
     refresh,
   };
-}
-
-/**
- * Hook for subscribing to real-time activity for all of a user's agents.
- *
- * This is a convenience wrapper that fetches activity from all agents
- * and provides a unified view without needing to specify agent IDs.
- */
-export function useAllAgentsActivity(
-  options: Omit<UseAgentActivityOptions, 'agentId'> = {}
-): UseAgentActivityReturn {
-  return useAgentActivity(options);
 }
