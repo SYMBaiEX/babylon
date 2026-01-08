@@ -24,6 +24,54 @@ import {
 import { EarnedPointsService } from './earned-points-service';
 
 /**
+ * Type guard to validate that a value is a valid GameOnboardingState.
+ * Checks for required properties and their types.
+ */
+function isGameOnboardingState(value: unknown): value is GameOnboardingState {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(obj.completedSteps) &&
+    typeof obj.currentStep === 'string' &&
+    (obj.startedAt === null || typeof obj.startedAt === 'string') &&
+    (obj.completedAt === null || typeof obj.completedAt === 'string') &&
+    Array.isArray(obj.rewards)
+  );
+}
+
+/**
+ * Get a validated GameOnboardingState from a raw value, with fallback to safe defaults.
+ */
+function getValidatedState(
+  rawState: unknown,
+  userId: string
+): GameOnboardingState {
+  if (isGameOnboardingState(rawState)) {
+    return rawState;
+  }
+
+  // Log warning for malformed state
+  logger.warn(
+    'Malformed or null onboarding state, using defaults',
+    { userId, rawState: typeof rawState },
+    'GameOnboarding'
+  );
+
+  // Return safe default state
+  return {
+    completedSteps: [],
+    currentStep: 'welcome',
+    startedAt: null,
+    completedAt: null,
+    rewards: [],
+  };
+}
+
+/**
  * Create or get onboarding record for a user.
  * Uses INSERT ... ON CONFLICT DO NOTHING then SELECT for atomic, race-free creation.
  */
@@ -96,7 +144,7 @@ export async function completeOnboardingStep(
   isComplete: boolean;
 }> {
   const onboarding = await getOrCreateOnboarding(userId);
-  const state = onboarding.state as GameOnboardingState;
+  const state = getValidatedState(onboarding.state, userId);
 
   // Check if already completed
   if (state.completedSteps.includes(step)) {
@@ -211,7 +259,7 @@ export async function getOnboardingStatus(userId: string): Promise<{
   isComplete: boolean;
 } | null> {
   const onboarding = await getOrCreateOnboarding(userId);
-  const state = onboarding.state as GameOnboardingState;
+  const state = getValidatedState(onboarding.state, userId);
 
   const totalPointsEarned = state.rewards.reduce((sum, r) => sum + r.points, 0);
 
