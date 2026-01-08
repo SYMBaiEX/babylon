@@ -287,11 +287,11 @@ export class NpcMemoryService {
         const now = new Date();
 
         if (existing) {
-          // Update existing relationship
-          existing.sentiment = Math.max(
-            -1,
-            Math.min(1, existing.sentiment + interaction.sentimentChange * 0.1)
-          );
+          // Update existing relationship with fixed precision to avoid floating-point drift
+          const newSentiment =
+            existing.sentiment + interaction.sentimentChange * 0.1;
+          existing.sentiment =
+            Math.round(Math.max(-1, Math.min(1, newSentiment)) * 100) / 100;
           existing.lastInteraction = now.toISOString();
           existing.interactionCount += 1;
 
