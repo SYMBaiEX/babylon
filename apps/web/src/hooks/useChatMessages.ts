@@ -1,8 +1,8 @@
 import type { MessageType } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { MessageTypeEnum } from '@/components/chats/types';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useSSEChannel } from './useSSE';
 
 /**
