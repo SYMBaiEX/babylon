@@ -142,6 +142,20 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'public_balance_fetch_anonymous',
   }, // 10 fetches per minute for anonymous bucket (shared, stricter)
 
+  // NFT image proxy (GitHub API protection)
+  PUBLIC_NFT_IMAGE: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'public_nft_image',
+  }, // 60 image fetches per minute per IP
+
+  // Anonymous NFT image requests (stricter)
+  PUBLIC_NFT_IMAGE_ANONYMOUS: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'public_nft_image_anonymous',
+  }, // 10 fetches per minute for anonymous bucket
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

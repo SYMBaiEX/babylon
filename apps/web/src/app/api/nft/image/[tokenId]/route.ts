@@ -7,9 +7,14 @@
  * @description
  * Proxies NFT images from GitHub repository to avoid CORS issues and token expiration.
  * Uses GitHub API to fetch images with proper authentication.
- * Includes in-memory caching and rate limiting to protect against abuse.
+ * Includes in-memory caching and distributed rate limiting to protect against abuse.
  */
 
+import {
+  checkRateLimitAsync,
+  getClientIp,
+  RATE_LIMIT_CONFIGS,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -104,48 +109,6 @@ async function fetchWithTimeout(
   }
 }
 
-/**
- * Simple sliding window rate limiter
- * Limits requests per IP to prevent abuse of GitHub API
- */
-const rateLimitWindow = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
-const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute per IP
-
-/**
- * Cleanup expired rate limit entries on-demand
- * Called at the start of isRateLimited() to evict stale entries during requests
- */
-function cleanupExpiredRateLimits(): void {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitWindow.entries()) {
-    if (now > entry.resetAt) {
-      rateLimitWindow.delete(ip);
-    }
-  }
-}
-
-function isRateLimited(ip: string): boolean {
-  // Cleanup expired entries on-demand
-  cleanupExpiredRateLimits();
-
-  const now = Date.now();
-  const entry = rateLimitWindow.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    // New window
-    rateLimitWindow.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return true;
-  }
-
-  entry.count++;
-  return false;
-}
-
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -160,19 +123,16 @@ if (!GITHUB_TOKEN) {
 
 /**
  * GET /api/nft/image/[tokenId]
- * Proxy NFT image from GitHub with caching and rate limiting
+ * Proxy NFT image from GitHub with caching and distributed rate limiting
  */
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ tokenId: string }> }
 ) {
-  // Get client IP for rate limiting
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  // Get client IP for rate limiting using centralized helper
+  const clientIp = getClientIp(request.headers);
 
-  // Check rate limit (skip for cached responses)
+  // Validate tokenId before any expensive operations
   const { tokenId: tokenIdStr } = await context.params;
   const tokenId = Number(tokenIdStr);
 
@@ -200,19 +160,27 @@ export async function GET(
     });
   }
 
-  // Apply rate limit only for cache misses (actual GitHub API calls)
-  if (isRateLimited(ip)) {
+  // Apply distributed rate limit for cache misses (actual GitHub API calls)
+  // Uses Redis for distributed enforcement across serverless workers
+  const rateLimitConfig = clientIp
+    ? RATE_LIMIT_CONFIGS.PUBLIC_NFT_IMAGE
+    : RATE_LIMIT_CONFIGS.PUBLIC_NFT_IMAGE_ANONYMOUS;
+  const rateLimitKey = clientIp ? `ip:${clientIp}` : 'ip:anonymous';
+  const rateLimit = await checkRateLimitAsync(rateLimitKey, rateLimitConfig);
+
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = rateLimit.retryAfter ?? 60;
     logger.warn(
-      `Rate limit exceeded for IP ${ip.slice(0, 8)}...`,
-      undefined,
+      `Rate limit exceeded for NFT image request`,
+      { ip: clientIp?.slice(0, 8), tokenId, retryAfter: retryAfterSeconds },
       'GET /api/nft/image/[tokenId]'
     );
     return NextResponse.json(
-      { error: 'Too many requests' },
+      { error: 'Too many requests', retryAfter: retryAfterSeconds },
       {
         status: 429,
         headers: {
-          'Retry-After': '60',
+          'Retry-After': String(retryAfterSeconds),
         },
       }
     );
