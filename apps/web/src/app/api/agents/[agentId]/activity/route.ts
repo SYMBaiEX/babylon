@@ -83,6 +83,13 @@ export async function GET(
   // Verify user owns this agent
   const agent = await agentService.getAgent(agentId, user.id);
 
+  if (!agent) {
+    return NextResponse.json(
+      { success: false, error: 'Agent not found or access denied' },
+      { status: 404 }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const { limit, type } = QuerySchema.parse({
     limit: searchParams.get('limit'),
@@ -213,18 +220,20 @@ export async function GET(
     }
   }
 
-  // Sort all activities by timestamp descending
+  // When type='all', we fetch up to `limit` from each activity type (trades,
+  // posts, comments), then sort and truncate. This intentional over-fetch
+  // (up to 3x limit, max 300 rows) ensures we return the most recent activities
+  // across all types. The enforced max limit of 100 keeps this acceptable.
   activities.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
-  // Limit total results
   const limitedActivities = activities.slice(0, limit);
 
   return NextResponse.json({
     success: true,
     agentId,
-    agentName: agent!.displayName,
+    agentName: agent.displayName,
     activities: limitedActivities,
     pagination: {
       limit,

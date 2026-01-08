@@ -80,22 +80,22 @@ export default function AgentsPage() {
       url += '?autonomousTrading=false';
     }
 
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }).catch((error: Error) => {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents || []);
+      }
+    } catch (error) {
       console.error('Failed to fetch agents:', error);
+    } finally {
       setLoading(false);
-      throw error;
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setAgents(data.agents || []);
     }
-
-    setLoading(false);
   }, [getAccessToken, filter]);
 
   useEffect(() => {
@@ -229,7 +229,6 @@ export default function AgentsPage() {
                         type="user"
                         size="lg"
                         src={agent.profileImageUrl}
-                        imageUrl={agent.profileImageUrl}
                       />
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate font-semibold text-lg">
