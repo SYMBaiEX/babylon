@@ -211,10 +211,10 @@ export {
 export * from './services';
 // SSE Event Broadcasting
 export {
+  type AgentActivityEvent,
   broadcastAgentActivity,
   broadcastChatMessage,
   broadcastToChannel,
-  type AgentActivityEvent,
   type CommentActivityData,
   type MessageActivityData,
   type PostActivityData,

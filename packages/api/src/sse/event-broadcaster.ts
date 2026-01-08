@@ -155,7 +155,11 @@ export interface AgentActivityEvent {
   agentId: string;
   agentName: string;
   timestamp: number;
-  data: TradeActivityData | PostActivityData | CommentActivityData | MessageActivityData;
+  data:
+    | TradeActivityData
+    | PostActivityData
+    | CommentActivityData
+    | MessageActivityData;
 }
 
 /**
