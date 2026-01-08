@@ -63,12 +63,11 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
             disabled={isLoading}
             className={cn(
               'rounded-md p-1.5 transition-colors hover:bg-zinc-800',
-              'text-zinc-400 hover:text-zinc-200',
-              isLoading && 'animate-spin'
+              'text-zinc-400 hover:text-zinc-200'
             )}
             title="Refresh"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
           </button>
         </div>
       )}

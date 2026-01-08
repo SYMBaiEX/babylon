@@ -325,6 +325,10 @@ function PnLBadge({ pnl }: { pnl: number }) {
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+
+  // Handle future dates (clock skew from SSE or timestamps)
+  if (diffMs < 0) return 'just now';
+
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
