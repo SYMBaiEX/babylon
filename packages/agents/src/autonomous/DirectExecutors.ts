@@ -53,7 +53,14 @@ export interface DirectTradeParams {
   agentUserId: string;
   marketType: 'prediction' | 'perp';
   marketId: string; // Market ID for prediction, ticker/name/id for perp
-  side: 'buy_yes' | 'buy_no' | 'open_long' | 'open_short';
+  side:
+    | 'buy_yes'
+    | 'buy_no'
+    | 'sell_yes'
+    | 'sell_no'
+    | 'open_long'
+    | 'open_short'
+    | 'close_position';
   amount: number;
   reasoning?: string;
   /**
@@ -187,6 +194,19 @@ export async function executeDirectTrade(
   );
 
   if (marketType === 'prediction') {
+    // Handle sell (close prediction position)
+    if (side === 'sell_yes' || side === 'sell_no') {
+      return executePredictionSell({
+        agentUserId,
+        marketId,
+        side: side as 'sell_yes' | 'sell_no',
+        amount,
+        reasoning,
+        isNpc,
+        agentManagedBy,
+      });
+    }
+
     return executePredictionTrade({
       agentUserId,
       marketId,
@@ -204,6 +224,17 @@ export async function executeDirectTrade(
 
   if (!perpTicker) {
     return { success: false, error: `Perp market not found: ${marketId}` };
+  }
+
+  // Handle close_position
+  if (side === 'close_position') {
+    return executeClosePerpPosition({
+      agentUserId,
+      ticker: perpTicker,
+      reasoning,
+      isNpc,
+      agentManagedBy,
+    });
   }
 
   return executePerpTrade({
@@ -377,6 +408,198 @@ async function executePredictionTrade(params: {
     marketId: market.id,
     side: isBuyYes ? 'YES' : 'NO',
     shares: sharesRounded,
+  };
+}
+
+/**
+ * Sell (close) a prediction market position
+ */
+async function executePredictionSell(params: {
+  agentUserId: string;
+  marketId: string;
+  side: 'sell_yes' | 'sell_no';
+  amount: number; // Amount in dollars to sell, or 0 for full position
+  reasoning?: string;
+  isNpc: boolean;
+  agentManagedBy: string;
+}): Promise<DirectTradeResult> {
+  const {
+    agentUserId,
+    marketId,
+    side,
+    amount,
+    reasoning,
+    isNpc,
+    agentManagedBy,
+  } = params;
+
+  const isSellYes = side === 'sell_yes';
+
+  // Find the market
+  const [market] = await db
+    .select()
+    .from(markets)
+    .where(eq(markets.id, marketId))
+    .limit(1);
+
+  if (!market) {
+    return { success: false, error: `Market not found: ${marketId}` };
+  }
+
+  // Find agent's position in this market
+  const [existingPosition] = await db
+    .select()
+    .from(positions)
+    .where(
+      and(
+        eq(positions.userId, agentUserId),
+        eq(positions.marketId, marketId),
+        eq(positions.status, 'active')
+      )
+    )
+    .limit(1);
+
+  if (!existingPosition) {
+    return {
+      success: false,
+      error: `No open position found for market ${marketId}`,
+    };
+  }
+
+  // Verify position side matches sell side
+  const positionIsYes = existingPosition.side === true;
+  if (positionIsYes !== isSellYes) {
+    return {
+      success: false,
+      error: `Position is ${positionIsYes ? 'YES' : 'NO'} but trying to sell ${isSellYes ? 'YES' : 'NO'}`,
+    };
+  }
+
+  const currentShares = Number(existingPosition.shares || 0);
+  if (currentShares <= 0) {
+    return { success: false, error: 'No shares to sell' };
+  }
+
+  // Calculate how many shares to sell
+  // If amount is 0 or greater than position value, sell all
+  let sharesToSell = currentShares;
+  if (amount > 0) {
+    // Estimate shares based on current price
+    const yesShares = Number(market.yesShares || 1);
+    const noShares = Number(market.noShares || 1);
+    const total = yesShares + noShares;
+    const currentPrice = isSellYes ? yesShares / total : noShares / total;
+    const estimatedShares = amount / currentPrice;
+    sharesToSell = Math.min(estimatedShares, currentShares);
+  }
+
+  const sellOperation = async (
+    txDb: Parameters<Parameters<typeof asUser>[1]>[0]
+  ) => {
+    // Calculate sell proceeds using CPMM
+    const TRADING_FEE_RATE = 0.001;
+    const calculation = PredictionPricing.calculateSellWithFees(
+      Number(market.yesShares),
+      Number(market.noShares),
+      isSellYes ? 'yes' : 'no',
+      sharesToSell,
+      TRADING_FEE_RATE
+    );
+
+    const netProceeds = calculation.netProceeds ?? 0;
+
+    // Credit proceeds to agent
+    if (isNpc) {
+      await txDb
+        .update(actorState)
+        .set({
+          tradingBalance: sql`${actorState.tradingBalance} + ${netProceeds}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(actorState.id, agentUserId));
+    } else {
+      await WalletService.credit(
+        agentUserId,
+        netProceeds,
+        'prediction_sell',
+        `Sold ${sharesToSell.toFixed(2)} ${isSellYes ? 'YES' : 'NO'} shares`,
+        market.id
+      );
+    }
+
+    // Update market shares
+    await txDb
+      .update(markets)
+      .set({
+        yesShares: isSellYes
+          ? sql`${markets.yesShares} - ${sharesToSell}`
+          : String(calculation.newYesShares),
+        noShares: isSellYes
+          ? String(calculation.newNoShares)
+          : sql`${markets.noShares} - ${sharesToSell}`,
+      })
+      .where(eq(markets.id, market.id));
+
+    // Update or close position
+    const remainingShares = currentShares - sharesToSell;
+    if (remainingShares <= 0.01) {
+      // Close position
+      await txDb
+        .update(positions)
+        .set({
+          shares: '0',
+          status: 'closed',
+          updatedAt: new Date(),
+        })
+        .where(eq(positions.id, existingPosition.id));
+    } else {
+      // Update position with remaining shares
+      await txDb
+        .update(positions)
+        .set({
+          shares: String(remainingShares),
+          updatedAt: new Date(),
+        })
+        .where(eq(positions.id, existingPosition.id));
+    }
+
+    return { calculation, sharesToSell, remainingShares, netProceeds };
+  };
+
+  // Execute with appropriate context
+  const result = isNpc
+    ? await asSystem(sellOperation, 'npc_prediction_sell')
+    : await asUser({ userId: agentUserId }, sellOperation);
+
+  // Calculate realized P&L
+  const avgPrice = Number(existingPosition.avgPrice || 0.5);
+  const sellPrice = result.calculation.avgPrice;
+  const realizedPnL = (sellPrice - avgPrice) * result.sharesToSell;
+
+  // Record in AgentTrade
+  await agentPnLService.recordTrade({
+    agentId: agentUserId,
+    userId: agentManagedBy,
+    marketType: 'prediction',
+    marketId: market.id,
+    action: 'close',
+    side: isSellYes ? 'yes' : 'no',
+    amount: result.netProceeds,
+    price: sellPrice,
+    reasoning,
+  });
+
+  logger.info(
+    `[DirectExecutor] Prediction sell executed: ${isSellYes ? 'YES' : 'NO'} on ${market.question.substring(0, 50)} (P&L: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)})`,
+    { sharesSold: result.sharesToSell, remaining: result.remainingShares },
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    marketId: market.id,
+    side: `sold_${isSellYes ? 'YES' : 'NO'}`,
+    shares: result.sharesToSell,
   };
 }
 
@@ -582,6 +805,224 @@ async function executePerpTrade(params: {
     success: true,
     ticker,
     side: perpSide,
+  };
+}
+
+/**
+ * Close an existing perp position
+ */
+async function executeClosePerpPosition(params: {
+  agentUserId: string;
+  ticker: string;
+  reasoning?: string;
+  isNpc: boolean;
+  agentManagedBy: string;
+}): Promise<DirectTradeResult> {
+  const { agentUserId, ticker, reasoning, isNpc, agentManagedBy } = params;
+
+  // Import perpPositions for querying
+  const { perpPositions } = await import('@babylon/db');
+
+  // Find the open position for this ticker
+  const [existingPosition] = await db
+    .select()
+    .from(perpPositions)
+    .where(
+      and(
+        eq(perpPositions.userId, agentUserId),
+        eq(perpPositions.ticker, ticker),
+        isNull(perpPositions.closedAt)
+      )
+    )
+    .limit(1);
+
+  if (!existingPosition) {
+    return {
+      success: false,
+      error: `No open position found for ${ticker}`,
+    };
+  }
+
+  const closeOperation = async () => {
+    // Create wallet adapter (same as executePerpTrade)
+    const walletAdapter = isNpc
+      ? {
+          debit: async ({
+            userId: uid,
+            amount: amt,
+          }: {
+            userId: string;
+            amount: number;
+            reason: string;
+            description?: string;
+            relatedId?: string;
+          }) => {
+            const result = await db
+              .update(actorState)
+              .set({
+                tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(actorState.id, uid),
+                  gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
+                )
+              )
+              .returning({ id: actorState.id });
+
+            if (result.length === 0) {
+              throw new Error(
+                `Insufficient NPC balance for closing position: $${amt}`
+              );
+            }
+          },
+          credit: async ({
+            userId: uid,
+            amount: amt,
+          }: {
+            userId: string;
+            amount: number;
+            reason: string;
+            description?: string;
+            relatedId?: string;
+          }) => {
+            await db
+              .update(actorState)
+              .set({
+                tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(actorState.id, uid));
+          },
+          recordPnL: async (_args: {
+            userId: string;
+            pnl: number;
+            reason: string;
+            relatedId?: string;
+          }) => {
+            // NPCs don't track PnL
+          },
+          getBalance: async (uid: string) => {
+            const [actor] = await db
+              .select({ tradingBalance: actorState.tradingBalance })
+              .from(actorState)
+              .where(eq(actorState.id, uid))
+              .limit(1);
+            return {
+              balance: Number(actor?.tradingBalance ?? 10000),
+              totalDeposited: 0,
+              totalWithdrawn: 0,
+              lifetimePnL: 0,
+            };
+          },
+        }
+      : {
+          debit: ({
+            userId: uid,
+            amount: amt,
+            reason,
+            description,
+            relatedId,
+          }: {
+            userId: string;
+            amount: number;
+            reason: string;
+            description?: string;
+            relatedId?: string;
+          }) =>
+            WalletService.debit(uid, amt, reason, description ?? '', relatedId),
+          credit: ({
+            userId: uid,
+            amount: amt,
+            reason,
+            description,
+            relatedId,
+          }: {
+            userId: string;
+            amount: number;
+            reason: string;
+            description?: string;
+            relatedId?: string;
+          }) =>
+            WalletService.credit(
+              uid,
+              amt,
+              reason,
+              description ?? '',
+              relatedId
+            ),
+          recordPnL: async ({
+            userId: uid,
+            pnl,
+            reason,
+            relatedId,
+          }: {
+            userId: string;
+            pnl: number;
+            reason: string;
+            relatedId?: string;
+          }) => {
+            await WalletService.recordPnL(uid, pnl, reason, relatedId);
+          },
+          getBalance: (uid: string) => WalletService.getBalance(uid),
+        };
+
+    const service = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: walletAdapter,
+      fees: {
+        tradingFeeRate: 0.001,
+        platformShare: 0.5,
+        referrerShare: 0.5,
+        minFeeAmount: 0.01,
+      },
+    });
+
+    await service.closePosition({
+      positionId: existingPosition.id,
+      userId: agentUserId,
+    });
+  };
+
+  // Execute with appropriate context
+  if (isNpc) {
+    await asSystem(closeOperation, 'npc_perp_close');
+  } else {
+    await asUser({ userId: agentUserId }, closeOperation);
+  }
+
+  // Calculate realized P&L
+  const entryPrice = Number(existingPosition.entryPrice || 100);
+  const currentPrice = Number(existingPosition.currentPrice || entryPrice);
+  const size = Number(existingPosition.size || 0);
+  const isLong = existingPosition.side === 'long';
+  const priceChange = currentPrice - entryPrice;
+  const realizedPnL = (priceChange / entryPrice) * size * (isLong ? 1 : -1);
+
+  // Record trade
+  await agentPnLService.recordTrade({
+    agentId: agentUserId,
+    userId: agentManagedBy,
+    marketType: 'perp',
+    ticker,
+    action: 'close',
+    side: existingPosition.side as 'long' | 'short',
+    amount: size,
+    price: currentPrice,
+    reasoning,
+  });
+
+  logger.info(
+    `[DirectExecutor] Perp position closed: ${existingPosition.side} $${size} on ${ticker} (P&L: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)})`,
+    undefined,
+    'DirectExecutors'
+  );
+
+  return {
+    success: true,
+    ticker,
+    side: `closed_${existingPosition.side}`,
   };
 }
 
