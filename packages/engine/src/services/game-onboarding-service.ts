@@ -283,9 +283,14 @@ export async function getOnboardingStatus(userId: string): Promise<{
 }
 
 /**
- * Skip onboarding for a user
+ * Skip onboarding for a user.
+ *
+ * Note: This intentionally creates an onboarding record if none exists.
+ * This tracks that the user was offered onboarding and explicitly declined,
+ * which is useful for analytics and ensuring they aren't prompted again.
  */
 export async function skipOnboarding(userId: string): Promise<void> {
+  // Intentionally create record if needed - tracks that user declined onboarding
   const onboarding = await getOrCreateOnboarding(userId);
 
   await db
