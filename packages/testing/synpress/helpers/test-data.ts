@@ -41,6 +41,7 @@ export const ROUTES = {
   AGENTS: '/agents',
   AGENTS_CREATE: '/agents/create',
   AGENTS_BY_ID: (id: string) => `/agents/${id}`,
+  AGENTS_TEAM_CHAT: '/agents/team',
 
   // Content
   POST_BY_ID: (id: string) => `/post/${id}`,

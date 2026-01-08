@@ -1,8 +1,9 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Bot, Plus, Radio, Users } from 'lucide-react';
+import { Bot, Plus, Radio, Users, X } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
 import { Avatar } from '@/components/shared/Avatar';
@@ -32,7 +33,8 @@ export default function TeamChatPage() {
     isLoadingMore,
     hasMore,
     messageInput,
-    setMessageInput,
+    handleInputChange,
+    typingUsers,
     sendError,
     sendSuccess,
     setMentionedAgentIds,
@@ -42,6 +44,9 @@ export default function TeamChatPage() {
     setRefs,
     sendMessage,
   } = useTeamChat();
+
+  // Mobile member drawer state
+  const [showMemberDrawer, setShowMemberDrawer] = useState(false);
 
   // Auth required state
   if (ready && !authenticated) {
@@ -69,7 +74,7 @@ export default function TeamChatPage() {
       <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Member sidebar skeleton */}
-          <div className="hidden w-64 flex-col border-border border-r p-4 lg:flex">
+          <div className="hidden w-64 flex-col border-r border-border p-4 lg:flex">
             <Skeleton className="mb-4 h-8 w-32" />
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -101,7 +106,7 @@ export default function TeamChatPage() {
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20">
               <Bot className="h-10 w-10 text-blue-500" />
             </div>
-            <h2 className="mb-2 font-bold text-2xl text-foreground">
+            <h2 className="mb-2 font-bold text-foreground text-2xl">
               Your Command Center is ready
             </h2>
             <p className="mb-6 text-muted-foreground">
@@ -139,9 +144,115 @@ export default function TeamChatPage() {
 
   return (
     <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
+      {/* Mobile Member Drawer */}
+      {showMemberDrawer && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm lg:hidden"
+            onClick={() => setShowMemberDrawer(false)}
+          />
+
+          {/* Drawer Panel - slides in from right */}
+          <div className="slide-in-from-right fixed top-0 right-0 bottom-0 z-50 flex w-[280px] animate-in flex-col bg-sidebar duration-300 lg:hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4">
+              <h3 className="font-semibold text-foreground">Team Members</h3>
+              <button
+                onClick={() => setShowMemberDrawer(false)}
+                className="rounded-lg p-2 transition-colors hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <Separator />
+
+            {/* Member list */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* You (the user) */}
+              <div className="mb-4">
+                <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
+                  You
+                </p>
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    src={user?.profileImageUrl}
+                    name={user?.displayName || user?.username || 'You'}
+                    size="sm"
+                  />
+                  <span className="font-medium text-foreground text-sm">
+                    {user?.displayName || user?.username || 'You'}
+                  </span>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Agents */}
+              <div>
+                <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
+                  Agents ({teamChat?.agentCount ?? 0})
+                </p>
+                {teamChat?.agents.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">
+                    No agents yet.{' '}
+                    <Link
+                      href="/agents/create"
+                      className="text-blue-500 hover:underline"
+                      onClick={() => setShowMemberDrawer(false)}
+                    >
+                      Create one
+                    </Link>
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {teamChat?.agents.map((agent) => (
+                      <Link
+                        key={agent.id}
+                        href={`/agents/${agent.id}`}
+                        onClick={() => setShowMemberDrawer(false)}
+                        className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
+                      >
+                        <Avatar
+                          src={agent.profileImageUrl ?? undefined}
+                          name={agent.displayName || agent.username || 'Agent'}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-foreground text-sm">
+                            {agent.displayName || agent.username || 'Agent'}
+                          </p>
+                          {agent.username && (
+                            <p className="truncate text-muted-foreground text-xs">
+                              @{agent.username}
+                            </p>
+                          )}
+                        </div>
+                        <Bot className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add agent button */}
+              <div className="mt-4">
+                <Link href="/agents/create" onClick={() => setShowMemberDrawer(false)}>
+                  <Button variant="outline" size="sm" className="w-full gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Agent
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Member Sidebar - visible on lg+ */}
-        <div className="hidden w-64 flex-col border-border border-r lg:flex">
+        <div className="hidden w-64 flex-col border-r border-border lg:flex">
           {/* Header */}
           <div className="flex items-center justify-between p-4">
             <h3 className="font-semibold text-foreground">Team Members</h3>
@@ -256,20 +367,21 @@ export default function TeamChatPage() {
             containerRef={setRefs}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}
-            onMessageChange={setMessageInput}
+            onMessageChange={handleInputChange}
             onSendMessage={sendMessage}
-            agents={
-              teamChat?.agents.map((agent) => ({
-                id: agent.id,
-                username: agent.username,
-                displayName: agent.displayName,
-                profileImageUrl: agent.profileImageUrl,
-              })) || []
-            }
+            agents={teamChat?.agents.map((agent) => ({
+              id: agent.id,
+              username: agent.username,
+              displayName: agent.displayName,
+              profileImageUrl: agent.profileImageUrl,
+            })) || []}
             onMentionsChange={setMentionedAgentIds}
+            typingUsers={typingUsers}
+            onShowMembers={() => setShowMemberDrawer(true)}
           />
         </div>
       </div>
     </div>
   );
 }
+

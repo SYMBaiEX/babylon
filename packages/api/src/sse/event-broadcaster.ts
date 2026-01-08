@@ -199,3 +199,21 @@ export async function broadcastAgentActivity(
     activity: activity as unknown as JsonValue,
   });
 }
+
+/**
+ * Broadcast typing indicator to a chat room.
+ */
+export async function broadcastTypingIndicator(
+  chatId: string,
+  userId: string,
+  displayName: string,
+  isTyping: boolean
+): Promise<void> {
+  await broadcastToChannel(`chat:${chatId}`, {
+    type: 'typing_indicator',
+    userId,
+    displayName,
+    isTyping,
+    timestamp: Date.now(),
+  });
+}

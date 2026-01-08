@@ -24,5 +24,5 @@ export {
   setServiceContainer,
 } from './interfaces';
 export * from './npc-bootstrap.service';
-export * from './TeamChatResponseService';
 export * from './TeamChatService';
+export * from './TeamChatResponseService';

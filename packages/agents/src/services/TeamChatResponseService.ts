@@ -20,8 +20,8 @@ import {
 } from '@babylon/db';
 import { executeDirectMessage } from '../autonomous/DirectExecutors';
 import { callGroqDirect } from '../llm/direct-groq';
-import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { logger } from '../shared/logger';
+import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 
 /** Configuration for team chat response timing */
 const RESPONSE_TIMING = {
@@ -70,13 +70,8 @@ export class TeamChatResponseService {
   async triggerMentionedAgentResponses(
     params: TriggerResponseParams
   ): Promise<TriggerResponseResult> {
-    const {
-      chatId,
-      messageContent,
-      mentionedAgentIds,
-      senderUserId,
-      senderDisplayName,
-    } = params;
+    const { chatId, messageContent, mentionedAgentIds, senderUserId, senderDisplayName } =
+      params;
 
     if (mentionedAgentIds.length === 0) {
       return { triggered: 0, responses: [] };
@@ -106,11 +101,7 @@ export class TeamChatResponseService {
       .map((m) => {
         const isSystem = m.senderId === 'system';
         const isSender = m.senderId === senderUserId;
-        const label = isSystem
-          ? '[System]'
-          : isSender
-            ? senderDisplayName
-            : 'Agent';
+        const label = isSystem ? '[System]' : isSender ? senderDisplayName : 'Agent';
         return `${label}: ${m.content}`;
       })
       .join('\n');
@@ -188,14 +179,8 @@ export class TeamChatResponseService {
     messageId?: string;
     error?: string;
   }> {
-    const {
-      agentId,
-      chatId,
-      messageContent,
-      senderDisplayName,
-      conversationContext,
-      delay,
-    } = params;
+    const { agentId, chatId, messageContent, senderDisplayName, conversationContext, delay } =
+      params;
 
     // Wait for the natural delay
     await new Promise((resolve) => setTimeout(resolve, delay));
@@ -310,8 +295,7 @@ Generate ONLY the response text:`;
     chatId: string;
     responseContent: string;
   }): Promise<void> {
-    const { respondingAgentId, respondingAgentName, chatId, responseContent } =
-      params;
+    const { respondingAgentId, respondingAgentName, chatId, responseContent } = params;
 
     // Parse @mentions from the response
     const mentionRegex = /@(\w+)/g;
@@ -331,10 +315,7 @@ Generate ONLY the response text:`;
 
     // Get team chat info to find other agents
     const [chatWithGroup] = await db
-      .select({
-        groupId: userAgentTeamChats.groupId,
-        userId: userAgentTeamChats.userId,
-      })
+      .select({ groupId: userAgentTeamChats.groupId, userId: userAgentTeamChats.userId })
       .from(userAgentTeamChats)
       .where(eq(userAgentTeamChats.chatId, chatId))
       .limit(1);
@@ -392,11 +373,8 @@ Generate ONLY the response text:`;
     const A2A_MAX_DELAY = 6000;
 
     for (const mentionedAgentId of mentionedAgentIds) {
-      const baseDelay =
-        A2A_MIN_DELAY + Math.random() * (A2A_MAX_DELAY - A2A_MIN_DELAY);
-      const staggerDelay =
-        mentionedAgentIds.indexOf(mentionedAgentId) *
-        RESPONSE_TIMING.STAGGER_DELAY;
+      const baseDelay = A2A_MIN_DELAY + Math.random() * (A2A_MAX_DELAY - A2A_MIN_DELAY);
+      const staggerDelay = mentionedAgentIds.indexOf(mentionedAgentId) * RESPONSE_TIMING.STAGGER_DELAY;
 
       // Get recent conversation for context
       const recentMessages = await db
@@ -474,3 +452,4 @@ Generate ONLY the response text:`;
 
 /** Singleton instance */
 export const teamChatResponseService = new TeamChatResponseService();
+

@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle, Radio } from 'lucide-react';
+import { MessageCircle, Radio, Users } from 'lucide-react';
 import React from 'react';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
@@ -8,6 +8,38 @@ import type { MentionableAgent } from './MentionAutocomplete';
 import { MessageList } from './MessageList';
 import { TeamChatMessageInput } from './TeamChatMessageInput';
 import type { ChatDetails } from './types';
+
+/** Typing indicator component */
+function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
+  const first = typingUsers[0];
+  const second = typingUsers[1];
+  
+  if (!first) return null;
+  
+  const text =
+    typingUsers.length === 1
+      ? `${first.displayName} is typing...`
+      : typingUsers.length === 2 && second
+        ? `${first.displayName} and ${second.displayName} are typing...`
+        : `${first.displayName} and ${typingUsers.length - 1} others are typing...`;
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground text-sm">
+      <span className="flex gap-1">
+        <span className="animate-bounce" style={{ animationDelay: '0ms' }}>•</span>
+        <span className="animate-bounce" style={{ animationDelay: '150ms' }}>•</span>
+        <span className="animate-bounce" style={{ animationDelay: '300ms' }}>•</span>
+      </span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+/** Typing user info */
+interface TypingUserInfo {
+  userId: string;
+  displayName: string;
+}
 
 interface TeamChatViewProps {
   chatDetails: ChatDetails | null;
@@ -31,11 +63,15 @@ interface TeamChatViewProps {
   agents: MentionableAgent[];
   /** Callback when mentioned agents change */
   onMentionsChange?: (mentionedAgentIds: string[]) => void;
+  /** Users currently typing */
+  typingUsers?: TypingUserInfo[];
+  /** Callback to open member list drawer (mobile only) */
+  onShowMembers?: () => void;
 }
 
 /**
  * Chat view component for Team Chat (Command Center)
- *
+ * 
  * Similar to ChatView but uses TeamChatMessageInput with @mention support
  */
 export function TeamChatView({
@@ -58,6 +94,8 @@ export function TeamChatView({
   onSendMessage,
   agents,
   onMentionsChange,
+  typingUsers = [],
+  onShowMembers,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -68,7 +106,9 @@ export function TeamChatView({
           <h3 className="mb-2 font-bold text-foreground text-xl">
             Command Center
           </h3>
-          <p className="text-sm">Loading your team chat...</p>
+          <p className="text-sm">
+            Loading your team chat...
+          </p>
         </div>
       </div>
     );
@@ -84,21 +124,33 @@ export function TeamChatView({
               Command Center
             </h2>
             <p className="text-muted-foreground text-sm">
-              {chatDetails.participants.length} member
-              {chatDetails.participants.length !== 1 ? 's' : ''}
+              {chatDetails.participants.length} member{chatDetails.participants.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Radio
-              className={
-                sseConnected
-                  ? 'h-4 w-4 text-green-500'
-                  : 'h-4 w-4 text-muted-foreground'
-              }
-            />
-            <span className="text-muted-foreground text-sm">
-              {sseConnected ? 'Live' : 'Connecting...'}
-            </span>
+          <div className="flex items-center gap-3">
+            {/* Mobile members button */}
+            {onShowMembers && (
+              <button
+                onClick={onShowMembers}
+                className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
+                aria-label="Show team members"
+              >
+                <Users className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
+            {/* Connection status */}
+            <div className="flex items-center gap-2">
+              <Radio
+                className={
+                  sseConnected
+                    ? 'h-4 w-4 text-green-500'
+                    : 'h-4 w-4 text-muted-foreground'
+                }
+              />
+              <span className="text-muted-foreground text-sm">
+                {sseConnected ? 'Live' : 'Connecting...'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -129,6 +181,11 @@ export function TeamChatView({
 
       {/* Footer - Fixed */}
       <div className="shrink-0">
+        {/* Typing Indicator */}
+        {typingUsers.length > 0 && (
+          <TypingIndicator typingUsers={typingUsers} />
+        )}
+
         {/* Feedback Messages */}
         {authenticated && (
           <FeedbackMessages
@@ -157,3 +214,4 @@ export function TeamChatView({
     </div>
   );
 }
+

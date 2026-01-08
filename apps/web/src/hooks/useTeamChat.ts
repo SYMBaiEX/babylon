@@ -6,10 +6,18 @@
  */
 
 import { usePrivy } from '@privy-io/react-auth';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type ChatMessage, useChatMessages } from '@/hooks/useChatMessages';
+import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
+import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+
+/** Typing user info */
+interface TypingUser {
+  userId: string;
+  displayName: string;
+  expiresAt: number;
+}
 
 /** Agent info in team chat */
 interface TeamChatAgent {
@@ -48,6 +56,10 @@ interface UseTeamChatReturn {
   // Message state
   messageInput: string;
   setMessageInput: (value: string) => void;
+  handleInputChange: (value: string) => void;
+
+  // Typing indicators
+  typingUsers: TypingUser[];
   sendError: string | null;
   sendSuccess: boolean;
   mentionedAgentIds: string[];
@@ -80,6 +92,11 @@ export function useTeamChat(): UseTeamChatReturn {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [mentionedAgentIds, setMentionedAgentIds] = useState<string[]>([]);
 
+  // Typing indicator state
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -94,6 +111,122 @@ export function useTeamChat(): UseTeamChatReturn {
     hasMore,
     addMessage,
   } = useChatMessages(teamChat?.chatId ?? null);
+
+  // Handle typing indicator SSE events
+  const handleTypingEvent = useCallback(
+    (data: Record<string, unknown>) => {
+      if (data.type === 'typing_indicator') {
+        const userId = data.userId as string;
+        const displayName = data.displayName as string;
+        const isTyping = data.isTyping as boolean;
+
+        // Don't show our own typing
+        if (userId === user?.id) return;
+
+        setTypingUsers((prev) => {
+          if (isTyping) {
+            // Add or update typing user (expires after 5 seconds)
+            const expiresAt = Date.now() + 5000;
+            const existing = prev.find((u) => u.userId === userId);
+            if (existing) {
+              return prev.map((u) =>
+                u.userId === userId ? { ...u, expiresAt } : u
+              );
+            }
+            return [...prev, { userId, displayName, expiresAt }];
+          } else {
+            // Remove typing user
+            return prev.filter((u) => u.userId !== userId);
+          }
+        });
+      }
+    },
+    [user?.id]
+  );
+
+  // Subscribe to typing events on the same chat channel
+  const typingChannel = useMemo(
+    () => (teamChat?.chatId ? (`chat:${teamChat.chatId}` as const) : null),
+    [teamChat?.chatId]
+  );
+  useSSEChannel(typingChannel, handleTypingEvent);
+
+  // Clean up expired typing indicators
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers((prev) => prev.filter((u) => u.expiresAt > now));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Send typing indicator
+  const sendTypingIndicator = useCallback(
+    async (isTyping: boolean) => {
+      if (!teamChat) return;
+
+      const token = await getAccessToken();
+      if (!token) return;
+
+      // Fire and forget - don't block on typing indicators
+      fetch('/api/agents/team-chat/typing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isTyping }),
+      }).catch(() => {
+        // Ignore typing indicator errors
+      });
+    },
+    [teamChat, getAccessToken]
+  );
+
+  // Debounced typing handler
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setMessageInput(value);
+
+      // Send "typing" on first keystroke
+      if (value.length > 0 && !isTypingRef.current) {
+        isTypingRef.current = true;
+        sendTypingIndicator(true);
+      }
+
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        if (isTypingRef.current) {
+          isTypingRef.current = false;
+          sendTypingIndicator(false);
+        }
+      }, 2000);
+
+      // Stop typing if input is cleared
+      if (value.length === 0 && isTypingRef.current) {
+        isTypingRef.current = false;
+        sendTypingIndicator(false);
+      }
+    },
+    [sendTypingIndicator]
+  );
+
+  // Cleanup typing state on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current) {
+        sendTypingIndicator(false);
+      }
+    };
+  }, [sendTypingIndicator]);
 
   // Fetch team chat info
   const fetchTeamChat = useCallback(async () => {
@@ -200,8 +333,7 @@ export function useTeamChat(): UseTeamChatReturn {
       body: JSON.stringify({
         content: messageInput.trim(),
         // Include mentioned agent IDs for priority response handling
-        mentionedAgentIds:
-          mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
+        mentionedAgentIds: mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
       }),
     });
 
@@ -239,19 +371,22 @@ export function useTeamChat(): UseTeamChatReturn {
 
     // Clear success after 2 seconds
     setTimeout(() => setSendSuccess(false), 2000);
-  }, [
-    teamChat,
-    messageInput,
-    sending,
-    mentionedAgentIds,
-    getAccessToken,
-    addMessage,
-  ]);
+  }, [teamChat, messageInput, sending, mentionedAgentIds, getAccessToken, addMessage]);
 
   // Scroll container ref callback
   const setRefs = useCallback((node: HTMLDivElement | null) => {
     chatContainerRef.current = node;
   }, []);
+
+  // Stop typing when message is sent
+  const originalSendMessage = sendMessage;
+  const sendMessageWithTypingStop = useCallback(async () => {
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      sendTypingIndicator(false);
+    }
+    await originalSendMessage();
+  }, [originalSendMessage, sendTypingIndicator]);
 
   return {
     teamChat,
@@ -266,6 +401,10 @@ export function useTeamChat(): UseTeamChatReturn {
 
     messageInput,
     setMessageInput,
+    handleInputChange,
+
+    typingUsers,
+
     sendError,
     sendSuccess,
     mentionedAgentIds,
@@ -276,7 +415,8 @@ export function useTeamChat(): UseTeamChatReturn {
     topSentinelRef,
     setRefs,
 
-    sendMessage,
+    sendMessage: sendMessageWithTypingStop,
     refresh: fetchTeamChat,
   };
 }
+
