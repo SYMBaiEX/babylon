@@ -8,36 +8,137 @@ const STORAGE_KEY = 'babylon_agent_draft';
 // Agent name generation
 const NAME_PREFIXES = [
   // Greek letters
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
-  'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi',
-  'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+  'Alpha',
+  'Beta',
+  'Gamma',
+  'Delta',
+  'Epsilon',
+  'Zeta',
+  'Eta',
+  'Theta',
+  'Iota',
+  'Kappa',
+  'Lambda',
+  'Mu',
+  'Nu',
+  'Xi',
+  'Omicron',
+  'Pi',
+  'Rho',
+  'Sigma',
+  'Tau',
+  'Upsilon',
+  'Phi',
+  'Chi',
+  'Psi',
+  'Omega',
   // Tech/Cyber
-  'Quantum', 'Neo', 'Cyber', 'Nexus', 'Apex', 'Vertex', 'Pulse', 'Flux',
-  'Vector', 'Helix', 'Prism', 'Matrix', 'Cipher', 'Binary', 'Neural',
+  'Quantum',
+  'Neo',
+  'Cyber',
+  'Nexus',
+  'Apex',
+  'Vertex',
+  'Pulse',
+  'Flux',
+  'Vector',
+  'Helix',
+  'Prism',
+  'Matrix',
+  'Cipher',
+  'Binary',
+  'Neural',
   // Nature/Elements
-  'Nova', 'Solar', 'Lunar', 'Stellar', 'Cosmic', 'Astral', 'Phoenix', 'Storm',
-  'Thunder', 'Frost', 'Ember', 'Shadow', 'Dawn', 'Dusk',
+  'Nova',
+  'Solar',
+  'Lunar',
+  'Stellar',
+  'Cosmic',
+  'Astral',
+  'Phoenix',
+  'Storm',
+  'Thunder',
+  'Frost',
+  'Ember',
+  'Shadow',
+  'Dawn',
+  'Dusk',
   // Power/Status
-  'Iron', 'Steel', 'Titan', 'Atlas', 'Orion', 'Vortex', 'Blaze', 'Spark',
-  'Echo', 'Phantom', 'Specter', 'Raven', 'Falcon', 'Hawk', 'Eagle',
+  'Iron',
+  'Steel',
+  'Titan',
+  'Atlas',
+  'Orion',
+  'Vortex',
+  'Blaze',
+  'Spark',
+  'Echo',
+  'Phantom',
+  'Specter',
+  'Raven',
+  'Falcon',
+  'Hawk',
+  'Eagle',
   // Abstract
-  'Zen', 'Aura', 'Axiom', 'Lumen', 'Photon', 'Quark', 'Volt', 'Arc',
+  'Zen',
+  'Aura',
+  'Axiom',
+  'Lumen',
+  'Photon',
+  'Quark',
+  'Volt',
+  'Arc',
 ];
 
 const NAME_SUFFIXES = [
   // Role-based
-  'Trader', 'Agent', 'Bot', 'AI', 'Mind', 'Brain', 'Sage', 'Oracle',
+  'Trader',
+  'Agent',
+  'Bot',
+  'AI',
+  'Mind',
+  'Brain',
+  'Sage',
+  'Oracle',
   // Technical
-  'Core', 'Node', 'Edge', 'Prime', 'Pro', 'Max', 'Ultra', 'Plus',
-  'X', 'Zero', 'One', 'Protocol', 'System', 'Engine', 'Logic',
+  'Core',
+  'Node',
+  'Edge',
+  'Prime',
+  'Pro',
+  'Max',
+  'Ultra',
+  'Plus',
+  'X',
+  'Zero',
+  'One',
+  'Protocol',
+  'System',
+  'Engine',
+  'Logic',
   // Abstract
-  'Flow', 'Wave', 'Sync', 'Link', 'Net', 'Hub', 'Lab', 'Works',
-  'Force', 'Drive', 'Pulse', 'Signal', 'Stream', 'Grid', 'Mesh',
+  'Flow',
+  'Wave',
+  'Sync',
+  'Link',
+  'Net',
+  'Hub',
+  'Lab',
+  'Works',
+  'Force',
+  'Drive',
+  'Pulse',
+  'Signal',
+  'Stream',
+  'Grid',
+  'Mesh',
 ];
 
 const generateAgentName = (): { username: string; displayName: string } => {
-  const prefix = NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
-  const suffix = NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
+  const prefix =
+    NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
+  const suffix =
+    NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
 
   // Use simple 4-digit number (looks natural, e.g., "novatrader42" or "alphabot7291")
   const number = Math.floor(Math.random() * 9000) + 1000; // 1000-9999
@@ -171,7 +272,10 @@ export function useAgentForm(): UseAgentFormResult {
       setAgentData((prev) => ({
         system: template.system.replace(/\{\{agentName\}\}/g, displayName),
         personality: template.bio.replace(/\{\{agentName\}\}/g, displayName),
-        tradingStrategy: template.tradingStrategy.replace(/\{\{agentName\}\}/g, displayName),
+        tradingStrategy: template.tradingStrategy.replace(
+          /\{\{agentName\}\}/g,
+          displayName
+        ),
         initialDeposit: prev.initialDeposit,
       }));
 
@@ -200,20 +304,24 @@ export function useAgentForm(): UseAgentFormResult {
       // When displayName changes, replace the old name with new name in prompts
       if (field === 'displayName' && value) {
         const oldName = nameInPromptsRef.current;
-        
+
         // Only replace if there's a previous name and it's different
         if (oldName && oldName !== value) {
-          const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const escapeRegex = (str: string) =>
+            str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const oldNameRegex = new RegExp(escapeRegex(oldName), 'g');
-          
+
           setAgentData((prevAgent) => ({
             ...prevAgent,
             system: prevAgent.system.replace(oldNameRegex, value),
             personality: prevAgent.personality.replace(oldNameRegex, value),
-            tradingStrategy: prevAgent.tradingStrategy.replace(oldNameRegex, value),
+            tradingStrategy: prevAgent.tradingStrategy.replace(
+              oldNameRegex,
+              value
+            ),
           }));
         }
-        
+
         // Update the tracked name
         nameInPromptsRef.current = value;
       }

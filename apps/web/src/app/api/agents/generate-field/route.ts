@@ -146,9 +146,7 @@ function extractContent(raw: string): string | null {
   }
 
   // Clean up the content
-  return parsed.content
-    .trim()
-    .replace(/^["']|["']$/g, ''); // Remove leading/trailing quotes
+  return parsed.content.trim().replace(/^["']|["']$/g, ''); // Remove leading/trailing quotes
 }
 
 export async function POST(req: NextRequest) {
