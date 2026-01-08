@@ -279,9 +279,12 @@ export function useAgentActivity(
     enableSSE && agentId ? `agent:${agentId}` : null;
   const { isConnected } = useSSEChannel(sseChannel, handleSSEMessage);
 
-  // Merge real-time activities with fetched data
+  // Merge real-time activities with fetched data.
+  // Note: Both fetchActivities and handleSSEMessage mutate seenActivityIds.
+  // Although JavaScript is single-threaded, async operations can interleave,
+  // potentially causing both paths to process the same activity. This final
+  // deduplication step (using Map) ensures no duplicates reach the UI.
   const activities = useMemo(() => {
-    // Combine and deduplicate
     const allActivities = [...realtimeActivities, ...fetchedActivities];
     const uniqueActivities = new Map<string, AgentActivity>();
 
