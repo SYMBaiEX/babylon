@@ -103,6 +103,13 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       }),
     ]);
 
+    // Check response status before processing
+    if (!balanceRes.ok || !positionsRes.ok) {
+      setError('Failed to fetch portfolio data');
+      setLoading(false);
+      return;
+    }
+
     // Check if request was aborted before parsing
     if (abortController.signal.aborted) {
       return;
