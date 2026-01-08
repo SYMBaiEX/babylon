@@ -18,6 +18,7 @@ import {
   type RelationshipState,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { getGameDayNumber } from '../utils/date-utils';
 import { parseMemoriesSafe, parseRelationshipsSafe } from './jsonb-validators';
 
 /**
@@ -377,12 +378,18 @@ export class NpcMemoryService {
    * Update activity state when NPC takes an action.
    * Uses optimistic locking with retry to prevent race conditions
    * when multiple concurrent updates occur.
+   *
+   * @param actorId - The NPC actor ID
+   * @param options.posted - Whether the NPC posted
+   * @param options.active - Whether the NPC was active
+   * @param options.gameStartedAt - Game start time for day calculation (optional, uses wall-clock if not provided)
    */
   async updateActivityState(
     actorId: string,
     options: {
       posted?: boolean;
       active?: boolean;
+      gameStartedAt?: Date;
     } = {}
   ): Promise<void> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -426,9 +433,26 @@ export class NpcMemoryService {
         if (options.posted) {
           updates.lastPostAt = now;
 
+          // Determine if we should reset postsToday based on game day change
+          // If gameStartedAt is provided, use game-relative days; otherwise fall back to wall-clock
           const resetAt = state.postsTodayResetAt;
-          const shouldReset =
-            !resetAt || now.getTime() - resetAt.getTime() > 24 * 60 * 60 * 1000;
+          let shouldReset = !resetAt;
+
+          if (!shouldReset && resetAt) {
+            if (options.gameStartedAt) {
+              // Use game day calculation - reset when game day changes
+              const currentGameDay = getGameDayNumber(options.gameStartedAt, now);
+              const lastResetGameDay = getGameDayNumber(
+                options.gameStartedAt,
+                resetAt
+              );
+              shouldReset = currentGameDay !== lastResetGameDay;
+            } else {
+              // Fall back to 24-hour wall-clock check (legacy behavior)
+              shouldReset =
+                now.getTime() - resetAt.getTime() > 24 * 60 * 60 * 1000;
+            }
+          }
 
           if (shouldReset) {
             updates.postsToday = 1;
