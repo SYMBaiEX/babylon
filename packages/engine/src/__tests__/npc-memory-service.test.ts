@@ -41,6 +41,8 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
     const formatted = npcMemoryService.formatMemoriesForPrompt([memory]);
     expect(formatted).toContain('## Recent Memories');
     expect(formatted).toContain('Posted about crypto news');
+    // Verify the formatted output includes the 'just now' time string
+    expect(formatted).toContain('just now');
   });
 
   test('formats multiple memories correctly', () => {

@@ -249,7 +249,7 @@ export function fireAndForgetWithRetry(
           logger.error(
             'Fire-and-forget operation failed with non-retryable error',
             {
-              // Spread metadata first so explicit values take precedence
+              // Spread metadata first; explicit properties (error, attempt) override metadata values
               ...metadata,
               error: lastError.message,
               attempt: attempt + 1,
@@ -274,7 +274,7 @@ export function fireAndForgetWithRetry(
     logger.error(
       'Fire-and-forget operation failed after retries',
       {
-        // Spread metadata first so explicit values take precedence
+        // Spread metadata first; explicit properties (error, retriesAttempted) override metadata values
         ...metadata,
         error: lastError?.message ?? 'Unknown error',
         retriesAttempted: maxAttempts,

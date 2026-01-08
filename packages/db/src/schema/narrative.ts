@@ -208,7 +208,7 @@ export const arcStates = pgTable(
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
-    index('ArcState_questionId_idx').on(t.questionId),
+    // Note: unique constraint on questionId serves as an index, so separate index removed
     index('ArcState_currentState_idx').on(t.currentState),
     unique('ArcState_questionId_unique').on(t.questionId),
   ]

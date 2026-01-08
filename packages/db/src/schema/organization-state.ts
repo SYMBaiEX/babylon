@@ -46,7 +46,7 @@ export const organizationState = pgTable(
     // Fundamentals for narrative-driven pricing
     // Default basePrice to 100.0 to ensure it's never NULL for downstream calculations
     basePrice: doublePrecision('basePrice').notNull().default(100.0),
-    sentiment: integer('sentiment').default(0), // -100 to +100
+    sentiment: integer('sentiment').notNull().default(0), // -100 to +100
     activeModifiers: jsonb('activeModifiers')
       .$type<PriceModifier[]>()
       .default(sql`'[]'::jsonb`),

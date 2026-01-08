@@ -381,11 +381,27 @@ export class NpcMemoryService {
         );
         return true; // Success
       } catch (error) {
+        // Check if this is a transient/connection error that should be retried
+        const isTransient =
+          error instanceof Error &&
+          (error.message.includes('ECONNRESET') ||
+            error.message.includes('ETIMEDOUT') ||
+            error.message.includes('connection') ||
+            error.message.includes('timeout'));
+
+        if (isTransient && attempt < MAX_RETRIES - 1) {
+          // Exponential backoff before retry
+          const delay = 100 * 2 ** attempt;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
         logger.error(
           `Failed to update relationship`,
           {
             actorId,
             otherActorId,
+            attempt: attempt + 1,
             error: error instanceof Error ? error.message : String(error),
           },
           'NpcMemoryService'

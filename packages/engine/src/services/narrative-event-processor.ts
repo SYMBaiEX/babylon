@@ -52,6 +52,62 @@ const STATE_DAY_RANGES: Record<LongTermArcState, [number, number]> = {
 const EVENT_COOLDOWN_HOURS = 2;
 
 /**
+ * Helper to prepare world event data from an arc event.
+ * Shared between createWorldEventFromArcEvent and createWorldEventFromArcEventTx
+ * to avoid code duplication.
+ */
+async function prepareWorldEventData(
+  structuredEvent: StructuredEventData,
+  questionText: string,
+  timestamp: Date,
+  dayNumber?: number,
+  questionNumber?: number | null
+): Promise<{
+  eventId: string;
+  values: {
+    id: string;
+    eventType: StructuredEventData['type'];
+    description: string;
+    actors: string[];
+    relatedQuestion: number | undefined;
+    visibility: 'public' | 'leaked';
+    gameId: string;
+    dayNumber: number | undefined;
+    timestamp: Date;
+    pointsToward: 'YES' | 'NO' | null;
+  };
+}> {
+  const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
+  const template = templates[Math.floor(secureRandom() * templates.length)]!;
+  const topic =
+    questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
+  const description = template.replace('{topic}', topic);
+
+  const eventId = await generateSnowflakeId();
+  const safeDayNumber =
+    typeof dayNumber === 'number' ? toSafeDayNumber(dayNumber) : undefined;
+
+  return {
+    eventId,
+    values: {
+      id: eventId,
+      eventType: structuredEvent.type,
+      description,
+      actors: structuredEvent.affectedActors,
+      relatedQuestion: questionNumber ?? undefined,
+      visibility: structuredEvent.type === 'leak' ? 'leaked' : 'public',
+      gameId: 'continuous',
+      dayNumber: safeDayNumber,
+      timestamp,
+      pointsToward:
+        structuredEvent.signalDirection === 'NEUTRAL'
+          ? null
+          : structuredEvent.signalDirection,
+    },
+  };
+}
+
+/**
  * Description templates for world events by event type.
  * Shared between createWorldEventFromArcEvent and createWorldEventFromArcEventTx.
  */
@@ -384,36 +440,20 @@ export async function createWorldEventFromArcEvent(
   dayNumber?: number,
   questionNumber?: number | null
 ): Promise<string> {
-  const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
-  const template = templates[Math.floor(secureRandom() * templates.length)]!;
-  const topic =
-    questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
-  const description = template.replace('{topic}', topic);
-
-  const eventId = await generateSnowflakeId();
-  const safeDayNumber =
-    typeof dayNumber === 'number' ? toSafeDayNumber(dayNumber) : undefined;
-
-  await db.insert(worldEvents).values({
-    id: eventId,
-    eventType: structuredEvent.type,
-    description,
-    actors: structuredEvent.affectedActors,
-    relatedQuestion: questionNumber ?? undefined,
-    visibility: structuredEvent.type === 'leak' ? 'leaked' : 'public',
-    gameId: 'continuous',
-    dayNumber: safeDayNumber,
+  const prepared = await prepareWorldEventData(
+    structuredEvent,
+    questionText,
     timestamp,
-    pointsToward:
-      structuredEvent.signalDirection === 'NEUTRAL'
-        ? null
-        : structuredEvent.signalDirection,
-  });
+    dayNumber,
+    questionNumber
+  );
+
+  await db.insert(worldEvents).values(prepared.values);
 
   logger.info(
     'Created world event from arc event',
     {
-      eventId,
+      eventId: prepared.eventId,
       arcId: structuredEvent.arcId,
       type: structuredEvent.type,
       severity: structuredEvent.severity,
@@ -421,7 +461,7 @@ export async function createWorldEventFromArcEvent(
     'NarrativeEventProcessor'
   );
 
-  return eventId;
+  return prepared.eventId;
 }
 
 /**
@@ -436,36 +476,20 @@ async function createWorldEventFromArcEventTx(
   dayNumber?: number,
   questionNumber?: number | null
 ): Promise<string> {
-  const templates = WORLD_EVENT_DESCRIPTION_TEMPLATES[structuredEvent.type];
-  const template = templates[Math.floor(secureRandom() * templates.length)]!;
-  const topic =
-    questionText.length > 80 ? questionText.slice(0, 80) + '...' : questionText;
-  const description = template.replace('{topic}', topic);
-
-  const eventId = await generateSnowflakeId();
-  const safeDayNumber =
-    typeof dayNumber === 'number' ? toSafeDayNumber(dayNumber) : undefined;
-
-  await tx.insert(worldEvents).values({
-    id: eventId,
-    eventType: structuredEvent.type,
-    description,
-    actors: structuredEvent.affectedActors,
-    relatedQuestion: questionNumber ?? undefined,
-    visibility: structuredEvent.type === 'leak' ? 'leaked' : 'public',
-    gameId: 'continuous',
-    dayNumber: safeDayNumber,
+  const prepared = await prepareWorldEventData(
+    structuredEvent,
+    questionText,
     timestamp,
-    pointsToward:
-      structuredEvent.signalDirection === 'NEUTRAL'
-        ? null
-        : structuredEvent.signalDirection,
-  });
+    dayNumber,
+    questionNumber
+  );
+
+  await tx.insert(worldEvents).values(prepared.values);
 
   logger.info(
     'Created world event from arc event (tx)',
     {
-      eventId,
+      eventId: prepared.eventId,
       arcId: structuredEvent.arcId,
       type: structuredEvent.type,
       severity: structuredEvent.severity,
@@ -473,7 +497,7 @@ async function createWorldEventFromArcEventTx(
     'NarrativeEventProcessor'
   );
 
-  return eventId;
+  return prepared.eventId;
 }
 
 /**
@@ -487,6 +511,16 @@ async function getQuestionDetails(
     .from(questions)
     .where(eq(questions.id, questionId))
     .limit(1);
+
+  // Log a warning if question is not found for visibility
+  if (!question) {
+    logger.warn(
+      'Question not found for world event creation, using fallback values',
+      { questionId, fallbackText: 'Unknown question', fallbackQuestionNumber: null },
+      'NarrativeEventProcessor'
+    );
+  }
+
   return {
     text: question?.text ?? 'Unknown question',
     questionNumber: question?.questionNumber ?? null,
@@ -766,24 +800,22 @@ export async function processArcTick(
     }
 
     // Trigger article generation for significant events (severity >= 3)
+    // Reuse questionDetails already fetched earlier instead of re-querying
     if (structuredEvent.severity >= 3 && llmClient) {
       try {
-        // Get question details for article context
-        const [question] = await db
-          .select({
-            id: questions.id,
-            text: questions.text,
-            questionNumber: questions.questionNumber,
-          })
-          .from(questions)
-          .where(eq(questions.id, arc.questionId))
-          .limit(1);
-
-        if (question) {
+        // Only generate articles if we have valid question details
+        if (
+          questionDetails.text !== 'Unknown question' &&
+          questionDetails.questionNumber !== null
+        ) {
           const articlesGenerated = await generateArticlesForArcEvent(
             worldEventId,
             'created', // Arc events are 'created' status
-            question,
+            {
+              id: arc.questionId,
+              text: questionDetails.text,
+              questionNumber: questionDetails.questionNumber,
+            },
             llmClient,
             now,
             dayNumber

@@ -242,8 +242,11 @@ export async function addPriceModifier(
       'EventMarketPipeline'
     );
 
-    // Brief delay before retry
-    await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+    // Exponential backoff delay before retry (10ms base, capped at 160ms)
+    const baseDelayMs = 10;
+    const maxDelayMs = 160;
+    const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   logger.error(

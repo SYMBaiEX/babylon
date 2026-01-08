@@ -395,11 +395,8 @@ export default function ActorProfilePage() {
         role: 'Organization',
         // Use org profileImageUrl if available, otherwise fall back to static path
         profileImageUrl:
-          'profileImageUrl' in org &&
-          typeof (org as { profileImageUrl?: string }).profileImageUrl ===
-            'string'
-            ? (org as { profileImageUrl: string }).profileImageUrl
-            : `/images/organizations/${org.id}.jpg`,
+          (org as { profileImageUrl?: string })?.profileImageUrl ??
+          `/images/organizations/${org.id}.jpg`,
         stats,
       });
       setLoading(false);

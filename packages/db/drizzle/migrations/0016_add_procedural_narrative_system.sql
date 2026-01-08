@@ -122,6 +122,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                    WHERE table_name = 'OrganizationState' AND column_name = 'sentiment') THEN
         ALTER TABLE "OrganizationState" ADD COLUMN "sentiment" INTEGER DEFAULT 0;
+        -- Backfill any NULL values to 0 and make column NOT NULL
+        UPDATE "OrganizationState" SET "sentiment" = 0 WHERE "sentiment" IS NULL;
+        ALTER TABLE "OrganizationState" ALTER COLUMN "sentiment" SET NOT NULL;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 

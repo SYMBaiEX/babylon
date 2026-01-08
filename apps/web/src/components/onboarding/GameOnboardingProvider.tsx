@@ -84,9 +84,16 @@ export function GameOnboardingProvider({
       return;
     }
 
+    const controller = new AbortController();
+
     const fetchStatus = async () => {
       try {
-        const response = await apiFetch('/api/onboarding/game-status');
+        const response = await apiFetch('/api/onboarding/game-status', {
+          signal: controller.signal,
+        });
+        // Skip state updates if the request was aborted
+        if (controller.signal.aborted) return;
+
         if (response.ok) {
           const data = await response.json();
           // Validate response shape before using
@@ -101,14 +108,25 @@ export function GameOnboardingProvider({
           }
         }
       } catch (error) {
+        // Skip state updates if this was an abort error
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
         // Onboarding is optional, but log errors for debugging
         console.error('Failed to fetch onboarding status:', error);
       } finally {
-        setIsLoading(false);
+        // Only update loading state if not aborted
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
     void fetchStatus();
+
+    return () => {
+      controller.abort();
+    };
   }, [userId]);
 
   // Complete a step

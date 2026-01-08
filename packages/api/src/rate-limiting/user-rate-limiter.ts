@@ -503,10 +503,19 @@ export async function getRateLimitStatus(
     const windowStart = now - config.windowMs;
 
     try {
-      // Remove expired and count remaining
-      await redis.zremrangebyscore(key, 0, windowStart);
-      const count = await redis.zcard(key);
-      const oldestEntries = await redis.zrange(key, 0, 0, 'WITHSCORES');
+      // Use read-only operations to get status without mutating the sorted set
+      // Count entries within the current window
+      const count = await redis.zcount(key, windowStart, '+inf');
+      // Get the oldest entry's timestamp for reset calculation
+      const oldestEntries = await redis.zrangebyscore(
+        key,
+        windowStart,
+        '+inf',
+        'WITHSCORES',
+        'LIMIT',
+        0,
+        1
+      );
       const oldestTimestampStr = oldestEntries[1];
       const oldestTimestamp =
         oldestTimestampStr !== undefined

@@ -73,22 +73,30 @@ describe('NFTVerificationService', () => {
     });
 
     test('should validate address format before RPC calls', async () => {
-      // Use message matching since Bun's toThrow(Class) has issues with inheritance
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      // Use try/catch pattern consistent with other tests in this file
+      try {
+        await NFTVerificationService.verifyOwnership(
           'not-an-address',
           validContract,
           null
-        )
-      ).rejects.toThrow(/Invalid wallet address/);
+        );
+        expect.unreachable('Expected error to be thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as Error).message).toMatch(/Invalid wallet address/);
+      }
 
-      await expect(
-        NFTVerificationService.verifyOwnership(
+      try {
+        await NFTVerificationService.verifyOwnership(
           validWallet,
           'not-an-address',
           null
-        )
-      ).rejects.toThrow(/Invalid contract address/);
+        );
+        expect.unreachable('Expected error to be thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as Error).message).toMatch(/Invalid contract address/);
+      }
     });
 
     test('should validate token ID format', async () => {

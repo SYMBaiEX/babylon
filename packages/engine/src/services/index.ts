@@ -15,7 +15,6 @@ export * from './ActorSocialActions';
 export * from './activity-pattern-service';
 export * from './alpha-group-invite-service';
 export * from './capital-allocation-service';
-export * from './event-market-pipeline';
 export * from './following-mechanics';
 export * from './game-onboarding-service';
 // Group Chat Service
@@ -45,6 +44,8 @@ export * from './tiered-group-service';
 // Market Services
 // =============================================================================
 
+// Event-market pipeline for narrative-driven market impacts
+export * from './event-market-pipeline';
 export {
   type EventArcValidationResult,
   EventArcValidator,

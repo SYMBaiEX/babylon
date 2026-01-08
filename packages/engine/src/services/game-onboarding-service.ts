@@ -34,13 +34,37 @@ function isGameOnboardingState(value: unknown): value is GameOnboardingState {
 
   const obj = value as Record<string, unknown>;
 
-  return (
-    Array.isArray(obj.completedSteps) &&
-    typeof obj.currentStep === 'string' &&
-    (obj.startedAt === null || typeof obj.startedAt === 'string') &&
-    (obj.completedAt === null || typeof obj.completedAt === 'string') &&
-    Array.isArray(obj.rewards)
-  );
+  // Check top-level structure
+  if (
+    !Array.isArray(obj.completedSteps) ||
+    typeof obj.currentStep !== 'string' ||
+    (obj.startedAt !== null && typeof obj.startedAt !== 'string') ||
+    (obj.completedAt !== null && typeof obj.completedAt !== 'string') ||
+    !Array.isArray(obj.rewards)
+  ) {
+    return false;
+  }
+
+  // Validate completedSteps elements are strings
+  for (const step of obj.completedSteps) {
+    if (typeof step !== 'string') {
+      return false;
+    }
+  }
+
+  // Validate rewards elements have required shape
+  for (const reward of obj.rewards) {
+    if (
+      reward === null ||
+      typeof reward !== 'object' ||
+      typeof (reward as Record<string, unknown>).step !== 'string' ||
+      typeof (reward as Record<string, unknown>).points !== 'number'
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -232,14 +256,19 @@ export async function completeOnboardingStep(
         `onboarding_${step}`
       );
     } catch (error) {
-      // Log but don't fail - onboarding completion is more important
+      // Log the failure - onboarding completion succeeded but points award failed
+      // Note: Ideally this would enqueue a compensating retry job, but for now we log
+      // the failure with enough context for manual reconciliation if needed
       logger.warn(
-        `Failed to award bonus points for onboarding step`,
+        `Failed to award bonus points for onboarding step - consider manual reconciliation`,
         {
           userId,
           step,
           points,
+          reason: `onboarding_${step}`,
           error: error instanceof Error ? error.message : String(error),
+          // Include timestamp for audit trail
+          failedAt: new Date().toISOString(),
         },
         'GameOnboarding'
       );

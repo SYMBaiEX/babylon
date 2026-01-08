@@ -1109,12 +1109,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           );
         }
       });
+      // Log summary after all handlePlayerMention calls have settled
+      logger.info(
+        'Triggered NPC mention influence',
+        { postId: post.id, npcCount: mentionedActorIds.length },
+        'POST /api/posts'
+      );
     });
-    logger.info(
-      'Triggered NPC mention influence',
-      { postId: post.id, npcCount: mentionedActorIds.length },
-      'POST /api/posts'
-    );
   }
 
   trackServerEvent(canonicalUserId, 'post_created', {

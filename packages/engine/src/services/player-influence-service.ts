@@ -126,18 +126,10 @@ export async function recordMention(
       { namespace: MENTION_CACHE_PREFIX, ttl: MENTION_RECENCY_SECONDS }
     );
 
-    // Also update the set of mentioned actors
-    // NOTE: This read-modify-write pattern is vulnerable to race conditions.
-    // If the cache API supported atomic SET operations (SADD), we would use that.
-    // Current trade-off: eventual consistency is acceptable for mention tracking
-    // since it's used for boosting engagement probability, not critical data.
-    const currentSet = await getCache<string[]>(MENTION_SET_KEY, {});
-    const updatedSet = currentSet
-      ? [...new Set([...currentSet, actorId])]
-      : [actorId];
-    await setCache(MENTION_SET_KEY, updatedSet, {
-      ttl: MENTION_RECENCY_SECONDS,
-    });
+    // NOTE: The MENTION_SET_KEY read-modify-write pattern was removed because it's
+    // vulnerable to race conditions and the cache API doesn't support atomic set ops.
+    // Mention tracking now relies on getRecentlyMentionedActorIds' in-memory fallback
+    // until an atomic cache operation (like SADD) is available.
 
     logger.debug('Mention recorded in Redis', { actorId }, 'PlayerInfluence');
   } catch {
@@ -197,13 +189,16 @@ export async function handlePlayerMention(
   postId: string
 ): Promise<void> {
   try {
+    // Use a single timestamp for both operations to ensure consistency
+    const now = new Date();
+
     // 1. Record the mention in cache for probability boost (Redis with fallback)
-    await recordMention(mentionedActorId, new Date());
+    await recordMention(mentionedActorId, now);
 
     // 2. Add to NPC's memory
     await npcMemoryService.addMemory(mentionedActorId, {
       type: 'mentioned_by',
-      timestamp: new Date().toISOString(),
+      timestamp: now.toISOString(),
       summary: `Was mentioned by a player in a post`,
       actorIds: [playerId],
       sentiment: 0.1, // Slight positive (attention is good)
@@ -422,15 +417,18 @@ async function getNpcsAffiliatedWith(stockTicker: string): Promise<string[]> {
 
 /**
  * Extract mentions from post content
+ * Returns unique usernames in first-seen order
  */
 export function extractMentions(content: string): string[] {
   // Match @username patterns
   const mentionPattern = /@([a-zA-Z0-9_-]+)/g;
   const matches = content.matchAll(mentionPattern);
+  const seen = new Set<string>();
   const mentions: string[] = [];
 
   for (const match of matches) {
-    if (match[1]) {
+    if (match[1] && !seen.has(match[1])) {
+      seen.add(match[1]);
       mentions.push(match[1]);
     }
   }

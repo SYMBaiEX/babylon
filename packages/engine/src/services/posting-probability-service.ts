@@ -108,6 +108,17 @@ function maybeInvalidateDevCaches(): void {
 }
 
 /**
+ * Clear static data caches explicitly.
+ * Call this when StaticDataRegistry is rebuilt to ensure caches are fresh.
+ * Works in all environments (dev and production).
+ */
+export function clearStaticDataCaches(): void {
+  orgIdToTickerMap = null;
+  actorToStocksMap = null;
+  lastDevCacheTime = 0;
+}
+
+/**
  * Build a map of org ID -> ticker for efficient lookup.
  * Cached at module level since org data is static.
  */
@@ -156,18 +167,8 @@ function getActorToStocksMap(): Map<string, string[]> {
   return actorToStocksMap;
 }
 
-/**
- * Clear the static data caches.
- * Should be called when StaticDataRegistry.clearCache() is called,
- * or during hot reload in development, or in tests.
- *
- * Note: These caches derive from StaticDataRegistry data. If StaticDataRegistry
- * is reloaded/cleared, this should be called too for consistency.
- */
-export function clearStaticDataCaches(): void {
-  orgIdToTickerMap = null;
-  actorToStocksMap = null;
-}
+// Note: clearStaticDataCaches is defined above (after maybeInvalidateDevCaches)
+// and exported for use when StaticDataRegistry is rebuilt
 
 /**
  * Check if an actor has an affiliated event in the current context.

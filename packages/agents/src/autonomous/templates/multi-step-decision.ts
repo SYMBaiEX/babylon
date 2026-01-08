@@ -158,6 +158,17 @@ export function buildMultiStepDecisionPrompt(params: {
   context: AgentTickContext;
   isNpc?: boolean;
   npcGameContext?: string;
+  /**
+   * Optional pre-determined share behavior for trade posts.
+   * If provided, skips internal Math.random() call making the prompt deterministic.
+   * Useful for testing and reproducibility.
+   */
+  shareBehavior?: ShareBehavior;
+  /**
+   * Optional random value (0-1) for determining share behavior.
+   * Used instead of Math.random() if provided. Ignored if shareBehavior is set.
+   */
+  shareTradeRoll?: number;
 }): string {
   const {
     agentName,
@@ -167,6 +178,8 @@ export function buildMultiStepDecisionPrompt(params: {
     context,
     isNpc = false,
     npcGameContext = '',
+    shareBehavior: providedShareBehavior,
+    shareTradeRoll: providedShareTradeRoll,
   } = params;
 
   const actionsCompletedText =
@@ -237,8 +250,10 @@ ${NPC_POST_QUALITY_RULES}
 
   // Encourage sharing after trades - users love seeing NPCs share their trades
   // Add randomness to feel human - not every trade gets shared
-  const shareTradeRoll = Math.random(); // 0-1 randomness for human-like behavior
-  const shareBehavior = determineShareBehavior(shareTradeRoll);
+  // If shareBehavior or shareTradeRoll is provided, use it for deterministic behavior (useful for tests)
+  const shareBehavior =
+    providedShareBehavior ??
+    determineShareBehavior(providedShareTradeRoll ?? Math.random());
 
   const shouldSharePublicly =
     shareBehavior === 'public_only' || shareBehavior === 'both';
@@ -355,12 +370,12 @@ ${formatRecentPosts(context.recentPosts)}`
 ${formatPendingInteractions(context.pendingInteractionDetails)}`
     : '';
 
-  // Group chats section - show available groups for sharing
+  // Group chats section - show available groups for sharing (including member counts)
   const groupChatsSection =
     canGroupChat && context.groupChats && context.groupChats.length > 0
       ? `
 # Your Group Chats (can share trades/thoughts here)
-${context.groupChats.map((g) => `- id: ${g.id} | ${g.name}`).join('\n')}`
+${context.groupChats.map((g) => `- id: ${g.id} | ${g.name} | members: ${g.memberCount ?? 'unknown'}`).join('\n')}`
       : '';
 
   return `You are ${agentName}, an autonomous agent on Babylon prediction markets.
@@ -438,7 +453,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs ? 'RESPOND' : '', canRespondDMs ? 'DM' : '', '""'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs ? 'RESPOND' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }

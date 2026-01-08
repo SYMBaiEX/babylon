@@ -651,73 +651,80 @@ export class MultiStepExecutor {
         }
       }
 
-      // Fetch agent's existing likes
-      const existingLikes = await db
-        .select({ postId: reactions.postId })
-        .from(reactions)
-        .where(
-          and(
-            inArray(reactions.postId, postIds),
-            eq(reactions.userId, agentUserId),
-            eq(reactions.type, 'like')
+      // Execute all engagement queries in parallel to reduce latency
+      const [
+        existingLikes,
+        existingReposts,
+        likeCounts,
+        repostCounts,
+        commentCounts,
+      ] = await Promise.all([
+        // Fetch agent's existing likes
+        db
+          .select({ postId: reactions.postId })
+          .from(reactions)
+          .where(
+            and(
+              inArray(reactions.postId, postIds),
+              eq(reactions.userId, agentUserId),
+              eq(reactions.type, 'like')
+            )
+          ),
+        // Fetch agent's existing reposts
+        db
+          .select({ postId: shares.postId })
+          .from(shares)
+          .where(
+            and(inArray(shares.postId, postIds), eq(shares.userId, agentUserId))
+          ),
+        // Get like counts for each post
+        db
+          .select({
+            postId: reactions.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(reactions)
+          .where(
+            and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
           )
-        );
+          .groupBy(reactions.postId),
+        // Get repost counts for each post
+        db
+          .select({
+            postId: shares.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(shares)
+          .where(inArray(shares.postId, postIds))
+          .groupBy(shares.postId),
+        // Get comment counts for each post
+        db
+          .select({
+            postId: comments.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(comments)
+          .where(
+            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
+          )
+          .groupBy(comments.postId),
+      ]);
 
       for (const like of existingLikes) {
         if (like.postId) agentLikes.add(like.postId);
       }
 
-      // Fetch agent's existing reposts
-      const existingReposts = await db
-        .select({ postId: shares.postId })
-        .from(shares)
-        .where(
-          and(inArray(shares.postId, postIds), eq(shares.userId, agentUserId))
-        );
-
       for (const repost of existingReposts) {
         agentReposts.add(repost.postId);
       }
-
-      // Get engagement counts for each post
-      const likeCounts = await db
-        .select({
-          postId: reactions.postId,
-          count: sql<number>`count(*)`,
-        })
-        .from(reactions)
-        .where(
-          and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
-        )
-        .groupBy(reactions.postId);
 
       for (const row of likeCounts) {
         if (row.postId) postLikeCounts.set(row.postId, Number(row.count));
       }
 
-      const repostCounts = await db
-        .select({
-          postId: shares.postId,
-          count: sql<number>`count(*)`,
-        })
-        .from(shares)
-        .where(inArray(shares.postId, postIds))
-        .groupBy(shares.postId);
-
       for (const row of repostCounts) {
         postRepostCounts.set(row.postId, Number(row.count));
       }
-
-      const commentCounts = await db
-        .select({
-          postId: comments.postId,
-          count: sql<number>`count(*)`,
-        })
-        .from(comments)
-        .where(
-          and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
-        )
-        .groupBy(comments.postId);
 
       for (const row of commentCounts) {
         if (row.postId) postCommentCounts.set(row.postId, Number(row.count));

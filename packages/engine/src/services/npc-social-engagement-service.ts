@@ -318,12 +318,15 @@ function calculateEngagementProbability(
   }
 
   // Add jitter for organic feel (±15% variance)
-  const jitter = () => 1 + (secureRandom() - 0.5) * 0.3;
+  // Compute jitter values inline to avoid function allocation per call
+  const likeJitter = 1 + (secureRandom() - 0.5) * 0.3;
+  const shareJitter = 1 + (secureRandom() - 0.5) * 0.3;
+  const commentJitter = 1 + (secureRandom() - 0.5) * 0.3;
 
   return {
-    like: Math.min(likeProb * jitter(), 0.4), // Cap at 40%
-    share: Math.min(shareProb * jitter(), 0.15), // Cap at 15%
-    comment: Math.min(commentProb * jitter(), 0.1), // Cap at 10%
+    like: Math.min(likeProb * likeJitter, 0.4), // Cap at 40%
+    share: Math.min(shareProb * shareJitter, 0.15), // Cap at 15%
+    comment: Math.min(commentProb * commentJitter, 0.1), // Cap at 10%
   };
 }
 

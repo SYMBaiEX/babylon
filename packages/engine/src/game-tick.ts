@@ -830,10 +830,21 @@ export async function executeGameTick(
         .limit(10); // Limit to prevent overwhelming the tick
 
       let rebalanceActionsExecuted = 0;
+      // Cap on total rebalance actions per tick to prevent expensive ticks
+      const maxActionsPerTick = 20;
 
       for (const pool of activePools) {
         if (Date.now() >= deadline) break;
+        if (rebalanceActionsExecuted >= maxActionsPerTick) {
+          logger.debug(
+            'Rebalance action cap reached, stopping pool processing',
+            { maxActionsPerTick, poolsRemaining: activePools.length },
+            'GameTick'
+          );
+          break;
+        }
 
+        const poolStartTime = Date.now();
         const actor = StaticDataRegistry.getActor(pool.npcActorId);
         const strategy = actor?.personality
           ?.toLowerCase()
@@ -849,9 +860,11 @@ export async function executeGameTick(
           strategy
         );
 
+        let poolActionsExecuted = 0;
         if (rebalanceActions.length > 0) {
           // Execute rebalance actions through NPCInvestmentManager
           for (const action of rebalanceActions) {
+            if (rebalanceActionsExecuted >= maxActionsPerTick) break;
             try {
               await NPCInvestmentManager.executeRebalanceAction(
                 pool.npcActorId,
@@ -859,6 +872,7 @@ export async function executeGameTick(
                 action
               );
               rebalanceActionsExecuted++;
+              poolActionsExecuted++;
             } catch (actionError) {
               logger.warn(
                 'Failed to execute rebalance action',
@@ -874,6 +888,20 @@ export async function executeGameTick(
               );
             }
           }
+        }
+
+        // Log per-pool timing for performance tuning
+        const poolDuration = Date.now() - poolStartTime;
+        if (poolDuration > 100 || poolActionsExecuted > 0) {
+          logger.debug(
+            'Pool rebalance processed',
+            {
+              poolId: pool.id,
+              durationMs: poolDuration,
+              actionsExecuted: poolActionsExecuted,
+            },
+            'GameTick'
+          );
         }
       }
 
@@ -3727,14 +3755,26 @@ async function processNarrativeArcs(
   let transitioned = 0;
   let eventsGenerated = 0;
 
+  // Batch fetch all existing arc states in one query to reduce DB round-trips
+  const questionIds = activeQuestions.map((q) => q.id);
+  const existingArcsList =
+    questionIds.length > 0
+      ? await db
+          .select({ id: arcStates.id, questionId: arcStates.questionId })
+          .from(arcStates)
+          .where(inArray(arcStates.questionId, questionIds))
+      : [];
+
+  // Build a map of questionId -> arcState for O(1) lookup
+  const arcStateByQuestionId = new Map<string, { id: string }>();
+  for (const arc of existingArcsList) {
+    arcStateByQuestionId.set(arc.questionId, { id: arc.id });
+  }
+
   for (const question of activeQuestions) {
     try {
-      // Check if this question has an arc state
-      const [existingArc] = await db
-        .select({ id: arcStates.id })
-        .from(arcStates)
-        .where(eq(arcStates.questionId, question.id))
-        .limit(1);
+      // Look up existing arc from preloaded map
+      const existingArc = arcStateByQuestionId.get(question.id);
 
       let arcId: string;
       if (!existingArc) {

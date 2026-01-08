@@ -161,11 +161,22 @@ export function parseRelationshipsSafe(
   );
 
   // Try to salvage valid relationships from the object
+  // Limit inspection to first N entries to avoid expensive iteration on large maps
   if (typeof data === 'object' && data !== null) {
+    const MAX_SALVAGE = 1000;
     const validRelationships: Record<string, RelationshipState> = {};
     let discardedCount = 0;
+    let inspectedCount = 0;
+    let capHit = false;
     const entries = Object.entries(data);
+
     for (const [key, value] of entries) {
+      if (inspectedCount >= MAX_SALVAGE) {
+        capHit = true;
+        break;
+      }
+      inspectedCount++;
+
       const itemResult = RelationshipStateSchema.safeParse(value);
       if (itemResult.success) {
         validRelationships[key] = itemResult.data;
@@ -175,14 +186,16 @@ export function parseRelationshipsSafe(
     }
 
     // Log salvage statistics
-    if (discardedCount > 0) {
+    if (discardedCount > 0 || capHit) {
       logger.info(
         'Salvaged partial relationships from corrupted data',
         {
           actorId: context?.actorId,
           salvaged: Object.keys(validRelationships).length,
           discarded: discardedCount,
+          inspectedCount,
           total: entries.length,
+          capHit,
         },
         'JSONBValidation'
       );

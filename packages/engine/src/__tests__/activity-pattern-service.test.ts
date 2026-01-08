@@ -44,8 +44,8 @@ describe('Activity Pattern Service - Pattern Derivation', () => {
 
   test('deriveActivityPattern returns consistent hours for same actor ID', () => {
     const actor: ActivityActor = { id: 'test-actor-123', domain: ['crypto'] };
-    const pattern1 = deriveActivityPattern(actor, 0);
-    const pattern2 = deriveActivityPattern(actor, 0);
+    const pattern1 = deriveActivityPattern(actor, 1);
+    const pattern2 = deriveActivityPattern(actor, 1);
 
     // Same actor, same game day = same hours
     expect(pattern1.peakHours).toEqual(pattern2.peakHours);
@@ -53,11 +53,11 @@ describe('Activity Pattern Service - Pattern Derivation', () => {
 
   test('deriveActivityPattern changes hours based on game day', () => {
     const actor: ActivityActor = { id: 'test-actor-123' };
-    const patternDay0 = deriveActivityPattern(actor, 0);
     const patternDay1 = deriveActivityPattern(actor, 1);
+    const patternDay2 = deriveActivityPattern(actor, 2);
 
     // Different game days = different peak hours
-    expect(patternDay0.peakHours).not.toEqual(patternDay1.peakHours);
+    expect(patternDay1.peakHours).not.toEqual(patternDay2.peakHours);
   });
 
   test('deriveActivityPattern always returns 8 consecutive hours', () => {
@@ -102,51 +102,56 @@ describe('Activity Pattern Service - Pattern Derivation', () => {
 describe('Activity Pattern Service - Active Hour Check', () => {
   test('isActiveHour returns true during active hours', () => {
     const actor: ActivityActor = { id: 'test-actor-1' };
-    const pattern = deriveActivityPattern(actor, 0);
+    const pattern = deriveActivityPattern(actor, 1);
 
     // Should be active during peak hours
     for (const hour of pattern.peakHours) {
-      expect(isActiveHour(actor, hour, 0)).toBe(true);
+      expect(isActiveHour(actor, hour, 1)).toBe(true);
     }
   });
 
   test('isActiveHour returns false during inactive hours', () => {
     const actor: ActivityActor = { id: 'test-actor-1' };
-    const pattern = deriveActivityPattern(actor, 0);
+    const pattern = deriveActivityPattern(actor, 1);
     const inactiveHours = Array.from({ length: 24 }, (_, i) => i).filter(
       (h) => !pattern.peakHours.includes(h)
     );
 
     // Should be inactive during non-peak hours
     for (const hour of inactiveHours) {
-      expect(isActiveHour(actor, hour, 0)).toBe(false);
+      expect(isActiveHour(actor, hour, 1)).toBe(false);
     }
   });
 
   test('isActiveHour respects game day parameter', () => {
     const actor: ActivityActor = { id: 'test-actor-1' };
 
-    // Activity varies by game day
-    const day0Active = Array.from({ length: 24 }, (_, h) =>
-      isActiveHour(actor, h, 0)
-    );
+    // Activity varies by game day (use valid gameDay values >= 1)
     const day1Active = Array.from({ length: 24 }, (_, h) =>
       isActiveHour(actor, h, 1)
     );
+    const day2Active = Array.from({ length: 24 }, (_, h) =>
+      isActiveHour(actor, h, 2)
+    );
 
     // At least some hours should differ between days
-    expect(day0Active).not.toEqual(day1Active);
+    expect(day1Active).not.toEqual(day2Active);
   });
 });
 
 describe('Activity Pattern Service - Weekend Detection', () => {
   test('isWeekend with gameDay uses game-relative week', () => {
-    // Day 5 and 6 of each 7-day cycle are weekends
-    expect(isWeekend(5)).toBe(true); // Day 5 = weekend
+    // Game days are 1-indexed: (gameDay - 1) % 7 determines day of week
+    // Weekends are when dayOfWeek is 5 or 6
+    // Day 1: (1-1) % 7 = 0 = weekday
+    // Day 6: (6-1) % 7 = 5 = weekend
+    // Day 7: (7-1) % 7 = 6 = weekend
     expect(isWeekend(6)).toBe(true); // Day 6 = weekend
-    expect(isWeekend(0)).toBe(false); // Day 0 = weekday
+    expect(isWeekend(7)).toBe(true); // Day 7 = weekend
+    expect(isWeekend(1)).toBe(false); // Day 1 = weekday
+    expect(isWeekend(5)).toBe(false); // Day 5 = weekday (index 4)
     expect(isWeekend(4)).toBe(false); // Day 4 = weekday
-    expect(isWeekend(12)).toBe(true); // Day 12 = 12 % 7 = 5 = weekend
+    expect(isWeekend(13)).toBe(true); // Day 13: (13-1) % 7 = 5 = weekend
   });
 
   test('isWeekend without gameDay falls back to real calendar', () => {
@@ -161,21 +166,21 @@ describe('Activity Pattern Service - Weekend Detection', () => {
 describe('Activity Pattern Service - Activity Multiplier', () => {
   test('getActivityMultiplier returns 1.0 during active hours', () => {
     const actor: ActivityActor = { id: 'test-1' };
-    const pattern = deriveActivityPattern(actor, 0);
+    const pattern = deriveActivityPattern(actor, 1);
 
     // Create a date during one of the peak hours
     const activeHour = pattern.peakHours[0]!;
     const date = new Date(
       `2026-01-05T${String(activeHour).padStart(2, '0')}:00:00Z`
     );
-    const multiplier = getActivityMultiplier(actor, date, 0);
+    const multiplier = getActivityMultiplier(actor, date, 1);
 
     expect(multiplier).toBe(1.0);
   });
 
   test('getActivityMultiplier returns 0.0 during inactive hours', () => {
     const actor: ActivityActor = { id: 'test-1' };
-    const pattern = deriveActivityPattern(actor, 0);
+    const pattern = deriveActivityPattern(actor, 1);
     const inactiveHours = Array.from({ length: 24 }, (_, i) => i).filter(
       (h) => !pattern.peakHours.includes(h)
     );
@@ -185,7 +190,7 @@ describe('Activity Pattern Service - Activity Multiplier', () => {
       const date = new Date(
         `2026-01-05T${String(inactiveHour).padStart(2, '0')}:00:00Z`
       );
-      const multiplier = getActivityMultiplier(actor, date, 0);
+      const multiplier = getActivityMultiplier(actor, date, 1);
 
       expect(multiplier).toBe(0.0);
     }

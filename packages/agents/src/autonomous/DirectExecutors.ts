@@ -1089,13 +1089,18 @@ export async function executeDirectLike(
   try {
     const reactionId = await generateSnowflakeId();
 
-    await db.insert(reactions).values({
-      id: reactionId,
-      postId,
-      userId: agentUserId,
-      type: 'like',
-      createdAt: new Date(),
-    });
+    // Use onConflictDoNothing to handle race conditions and prevent duplicate likes
+    // This relies on a unique index on (userId, postId, type) for the reactions table
+    await db
+      .insert(reactions)
+      .values({
+        id: reactionId,
+        postId,
+        userId: agentUserId,
+        type: 'like',
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
 
     logger.info(
       `[DirectExecutor] Post liked: ${postId}`,

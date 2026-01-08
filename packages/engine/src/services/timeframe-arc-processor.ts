@@ -341,11 +341,12 @@ export class TimeframeArcProcessor {
       };
     }
 
-    // Select event type with fallback to ensure non-undefined result
+    // Select event type with nullish coalescing fallback to ensure non-undefined result
     const eventTypes = STATE_EVENT_TYPES[market.arcState] ?? ['generic_event'];
     const eventType =
       eventTypes.length > 0
-        ? eventTypes[Math.floor(secureRandom() * eventTypes.length)]!
+        ? (eventTypes[Math.floor(secureRandom() * eventTypes.length)] ??
+          'generic_event')
         : 'generic_event';
 
     // Update market
@@ -440,20 +441,23 @@ export class TimeframeArcProcessor {
 
   /**
    * Resolve a market that has reached its end time
+   * Uses a transaction to ensure all updates commit atomically
    */
   async resolveMarket(market: TimeframedMarket): Promise<void> {
     const now = new Date();
 
-    await db
-      .update(timeframedMarkets)
-      .set({
-        isActive: false,
-        isResolved: true,
-        resolvedAt: now,
-        arcState: 'resolution',
-        updatedAt: now,
-      })
-      .where(eq(timeframedMarkets.id, market.id));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(timeframedMarkets)
+        .set({
+          isActive: false,
+          isResolved: true,
+          resolvedAt: now,
+          arcState: 'resolution',
+          updatedAt: now,
+        })
+        .where(eq(timeframedMarkets.id, market.id));
+    });
 
     logger.info(
       `Market resolved`,
