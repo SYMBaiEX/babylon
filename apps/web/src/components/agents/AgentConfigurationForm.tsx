@@ -9,9 +9,21 @@ import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 export interface AgentConfigurationData {
   modelTier: 'free' | 'pro';
-  /** Controls autonomous trading. Named 'autonomousEnabled' on frontend,
-   * maps to 'autonomousTrading' in DB schema for consistency with other
-   * autonomous feature toggles. The API handles the field name translation. */
+  /**
+   * Controls autonomous trading capability for the agent.
+   *
+   * TODO(tech-debt): Unify field naming across the stack. Currently:
+   * - Frontend: `autonomousEnabled` (this prop)
+   * - DB schema: `autonomousTrading` (packages/db/src/schema/user-agent-configs.ts)
+   * - API translation: handled in agent creation/update routes
+   *
+   * Planned refactor: rename to `autonomousTrading` everywhere for consistency
+   * with other autonomous toggles (autonomousPosting, autonomousCommenting, etc.)
+   * and remove the API translation layer.
+   *
+   * @see packages/db/src/schema/user-agent-configs.ts - autonomousTrading field
+   * @see apps/web/src/app/api/agents/[agentId]/route.ts - API translation
+   */
   autonomousEnabled: boolean;
   autonomousPosting: boolean;
   autonomousCommenting: boolean;
@@ -101,21 +113,36 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           Control what your agent can do automatically
         </p>
 
-        {/* Info banner about Autonomous Trading */}
+        {/* Info banner about Autonomous Trading - shows current state with context */}
         <div
           role="status"
           className="mb-4 flex gap-3 rounded-lg border border-blue-800/50 bg-blue-900/20 p-3 sm:p-4"
         >
           <Info className="h-5 w-5 shrink-0 text-blue-400" aria-hidden="true" />
           <div className="text-sm">
-            <p className="font-medium text-blue-200">
-              Autonomous Trading is enabled by default
-            </p>
-            <p className="mt-1 text-blue-300">
-              Your agent will evaluate markets and execute trades based on its
-              trading strategy. You can see all trades in the Activity tab and
-              in the "My Moves" section.
-            </p>
+            {data.autonomousEnabled ? (
+              <>
+                <p className="font-medium text-blue-200">
+                  Autonomous Trading is currently enabled
+                </p>
+                <p className="mt-1 text-blue-300">
+                  Your agent will evaluate markets and execute trades based on
+                  its trading strategy. You can see all trades in the Activity
+                  tab and in the "My Moves" section.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-blue-200">
+                  Autonomous Trading is currently disabled
+                </p>
+                <p className="mt-1 text-blue-300">
+                  It is enabled by default for new agents. When enabled, your
+                  agent will evaluate markets and execute trades. You can see
+                  all trades in the Activity tab and in the "My Moves" section.
+                </p>
+              </>
+            )}
           </div>
         </div>
 

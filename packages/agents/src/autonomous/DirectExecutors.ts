@@ -53,10 +53,15 @@ import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 /**
  * Helper to get agent display name for broadcasting.
- * For NPCs, uses StaticDataRegistry. For users, queries the database.
+ *
+ * Currently called only within `if (!isNpc)` blocks, but includes a defensive
+ * NPC check for reusability. The StaticDataRegistry lookup is O(1) so this
+ * adds negligible overhead while future-proofing the helper for callers that
+ * may not have already performed the NPC check.
  */
 async function getAgentDisplayName(agentUserId: string): Promise<string> {
-  // Check if NPC first (faster, no DB query)
+  // Defensive NPC check - O(1) fast-path for potential future callers
+  // that haven't already verified the agent is not an NPC
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   if (npcActor) {
     return npcActor.name;
