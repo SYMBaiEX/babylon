@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import { Activity, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { z } from 'zod';
@@ -256,11 +256,10 @@ export function TradingFeedTab() {
     setCreating(false);
   };
 
+  /** Use shared formatCompactCurrency for currency formatting */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    if (num >= 1000000) return `ƀ${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `ƀ${(num / 1000).toFixed(2)}K`;
-    return `ƀ${num.toFixed(2)}`;
+    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
   };
 
   const formatTime = (timestamp: Date | string) => {

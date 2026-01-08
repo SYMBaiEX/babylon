@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, formatCompactCurrency } from '@babylon/shared';
 import { Award, DollarSign, RefreshCw, TrendingUp, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import {
@@ -126,11 +126,8 @@ export function FeesTab() {
     fetchStats();
   }, [fetchStats]);
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1_000_000) return `ƀ${(value / 1_000_000).toFixed(2)}M`;
-    if (value >= 1_000) return `ƀ${(value / 1_000).toFixed(2)}K`;
-    return `ƀ${value.toFixed(2)}`;
-  };
+  /** Use shared formatCompactCurrency for currency formatting */
+  const formatCurrency = formatCompactCurrency;
 
   const formatNumber = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
@@ -284,7 +281,7 @@ export function FeesTab() {
             <YAxis
               stroke="#888"
               fontSize={12}
-              tickFormatter={(value) => `ƀ${value}`}
+              tickFormatter={(value) => `${BABYLON_POINTS_SYMBOL}${value}`}
             />
             <Tooltip
               contentStyle={{
@@ -293,7 +290,7 @@ export function FeesTab() {
               }}
               labelFormatter={(date) => new Date(date).toLocaleDateString()}
               formatter={(value: number | string) => [
-                `ƀ${Number(value).toFixed(2)}`,
+                `${BABYLON_POINTS_SYMBOL}${Number(value).toFixed(2)}`,
                 'Fees',
               ]}
             />

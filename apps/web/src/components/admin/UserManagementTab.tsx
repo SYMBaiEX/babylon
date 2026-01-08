@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   Ban,
   CheckCircle,
@@ -205,11 +205,10 @@ export function UserManagementTab() {
     });
   };
 
+  /** Use shared formatCompactCurrency for currency formatting */
   const formatCurrency = (value: string) => {
     const num = parseFloat(value);
-    if (num >= 1000000) return `ƀ${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `ƀ${(num / 1000).toFixed(2)}K`;
-    return `ƀ${num.toFixed(2)}`;
+    return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
   };
 
   const formatDate = (date: string) => {

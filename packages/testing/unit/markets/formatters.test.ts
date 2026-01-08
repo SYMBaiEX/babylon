@@ -1,9 +1,9 @@
 /**
  * Market Formatters Integration Tests
- * 
+ *
  * Tests formatPrice and formatVolume functions from markets/_lib/formatters.ts
  * Verifies they use BABYLON_POINTS_SYMBOL correctly and handle edge cases.
- * 
+ *
  * Note: These are integration tests that verify the actual implementation
  * matches expected behavior. We test the actual functions by importing them.
  */

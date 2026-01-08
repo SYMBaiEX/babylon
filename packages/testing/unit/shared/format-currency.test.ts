@@ -1,6 +1,6 @@
 /**
  * Comprehensive Currency Formatting Tests
- * 
+ *
  * Tests formatCurrency function with extensive edge cases, boundary conditions,
  * error handling, and integration with BABYLON_POINTS_SYMBOL constant.
  */
@@ -83,7 +83,9 @@ describe('formatCurrency - Comprehensive Tests', () => {
     it('should handle large integers', () => {
       expect(formatCurrency(1000000)).toBe('ƀ1000000.00');
       expect(formatCurrency(999999999)).toBe('ƀ999999999.00');
-      expect(formatCurrency(Number.MAX_SAFE_INTEGER)).toBe(`ƀ${Number.MAX_SAFE_INTEGER}.00`);
+      expect(formatCurrency(Number.MAX_SAFE_INTEGER)).toBe(
+        `ƀ${Number.MAX_SAFE_INTEGER}.00`
+      );
     });
 
     it('should handle large decimals', () => {
@@ -265,7 +267,7 @@ describe('formatCurrency - Comprehensive Tests', () => {
 
     it('should format balance values', () => {
       expect(formatCurrency(0)).toBe('ƀ0.00');
-      expect(formatCurrency(1000.50)).toBe('ƀ1000.50');
+      expect(formatCurrency(1000.5)).toBe('ƀ1000.50');
       expect(formatCurrency(999999.99)).toBe('ƀ999999.99');
     });
 
