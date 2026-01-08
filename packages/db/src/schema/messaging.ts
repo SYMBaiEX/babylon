@@ -285,8 +285,55 @@ export const groupInvites = pgTable(
 );
 
 // ============================================================================
+// USER AGENT TEAM CHAT (Command Center)
+// ============================================================================
+
+/**
+ * UserAgentTeamChat - Links users to their agent "Command Center"
+ *
+ * Each user has exactly ONE team chat containing all their agents.
+ * The team chat is auto-created when the user creates their first agent.
+ * Agents are automatically added/removed as they are created/deleted.
+ *
+ * Relationship:
+ * - userId is UNIQUE (one team chat per user)
+ * - groupId links to Group (type='agent')
+ * - chatId links to Chat (quick access, denormalized for performance)
+ */
+export const userAgentTeamChats = pgTable(
+  'UserAgentTeamChat',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull().unique(), // Human user who owns the agents
+    groupId: text('groupId').notNull(), // Links to Group
+    chatId: text('chatId').notNull(), // Links to Chat (for quick access)
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
+  },
+  (table) => [
+    index('UserAgentTeamChat_userId_idx').on(table.userId),
+    index('UserAgentTeamChat_groupId_idx').on(table.groupId),
+    index('UserAgentTeamChat_chatId_idx').on(table.chatId),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
+
+export const userAgentTeamChatsRelations = relations(
+  userAgentTeamChats,
+  ({ one }) => ({
+    group: one(groups, {
+      fields: [userAgentTeamChats.groupId],
+      references: [groups.id],
+    }),
+    chat: one(chats, {
+      fields: [userAgentTeamChats.chatId],
+      references: [chats.id],
+    }),
+  })
+);
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
   ChatParticipant: many(chatParticipants),
@@ -356,6 +403,10 @@ export type GroupMember = typeof groupMembers.$inferSelect;
 export type NewGroupMember = typeof groupMembers.$inferInsert;
 export type GroupInvite = typeof groupInvites.$inferSelect;
 export type NewGroupInvite = typeof groupInvites.$inferInsert;
+
+// User agent team chat types
+export type UserAgentTeamChat = typeof userAgentTeamChats.$inferSelect;
+export type NewUserAgentTeamChat = typeof userAgentTeamChats.$inferInsert;
 
 // Type enums (for type safety)
 export type GroupType = 'user' | 'npc' | 'agent';

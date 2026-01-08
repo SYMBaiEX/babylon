@@ -46,6 +46,7 @@ import { generateSnowflakeId } from '../shared/snowflake';
 import type { AgentPerformance, CreateAgentParams } from '../types';
 import type { JsonValue } from '../types/common';
 import { agentRegistry } from './agent-registry.service';
+import { teamChatService } from './TeamChatService';
 
 /** User with agent configuration */
 export type UserWithConfig = User & { agentConfig: UserAgentConfig | null };
@@ -336,6 +337,15 @@ export class AgentServiceV2 {
       void this.setupAgentIdentity(agentUserId);
     }
 
+    // Add agent to Command Center (team chat)
+    // This creates the team chat if it doesn't exist (first agent)
+    await teamChatService.addAgentToTeamChat(managerUserId, agentUserId);
+    logger.info(
+      `Agent ${agentUserId} added to Command Center`,
+      undefined,
+      'AgentService'
+    );
+
     return agent;
   }
 
@@ -503,6 +513,14 @@ export class AgentServiceV2 {
       managerUserId
     );
     if (!agentWithConfig) throw new Error('Agent not found');
+
+    // Remove agent from Command Center BEFORE deleting (so we can still get agent info)
+    await teamChatService.removeAgentFromTeamChat(managerUserId, agentUserId);
+    logger.info(
+      `Agent ${agentUserId} removed from Command Center`,
+      undefined,
+      'AgentService'
+    );
 
     // Get agent's remaining balance from users table
     const agentBalance = Number(agentWithConfig.virtualBalance ?? 0);
