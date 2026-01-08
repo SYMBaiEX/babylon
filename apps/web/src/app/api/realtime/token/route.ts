@@ -143,17 +143,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Authorization asymmetry: Agent channels are silently excluded when unauthorized,
+  // while chat channels return 403. Rationale:
+  // - Chat channels contain private messages; failed auth should be visible to caller
+  // - Agent activity is lower priority; silently excluding prevents UX disruption
+  //   when e.g., a stale agent ID is in the request but other channels are valid
+  // - Client can check isConnected status to detect missing subscriptions
   const unauthorizedAgents = derivedAgentIds.filter(
     (id) => !allowedAgentIds.has(id)
   );
   if (unauthorizedAgents.length > 0) {
     logger.warn(
-      'Realtime token: unauthorized agent channels requested',
+      'Realtime token: unauthorized agent channels excluded',
       { userId: user.userId, unauthorizedAgents },
       'Realtime'
     );
-    // Don't fail the request, just exclude unauthorized agent channels
-    // This is less strict than chat channels since agent activity is lower priority
   }
 
   const agentChannels: RealtimeChannel[] = Array.from(allowedAgentIds).map(
