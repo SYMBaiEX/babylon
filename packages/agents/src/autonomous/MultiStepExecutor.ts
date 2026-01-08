@@ -11,11 +11,15 @@
 import {
   actorState,
   and,
+  chatParticipants,
+  chats,
   comments,
+  count,
   db,
   desc,
   eq,
   getDbInstance,
+  getRawDrizzle,
   gte,
   inArray,
   isNull,
@@ -436,33 +440,34 @@ export class MultiStepExecutor {
     agentUserId: string
   ): Promise<{ id: string; name: string; memberCount: number }[]> {
     try {
-      const participantResults = await db.query.chatParticipants.findMany({
-        where: (cp, { eq }) => eq(cp.userId, agentUserId),
-        with: {
-          chat: {
-            with: {
-              ChatParticipant: true,
-            },
-          },
-        },
-        limit: 10,
-      });
+      // Use DB-side aggregate count instead of loading all participant rows
+      // First, get chats where the agent is a participant and the chat is a group
+      // Then count all participants in those chats
+      const rawDb = getRawDrizzle();
+      const agentParticipation = rawDb
+        .select({ chatId: chatParticipants.chatId })
+        .from(chatParticipants)
+        .where(eq(chatParticipants.userId, agentUserId))
+        .as('agent_participation');
 
-      const groupParticipants = participantResults.filter(
-        (cp) => cp.chat?.isGroup
-      );
+      const groupChatsWithCount = await rawDb
+        .select({
+          id: chats.id,
+          name: chats.name,
+          memberCount: count(chatParticipants.id),
+        })
+        .from(chats)
+        .innerJoin(agentParticipation, eq(chats.id, agentParticipation.chatId))
+        .innerJoin(chatParticipants, eq(chats.id, chatParticipants.chatId))
+        .where(eq(chats.isGroup, true))
+        .groupBy(chats.id, chats.name)
+        .limit(5);
 
-      if (groupParticipants.length === 0) {
-        return [];
-      }
-
-      return groupParticipants
-        .map((cp) => ({
-          id: cp.chat!.id,
-          name: cp.chat!.name || 'Group Chat',
-          memberCount: cp.chat!.ChatParticipant?.length ?? 0,
-        }))
-        .slice(0, 5); // Limit to 5 groups
+      return groupChatsWithCount.map((chat) => ({
+        id: chat.id,
+        name: chat.name ?? 'Group Chat',
+        memberCount: chat.memberCount,
+      }));
     } catch (error) {
       // Log the error before returning empty fallback
       logger.warn(
@@ -1042,7 +1047,7 @@ export class MultiStepExecutor {
           metadata: {
             postId,
             success: likeResult.success,
-            liked: likeResult.liked,
+            liked: likeResult.liked ?? false,
             error: likeResult.error ?? null,
           },
         });

@@ -219,7 +219,7 @@ ${NPC_POST_QUALITY_RULES}
   const shouldStayQuiet = shareTradeRoll >= 0.8; // 20%
 
   const tradePostEncouragement =
-    justTraded && tradeDetails && !hasPostedThisTick
+    justTraded && tradeDetails
       ? `
 # 🔥 YOU JUST MADE A TRADE!
 You just traded: ${tradeDetails.summary || 'a position'}

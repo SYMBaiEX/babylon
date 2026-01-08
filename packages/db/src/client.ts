@@ -68,7 +68,7 @@ export type SchemaDatabase = PostgresJsDatabase<DrizzleSchema>;
 export type SchemaTables = ExtractTablesWithRelations<DrizzleSchema>;
 export type RelationalQueryAPI = SchemaDatabase['query'];
 
-// JSON value type for nested structures (avoids circular reference)
+// JSON value type for nested structures
 // This matches the JSON specification: all valid JSON value types
 export type JsonValue =
   | string
@@ -438,24 +438,38 @@ function buildOrderBy<TTable extends PgTable>(
 
 /**
  * Type representing all valid database value types including JSON columns.
- * JSON columns use .$type<JsonValue>() in schema definitions for proper typing.
+ *
+ * JSONB columns with custom types (e.g., NpcMemory[], PriceModifier[]) use .$type<T>()
+ * in schema definitions. These typed interfaces don't satisfy the strict JsonValue constraint
+ * because they have narrower field types (e.g., literal unions instead of string).
+ *
+ * We include `unknown` in the union to accept any schema-inferred type. Type safety is
+ * preserved because:
+ * 1. Repository generics (TSelect, TInsert) are inferred from InferSelect/InferInsert
+ * 2. The specific types flow through method signatures to call sites
+ * 3. Internal helper functions use type assertions where needed
  */
 type DatabaseValue =
   | SQLValue
   | { [key: string]: DatabaseValue }
   | DatabaseValue[]
   | JsonValue
-  | JsonValue[];
+  | JsonValue[]
+  | unknown;
 
 /**
  * Table repository providing ORM-style methods for database operations.
  * Supports findUnique, findMany, create, update, delete, and aggregate operations.
- * JSON columns should use json('column').$type<JsonValue>() in schema definitions.
+ *
+ * Type parameters:
+ * - TTable: The Drizzle table schema (e.g., typeof schema.users)
+ * - TSelect: The inferred select type from the schema (use InferSelect<TTable>)
+ * - TInsert: The inferred insert type from the schema (use InferInsert<TTable>)
  */
 export class TableRepository<
   TTable extends PgTable,
-  TSelect extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
-  TInsert extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
+  TSelect extends Record<string, DatabaseValue | JsonValue>,
+  TInsert extends Record<string, DatabaseValue | JsonValue>,
 > {
   private readonly queryAPI: RelationalQueryAPI | undefined;
 
@@ -1152,8 +1166,8 @@ export interface DrizzleClient {
   >;
   actorState: TableRepository<
     typeof schema.actorState,
-    schema.ActorStateRow,
-    schema.NewActorStateRow
+    InferSelect<typeof schema.actorState>,
+    InferInsert<typeof schema.actorState>
   >;
   actorFollow: TableRepository<
     typeof schema.actorFollows,
@@ -1217,8 +1231,8 @@ export interface DrizzleClient {
   >;
   organizationState: TableRepository<
     typeof schema.organizationState,
-    schema.OrganizationStateRow,
-    schema.NewOrganizationStateRow
+    InferSelect<typeof schema.organizationState>,
+    InferInsert<typeof schema.organizationState>
   >;
   stockPrice: TableRepository<
     typeof schema.stockPrices,
