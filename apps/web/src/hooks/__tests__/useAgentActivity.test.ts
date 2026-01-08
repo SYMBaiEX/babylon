@@ -12,12 +12,12 @@
 
 import { describe, expect, it } from 'bun:test';
 import {
-  extractActivityId as hookExtractActivityId,
   type AgentActivity,
-  type TradeActivityData,
-  type PostActivityData,
   type CommentActivityData,
+  extractActivityId as hookExtractActivityId,
   type MessageActivityData,
+  type PostActivityData,
+  type TradeActivityData,
 } from '../useAgentActivity';
 
 // Helper functions (replicating hook logic for testing)

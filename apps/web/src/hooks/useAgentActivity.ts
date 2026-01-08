@@ -279,11 +279,11 @@ export function useAgentActivity(
         return;
       }
 
-    // Extract activity ID using type guard function
-    const activityId = extractActivityId(
-      activity.data,
-      `${activity.type}-${activity.agentId}-${activity.timestamp}`
-    );
+      // Extract activity ID using type guard function
+      const activityId = extractActivityId(
+        activity.data,
+        `${activity.type}-${activity.agentId}-${activity.timestamp}`
+      );
 
       // Skip duplicates
       if (seenActivityIds.current.has(activityId)) {
