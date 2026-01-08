@@ -104,9 +104,52 @@ import {
 } from '@babylon/api';
 import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import { parseKeyValueXml } from '@elizaos/core';
 import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+
+const MAX_TOKENS = 500;
+const MAX_ATTEMPTS = 3;
+
+/**
+ * XML output format instructions appended to all prompts
+ */
+const XML_FORMAT_INSTRUCTIONS = `
+
+# Required Output Format (use exactly this structure)
+
+Your response MUST start with <response> immediately. No <think> tags. No reasoning.
+
+<response>
+<content>your generated content here</content>
+</response>`;
+
+/**
+ * Extract content from XML response using parseKeyValueXml
+ * The response MUST be wrapped in <response> tags - anything outside (like <think>) is ignored
+ */
+function extractContent(raw: string): string | null {
+  // Extract <response>...</response> block (ignores anything outside like <think> tags)
+  const responseMatch = raw.match(/<response>([\s\S]*?)<\/response>/i);
+  if (!responseMatch) {
+    return null;
+  }
+
+  // Parse the XML response
+  const parsed = parseKeyValueXml(responseMatch[0]) as {
+    content?: string;
+  } | null;
+
+  if (!parsed?.content) {
+    return null;
+  }
+
+  // Clean up the content
+  return parsed.content
+    .trim()
+    .replace(/^["']|["']$/g, ''); // Remove leading/trailing quotes
+}
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
@@ -129,109 +172,151 @@ export async function POST(req: NextRequest) {
 
   const { fieldName, currentValue, context } = await req.json();
 
-  const prompt = buildPromptForField(fieldName, currentValue, context);
-  const systemPrompt =
-    'You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic.';
-
-  let generatedValue: string;
-
-  // Use Groq qwen/qwen3-32b if available, otherwise fall back to Claude
-  if (process.env.GROQ_API_KEY) {
-    const groq = createGroq({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: 'https://api.groq.com/openai/v1',
-    });
-
-    const result = await generateText({
-      model: groq.languageModel('qwen/qwen3-32b'),
-      prompt,
-      system: systemPrompt,
-      temperature: 0.8,
-      maxOutputTokens: 300,
-      // providerOptions: {
-      //   groq: {
-      //     // Hide <think>...</think> reasoning tags from Qwen model output
-      //     reasoningFormat: 'hidden',
-      //   },
-      // },
-    });
-
-    generatedValue = result.text.trim();
-    logger.info(
-      'Generated agent field with Groq',
-      { fieldName, provider: 'groq' },
-      'GenerateField'
-    );
-
-    if (isPromptLoggingEnabled()) {
-      await logPrompt({
-        promptType: `generate_field_${fieldName}`,
-        input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
-        output: generatedValue,
-        metadata: {
-          provider: 'groq',
-          model: 'qwen/qwen3-32b',
-          temperature: 0.8,
-          maxTokens: 300,
-        },
-      });
-    }
-  } else if (process.env.ANTHROPIC_API_KEY) {
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 300,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
-
-    const firstContent = message.content[0]!;
-    generatedValue = (firstContent as { text: string }).text.trim();
-    logger.info(
-      'Generated agent field with Claude',
-      { fieldName, provider: 'claude' },
-      'GenerateField'
-    );
-
-    if (isPromptLoggingEnabled()) {
-      await logPrompt({
-        promptType: `generate_field_${fieldName}`,
-        input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
-        output: generatedValue,
-        metadata: {
-          provider: 'claude',
-          model: 'claude-sonnet-4-5',
-          temperature: 0.8,
-          maxTokens: 300,
-        },
-      });
-    }
-  } else {
+  if (!fieldName) {
     return NextResponse.json(
-      {
-        success: false,
-        error:
-          'No LLM API key configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.',
-      },
-      { status: 503 }
+      { success: false, error: 'Missing fieldName' },
+      { status: 400 }
     );
   }
 
-  // Strip any <think>...</think> tags and their content (from reasoning models like Qwen)
-  // Also remove leading/trailing quotes
-  const cleanedValue = generatedValue
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/^["']|["']$/g, '')
-    .trim();
+  const basePrompt = buildPromptForField(fieldName, currentValue, context);
+  const systemPrompt =
+    'You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic. Always output your response in the required XML format.';
+
+  let cleanedValue: string | null = null;
+
+  // Retry loop for robust generation
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const isRetry = attempt > 1;
+
+    // Add XML format instructions, with stronger reminder on retry
+    const prompt = isRetry
+      ? `CRITICAL: You have ${MAX_TOKENS} tokens max. Your response MUST start with <response> immediately. No <think> tags. No reasoning. Output valid XML only.\n\n${basePrompt}${XML_FORMAT_INSTRUCTIONS}`
+      : `${basePrompt}${XML_FORMAT_INSTRUCTIONS}`;
+
+    let generatedValue: string;
+
+    // Use Groq qwen/qwen3-32b if available, otherwise fall back to Claude
+    if (process.env.GROQ_API_KEY) {
+      const groq = createGroq({
+        apiKey: process.env.GROQ_API_KEY,
+        baseURL: 'https://api.groq.com/openai/v1',
+      });
+
+      const result = await generateText({
+        model: groq.languageModel('qwen/qwen3-32b'),
+        prompt,
+        system: systemPrompt,
+        temperature: isRetry ? 0.6 : 0.8, // Lower temperature on retry for more predictable output
+        maxOutputTokens: MAX_TOKENS,
+      });
+
+      generatedValue = result.text.trim();
+      logger.info(
+        'Generated agent field with Groq',
+        { fieldName, provider: 'groq', attempt },
+        'GenerateField'
+      );
+
+      if (isPromptLoggingEnabled()) {
+        await logPrompt({
+          promptType: `generate_field_${fieldName}`,
+          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+          output: generatedValue,
+          metadata: {
+            provider: 'groq',
+            model: 'qwen/qwen3-32b',
+            temperature: isRetry ? 0.6 : 0.8,
+            maxTokens: MAX_TOKENS,
+          },
+        });
+      }
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      const anthropic = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: MAX_TOKENS,
+        temperature: isRetry ? 0.6 : 0.8,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      });
+
+      const firstContent = message.content[0]!;
+      generatedValue = (firstContent as { text: string }).text.trim();
+      logger.info(
+        'Generated agent field with Claude',
+        { fieldName, provider: 'claude', attempt },
+        'GenerateField'
+      );
+
+      if (isPromptLoggingEnabled()) {
+        await logPrompt({
+          promptType: `generate_field_${fieldName}`,
+          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+          output: generatedValue,
+          metadata: {
+            provider: 'claude',
+            model: 'claude-sonnet-4-5',
+            temperature: isRetry ? 0.6 : 0.8,
+            maxTokens: MAX_TOKENS,
+          },
+        });
+      }
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'No LLM API key configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.',
+        },
+        { status: 503 }
+      );
+    }
+
+    // Try to extract clean content
+    cleanedValue = extractContent(generatedValue);
+
+    if (cleanedValue && cleanedValue.length >= 10) {
+      // Success! We got valid content
+      break;
+    }
+
+    // Log warning and retry
+    logger.warn(
+      `No valid <response> block found on attempt ${attempt}`,
+      {
+        fieldName,
+        rawLength: generatedValue.length,
+        hasResponseTag: generatedValue.includes('<response>'),
+        raw: generatedValue.substring(0, 300),
+      },
+      'GenerateField'
+    );
+  }
+
+  // If all attempts failed, return error
+  if (!cleanedValue || cleanedValue.length < 10) {
+    logger.error(
+      `Failed to generate valid content after ${MAX_ATTEMPTS} attempts`,
+      { fieldName },
+      'GenerateField'
+    );
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to generate valid content. Please try again.',
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     success: true,
