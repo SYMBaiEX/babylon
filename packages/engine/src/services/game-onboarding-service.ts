@@ -6,6 +6,7 @@
  */
 
 import {
+  and,
   db,
   eq,
   type GameOnboardingRow,
@@ -77,12 +78,17 @@ export async function getOrCreateOnboarding(
   return row;
 }
 
+/** Maximum retry attempts for optimistic locking */
+const MAX_OPTIMISTIC_LOCK_RETRIES = 3;
+
 /**
- * Complete an onboarding step and award points
+ * Complete an onboarding step and award points.
+ * Uses optimistic locking to prevent race conditions from awarding duplicate points.
  */
 export async function completeOnboardingStep(
   userId: string,
-  step: GameOnboardingStep
+  step: GameOnboardingStep,
+  retryCount = 0
 ): Promise<{
   success: boolean;
   pointsAwarded: number;
@@ -115,8 +121,10 @@ export async function completeOnboardingStep(
     state.completedAt = new Date().toISOString();
   }
 
-  // Update database
-  await db
+  // Update database with optimistic lock check on updatedAt
+  // This prevents race conditions where concurrent requests both pass the
+  // already-completed check before either writes to the database
+  const result = await db
     .update(gameOnboarding)
     .set({
       currentStep: state.currentStep,
@@ -124,7 +132,37 @@ export async function completeOnboardingStep(
       isComplete,
       updatedAt: new Date(),
     })
-    .where(eq(gameOnboarding.userId, userId));
+    .where(
+      and(
+        eq(gameOnboarding.userId, userId),
+        eq(gameOnboarding.updatedAt, onboarding.updatedAt)
+      )
+    )
+    .returning();
+
+  // If no rows updated, someone else modified it - retry with fresh data
+  if (!result || result.length === 0) {
+    if (retryCount >= MAX_OPTIMISTIC_LOCK_RETRIES) {
+      logger.warn(
+        `Optimistic lock retry limit reached for onboarding step completion`,
+        { userId, step, retryCount },
+        'GameOnboarding'
+      );
+      return {
+        success: false,
+        pointsAwarded: 0,
+        nextStep: state.currentStep,
+        isComplete: onboarding.isComplete,
+      };
+    }
+
+    logger.debug(
+      `Optimistic lock conflict, retrying onboarding step completion`,
+      { userId, step, retryCount: retryCount + 1 },
+      'GameOnboarding'
+    );
+    return completeOnboardingStep(userId, step, retryCount + 1);
+  }
 
   logger.info(
     `User ${userId} completed onboarding step ${step}`,
