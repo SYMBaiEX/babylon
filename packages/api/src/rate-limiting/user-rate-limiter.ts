@@ -469,7 +469,10 @@ export async function clearAllRateLimits(): Promise<void> {
         if (iterations > MAX_SCAN_ITERATIONS) {
           logger.warn(
             'clearAllRateLimits: MAX_SCAN_ITERATIONS reached, breaking out of loop',
-            { maxIterations: MAX_SCAN_ITERATIONS, keyPrefix: RATE_LIMIT_KEY_PREFIX },
+            {
+              maxIterations: MAX_SCAN_ITERATIONS,
+              keyPrefix: RATE_LIMIT_KEY_PREFIX,
+            },
             'RateLimiter'
           );
           break;

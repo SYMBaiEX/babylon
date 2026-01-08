@@ -82,7 +82,9 @@ async function verifyGameStartedAt() {
       `⚠️  Stored day (${game.currentDay}) differs from calculated day (${expectedDay})`
     );
     if (game.isRunning) {
-      console.log('   Game is running - this will be corrected on the next game tick.');
+      console.log(
+        '   Game is running - this will be corrected on the next game tick.'
+      );
     } else {
       console.log(
         '   Game is NOT running - start the game or manually correct the day.'

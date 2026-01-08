@@ -32,7 +32,13 @@
  * Uses secureRandom for deterministic behavior in testing.
  */
 
-import { asc, db, eq, type TimeframedMarket, timeframedMarkets } from '@babylon/db';
+import {
+  asc,
+  db,
+  eq,
+  type TimeframedMarket,
+  timeframedMarkets,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
 import {
