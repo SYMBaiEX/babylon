@@ -12,9 +12,9 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
+  type TeamChatInfo,
   teamChatResponseService,
   teamChatService,
-  type TeamChatInfo,
 } from '@babylon/agents';
 import {
   chatParticipants,
@@ -110,7 +110,9 @@ async function cleanupTestData() {
   // Delete in reverse order of dependencies
   for (const chatId of testCleanup.chatIds) {
     await db.delete(messages).where(eq(messages.chatId, chatId));
-    await db.delete(chatParticipants).where(eq(chatParticipants.chatId, chatId));
+    await db
+      .delete(chatParticipants)
+      .where(eq(chatParticipants.chatId, chatId));
   }
 
   for (const groupId of testCleanup.groupIds) {
@@ -123,7 +125,9 @@ async function cleanupTestData() {
   }
 
   for (const userId of testCleanup.userIds) {
-    await db.delete(userAgentConfigs).where(eq(userAgentConfigs.userId, userId));
+    await db
+      .delete(userAgentConfigs)
+      .where(eq(userAgentConfigs.userId, userId));
     await db.delete(users).where(eq(users.id, userId));
   }
 
@@ -557,26 +561,28 @@ describe('TeamChatResponseService', () => {
 
   describe('triggerMentionedAgentResponses', () => {
     test('returns empty result for empty mentions array', async () => {
-      const result = await teamChatResponseService.triggerMentionedAgentResponses({
-        chatId: testTeamChat.chatId,
-        messageContent: 'Hello everyone',
-        mentionedAgentIds: [],
-        senderUserId: testUser.id,
-        senderDisplayName: testUser.displayName,
-      });
+      const result =
+        await teamChatResponseService.triggerMentionedAgentResponses({
+          chatId: testTeamChat.chatId,
+          messageContent: 'Hello everyone',
+          mentionedAgentIds: [],
+          senderUserId: testUser.id,
+          senderDisplayName: testUser.displayName,
+        });
 
       expect(result.triggered).toBe(0);
       expect(result.responses).toEqual([]);
     });
 
     test('schedules responses for mentioned agents', async () => {
-      const result = await teamChatResponseService.triggerMentionedAgentResponses({
-        chatId: testTeamChat.chatId,
-        messageContent: `Hey @${testAgent.username}, can you help?`,
-        mentionedAgentIds: [testAgent.id],
-        senderUserId: testUser.id,
-        senderDisplayName: testUser.displayName,
-      });
+      const result =
+        await teamChatResponseService.triggerMentionedAgentResponses({
+          chatId: testTeamChat.chatId,
+          messageContent: `Hey @${testAgent.username}, can you help?`,
+          mentionedAgentIds: [testAgent.id],
+          senderUserId: testUser.id,
+          senderDisplayName: testUser.displayName,
+        });
 
       expect(result.triggered).toBe(1);
       expect(result.responses.length).toBe(1);
@@ -591,13 +597,14 @@ describe('TeamChatResponseService', () => {
       const agent2 = await createTestAgent(testUser.id, 'response-a2');
       await teamChatService.addAgentToTeamChat(testUser.id, agent2.id);
 
-      const result = await teamChatResponseService.triggerMentionedAgentResponses({
-        chatId: testTeamChat.chatId,
-        messageContent: `@${testAgent.username} and @${agent2.username}, coordinate!`,
-        mentionedAgentIds: [testAgent.id, agent2.id],
-        senderUserId: testUser.id,
-        senderDisplayName: testUser.displayName,
-      });
+      const result =
+        await teamChatResponseService.triggerMentionedAgentResponses({
+          chatId: testTeamChat.chatId,
+          messageContent: `@${testAgent.username} and @${agent2.username}, coordinate!`,
+          mentionedAgentIds: [testAgent.id, agent2.id],
+          senderUserId: testUser.id,
+          senderDisplayName: testUser.displayName,
+        });
 
       expect(result.triggered).toBe(2);
       expect(result.responses.length).toBe(2);
@@ -813,4 +820,3 @@ describe('Data Integrity Verification', () => {
     expect(userRecord).toBeDefined();
   });
 });
-
