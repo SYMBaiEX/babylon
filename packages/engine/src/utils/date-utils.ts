@@ -3,6 +3,8 @@
  * Shared date parsing and extraction utilities for the game engine.
  */
 
+import { logger } from '@babylon/shared';
+
 /**
  * Extract day number from timestamp string.
  * Assumes game runs in October 2025 format: "2025-10-DDTHH:MM:SSZ"
@@ -75,7 +77,23 @@ export function getGameDayNumber(startedAt: Date, timestamp: Date): number {
     (timestamp.getTime() - startedAt.getTime()) / MS_PER_DAY
   );
   // Clamp to minimum of 1 to handle timestamps before startedAt
-  return Math.max(daysElapsed + 1, 1); // 1-indexed: Day 1 is first day
+  const result = Math.max(daysElapsed + 1, 1); // 1-indexed: Day 1 is first day
+
+  // Log diagnostic warning when timestamp is before startedAt (clock drift or test data issue)
+  if (timestamp.getTime() < startedAt.getTime()) {
+    logger.warn(
+      'getGameDayNumber: timestamp is before startedAt, clamping to day 1',
+      {
+        startedAt: startedAt.toISOString(),
+        timestamp: timestamp.toISOString(),
+        daysElapsed,
+        result,
+      },
+      'DateUtils'
+    );
+  }
+
+  return result;
 }
 
 /**
