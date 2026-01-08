@@ -3,7 +3,7 @@ import {
   issueRealtimeToken,
   type RealtimeChannel,
 } from '@babylon/api';
-import { db } from '@babylon/db';
+import { db, eq, inArray, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -12,6 +12,7 @@ import { z } from 'zod';
 const BodySchema = z.object({
   channels: z.array(z.string()).optional(),
   chatIds: z.array(z.string()).optional(),
+  agentIds: z.array(z.string()).optional(),
   includeNotifications: z.coerce.boolean().optional(),
   ttlSeconds: z.number().int().positive().max(3600).optional(),
 });
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
   const {
     channels = [],
     chatIds = [],
+    agentIds = [],
     includeNotifications = true,
     ttlSeconds,
   } = BodySchema.parse(body);
@@ -72,6 +74,14 @@ export async function POST(request: NextRequest) {
     ...requestedChannels
       .filter((ch) => ch.startsWith('chat:'))
       .map((ch) => ch.replace('chat:', '')),
+  ]).filter(Boolean);
+
+  // Extract agent IDs from requested channels and explicit agentIds param
+  const derivedAgentIds = dedupe([
+    ...agentIds,
+    ...requestedChannels
+      .filter((ch) => ch.startsWith('agent:'))
+      .map((ch) => ch.replace('agent:', '')),
   ]).filter(Boolean);
 
   // Determine which chats are authorized for this user.
@@ -111,6 +121,48 @@ export async function POST(request: NextRequest) {
     (id) => `chat:${id}` as RealtimeChannel
   );
 
+  // Determine which agent channels are authorized for this user.
+  // User can only subscribe to agents they own (managedBy = userId).
+  const allowedAgentIds = new Set<string>();
+
+  if (derivedAgentIds.length > 0) {
+    const ownedAgents = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, derivedAgentIds));
+
+    // Filter to only agents owned by this user
+    for (const agent of ownedAgents) {
+      // Verify ownership by checking managedBy field
+      const [agentCheck] = await db
+        .select({ managedBy: users.managedBy, isAgent: users.isAgent })
+        .from(users)
+        .where(eq(users.id, agent.id))
+        .limit(1);
+
+      if (agentCheck?.isAgent && agentCheck.managedBy === user.userId) {
+        allowedAgentIds.add(agent.id);
+      }
+    }
+  }
+
+  const unauthorizedAgents = derivedAgentIds.filter(
+    (id) => !allowedAgentIds.has(id)
+  );
+  if (unauthorizedAgents.length > 0) {
+    logger.warn(
+      'Realtime token: unauthorized agent channels requested',
+      { userId: user.userId, unauthorizedAgents },
+      'Realtime'
+    );
+    // Don't fail the request, just exclude unauthorized agent channels
+    // This is less strict than chat channels since agent activity is lower priority
+  }
+
+  const agentChannels: RealtimeChannel[] = Array.from(allowedAgentIds).map(
+    (id) => `agent:${id}` as RealtimeChannel
+  );
+
   // Only allow explicitly known public channels from the request
   const requestedPublic = requestedChannels.filter((ch) =>
     PUBLIC_CHANNELS.includes(ch)
@@ -120,6 +172,7 @@ export async function POST(request: NextRequest) {
     ...baseChannels,
     ...requestedPublic,
     ...chatChannels,
+    ...agentChannels,
   ]);
 
   if (finalChannels.length === 0) {
