@@ -183,9 +183,8 @@ export function getActivityMultiplier(
   date: Date = new Date(),
   gameDay = 1
 ): number {
-  validateGameDay(gameDay, 'getActivityMultiplier');
-
   const utcHour = date.getUTCHours();
+  // isActiveHour calls getActorActiveHours which already validates gameDay
   return isActiveHour(actor, utcHour, gameDay) ? 1.0 : 0.0;
 }
 
