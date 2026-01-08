@@ -905,11 +905,12 @@ async function executeClosePerpPosition(params: {
   // This is more accurate than recalculating from potentially stale position data
   // closePosition() always returns these fields - validate at runtime for safety
   if (
-    closeResult.realizedPnL === undefined ||
-    closeResult.exitPrice === undefined
+    closeResult.realizedPnL == null ||
+    closeResult.exitPrice == null ||
+    closeResult.size == null
   ) {
     throw new Error(
-      `[DirectExecutor] closePosition did not return expected fields: realizedPnL=${closeResult.realizedPnL}, exitPrice=${closeResult.exitPrice}`
+      `[DirectExecutor] closePosition did not return expected fields: realizedPnL=${closeResult.realizedPnL}, exitPrice=${closeResult.exitPrice}, size=${closeResult.size}`
     );
   }
   const { realizedPnL, size, exitPrice } = closeResult;
