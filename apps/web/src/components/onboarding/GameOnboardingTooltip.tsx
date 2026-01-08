@@ -126,7 +126,8 @@ export function GameOnboardingProgress() {
 
   // Use the shared step order, excluding the 'complete' marker step for UI display
   const steps = ONBOARDING_STEP_ORDER.filter(
-    (step): step is Exclude<GameOnboardingStep, 'complete'> => step !== 'complete'
+    (step): step is Exclude<GameOnboardingStep, 'complete'> =>
+      step !== 'complete'
   );
 
   const completedCount = status.completedSteps.length;

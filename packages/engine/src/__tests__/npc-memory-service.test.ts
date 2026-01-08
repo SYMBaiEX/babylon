@@ -19,7 +19,9 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
   test('formats single memory correctly', () => {
     // Use a fixed timestamp within the "just now" threshold to avoid timing flakiness
     const fixedNow = new Date('2025-01-01T12:00:00.000Z');
-    const recentTimestamp = new Date(fixedNow.getTime() - 30 * 1000).toISOString(); // 30 seconds ago
+    const recentTimestamp = new Date(
+      fixedNow.getTime() - 30 * 1000
+    ).toISOString(); // 30 seconds ago
 
     const memory: NpcMemory = {
       id: 'mem-1',
@@ -30,7 +32,10 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
     };
 
     // Use the formatted output with a fixed 'now' time
-    const formattedTimeAgo = npcMemoryService.formatTimeAgo(recentTimestamp, fixedNow);
+    const formattedTimeAgo = npcMemoryService.formatTimeAgo(
+      recentTimestamp,
+      fixedNow
+    );
     expect(formattedTimeAgo).toBe('just now');
 
     const formatted = npcMemoryService.formatMemoriesForPrompt([memory]);
@@ -65,7 +70,9 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
   test('formats time ago for minutes', () => {
     // Use a fixed timestamp to avoid timing flakiness
     const fixedNow = new Date('2025-01-01T12:00:00.000Z');
-    const fifteenMinsAgo = new Date(fixedNow.getTime() - 15 * 60 * 1000).toISOString();
+    const fifteenMinsAgo = new Date(
+      fixedNow.getTime() - 15 * 60 * 1000
+    ).toISOString();
 
     // Test the formatTimeAgo method directly with fixed 'now'
     const formatted = npcMemoryService.formatTimeAgo(fifteenMinsAgo, fixedNow);

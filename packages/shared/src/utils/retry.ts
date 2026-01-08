@@ -257,7 +257,10 @@ export function fireAndForgetWithRetry(
 
         if (attempt < maxAttempts - 1) {
           // Exponential backoff with cap using shared sleep utility
-          const delay = Math.min(initialDelayMs * Math.pow(2, attempt), maxDelayMs);
+          const delay = Math.min(
+            initialDelayMs * Math.pow(2, attempt),
+            maxDelayMs
+          );
           await sleep(delay);
         }
       }

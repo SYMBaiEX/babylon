@@ -26,7 +26,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Calculate total points earned, guarding against invalid/missing points values
   const totalPointsEarned =
     state?.rewards?.reduce((sum: number, r: { points: number }) => {
-      const points = typeof r.points === 'number' && !isNaN(r.points) ? r.points : 0;
+      const points =
+        typeof r.points === 'number' && !isNaN(r.points) ? r.points : 0;
       return sum + points;
     }, 0) ?? 0;
 

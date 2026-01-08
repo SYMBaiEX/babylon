@@ -267,7 +267,9 @@ ${
 
     // Add conditional actions based on flags
     if (justTraded && canPost) {
-      priorityActions.push('POST about your trade (users love seeing your moves!)');
+      priorityActions.push(
+        'POST about your trade (users love seeing your moves!)'
+      );
     }
     if (canComment) {
       priorityActions.push('COMMENT on interesting posts in the feed');

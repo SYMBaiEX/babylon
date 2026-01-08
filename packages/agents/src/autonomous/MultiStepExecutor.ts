@@ -434,17 +434,23 @@ export class MultiStepExecutor {
    */
   private async getAgentGroupChats(
     agentUserId: string
-  ): Promise<{ id: string; name: string }[]> {
+  ): Promise<{ id: string; name: string; memberCount: number }[]> {
     try {
       const participantResults = await db.query.chatParticipants.findMany({
         where: (cp, { eq }) => eq(cp.userId, agentUserId),
         with: {
-          chat: true,
+          chat: {
+            with: {
+              ChatParticipant: true,
+            },
+          },
         },
         limit: 10,
       });
 
-      const groupParticipants = participantResults.filter((cp) => cp.chat?.isGroup);
+      const groupParticipants = participantResults.filter(
+        (cp) => cp.chat?.isGroup
+      );
 
       if (groupParticipants.length === 0) {
         return [];
@@ -454,6 +460,7 @@ export class MultiStepExecutor {
         .map((cp) => ({
           id: cp.chat!.id,
           name: cp.chat!.name || 'Group Chat',
+          memberCount: cp.chat!.ChatParticipant?.length ?? 0,
         }))
         .slice(0, 5); // Limit to 5 groups
     } catch (error) {

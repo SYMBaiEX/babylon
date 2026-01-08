@@ -30,8 +30,8 @@ import {
   sql,
   subMarketSpawnLogs,
   type TimeframedMarket,
-  timeframedMarkets,
   type Transaction,
+  timeframedMarkets,
   withTransaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';

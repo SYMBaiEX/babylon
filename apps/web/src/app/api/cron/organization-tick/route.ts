@@ -435,7 +435,10 @@ export async function POST(_req: NextRequest) {
     });
   } finally {
     // Always release global lock
-    await DistributedLockService.releaseLock('organization-tick-global', processId);
+    await DistributedLockService.releaseLock(
+      'organization-tick-global',
+      processId
+    );
   }
 }
 

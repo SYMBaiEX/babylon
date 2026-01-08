@@ -94,7 +94,11 @@ describe('NFTVerificationService', () => {
     test('should validate token ID format', async () => {
       // Use try/catch to verify both error type and message for negative token ID
       try {
-        await NFTVerificationService.verifyOwnership(validWallet, validContract, -1);
+        await NFTVerificationService.verifyOwnership(
+          validWallet,
+          validContract,
+          -1
+        );
         expect.unreachable('Expected error to be thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(ValidationError);
@@ -103,7 +107,11 @@ describe('NFTVerificationService', () => {
 
       // Use try/catch to verify both error type and message for non-integer token ID
       try {
-        await NFTVerificationService.verifyOwnership(validWallet, validContract, 1.5);
+        await NFTVerificationService.verifyOwnership(
+          validWallet,
+          validContract,
+          1.5
+        );
         expect.unreachable('Expected error to be thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(ValidationError);
