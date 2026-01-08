@@ -76,18 +76,18 @@ describe('Posting Probability Service - Base Probability', () => {
     const bProb = calculatePostingProbability(bActor, null, context);
     const cProb = calculatePostingProbability(cActor, null, context);
 
-    // Simplified: equal probability for all tiers (0.25 base)
-    expect(sProb).toBe(0.25);
-    expect(bProb).toBe(0.25);
-    expect(cProb).toBe(0.25);
+    // Simplified: equal probability for all tiers (0.15 base)
+    expect(sProb).toBe(0.15);
+    expect(bProb).toBe(0.15);
+    expect(cProb).toBe(0.15);
   });
 
-  test('base probability is 0.25', () => {
+  test('base probability is 0.15', () => {
     const actor = createMockActor();
     const context = createMockContext();
     const prob = calculatePostingProbability(actor, null, context);
 
-    expect(prob).toBe(0.25);
+    expect(prob).toBe(0.15);
   });
 
   test('probability is capped at 1.0', () => {
@@ -110,12 +110,12 @@ describe('Posting Probability Service - Base Probability', () => {
 });
 
 describe('Posting Probability Service - Daily Cap', () => {
-  test('returns 0 when daily post cap (3) is reached', () => {
+  test('returns 0 when daily post cap (2) is reached', () => {
     const actor = createMockActor();
-    // MAX_POSTS_PER_DAY is 3
+    // MAX_POSTS_PER_DAY is 2
     const state = createMockState({
       id: actor.id,
-      postsToday: 3,
+      postsToday: 2,
       lastPostAt: new Date(),
     });
     const context = createMockContext();
@@ -129,9 +129,9 @@ describe('Posting Probability Service - Daily Cap', () => {
     const contextTime = new Date('2026-01-05T14:00:00Z');
     const state = createMockState({
       id: actor.id,
-      postsToday: 2,
-      // Set lastPostAt to 3 hours before context time to pass the recency check
-      lastPostAt: new Date(contextTime.getTime() - 3 * 60 * 60 * 1000),
+      postsToday: 1,
+      // Set lastPostAt to 5 hours before context time to pass the recency check (MIN_HOURS_BETWEEN_POSTS is 4)
+      lastPostAt: new Date(contextTime.getTime() - 5 * 60 * 60 * 1000),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -141,14 +141,14 @@ describe('Posting Probability Service - Daily Cap', () => {
 });
 
 describe('Posting Probability Service - Recency Check', () => {
-  test('returns 0 if posted within MIN_HOURS_BETWEEN_POSTS (2 hours)', () => {
+  test('returns 0 if posted within MIN_HOURS_BETWEEN_POSTS (4 hours)', () => {
     const actor = createMockActor();
     const contextTime = new Date('2026-01-05T14:00:00Z');
     const state = createMockState({
       id: actor.id,
       postsToday: 1,
-      // 30 minutes before context.currentTime
-      lastPostAt: new Date(contextTime.getTime() - 30 * 60 * 1000),
+      // 2 hours before context.currentTime (less than 4 hour minimum)
+      lastPostAt: new Date(contextTime.getTime() - 2 * 60 * 60 * 1000),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -162,8 +162,8 @@ describe('Posting Probability Service - Recency Check', () => {
     const state = createMockState({
       id: actor.id,
       postsToday: 1,
-      // 3 hours before context.currentTime
-      lastPostAt: new Date(contextTime.getTime() - 3 * 60 * 60 * 1000),
+      // 5 hours before context.currentTime (more than 4 hour minimum)
+      lastPostAt: new Date(contextTime.getTime() - 5 * 60 * 60 * 1000),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -211,7 +211,7 @@ describe('Posting Probability Service - Mention Boost', () => {
     });
 
     const prob = calculatePostingProbability(actor, null, context);
-    expect(prob).toBe(0.25); // Base probability only
+    expect(prob).toBe(0.15); // Base probability only
   });
 });
 
@@ -242,8 +242,8 @@ describe('Posting Probability Service - Affiliation Boost', () => {
     });
 
     const prob = calculatePostingProbability(actor, null, bothContext);
-    // 0.25 * 1.5 (mention) * 1.5 (affiliation) = 0.5625
-    expect(prob).toBeCloseTo(0.5625, 4);
+    // 0.15 * 1.5 (mention) * 1.5 (affiliation) = 0.3375
+    expect(prob).toBeCloseTo(0.3375, 4);
   });
 });
 

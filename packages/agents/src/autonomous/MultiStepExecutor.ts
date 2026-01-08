@@ -508,15 +508,16 @@ export class MultiStepExecutor {
     agentUserId: string
   ): Promise<AgentOwnPostContext[]> {
     try {
+      // Use posts.timestamp for ordering to leverage Post_authorId_timestamp_idx index
       const recentOwnPosts = await db
         .select({
           id: posts.id,
           content: posts.content,
-          createdAt: posts.createdAt,
+          timestamp: posts.timestamp,
         })
         .from(posts)
         .where(and(eq(posts.authorId, agentUserId), isNull(posts.deletedAt)))
-        .orderBy(desc(posts.createdAt))
+        .orderBy(desc(posts.timestamp))
         .limit(5);
 
       if (recentOwnPosts.length === 0) {
@@ -559,7 +560,7 @@ export class MultiStepExecutor {
 
       return recentOwnPosts.map((p) => ({
         content: p.content,
-        timeAgo: getTimeAgo(p.createdAt),
+        timeAgo: getTimeAgo(p.timestamp),
         likeCount: likeCountMap.get(p.id) ?? 0,
         commentCount: commentCountMap.get(p.id) ?? 0,
       }));
