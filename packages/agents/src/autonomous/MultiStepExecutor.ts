@@ -940,8 +940,11 @@ export class MultiStepExecutor {
         const side = parameters.side as
           | 'buy_yes'
           | 'buy_no'
+          | 'sell_yes'
+          | 'sell_no'
           | 'open_long'
-          | 'open_short';
+          | 'open_short'
+          | 'close_position';
         const amount = Number(parameters.amount || 100);
         const reasoning = parameters.reasoning as string | undefined;
 

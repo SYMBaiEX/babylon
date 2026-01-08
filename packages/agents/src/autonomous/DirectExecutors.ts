@@ -23,6 +23,7 @@ import {
   isNull,
   markets,
   messages,
+  perpPositions,
   positions,
   posts,
   reactions,
@@ -46,6 +47,132 @@ import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
 const SHARE_LIKE_MAX_INTEGER = 10;
 const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
+
+// =============================================================================
+// Wallet Adapter Helper
+// =============================================================================
+
+/**
+ * Creates a wallet adapter for perp trading operations.
+ * NPCs use actorState.tradingBalance, while regular users use WalletService.
+ */
+function createPerpWalletAdapter(isNpc: boolean) {
+  if (isNpc) {
+    return {
+      debit: async ({
+        userId: uid,
+        amount: amt,
+      }: {
+        userId: string;
+        amount: number;
+        reason: string;
+        description?: string;
+        relatedId?: string;
+      }) => {
+        // Atomic debit with balance check to prevent negative balance
+        const result = await db
+          .update(actorState)
+          .set({
+            tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(actorState.id, uid),
+              gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
+            )
+          )
+          .returning({ id: actorState.id });
+
+        if (result.length === 0) {
+          throw new Error(`Insufficient NPC balance for perp trade: $${amt}`);
+        }
+      },
+      credit: async ({
+        userId: uid,
+        amount: amt,
+      }: {
+        userId: string;
+        amount: number;
+        reason: string;
+        description?: string;
+        relatedId?: string;
+      }) => {
+        await db
+          .update(actorState)
+          .set({
+            tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(actorState.id, uid));
+      },
+      recordPnL: async (_args: {
+        userId: string;
+        pnl: number;
+        reason: string;
+        relatedId?: string;
+      }) => {
+        // NPCs don't track PnL
+      },
+      getBalance: async (uid: string) => {
+        const [actor] = await db
+          .select({ tradingBalance: actorState.tradingBalance })
+          .from(actorState)
+          .where(eq(actorState.id, uid))
+          .limit(1);
+        return {
+          balance: Number(actor?.tradingBalance ?? 10000),
+          totalDeposited: 0,
+          totalWithdrawn: 0,
+          lifetimePnL: 0,
+        };
+      },
+    };
+  }
+
+  return {
+    debit: ({
+      userId: uid,
+      amount: amt,
+      reason,
+      description,
+      relatedId,
+    }: {
+      userId: string;
+      amount: number;
+      reason: string;
+      description?: string;
+      relatedId?: string;
+    }) => WalletService.debit(uid, amt, reason, description ?? '', relatedId),
+    credit: ({
+      userId: uid,
+      amount: amt,
+      reason,
+      description,
+      relatedId,
+    }: {
+      userId: string;
+      amount: number;
+      reason: string;
+      description?: string;
+      relatedId?: string;
+    }) => WalletService.credit(uid, amt, reason, description ?? '', relatedId),
+    recordPnL: async ({
+      userId: uid,
+      pnl,
+      reason,
+      relatedId,
+    }: {
+      userId: string;
+      pnl: number;
+      reason: string;
+      relatedId?: string;
+    }) => {
+      await WalletService.recordPnL(uid, pnl, reason, relatedId);
+    },
+    getBalance: (uid: string) => WalletService.getBalance(uid),
+  };
+}
 
 // =============================================================================
 // Types
@@ -519,6 +646,11 @@ async function executePredictionSell(params: {
     sharesToSell = Math.min(estimatedShares, currentShares);
   }
 
+  // Validate sharesToSell is greater than 0
+  if (sharesToSell <= 0) {
+    return { success: false, error: 'Amount too small to sell any shares' };
+  }
+
   const sellOperation = async (
     txDb: Parameters<Parameters<typeof asUser>[1]>[0]
   ) => {
@@ -656,130 +788,7 @@ async function executePerpTrade(params: {
   const currentPrice = org?.initialPrice ?? 100;
 
   const perpTradeOperation = async () => {
-    // Create wallet adapter
-    const walletAdapter = isNpc
-      ? {
-          debit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            // Atomic debit with balance check to prevent negative balance
-            const result = await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(
-                and(
-                  eq(actorState.id, uid),
-                  gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
-                )
-              )
-              .returning({ id: actorState.id });
-
-            if (result.length === 0) {
-              throw new Error(
-                `Insufficient NPC balance for perp trade: $${amt}`
-              );
-            }
-          },
-          credit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(actorState.id, uid));
-          },
-          recordPnL: async (_args: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            // NPCs don't track PnL
-          },
-          getBalance: async (uid: string) => {
-            const [actor] = await db
-              .select({ tradingBalance: actorState.tradingBalance })
-              .from(actorState)
-              .where(eq(actorState.id, uid))
-              .limit(1);
-            return {
-              balance: Number(actor?.tradingBalance ?? 10000),
-              totalDeposited: 0,
-              totalWithdrawn: 0,
-              lifetimePnL: 0,
-            };
-          },
-        }
-      : {
-          debit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.debit(uid, amt, reason, description ?? '', relatedId),
-          credit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.credit(
-              uid,
-              amt,
-              reason,
-              description ?? '',
-              relatedId
-            ),
-          recordPnL: async ({
-            userId: uid,
-            pnl,
-            reason,
-            relatedId,
-          }: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            await WalletService.recordPnL(uid, pnl, reason, relatedId);
-          },
-          getBalance: (uid: string) => WalletService.getBalance(uid),
-        };
+    const walletAdapter = createPerpWalletAdapter(isNpc);
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
@@ -846,9 +855,6 @@ async function executeClosePerpPosition(params: {
 }): Promise<DirectTradeResult> {
   const { agentUserId, ticker, reasoning, isNpc, agentManagedBy } = params;
 
-  // Import perpPositions for querying
-  const { perpPositions } = await import('@babylon/db');
-
   // Find the open position for this ticker
   const [existingPosition] = await db
     .select()
@@ -870,129 +876,7 @@ async function executeClosePerpPosition(params: {
   }
 
   const closeOperation = async () => {
-    // Create wallet adapter (same as executePerpTrade)
-    const walletAdapter = isNpc
-      ? {
-          debit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            const result = await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} - ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(
-                and(
-                  eq(actorState.id, uid),
-                  gte(sql<number>`${actorState.tradingBalance}::numeric`, amt)
-                )
-              )
-              .returning({ id: actorState.id });
-
-            if (result.length === 0) {
-              throw new Error(
-                `Insufficient NPC balance for closing position: $${amt}`
-              );
-            }
-          },
-          credit: async ({
-            userId: uid,
-            amount: amt,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) => {
-            await db
-              .update(actorState)
-              .set({
-                tradingBalance: sql`${actorState.tradingBalance} + ${amt}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(actorState.id, uid));
-          },
-          recordPnL: async (_args: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            // NPCs don't track PnL
-          },
-          getBalance: async (uid: string) => {
-            const [actor] = await db
-              .select({ tradingBalance: actorState.tradingBalance })
-              .from(actorState)
-              .where(eq(actorState.id, uid))
-              .limit(1);
-            return {
-              balance: Number(actor?.tradingBalance ?? 10000),
-              totalDeposited: 0,
-              totalWithdrawn: 0,
-              lifetimePnL: 0,
-            };
-          },
-        }
-      : {
-          debit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.debit(uid, amt, reason, description ?? '', relatedId),
-          credit: ({
-            userId: uid,
-            amount: amt,
-            reason,
-            description,
-            relatedId,
-          }: {
-            userId: string;
-            amount: number;
-            reason: string;
-            description?: string;
-            relatedId?: string;
-          }) =>
-            WalletService.credit(
-              uid,
-              amt,
-              reason,
-              description ?? '',
-              relatedId
-            ),
-          recordPnL: async ({
-            userId: uid,
-            pnl,
-            reason,
-            relatedId,
-          }: {
-            userId: string;
-            pnl: number;
-            reason: string;
-            relatedId?: string;
-          }) => {
-            await WalletService.recordPnL(uid, pnl, reason, relatedId);
-          },
-          getBalance: (uid: string) => WalletService.getBalance(uid),
-        };
+    const walletAdapter = createPerpWalletAdapter(isNpc);
 
     const service = new PerpMarketService({
       db: new PerpDbAdapter(),
@@ -1036,6 +920,7 @@ async function executeClosePerpPosition(params: {
     side: existingPosition.side as 'long' | 'short',
     amount: size,
     price: currentPrice,
+    pnl: realizedPnL,
     reasoning,
   });
 

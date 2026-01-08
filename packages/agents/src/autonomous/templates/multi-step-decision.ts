@@ -694,6 +694,12 @@ function formatPositionManagementGuidance(
         `🟢 PROFIT: "${p.question.substring(0, 30)}..." ${p.side} up +${p.pnlPercent.toFixed(1)}%.`
       );
     }
+    // Very long hold - check if thesis still valid
+    else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
+      alerts.push(
+        `⏰ AGED: "${p.question.substring(0, 30)}..." ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+      );
+    }
   }
 
   if (alerts.length === 0) {
