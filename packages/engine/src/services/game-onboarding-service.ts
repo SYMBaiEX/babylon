@@ -330,45 +330,17 @@ export async function needsOnboarding(userId: string): Promise<boolean> {
 }
 
 /**
- * Game Onboarding Service class
+ * Get the step order for onboarding.
+ * Useful for UI components that need to display progress.
  */
-export class GameOnboardingService {
-  async getOrCreate(userId: string): Promise<GameOnboardingRow> {
-    return getOrCreateOnboarding(userId);
-  }
-
-  async completeStep(
-    userId: string,
-    step: GameOnboardingStep
-  ): Promise<{
-    success: boolean;
-    pointsAwarded: number;
-    nextStep: GameOnboardingStep;
-    isComplete: boolean;
-  }> {
-    return completeOnboardingStep(userId, step);
-  }
-
-  async getStatus(userId: string) {
-    return getOnboardingStatus(userId);
-  }
-
-  async skip(userId: string): Promise<void> {
-    return skipOnboarding(userId);
-  }
-
-  async needsOnboarding(userId: string): Promise<boolean> {
-    return needsOnboarding(userId);
-  }
-
-  getStepOrder(): GameOnboardingStep[] {
-    return [...ONBOARDING_STEP_ORDER];
-  }
-
-  getStepPoints(): Record<GameOnboardingStep, number> {
-    return { ...ONBOARDING_STEP_POINTS };
-  }
+export function getOnboardingStepOrder(): GameOnboardingStep[] {
+  return [...ONBOARDING_STEP_ORDER];
 }
 
-// Singleton instance
-export const gameOnboardingService = new GameOnboardingService();
+/**
+ * Get the points awarded for each onboarding step.
+ * Useful for displaying potential rewards in the UI.
+ */
+export function getOnboardingStepPoints(): Record<GameOnboardingStep, number> {
+  return { ...ONBOARDING_STEP_POINTS };
+}
