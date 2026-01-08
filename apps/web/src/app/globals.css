@@ -39,7 +39,7 @@
   --scrollbar-thumb-hover: #2952d9;
   /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
      customized for onboarding-specific styling without affecting the global theme. */
-  --color-onboarding-primary: var(--primary);
+  --onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
@@ -100,7 +100,7 @@
   --scrollbar-thumb-hover: #2952d9;
   /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
      customized for onboarding-specific styling without affecting the global theme. */
-  --color-onboarding-primary: var(--primary);
+  --onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -156,6 +156,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-onboarding-primary: var(--onboarding-primary);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);

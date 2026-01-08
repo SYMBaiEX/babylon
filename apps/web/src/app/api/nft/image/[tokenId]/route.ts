@@ -282,14 +282,29 @@ export async function GET(
     });
 
     if (!imageResponse.ok) {
+      // Map upstream GitHub status to proxy-safe status codes
+      // Avoid passing raw GitHub status codes through to clients
+      let statusCode: number;
+      if (imageResponse.status === 429) {
+        statusCode = 429; // Rate limit -> 429
+      } else if (imageResponse.status >= 500) {
+        statusCode = 502; // Server errors (5xx) -> 502 Bad Gateway
+      } else {
+        statusCode = 502; // Other errors -> 502
+      }
+
       logger.warn(
         `Failed to fetch NFT image #${tokenId} from GitHub`,
-        { status: imageResponse.status, url: downloadUrl },
+        {
+          upstreamStatus: imageResponse.status,
+          proxyStatus: statusCode,
+          url: downloadUrl,
+        },
         'GET /api/nft/image/[tokenId]'
       );
       return NextResponse.json(
         { error: 'Failed to fetch image' },
-        { status: imageResponse.status }
+        { status: statusCode }
       );
     }
 

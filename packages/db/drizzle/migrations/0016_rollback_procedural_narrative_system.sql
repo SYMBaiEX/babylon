@@ -7,11 +7,9 @@ DROP INDEX IF EXISTS "ActorState_lastActiveAt_idx";
 DROP INDEX IF EXISTS "ActorState_lastPostAt_idx";
 DROP INDEX IF EXISTS "ArcState_currentState_idx";
 DROP INDEX IF EXISTS "ArcState_questionId_unique";
-DROP INDEX IF EXISTS "ArcState_questionId_idx";
 DROP INDEX IF EXISTS "QuestionArcPlan_questionId_idx";
 DROP INDEX IF EXISTS "GameOnboarding_currentStep_idx";
 DROP INDEX IF EXISTS "GameOnboarding_isComplete_idx";
-DROP INDEX IF EXISTS "GameOnboarding_userId_idx";
 
 -- Drop tables
 DROP TABLE IF EXISTS "ArcState";

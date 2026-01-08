@@ -135,7 +135,7 @@ describe('Retry Utility - retryIfRetryable', () => {
   test('calls onRetry callback', async () => {
     const retryCalls: Array<{
       attempt: number;
-      error: Error;
+      error: unknown;
       delay: number;
     }> = [];
 

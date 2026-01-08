@@ -1131,21 +1131,8 @@ export async function executeDirectRepost(
     return { success: false, error: 'Cannot repost own content' };
   }
 
-  // Check if already shared
-  const [existingShare] = await db
-    .select({ id: shares.id })
-    .from(shares)
-    .where(and(eq(shares.postId, postId), eq(shares.userId, agentUserId)))
-    .limit(1);
-
-  if (existingShare) {
-    logger.debug(
-      `[DirectExecutor] Agent already reposted ${postId}`,
-      { agentUserId },
-      'DirectExecutors'
-    );
-    return { success: true, repostId: existingShare.id };
-  }
+  // Note: We rely on the transaction's unique constraint handling to detect duplicates.
+  // The pre-check was removed to avoid TOCTOU race conditions.
 
   logger.info(
     `[DirectExecutor] Reposting post ${postId}`,

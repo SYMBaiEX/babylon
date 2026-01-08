@@ -93,12 +93,18 @@ describe('Event Market Pipeline - Price Calculation', () => {
   });
 
   test('modifier effect decays over time', () => {
+    // Use a fixed reference point in the past to eliminate timing variance.
+    // Both modifiers will be evaluated at a consistent "now" when appliedAt is
+    // far enough in the past that millisecond-level test timing is irrelevant.
     const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000);
+    const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
     const recentModifier: PriceModifier = {
       eventId: 'recent-event',
       effect: 1.2, // 20% increase
       decayRate: 0.5, // 50% decay per hour
-      appliedAt: now.toISOString(),
+      appliedAt: oneHourAgo.toISOString(), // 1 hour ago: decayed ~60.6%
       expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
@@ -106,7 +112,7 @@ describe('Event Market Pipeline - Price Calculation', () => {
       eventId: 'old-event',
       effect: 1.2, // 20% increase
       decayRate: 0.5, // 50% decay per hour
-      appliedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+      appliedAt: threeHoursAgo.toISOString(), // 3 hours ago: decayed ~77.7%
       expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
@@ -114,6 +120,8 @@ describe('Event Market Pipeline - Price Calculation', () => {
     const priceOld = calculateCurrentPrice(100, 0, [oldModifier]);
 
     // Old modifier should have less impact due to decay
+    // recentModifier (1 hour): decayedEffect ≈ 1 + 0.2 * exp(-0.5) ≈ 1.121
+    // oldModifier (3 hours): decayedEffect ≈ 1 + 0.2 * exp(-1.5) ≈ 1.045
     expect(priceRecent).toBeGreaterThan(priceOld);
   });
 

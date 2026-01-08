@@ -182,10 +182,19 @@ export class MultiStepExecutor {
         'MultiStepExecutor'
       );
 
+      // Compute per-iteration effectiveFeatures based on current trace
+      // This enforces one-POST-per-tick: if we've already posted, remove 'posting'
+      const hasPostedThisTick = trace.some(
+        (r) => r.actionType === 'POST' && r.success
+      );
+      const effectiveFeatures = hasPostedThisTick
+        ? enabledFeatures.filter((f) => f !== 'posting')
+        : enabledFeatures;
+
       // Gather fresh context (state refreshes after each action)
       const context = await this.gatherContext(
         agentUserId,
-        enabledFeatures,
+        effectiveFeatures,
         isNpc
       );
 
@@ -242,12 +251,12 @@ export class MultiStepExecutor {
         break;
       }
 
-      // Execute the chosen action with parameters (pass enabledFeatures for enforcement)
+      // Execute the chosen action with parameters (pass effectiveFeatures for enforcement)
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
         decision.parameters,
-        enabledFeatures,
+        effectiveFeatures,
         runtime,
         { prompt, completion: rawResponse, thought: decision.thought }
       );

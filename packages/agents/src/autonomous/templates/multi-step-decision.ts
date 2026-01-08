@@ -128,13 +128,16 @@ export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
  * - 25% (0.55 - 0.80): group_only - Share in group chat only
  * - 20% (0.80 - 1.00): quiet - Stay quiet, no sharing
  *
- * @param roll - Random value between 0 and 1
+ * @param roll - Random value between 0 and 1 (clamped if out of range)
  * @returns ShareBehavior indicating how to share the trade
  */
 export function determineShareBehavior(roll: number): ShareBehavior {
-  if (roll < 0.4) return 'public_only';
-  if (roll < 0.55) return 'both';
-  if (roll < 0.8) return 'group_only';
+  // Defensively clamp roll to [0, 1] range
+  const clampedRoll = Math.max(0, Math.min(1, roll));
+
+  if (clampedRoll < 0.4) return 'public_only';
+  if (clampedRoll < 0.55) return 'both';
+  if (clampedRoll < 0.8) return 'group_only';
   return 'quiet';
 }
 

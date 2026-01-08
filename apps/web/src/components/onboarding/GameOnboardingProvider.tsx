@@ -198,6 +198,14 @@ export function GameOnboardingProvider({
           prev ? { ...prev, isComplete: true, completedSteps: [] } : null
         );
         setShowTooltip(false);
+      } else {
+        // Log non-OK responses so failures are visible
+        const responseText = await response.text().catch(() => '(failed to read body)');
+        console.error('Skip onboarding request failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText,
+        });
       }
     } catch (error) {
       console.error('Failed to skip onboarding:', error);

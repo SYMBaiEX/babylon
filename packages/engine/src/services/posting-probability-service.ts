@@ -431,7 +431,10 @@ export async function getActiveEventsForPosting(): Promise<{
   const actorToStocks = getActorToStocksMap();
 
   for (const event of recentEvents) {
-    const actorIds = (event.actors || []) as string[];
+    // Validate event.actors is an array of strings before using it
+    const actorIds: string[] = Array.isArray(event.actors)
+      ? event.actors.filter((a): a is string => typeof a === 'string')
+      : [];
 
     // Collect affected stocks from affiliated actors
     const affectedStocks = new Set<string>();

@@ -449,6 +449,9 @@ export async function resetRateLimit(
   logger.info('Rate limit reset', { userId, actionType }, 'RateLimiter');
 }
 
+/** Maximum iterations for SCAN loop to prevent infinite loops */
+const MAX_SCAN_ITERATIONS = 1000;
+
 /**
  * Clear all rate limit records
  * Useful for testing
@@ -460,7 +463,18 @@ export async function clearAllRateLimits(): Promise<void> {
     try {
       // Use SCAN to find and delete all rate limit keys
       let cursor = '0';
+      let iterations = 0;
       do {
+        iterations++;
+        if (iterations > MAX_SCAN_ITERATIONS) {
+          logger.warn(
+            'clearAllRateLimits: MAX_SCAN_ITERATIONS reached, breaking out of loop',
+            { maxIterations: MAX_SCAN_ITERATIONS, keyPrefix: RATE_LIMIT_KEY_PREFIX },
+            'RateLimiter'
+          );
+          break;
+        }
+
         const [newCursor, keys] = await redis.scan(
           cursor,
           'MATCH',
@@ -629,5 +643,12 @@ export function stopMemoryCleanup(): boolean {
 
 // Auto-start cleanup only in production (not during tests)
 if (typeof setInterval !== 'undefined' && process.env.NODE_ENV !== 'test') {
-  startMemoryCleanup();
+  const autoStarted = startMemoryCleanup();
+  if (!autoStarted) {
+    logger.debug(
+      'Memory cleanup auto-start failed (already running or setInterval unavailable)',
+      { nodeEnv: process.env.NODE_ENV },
+      'RateLimiter'
+    );
+  }
 }

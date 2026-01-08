@@ -11,21 +11,19 @@
 
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { completeOnboardingStep } from '@babylon/engine';
+import { ONBOARDING_STEP_ORDER } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 /**
- * Valid onboarding steps for validation
+ * Valid onboarding steps for validation.
+ * Uses the canonical ONBOARDING_STEP_ORDER but filters out 'complete'
+ * since that is a terminal state, not a completable step.
  */
-const GameOnboardingStepSchema = z.enum([
-  'welcome',
-  'explore_feed',
-  'follow_npc',
-  'view_markets',
-  'first_prediction',
-  'first_trade',
-  'complete',
-]);
+const completableSteps = ONBOARDING_STEP_ORDER.filter(
+  (step) => step !== 'complete'
+) as [string, ...string[]];
+const GameOnboardingStepSchema = z.enum(completableSteps);
 
 const CompleteStepRequestSchema = z.object({
   step: GameOnboardingStepSchema,

@@ -105,15 +105,20 @@ export class NPCSocialEngagementService {
 }
 
 // =============================================================================
-// LLM CLIENT (deprecated - use NPCSocialEngagementService instead)
+// SINGLETON INSTANCE
 // =============================================================================
 
-/** @deprecated Use NPCSocialEngagementService class instead */
-let llmClientRef: BabylonLLMClient | null = null;
+/** Singleton service instance for LLM client management */
+const serviceInstance = new NPCSocialEngagementService();
 
-/** @deprecated Use NPCSocialEngagementService class instead */
+/** @deprecated Use serviceInstance.setLLMClient() instead */
 export function setSocialEngagementLLMClient(client: BabylonLLMClient): void {
-  llmClientRef = client;
+  serviceInstance.setLLMClient(client);
+}
+
+/** Internal helper to get the current LLM client */
+function getLLMClient(): BabylonLLMClient | null {
+  return serviceInstance.getLLMClient();
 }
 
 // =============================================================================
@@ -266,7 +271,7 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
         }
 
         // COMMENT - comments don't have unique constraints per-actor
-        if (llmClientRef && result.commentsCreated < MAX_COMMENTS_PER_TICK) {
+        if (getLLMClient() && result.commentsCreated < MAX_COMMENTS_PER_TICK) {
           if (secureRandom() < probs.comment) {
             const comment = await generateNPCComment(actor, post);
             if (comment) {
@@ -387,7 +392,8 @@ async function generateNPCComment(
   actor: ActorContext,
   post: PostContext
 ): Promise<string | null> {
-  if (!llmClientRef) return null;
+  const llmClient = getLLMClient();
+  if (!llmClient) return null;
 
   try {
     const postAuthor = StaticDataRegistry.getActor(post.authorId);
@@ -416,7 +422,7 @@ Post: "${post.content.slice(0, 250)}"
     interface CommentResponse {
       comment: string;
     }
-    const response = await llmClientRef.generateJSON<CommentResponse>(
+    const response = await llmClient.generateJSON<CommentResponse>(
       prompt,
       undefined,
       {

@@ -844,6 +844,11 @@ export async function executeGameTick(
           break;
         }
 
+        // Skip pools without an NPC actor ID
+        if (!pool.npcActorId) {
+          continue;
+        }
+
         const poolStartTime = Date.now();
         const actor = StaticDataRegistry.getActor(pool.npcActorId);
 

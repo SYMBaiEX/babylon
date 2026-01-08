@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "ArcState" (
     "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Note: ArcState_questionId_idx is not needed because ArcState_questionId_unique provides the same coverage
+-- Note: A regular index on questionId is not needed because ArcState_questionId_unique (a unique index) provides the same coverage
 CREATE INDEX IF NOT EXISTS "ArcState_currentState_idx" ON "ArcState" ("currentState");
 CREATE UNIQUE INDEX IF NOT EXISTS "ArcState_questionId_unique" ON "ArcState" ("questionId");
 
@@ -109,6 +109,20 @@ END $$;
 CREATE INDEX IF NOT EXISTS "ActorState_lastPostAt_idx" ON "ActorState" ("lastPostAt");
 CREATE INDEX IF NOT EXISTS "ActorState_lastActiveAt_idx" ON "ActorState" ("lastActiveAt");
 
+-- Add CHECK constraint for currentMood bounds (-1 to 1)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'current_mood_bounds' 
+        AND conrelid = 'ActorState'::regclass
+    ) THEN
+        ALTER TABLE "ActorState" 
+        ADD CONSTRAINT "current_mood_bounds" 
+        CHECK ("currentMood" >= -1 AND "currentMood" <= 1);
+    END IF;
+END $$;
+
 -- ============================================================================
 -- 5. OrganizationState columns for narrative-driven pricing
 -- ============================================================================
@@ -116,7 +130,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                    WHERE table_name = 'OrganizationState' AND column_name = 'basePrice') THEN
-        ALTER TABLE "OrganizationState" ADD COLUMN "basePrice" DOUBLE PRECISION;
+        ALTER TABLE "OrganizationState" ADD COLUMN "basePrice" DOUBLE PRECISION NOT NULL DEFAULT 100.0;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
@@ -135,3 +149,17 @@ END $$;
 
 -- Create indexes for OrganizationState
 CREATE INDEX IF NOT EXISTS "OrganizationState_sentiment_idx" ON "OrganizationState" ("sentiment");
+
+-- Add CHECK constraint for sentiment range (-100 to 100)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'sentiment_range' 
+        AND conrelid = 'OrganizationState'::regclass
+    ) THEN
+        ALTER TABLE "OrganizationState" 
+        ADD CONSTRAINT "sentiment_range" 
+        CHECK ("sentiment" >= -100 AND "sentiment" <= 100);
+    END IF;
+END $$;

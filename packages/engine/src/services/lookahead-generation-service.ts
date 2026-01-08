@@ -1024,9 +1024,8 @@ async function generateContentWindow(
     }
 
     // Article probability scales with active market count:
-    // - With 1 active market: 12% (getArticleProb(1))
+    // - With 1 active market: 12% (effective baseline, since 0 markets = early return)
     // - Scales up to 35% with 5+ active markets
-    // Note: The 5% baseline only applies when marketCount === 0 (filtered out earlier)
     const articleProb = getArticleProb(activeQuestions.length);
     const shouldCreateArticle = secureRandom() < articleProb;
     let success = false;

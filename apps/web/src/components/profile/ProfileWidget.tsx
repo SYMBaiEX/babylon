@@ -9,11 +9,26 @@ import type {
 import { cn } from '@babylon/shared';
 import { HelpCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
 import { PositionDetailModal } from './PositionDetailModal';
+
+// Module-scope formatters to avoid recreating on every render
+const formatPoints = (points: number) => {
+  return points.toLocaleString('en-US', {
+    maximumFractionDigits: 0,
+  });
+};
+
+const formatPercent = (value: number) => {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+};
+
+const formatPrice = (price: number) => {
+  return `$${price.toFixed(2)}`;
+};
 
 /**
  * Shared helper to fetch profile widget data.
@@ -150,30 +165,24 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     PredictionPosition | PerpPositionFromAPI | null
   >(null);
 
-  const formatPoints = (points: number) => {
-    return points.toLocaleString('en-US', {
-      maximumFractionDigits: 0,
-    });
-  };
-
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
-  };
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
-  };
-
-  // Calculate points in positions (total deposited minus available balance)
-  const pointsInPositions = Math.max(
-    0,
-    (balance?.totalDeposited || 0) - (balance?.balance || 0)
+  // Memoize derived values to avoid recalculating on every render
+  const pointsInPositions = useMemo(
+    () => Math.max(0, (balance?.totalDeposited || 0) - (balance?.balance || 0)),
+    [balance?.totalDeposited, balance?.balance]
   );
-  const totalPortfolio = balance?.totalDeposited || 0;
-  const pnlPercent =
-    totalPortfolio > 0
-      ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
-      : 0;
+
+  const totalPortfolio = useMemo(
+    () => balance?.totalDeposited || 0,
+    [balance?.totalDeposited]
+  );
+
+  const pnlPercent = useMemo(
+    () =>
+      totalPortfolio > 0
+        ? ((balance?.lifetimePnL || 0) / totalPortfolio) * 100
+        : 0,
+    [balance?.lifetimePnL, totalPortfolio]
+  );
 
   /**
    * Apply fetch result to state and cache.
@@ -521,18 +530,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           // Refresh profile data using the shared helper
           try {
             const result = await fetchProfileWidgetData(userId);
-            if (!result.needsOnboarding) {
-              setBalance(result.balanceData);
-              setPredictions(result.predictionsData);
-              setPerps(result.perpsData);
-              setStats(result.statsData);
-              widgetCache.setProfileWidget(userId, {
-                balance: result.balanceData,
-                predictions: result.predictionsData,
-                perps: result.perpsData,
-                stats: result.statsData,
-              });
-            }
+            applyFetchResult(result);
           } catch (refreshError) {
             console.error('Error refreshing profile data:', refreshError);
             // Don't set error state here since original data is still valid

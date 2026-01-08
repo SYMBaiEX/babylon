@@ -39,6 +39,46 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 /**
+ * Maximum consecutive errors before aborting the tick (circuit breaker).
+ * Prevents cascading failures if there's a systemic issue.
+ * Mirrors the same pattern used in npc-tick.
+ */
+const MAX_CONSECUTIVE_ERRORS = Number(process.env.ORG_TICK_MAX_ERRORS) || 5;
+
+/**
+ * Truncate content at a sentence or word boundary before the limit.
+ * Finds the last sentence-ending punctuation (.!?) or whitespace before maxLength.
+ */
+function truncateAtBoundary(content: string, maxLength: number): string {
+  if (content.length <= maxLength) {
+    return content;
+  }
+
+  const truncated = content.substring(0, maxLength);
+
+  // Try to find last sentence boundary (.!?)
+  const lastSentenceEnd = Math.max(
+    truncated.lastIndexOf('.'),
+    truncated.lastIndexOf('!'),
+    truncated.lastIndexOf('?')
+  );
+
+  if (lastSentenceEnd > maxLength * 0.5) {
+    // Only use sentence boundary if it's past halfway
+    return truncated.substring(0, lastSentenceEnd + 1);
+  }
+
+  // Fall back to last whitespace
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > maxLength * 0.5) {
+    return truncated.substring(0, lastSpace);
+  }
+
+  // If no good boundary found, just truncate
+  return truncated;
+}
+
+/**
  * Zod schema for validating LLM response formats.
  * Handles both direct { post: string } and wrapped { response: { post: string } } formats.
  */
@@ -280,11 +320,24 @@ export async function POST(_req: NextRequest) {
     }> = [];
     let postsCreated = 0;
     let errors = 0;
+    let consecutiveOrgErrors = 0;
+    let abortedDueToCircuitBreaker = false;
 
     // Create LLM client for organization posts
     const llmClient = BabylonLLMClient.forGameTick();
 
     for (const org of orgsThisTick) {
+      // Circuit breaker: abort if too many consecutive errors
+      if (consecutiveOrgErrors >= MAX_CONSECUTIVE_ERRORS) {
+        abortedDueToCircuitBreaker = true;
+        logger.error(
+          `Circuit breaker triggered after ${consecutiveOrgErrors} consecutive errors`,
+          { processId, orgsRemaining: orgsThisTick.length - results.length },
+          'OrganizationTick'
+        );
+        break;
+      }
+
       const orgStartTime = Date.now();
 
       try {
@@ -357,7 +410,7 @@ export async function POST(_req: NextRequest) {
         const postId = await generateSnowflakeId();
         await db.insert(posts).values({
           id: postId,
-          content: isArticle ? content.substring(0, 500) : content,
+          content: isArticle ? truncateAtBoundary(content, 500) : content,
           authorId: org.id,
           gameId: gameState.id,
           dayNumber: gameState.currentDay ?? 1,
@@ -372,6 +425,7 @@ export async function POST(_req: NextRequest) {
         });
 
         postsCreated++;
+        consecutiveOrgErrors = 0; // Reset on success
         results.push({
           orgId: org.id,
           name: org.name,
@@ -392,11 +446,13 @@ export async function POST(_req: NextRequest) {
         );
       } catch (error) {
         errors++;
+        consecutiveOrgErrors++;
         logger.error(
           `Error processing organization ${org.name}`,
           {
             orgId: org.id,
             error: error instanceof Error ? error.message : String(error),
+            consecutiveOrgErrors,
           },
           'OrganizationTick'
         );
@@ -430,14 +486,16 @@ export async function POST(_req: NextRequest) {
       processed: orgsThisTick.length,
       postsCreated,
       errorCount: errors,
+      abortedDueToCircuitBreaker,
     });
 
     return NextResponse.json({
-      success: errors === 0,
+      success: errors === 0 && !abortedDueToCircuitBreaker,
       processed: orgsThisTick.length,
       postsCreated,
       duration,
       errors,
+      abortedDueToCircuitBreaker,
       results,
     });
   } finally {
@@ -496,21 +554,17 @@ The post should:
 }
 
 /**
- * Get the editorial style for an organization
+ * Get the editorial style for an organization.
+ * Uses the postStyle from StaticDataRegistry if available,
+ * otherwise falls back to a default professional style.
  */
 function getOrgStyle(orgId: string): string {
-  const styles: Record<string, string> = {
-    ainbc: 'Mainstream, balanced reporting with slight establishment lean.',
-    aixios: 'Punchy, newsletter-style updates. Smart brevity.',
-    bloombairg: 'Financial focus, data-driven, professional tone.',
-    ainfowars: 'Conspiratorial, anti-establishment, sensationalist.',
-    techcrainch: 'Startup and tech focused, insider perspective.',
-    'the-vairge': 'Consumer tech, cultural commentary, accessible.',
-    waired: 'Long-form tech journalism, thoughtful analysis.',
-    'aimerica-first': 'Populist, America-first perspective, anti-globalist.',
-  };
+  const org = StaticDataRegistry.getOrganization(orgId);
+  if (org?.postStyle) {
+    return org.postStyle;
+  }
 
-  return styles[orgId] || 'Professional news reporting style.';
+  return 'Professional news reporting style.';
 }
 
 /**

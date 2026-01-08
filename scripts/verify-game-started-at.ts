@@ -9,7 +9,7 @@
  */
 
 import { db, eq, games } from '@babylon/db';
-import { getGameDayNumber } from '../packages/engine/src/utils/date-utils';
+import { getGameDayNumber } from '@babylon/engine/utils/date-utils';
 
 async function verifyGameStartedAt() {
   console.log('🔍 Checking continuous game startedAt...\n');
@@ -54,6 +54,13 @@ async function verifyGameStartedAt() {
     console.log(
       '   UPDATE "Game" SET "startedAt" = "createdAt" WHERE "isContinuous" = true;'
     );
+    console.log('');
+    console.log(
+      '   ⚠️  Caveat: Using createdAt assumes the game ran continuously since creation.'
+    );
+    console.log(
+      '   If the game was paused for extended periods, adjust startedAt accordingly.'
+    );
     process.exit(1);
   }
 
@@ -74,7 +81,13 @@ async function verifyGameStartedAt() {
     console.warn(
       `⚠️  Stored day (${game.currentDay}) differs from calculated day (${expectedDay})`
     );
-    console.log('   This will be corrected on the next game tick.');
+    if (game.isRunning) {
+      console.log('   Game is running - this will be corrected on the next game tick.');
+    } else {
+      console.log(
+        '   Game is NOT running - start the game or manually correct the day.'
+      );
+    }
   } else {
     console.log('✅ Game day tracking is correct!');
   }

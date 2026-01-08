@@ -32,7 +32,7 @@
  * Uses secureRandom for deterministic behavior in testing.
  */
 
-import { db, eq, type TimeframedMarket, timeframedMarkets } from '@babylon/db';
+import { asc, db, eq, type TimeframedMarket, timeframedMarkets } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
 import {
@@ -158,6 +158,7 @@ export class TimeframeArcProcessor {
           .select()
           .from(timeframedMarkets)
           .where(eq(timeframedMarkets.isActive, true))
+          .orderBy(asc(timeframedMarkets.id)) // Stable order for pagination
           .limit(BATCH_SIZE)
           .offset(offset);
 
