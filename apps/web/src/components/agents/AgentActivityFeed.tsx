@@ -72,12 +72,19 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error state with retry button */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-800 bg-red-900/20 p-3">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-800 bg-red-900/20 p-3">
           <p className="text-red-400 text-sm">
             Failed to load activity: {error.message}
           </p>
+          <button
+            onClick={() => void refresh()}
+            disabled={isLoading}
+            className="ml-3 shrink-0 rounded-md bg-red-800/50 px-3 py-1 text-red-300 text-sm transition-colors hover:bg-red-800 disabled:opacity-50"
+          >
+            {isLoading ? 'Retrying...' : 'Retry'}
+          </button>
         </div>
       )}
 
