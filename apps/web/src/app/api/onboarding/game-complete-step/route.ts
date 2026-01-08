@@ -11,7 +11,10 @@
 
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { completeOnboardingStep } from '@babylon/engine';
-import { ONBOARDING_STEP_ORDER } from '@babylon/shared';
+import {
+  type GameOnboardingStep,
+  ONBOARDING_STEP_ORDER,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -22,7 +25,7 @@ import { z } from 'zod';
  */
 const completableSteps = ONBOARDING_STEP_ORDER.filter(
   (step) => step !== 'complete'
-) as [string, ...string[]];
+) as [GameOnboardingStep, ...GameOnboardingStep[]];
 const GameOnboardingStepSchema = z.enum(completableSteps);
 
 const CompleteStepRequestSchema = z.object({
