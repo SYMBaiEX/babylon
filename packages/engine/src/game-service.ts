@@ -89,7 +89,7 @@ class GameService {
     return {
       isRunning: false,
       initialized: false,
-      currentDay: gameState?.currentDay || 0,
+      currentDay: gameState?.currentDay ?? 1,
       currentDate: gameState?.currentDate?.toISOString(),
       speed: 60000,
       lastTickAt: gameState?.lastTickAt?.toISOString(),
