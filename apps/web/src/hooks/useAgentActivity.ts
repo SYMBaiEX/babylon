@@ -138,7 +138,18 @@ export function useAgentActivity(
   );
 
   // Ref to track activities we've already seen to prevent duplicates
+  // Capped at MAX_SEEN_IDS to prevent memory leaks in long sessions
+  const MAX_SEEN_IDS = 500;
   const seenActivityIds = useRef(new Set<string>());
+
+  // Clear seen IDs when agentId changes to prevent stale data
+  const prevAgentIdRef = useRef(agentId);
+  useEffect(() => {
+    if (prevAgentIdRef.current !== agentId) {
+      seenActivityIds.current.clear();
+      prevAgentIdRef.current = agentId;
+    }
+  }, [agentId]);
 
   // Build the API URL
   const apiUrl = useMemo(() => {
@@ -160,8 +171,17 @@ export function useAgentActivity(
     }
     const data: AgentActivityResponse = await response.json();
 
-    // Update seen IDs
+    // Update seen IDs (cap size to prevent memory leak)
     for (const activity of data.activities) {
+      if (seenActivityIds.current.size >= MAX_SEEN_IDS) {
+        // Remove oldest entries (first items in Set iteration order)
+        const iterator = seenActivityIds.current.values();
+        const toRemove = seenActivityIds.current.size - MAX_SEEN_IDS + 1;
+        for (let i = 0; i < toRemove; i++) {
+          const oldest = iterator.next().value;
+          if (oldest) seenActivityIds.current.delete(oldest);
+        }
+      }
       seenActivityIds.current.add(activity.id);
     }
 
@@ -217,6 +237,13 @@ export function useAgentActivity(
       if (seenActivityIds.current.has(activityId)) {
         return;
       }
+
+      // Cap seen IDs to prevent memory leak
+      if (seenActivityIds.current.size >= MAX_SEEN_IDS) {
+        const iterator = seenActivityIds.current.values();
+        const oldest = iterator.next().value;
+        if (oldest) seenActivityIds.current.delete(oldest);
+      }
       seenActivityIds.current.add(activityId);
 
       const newActivity: AgentActivity = {
@@ -237,6 +264,9 @@ export function useAgentActivity(
   );
 
   // Subscribe to agent SSE channel
+  // Note: SSE is only enabled for single-agent views. For aggregate "My Moves" feed
+  // (no agentId), we rely on polling since subscribing to multiple agent channels
+  // would require knowing all agent IDs upfront and managing multiple subscriptions.
   const sseChannel: Channel | null =
     enableSSE && agentId ? `agent:${agentId}` : null;
   const { isConnected } = useSSEChannel(sseChannel, handleSSEMessage);
@@ -262,8 +292,9 @@ export function useAgentActivity(
       .slice(0, limit);
   }, [fetchedActivities, realtimeActivities, limit]);
 
-  // Refresh function
+  // Refresh function - clears seen IDs to allow fresh deduplication
   const refresh = useCallback(async () => {
+    seenActivityIds.current.clear();
     setRealtimeActivities([]);
     setIsLoading(true);
     setError(null);

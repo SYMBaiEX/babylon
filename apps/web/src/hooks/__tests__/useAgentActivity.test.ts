@@ -732,3 +732,101 @@ describe('Seen Activity IDs Tracking', () => {
     expect(seenIds.has('activity-99999')).toBe(false);
   });
 });
+
+describe('Seen Activity IDs Memory Management', () => {
+  const MAX_SEEN_IDS = 500;
+
+  it('should cap seen IDs set at MAX_SEEN_IDS (500)', () => {
+    const seenIds = new Set<string>();
+
+    // Add 600 IDs (more than MAX)
+    for (let i = 0; i < 600; i++) {
+      if (seenIds.size >= MAX_SEEN_IDS) {
+        const iterator = seenIds.values();
+        const oldest = iterator.next().value;
+        if (oldest) seenIds.delete(oldest);
+      }
+      seenIds.add(`activity-${i}`);
+    }
+
+    // Should be capped at MAX_SEEN_IDS
+    expect(seenIds.size).toBe(MAX_SEEN_IDS);
+
+    // Oldest IDs should have been removed
+    expect(seenIds.has('activity-0')).toBe(false);
+    expect(seenIds.has('activity-99')).toBe(false);
+
+    // Newest IDs should still exist
+    expect(seenIds.has('activity-599')).toBe(true);
+    expect(seenIds.has('activity-500')).toBe(true);
+  });
+
+  it('should remove oldest entries first when capping', () => {
+    const seenIds = new Set<string>();
+
+    // Add exactly MAX IDs
+    for (let i = 0; i < MAX_SEEN_IDS; i++) {
+      seenIds.add(`batch1-${i}`);
+    }
+
+    expect(seenIds.size).toBe(MAX_SEEN_IDS);
+
+    // Add one more, triggering eviction
+    if (seenIds.size >= MAX_SEEN_IDS) {
+      const iterator = seenIds.values();
+      const oldest = iterator.next().value;
+      if (oldest) seenIds.delete(oldest);
+    }
+    seenIds.add('batch2-0');
+
+    // Size should still be MAX_SEEN_IDS
+    expect(seenIds.size).toBe(MAX_SEEN_IDS);
+
+    // First ID from batch 1 should be gone
+    expect(seenIds.has('batch1-0')).toBe(false);
+
+    // Last ID from batch 1 should still exist
+    expect(seenIds.has('batch1-499')).toBe(true);
+
+    // New ID should exist
+    expect(seenIds.has('batch2-0')).toBe(true);
+  });
+
+  it('should clear seen IDs on refresh', () => {
+    const seenIds = new Set<string>();
+
+    // Add some IDs
+    seenIds.add('id-1');
+    seenIds.add('id-2');
+    seenIds.add('id-3');
+    expect(seenIds.size).toBe(3);
+
+    // Simulate refresh - clear the set
+    seenIds.clear();
+
+    expect(seenIds.size).toBe(0);
+    expect(seenIds.has('id-1')).toBe(false);
+    expect(seenIds.has('id-2')).toBe(false);
+    expect(seenIds.has('id-3')).toBe(false);
+  });
+
+  it('should clear seen IDs when agentId changes', () => {
+    const seenIds = new Set<string>();
+    let currentAgentId = 'agent-1';
+
+    // Simulate tracking for agent-1
+    seenIds.add('activity-from-agent-1');
+    expect(seenIds.has('activity-from-agent-1')).toBe(true);
+
+    // Simulate agentId change
+    const newAgentId = 'agent-2';
+    if (currentAgentId !== newAgentId) {
+      seenIds.clear();
+      currentAgentId = newAgentId;
+    }
+
+    // Should be cleared
+    expect(seenIds.size).toBe(0);
+    expect(seenIds.has('activity-from-agent-1')).toBe(false);
+  });
+});
