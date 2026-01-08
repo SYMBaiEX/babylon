@@ -481,9 +481,9 @@ export class SubMarketService {
     withinMinutes: number
   ): Promise<number> {
     const cutoff = new Date(Date.now() - withinMinutes * 60 * 1000);
-    // Use database-level filtering for efficiency
-    const logs = await db
-      .select()
+    // Use COUNT aggregation instead of fetching all rows for efficiency
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
       .from(subMarketSpawnLogs)
       .where(
         and(
@@ -492,7 +492,7 @@ export class SubMarketService {
         )
       );
 
-    return logs.length;
+    return result?.count ?? 0;
   }
 
   private async logSpawnSkipped(

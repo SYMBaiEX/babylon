@@ -185,7 +185,11 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
 
         // LIKE - use onConflictDoNothing to handle race conditions atomically
         // Skip if global likes quota reached (other actors may still process shares/comments)
-        if (!likesQuotaReached && !reactionSet.has(key) && secureRandom() < probs.like) {
+        if (
+          !likesQuotaReached &&
+          !reactionSet.has(key) &&
+          secureRandom() < probs.like
+        ) {
           const insertResult = await db
             .insert(reactions)
             .values({
