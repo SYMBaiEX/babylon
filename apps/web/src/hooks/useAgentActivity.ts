@@ -171,18 +171,20 @@ export function useAgentActivity(
     }
     const data: AgentActivityResponse = await response.json();
 
-    // Update seen IDs (cap size to prevent memory leak)
-    for (const activity of data.activities) {
-      if (seenActivityIds.current.size >= MAX_SEEN_IDS) {
-        // Remove oldest entries (first items in Set iteration order)
-        const iterator = seenActivityIds.current.values();
-        const toRemove = seenActivityIds.current.size - MAX_SEEN_IDS + 1;
-        for (let i = 0; i < toRemove; i++) {
-          const oldest = iterator.next().value;
-          if (oldest) seenActivityIds.current.delete(oldest);
-        }
+    // Update seen IDs (cap size to prevent memory leak).
+    // Pre-evict to make room for incoming activities, then add all at once.
+    const newIds = data.activities.map((a) => a.id);
+    const spaceNeeded =
+      seenActivityIds.current.size + newIds.length - MAX_SEEN_IDS;
+    if (spaceNeeded > 0) {
+      const iterator = seenActivityIds.current.values();
+      for (let i = 0; i < spaceNeeded; i++) {
+        const oldest = iterator.next().value;
+        if (oldest) seenActivityIds.current.delete(oldest);
       }
-      seenActivityIds.current.add(activity.id);
+    }
+    for (const id of newIds) {
+      seenActivityIds.current.add(id);
     }
 
     setFetchedActivities(data.activities);
