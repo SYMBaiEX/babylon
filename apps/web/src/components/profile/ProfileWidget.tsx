@@ -170,10 +170,12 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       0
     );
     // Use margin (size/leverage) for perps to represent actual capital at risk
-    const perpValue = perps.reduce(
-      (sum, pos) => sum + Math.abs(pos.size / (pos.leverage || 1)),
-      0
-    );
+    const perpValue = perps.reduce((sum, pos) => {
+      const leverage = Number(pos.leverage);
+      const effectiveLeverage =
+        Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+      return sum + Math.abs(pos.size / effectiveLeverage);
+    }, 0);
     return predictionValue + perpValue;
   }, [predictions, perps]);
 

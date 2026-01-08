@@ -115,8 +115,21 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       return;
     }
 
-    const balanceJson = await balanceRes.json();
-    const positionsJson = await positionsRes.json();
+    let balanceJson: Record<string, unknown>;
+    let positionsJson: {
+      perpetuals?: { positions?: Array<{ unrealizedPnL?: number }> };
+      predictions?: { positions?: Array<{ unrealizedPnL?: number }> };
+    };
+    try {
+      [balanceJson, positionsJson] = await Promise.all([
+        balanceRes.json() as Promise<Record<string, unknown>>,
+        positionsRes.json() as Promise<typeof positionsJson>,
+      ]);
+    } catch {
+      setError('Failed to parse portfolio data');
+      setLoading(false);
+      return;
+    }
 
     // Check if request was aborted after parsing
     if (abortController.signal.aborted) {
@@ -129,18 +142,13 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
     const availableBalance = toNumber(balanceJson.balance);
 
     const perpUnrealized = (positionsJson?.perpetuals?.positions ?? []).reduce(
-      (sum: number, position: { unrealizedPnL?: number }) =>
-        sum + toNumber(position?.unrealizedPnL),
+      (sum, position) => sum + toNumber(position?.unrealizedPnL),
       0
     );
 
     const predictionUnrealized = (
       positionsJson?.predictions?.positions ?? []
-    ).reduce(
-      (sum: number, position: { unrealizedPnL?: number }) =>
-        sum + toNumber(position?.unrealizedPnL),
-      0
-    );
+    ).reduce((sum, position) => sum + toNumber(position?.unrealizedPnL), 0);
 
     const totalUnrealizedPnL = perpUnrealized + predictionUnrealized;
     const totalPnL = lifetimePnL + totalUnrealizedPnL;

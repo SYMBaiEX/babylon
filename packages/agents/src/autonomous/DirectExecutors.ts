@@ -708,7 +708,7 @@ async function executePredictionSell(params: {
 
     // Update or close position
     const remainingShares = currentShares - sharesToSell;
-    if (remainingShares <= MIN_SHARES_THRESHOLD) {
+    if (Math.abs(remainingShares) < MIN_SHARES_THRESHOLD) {
       // Close position
       await txDb
         .update(positions)
