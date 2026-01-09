@@ -325,48 +325,58 @@ ${
 }`
       : '';
 
-  // Action priority guidance for NPCs - build list dynamically to avoid duplicate numbers
-  let npcActionPrioritySection = '';
-  if (isNpc) {
-    const priorityActions: string[] = [];
+  // Action priority guidance for ALL agents (NPCs and user-created)
+  // This encourages engagement (trading, commenting, liking) OVER posting
+  // Prevents agents from posting too much and instead focuses on other game actions
+  const priorityActions: string[] = [];
 
-    // Always start with RESPOND
-    priorityActions.push('RESPOND to pending interactions first (if any)');
+  // Always start with RESPOND
+  priorityActions.push('RESPOND to pending interactions first (if any)');
 
-    // Add conditional actions based on flags
-    if (justTraded && canPost) {
-      priorityActions.push(
-        'POST about your trade (users love seeing your moves!)'
-      );
-    }
-    if (canComment) {
-      priorityActions.push('COMMENT on interesting posts in the feed');
-    }
-    if (canEngage) {
-      priorityActions.push('LIKE posts you agree with');
-      priorityActions.push('REPOST content worth amplifying');
-    }
-    if (canTrade && !justTraded) {
-      priorityActions.push('TRADE if you have market conviction');
-    }
-    if (canPost && !justTraded) {
-      priorityActions.push('POST only if you have something unique to say');
-    }
+  // TRADING is HIGH PRIORITY - agents should trade prediction/perp markets actively
+  if (canTrade && !justTraded) {
+    priorityActions.push(
+      'TRADE on prediction or perp markets (this is your main job!)'
+    );
+  }
 
-    // Always end with FINISH
-    priorityActions.push('FINISH if nothing compelling');
+  // Add conditional actions based on flags - engagement before posting
+  if (justTraded && canPost) {
+    priorityActions.push('POST about your trade (share your moves!)');
+  }
+  if (canComment) {
+    priorityActions.push('COMMENT on interesting posts in the feed');
+  }
+  if (canEngage) {
+    priorityActions.push('LIKE posts you agree with');
+    priorityActions.push('REPOST content worth amplifying');
+  }
+  if (canGroupChat) {
+    priorityActions.push('GROUP_MESSAGE to chat with your community');
+  }
+  if (canRespondDMs) {
+    priorityActions.push('DM someone interesting');
+  }
+  // POST is LOW PRIORITY - only if nothing else to do
+  if (canPost && !justTraded) {
+    priorityActions.push(
+      'POST only if you have something truly unique to say (LOW PRIORITY)'
+    );
+  }
 
-    // Build numbered list from the array
-    const numberedList = priorityActions
-      .map((action, index) => `${index + 1}. ${action}`)
-      .join('\n');
+  // Always end with FINISH
+  priorityActions.push('FINISH if nothing compelling');
 
-    npcActionPrioritySection = `
-# Action Priority (prefer engagement over broadcasting)
+  // Build numbered list from the array
+  const numberedList = priorityActions
+    .map((action, index) => `${index + 1}. ${action}`)
+    .join('\n');
+
+  const actionPrioritySection = `
+# Action Priority (prefer trading & engagement over posting)
 ${numberedList}
 
 `;
-  }
 
   // Build conditional sections (only show context for enabled features)
   const tradingSection = canTrade
@@ -474,7 +484,7 @@ ${
 - Meme language is good ("lfg", "ngmi", "gm", slang is fine)
 - SHORT summaries of markets, not full question text
 - DON'T include raw IDs in post content
-${qualityRulesSection}${npcVoiceRulesSection}${npcActionPrioritySection}
+${qualityRulesSection}${npcVoiceRulesSection}${actionPrioritySection}
 Examples:
   ❌ BAD: "Buying YES on 'Will Polymarket deploy its Sentient Market-Making AIs to artificially lower the price of BitcAIn below $120,000 within 5 days?'"
   ✅ GOOD: "The BitcAIn manipulation rumors are getting spicy"
