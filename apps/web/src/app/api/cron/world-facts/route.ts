@@ -92,11 +92,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Step 2: Transform untransformed headlines into parodies
-  let parodies: Awaited<
+  type ParodyResult = Awaited<
     ReturnType<
       ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']
     >
-  > = [];
+  >;
+  let parodies: ParodyResult = [];
   try {
     logger.info('Generating parody headlines...', undefined, 'Cron');
     const untransformedHeadlines =
@@ -141,14 +142,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   };
   try {
     factsResult = await worldFactsGenerator.generateNewWorldFacts();
+    logger.info(
+      `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
+      factsResult,
+      'Cron'
+    );
   } catch (error) {
     logger.error('Error generating world facts', { error }, 'Cron');
   }
-  logger.info(
-    `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
-    factsResult,
-    'Cron'
-  );
 
   const duration = Date.now() - startTime;
   logger.info(

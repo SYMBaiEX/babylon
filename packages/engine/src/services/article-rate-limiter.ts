@@ -193,5 +193,14 @@ export const articleRateLimiter = new ArticleRateLimiterService();
 export function createArticleRateLimiter(
   config: Partial<ArticleRateLimitConfig>
 ): ArticleRateLimiterService {
+  if (
+    config.maxArticlesPerHour !== undefined &&
+    config.maxArticlesPerHour <= 0
+  ) {
+    throw new Error('maxArticlesPerHour must be a positive number');
+  }
+  if (config.windowMs !== undefined && config.windowMs <= 0) {
+    throw new Error('windowMs must be a positive number');
+  }
   return new ArticleRateLimiterService(config);
 }
