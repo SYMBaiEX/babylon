@@ -14,6 +14,56 @@ import {
 const MAX_TEXTAREA_HEIGHT = 160;
 const MENTION_DEBOUNCE_MS = 300;
 
+/**
+ * Renders text with @mentions highlighted as styled chips
+ */
+function HighlightedText({
+  text,
+  validUsernames,
+}: {
+  text: string;
+  validUsernames: Set<string>;
+}) {
+  // Split text by @mentions and render with highlighting
+  const parts: React.ReactNode[] = [];
+  const mentionRegex = /(@[A-Za-z0-9_.-]+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const mention = match[1];
+    const username = mention.slice(1).toLowerCase(); // Remove @ and lowercase
+
+    // Only highlight if it's a valid agent username
+    if (validUsernames.has(username)) {
+      parts.push(
+        <span
+          key={`${match.index}-${mention}`}
+          className="rounded bg-primary/20 px-0.5 text-primary"
+        >
+          {mention}
+        </span>
+      );
+    } else {
+      parts.push(mention);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+}
+
 interface TeamChatMessageInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -85,6 +135,17 @@ export function TeamChatMessageInput({
       }
     }
     return map;
+  }, [agents]);
+
+  // Set of valid usernames for highlighting
+  const validUsernames = useMemo(() => {
+    const set = new Set<string>();
+    for (const agent of agents) {
+      if (agent.username) {
+        set.add(agent.username.toLowerCase());
+      }
+    }
+    return set;
   }, [agents]);
 
   // Extract mentioned agent IDs from message content (debounced)
@@ -260,26 +321,39 @@ export function TeamChatMessageInput({
       />
 
       <div className="flex items-end gap-2 md:gap-3">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            agents.length > 0
-              ? 'Message... @mention agents'
-              : 'Type a message...'
-          }
-          disabled={sending || disabled}
-          rows={1}
-          className={cn(
-            'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
-            'message-input bg-sidebar-accent/50',
-            'text-foreground placeholder:text-muted-foreground',
-            'outline-none focus:ring-2 focus:ring-primary/50',
-            'disabled:cursor-not-allowed disabled:opacity-50'
-          )}
-        />
+        <div className="relative min-h-[44px] flex-1">
+          {/* Highlight overlay - renders mentions with styling */}
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm',
+              'text-foreground'
+            )}
+            aria-hidden="true"
+          >
+            <HighlightedText text={value} validUsernames={validUsernames} />
+          </div>
+          {/* Actual textarea - text is transparent, caret visible */}
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              agents.length > 0
+                ? 'Message... @mention agents'
+                : 'Type a message...'
+            }
+            disabled={sending || disabled}
+            rows={1}
+            className={cn(
+              'relative z-10 max-h-40 min-h-[44px] w-full resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
+              'message-input bg-sidebar-accent/50',
+              'text-transparent caret-foreground placeholder:text-muted-foreground',
+              'outline-none focus:ring-2 focus:ring-primary/50',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          />
+        </div>
         <button
           type="button"
           onClick={onSend}
