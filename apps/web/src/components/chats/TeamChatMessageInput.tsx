@@ -36,7 +36,7 @@ function HighlightedText({
       parts.push(text.slice(lastIndex, match.index));
     }
 
-    const mention = match[1];
+    const mention = match[0]; // Full match is the @mention (capture group covers entire pattern)
     const username = mention.slice(1).toLowerCase(); // Remove @ and lowercase
 
     // Only highlight if it's a valid agent username
