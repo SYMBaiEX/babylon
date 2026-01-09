@@ -524,11 +524,15 @@ export class FollowingMechanics {
             }
           }
 
-          // Probability check with affiliation boost applied
-          if (
-            secureRandom() >
-            NPC_FOLLOWING_CONFIG.proactiveFollowProbability * probabilityBoost
-          ) {
+          // Probability check with affiliation boost applied (clamped to valid [0,1] range)
+          const boostedProbability = Math.max(
+            0,
+            Math.min(
+              1,
+              NPC_FOLLOWING_CONFIG.proactiveFollowProbability * probabilityBoost
+            )
+          );
+          if (secureRandom() > boostedProbability) {
             continue;
           }
 
