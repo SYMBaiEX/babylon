@@ -18,8 +18,8 @@ interface MentionAutocompleteProps {
   agents: MentionableAgent[];
   /** Whether the dropdown is visible */
   isOpen: boolean;
-  /** Position of the dropdown */
-  position: { top: number; left: number };
+  /** Position of the dropdown (absolute from bottom-left of container) */
+  position: { bottom: number; left: number };
   /** Currently selected index */
   selectedIndex: number;
   /** Callback when an agent is selected */
@@ -85,7 +85,7 @@ export function MentionAutocomplete({
       ref={containerRef}
       className="absolute z-50 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
       style={{
-        bottom: position.top,
+        bottom: position.bottom,
         left: position.left,
       }}
     >
@@ -140,7 +140,7 @@ export function MentionAutocomplete({
 export function useMentionAutocomplete(agents: MentionableAgent[]) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState({ bottom: 0, left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
 
@@ -156,7 +156,7 @@ export function useMentionAutocomplete(agents: MentionableAgent[]) {
   });
 
   const openAutocomplete = useCallback(
-    (startIndex: number, pos: { top: number; left: number }) => {
+    (startIndex: number, pos: { bottom: number; left: number }) => {
       setIsOpen(true);
       setMentionStartIndex(startIndex);
       setPosition(pos);

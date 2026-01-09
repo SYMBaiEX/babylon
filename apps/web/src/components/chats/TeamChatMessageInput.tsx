@@ -183,17 +183,16 @@ export function TeamChatMessageInput({
           const searchQuery = textAfterAt;
 
           if (!isOpen) {
-            // Open autocomplete
+            // Open autocomplete above the textarea
             const textarea = textareaRef.current;
             if (textarea) {
-              // Position autocomplete above the textarea
               const rect = textarea.getBoundingClientRect();
               const containerRect =
                 containerRef.current?.getBoundingClientRect();
-              const top = containerRect
+              const bottom = containerRect
                 ? containerRect.height + 8
                 : rect.height + 8;
-              openAutocomplete(atIndex, { top, left: 0 });
+              openAutocomplete(atIndex, { bottom, left: 0 });
             }
           }
 

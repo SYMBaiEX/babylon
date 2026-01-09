@@ -149,16 +149,25 @@ export default function TeamChatPage() {
           <div
             className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm lg:hidden"
             onClick={() => setShowMemberDrawer(false)}
+            aria-hidden="true"
           />
 
           {/* Drawer Panel - slides in from right */}
-          <div className="slide-in-from-right fixed top-0 right-0 bottom-0 z-50 flex w-[280px] animate-in flex-col bg-sidebar duration-300 lg:hidden">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="drawer-title"
+            className="slide-in-from-right fixed top-0 right-0 bottom-0 z-50 flex w-[280px] animate-in flex-col bg-sidebar duration-300 lg:hidden"
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4">
-              <h3 className="font-semibold text-foreground">Team Members</h3>
+              <h3 id="drawer-title" className="font-semibold text-foreground">
+                Team Members
+              </h3>
               <button
                 onClick={() => setShowMemberDrawer(false)}
                 className="rounded-lg p-2 transition-colors hover:bg-muted"
+                aria-label="Close team members drawer"
               >
                 <X className="h-5 w-5" />
               </button>
