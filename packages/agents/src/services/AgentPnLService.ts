@@ -14,6 +14,7 @@ import {
   desc,
   eq,
   type JsonValue,
+  markets,
   users,
   withTransaction,
 } from '@babylon/db';
@@ -86,6 +87,17 @@ export class AgentPnLService {
       );
     }
     const agentName = agentResult[0]?.displayName ?? 'Agent';
+
+    // Fetch market question for prediction trades (for SSE broadcast enrichment)
+    let marketQuestion: string | undefined;
+    if (marketType === 'prediction' && marketId) {
+      const marketResult = await db
+        .select({ question: markets.question })
+        .from(markets)
+        .where(eq(markets.id, marketId))
+        .limit(1);
+      marketQuestion = marketResult[0]?.question;
+    }
 
     await withTransaction(async (tx) => {
       // Create trade record
@@ -160,6 +172,7 @@ export class AgentPnLService {
         marketType,
         marketId: marketId ?? null,
         ticker: ticker ?? null,
+        marketQuestion,
         action,
         side: side ?? null,
         amount,

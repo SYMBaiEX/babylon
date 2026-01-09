@@ -10,65 +10,13 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { memo, useState } from 'react';
-import type { AgentActivity } from '@/hooks/useAgentActivity';
-
-// Type guards for discriminated union on activity.type
-interface TradeData {
-  tradeId: string;
-  marketType: 'prediction' | 'perp';
-  marketId: string | null;
-  ticker: string | null;
-  marketQuestion: string | null;
-  action: string;
-  side: string | null;
-  amount: number;
-  price: number;
-  pnl: number | null;
-  reasoning: string | null;
-}
-
-interface PostData {
-  postId: string;
-  contentPreview: string;
-}
-
-interface CommentData {
-  commentId: string;
-  postId: string;
-  contentPreview: string;
-  parentCommentId: string | null;
-}
-
-interface MessageData {
-  messageId: string;
-  chatId: string;
-  recipientId: string | null;
-  contentPreview: string;
-}
-
-function isTradeActivity(
-  activity: AgentActivity
-): activity is AgentActivity & { type: 'trade'; data: TradeData } {
-  return activity.type === 'trade';
-}
-
-function isPostActivity(
-  activity: AgentActivity
-): activity is AgentActivity & { type: 'post'; data: PostData } {
-  return activity.type === 'post';
-}
-
-function isCommentActivity(
-  activity: AgentActivity
-): activity is AgentActivity & { type: 'comment'; data: CommentData } {
-  return activity.type === 'comment';
-}
-
-function isMessageActivity(
-  activity: AgentActivity
-): activity is AgentActivity & { type: 'message'; data: MessageData } {
-  return activity.type === 'message';
-}
+import {
+  type AgentActivity,
+  isCommentActivity,
+  isMessageActivity,
+  isPostActivity,
+  isTradeActivity,
+} from '@/hooks/useAgentActivity';
 
 interface AgentActivityCardProps {
   activity: AgentActivity;
