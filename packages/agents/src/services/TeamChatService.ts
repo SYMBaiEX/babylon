@@ -504,10 +504,12 @@ export class TeamChatService {
       return 0;
     }
 
-    // Add each missing agent (silently, without system messages to avoid spam)
-    for (const agent of agentsToAdd) {
-      await this.addAgentToTeamChatSilent(userId, agent.id, teamChat);
-    }
+    // Batch add missing agents (silently, without system messages to avoid spam)
+    await this.batchAddAgentsToTeamChatSilent(
+      userId,
+      agentsToAdd.map((a) => a.id),
+      teamChat
+    );
 
     logger.info(
       `Synced ${agentsToAdd.length} existing agent(s) to team chat`,
@@ -519,33 +521,42 @@ export class TeamChatService {
   }
 
   /**
-   * Add an agent to team chat without system message (for sync operations)
+   * Batch add agents to team chat without system messages (for sync operations).
+   * More efficient than calling addAgentToTeamChatSilent in a loop.
    */
-  private async addAgentToTeamChatSilent(
+  private async batchAddAgentsToTeamChatSilent(
     userId: string,
-    agentUserId: string,
+    agentUserIds: string[],
     teamChat: TeamChatInfo
   ): Promise<void> {
-    const now = new Date();
-    const [memberId, participantId] = await Promise.all([
-      generateSnowflakeId(),
-      generateSnowflakeId(),
-    ]);
+    if (agentUserIds.length === 0) return;
 
-    // Add agent to group members (upsert)
+    const now = new Date();
+
+    // Generate all IDs upfront
+    const memberIds = await Promise.all(
+      agentUserIds.map(() => generateSnowflakeId())
+    );
+    const participantIds = await Promise.all(
+      agentUserIds.map(() => generateSnowflakeId())
+    );
+
+    // Batch insert group members (with upsert)
+    const memberValues = agentUserIds.map((agentUserId, i) => ({
+      id: memberIds[i] as string,
+      groupId: teamChat.groupId,
+      userId: agentUserId,
+      role: 'member' as const,
+      addedBy: userId,
+      joinedAt: now,
+      isActive: true,
+      messageCount: 0,
+      qualityScore: 1.0,
+    }));
+
     await db
       .insert(groupMembers)
-      .values({
-        id: memberId,
-        groupId: teamChat.groupId,
-        userId: agentUserId,
-        role: 'member',
-        addedBy: userId,
-        joinedAt: now,
-        isActive: true,
-        messageCount: 0,
-        qualityScore: 1.0,
-      })
+      .values(memberValues)
       .onConflictDoUpdate({
         target: [groupMembers.groupId, groupMembers.userId],
         set: {
@@ -556,16 +567,18 @@ export class TeamChatService {
         },
       });
 
-    // Add agent to chat participants (upsert)
+    // Batch insert chat participants (with upsert)
+    const participantValues = agentUserIds.map((agentUserId, i) => ({
+      id: participantIds[i] as string,
+      chatId: teamChat.chatId,
+      userId: agentUserId,
+      joinedAt: now,
+      isActive: true,
+    }));
+
     await db
       .insert(chatParticipants)
-      .values({
-        id: participantId,
-        chatId: teamChat.chatId,
-        userId: agentUserId,
-        joinedAt: now,
-        isActive: true,
-      })
+      .values(participantValues)
       .onConflictDoUpdate({
         target: [chatParticipants.chatId, chatParticipants.userId],
         set: {
