@@ -485,6 +485,36 @@ export const NPC_FOLLOWING_CONFIG = {
    * @env NPC_DAYS_BEFORE_UNFOLLOW
    */
   daysBeforeUnfollow: envNumber('NPC_DAYS_BEFORE_UNFOLLOW', 7),
+
+  /**
+   * Time window in days for engagement queries.
+   * Limits how far back we look for player-NPC engagement.
+   *
+   * @default 14 (2 weeks)
+   * @env NPC_ENGAGEMENT_WINDOW_DAYS
+   */
+  engagementWindowDays: envNumber('NPC_ENGAGEMENT_WINDOW_DAYS', 14),
+
+  /**
+   * Maximum NPC candidates to evaluate per player per tick.
+   * Caps the work done when checking which NPCs should follow a player.
+   *
+   * @default 10
+   * @env NPC_MAX_NPC_CANDIDATES_PER_PLAYER_PER_TICK
+   */
+  maxNpcCandidatesPerPlayerPerTick: envNumber(
+    'NPC_MAX_NPC_CANDIDATES_PER_PLAYER_PER_TICK',
+    10
+  ),
+
+  /**
+   * Batch size for unfollow checks.
+   * How many active follows to check per unfollow pass.
+   *
+   * @default 50
+   * @env NPC_UNFOLLOW_CHECK_BATCH_SIZE
+   */
+  unfollowCheckBatchSize: envNumber('NPC_UNFOLLOW_CHECK_BATCH_SIZE', 50),
 } as const;
 
 // =============================================================================
@@ -693,6 +723,7 @@ export function logCurrentConfig(): void {
   console.log('Social Actions:', NPC_SOCIAL_ACTIONS_CONFIG);
   console.log('Group Dynamics:', NPC_GROUP_DYNAMICS_CONFIG);
   console.log('Content Pacing:', NPC_CONTENT_PACING_CONFIG);
+  console.log('Following:', NPC_FOLLOWING_CONFIG);
   console.log('Tick Processing:', NPC_TICK_CONFIG);
   console.log('================================');
 }

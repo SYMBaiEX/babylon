@@ -14,6 +14,7 @@
 
 import {
   and,
+  asc,
   count,
   db,
   desc,
@@ -30,7 +31,35 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_FOLLOWING_CONFIG } from '../config/npc-activity';
 import { secureRandom } from '../utils/entropy';
 import { StaticDataRegistry } from './static-data-registry';
-// Notification handled by API layer - engine doesn't depend on api
+
+/**
+ * Notifier interface for follow events.
+ * Allows engine to emit follow notifications without depending on @babylon/api.
+ */
+export interface FollowNotifier {
+  notifyFollow(userId: string, npcId: string): Promise<void>;
+}
+
+/**
+ * Injectable notifier for follow events.
+ * Set this from the API layer to enable notifications.
+ * When null, follow notifications are silently skipped.
+ */
+let followNotifier: FollowNotifier | null = null;
+
+/**
+ * Set the follow notifier. Call this from the API layer during initialization.
+ */
+export function setFollowNotifier(notifier: FollowNotifier | null): void {
+  followNotifier = notifier;
+}
+
+/**
+ * Get the current follow notifier (for testing).
+ */
+export function getFollowNotifier(): FollowNotifier | null {
+  return followNotifier;
+}
 
 export interface FollowingChance {
   willFollow: boolean;
@@ -228,9 +257,26 @@ export class FollowingMechanics {
 
     // Create notification for the user (NPCs follow users, not the other way around)
     // For NPC follows, use the NPC's ID as actorId since they're not real users
-    // Notification handled by API layer - engine doesn't manage notifications
-    const { notifyFollow } = await import('@babylon/api');
-    await notifyFollow(userId, npcId);
+    // Notification handled by API layer via injected notifier - engine doesn't depend on api
+    if (followNotifier) {
+      try {
+        await followNotifier.notifyFollow(userId, npcId);
+      } catch (notifyError) {
+        // Log but don't fail the follow operation if notification fails
+        logger.warn(
+          'Failed to send follow notification',
+          {
+            userId,
+            npcId,
+            error:
+              notifyError instanceof Error
+                ? notifyError.message
+                : String(notifyError),
+          },
+          'FollowingMechanics'
+        );
+      }
+    }
   }
 
   /**
@@ -350,9 +396,10 @@ export class FollowingMechanics {
    *
    * Called periodically from the game tick.
    *
+   * @param deadline - Optional deadline timestamp; processing stops when exceeded
    * @returns Number of new follows created
    */
-  static async processProactiveFollowing(): Promise<{
+  static async processProactiveFollowing(deadline?: number): Promise<{
     followsCreated: number;
     playersConsidered: number;
   }> {
@@ -360,6 +407,9 @@ export class FollowingMechanics {
       followsCreated: 0,
       playersConsidered: 0,
     };
+
+    // Helper to check if we should bail early
+    const isTimeUp = () => deadline !== undefined && Date.now() >= deadline;
 
     try {
       // Get active players (users who have posted in last 7 days)
@@ -400,12 +450,13 @@ export class FollowingMechanics {
           .groupBy(reactions.userId);
 
         // Calculate engagement score: posts (1pt) + reactions given (0.5pt)
+        // Coerce counts to numbers since DB may return strings
         for (const player of activePlayers) {
           const reactionData = reactionCounts.find(
             (r) => r.userId === player.userId
           );
-          const reactionScore = (reactionData?.reactionCount ?? 0) * 0.5;
-          const postScore = player.postCount;
+          const reactionScore = Number(reactionData?.reactionCount ?? 0) * 0.5;
+          const postScore = Number(player.postCount);
           engagementScores.set(player.userId, postScore + reactionScore);
         }
       }
@@ -451,7 +502,20 @@ export class FollowingMechanics {
 
       // Batch fetch engagement counts for all player-NPC pairs (eliminates N*M queries)
       // This counts how many times each player has reacted to each NPC's posts
-      const allNpcIds = allNpcs.map((n) => n.id);
+      // Limited by time window and NPC candidate cap to prevent unbounded queries
+      const engagementWindowMs =
+        NPC_FOLLOWING_CONFIG.engagementWindowDays * 24 * 60 * 60 * 1000;
+      const engagementWindowStart = new Date(Date.now() - engagementWindowMs);
+
+      // Cap NPCs to evaluate to prevent unbounded work
+      const maxNpcCandidates = Math.min(
+        allNpcs.length,
+        NPC_FOLLOWING_CONFIG.maxNpcCandidatesPerPlayerPerTick *
+          eligiblePlayerIds.length
+      );
+      const candidateNpcs = allNpcs.slice(0, maxNpcCandidates);
+      const candidateNpcIds = candidateNpcs.map((n) => n.id);
+
       const engagementCounts = await db
         .select({
           userId: reactions.userId,
@@ -463,22 +527,29 @@ export class FollowingMechanics {
         .where(
           and(
             inArray(reactions.userId, eligiblePlayerIds),
-            inArray(posts.authorId, allNpcIds)
+            inArray(posts.authorId, candidateNpcIds),
+            gte(posts.createdAt, engagementWindowStart)
           )
         )
         .groupBy(reactions.userId, posts.authorId);
 
       // Build Map<"userId-npcId", count> for O(1) lookup
+      // Coerce counts to numbers since DB may return strings
       const engagementByPair = new Map<string, number>();
       for (const row of engagementCounts) {
         const key = `${row.userId}-${row.authorId}`;
-        engagementByPair.set(key, row.engagementCount);
+        engagementByPair.set(key, Number(row.engagementCount));
       }
 
       // Track follows per player this tick
       const followsPerPlayer = new Map<string, number>();
 
       for (const player of eligiblePlayers) {
+        // Bail early if deadline exceeded
+        if (isTimeUp()) {
+          break;
+        }
+
         if (result.followsCreated >= NPC_FOLLOWING_CONFIG.maxFollowsPerTick) {
           break;
         }
@@ -489,8 +560,9 @@ export class FollowingMechanics {
         }
 
         // Get NPCs not already following this player (using pre-fetched data)
+        // Use candidateNpcs (capped set) instead of allNpcs
         const followingNpcIds = followsByUser.get(player.userId) ?? new Set();
-        const eligibleNpcs = allNpcs.filter(
+        const eligibleNpcs = candidateNpcs.filter(
           (npc) => !followingNpcIds.has(npc.id)
         );
 
@@ -500,6 +572,11 @@ export class FollowingMechanics {
 
         // Randomly select NPCs to potentially follow
         for (const npc of eligibleNpcs) {
+          // Bail early if deadline exceeded
+          if (isTimeUp()) {
+            break;
+          }
+
           if (result.followsCreated >= NPC_FOLLOWING_CONFIG.maxFollowsPerTick) {
             break;
           }
@@ -582,30 +659,141 @@ export class FollowingMechanics {
 
   /**
    * Process unfollow checks for inactive players.
+   * Uses batch loading to avoid N+1 queries.
    *
+   * @param deadline - Optional deadline timestamp; processing stops when exceeded
    * @returns Number of unfollows processed
    */
-  static async processUnfollowChecks(): Promise<number> {
+  static async processUnfollowChecks(deadline?: number): Promise<number> {
     // Only run occasionally
     if (secureRandom() > NPC_FOLLOWING_CONFIG.unfollowCheckProbability) {
       return 0;
     }
 
+    // Helper to check if we should bail early
+    const isTimeUp = () => deadline !== undefined && Date.now() >= deadline;
+
     let unfollowCount = 0;
 
     try {
-      // Get all active follows
+      // Use deterministic ordering with a rotating offset based on current time
+      // This ensures different rows are checked each run
+      const batchSize = NPC_FOLLOWING_CONFIG.unfollowCheckBatchSize;
+
+      // Get total active follows count for offset calculation
+      const countResult = await db
+        .select({ total: count(followStatuses.id) })
+        .from(followStatuses)
+        .where(eq(followStatuses.isActive, true));
+      const totalFollows = Number(countResult[0]?.total ?? 0);
+
+      // Calculate rotating offset based on time (changes every hour)
+      const hourSeed = Math.floor(Date.now() / (60 * 60 * 1000));
+      const offset =
+        totalFollows > batchSize ? (hourSeed % totalFollows) % (totalFollows - batchSize + 1) : 0;
+
+      // Get active follows with deterministic ordering and rotating offset
       const activeFollows = await db
-        .select()
+        .select({
+          id: followStatuses.id,
+          userId: followStatuses.userId,
+          npcId: followStatuses.npcId,
+        })
         .from(followStatuses)
         .where(eq(followStatuses.isActive, true))
-        .limit(50);
+        .orderBy(asc(followStatuses.id))
+        .limit(batchSize)
+        .offset(offset);
 
+      if (activeFollows.length === 0) {
+        return 0;
+      }
+
+      // Bail early if deadline exceeded
+      if (isTimeUp()) {
+        return 0;
+      }
+
+      // Batch load recent interaction data for all (userId, npcId) pairs
+      // This eliminates N+1 queries from shouldUnfollow
+      const userNpcPairs = activeFollows.map((f) => ({
+        userId: f.userId,
+        npcId: f.npcId,
+      }));
+      const userIds = [...new Set(userNpcPairs.map((p) => p.userId))];
+      const npcIds = [...new Set(userNpcPairs.map((p) => p.npcId))];
+
+      // Fetch all recent interactions for the user-npc pairs in one query
+      const recentInteractions = await db
+        .select({
+          userId: userInteractions.userId,
+          npcId: userInteractions.npcId,
+          qualityScore: userInteractions.qualityScore,
+          timestamp: userInteractions.timestamp,
+        })
+        .from(userInteractions)
+        .where(
+          and(
+            inArray(userInteractions.userId, userIds),
+            inArray(userInteractions.npcId, npcIds)
+          )
+        )
+        .orderBy(desc(userInteractions.timestamp));
+
+      // Build a map of interactions by (userId-npcId) key
+      // Store the 10 most recent interactions per pair (matching shouldUnfollow logic)
+      const interactionsByPair = new Map<
+        string,
+        Array<{ qualityScore: number; timestamp: Date }>
+      >();
+      for (const interaction of recentInteractions) {
+        const key = `${interaction.userId}-${interaction.npcId}`;
+        if (!interactionsByPair.has(key)) {
+          interactionsByPair.set(key, []);
+        }
+        const pairInteractions = interactionsByPair.get(key)!;
+        if (pairInteractions.length < 10) {
+          pairInteractions.push({
+            qualityScore: interaction.qualityScore,
+            timestamp: interaction.timestamp,
+          });
+        }
+      }
+
+      // Process each follow using pre-fetched interaction data
       for (const follow of activeFollows) {
-        const shouldUnfollow = await FollowingMechanics.shouldUnfollow(
-          follow.userId,
-          follow.npcId
-        );
+        // Bail early if deadline exceeded
+        if (isTimeUp()) {
+          break;
+        }
+
+        const key = `${follow.userId}-${follow.npcId}`;
+        const interactions = interactionsByPair.get(key) ?? [];
+
+        // In-memory shouldUnfollow check (matching the original logic)
+        let shouldUnfollow = false;
+
+        if (interactions.length > 0) {
+          // Check for sustained low quality
+          const recentQuality =
+            interactions.reduce((sum, i) => sum + (i.qualityScore ?? 0), 0) /
+            interactions.length;
+
+          if (recentQuality < 0.4) {
+            shouldUnfollow = true; // Quality dropped too low
+          }
+
+          // Check for long gaps (no replies for 24+ hours)
+          const lastInteraction = interactions[0]?.timestamp;
+          if (lastInteraction) {
+            const hoursSinceLastReply =
+              (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60);
+
+            if (hoursSinceLastReply > 24) {
+              shouldUnfollow = true; // Stopped engaging
+            }
+          }
+        }
 
         if (shouldUnfollow) {
           await FollowingMechanics.unfollow(

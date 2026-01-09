@@ -823,11 +823,14 @@ export async function executeGameTick(
   // =========================================================================
   // NPC FOLLOWING (proactive follows and unfollow checks)
   // NPCs follow active players and unfollow inactive ones
+  // Uses criticalOpsDeadline to avoid stealing time from critical work
   // =========================================================================
-  if (Date.now() < deadline) {
+  if (Date.now() < criticalOpsDeadline) {
     try {
       // Process proactive following of active players
-      const followResult = await FollowingMechanics.processProactiveFollowing();
+      const followResult = await FollowingMechanics.processProactiveFollowing(
+        criticalOpsDeadline
+      );
       result.npcFollowsCreated = followResult.followsCreated;
 
       if (followResult.followsCreated > 0) {
@@ -842,7 +845,9 @@ export async function executeGameTick(
       }
 
       // Process unfollow checks (runs probabilistically)
-      const unfollowCount = await FollowingMechanics.processUnfollowChecks();
+      const unfollowCount = await FollowingMechanics.processUnfollowChecks(
+        criticalOpsDeadline
+      );
       result.npcUnfollows = unfollowCount;
     } catch (error) {
       logger.error(
