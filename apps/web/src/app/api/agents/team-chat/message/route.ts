@@ -59,11 +59,48 @@ export async function POST(req: NextRequest) {
     mentionedAgentIds?: string[];
   };
 
+  // Validate content
   if (!content || content.trim().length === 0) {
     return NextResponse.json(
       { success: false, error: 'Message content is required' },
       { status: 400 }
     );
+  }
+
+  // Validate content length (prevent overly long messages that could break LLM context)
+  const MAX_MESSAGE_LENGTH = 4000;
+  if (content.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Message too long. Maximum ${MAX_MESSAGE_LENGTH} characters allowed.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  // Validate mentionedAgentIds array (prevent abuse with too many mentions)
+  const MAX_MENTIONS = 10;
+  if (mentionedAgentIds && mentionedAgentIds.length > MAX_MENTIONS) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Maximum ${MAX_MENTIONS} agents can be mentioned at once.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  // Validate mentionedAgentIds are valid strings (not empty, no special chars)
+  if (mentionedAgentIds) {
+    for (const id of mentionedAgentIds) {
+      if (typeof id !== 'string' || id.length === 0 || !/^\d+$/.test(id)) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid agent ID in mentions' },
+          { status: 400 }
+        );
+      }
+    }
   }
 
   // Get user's team chat
