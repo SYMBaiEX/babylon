@@ -345,6 +345,10 @@ export function TeamChatMessageInput({
             }
             disabled={sending || disabled}
             rows={1}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
             className={cn(
               'relative z-10 max-h-40 min-h-[44px] w-full resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
               'message-input bg-sidebar-accent/50',
