@@ -393,6 +393,16 @@ export class TeamChatService {
       .where(eq(users.id, agentUserId))
       .limit(1);
 
+    // Ownership validation (defense in depth - caller should validate too)
+    if (agent && agent.isAgent && agent.managedBy !== userId) {
+      logger.warn(
+        `Attempted to remove agent not owned by user`,
+        { userId, agentUserId, actualOwner: agent.managedBy },
+        'TeamChatService'
+      );
+      return;
+    }
+
     const agentName = agent?.displayName || agent?.username || 'Agent';
 
     await withTransaction(async (tx) => {

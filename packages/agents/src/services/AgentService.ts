@@ -339,12 +339,21 @@ export class AgentServiceV2 {
 
     // Add agent to Command Center (team chat)
     // This creates the team chat if it doesn't exist (first agent)
-    await teamChatService.addAgentToTeamChat(managerUserId, agentUserId);
-    logger.info(
-      `Agent ${agentUserId} added to Command Center`,
-      undefined,
-      'AgentService'
-    );
+    try {
+      await teamChatService.addAgentToTeamChat(managerUserId, agentUserId);
+      logger.info(
+        `Agent ${agentUserId} added to Command Center`,
+        undefined,
+        'AgentService'
+      );
+    } catch (error) {
+      // Log but don't fail agent creation - team chat can be synced later
+      logger.error(
+        `Failed to add agent ${agentUserId} to Command Center: ${error}`,
+        { managerUserId, agentUserId },
+        'AgentService'
+      );
+    }
 
     return agent;
   }
