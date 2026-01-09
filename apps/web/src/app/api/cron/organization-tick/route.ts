@@ -27,6 +27,7 @@ import {
 } from '@babylon/api';
 import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
+  articleRateLimiter,
   BabylonLLMClient,
   getActiveEventsForPosting,
   StaticDataRegistry,
@@ -342,7 +343,19 @@ export async function POST(_req: NextRequest) {
 
       try {
         // Determine if this should be an article or a post
-        const isArticle = secureRandom() < ARTICLE_PROBABILITY;
+        // Check rate limit if we want to create an article
+        let isArticle = secureRandom() < ARTICLE_PROBABILITY;
+        if (isArticle) {
+          const { allowed } = await articleRateLimiter.canGenerateArticle();
+          if (!allowed) {
+            logger.info(
+              'Article rate limit reached - creating post instead',
+              { org: org.name },
+              'OrganizationTick'
+            );
+            isArticle = false; // Fall back to post
+          }
+        }
         const postType = isArticle ? 'article' : 'post';
 
         // Generate content based on active events and world context

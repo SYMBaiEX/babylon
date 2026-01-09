@@ -56,7 +56,7 @@
     },
     {
       "path": "/api/cron/world-facts",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 6,18 * * *"
     },
     {
       "path": "/api/cron/health-check",

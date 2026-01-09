@@ -97,6 +97,7 @@ import {
   characterMappingService,
   createParodyHeadlineGenerator,
   rssFeedService,
+  worldFactsGenerator,
   worldFactsService,
 } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
@@ -265,6 +266,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // Refresh character/org mapping cache
       characterMappingService.refreshCache();
       return successResponse({ success: true });
+    }
+
+    case 'generate_world_facts': {
+      // Generate new world facts from game activity
+      logger.info(
+        'Manual world facts generation triggered',
+        undefined,
+        'WorldFactsAdmin'
+      );
+      const result = await worldFactsGenerator.generateNewWorldFacts();
+      logger.info(
+        `Generated ${result.generated} world facts, archived ${result.archived}`,
+        result,
+        'WorldFactsAdmin'
+      );
+      return successResponse({ result });
     }
 
     default:
