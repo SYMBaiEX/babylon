@@ -49,59 +49,35 @@ import { db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+/** Request body schema for team chat messages */
+const messageSchema = z.object({
+  content: z
+    .string()
+    .min(1, 'Message content is required')
+    .max(4000, 'Message too long. Maximum 4000 characters allowed.'),
+  mentionedAgentIds: z
+    .array(z.string().regex(/^\d+$/, 'Invalid agent ID format'))
+    .max(10, 'Maximum 10 agents can be mentioned at once.')
+    .optional(),
+});
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   const body = await req.json();
-  const { content, mentionedAgentIds } = body as {
-    content: string;
-    mentionedAgentIds?: string[];
-  };
+  const parseResult = messageSchema.safeParse(body);
 
-  // Validate content
-  if (!content || content.trim().length === 0) {
+  if (!parseResult.success) {
+    const firstError = parseResult.error.issues[0];
     return NextResponse.json(
-      { success: false, error: 'Message content is required' },
+      { success: false, error: firstError?.message || 'Invalid request body' },
       { status: 400 }
     );
   }
 
-  // Validate content length (prevent overly long messages that could break LLM context)
-  const MAX_MESSAGE_LENGTH = 4000;
-  if (content.length > MAX_MESSAGE_LENGTH) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Message too long. Maximum ${MAX_MESSAGE_LENGTH} characters allowed.`,
-      },
-      { status: 400 }
-    );
-  }
-
-  // Validate mentionedAgentIds array (prevent abuse with too many mentions)
-  const MAX_MENTIONS = 10;
-  if (mentionedAgentIds && mentionedAgentIds.length > MAX_MENTIONS) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Maximum ${MAX_MENTIONS} agents can be mentioned at once.`,
-      },
-      { status: 400 }
-    );
-  }
-
-  // Validate mentionedAgentIds are valid strings (not empty, no special chars)
-  if (mentionedAgentIds) {
-    for (const id of mentionedAgentIds) {
-      if (typeof id !== 'string' || id.length === 0 || !/^\d+$/.test(id)) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid agent ID in mentions' },
-          { status: 400 }
-        );
-      }
-    }
-  }
+  const { content, mentionedAgentIds } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
