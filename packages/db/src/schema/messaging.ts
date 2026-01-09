@@ -311,7 +311,7 @@ export const userAgentTeamChats = pgTable(
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
-    index('UserAgentTeamChat_userId_idx').on(table.userId),
+    // userId already has unique index from .unique() constraint
     index('UserAgentTeamChat_groupId_idx').on(table.groupId),
     index('UserAgentTeamChat_chatId_idx').on(table.chatId),
   ]
