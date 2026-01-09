@@ -16,7 +16,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .returning({ id: users.id });
 
   if (result.length === 0) {
-    logger.warn('Game guide: no user found', { privyId: authUser.privyId }, 'game-guide');
+    logger.warn(
+      'Game guide: no user found',
+      { privyId: authUser.privyId },
+      'game-guide'
+    );
   }
 
   return successResponse({

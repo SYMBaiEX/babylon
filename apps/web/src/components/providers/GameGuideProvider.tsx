@@ -113,7 +113,11 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
         // Only close modal on success
         setIsOpen(false);
       } else {
-        logger.error('Failed to save game guide', { status: res.status }, 'GameGuideProvider');
+        logger.error(
+          'Failed to save game guide',
+          { status: res.status },
+          'GameGuideProvider'
+        );
         toast.error('Failed to save progress. Please try again.');
         // Keep modal open so user can retry
       }
