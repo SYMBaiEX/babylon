@@ -425,7 +425,9 @@ export class FollowingMechanics {
         })
         .from(users)
         .innerJoin(posts, eq(posts.authorId, users.id))
-        .where(and(gte(posts.timestamp, sevenDaysAgo), eq(users.isActor, false)))
+        .where(
+          and(gte(posts.timestamp, sevenDaysAgo), eq(users.isActor, false))
+        )
         .groupBy(users.id, users.username)
         .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
         .limit(NPC_FOLLOWING_CONFIG.maxActivePlayersToConsider);
