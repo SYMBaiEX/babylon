@@ -13,6 +13,7 @@ import {
   desc,
   eq,
   groupMembers,
+  inArray,
   messages,
   userAgentConfigs,
   userAgentTeamChats,
@@ -31,6 +32,14 @@ const RESPONSE_TIMING = {
   MAX_DELAY: 5000,
   /** Stagger delay between multiple agents (ms) */
   STAGGER_DELAY: 1500,
+};
+
+/** Configuration for agent-to-agent loop prevention */
+const LOOP_PREVENTION = {
+  /** Maximum depth of agent-to-agent mention chains */
+  MAX_CHAIN_DEPTH: 3,
+  /** Cooldown period per agent per chat (ms) - prevents same agent responding twice in this window */
+  AGENT_COOLDOWN_MS: 30000,
 };
 
 /** Parameters for triggering agent responses */
@@ -58,6 +67,38 @@ interface TriggerResponseResult {
  * Service for handling agent responses in team chat
  */
 export class TeamChatResponseService {
+  /**
+   * Tracks recent agent responses per chat to prevent loops.
+   * Key: `${chatId}:${agentId}`, Value: timestamp of last response
+   */
+  private agentResponseCooldowns = new Map<string, number>();
+
+  /**
+   * Check if an agent is on cooldown (recently responded) in a chat
+   */
+  private isAgentOnCooldown(chatId: string, agentId: string): boolean {
+    const key = `${chatId}:${agentId}`;
+    const lastResponse = this.agentResponseCooldowns.get(key);
+    if (!lastResponse) return false;
+    return Date.now() - lastResponse < LOOP_PREVENTION.AGENT_COOLDOWN_MS;
+  }
+
+  /**
+   * Mark an agent as having responded in a chat
+   */
+  private markAgentResponded(chatId: string, agentId: string): void {
+    const key = `${chatId}:${agentId}`;
+    this.agentResponseCooldowns.set(key, Date.now());
+
+    // Cleanup old entries periodically (keep map from growing indefinitely)
+    if (this.agentResponseCooldowns.size > 1000) {
+      const cutoff = Date.now() - LOOP_PREVENTION.AGENT_COOLDOWN_MS;
+      for (const [k, v] of this.agentResponseCooldowns) {
+        if (v < cutoff) this.agentResponseCooldowns.delete(k);
+      }
+    }
+  }
+
   /**
    * Trigger priority responses from mentioned agents
    *
@@ -120,10 +161,37 @@ export class TeamChatResponseService {
       responses: [],
     };
 
+    // Batch fetch all agent info upfront (performance optimization)
+    const agentInfoMap = new Map<
+      string,
+      { displayName: string | null; username: string | null }
+    >();
+    if (mentionedAgentIds.length > 0) {
+      const agentInfoRows = await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
+        })
+        .from(users)
+        .where(inArray(users.id, mentionedAgentIds));
+
+      for (const row of agentInfoRows) {
+        agentInfoMap.set(row.id, {
+          displayName: row.displayName,
+          username: row.username,
+        });
+      }
+    }
+
     // Process each mentioned agent with staggered timing
     for (let i = 0; i < mentionedAgentIds.length; i++) {
       const agentId = mentionedAgentIds[i];
       if (!agentId) continue;
+
+      // Get agent info from batch (no per-agent DB query)
+      const agent = agentInfoMap.get(agentId);
+      const agentName = agent?.displayName || agent?.username || 'Agent';
 
       // Calculate delay: base delay + stagger for each agent
       const baseDelay =
@@ -140,30 +208,34 @@ export class TeamChatResponseService {
         senderDisplayName,
         conversationContext,
         delay: totalDelay,
-      }).then((responseResult) => {
-        // Log completion (responses array already populated synchronously below)
-        if (responseResult.success) {
-          logger.info(
-            `Agent ${responseResult.agentName} responded to mention`,
-            { chatId, messageId: responseResult.messageId },
+      })
+        .then((responseResult) => {
+          // Log completion (responses array already populated synchronously below)
+          if (responseResult.success) {
+            logger.info(
+              `Agent ${responseResult.agentName} responded to mention`,
+              { chatId, messageId: responseResult.messageId },
+              'TeamChatResponseService'
+            );
+          } else {
+            logger.warn(
+              `Agent response failed: ${responseResult.error}`,
+              { chatId, agentId },
+              'TeamChatResponseService'
+            );
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            `Failed to schedule agent response: ${error}`,
+            { chatId, agentId },
             'TeamChatResponseService'
           );
-        }
-      });
-
-      // Get agent info for immediate result
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-          username: users.username,
-        })
-        .from(users)
-        .where(eq(users.id, agentId))
-        .limit(1);
+        });
 
       result.responses.push({
         agentId,
-        agentName: agent?.displayName || agent?.username || 'Agent',
+        agentName,
         success: true, // Scheduled successfully
       });
       result.triggered++;
@@ -174,6 +246,8 @@ export class TeamChatResponseService {
 
   /**
    * Schedule an agent response with delay
+   *
+   * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
    */
   private async scheduleAgentResponse(params: {
     agentId: string;
@@ -182,6 +256,7 @@ export class TeamChatResponseService {
     senderDisplayName: string;
     conversationContext: string;
     delay: number;
+    depth?: number;
   }): Promise<{
     success: boolean;
     agentName: string;
@@ -195,10 +270,34 @@ export class TeamChatResponseService {
       senderDisplayName,
       conversationContext,
       delay,
+      depth = 0,
     } = params;
+
+    // Check cooldown before waiting (fail fast)
+    if (this.isAgentOnCooldown(chatId, agentId)) {
+      logger.debug(
+        `Agent ${agentId} on cooldown, skipping response`,
+        { chatId, depth },
+        'TeamChatResponseService'
+      );
+      return {
+        success: false,
+        agentName: 'Agent',
+        error: 'Agent on cooldown',
+      };
+    }
 
     // Wait for the natural delay
     await new Promise((resolve) => setTimeout(resolve, delay));
+
+    // Re-check cooldown after delay (another response might have happened)
+    if (this.isAgentOnCooldown(chatId, agentId)) {
+      return {
+        success: false,
+        agentName: 'Agent',
+        error: 'Agent on cooldown after delay',
+      };
+    }
 
     // Get agent info and config
     const [[agent], [config]] = await Promise.all([
@@ -282,14 +381,27 @@ Generate ONLY the response text:`;
       };
     }
 
+    // Mark agent as having responded (for cooldown tracking)
+    this.markAgentResponded(chatId, agentId);
+
     // Check if this agent mentioned other agents (agent-to-agent mentions)
     // This enables agents to coordinate with each other
-    await this.handleAgentToAgentMentions({
-      respondingAgentId: agentId,
-      respondingAgentName: agentName,
-      chatId,
-      responseContent: cleanContent,
-    });
+    // Only allow if we haven't exceeded max chain depth
+    if (depth < LOOP_PREVENTION.MAX_CHAIN_DEPTH) {
+      await this.handleAgentToAgentMentions({
+        respondingAgentId: agentId,
+        respondingAgentName: agentName,
+        chatId,
+        responseContent: cleanContent,
+        depth: depth + 1,
+      });
+    } else {
+      logger.debug(
+        `Max chain depth reached (${depth}), not triggering agent-to-agent mentions`,
+        { chatId, agentId },
+        'TeamChatResponseService'
+      );
+    }
 
     return {
       success: true,
@@ -303,15 +415,23 @@ Generate ONLY the response text:`;
    *
    * When an agent mentions another agent in their response,
    * trigger a follow-up response from the mentioned agent.
+   *
+   * @param params.depth - Current chain depth (used to prevent infinite loops)
    */
   private async handleAgentToAgentMentions(params: {
     respondingAgentId: string;
     respondingAgentName: string;
     chatId: string;
     responseContent: string;
+    depth: number;
   }): Promise<void> {
-    const { respondingAgentId, respondingAgentName, chatId, responseContent } =
-      params;
+    const {
+      respondingAgentId,
+      respondingAgentName,
+      chatId,
+      responseContent,
+      depth,
+    } = params;
 
     const mentionedUsernames = this.extractMentionedUsernames(responseContent);
     if (mentionedUsernames.length === 0) return;
@@ -404,7 +524,17 @@ Generate ONLY the response text:`;
         })
         .join('\n');
 
-      // Schedule the response
+      // Skip agents on cooldown
+      if (this.isAgentOnCooldown(chatId, mentionedAgentId)) {
+        logger.debug(
+          `Skipping agent ${mentionedAgentId} - on cooldown`,
+          { chatId, depth },
+          'TeamChatResponseService'
+        );
+        continue;
+      }
+
+      // Schedule the response with depth tracking
       this.scheduleAgentResponse({
         agentId: mentionedAgentId,
         chatId,
@@ -412,10 +542,11 @@ Generate ONLY the response text:`;
         senderDisplayName: respondingAgentName,
         conversationContext,
         delay: baseDelay + staggerDelay,
+        depth,
       }).catch((error) => {
         logger.error(
           `Failed to trigger agent-to-agent response: ${error}`,
-          { respondingAgentId, mentionedAgentId },
+          { respondingAgentId, mentionedAgentId, depth },
           'TeamChatResponseService'
         );
       });
