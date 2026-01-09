@@ -301,7 +301,10 @@ export const NPC_SOCIAL_ACTIONS_CONFIG = {
    * @default 1 (lowered - engage players more readily)
    * @env NPC_MIN_INTERACTIONS_FOR_ACTION
    */
-  minInteractionsForAction: envPositiveNumber('NPC_MIN_INTERACTIONS_FOR_ACTION', 1),
+  minInteractionsForAction: envPositiveNumber(
+    'NPC_MIN_INTERACTIONS_FOR_ACTION',
+    1
+  ),
 
   /**
    * Minimum average interaction quality score needed (0.0 - 1.0).
