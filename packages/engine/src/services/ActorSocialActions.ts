@@ -31,6 +31,13 @@ export interface SocialAction {
   dmContent?: string;
 }
 
+/**
+ * Clamp a probability value to the valid [0, 1] range.
+ */
+function clampProbability(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
 export class ActorSocialActions {
   /**
    * Process random social actions for actors
@@ -162,23 +169,15 @@ export class ActorSocialActions {
           2.0
         );
 
-        const inviteProbability = Math.max(
-          0,
-          Math.min(
-            1,
-            NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
-              qualityFactor *
-              countFactor
-          )
+        const inviteProbability = clampProbability(
+          NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
+            qualityFactor *
+            countFactor
         );
-        const dmProbability = Math.max(
-          0,
-          Math.min(
-            1,
-            NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
-              qualityFactor *
-              countFactor
-          )
+        const dmProbability = clampProbability(
+          NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
+            qualityFactor *
+            countFactor
         );
 
         if (!userId) throw new Error('User ID is required');

@@ -85,6 +85,40 @@ function envProbability(key: string, defaultValue: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+/**
+ * Parse an environment variable as a score (0.0-1.0) with bounds checking.
+ * Similar to envProbability but semantically distinct for quality scores, thresholds, etc.
+ * Clamps the value to valid [0,1] range to prevent configuration errors.
+ */
+function envScore(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value < 0 || value > 1) {
+    logger.warn(
+      `${key}=${value} is outside valid score range (0-1), clamping to bounds`,
+      { key, value },
+      'npc-activity'
+    );
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
+ * Returns the default and logs a warning if the value is < 0.
+ */
+function envNonNegativeNumber(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value < 0) {
+    logger.warn(
+      `${key}=${value} must be non-negative (>= 0), using default ${defaultValue}`,
+      { key, value, defaultValue },
+      'npc-activity'
+    );
+    return defaultValue;
+  }
+  return value;
+}
+
 // =============================================================================
 // POSTING CONFIGURATION
 // =============================================================================
@@ -117,11 +151,12 @@ export const NPC_POSTING_CONFIG = {
   /**
    * Minimum hours between posts for the same NPC.
    * Prevents same NPC posting multiple times per tick.
+   * A value of 0 allows back-to-back posting (useful for testing).
    *
    * @default 3 (spread posts out more)
    * @env NPC_MIN_HOURS_BETWEEN_POSTS
    */
-  minHoursBetweenPosts: envPositiveNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
+  minHoursBetweenPosts: envNonNegativeNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
 
   /**
    * Boost multiplier when actor was mentioned by a player.
@@ -352,17 +387,13 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
 } as const;
 
 // Validate minGroupSize <= maxGroupSize at module initialization
+// Fail fast with an error to prevent the system from running with invalid config
 if (
   NPC_GROUP_DYNAMICS_CONFIG.minGroupSize >
   NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize
 ) {
-  logger.error(
-    `Invalid group size configuration: minGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.minGroupSize}) > maxGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize}). This will cause undefined behavior in group dynamics.`,
-    {
-      minGroupSize: NPC_GROUP_DYNAMICS_CONFIG.minGroupSize,
-      maxGroupSize: NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize,
-    },
-    'npc-activity'
+  throw new Error(
+    `Invalid group size configuration: minGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.minGroupSize}) > maxGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize}). This will cause undefined behavior in group dynamics.`
   );
 }
 
@@ -583,10 +614,7 @@ export const NPC_FOLLOWING_CONFIG = {
    * @default 0.4
    * @env NPC_MIN_QUALITY_TO_RETAIN_FOLLOW
    */
-  minQualityToRetainFollow: envProbability(
-    'NPC_MIN_QUALITY_TO_RETAIN_FOLLOW',
-    0.4
-  ),
+  minQualityToRetainFollow: envScore('NPC_MIN_QUALITY_TO_RETAIN_FOLLOW', 0.4),
 
   /**
    * Maximum hours of inactivity before NPC unfollows.

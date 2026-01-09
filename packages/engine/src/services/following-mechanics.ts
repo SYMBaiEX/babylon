@@ -527,11 +527,13 @@ export class FollowingMechanics {
 
       // Cap NPCs to evaluate to prevent unbounded work.
       // Uses an explicit total cap for clarity regardless of player count.
+      // Shuffle allNpcs before slicing to avoid bias toward the start of the registry
       const maxNpcCandidates = Math.min(
         allNpcs.length,
         NPC_FOLLOWING_CONFIG.totalMaxNpcCandidatesPerTick
       );
-      const candidateNpcs = allNpcs.slice(0, maxNpcCandidates);
+      const shuffledNpcs = shuffleArray([...allNpcs]);
+      const candidateNpcs = shuffledNpcs.slice(0, maxNpcCandidates);
       const candidateNpcIds = candidateNpcs.map((n) => n.id);
 
       const engagementCounts = await db
@@ -616,19 +618,20 @@ export class FollowingMechanics {
             break;
           }
 
-          // Check affiliation boost - NPCs more likely to follow players posting about their org
-          let probabilityBoost = 1.0;
-          if (npc.affiliations && npc.affiliations.length > 0) {
-            // Check if player has engaged with content related to NPC's org (using pre-fetched data)
-            const engagementKey = `${player.userId}-${npc.id}`;
-            const engagementCount = engagementByPair.get(engagementKey) ?? 0;
+          // Check engagement-based boost - NPCs more likely to follow players who engage with their content
+          // Use a scaled multiplier based on engagement count for more granular behavior
+          const engagementKey = `${player.userId}-${npc.id}`;
+          const engagementCount = engagementByPair.get(engagementKey) ?? 0;
 
-            if (engagementCount > 0) {
-              probabilityBoost = 2.0; // Double chance if player engages with NPC's content
-            }
-          }
+          // Scaled boost: 1 + min(engagementCount / 10, 3) gives range [1.0, 4.0]
+          // e.g., 0 engagements = 1.0x, 5 engagements = 1.5x, 10+ engagements = 2.0x, 30+ = 4.0x (max)
+          const ENGAGEMENT_SCALE_DIVISOR = 10;
+          const MAX_ENGAGEMENT_BOOST = 3;
+          const probabilityBoost =
+            1 +
+            Math.min(engagementCount / ENGAGEMENT_SCALE_DIVISOR, MAX_ENGAGEMENT_BOOST);
 
-          // Probability check with affiliation boost applied (clamped to valid [0,1] range)
+          // Probability check with engagement boost applied (clamped to valid [0,1] range)
           const boostedProbability = Math.max(
             0,
             Math.min(
@@ -753,6 +756,12 @@ export class FollowingMechanics {
       const npcIds = [...new Set(userNpcPairs.map((p) => p.npcId))];
 
       // Fetch all recent interactions for the user-npc pairs in one query
+      // Apply time-window filter and limit to prevent unbounded result sets
+      const interactionCutoffMs =
+        NPC_FOLLOWING_CONFIG.engagementWindowDays * 24 * 60 * 60 * 1000;
+      const interactionCutoff = new Date(Date.now() - interactionCutoffMs);
+      const MAX_INTERACTIONS_QUERY_LIMIT = 1000;
+
       const recentInteractions = await db
         .select({
           userId: userInteractions.userId,
@@ -764,10 +773,12 @@ export class FollowingMechanics {
         .where(
           and(
             inArray(userInteractions.userId, userIds),
-            inArray(userInteractions.npcId, npcIds)
+            inArray(userInteractions.npcId, npcIds),
+            gte(userInteractions.timestamp, interactionCutoff)
           )
         )
-        .orderBy(desc(userInteractions.timestamp));
+        .orderBy(desc(userInteractions.timestamp))
+        .limit(MAX_INTERACTIONS_QUERY_LIMIT);
 
       // Build a map of interactions by (userId-npcId) key
       // Store the 10 most recent interactions per pair (matching shouldUnfollow logic)

@@ -671,9 +671,11 @@ export class TradeExecutionService {
       positionId: position.id,
     });
 
-    // Update the position record
+    // Update the position record with a CAS guard to prevent race conditions
+    // The WHERE clause includes isNull(poolPositions.closedAt) to ensure we only
+    // update if the position is still open (optimistic locking pattern)
     await db.transaction(async (tx: Transaction) => {
-      await tx
+      const updateResult = await tx
         .update(poolPositions)
         .set({
           closedAt: now,
@@ -685,7 +687,20 @@ export class TradeExecutionService {
           realizedPnL: sellResult.pnl ?? 0,
           updatedAt: now,
         })
-        .where(eq(poolPositions.id, position.id));
+        .where(
+          and(
+            eq(poolPositions.id, position.id),
+            isNull(poolPositions.closedAt)
+          )
+        )
+        .returning({ id: poolPositions.id });
+
+      // Check if the update succeeded (position was still open)
+      if (updateResult.length === 0) {
+        throw new Error(
+          `Position already closed: race condition detected for position ${position.id}`
+        );
+      }
 
       await tx.insert(npcTrades).values({
         id: await generateSnowflakeId(),
@@ -719,8 +734,8 @@ export class TradeExecutionService {
       action: decision.action,
       side: sideToClose,
       amount: sellResult.netProceeds ?? 0,
-      size: position.size,
-      shares: position.shares ?? undefined,
+      size: sellResult.netProceeds ?? 0, // Executed sell volume
+      shares, // The shares that were sold (local variable)
       executionPrice: (sellResult.avgPrice ?? 0) * 100,
       confidence: decision.confidence,
       reasoning: decision.reasoning,
