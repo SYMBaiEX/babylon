@@ -422,7 +422,7 @@ export class FollowingMechanics {
           postCount: count(posts.id),
         })
         .from(users)
-        .leftJoin(posts, eq(posts.authorId, users.id))
+        .innerJoin(posts, eq(posts.authorId, users.id))
         .where(gte(posts.timestamp, sevenDaysAgo))
         .groupBy(users.id, users.username)
         .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
@@ -507,11 +507,11 @@ export class FollowingMechanics {
         NPC_FOLLOWING_CONFIG.engagementWindowDays * 24 * 60 * 60 * 1000;
       const engagementWindowStart = new Date(Date.now() - engagementWindowMs);
 
-      // Cap NPCs to evaluate to prevent unbounded work
+      // Cap NPCs to evaluate to prevent unbounded work.
+      // Uses an explicit total cap for clarity regardless of player count.
       const maxNpcCandidates = Math.min(
         allNpcs.length,
-        NPC_FOLLOWING_CONFIG.maxNpcCandidatesPerPlayerPerTick *
-          eligiblePlayerIds.length
+        NPC_FOLLOWING_CONFIG.totalMaxNpcCandidatesPerTick
       );
       const candidateNpcs = allNpcs.slice(0, maxNpcCandidates);
       const candidateNpcIds = candidateNpcs.map((n) => n.id);

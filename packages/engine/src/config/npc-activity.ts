@@ -33,6 +33,8 @@
  * ```
  */
 
+import { logger } from '@babylon/shared';
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
@@ -508,6 +510,18 @@ export const NPC_FOLLOWING_CONFIG = {
   ),
 
   /**
+   * Total maximum NPC candidates to evaluate per tick (across all players).
+   * This is an absolute cap to prevent unbounded work regardless of player count.
+   *
+   * @default 50
+   * @env NPC_TOTAL_MAX_NPC_CANDIDATES_PER_TICK
+   */
+  totalMaxNpcCandidatesPerTick: envNumber(
+    'NPC_TOTAL_MAX_NPC_CANDIDATES_PER_TICK',
+    50
+  ),
+
+  /**
    * Batch size for unfollow checks.
    * How many active follows to check per unfollow pass.
    *
@@ -697,7 +711,7 @@ export const NPC_ACTIVITY_PRESETS = {
  * Get preset values by name.
  *
  * @param presetName - Name of the preset
- * @returns Object with environment variable key-value pairs
+ * @returns Object with environment variable key-value pairs (frozen copy)
  */
 export function getPreset(
   presetName: keyof typeof NPC_ACTIVITY_PRESETS
@@ -707,9 +721,9 @@ export function getPreset(
     console.warn(
       `[NPC Config] Unknown preset "${presetName}", falling back to "default"`
     );
-    return NPC_ACTIVITY_PRESETS.default;
+    return Object.freeze({ ...NPC_ACTIVITY_PRESETS.default });
   }
-  return preset;
+  return Object.freeze({ ...preset });
 }
 
 /**
@@ -717,13 +731,13 @@ export function getPreset(
  * Useful for debugging and verifying environment variable overrides.
  */
 export function logCurrentConfig(): void {
-  console.log('=== NPC Activity Configuration ===');
-  console.log('Posting:', NPC_POSTING_CONFIG);
-  console.log('Engagement:', NPC_ENGAGEMENT_CONFIG);
-  console.log('Social Actions:', NPC_SOCIAL_ACTIONS_CONFIG);
-  console.log('Group Dynamics:', NPC_GROUP_DYNAMICS_CONFIG);
-  console.log('Content Pacing:', NPC_CONTENT_PACING_CONFIG);
-  console.log('Following:', NPC_FOLLOWING_CONFIG);
-  console.log('Tick Processing:', NPC_TICK_CONFIG);
-  console.log('================================');
+  logger.info('=== NPC Activity Configuration ===');
+  logger.info('Posting:', NPC_POSTING_CONFIG);
+  logger.info('Engagement:', NPC_ENGAGEMENT_CONFIG);
+  logger.info('Social Actions:', NPC_SOCIAL_ACTIONS_CONFIG);
+  logger.info('Group Dynamics:', NPC_GROUP_DYNAMICS_CONFIG);
+  logger.info('Content Pacing:', NPC_CONTENT_PACING_CONFIG);
+  logger.info('Following:', NPC_FOLLOWING_CONFIG);
+  logger.info('Tick Processing:', NPC_TICK_CONFIG);
+  logger.info('================================');
 }
