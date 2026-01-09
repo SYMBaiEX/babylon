@@ -1282,14 +1282,35 @@ export async function executeDirectComment(
  * Send a message directly without LLM decision-making.
  * Just creates the message with the given content.
  */
+/**
+ * Strip <think>...</think> tags from content.
+ * If entire content is think tags, extracts inner content as fallback.
+ */
+function stripThinkTags(text: string): string {
+  // First try: get content after last </think>
+  const lastThinkClose = text.lastIndexOf('</think>');
+  if (lastThinkClose !== -1) {
+    const afterThink = text.slice(lastThinkClose + '</think>'.length).trim();
+    if (afterThink.length > 0) {
+      return afterThink;
+    }
+  }
+  // Fallback: strip all think tags
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 export async function executeDirectMessage(
   params: DirectMessageParams
 ): Promise<DirectMessageResult> {
   const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
-  const cleanContent = content?.trim() ?? '';
+  // Strip think tags and clean content
+  const cleanContent = stripThinkTags(content?.trim() ?? '');
   if (cleanContent.length < 3) {
-    return { success: false, error: 'Content too short' };
+    return {
+      success: false,
+      error: 'Content too short or only contained thinking',
+    };
   }
   let chatId = providedChatId;
 
