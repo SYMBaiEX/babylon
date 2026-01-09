@@ -449,6 +449,32 @@ export class FollowingMechanics {
         followsByUser.get(follow.userId)!.add(follow.npcId);
       }
 
+      // Batch fetch engagement counts for all player-NPC pairs (eliminates N*M queries)
+      // This counts how many times each player has reacted to each NPC's posts
+      const allNpcIds = allNpcs.map((n) => n.id);
+      const engagementCounts = await db
+        .select({
+          userId: reactions.userId,
+          authorId: posts.authorId,
+          engagementCount: count(reactions.id),
+        })
+        .from(reactions)
+        .innerJoin(posts, eq(posts.id, reactions.postId))
+        .where(
+          and(
+            inArray(reactions.userId, eligiblePlayerIds),
+            inArray(posts.authorId, allNpcIds)
+          )
+        )
+        .groupBy(reactions.userId, posts.authorId);
+
+      // Build Map<"userId-npcId", count> for O(1) lookup
+      const engagementByPair = new Map<string, number>();
+      for (const row of engagementCounts) {
+        const key = `${row.userId}-${row.authorId}`;
+        engagementByPair.set(key, row.engagementCount);
+      }
+
       // Track follows per player this tick
       const followsPerPlayer = new Map<string, number>();
 
@@ -489,19 +515,11 @@ export class FollowingMechanics {
           // Check affiliation boost - NPCs more likely to follow players posting about their org
           let probabilityBoost = 1.0;
           if (npc.affiliations && npc.affiliations.length > 0) {
-            // Check if player has engaged with content related to NPC's org
-            const orgEngagement = await db
-              .select({ count: count(reactions.id) })
-              .from(reactions)
-              .innerJoin(posts, eq(posts.id, reactions.postId))
-              .where(
-                and(
-                  eq(reactions.userId, player.userId),
-                  eq(posts.authorId, npc.id)
-                )
-              );
+            // Check if player has engaged with content related to NPC's org (using pre-fetched data)
+            const engagementKey = `${player.userId}-${npc.id}`;
+            const engagementCount = engagementByPair.get(engagementKey) ?? 0;
 
-            if (orgEngagement[0]?.count && orgEngagement[0].count > 0) {
+            if (engagementCount > 0) {
               probabilityBoost = 2.0; // Double chance if player engages with NPC's content
             }
           }
