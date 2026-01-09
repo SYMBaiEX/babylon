@@ -58,6 +58,7 @@ import {
   verifyCronAuth,
   withErrorHandling,
 } from '@babylon/api';
+import type { ParodyHeadline } from '@babylon/db';
 import {
   createParodyHeadlineGenerator,
   rssFeedService,
@@ -92,12 +93,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Step 2: Transform untransformed headlines into parodies
-  type ParodyResult = Awaited<
-    ReturnType<
-      ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']
-    >
-  >;
-  let parodies: ParodyResult = [];
+  let parodies: ParodyHeadline[] = [];
   try {
     logger.info('Generating parody headlines...', undefined, 'Cron');
     const untransformedHeadlines =
