@@ -2,6 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Activity, Bot, Plus, TrendingUp } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
@@ -10,6 +11,32 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+
+// Lazy load activity feed for performance
+const AgentActivityFeed = dynamic(
+  () =>
+    import('@/components/agents/AgentActivityFeed').then((m) => ({
+      default: m.AgentActivityFeed,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="animate-pulse space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-lg border border-zinc-800 p-4">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-800" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-48 rounded bg-zinc-800" />
+                <div className="h-3 w-32 rounded bg-zinc-800" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  }
+);
 
 interface Agent {
   id: string;
@@ -53,22 +80,22 @@ export default function AgentsPage() {
       url += '?autonomousTrading=false';
     }
 
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }).catch((error: Error) => {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents || []);
+      }
+    } catch (error) {
       console.error('Failed to fetch agents:', error);
+    } finally {
       setLoading(false);
-      throw error;
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setAgents(data.agents || []);
     }
-
-    setLoading(false);
   }, [getAccessToken, filter]);
 
   useEffect(() => {
@@ -185,112 +212,132 @@ export default function AgentsPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {agents.map((agent) => (
-              <Link
-                key={agent.id}
-                href={`/agents/${agent.id}`}
-                className="h-full"
-              >
-                <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-[#0066FF]/30 hover:bg-muted">
-                  {/* Header */}
-                  <div className="mb-4 flex items-start gap-4">
-                    <Avatar
-                      id={agent.id}
-                      name={agent.name}
-                      type="user"
-                      size="lg"
-                      src={agent.profileImageUrl}
-                      imageUrl={agent.profileImageUrl}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold text-lg">
-                        {agent.name}
-                      </h3>
-                      {agent.username && (
-                        <p className="truncate text-muted-foreground text-sm">
-                          @{agent.username}
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {agents.map((agent) => (
+                <Link
+                  key={agent.id}
+                  href={`/agents/${agent.id}`}
+                  className="h-full"
+                >
+                  <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-[#0066FF]/30 hover:bg-muted">
+                    {/* Header */}
+                    <div className="mb-4 flex items-start gap-4">
+                      <Avatar
+                        id={agent.id}
+                        name={agent.name}
+                        type="user"
+                        size="lg"
+                        src={agent.profileImageUrl}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate font-semibold text-lg">
+                          {agent.name}
+                        </h3>
+                        {agent.username && (
+                          <p className="truncate text-muted-foreground text-sm">
+                            @{agent.username}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 text-sm">
+                          <span
+                            className={
+                              agent.autonomousEnabled
+                                ? 'text-green-400'
+                                : 'text-muted-foreground'
+                            }
+                          >
+                            {agent.autonomousEnabled ? (
+                              <>
+                                <Activity className="mr-1 inline h-3 w-3" />
+                                Active
+                              </>
+                            ) : (
+                              'Idle'
+                            )}
+                          </span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground capitalize">
+                            {agent.modelTier}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Description - flex-1 ensures consistent card heights */}
+                    <div className="mb-4 flex-1">
+                      {agent.description && (
+                        <p className="line-clamp-2 text-muted-foreground text-sm">
+                          {agent.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 text-sm">
-                        <span
-                          className={
-                            agent.autonomousEnabled
-                              ? 'text-green-400'
-                              : 'text-muted-foreground'
-                          }
-                        >
-                          {agent.autonomousEnabled ? (
-                            <>
-                              <Activity className="mr-1 inline h-3 w-3" />
-                              Active
-                            </>
-                          ) : (
-                            'Idle'
+                    </div>
+
+                    {/* Stats */}
+                    <div className="mt-auto grid grid-cols-2 gap-4 border-border border-t pt-4">
+                      <div>
+                        <div className="mb-1 text-muted-foreground text-xs">
+                          Balance
+                        </div>
+                        <div className="font-semibold">
+                          {Number(agent.virtualBalance ?? 0).toFixed(2)} pts
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-muted-foreground text-xs">
+                          P&L
+                        </div>
+                        <div
+                          className={cn(
+                            'flex items-center gap-1 font-semibold',
+                            parseFloat(agent.lifetimePnL) >= 0
+                              ? 'text-green-600'
+                              : 'text-red-600'
                           )}
-                        </span>
-                        <span className="text-muted-foreground">•</span>
-                        <span className="text-muted-foreground capitalize">
-                          {agent.modelTier}
-                        </span>
+                        >
+                          <TrendingUp className="h-3 w-3" />
+                          {parseFloat(agent.lifetimePnL).toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-muted-foreground text-xs">
+                          Trades
+                        </div>
+                        <div className="font-semibold">{agent.totalTrades}</div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-muted-foreground text-xs">
+                          Win Rate
+                        </div>
+                        <div className="font-semibold">
+                          {(agent.winRate * 100).toFixed(0)}%
+                        </div>
                       </div>
                     </div>
                   </div>
+                </Link>
+              ))}
+            </div>
 
-                  {/* Description - flex-1 ensures consistent card heights */}
-                  <div className="mb-4 flex-1">
-                    {agent.description && (
-                      <p className="line-clamp-2 text-muted-foreground text-sm">
-                        {agent.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="mt-auto grid grid-cols-2 gap-4 border-border border-t pt-4">
-                    <div>
-                      <div className="mb-1 text-muted-foreground text-xs">
-                        Balance
-                      </div>
-                      <div className="font-semibold">
-                        {Number(agent.virtualBalance ?? 0).toFixed(2)} pts
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-muted-foreground text-xs">
-                        P&L
-                      </div>
-                      <div
-                        className={cn(
-                          'flex items-center gap-1 font-semibold',
-                          parseFloat(agent.lifetimePnL) >= 0
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                        )}
-                      >
-                        <TrendingUp className="h-3 w-3" />
-                        {parseFloat(agent.lifetimePnL).toFixed(2)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-muted-foreground text-xs">
-                        Trades
-                      </div>
-                      <div className="font-semibold">{agent.totalTrades}</div>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-muted-foreground text-xs">
-                        Win Rate
-                      </div>
-                      <div className="font-semibold">
-                        {(agent.winRate * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+            {/* My Moves - Recent Activity from All Agents */}
+            <div className="mt-8 rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+              <div className="mb-4">
+                <h2 className="flex items-center gap-2 font-bold text-xl">
+                  <Activity className="h-5 w-5 text-[#0066FF]" />
+                  My Moves
+                </h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Recent activity from all your agents
+                </p>
+              </div>
+              <AgentActivityFeed
+                limit={10}
+                showAgent={true}
+                showConnectionStatus={false}
+                emptyMessage="No agent activity yet. Your agents' trades, posts, and comments will appear here."
+              />
+            </div>
+          </>
         )}
       </div>
     </PageContainer>

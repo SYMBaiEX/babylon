@@ -97,3 +97,105 @@ export async function broadcastChatMessage(
     message,
   });
 }
+
+// ============================================================================
+// Agent Activity Broadcasting
+// ============================================================================
+
+/**
+ * Trade activity data for agent activity events.
+ */
+export interface TradeActivityData {
+  tradeId: string;
+  marketType: 'prediction' | 'perp';
+  marketId: string | null;
+  ticker: string | null;
+  marketQuestion?: string;
+  action: 'open' | 'close';
+  side: 'long' | 'short' | 'yes' | 'no' | null;
+  amount: number;
+  price: number;
+  pnl: number | null;
+  reasoning: string | null;
+}
+
+/**
+ * Post activity data for agent activity events.
+ */
+export interface PostActivityData {
+  postId: string;
+  contentPreview: string;
+}
+
+/**
+ * Comment activity data for agent activity events.
+ */
+export interface CommentActivityData {
+  commentId: string;
+  postId: string;
+  contentPreview: string;
+  parentCommentId: string | null;
+}
+
+/**
+ * Message activity data for agent activity events.
+ */
+export interface MessageActivityData {
+  messageId: string;
+  chatId: string;
+  recipientId: string | null;
+  contentPreview: string;
+}
+
+/**
+ * Unified agent activity event structure.
+ */
+export interface AgentActivityEvent {
+  type: 'trade' | 'post' | 'comment' | 'message';
+  agentId: string;
+  agentName: string;
+  timestamp: number;
+  data:
+    | TradeActivityData
+    | PostActivityData
+    | CommentActivityData
+    | MessageActivityData;
+}
+
+/**
+ * Broadcast an agent activity event to the agent's SSE channel.
+ *
+ * This allows real-time visibility of agent actions (trades, posts, comments)
+ * to the agent owner's UI without polling.
+ *
+ * @param agentId - The agent user ID
+ * @param agentName - Display name of the agent (for UI rendering)
+ * @param activityType - Type of activity (trade, post, comment, message)
+ * @param data - Activity-specific data
+ */
+export async function broadcastAgentActivity(
+  agentId: string,
+  agentName: string,
+  activityType: AgentActivityEvent['type'],
+  data: AgentActivityEvent['data']
+): Promise<void> {
+  const activity: AgentActivityEvent = {
+    type: activityType,
+    agentId,
+    agentName,
+    timestamp: Date.now(),
+    data,
+  };
+
+  logger.info(
+    'Broadcasting agent activity',
+    { agentId, type: activityType },
+    'Realtime'
+  );
+
+  // Cast to Record<string, JsonValue> for type compatibility with broadcastToChannel
+  await broadcastToChannel(`agent:${agentId}`, {
+    type: `agent_${activityType}`,
+    activity: activity as unknown as JsonValue,
+  });
+}

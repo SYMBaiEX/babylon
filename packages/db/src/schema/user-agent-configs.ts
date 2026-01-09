@@ -46,7 +46,8 @@ export const userAgentConfigs = pgTable(
     autonomousCommenting: boolean('autonomousCommenting')
       .notNull()
       .default(false),
-    autonomousTrading: boolean('autonomousTrading').notNull().default(false),
+    // autonomousTrading defaults to true - agents should trade by default per user feedback
+    autonomousTrading: boolean('autonomousTrading').notNull().default(true),
     autonomousDMs: boolean('autonomousDMs').notNull().default(false),
     autonomousGroupChats: boolean('autonomousGroupChats')
       .notNull()

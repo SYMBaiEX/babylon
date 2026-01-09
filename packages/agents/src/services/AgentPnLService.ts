@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 
+import { broadcastAgentActivity, type TradeActivityData } from '@babylon/api';
 import {
   agentLogs,
   agentTrades,
@@ -13,9 +14,11 @@ import {
   desc,
   eq,
   type JsonValue,
+  markets,
   users,
   withTransaction,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -66,10 +69,40 @@ export class AgentPnLService {
       reasoning,
     } = params;
 
+    // Generate trade ID before transaction so we can use it for broadcasting
+    const tradeId = uuidv4();
+
+    // Fetch agent name for broadcast (outside transaction for efficiency)
+    const agentResult = await db
+      .select({ displayName: users.displayName })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
+
+    if (!agentResult[0]) {
+      logger.warn(
+        `Agent ${agentId} not found in database when recording trade - broadcast will use fallback name`,
+        undefined,
+        'AgentPnLService'
+      );
+    }
+    const agentName = agentResult[0]?.displayName ?? 'Agent';
+
+    // Fetch market question for prediction trades (for SSE broadcast enrichment)
+    let marketQuestion: string | undefined;
+    if (marketType === 'prediction' && marketId) {
+      const marketResult = await db
+        .select({ question: markets.question })
+        .from(markets)
+        .where(eq(markets.id, marketId))
+        .limit(1);
+      marketQuestion = marketResult[0]?.question;
+    }
+
     await withTransaction(async (tx) => {
       // Create trade record
       await tx.insert(agentTrades).values({
-        id: uuidv4(),
+        id: tradeId,
         agentUserId: agentId,
         marketType,
         marketId: marketId ?? null,
@@ -85,14 +118,14 @@ export class AgentPnLService {
       // Update agent P&L if provided
       if (pnl !== undefined && pnl !== null) {
         // Get current lifetimePnL
-        const agentResult = await tx
+        const agentPnLResult = await tx
           .select({ lifetimePnL: users.lifetimePnL })
           .from(users)
           .where(eq(users.id, agentId))
           .limit(1);
 
-        const currentPnL = agentResult[0]?.lifetimePnL
-          ? Number.parseFloat(String(agentResult[0].lifetimePnL))
+        const currentPnL = agentPnLResult[0]?.lifetimePnL
+          ? Number.parseFloat(String(agentPnLResult[0].lifetimePnL))
           : 0;
 
         await tx
@@ -126,6 +159,38 @@ export class AgentPnLService {
       undefined,
       'AgentPnLService'
     );
+
+    // Broadcast activity to SSE channel for real-time UI updates (only for user agents).
+    // NPCs (system-defined actors from static data files) don't need broadcasting
+    // since they aren't managed by users and won't have SSE subscriptions.
+    const isNpc = !!StaticDataRegistry.getActor(agentId);
+
+    if (!isNpc) {
+      // Fire-and-forget - if it fails, the trade is still recorded
+      const activityData: TradeActivityData = {
+        tradeId,
+        marketType,
+        marketId: marketId ?? null,
+        ticker: ticker ?? null,
+        marketQuestion,
+        action,
+        side: side ?? null,
+        amount,
+        price,
+        pnl: pnl ?? null,
+        reasoning: reasoning ?? null,
+      };
+
+      broadcastAgentActivity(agentId, agentName, 'trade', activityData).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast agent activity: ${error.message}`,
+            { agentId, tradeId },
+            'AgentPnLService'
+          );
+        }
+      );
+    }
   }
 
   /**

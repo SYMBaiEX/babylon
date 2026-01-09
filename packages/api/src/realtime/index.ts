@@ -14,6 +14,7 @@ export type RealtimeChannel =
   | 'upcoming-events'
   | `chat:${string}`
   | `notifications:${string}`
+  | `agent:${string}`
   | string;
 
 export interface RealtimeEventEnvelope<T extends JsonValue = JsonValue> {

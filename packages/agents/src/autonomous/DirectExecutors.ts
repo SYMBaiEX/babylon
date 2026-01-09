@@ -6,6 +6,12 @@
  * LLM reasoning - these just execute the decided actions.
  */
 
+import {
+  broadcastAgentActivity,
+  type CommentActivityData,
+  type MessageActivityData,
+  type PostActivityData,
+} from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   actorState,
@@ -44,6 +50,32 @@ import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import { topicDiversityService } from './TopicDiversityService';
 import { resolvePerpTicker } from './utils/resolvePerpTicker';
+
+/**
+ * Helper to get agent display name for broadcasting.
+ *
+ * Currently called only within `if (!isNpc)` blocks, but includes a defensive
+ * NPC check for reusability. The StaticDataRegistry lookup is O(1) so this
+ * adds negligible overhead while future-proofing the helper for callers that
+ * may not have already performed the NPC check.
+ */
+async function getAgentDisplayName(agentUserId: string): Promise<string> {
+  // Defensive NPC check - O(1) fast-path for potential future callers
+  // that haven't already verified the agent is not an NPC
+  const npcActor = StaticDataRegistry.getActor(agentUserId);
+  if (npcActor) {
+    return npcActor.name;
+  }
+
+  // Query user table for display name
+  const [agent] = await db
+    .select({ displayName: users.displayName })
+    .from(users)
+    .where(eq(users.id, agentUserId))
+    .limit(1);
+
+  return agent?.displayName ?? 'Agent';
+}
 
 const SHARE_LIKE_MAX_INTEGER = 10;
 const SHARE_LIKE_RATIO_THRESHOLD = 0.01;
@@ -285,7 +317,9 @@ export async function executeDirectTrade(
   const { agentUserId, marketType, marketId, side, reasoning } = params;
   let { amount } = params;
 
-  // Check if this is an NPC
+  // Check if this is an NPC (system-defined actor from static data files).
+  // User-created agents are NOT in StaticDataRegistry, so they won't match.
+  // This ensures only system NPCs skip broadcasting - user agents always broadcast.
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
 
@@ -993,7 +1027,8 @@ export async function executeDirectPost(
     };
   }
 
-  // Check if this is an NPC
+  // Check if this is an NPC (system-defined actor from static data files).
+  // User-created agents are NOT in StaticDataRegistry, so they won't match.
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
 
@@ -1029,6 +1064,25 @@ export async function executeDirectPost(
     { tags: tags.length },
     'DirectExecutors'
   );
+
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  if (!isNpc) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: PostActivityData = {
+      postId,
+      contentPreview: cleanContent.substring(0, 200),
+    };
+
+    broadcastAgentActivity(agentUserId, agentName, 'post', activityData).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast post activity: ${error.message}`,
+          { agentUserId, postId },
+          'DirectExecutors'
+        );
+      }
+    );
+  }
 
   return {
     success: true,
@@ -1159,6 +1213,31 @@ export async function executeDirectComment(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  const isNpc = !!StaticDataRegistry.getActor(agentUserId);
+  if (!isNpc) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: CommentActivityData = {
+      commentId,
+      postId,
+      contentPreview: cleanContent.substring(0, 200),
+      parentCommentId: parentCommentId ?? null,
+    };
+
+    broadcastAgentActivity(
+      agentUserId,
+      agentName,
+      'comment',
+      activityData
+    ).catch((error: Error) => {
+      logger.warn(
+        `Failed to broadcast comment activity: ${error.message}`,
+        { agentUserId, commentId },
+        'DirectExecutors'
+      );
+    });
+  }
 
   return {
     success: true,
@@ -1367,6 +1446,31 @@ export async function executeDirectMessage(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast activity for real-time UI updates (only for non-NPCs)
+  const isNpc = !!StaticDataRegistry.getActor(agentUserId);
+  if (!isNpc) {
+    const agentName = await getAgentDisplayName(agentUserId);
+    const activityData: MessageActivityData = {
+      messageId,
+      chatId,
+      recipientId: recipientId ?? null,
+      contentPreview: cleanContent.substring(0, 200),
+    };
+
+    broadcastAgentActivity(
+      agentUserId,
+      agentName,
+      'message',
+      activityData
+    ).catch((error: Error) => {
+      logger.warn(
+        `Failed to broadcast message activity: ${error.message}`,
+        { agentUserId, messageId },
+        'DirectExecutors'
+      );
+    });
+  }
 
   return {
     success: true,

@@ -53,6 +53,14 @@ import { useAuth } from '@/hooks/useAuth';
 
 // Performance: Lazy load tab components - only one is visible at a time
 // Each tab component is ~10-30KB, lazy loading reduces initial bundle significantly
+const AgentActivityFeed = dynamic(
+  () =>
+    import('@/components/agents/AgentActivityFeed').then((m) => ({
+      default: m.AgentActivityFeed,
+    })),
+  { ssr: false, loading: () => <TabLoadingSkeleton /> }
+);
+
 const AgentLogs = dynamic(
   () =>
     import('@/components/agents/AgentLogs').then((m) => ({
@@ -344,8 +352,15 @@ export default function AgentDetailPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="performance" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-muted/50">
+        <Tabs defaultValue="activity" className="w-full">
+          <TabsList className="grid w-full grid-cols-5 bg-muted/50">
+            <TabsTrigger
+              value="activity"
+              className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground"
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Activity</span>
+            </TabsTrigger>
             <TabsTrigger
               value="performance"
               className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground"
@@ -377,6 +392,17 @@ export default function AgentDetailPage() {
           </TabsList>
 
           <div className="mt-6">
+            <TabsContent value="activity">
+              <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+                <AgentActivityFeed
+                  agentId={agent.id}
+                  limit={50}
+                  showConnectionStatus={true}
+                  emptyMessage="No activity yet. Your agent will show trades, posts, and comments here."
+                />
+              </div>
+            </TabsContent>
+
             <TabsContent value="performance">
               <AgentPerformance agent={agent} />
             </TabsContent>

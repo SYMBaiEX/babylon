@@ -63,9 +63,10 @@ export default function CreateAgentPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   // Settings state for step 3
+  // autonomousEnabled defaults to true per user feedback - agents should trade by default
   const [settingsData, setSettingsData] = useState<AgentSettingsData>({
     modelTier: 'free',
-    autonomousEnabled: false,
+    autonomousEnabled: true,
     autonomousPosting: false,
     autonomousCommenting: false,
     autonomousDMs: false,

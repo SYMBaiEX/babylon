@@ -211,8 +211,14 @@ export {
 export * from './services';
 // SSE Event Broadcasting
 export {
+  type AgentActivityEvent,
+  broadcastAgentActivity,
   broadcastChatMessage,
   broadcastToChannel,
+  type CommentActivityData,
+  type MessageActivityData,
+  type PostActivityData,
+  type TradeActivityData,
 } from './sse/event-broadcaster';
 // Storage utilities (moved from @babylon/shared)
 export {

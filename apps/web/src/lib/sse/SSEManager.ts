@@ -41,7 +41,10 @@ export type StaticChannel =
 /**
  * Dynamic SSE channel names that include user-specific identifiers.
  */
-export type DynamicChannel = `chat:${string}` | `notifications:${string}`;
+export type DynamicChannel =
+  | `chat:${string}`
+  | `notifications:${string}`
+  | `agent:${string}`;
 
 /**
  * SSE channel names for different event types.

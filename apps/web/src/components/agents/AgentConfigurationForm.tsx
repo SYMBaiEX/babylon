@@ -1,7 +1,7 @@
 'use client';
 
 import { cn, GROQ_MODELS } from '@babylon/shared';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, Info } from 'lucide-react';
 import { memo } from 'react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
@@ -9,6 +9,21 @@ import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 export interface AgentConfigurationData {
   modelTier: 'free' | 'pro';
+  /**
+   * Controls autonomous trading capability for the agent.
+   *
+   * TODO(tech-debt): Unify field naming across the stack. Currently:
+   * - Frontend: `autonomousEnabled` (this prop)
+   * - DB schema: `autonomousTrading` (packages/db/src/schema/user-agent-configs.ts)
+   * - API translation: handled in agent creation/update routes
+   *
+   * Planned refactor: rename to `autonomousTrading` everywhere for consistency
+   * with other autonomous toggles (autonomousPosting, autonomousCommenting, etc.)
+   * and remove the API translation layer.
+   *
+   * @see packages/db/src/schema/user-agent-configs.ts - autonomousTrading field
+   * @see apps/web/src/app/api/agents/[agentId]/route.ts - API translation
+   */
   autonomousEnabled: boolean;
   autonomousPosting: boolean;
   autonomousCommenting: boolean;
@@ -97,6 +112,39 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
         <p className="mb-4 text-muted-foreground text-sm">
           Control what your agent can do automatically
         </p>
+
+        {/* Info banner about Autonomous Trading - shows current state with context */}
+        <div
+          role="status"
+          className="mb-4 flex gap-3 rounded-lg border border-blue-800/50 bg-blue-900/20 p-3 sm:p-4"
+        >
+          <Info className="h-5 w-5 shrink-0 text-blue-400" aria-hidden="true" />
+          <div className="text-sm">
+            {data.autonomousEnabled ? (
+              <>
+                <p className="font-medium text-blue-200">
+                  Autonomous Trading is currently enabled
+                </p>
+                <p className="mt-1 text-blue-300">
+                  Your agent will evaluate markets and execute trades based on
+                  its trading strategy. You can see all trades in the Activity
+                  tab and in the "My Moves" section.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-blue-200">
+                  Autonomous Trading is currently disabled
+                </p>
+                <p className="mt-1 text-blue-300">
+                  Enable the toggle below to allow your agent to evaluate
+                  markets and execute trades. You can see all trades in the
+                  Activity tab and in the "My Moves" section.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
