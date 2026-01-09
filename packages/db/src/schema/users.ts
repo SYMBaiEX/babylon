@@ -66,12 +66,11 @@ export const gameOnboarding = pgTable(
       .default('welcome'),
 
     // Full state as JSONB for flexibility
-    // Default matches DEFAULT_GAME_ONBOARDING_STATE constant (must be kept in sync manually)
+    // The default is generated from DEFAULT_GAME_ONBOARDING_STATE constant,
+    // ensuring TypeScript validates the default against the GameOnboardingState interface.
     state: jsonb('state')
       .$type<GameOnboardingState>()
-      .default(
-        sql`'{"completedSteps":[],"currentStep":"welcome","startedAt":null,"completedAt":null,"rewards":[]}'::jsonb`
-      ),
+      .default(sql`${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}::jsonb`),
 
     // Quick access flags
     isComplete: boolean('isComplete').notNull().default(false),

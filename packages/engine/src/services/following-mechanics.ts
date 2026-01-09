@@ -436,13 +436,6 @@ export class FollowingMechanics {
             break;
           }
 
-          // Probability check
-          if (
-            secureRandom() > NPC_FOLLOWING_CONFIG.proactiveFollowProbability
-          ) {
-            continue;
-          }
-
           // Check affiliation boost - NPCs more likely to follow players posting about their org
           let probabilityBoost = 1.0;
           if (npc.affiliations && npc.affiliations.length > 0) {
@@ -463,7 +456,7 @@ export class FollowingMechanics {
             }
           }
 
-          // Final probability check with boost
+          // Probability check with affiliation boost applied
           if (
             secureRandom() >
             NPC_FOLLOWING_CONFIG.proactiveFollowProbability * probabilityBoost
