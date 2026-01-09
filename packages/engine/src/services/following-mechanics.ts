@@ -368,11 +368,11 @@ export class FollowingMechanics {
       interactions.reduce((sum, i) => sum + (i.qualityScore ?? 0), 0) /
       interactions.length;
 
-    if (recentQuality < 0.4) {
+    if (recentQuality < NPC_FOLLOWING_CONFIG.minQualityToRetainFollow) {
       return true; // Quality dropped too low
     }
 
-    // Check for long gaps (no replies for 24+ hours)
+    // Check for long gaps (no replies for configured inactive hours)
     if (interactions.length === 0) {
       return false; // No interactions found
     }
@@ -383,7 +383,7 @@ export class FollowingMechanics {
     const hoursSinceLastReply =
       (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60);
 
-    if (hoursSinceLastReply > 24) {
+    if (hoursSinceLastReply > NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow) {
       return true; // Stopped engaging
     }
 
@@ -426,7 +426,7 @@ export class FollowingMechanics {
         .where(gte(posts.timestamp, sevenDaysAgo))
         .groupBy(users.id, users.username)
         .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
-        .limit(50);
+        .limit(NPC_FOLLOWING_CONFIG.maxActivePlayersToConsider);
 
       // Calculate engagement scores for candidates
       // Engagement = likes given (0.5 pts each) + comments made (1 pt each)
@@ -772,26 +772,26 @@ export class FollowingMechanics {
         const key = `${follow.userId}-${follow.npcId}`;
         const interactions = interactionsByPair.get(key) ?? [];
 
-        // In-memory shouldUnfollow check (matching the original logic)
+        // In-memory shouldUnfollow check using shared config thresholds
         let shouldUnfollow = false;
 
         if (interactions.length > 0) {
-          // Check for sustained low quality
+          // Check for sustained low quality (uses same threshold as FollowingMechanics.shouldUnfollow)
           const recentQuality =
             interactions.reduce((sum, i) => sum + (i.qualityScore ?? 0), 0) /
             interactions.length;
 
-          if (recentQuality < 0.4) {
+          if (recentQuality < NPC_FOLLOWING_CONFIG.minQualityToRetainFollow) {
             shouldUnfollow = true; // Quality dropped too low
           }
 
-          // Check for long gaps (no replies for 24+ hours)
+          // Check for long gaps (uses same threshold as FollowingMechanics.shouldUnfollow)
           const lastInteraction = interactions[0]?.timestamp;
           if (lastInteraction) {
             const hoursSinceLastReply =
               (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60);
 
-            if (hoursSinceLastReply > 24) {
+            if (hoursSinceLastReply > NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow) {
               shouldUnfollow = true; // Stopped engaging
             }
           }

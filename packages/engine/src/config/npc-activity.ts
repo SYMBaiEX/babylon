@@ -529,6 +529,42 @@ export const NPC_FOLLOWING_CONFIG = {
    * @env NPC_UNFOLLOW_CHECK_BATCH_SIZE
    */
   unfollowCheckBatchSize: envNumber('NPC_UNFOLLOW_CHECK_BATCH_SIZE', 50),
+
+  /**
+   * Maximum active players to consider for proactive following per tick.
+   * Caps the query result to prevent processing too many candidates.
+   *
+   * @default 50
+   * @env NPC_MAX_ACTIVE_PLAYERS_TO_CONSIDER
+   */
+  maxActivePlayersToConsider: envNumber(
+    'NPC_MAX_ACTIVE_PLAYERS_TO_CONSIDER',
+    50
+  ),
+
+  /**
+   * Minimum average quality score to retain a follow.
+   * If recent interactions fall below this threshold, NPC will unfollow.
+   *
+   * @default 0.4
+   * @env NPC_MIN_QUALITY_TO_RETAIN_FOLLOW
+   */
+  minQualityToRetainFollow: envProbability(
+    'NPC_MIN_QUALITY_TO_RETAIN_FOLLOW',
+    0.4
+  ),
+
+  /**
+   * Maximum hours of inactivity before NPC unfollows.
+   * If no interactions occur within this window, NPC will unfollow.
+   *
+   * @default 24
+   * @env NPC_MAX_INACTIVE_HOURS_BEFORE_UNFOLLOW
+   */
+  maxInactiveHoursBeforeUnfollow: envNumber(
+    'NPC_MAX_INACTIVE_HOURS_BEFORE_UNFOLLOW',
+    24
+  ),
 } as const;
 
 // =============================================================================
@@ -710,13 +746,17 @@ export const NPC_ACTIVITY_PRESETS = {
 /**
  * Get preset values by name.
  *
- * @param presetName - Name of the preset
+ * @param presetName - Name of the preset (accepts any string for runtime flexibility)
  * @returns Object with environment variable key-value pairs (frozen copy)
  */
-export function getPreset(
-  presetName: keyof typeof NPC_ACTIVITY_PRESETS
-): Record<string, string> {
-  const preset = NPC_ACTIVITY_PRESETS[presetName];
+export function getPreset(presetName: string): Record<string, string> {
+  const preset = Object.prototype.hasOwnProperty.call(
+    NPC_ACTIVITY_PRESETS,
+    presetName
+  )
+    ? NPC_ACTIVITY_PRESETS[presetName as keyof typeof NPC_ACTIVITY_PRESETS]
+    : undefined;
+
   if (!preset) {
     console.warn(
       `[NPC Config] Unknown preset "${presetName}", falling back to "default"`
