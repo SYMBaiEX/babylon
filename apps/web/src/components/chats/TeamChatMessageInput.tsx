@@ -42,12 +42,13 @@ function HighlightedText({
     // Only highlight if it's a valid agent username
     if (validUsernames.has(username)) {
       parts.push(
-        <span
+        <mark
           key={`${match.index}-${mention}`}
-          className="rounded bg-primary/20 px-0.5 text-primary"
+          className="rounded-sm bg-primary/20 text-primary"
+          style={{ padding: 0, margin: 0 }}
         >
           {mention}
-        </span>
+        </mark>
       );
     } else {
       parts.push(mention);
