@@ -342,9 +342,7 @@ ${
 
   // Add conditional actions based on flags - engagement before posting
   if (justTraded && canPost) {
-    priorityActions.push(
-      'POST about your trade (share your moves!)'
-    );
+    priorityActions.push('POST about your trade (share your moves!)');
   }
   if (canComment) {
     priorityActions.push('COMMENT on interesting posts in the feed');
@@ -361,7 +359,9 @@ ${
   }
   // POST is LOW PRIORITY - only if nothing else to do
   if (canPost && !justTraded) {
-    priorityActions.push('POST only if you have something truly unique to say (LOW PRIORITY)');
+    priorityActions.push(
+      'POST only if you have something truly unique to say (LOW PRIORITY)'
+    );
   }
 
   // Always end with FINISH
