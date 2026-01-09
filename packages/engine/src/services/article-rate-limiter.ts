@@ -184,7 +184,8 @@ export const articleRateLimiter = new ArticleRateLimiterService();
  * @example
  * ```typescript
  * const limiter = createArticleRateLimiter({ maxArticlesPerHour: 5 });
- * if (await limiter.canGenerateArticle().allowed) {
+ * const { allowed } = await limiter.canGenerateArticle();
+ * if (allowed) {
  *   // Generate article
  * }
  * ```
