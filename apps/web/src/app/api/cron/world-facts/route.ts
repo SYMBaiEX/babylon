@@ -5,9 +5,14 @@
  * @access Cron (CRON_SECRET required)
  *
  * @description
- * Scheduled cron job that fetches RSS feeds, generates parody headlines, and
- * cleans up old headlines. Runs periodically (e.g., every 6 hours). Max execution
- * time: 300s.
+ * Scheduled cron job that:
+ * 1. Fetches RSS feeds from external news sources
+ * 2. Generates parody headlines from real news
+ * 3. Cleans up old headlines
+ * 4. Generates new world facts from game activity (events, markets, questions, actors)
+ *
+ * Runs twice daily (6 AM and 6 PM UTC) to keep the world context fresh and prevent
+ * content repetition across the game. Max execution time: 300s.
  *
  * @openapi
  * /api/cron/world-facts:
@@ -53,7 +58,11 @@ import {
   verifyCronAuth,
   withErrorHandling,
 } from '@babylon/api';
-import { createParodyHeadlineGenerator, rssFeedService } from '@babylon/engine';
+import {
+  createParodyHeadlineGenerator,
+  rssFeedService,
+  worldFactsGenerator,
+} from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -99,6 +108,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'Cron'
   );
 
+  // Step 4: Generate new world facts from game activity
+  // This creates fresh context based on events, markets, questions, and actor activity
+  logger.info('Generating new world facts from game activity...', undefined, 'Cron');
+  const factsResult = await worldFactsGenerator.generateNewWorldFacts();
+  logger.info(
+    `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
+    factsResult,
+    'Cron'
+  );
+
   const duration = Date.now() - startTime;
   logger.info(
     '✅ World facts update completed',
@@ -108,6 +127,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
     },
     'Cron'
   );
@@ -120,6 +141,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
+      worldFactsSources: factsResult.sources,
     },
   });
 });

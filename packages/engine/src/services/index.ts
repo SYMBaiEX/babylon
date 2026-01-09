@@ -66,6 +66,7 @@ export * from './trajectory-market-engine';
 // =============================================================================
 
 export * from './article-image-service';
+export * from './article-rate-limiter';
 export * from './event-generation-helpers';
 export * from './narrative-state-service';
 export * from './npc-anti-repetition-service';
@@ -108,6 +109,7 @@ export * from './market-impact-service';
 export * from './npc-wallet-adapter';
 export * from './rss-feed-service';
 export * from './static-data-registry';
+export * from './world-facts-generator';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';

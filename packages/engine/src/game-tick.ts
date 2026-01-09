@@ -64,6 +64,7 @@ import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 import {
   ActorSocialActions,
   AlphaGroupInviteService,
+  articleRateLimiter,
   bootstrapGameIfNeeded,
   calculateTrendingIfNeeded,
   calculateTrendingTags,
@@ -1739,15 +1740,26 @@ async function generateOrganizationContent(
       const shouldCreateArticle = Math.random() < 0.05;
 
       if (shouldCreateArticle) {
-        const success = await generateOrgArticle(
-          llm,
-          org,
-          question,
-          worldFactsContext,
-          timestampWithOffset,
-          postDayNumber
-        );
-        return { posts: success ? 1 : 0, articles: success ? 1 : 0 };
+        // Check hourly rate limit before creating an article
+        const { allowed } = await articleRateLimiter.canGenerateArticle();
+        if (!allowed) {
+          // Rate limit hit - fall through to create a post instead
+          logger.debug(
+            'Article rate limit reached - creating post instead',
+            { org: org.name },
+            'GameTick'
+          );
+        } else {
+          const success = await generateOrgArticle(
+            llm,
+            org,
+            question,
+            worldFactsContext,
+            timestampWithOffset,
+            postDayNumber
+          );
+          return { posts: success ? 1 : 0, articles: success ? 1 : 0 };
+        }
       }
 
       const success = await generateOrgPost(
@@ -1790,6 +1802,7 @@ async function generateOrganizationContent(
 
 /**
  * Generates multiple articles concurrently to maximize throughput
+ * Rate limited to max 2 articles per hour across all sources
  */
 async function generateArticles(
   _timestamp: Date,
@@ -1797,11 +1810,32 @@ async function generateArticles(
   deadlineMs: number,
   dayNumberForTimestamp: (t: Date) => number | undefined
 ): Promise<number> {
+  // Check hourly article rate limit (max 2 per hour)
+  const { allowed, currentCount, maxAllowed, remaining } =
+    await articleRateLimiter.canGenerateArticle();
+
+  if (!allowed) {
+    logger.info(
+      'Skipping article generation - hourly rate limit reached',
+      { currentCount, maxAllowed },
+      'GameTick'
+    );
+    return 0;
+  }
+
+  logger.info(
+    `Article rate limit check passed`,
+    { currentCount, maxAllowed, remaining },
+    'GameTick'
+  );
+
   // Generate articles for active questions (with coverage tracking to prevent duplicates)
+  // Limit to remaining slots
   const questionArticlesCreated = await generateArticlesForActiveQuestions(
     llm,
     deadlineMs,
-    dayNumberForTimestamp
+    dayNumberForTimestamp,
+    remaining // Pass remaining slots to limit generation
   );
 
   // Get recent events (from last 2 hours, up to current time)
@@ -1832,11 +1866,24 @@ async function generateArticles(
     return questionArticlesCreated;
   }
 
+  // Re-check rate limit after question articles (remaining might be 0 now)
+  const afterQuestionCheck = await articleRateLimiter.canGenerateArticle();
+  if (!afterQuestionCheck.allowed || afterQuestionCheck.remaining === 0) {
+    logger.info(
+      'Stopping article generation - rate limit reached after question articles',
+      { questionArticlesCreated, remaining: afterQuestionCheck.remaining },
+      'GameTick'
+    );
+    return questionArticlesCreated;
+  }
+
+  const remainingAfterQuestions = afterQuestionCheck.remaining;
+
   // No recent events = generate baseline articles about actors/companies/topics
   if (recentEvents.length === 0) {
     logger.info(
       'No recent events - generating baseline articles instead',
-      { questionArticles: questionArticlesCreated },
+      { questionArticles: questionArticlesCreated, remaining: remainingAfterQuestions },
       'GameTick'
     );
 
@@ -1845,7 +1892,8 @@ async function generateArticles(
       new Date(),
       llm,
       deadlineMs,
-      dayNumberForTimestamp
+      dayNumberForTimestamp,
+      remainingAfterQuestions // Limit to remaining slots
     );
 
     return questionArticlesCreated + baselineArticlesCreated;
@@ -1862,8 +1910,8 @@ async function generateArticles(
   // Initialize article generator
   const articleGen = new ArticleGenerator(llm);
 
-  // Generate up to 10 articles in parallel (increased from 3)
-  const articlesToGenerate = Math.min(10, recentEvents.length);
+  // Generate up to remaining slots (respecting hourly rate limit)
+  const articlesToGenerate = Math.min(remainingAfterQuestions, recentEvents.length);
   const eventsTocover = recentEvents.slice(0, articlesToGenerate);
 
   logger.info(
@@ -2111,11 +2159,14 @@ async function generateArticles(
  *
  * Uses NewsArticlePacingEngine to prevent duplicate reporting.
  * Each org can only report on a question once per stage.
+ *
+ * @param maxArticles - Maximum articles to generate (respects hourly rate limit)
  */
 async function generateArticlesForActiveQuestions(
   llm: BabylonLLMClient,
   deadlineMs: number,
-  dayNumberForTimestamp: (t: Date) => number | undefined
+  dayNumberForTimestamp: (t: Date) => number | undefined,
+  maxArticles: number = 2
 ): Promise<number> {
   // Get all active questions
   const activeQuestions = await db
@@ -2206,6 +2257,7 @@ async function generateArticlesForActiveQuestions(
   const articleGen = new ArticleGenerator(llm);
 
   let totalArticlesCreated = 0;
+  let pendingArticleCount = 0; // Track how many we're going to create
   const articlePromises: Array<Promise<number>> = [];
 
   for (const question of activeQuestions) {
@@ -2213,6 +2265,16 @@ async function generateArticlesForActiveQuestions(
       logger.warn(
         'Article generation for questions aborted due to deadline',
         { questionsProcessed: articlePromises.length },
+        'GameTick'
+      );
+      break;
+    }
+
+    // Check rate limit - stop if we've hit the max
+    if (pendingArticleCount >= maxArticles) {
+      logger.info(
+        'Stopping question article generation - reached maxArticles limit',
+        { pendingArticleCount, maxArticles },
         'GameTick'
       );
       break;
@@ -2238,13 +2300,23 @@ async function generateArticlesForActiveQuestions(
     const stage = coveredOrgs.size === 0 ? 'breaking' : 'commentary';
 
     // Breaking: 1-2 orgs, Commentary: 1-2 additional orgs
-    const targetCount =
+    // But respect the rate limit (maxArticles)
+    const remainingSlots = maxArticles - pendingArticleCount;
+    const desiredCount =
       stage === 'breaking'
         ? 1 + Math.floor(Math.random() * 2) // 1-2 orgs
         : Math.min(1, eligibleOrgs.length); // 1 more org for commentary
 
+    const targetCount = Math.min(desiredCount, remainingSlots, eligibleOrgs.length);
+
+    if (targetCount === 0) {
+      continue; // No slots left
+    }
+
     const shuffledOrgs = [...eligibleOrgs].sort(() => Math.random() - 0.5);
     const orgsForQuestion = shuffledOrgs.slice(0, targetCount);
+
+    pendingArticleCount += targetCount; // Track how many we're creating
 
     logger.info(
       `Generating ${orgsForQuestion.length} ${stage} articles for Q${question.questionNumber}`,
@@ -2396,6 +2468,8 @@ async function generateArticlesForActiveQuestions(
  * - Prominent actors (S-tier, A-tier) and their activities
  * - Companies and their market performance
  * - Diverse story seeds (not tied to specific questions)
+ *
+ * @param maxArticles - Maximum articles to generate (respects hourly rate limit)
  */
 async function generateBaselineArticlesParallel(
   newsOrgs: Array<{
@@ -2406,7 +2480,8 @@ async function generateBaselineArticlesParallel(
   timestamp: Date,
   llm: BabylonLLMClient,
   deadlineMs: number,
-  dayNumberForTimestamp: (t: Date) => number | undefined
+  dayNumberForTimestamp: (t: Date) => number | undefined,
+  maxArticles: number = 2
 ): Promise<number> {
   // Gather game context for relevant articles
   const [orgStates, worldFactsContext, worldContext] = await Promise.all([
@@ -2517,8 +2592,8 @@ async function generateBaselineArticlesParallel(
     }
   }
 
-  // Limit to 2-3 baseline articles per tick (reduced from 5)
-  const articlesToGenerate = Math.min(3, newsOrgs.length, articleTopics.length);
+  // Limit to maxArticles (respects hourly rate limit)
+  const articlesToGenerate = Math.min(maxArticles, newsOrgs.length, articleTopics.length);
 
   if (articlesToGenerate === 0) {
     return 0;
