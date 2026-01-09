@@ -45,7 +45,7 @@
 
 import { teamChatResponseService, teamChatService } from '@babylon/agents';
 import { authenticateUser, broadcastChatMessage } from '@babylon/api';
-import { asUser, db, eq, generateSnowflakeId, users } from '@babylon/db';
+import { db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -84,17 +84,13 @@ export async function POST(req: NextRequest) {
   const messageId = await generateSnowflakeId();
   const now = new Date();
 
-  await asUser(user, async (dbClient) => {
-    await dbClient.message.create({
-      data: {
-        id: messageId,
-        chatId: teamChat.chatId,
-        senderId: user.id,
-        content: content.trim(),
-        type: 'user',
-        createdAt: now,
-      },
-    });
+  await db.insert(messages).values({
+    id: messageId,
+    chatId: teamChat.chatId,
+    senderId: user.id,
+    content: content.trim(),
+    type: 'user',
+    createdAt: now,
   });
 
   logger.info(
