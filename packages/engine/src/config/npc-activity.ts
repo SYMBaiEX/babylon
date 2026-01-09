@@ -776,12 +776,40 @@ export function getPreset(presetName: string): Record<string, string> {
  */
 export function logCurrentConfig(): void {
   logger.info('NPC Activity Configuration - Header', {}, 'npc-activity');
-  logger.info('NPC Activity Configuration - Posting', NPC_POSTING_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Engagement', NPC_ENGAGEMENT_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Social Actions', NPC_SOCIAL_ACTIONS_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Group Dynamics', NPC_GROUP_DYNAMICS_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Content Pacing', NPC_CONTENT_PACING_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Following', NPC_FOLLOWING_CONFIG, 'npc-activity');
-  logger.info('NPC Activity Configuration - Tick Processing', NPC_TICK_CONFIG, 'npc-activity');
+  logger.info(
+    'NPC Activity Configuration - Posting',
+    NPC_POSTING_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Engagement',
+    NPC_ENGAGEMENT_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Social Actions',
+    NPC_SOCIAL_ACTIONS_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Group Dynamics',
+    NPC_GROUP_DYNAMICS_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Content Pacing',
+    NPC_CONTENT_PACING_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Following',
+    NPC_FOLLOWING_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Tick Processing',
+    NPC_TICK_CONFIG,
+    'npc-activity'
+  );
   logger.info('NPC Activity Configuration - Footer', {}, 'npc-activity');
 }
