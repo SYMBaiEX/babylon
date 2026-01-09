@@ -172,8 +172,9 @@ export function useTeamChat(): UseTeamChatReturn {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ isTyping }),
-      }).catch(() => {
-        // Ignore typing indicator errors
+      }).catch((err) => {
+        // Log for debugging but don't block user experience
+        console.debug('Typing indicator failed:', err);
       });
     },
     [teamChat, getAccessToken]
