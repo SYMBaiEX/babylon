@@ -8,33 +8,18 @@ import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
 
 /**
- * Extracts the displayable content from a message, showing only content after the last `</think>` tag.
- * AI models use `<think>...</think>` tags for internal reasoning which should not be displayed to users.
+ * Extracts the displayable content from a message, stripping `<think>...</think>` reasoning blocks.
+ * AI models use these tags for internal reasoning which should not be displayed to users.
  * The original message data is preserved in storage, this only affects display.
  *
- * If the entire message is wrapped in think tags with no actual response,
- * falls back to showing the original content (stripping the think tags themselves).
+ * If the message only contains reasoning with no actual response, returns empty string
+ * which will render as a minimal placeholder in the UI.
  */
 function getDisplayContent(content: string): string {
-  const lastThinkCloseIndex = content.lastIndexOf('</think>');
-  if (lastThinkCloseIndex !== -1) {
-    const afterThink = content
-      .slice(lastThinkCloseIndex + '</think>'.length)
-      .trim();
-    if (afterThink.length > 0) {
-      return afterThink;
-    }
-    // If nothing after </think>, strip think tags and show the inner content as fallback
-    // This handles cases where models only output reasoning without a response
-    const innerContent = content
-      .replace(/<think>/gi, '')
-      .replace(/<\/think>/gi, '')
-      .trim();
-    if (innerContent.length > 0) {
-      return `💭 ${innerContent}`;
-    }
-  }
-  return content;
+  // Remove paired <think>...</think> blocks
+  const withoutBlocks = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Also strip orphan tags (unclosed/unmatched)
+  return withoutBlocks.replace(/<\/?think>/gi, '').trim();
 }
 
 interface MessageBubbleProps {

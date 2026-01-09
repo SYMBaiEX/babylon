@@ -1279,24 +1279,15 @@ export async function executeDirectComment(
 // =============================================================================
 
 /**
- * Send a message directly without LLM decision-making.
- * Just creates the message with the given content.
- */
-/**
- * Strip <think>...</think> tags from content.
- * If entire content is think tags, extracts inner content as fallback.
+ * Strip `<think>...</think>` reasoning blocks from content.
+ * Removes paired blocks first, then any orphan tags.
+ * Returns empty string if only reasoning was present.
  */
 function stripThinkTags(text: string): string {
-  // First try: get content after last </think>
-  const lastThinkClose = text.lastIndexOf('</think>');
-  if (lastThinkClose !== -1) {
-    const afterThink = text.slice(lastThinkClose + '</think>'.length).trim();
-    if (afterThink.length > 0) {
-      return afterThink;
-    }
-  }
-  // Fallback: strip all think tags
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // Remove paired <think>...</think> blocks
+  const withoutBlocks = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Also strip orphan tags (unclosed/unmatched)
+  return withoutBlocks.replace(/<\/?think>/gi, '').trim();
 }
 
 export async function executeDirectMessage(
