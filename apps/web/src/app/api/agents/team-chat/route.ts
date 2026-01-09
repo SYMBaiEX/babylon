@@ -60,6 +60,16 @@
 
 import { teamChatService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
+import {
+  chatParticipants,
+  chats,
+  db,
+  eq,
+  groupMembers,
+  groups,
+  messages,
+  userAgentTeamChats,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -114,12 +124,17 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/agents/team-chat
- * Ensure team chat exists (creates if needed)
+ * Ensure team chat exists (creates if needed) and sync existing agents
  */
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   const teamChat = await teamChatService.ensureTeamChat(user.id);
+
+  // Sync any existing agents that aren't in the team chat yet
+  // (handles agents created before the team chat feature was implemented)
+  const syncedCount = await teamChatService.syncExistingAgents(user.id);
+
   const agents = await teamChatService.getTeamChatAgents(
     user.id,
     teamChat.groupId
@@ -127,7 +142,7 @@ export async function POST(req: NextRequest) {
 
   logger.info(
     `Team chat ensured for user ${user.id}`,
-    { chatId: teamChat.chatId },
+    { chatId: teamChat.chatId, syncedAgents: syncedCount },
     'TeamChatAPI'
   );
 
@@ -148,5 +163,48 @@ export async function POST(req: NextRequest) {
       })),
       agentCount: agents.length,
     },
+    syncedAgents: syncedCount,
+  });
+}
+
+/**
+ * DELETE /api/agents/team-chat
+ * Reset/delete team chat (for clearing corrupted state)
+ */
+export async function DELETE(req: NextRequest) {
+  const user = await authenticateUser(req);
+
+  const teamChat = await teamChatService.getTeamChat(user.id);
+
+  if (!teamChat) {
+    return NextResponse.json(
+      { success: false, error: 'No team chat exists to delete' },
+      { status: 404 }
+    );
+  }
+
+  // Delete all related data
+  await db.delete(messages).where(eq(messages.chatId, teamChat.chatId));
+  await db
+    .delete(chatParticipants)
+    .where(eq(chatParticipants.chatId, teamChat.chatId));
+  await db.delete(chats).where(eq(chats.id, teamChat.chatId));
+  await db
+    .delete(groupMembers)
+    .where(eq(groupMembers.groupId, teamChat.groupId));
+  await db.delete(groups).where(eq(groups.id, teamChat.groupId));
+  await db
+    .delete(userAgentTeamChats)
+    .where(eq(userAgentTeamChats.userId, user.id));
+
+  logger.info(
+    `Team chat deleted for user ${user.id}`,
+    { chatId: teamChat.chatId, groupId: teamChat.groupId },
+    'TeamChatAPI'
+  );
+
+  return NextResponse.json({
+    success: true,
+    message: 'Team chat deleted. Visit Command Center again to create a fresh one.',
   });
 }

@@ -416,6 +416,122 @@ export class TeamChatService {
       'TeamChatService'
     );
   }
+
+  /**
+   * Sync all existing agents to the team chat.
+   *
+   * This is useful for adding agents that were created before the team chat
+   * feature was implemented, or if agents somehow got out of sync.
+   *
+   * @param userId - The human user ID
+   * @returns Number of agents that were added
+   */
+  async syncExistingAgents(userId: string): Promise<number> {
+    // Ensure team chat exists
+    const teamChat = await this.ensureTeamChat(userId);
+
+    // Get all agents owned by this user
+    const allUserAgents = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.managedBy, userId), eq(users.isAgent, true)));
+
+    if (allUserAgents.length === 0) {
+      return 0;
+    }
+
+    // Get agents already in the team chat
+    const existingMembers = await db
+      .select({ userId: groupMembers.userId })
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, teamChat.groupId),
+          eq(groupMembers.isActive, true)
+        )
+      );
+
+    const existingMemberIds = new Set(existingMembers.map((m) => m.userId));
+
+    // Find agents that need to be added
+    const agentsToAdd = allUserAgents.filter(
+      (agent) => !existingMemberIds.has(agent.id)
+    );
+
+    if (agentsToAdd.length === 0) {
+      return 0;
+    }
+
+    // Add each missing agent (silently, without system messages to avoid spam)
+    for (const agent of agentsToAdd) {
+      await this.addAgentToTeamChatSilent(userId, agent.id, teamChat);
+    }
+
+    logger.info(
+      `Synced ${agentsToAdd.length} existing agent(s) to team chat`,
+      { userId, agentIds: agentsToAdd.map((a) => a.id) },
+      'TeamChatService'
+    );
+
+    return agentsToAdd.length;
+  }
+
+  /**
+   * Add an agent to team chat without system message (for sync operations)
+   */
+  private async addAgentToTeamChatSilent(
+    userId: string,
+    agentUserId: string,
+    teamChat: TeamChatInfo
+  ): Promise<void> {
+    const now = new Date();
+    const [memberId, participantId] = await Promise.all([
+      generateSnowflakeId(),
+      generateSnowflakeId(),
+    ]);
+
+    // Add agent to group members (upsert)
+    await db
+      .insert(groupMembers)
+      .values({
+        id: memberId,
+        groupId: teamChat.groupId,
+        userId: agentUserId,
+        role: 'member',
+        addedBy: userId,
+        joinedAt: now,
+        isActive: true,
+        messageCount: 0,
+        qualityScore: 1.0,
+      })
+      .onConflictDoUpdate({
+        target: [groupMembers.groupId, groupMembers.userId],
+        set: {
+          isActive: true,
+          joinedAt: now,
+          addedBy: userId,
+          role: 'member',
+        },
+      });
+
+    // Add agent to chat participants (upsert)
+    await db
+      .insert(chatParticipants)
+      .values({
+        id: participantId,
+        chatId: teamChat.chatId,
+        userId: agentUserId,
+        joinedAt: now,
+        isActive: true,
+      })
+      .onConflictDoUpdate({
+        target: [chatParticipants.chatId, chatParticipants.userId],
+        set: {
+          isActive: true,
+          joinedAt: now,
+        },
+      });
+  }
 }
 
 /** Singleton instance */

@@ -235,9 +235,12 @@ export function useTeamChat(): UseTeamChatReturn {
       return;
     }
 
+    // Use POST to ensure team chat exists and sync any pre-existing agents
     const response = await fetch('/api/agents/team-chat', {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
     });
 
