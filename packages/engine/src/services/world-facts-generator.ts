@@ -14,6 +14,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   lte,
   posts,
@@ -345,6 +346,10 @@ Return as XML:
 
     const facts: string[] = [];
     for (const q of recentlyResolved) {
+      // Skip items with null/undefined outcomes
+      if (q.outcome == null) {
+        continue;
+      }
       const outcomeText = q.outcome ? 'YES' : 'NO';
       // Create a simple fact about the resolution
       facts.push(
@@ -373,19 +378,22 @@ Return as XML:
 
     const actorIds = mainActors.map((a) => a.id);
 
-    // Get their recent posts
-    const recentPosts = await db
+    // Get their recent posts (filter by actorIds in the query to avoid unnecessary data transfer)
+    const actorPosts = await db
       .select({
         content: posts.content,
         authorId: posts.authorId,
       })
       .from(posts)
-      .where(and(gte(posts.timestamp, oneDayAgo), isNull(posts.deletedAt)))
+      .where(
+        and(
+          gte(posts.timestamp, oneDayAgo),
+          isNull(posts.deletedAt),
+          inArray(posts.authorId, actorIds)
+        )
+      )
       .orderBy(desc(posts.timestamp))
       .limit(20);
-
-    // Filter to actor posts
-    const actorPosts = recentPosts.filter((p) => actorIds.includes(p.authorId));
 
     if (actorPosts.length === 0) {
       return [];
@@ -456,13 +464,22 @@ Return as XML:
    */
   private async storeFact(value: string): Promise<void> {
     // Generate a key from the first few words
-    const keyWords = value
+    let keyWords = value
       .toLowerCase()
       .split(/\s+/)
       .slice(0, 5)
       .join('_')
       .replace(/[^a-z0-9_]/g, '')
       .substring(0, 50);
+
+    // Fallback if keyWords is empty (e.g., value has only non-alphanumerics)
+    if (!keyWords) {
+      // Use a short hash derived from the value for uniqueness
+      const hash = value
+        .split('')
+        .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0);
+      keyWords = `fact_${Math.abs(hash).toString(36)}`;
+    }
 
     const key = `dynamic_${keyWords}_${Date.now()}`;
     const label = value.length > 60 ? value.substring(0, 57) + '...' : value;

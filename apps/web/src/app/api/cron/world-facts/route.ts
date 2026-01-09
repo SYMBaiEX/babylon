@@ -115,7 +115,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     undefined,
     'Cron'
   );
-  const factsResult = await worldFactsGenerator.generateNewWorldFacts();
+  let factsResult = { generated: 0, archived: 0, sources: { events: 0, markets: 0, questions: 0, actors: 0 } };
+  try {
+    factsResult = await worldFactsGenerator.generateNewWorldFacts();
+  } catch (error) {
+    logger.error(
+      'Error generating world facts',
+      { error },
+      'Cron'
+    );
+  }
   logger.info(
     `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
     factsResult,
