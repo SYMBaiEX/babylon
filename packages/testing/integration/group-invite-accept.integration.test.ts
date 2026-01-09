@@ -5,15 +5,30 @@
  * - Accepting invites to non-NPC groups when at NPC group limit (should succeed)
  * - Accepting invites to NPC groups when at NPC group limit (should fail)
  * - Accepting invites when the group no longer exists (should return 404)
- * - Transaction atomicity (all operations should be rolled back on failure)
+ * - Accepting invites meant for a different user (should return 403)
+ * - Transaction atomicity (all operations should be committed on success)
  *
  * Run with: bun test integration/group-invite-accept.integration.test.ts --preload ./integration/preload.ts
  */
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 import { db } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared';
-import { GROUP_CONFIG } from '@babylon/shared';
+import { GROUP_CONFIG, generateSnowflakeId } from '@babylon/shared';
+
+// Base URL for API calls
+const BASE_URL =
+  process.env.TEST_API_URL ||
+  process.env.PLAYWRIGHT_BASE_URL ||
+  'http://localhost:3000';
+
+let serverAvailable = false;
 
 // Test data cleanup tracking
 const testIds: {
@@ -24,6 +39,7 @@ const testIds: {
   membershipIds: string[];
   inviteIds: string[];
   notificationIds: string[];
+  messageIds: string[];
 } = {
   userIds: [],
   groupIds: [],
@@ -32,9 +48,39 @@ const testIds: {
   membershipIds: [],
   inviteIds: [],
   notificationIds: [],
+  messageIds: [],
 };
 
-// Helper to create test user
+// Server health check
+async function checkServerHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${BASE_URL}/api/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// HTTP helper for POST requests with authentication
+async function postWithAuth(
+  path: string,
+  authToken: string,
+  body?: Record<string, unknown>
+): Promise<Response> {
+  return fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(10000),
+  });
+}
+
+// Helper to create test user with a mock Privy ID for auth
 async function createTestUser(options?: {
   username?: string;
   displayName?: string;
@@ -42,8 +88,10 @@ async function createTestUser(options?: {
   id: string;
   username: string;
   displayName: string;
+  privyId: string;
 }> {
   const id = await generateSnowflakeId();
+  const privyId = `did:privy:test-${id}`;
   const username = options?.username || `test-user-${id.slice(-6)}`;
   const displayName = options?.displayName || `Test User ${id.slice(-6)}`;
 
@@ -55,12 +103,13 @@ async function createTestUser(options?: {
       isActor: false,
       isAgent: false,
       isTest: true,
+      privyId,
       updatedAt: new Date(),
     },
   });
 
   testIds.userIds.push(id);
-  return { id, username, displayName };
+  return { id, username, displayName, privyId };
 }
 
 // Helper to create test group
@@ -114,6 +163,7 @@ async function createGroupMembership(options: {
   groupId: string;
   userId: string;
   role?: 'owner' | 'admin' | 'member';
+  isActive?: boolean;
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
@@ -123,7 +173,7 @@ async function createGroupMembership(options: {
       groupId: options.groupId,
       userId: options.userId,
       role: options.role || 'member',
-      isActive: true,
+      isActive: options.isActive !== undefined ? options.isActive : true,
       joinedAt: new Date(),
     },
   });
@@ -156,46 +206,80 @@ async function createGroupInvite(options: {
   return id;
 }
 
-// Cleanup helper
+// Cleanup helper - wrapped in try/finally to ensure testIds are always reset
 async function cleanupTestData(): Promise<void> {
-  // Delete in reverse order of dependencies
-  if (testIds.notificationIds.length > 0) {
-    await db.notification.deleteMany({
-      where: { id: { in: testIds.notificationIds } },
-    });
+  try {
+    // Delete in reverse order of dependencies
+    if (testIds.messageIds.length > 0) {
+      await db.message.deleteMany({
+        where: { id: { in: testIds.messageIds } },
+      });
+    }
+    if (testIds.notificationIds.length > 0) {
+      await db.notification.deleteMany({
+        where: { id: { in: testIds.notificationIds } },
+      });
+    }
+    if (testIds.inviteIds.length > 0) {
+      await db.groupInvite.deleteMany({
+        where: { id: { in: testIds.inviteIds } },
+      });
+    }
+    if (testIds.membershipIds.length > 0) {
+      await db.groupMember.deleteMany({
+        where: { id: { in: testIds.membershipIds } },
+      });
+    }
+    if (testIds.participantIds.length > 0) {
+      await db.chatParticipant.deleteMany({
+        where: { id: { in: testIds.participantIds } },
+      });
+    }
+    if (testIds.chatIds.length > 0) {
+      // Also clean up any messages in test chats that weren't tracked
+      await db.message.deleteMany({
+        where: { chatId: { in: testIds.chatIds } },
+      });
+      await db.chatParticipant.deleteMany({
+        where: { chatId: { in: testIds.chatIds } },
+      });
+      await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+    }
+    if (testIds.groupIds.length > 0) {
+      // Clean up any members/invites that weren't tracked
+      await db.groupMember.deleteMany({
+        where: { groupId: { in: testIds.groupIds } },
+      });
+      await db.groupInvite.deleteMany({
+        where: { groupId: { in: testIds.groupIds } },
+      });
+      await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
+    }
+    if (testIds.userIds.length > 0) {
+      await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
+    }
+  } finally {
+    // Always reset tracking arrays, even if delete operations fail
+    testIds.userIds = [];
+    testIds.groupIds = [];
+    testIds.chatIds = [];
+    testIds.participantIds = [];
+    testIds.membershipIds = [];
+    testIds.inviteIds = [];
+    testIds.notificationIds = [];
+    testIds.messageIds = [];
   }
-  if (testIds.inviteIds.length > 0) {
-    await db.groupInvite.deleteMany({
-      where: { id: { in: testIds.inviteIds } },
-    });
-  }
-  if (testIds.membershipIds.length > 0) {
-    await db.groupMember.deleteMany({
-      where: { id: { in: testIds.membershipIds } },
-    });
-  }
-  if (testIds.participantIds.length > 0) {
-    await db.chatParticipant.deleteMany({
-      where: { id: { in: testIds.participantIds } },
-    });
-  }
-  if (testIds.chatIds.length > 0) {
-    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
-  }
-  if (testIds.groupIds.length > 0) {
-    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
-  }
-  if (testIds.userIds.length > 0) {
-    await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
-  }
-
-  // Reset tracking
-  Object.keys(testIds).forEach((key) => {
-    (testIds as Record<string, string[]>)[key] = [];
-  });
 }
 
 describe('Group Invite Accept Integration Tests', () => {
+  beforeAll(async () => {
+    serverAvailable = await checkServerHealth();
+    if (!serverAvailable) {
+      console.warn('⚠️  Server not available - API tests will be skipped');
+      console.warn(`   Tried: ${BASE_URL}/api/health`);
+    }
+  });
+
   beforeEach(async () => {
     await cleanupTestData();
   });
@@ -206,6 +290,8 @@ describe('Group Invite Accept Integration Tests', () => {
 
   describe('NPC Group Limit Enforcement', () => {
     test('should allow accepting non-NPC group invite when at NPC group limit', async () => {
+      if (!serverAvailable) return;
+
       // Create users
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
@@ -224,12 +310,9 @@ describe('Group Invite Accept Integration Tests', () => {
         });
       }
 
-      // Verify user is at NPC limit by fetching memberships and checking group types
+      // Verify user is at NPC limit
       const memberships = await db.groupMember.findMany({
-        where: {
-          userId: invitee.id,
-          isActive: true,
-        },
+        where: { userId: invitee.id, isActive: true },
       });
       const memberGroupIds = memberships.map((m) => m.groupId);
       const memberGroups = await db.group.findMany({
@@ -253,23 +336,34 @@ describe('Group Invite Accept Integration Tests', () => {
         invitedBy: inviter.id,
       });
 
-      // Verify the invite exists
-      const invite = await db.groupInvite.findUnique({
+      // Accept the invite via API
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
+
+      // Should succeed - non-NPC groups don't count toward limit
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.data.groupId).toBe(userGroup.id);
+
+      // Verify the invite was marked as accepted
+      const updatedInvite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
-      expect(invite).toBeDefined();
-      expect(invite?.status).toBe('pending');
+      expect(updatedInvite?.status).toBe('accepted');
 
-      // The actual API call would be tested via HTTP, but we can verify the logic:
-      // User should be able to join non-NPC groups even when at NPC limit
-      // This test verifies the data setup is correct for that scenario
-      const group = await db.group.findUnique({
-        where: { id: userGroup.id },
+      // Verify membership was created
+      const newMembership = await db.groupMember.findFirst({
+        where: { groupId: userGroup.id, userId: invitee.id, isActive: true },
       });
-      expect(group?.type).toBe('user');
+      expect(newMembership).toBeDefined();
     });
 
     test('should block accepting NPC group invite when at NPC group limit', async () => {
+      if (!serverAvailable) return;
+
       // Create users
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
@@ -303,34 +397,34 @@ describe('Group Invite Accept Integration Tests', () => {
         invitedBy: inviter.id,
       });
 
-      // Verify the setup: user is at NPC limit and invite is to an NPC group
-      const memberships = await db.groupMember.findMany({
-        where: {
-          userId: invitee.id,
-          isActive: true,
-        },
-      });
-      const memberGroupIds = memberships.map((m) => m.groupId);
-      const memberGroups = await db.group.findMany({
-        where: { id: { in: memberGroupIds } },
-      });
-      const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
-      expect(npcGroupCount).toBe(maxGroups);
+      // Try to accept the invite via API
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
 
+      // Should fail - exceeds NPC group limit
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('NPC groups');
+      expect(data.error).toContain('Leave a group first');
+
+      // Verify invite is still pending
       const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
-      const inviteGroup = await db.group.findUnique({
-        where: { id: invite!.groupId },
-      });
-      expect(inviteGroup?.type).toBe('npc');
+      expect(invite?.status).toBe('pending');
 
-      // The API endpoint should reject this invite acceptance
-      // Verified via the API route logic which checks:
-      // if (invitedGroup.type === 'npc' && npcGroupCount >= MAX_ACTIVE_USER_GROUPS)
+      // Verify no membership was created
+      const membership = await db.groupMember.findFirst({
+        where: { groupId: newNpcGroup.id, userId: invitee.id },
+      });
+      expect(membership).toBeNull();
     });
 
     test('should allow accepting NPC group invite when below NPC group limit', async () => {
+      if (!serverAvailable) return;
+
       // Create users
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
@@ -355,7 +449,7 @@ describe('Group Invite Accept Integration Tests', () => {
         type: 'npc',
         ownerId: inviter.id,
       });
-      await createTestChat({ groupId: newNpcGroup.id });
+      const chat = await createTestChat({ groupId: newNpcGroup.id });
 
       // Create invite
       const inviteId = await createGroupInvite({
@@ -364,33 +458,110 @@ describe('Group Invite Accept Integration Tests', () => {
         invitedBy: inviter.id,
       });
 
-      // Verify user is below limit
-      const memberships = await db.groupMember.findMany({
-        where: {
-          userId: invitee.id,
-          isActive: true,
-        },
-      });
-      const memberGroupIds = memberships.map((m) => m.groupId);
-      const memberGroups =
-        memberGroupIds.length > 0
-          ? await db.group.findMany({
-              where: { id: { in: memberGroupIds } },
-            })
-          : [];
-      const npcGroupCount = memberGroups.filter((g) => g.type === 'npc').length;
-      expect(npcGroupCount).toBeLessThan(GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS);
+      // Accept the invite via API
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
 
-      // The invite should be valid and acceptable
-      const invite = await db.groupInvite.findUnique({
+      // Should succeed - below NPC limit
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.data.groupId).toBe(newNpcGroup.id);
+      expect(data.data.chatId).toBe(chat.id);
+
+      // Verify invite was accepted
+      const updatedInvite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
-      expect(invite?.status).toBe('pending');
+      expect(updatedInvite?.status).toBe('accepted');
+      expect(updatedInvite?.respondedAt).toBeDefined();
+
+      // Verify membership was created
+      const membership = await db.groupMember.findFirst({
+        where: { groupId: newNpcGroup.id, userId: invitee.id, isActive: true },
+      });
+      expect(membership).toBeDefined();
+      expect(membership?.role).toBe('member');
     });
   });
 
   describe('Group Existence Validation', () => {
-    test('should have valid group reference in invite', async () => {
+    test('should return 404 when invite does not exist', async () => {
+      if (!serverAvailable) return;
+
+      const invitee = await createTestUser({ displayName: 'Invitee' });
+      const fakeInviteId = await generateSnowflakeId();
+
+      const response = await postWithAuth(
+        `/api/groups/invites/${fakeInviteId}/accept`,
+        invitee.privyId
+      );
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain('Invite not found');
+    });
+
+    test('should return 404 when group has been deleted', async () => {
+      if (!serverAvailable) return;
+
+      const inviter = await createTestUser({ displayName: 'Inviter' });
+      const invitee = await createTestUser({ displayName: 'Invitee' });
+
+      const group = await createTestGroup({
+        name: 'Test Group',
+        type: 'user',
+        ownerId: inviter.id,
+      });
+
+      const inviteId = await createGroupInvite({
+        groupId: group.id,
+        invitedUserId: invitee.id,
+        invitedBy: inviter.id,
+      });
+
+      // Delete the invite first (to avoid FK constraint)
+      await db.groupInvite.delete({ where: { id: inviteId } });
+      testIds.inviteIds = testIds.inviteIds.filter((id) => id !== inviteId);
+
+      // Delete the group
+      await db.group.delete({ where: { id: group.id } });
+      testIds.groupIds = testIds.groupIds.filter((id) => id !== group.id);
+
+      // Create a new invite record that references the deleted group
+      // This simulates a race condition or orphaned invite
+      const orphanInviteId = await generateSnowflakeId();
+      await db.groupInvite.create({
+        data: {
+          id: orphanInviteId,
+          groupId: group.id, // Points to deleted group
+          invitedUserId: invitee.id,
+          invitedBy: inviter.id,
+          status: 'pending',
+          invitedAt: new Date(),
+        },
+      });
+      testIds.inviteIds.push(orphanInviteId);
+
+      // Try to accept the orphaned invite
+      const response = await postWithAuth(
+        `/api/groups/invites/${orphanInviteId}/accept`,
+        invitee.privyId
+      );
+
+      // Should return 404 - group not found
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain('Group not found');
+    });
+  });
+
+  describe('Invite Status Validation', () => {
+    test('should reject already accepted invite', async () => {
+      if (!serverAvailable) return;
+
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
 
@@ -401,69 +572,6 @@ describe('Group Invite Accept Integration Tests', () => {
       });
       await createTestChat({ groupId: group.id });
 
-      const inviteId = await createGroupInvite({
-        groupId: group.id,
-        invitedUserId: invitee.id,
-        invitedBy: inviter.id,
-      });
-
-      // Verify group exists via separate query
-      const invite = await db.groupInvite.findUnique({
-        where: { id: inviteId },
-      });
-      expect(invite).toBeDefined();
-      const inviteGroup = await db.group.findUnique({
-        where: { id: invite!.groupId },
-      });
-      expect(inviteGroup).toBeDefined();
-      expect(inviteGroup?.id).toBe(group.id);
-    });
-
-    test('should handle deleted group scenario', async () => {
-      const inviter = await createTestUser({ displayName: 'Inviter' });
-      const invitee = await createTestUser({ displayName: 'Invitee' });
-
-      const group = await createTestGroup({
-        name: 'Test Group',
-        type: 'user',
-        ownerId: inviter.id,
-      });
-
-      const inviteId = await createGroupInvite({
-        groupId: group.id,
-        invitedUserId: invitee.id,
-        invitedBy: inviter.id,
-      });
-
-      // Delete the group (simulating group deletion after invite was created)
-      await db.groupInvite.delete({ where: { id: inviteId } });
-      testIds.inviteIds = testIds.inviteIds.filter((id) => id !== inviteId);
-
-      await db.group.delete({ where: { id: group.id } });
-      testIds.groupIds = testIds.groupIds.filter((id) => id !== group.id);
-
-      // Verify group no longer exists
-      const deletedGroup = await db.group.findUnique({
-        where: { id: group.id },
-      });
-      expect(deletedGroup).toBeNull();
-
-      // The API endpoint should return 404 when trying to accept
-      // an invite to a non-existent group (verified by the null check we added)
-    });
-  });
-
-  describe('Invite Status Validation', () => {
-    test('should only accept pending invites', async () => {
-      const inviter = await createTestUser({ displayName: 'Inviter' });
-      const invitee = await createTestUser({ displayName: 'Invitee' });
-
-      const group = await createTestGroup({
-        name: 'Test Group',
-        type: 'user',
-        ownerId: inviter.id,
-      });
-
       // Create already accepted invite
       const acceptedInviteId = await createGroupInvite({
         groupId: group.id,
@@ -472,26 +580,54 @@ describe('Group Invite Accept Integration Tests', () => {
         status: 'accepted',
       });
 
-      const acceptedInvite = await db.groupInvite.findUnique({
-        where: { id: acceptedInviteId },
-      });
-      expect(acceptedInvite?.status).toBe('accepted');
+      // Try to accept again
+      const response = await postWithAuth(
+        `/api/groups/invites/${acceptedInviteId}/accept`,
+        invitee.privyId
+      );
 
-      // Create pending invite
-      const pendingInviteId = await createGroupInvite({
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('already been processed');
+    });
+
+    test('should reject declined invite', async () => {
+      if (!serverAvailable) return;
+
+      const inviter = await createTestUser({ displayName: 'Inviter' });
+      const invitee = await createTestUser({ displayName: 'Invitee' });
+
+      const group = await createTestGroup({
+        name: 'Test Group',
+        type: 'user',
+        ownerId: inviter.id,
+      });
+      await createTestChat({ groupId: group.id });
+
+      // Create declined invite
+      const declinedInviteId = await createGroupInvite({
         groupId: group.id,
         invitedUserId: invitee.id,
         invitedBy: inviter.id,
-        status: 'pending',
+        status: 'declined',
       });
 
-      const pendingInvite = await db.groupInvite.findUnique({
-        where: { id: pendingInviteId },
-      });
-      expect(pendingInvite?.status).toBe('pending');
+      // Try to accept
+      const response = await postWithAuth(
+        `/api/groups/invites/${declinedInviteId}/accept`,
+        invitee.privyId
+      );
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('already been processed');
     });
+  });
 
+  describe('Invite Ownership Validation', () => {
     test('should reject invite meant for different user', async () => {
+      if (!serverAvailable) return;
+
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
       const otherUser = await createTestUser({ displayName: 'Other User' });
@@ -501,28 +637,77 @@ describe('Group Invite Accept Integration Tests', () => {
         type: 'user',
         ownerId: inviter.id,
       });
+      await createTestChat({ groupId: group.id });
 
+      // Create invite for invitee
       const inviteId = await createGroupInvite({
         groupId: group.id,
         invitedUserId: invitee.id,
         invitedBy: inviter.id,
       });
 
+      // Try to accept as otherUser (not the invitee)
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        otherUser.privyId
+      );
+
+      expect(response.status).toBe(403);
+      const data = await response.json();
+      expect(data.error).toContain('This invite is not for you');
+
+      // Verify invite is still pending
       const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
+      expect(invite?.status).toBe('pending');
+    });
+  });
 
-      // Verify invite is for invitee, not otherUser
-      expect(invite?.invitedUserId).toBe(invitee.id);
-      expect(invite?.invitedUserId).not.toBe(otherUser.id);
+  describe('Already Member Validation', () => {
+    test('should reject if user is already an active member', async () => {
+      if (!serverAvailable) return;
 
-      // The API endpoint checks: invite.invitedUserId !== user.userId
-      // and returns 403 "This invite is not for you"
+      const inviter = await createTestUser({ displayName: 'Inviter' });
+      const invitee = await createTestUser({ displayName: 'Invitee' });
+
+      const group = await createTestGroup({
+        name: 'Test Group',
+        type: 'user',
+        ownerId: inviter.id,
+      });
+      await createTestChat({ groupId: group.id });
+
+      // User is already a member
+      await createGroupMembership({
+        groupId: group.id,
+        userId: invitee.id,
+        isActive: true,
+      });
+
+      // Create a pending invite (this shouldn't happen in practice but let's test)
+      const inviteId = await createGroupInvite({
+        groupId: group.id,
+        invitedUserId: invitee.id,
+        invitedBy: inviter.id,
+      });
+
+      // Try to accept
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('already a member');
     });
   });
 
   describe('Transaction Atomicity', () => {
     test('should create all required records on successful accept', async () => {
+      if (!serverAvailable) return;
+
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
 
@@ -533,7 +718,7 @@ describe('Group Invite Accept Integration Tests', () => {
       });
       const chat = await createTestChat({ groupId: group.id });
 
-      await createGroupInvite({
+      const inviteId = await createGroupInvite({
         groupId: group.id,
         invitedUserId: invitee.id,
         invitedBy: inviter.id,
@@ -550,16 +735,53 @@ describe('Group Invite Accept Integration Tests', () => {
       });
       expect(participantBefore).toBeNull();
 
-      // After successful accept (simulated), the following should exist:
-      // 1. GroupMember record with isActive: true
-      // 2. ChatParticipant record with isActive: true
-      // 3. Invite status changed to 'accepted'
-      // 4. System message in chat
+      // Accept the invite
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
+      expect(response.status).toBe(200);
 
-      // This verifies the data model is correct for the transaction
+      // Verify all records were created atomically:
+
+      // 1. GroupMember record with isActive: true
+      const memberAfter = await db.groupMember.findFirst({
+        where: { groupId: group.id, userId: invitee.id },
+      });
+      expect(memberAfter).toBeDefined();
+      expect(memberAfter?.isActive).toBe(true);
+      expect(memberAfter?.role).toBe('member');
+      expect(memberAfter?.addedBy).toBe(inviter.id);
+
+      // 2. ChatParticipant record with isActive: true
+      const participantAfter = await db.chatParticipant.findFirst({
+        where: { chatId: chat.id, userId: invitee.id },
+      });
+      expect(participantAfter).toBeDefined();
+      expect(participantAfter?.isActive).toBe(true);
+
+      // 3. Invite status changed to 'accepted'
+      const inviteAfter = await db.groupInvite.findUnique({
+        where: { id: inviteId },
+      });
+      expect(inviteAfter?.status).toBe('accepted');
+      expect(inviteAfter?.respondedAt).toBeDefined();
+
+      // 4. System message in chat (senderId='system' for system messages)
+      const systemMessage = await db.message.findFirst({
+        where: {
+          chatId: chat.id,
+          senderId: 'system',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(systemMessage).toBeDefined();
+      expect(systemMessage?.content).toContain('joined the group');
     });
 
-    test('should handle upsert for rejoining members', async () => {
+    test('should handle upsert for rejoining members (previously kicked)', async () => {
+      if (!serverAvailable) return;
+
       const inviter = await createTestUser({ displayName: 'Inviter' });
       const invitee = await createTestUser({ displayName: 'Invitee' });
 
@@ -568,9 +790,12 @@ describe('Group Invite Accept Integration Tests', () => {
         type: 'user',
         ownerId: inviter.id,
       });
+      // Chat is needed so the API can create a ChatParticipant on rejoin
+      await createTestChat({ groupId: group.id });
 
       // Create an inactive membership (user was previously kicked)
       const membershipId = await generateSnowflakeId();
+      const kickedAt = new Date();
       await db.groupMember.create({
         data: {
           id: membershipId,
@@ -579,7 +804,7 @@ describe('Group Invite Accept Integration Tests', () => {
           role: 'member',
           isActive: false, // Was kicked
           joinedAt: new Date(Date.now() - 86400000), // Yesterday
-          kickedAt: new Date(),
+          kickedAt,
           kickReason: 'inactivity',
         },
       });
@@ -592,11 +817,52 @@ describe('Group Invite Accept Integration Tests', () => {
       expect(inactiveMember?.isActive).toBe(false);
       expect(inactiveMember?.kickedAt).toBeDefined();
 
-      // When accepting a new invite, the upsert should:
-      // - Set isActive: true
-      // - Reset kickedAt to NULL
-      // - Reset kickReason to NULL
-      // - Update joinedAt to current time
+      // Create invite
+      const inviteId = await createGroupInvite({
+        groupId: group.id,
+        invitedUserId: invitee.id,
+        invitedBy: inviter.id,
+      });
+
+      // Accept the invite
+      const response = await postWithAuth(
+        `/api/groups/invites/${inviteId}/accept`,
+        invitee.privyId
+      );
+      expect(response.status).toBe(200);
+
+      // Verify the upsert behavior:
+      // - isActive should be true
+      // - kickedAt should be NULL
+      // - kickReason should be NULL
+      // - joinedAt should be updated
+      const rejoinedMember = await db.groupMember.findFirst({
+        where: { groupId: group.id, userId: invitee.id },
+      });
+      expect(rejoinedMember?.isActive).toBe(true);
+      expect(rejoinedMember?.kickedAt).toBeNull();
+      expect(rejoinedMember?.kickReason).toBeNull();
+      expect(rejoinedMember?.joinedAt).not.toEqual(inactiveMember?.joinedAt);
+    });
+  });
+
+  describe('Authentication', () => {
+    test('should require authentication', async () => {
+      if (!serverAvailable) return;
+
+      const inviteId = await generateSnowflakeId();
+
+      // Call without auth header
+      const response = await fetch(
+        `${BASE_URL}/api/groups/invites/${inviteId}/accept`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+
+      expect(response.status).toBe(401);
     });
   });
 });
