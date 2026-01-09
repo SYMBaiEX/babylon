@@ -70,7 +70,9 @@ export const gameOnboarding = pgTable(
     // ensuring TypeScript validates the default against the GameOnboardingState interface.
     state: jsonb('state')
       .$type<GameOnboardingState>()
-      .default(sql.raw(`'${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}'::jsonb`)),
+      .default(
+        sql.raw(`'${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}'::jsonb`)
+      ),
 
     // Quick access flags
     isComplete: boolean('isComplete').notNull().default(false),
