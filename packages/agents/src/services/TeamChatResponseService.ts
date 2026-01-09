@@ -40,6 +40,8 @@ const LOOP_PREVENTION = {
   MAX_CHAIN_DEPTH: 3,
   /** Cooldown period per agent per chat (ms) - prevents same agent responding twice in this window */
   AGENT_COOLDOWN_MS: 30000,
+  /** Cleanup interval for expired cooldowns (ms) */
+  CLEANUP_INTERVAL_MS: 60000,
 };
 
 /** Parameters for triggering agent responses */
@@ -74,6 +76,57 @@ export class TeamChatResponseService {
   private agentResponseCooldowns = new Map<string, number>();
 
   /**
+   * Tracks active conversation chains to prevent loops across cooldown resets.
+   * Key: chatId, Value: { chainId, agentsSeen, startedAt }
+   * A chain is reset when a human sends a new message.
+   */
+  private activeChains = new Map<
+    string,
+    { chainId: string; agentsSeen: Set<string>; startedAt: number }
+  >();
+
+  /** Cleanup interval handle */
+  private cleanupIntervalHandle: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Start periodic cleanup (prevents latency spikes from on-trigger cleanup)
+    this.startPeriodicCleanup();
+  }
+
+  /**
+   * Start periodic cleanup of expired cooldowns and chains
+   */
+  private startPeriodicCleanup(): void {
+    if (this.cleanupIntervalHandle) return;
+    this.cleanupIntervalHandle = setInterval(() => {
+      this.cleanupExpiredEntries();
+    }, LOOP_PREVENTION.CLEANUP_INTERVAL_MS);
+  }
+
+  /**
+   * Cleanup expired cooldowns and stale chains
+   */
+  private cleanupExpiredEntries(): void {
+    const now = Date.now();
+    const cooldownCutoff = now - LOOP_PREVENTION.AGENT_COOLDOWN_MS;
+
+    // Clean expired cooldowns
+    for (const [key, timestamp] of this.agentResponseCooldowns) {
+      if (timestamp < cooldownCutoff) {
+        this.agentResponseCooldowns.delete(key);
+      }
+    }
+
+    // Clean stale chains (older than 5 minutes - conversation likely moved on)
+    const chainExpiry = 5 * 60 * 1000;
+    for (const [chatId, chain] of this.activeChains) {
+      if (now - chain.startedAt > chainExpiry) {
+        this.activeChains.delete(chatId);
+      }
+    }
+  }
+
+  /**
    * Check if an agent is on cooldown (recently responded) in a chat
    */
   private isAgentOnCooldown(chatId: string, agentId: string): boolean {
@@ -84,18 +137,39 @@ export class TeamChatResponseService {
   }
 
   /**
-   * Mark an agent as having responded in a chat
+   * Check if an agent has already participated in the current conversation chain.
+   * This prevents loops even after cooldowns expire within the same chain.
+   */
+  private hasAgentRespondedInChain(chatId: string, agentId: string): boolean {
+    const chain = this.activeChains.get(chatId);
+    if (!chain) return false;
+    return chain.agentsSeen.has(agentId);
+  }
+
+  /**
+   * Start a new conversation chain (called when human sends a message)
+   */
+  private startNewChain(chatId: string): string {
+    const chainId = `${chatId}:${Date.now()}`;
+    this.activeChains.set(chatId, {
+      chainId,
+      agentsSeen: new Set(),
+      startedAt: Date.now(),
+    });
+    return chainId;
+  }
+
+  /**
+   * Mark an agent as having responded in a chat and current chain
    */
   private markAgentResponded(chatId: string, agentId: string): void {
     const key = `${chatId}:${agentId}`;
     this.agentResponseCooldowns.set(key, Date.now());
 
-    // Cleanup old entries periodically (keep map from growing indefinitely)
-    if (this.agentResponseCooldowns.size > 1000) {
-      const cutoff = Date.now() - LOOP_PREVENTION.AGENT_COOLDOWN_MS;
-      for (const [k, v] of this.agentResponseCooldowns) {
-        if (v < cutoff) this.agentResponseCooldowns.delete(k);
-      }
+    // Also mark in the active chain
+    const chain = this.activeChains.get(chatId);
+    if (chain) {
+      chain.agentsSeen.add(agentId);
     }
   }
 
@@ -122,6 +196,9 @@ export class TeamChatResponseService {
     if (mentionedAgentIds.length === 0) {
       return { triggered: 0, responses: [] };
     }
+
+    // Human message starts a new conversation chain (resets loop prevention)
+    this.startNewChain(chatId);
 
     logger.info(
       `Triggering responses from ${mentionedAgentIds.length} mentioned agent(s)`,
@@ -273,7 +350,7 @@ export class TeamChatResponseService {
       depth = 0,
     } = params;
 
-    // Check cooldown before waiting (fail fast)
+    // Check cooldown and chain-based loop prevention before waiting (fail fast)
     if (this.isAgentOnCooldown(chatId, agentId)) {
       logger.debug(
         `Agent ${agentId} on cooldown, skipping response`,
@@ -284,6 +361,20 @@ export class TeamChatResponseService {
         success: false,
         agentName: 'Agent',
         error: 'Agent on cooldown',
+      };
+    }
+
+    // Check if agent already responded in this conversation chain
+    if (depth > 0 && this.hasAgentRespondedInChain(chatId, agentId)) {
+      logger.debug(
+        `Agent ${agentId} already responded in this chain, skipping`,
+        { chatId, depth },
+        'TeamChatResponseService'
+      );
+      return {
+        success: false,
+        agentName: 'Agent',
+        error: 'Agent already responded in this chain',
       };
     }
 
@@ -498,36 +589,47 @@ Generate ONLY the response text:`;
     const A2A_MIN_DELAY = 3000;
     const A2A_MAX_DELAY = 6000;
 
-    for (const mentionedAgentId of mentionedAgentIds) {
+    // Fetch conversation context ONCE before the loop (performance optimization)
+    const recentMessages = await db
+      .select({
+        content: messages.content,
+        senderId: messages.senderId,
+      })
+      .from(messages)
+      .where(eq(messages.chatId, chatId))
+      .orderBy(desc(messages.createdAt))
+      .limit(10);
+
+    const conversationContext = recentMessages
+      .reverse()
+      .map((m) => {
+        const isResponding = m.senderId === respondingAgentId;
+        return `${isResponding ? respondingAgentName : 'Agent'}: ${m.content}`;
+      })
+      .join('\n');
+
+    for (let i = 0; i < mentionedAgentIds.length; i++) {
+      const mentionedAgentId = mentionedAgentIds[i];
+      if (!mentionedAgentId) continue;
+
       const baseDelay =
         A2A_MIN_DELAY + Math.random() * (A2A_MAX_DELAY - A2A_MIN_DELAY);
-      const staggerDelay =
-        mentionedAgentIds.indexOf(mentionedAgentId) *
-        RESPONSE_TIMING.STAGGER_DELAY;
-
-      // Get recent conversation for context
-      const recentMessages = await db
-        .select({
-          content: messages.content,
-          senderId: messages.senderId,
-        })
-        .from(messages)
-        .where(eq(messages.chatId, chatId))
-        .orderBy(desc(messages.createdAt))
-        .limit(10);
-
-      const conversationContext = recentMessages
-        .reverse()
-        .map((m) => {
-          const isResponding = m.senderId === respondingAgentId;
-          return `${isResponding ? respondingAgentName : 'Agent'}: ${m.content}`;
-        })
-        .join('\n');
+      const staggerDelay = i * RESPONSE_TIMING.STAGGER_DELAY;
 
       // Skip agents on cooldown
       if (this.isAgentOnCooldown(chatId, mentionedAgentId)) {
         logger.debug(
           `Skipping agent ${mentionedAgentId} - on cooldown`,
+          { chatId, depth },
+          'TeamChatResponseService'
+        );
+        continue;
+      }
+
+      // Skip agents that already responded in this chain
+      if (this.hasAgentRespondedInChain(chatId, mentionedAgentId)) {
+        logger.debug(
+          `Skipping agent ${mentionedAgentId} - already in chain`,
           { chatId, depth },
           'TeamChatResponseService'
         );
