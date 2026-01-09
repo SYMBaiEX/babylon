@@ -174,3 +174,20 @@ export function generateAgentName(): GeneratedAgentName {
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * Creates a regex pattern for matching a name with flexible boundaries.
+ * Handles punctuation, unicode, and edge cases better than \b word boundaries.
+ *
+ * Uses negative lookbehind/lookahead for alphanumeric chars to avoid
+ * matching substrings while allowing punctuation/emoji at boundaries.
+ *
+ * @param name - The name to create a pattern for (will be escaped)
+ * @returns RegExp that matches the name with proper boundaries
+ */
+export function createNameMatchRegex(name: string): RegExp {
+  const escaped = escapeRegex(name);
+  // Match name that is not preceded or followed by alphanumeric chars
+  // This handles cases like "Nova!" or emoji names better than \b
+  return new RegExp(`(?<![a-zA-Z0-9])${escaped}(?![a-zA-Z0-9])`, 'g');
+}

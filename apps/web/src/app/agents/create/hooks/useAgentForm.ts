@@ -2,7 +2,10 @@ import type { AgentTemplate } from '@babylon/agents/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { escapeRegex, generateAgentName } from '@/utils/nameGenerator';
+import {
+  createNameMatchRegex,
+  generateAgentName,
+} from '@/utils/nameGenerator';
 
 const STORAGE_KEY = 'babylon_agent_draft';
 
@@ -179,11 +182,8 @@ export function useAgentForm(): UseAgentFormResult {
 
           // Only replace if there's a previous name and it's different
           if (oldName && oldName !== value) {
-            // Use word boundaries to avoid replacing substrings (e.g., "Nova" in "Innovative")
-            const oldNameRegex = new RegExp(
-              `\\b${escapeRegex(oldName)}\\b`,
-              'g'
-            );
+            // Use flexible boundaries that handle punctuation/unicode better than \b
+            const oldNameRegex = createNameMatchRegex(oldName);
 
             setAgentData((prevAgent) => ({
               ...prevAgent,
