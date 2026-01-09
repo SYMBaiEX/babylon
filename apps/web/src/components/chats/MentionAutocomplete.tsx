@@ -34,10 +34,13 @@ interface MentionAutocompleteProps {
 
 /**
  * Autocomplete dropdown for @mentions in chat
+ *
+ * Note: `agents` prop should already be filtered by the parent (via useMentionAutocomplete hook).
+ * This avoids duplicate filtering logic.
  */
 export function MentionAutocomplete({
   agents,
-  query,
+  query: _query,
   isOpen,
   position,
   selectedIndex,
@@ -47,16 +50,8 @@ export function MentionAutocomplete({
 }: MentionAutocompleteProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter agents based on query
-  const filteredAgents = agents.filter((agent) => {
-    if (!query) return true;
-    const searchLower = query.toLowerCase();
-    const displayNameMatch = agent.displayName
-      ?.toLowerCase()
-      .includes(searchLower);
-    const usernameMatch = agent.username?.toLowerCase().includes(searchLower);
-    return displayNameMatch || usernameMatch;
-  });
+  // Agents are already filtered by useMentionAutocomplete hook
+  const filteredAgents = agents;
 
   // Close on click outside
   useEffect(() => {

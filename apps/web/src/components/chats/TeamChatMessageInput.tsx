@@ -2,7 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Send } from 'lucide-react';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
@@ -12,6 +12,7 @@ import {
 } from './MentionAutocomplete';
 
 const MAX_TEXTAREA_HEIGHT = 160;
+const MENTION_DEBOUNCE_MS = 300;
 
 interface TeamChatMessageInputProps {
   value: string;
@@ -48,6 +49,7 @@ export function TeamChatMessageInput({
     position,
     selectedIndex,
     mentionStartIndex,
+    filteredAgents,
     openAutocomplete,
     closeAutocomplete,
     updateQuery,
@@ -73,34 +75,61 @@ export function TeamChatMessageInput({
 
   // Track previous mentions to avoid infinite loop
   const prevMentionsRef = useRef<string>('');
+  const mentionDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Extract mentioned agent IDs from message content
+  // Memoized lookup map from lowercase username to agent ID
+  const usernameToAgentId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const agent of agents) {
+      if (agent.username) {
+        map.set(agent.username.toLowerCase(), agent.id);
+      }
+    }
+    return map;
+  }, [agents]);
+
+  // Extract mentioned agent IDs from message content (debounced)
   useEffect(() => {
     if (!onMentionsChange) return;
 
-    const mentionRegex = /@(\w+)/g;
-    const mentions: string[] = [];
-    let match: RegExpExecArray | null = null;
+    // Clear previous debounce timer
+    if (mentionDebounceRef.current) {
+      clearTimeout(mentionDebounceRef.current);
+    }
 
-    while ((match = mentionRegex.exec(value)) !== null) {
-      const matchedUsername = match[1];
-      const agent = agents.find(
-        (a) => a.username?.toLowerCase() === matchedUsername?.toLowerCase()
-      );
-      if (agent) {
-        mentions.push(agent.id);
+    // Debounce mention extraction to avoid running on every keystroke
+    mentionDebounceRef.current = setTimeout(() => {
+      // Broader regex to match usernames with hyphens, dots, underscores
+      const mentionRegex = /@([A-Za-z0-9_.-]+)/g;
+      const mentions: string[] = [];
+      let match: RegExpExecArray | null = null;
+
+      while ((match = mentionRegex.exec(value)) !== null) {
+        const matchedUsername = match[1]?.toLowerCase();
+        if (matchedUsername) {
+          const agentId = usernameToAgentId.get(matchedUsername);
+          if (agentId) {
+            mentions.push(agentId);
+          }
+        }
       }
-    }
 
-    const uniqueMentions = [...new Set(mentions)];
-    const mentionsKey = uniqueMentions.sort().join(',');
+      const uniqueMentions = [...new Set(mentions)];
+      const mentionsKey = uniqueMentions.sort().join(',');
 
-    // Only call if mentions actually changed
-    if (mentionsKey !== prevMentionsRef.current) {
-      prevMentionsRef.current = mentionsKey;
-      onMentionsChange(uniqueMentions);
-    }
-  }, [value, agents, onMentionsChange]);
+      // Only call if mentions actually changed
+      if (mentionsKey !== prevMentionsRef.current) {
+        prevMentionsRef.current = mentionsKey;
+        onMentionsChange(uniqueMentions);
+      }
+    }, MENTION_DEBOUNCE_MS);
+
+    return () => {
+      if (mentionDebounceRef.current) {
+        clearTimeout(mentionDebounceRef.current);
+      }
+    };
+  }, [value, usernameToAgentId, onMentionsChange]);
 
   // Handle selecting an agent from autocomplete
   const handleSelectAgent = useCallback(
@@ -220,9 +249,9 @@ export function TeamChatMessageInput({
 
   return (
     <div ref={containerRef} className="relative bg-background px-4 py-3">
-      {/* Mention autocomplete dropdown */}
+      {/* Mention autocomplete dropdown - pass pre-filtered agents from hook */}
       <MentionAutocomplete
-        agents={agents}
+        agents={filteredAgents}
         query={query}
         isOpen={isOpen}
         position={position}
