@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
-import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import { MemberList } from './MemberList';
 
 /**
  * Agent Team Chat Page (Command Center)
@@ -95,6 +95,23 @@ export default function TeamChatPage() {
     );
   }
 
+  // Error state - check BEFORE empty state so real errors are shown
+  if (error) {
+    return (
+      <PageContainer noPadding className="flex flex-col">
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <Users className="mx-auto mb-4 h-16 w-16 text-red-500" />
+            <h2 className="mb-2 font-bold text-foreground text-xl">
+              Failed to load Command Center
+            </h2>
+            <p className="mb-6 text-muted-foreground">{error}</p>
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+
   // No team chat (no agents yet)
   if (!teamChat) {
     return (
@@ -117,23 +134,6 @@ export default function TeamChatPage() {
                 Create Your First Agent
               </Button>
             </Link>
-          </div>
-        </div>
-      </PageContainer>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <Users className="mx-auto mb-4 h-16 w-16 text-red-500" />
-            <h2 className="mb-2 font-bold text-foreground text-xl">
-              Failed to load Command Center
-            </h2>
-            <p className="mb-6 text-muted-foreground">{error}</p>
           </div>
         </div>
       </PageContainer>
@@ -166,87 +166,12 @@ export default function TeamChatPage() {
 
             <Separator />
 
-            {/* Member list */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* You (the user) */}
-              <div className="mb-4">
-                <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-                  You
-                </p>
-                <div className="flex items-center gap-3">
-                  <Avatar
-                    src={user?.profileImageUrl}
-                    name={user?.displayName || user?.username || 'You'}
-                    size="sm"
-                  />
-                  <span className="font-medium text-foreground text-sm">
-                    {user?.displayName || user?.username || 'You'}
-                  </span>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Agents */}
-              <div>
-                <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-                  Agents ({teamChat?.agentCount ?? 0})
-                </p>
-                {teamChat?.agents.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No agents yet.{' '}
-                    <Link
-                      href="/agents/create"
-                      className="text-blue-500 hover:underline"
-                      onClick={() => setShowMemberDrawer(false)}
-                    >
-                      Create one
-                    </Link>
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {teamChat?.agents.map((agent) => (
-                      <Link
-                        key={agent.id}
-                        href={`/agents/${agent.id}`}
-                        onClick={() => setShowMemberDrawer(false)}
-                        className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
-                      >
-                        <Avatar
-                          src={agent.profileImageUrl ?? undefined}
-                          name={agent.displayName || agent.username || 'Agent'}
-                          size="sm"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium text-foreground text-sm">
-                            {agent.displayName || agent.username || 'Agent'}
-                          </p>
-                          {agent.username && (
-                            <p className="truncate text-muted-foreground text-xs">
-                              @{agent.username}
-                            </p>
-                          )}
-                        </div>
-                        <Bot className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Add agent button */}
-              <div className="mt-4">
-                <Link
-                  href="/agents/create"
-                  onClick={() => setShowMemberDrawer(false)}
-                >
-                  <Button variant="outline" size="sm" className="w-full gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Agent
-                  </Button>
-                </Link>
-              </div>
-            </div>
+            {/* Member list - extracted component */}
+            <MemberList
+              user={user}
+              teamChat={teamChat}
+              onClose={() => setShowMemberDrawer(false)}
+            />
           </div>
         </>
       )}
@@ -270,82 +195,8 @@ export default function TeamChatPage() {
 
           <Separator />
 
-          {/* Member list */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* You (the user) */}
-            <div className="mb-4">
-              <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-                You
-              </p>
-              <div className="flex items-center gap-3">
-                <Avatar
-                  src={user?.profileImageUrl}
-                  name={user?.displayName || user?.username || 'You'}
-                  size="sm"
-                />
-                <span className="font-medium text-foreground text-sm">
-                  {user?.displayName || user?.username || 'You'}
-                </span>
-              </div>
-            </div>
-
-            <Separator className="my-4" />
-
-            {/* Agents */}
-            <div>
-              <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-                Agents ({teamChat.agentCount})
-              </p>
-              {teamChat.agents.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No agents yet.{' '}
-                  <Link
-                    href="/agents/create"
-                    className="text-blue-500 hover:underline"
-                  >
-                    Create one
-                  </Link>
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {teamChat.agents.map((agent) => (
-                    <Link
-                      key={agent.id}
-                      href={`/agents/${agent.id}`}
-                      className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
-                    >
-                      <Avatar
-                        src={agent.profileImageUrl ?? undefined}
-                        name={agent.displayName || agent.username || 'Agent'}
-                        size="sm"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-foreground text-sm">
-                          {agent.displayName || agent.username || 'Agent'}
-                        </p>
-                        {agent.username && (
-                          <p className="truncate text-muted-foreground text-xs">
-                            @{agent.username}
-                          </p>
-                        )}
-                      </div>
-                      <Bot className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Add agent button */}
-            <div className="mt-4">
-              <Link href="/agents/create">
-                <Button variant="outline" size="sm" className="w-full gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Agent
-                </Button>
-              </Link>
-            </div>
-          </div>
+          {/* Member list - extracted component */}
+          <MemberList user={user} teamChat={teamChat} />
         </div>
 
         <Separator orientation="vertical" className="hidden lg:block" />

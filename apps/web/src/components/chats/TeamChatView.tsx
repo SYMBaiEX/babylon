@@ -9,6 +9,12 @@ import { MessageList } from './MessageList';
 import { TeamChatMessageInput } from './TeamChatMessageInput';
 import type { ChatDetails } from './types';
 
+/** Typing user info */
+interface TypingUserInfo {
+  userId: string;
+  displayName: string;
+}
+
 /** Typing indicator component */
 function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
   const first = typingUsers[0];
@@ -39,12 +45,6 @@ function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
       <span>{text}</span>
     </div>
   );
-}
-
-/** Typing user info */
-interface TypingUserInfo {
-  userId: string;
-  displayName: string;
 }
 
 interface TeamChatViewProps {
