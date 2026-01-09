@@ -71,6 +71,9 @@ export function TeamChatMessageInput({
     resizeTextarea();
   }, [value, resizeTextarea]);
 
+  // Track previous mentions to avoid infinite loop
+  const prevMentionsRef = useRef<string>('');
+
   // Extract mentioned agent IDs from message content
   useEffect(() => {
     if (!onMentionsChange) return;
@@ -89,7 +92,14 @@ export function TeamChatMessageInput({
       }
     }
 
-    onMentionsChange([...new Set(mentions)]);
+    const uniqueMentions = [...new Set(mentions)];
+    const mentionsKey = uniqueMentions.sort().join(',');
+
+    // Only call if mentions actually changed
+    if (mentionsKey !== prevMentionsRef.current) {
+      prevMentionsRef.current = mentionsKey;
+      onMentionsChange(uniqueMentions);
+    }
   }, [value, agents, onMentionsChange]);
 
   // Handle selecting an agent from autocomplete
