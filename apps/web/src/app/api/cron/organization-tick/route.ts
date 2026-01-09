@@ -5,16 +5,20 @@
  * @access Cron (CRON_SECRET required)
  *
  * @description
- * Dedicated cron job for media organizations (AINBC, AIxios, BloombAIrg, etc.).
- * Runs separately from npc-tick (actors) to:
- * 1. Generate news posts and articles from media orgs
- * 2. Allow independent control over org posting frequency
- * 3. React to world events with breaking news
+ * Dedicated cron job for media organizations (AINBC, AIxios, BloombAIrg, etc.)
+ * to generate SHORT POSTS ONLY (social media style updates).
+ *
+ * Article generation is handled separately by /api/cron/article-tick.
+ * This separation provides:
+ * 1. Organizations post frequently (social media presence)
+ * 2. Articles are rate-limited and event-driven
+ * 3. Clear separation of concerns
  *
  * Architecture:
- * - game-tick: Game engine (lookahead buffer, markets, world state)
+ * - game-tick: Game engine (markets, events, world state)
  * - npc-tick: Actor NPCs (Sam AIltman, AIlon Musk, etc.)
- * - organization-tick: Media orgs (AINBC, AIxios, BloombAIrg)
+ * - organization-tick: Media org POSTS only (short updates)
+ * - article-tick: ALL article generation (centralized, rate-limited)
  * - agent-tick: User-created agents
  */
 
@@ -27,7 +31,6 @@ import {
 } from '@babylon/api';
 import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
-  articleRateLimiter,
   BabylonLLMClient,
   getActiveEventsForPosting,
   StaticDataRegistry,
@@ -45,39 +48,6 @@ import { z } from 'zod';
  * Mirrors the same pattern used in npc-tick.
  */
 const MAX_CONSECUTIVE_ERRORS = Number(process.env.ORG_TICK_MAX_ERRORS) || 5;
-
-/**
- * Truncate content at a sentence or word boundary before the limit.
- * Finds the last sentence-ending punctuation (.!?) or whitespace before maxLength.
- */
-function truncateAtBoundary(content: string, maxLength: number): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-
-  const truncated = content.substring(0, maxLength);
-
-  // Try to find last sentence boundary (.!?)
-  const lastSentenceEnd = Math.max(
-    truncated.lastIndexOf('.'),
-    truncated.lastIndexOf('!'),
-    truncated.lastIndexOf('?')
-  );
-
-  if (lastSentenceEnd > maxLength * 0.5) {
-    // Only use sentence boundary if it's past halfway
-    return truncated.substring(0, lastSentenceEnd + 1);
-  }
-
-  // Fall back to last whitespace
-  const lastSpace = truncated.lastIndexOf(' ');
-  if (lastSpace > maxLength * 0.5) {
-    return truncated.substring(0, lastSpace);
-  }
-
-  // If no good boundary found, just truncate
-  return truncated;
-}
 
 /**
  * Zod schema for validating LLM response formats.
@@ -120,14 +90,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Number of organizations to process per tick.
  * Configurable via ORG_TICK_BATCH_SIZE environment variable.
+ * Each org generates 1 short post per tick.
  */
 const ORGS_PER_TICK = Number(process.env.ORG_TICK_BATCH_SIZE) || 2;
-
-/**
- * Probability of generating an article vs a post (0-1).
- * Articles are longer-form content, posts are short news updates.
- */
-const ARTICLE_PROBABILITY = 0.15;
 
 /**
  * GET /api/cron/organization-tick
@@ -315,7 +280,6 @@ export async function POST(_req: NextRequest) {
       orgId: string;
       name: string;
       status: string;
-      postType?: 'post' | 'article';
       error?: string;
       duration: number;
     }> = [];
@@ -342,22 +306,6 @@ export async function POST(_req: NextRequest) {
       const orgStartTime = Date.now();
 
       try {
-        // Determine if this should be an article or a post
-        // Check rate limit if we want to create an article
-        let isArticle = secureRandom() < ARTICLE_PROBABILITY;
-        if (isArticle) {
-          const { allowed } = await articleRateLimiter.canGenerateArticle();
-          if (!allowed) {
-            logger.info(
-              'Article rate limit reached - creating post instead',
-              { org: org.name },
-              'OrganizationTick'
-            );
-            isArticle = false; // Fall back to post
-          }
-        }
-        const postType = isArticle ? 'article' : 'post';
-
         // Generate content based on active events and world context
         const eventContext =
           activeEventsData.activeEvents.length > 0
@@ -367,13 +315,8 @@ export async function POST(_req: NextRequest) {
                 .join(', ')}`
             : '';
 
-        // Build prompt for organization post
-        const prompt = buildOrgPrompt(
-          org,
-          worldFactsContext,
-          eventContext,
-          isArticle
-        );
+        // Build prompt for organization POST (not article - articles are handled by article-tick)
+        const prompt = buildOrgPostPrompt(org, worldFactsContext, eventContext);
 
         // Generate content using LLM
         const rawResponse = await llmClient.generateJSON<
@@ -385,7 +328,7 @@ export async function POST(_req: NextRequest) {
             required: ['post'],
           },
           {
-            maxTokens: isArticle ? 800 : 280,
+            maxTokens: 280,
             temperature: 0.8,
           }
         );
@@ -419,22 +362,17 @@ export async function POST(_req: NextRequest) {
         const content = rawPost.trim();
         const now = new Date();
 
-        // Create the post in database
+        // Create the post in database (always type: 'post', never 'article')
         const postId = await generateSnowflakeId();
         await db.insert(posts).values({
           id: postId,
-          content: isArticle ? truncateAtBoundary(content, 500) : content,
+          content,
           authorId: org.id,
           gameId: gameState.id,
           dayNumber: gameState.currentDay ?? 1,
           timestamp: now,
           createdAt: now,
-          type: isArticle ? 'article' : 'post',
-          ...(isArticle && {
-            articleTitle: extractTitle(content),
-            fullContent: content,
-            category: 'news',
-          }),
+          type: 'post',
         });
 
         postsCreated++;
@@ -443,16 +381,14 @@ export async function POST(_req: NextRequest) {
           orgId: org.id,
           name: org.name,
           status: 'success',
-          postType,
           duration: Date.now() - orgStartTime,
         });
 
         logger.info(
-          `Organization ${org.name} created ${postType}`,
+          `Organization ${org.name} created post`,
           {
             orgId: org.id,
             postId,
-            postType,
             duration: Date.now() - orgStartTime,
           },
           'OrganizationTick'
@@ -521,34 +457,15 @@ export async function POST(_req: NextRequest) {
 }
 
 /**
- * Build a prompt for organization post generation
+ * Build a prompt for organization POST generation (not articles).
+ * Articles are handled by the separate article-tick cron job.
  */
-function buildOrgPrompt(
+function buildOrgPostPrompt(
   org: { id: string; name: string; description?: string },
   worldFacts: string,
-  eventContext: string,
-  isArticle: boolean
+  eventContext: string
 ): string {
   const orgStyle = getOrgStyle(org.id);
-
-  if (isArticle) {
-    return `You are writing as ${org.name}, a ${org.description || 'news organization'}.
-
-${worldFacts}
-
-${eventContext}
-
-Write a short news article (2-3 paragraphs) in the style of ${org.name}.
-${orgStyle}
-
-The article should:
-- Have a compelling headline
-- Cover current events in the AI/crypto/tech space
-- Match the publication's voice and editorial stance
-- Be concise but informative
-
-Format: Start with the headline, then the article body.`;
-  }
 
   return `You are posting as ${org.name}, a ${org.description || 'news organization'}.
 
@@ -560,10 +477,11 @@ Write a short news post (1-2 sentences, under 280 characters) in the style of ${
 ${orgStyle}
 
 The post should:
-- Be breaking news or an update
-- Use the publication's voice
+- Be breaking news, an update, or commentary
+- Use the publication's voice and editorial stance
 - Include relevant hashtags if appropriate
-- Be attention-grabbing but factual`;
+- Be attention-grabbing but factual
+- Reference specific parody names (AIlon Musk, Sam AIltman, etc.) when relevant`;
 }
 
 /**
@@ -578,22 +496,4 @@ function getOrgStyle(orgId: string): string {
   }
 
   return 'Professional news reporting style.';
-}
-
-/**
- * Extract a title from article content
- */
-function extractTitle(content: string): string {
-  // Try to extract first line as title
-  const lines = content.split('\n').filter((l) => l.trim());
-  if (lines.length > 0) {
-    const firstLine = lines[0]!.trim();
-    // Remove common title markers
-    return firstLine
-      .replace(/^#+\s*/, '')
-      .replace(/^\*\*(.+)\*\*$/, '$1')
-      .replace(/^"(.+)"$/, '$1')
-      .substring(0, 200);
-  }
-  return 'Breaking News';
 }

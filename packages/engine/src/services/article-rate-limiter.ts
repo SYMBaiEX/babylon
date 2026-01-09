@@ -25,17 +25,18 @@ export interface ArticleRateLimitConfig {
  * Default configuration for article rate limiting.
  *
  * The limit can be configured via environment variable:
- * - ARTICLE_RATE_LIMIT_PER_HOUR: Max articles per hour (default: 6)
+ * - ARTICLE_RATE_LIMIT_PER_HOUR: Max articles per hour (default: 2)
  *
  * @remarks
- * A limit of 6 articles per hour provides a reasonable news feed cadence:
- * - ~1 article every 10 minutes on average
- * - Enough variety without overwhelming the feed
+ * A limit of 2 articles per hour provides a calmer news feed:
+ * - ~1 article every 30 minutes on average
+ * - Prevents article flooding that drowns out user/agent content
  * - Sustainable for LLM cost management
+ * - Articles are high-effort content that should feel special
  */
 const DEFAULT_CONFIG: Required<ArticleRateLimitConfig> = {
   maxArticlesPerHour: parseInt(
-    process.env.ARTICLE_RATE_LIMIT_PER_HOUR || '6',
+    process.env.ARTICLE_RATE_LIMIT_PER_HOUR || '2',
     10
   ),
   windowMs: 60 * 60 * 1000, // 1 hour
