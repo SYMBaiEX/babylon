@@ -19,6 +19,7 @@ import {
   db,
   eq,
   gte,
+  isNull,
   npcTrades,
   organizationState,
   perpPositions,
@@ -624,7 +625,8 @@ export class TradeExecutionService {
           eq(poolPositions.poolId, actorId),
           eq(poolPositions.marketId, decision.marketId.toString()),
           eq(poolPositions.side, sideToClose),
-          eq(poolPositions.marketType, 'prediction')
+          eq(poolPositions.marketType, 'prediction'),
+          isNull(poolPositions.closedAt)
         )
       )
       .limit(1);
@@ -633,10 +635,6 @@ export class TradeExecutionService {
       throw new Error(
         `No open ${sideToClose} position found for NPC ${decision.npcName} in market ${decision.marketId}`
       );
-    }
-
-    if (position.closedAt) {
-      throw new Error(`Position already closed: ${position.id}`);
     }
 
     const shares = position.shares ?? 0;

@@ -425,7 +425,7 @@ export class FollowingMechanics {
         })
         .from(users)
         .innerJoin(posts, eq(posts.authorId, users.id))
-        .where(gte(posts.timestamp, sevenDaysAgo))
+        .where(and(gte(posts.timestamp, sevenDaysAgo), eq(users.isActor, false)))
         .groupBy(users.id, users.username)
         .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
         .limit(NPC_FOLLOWING_CONFIG.maxActivePlayersToConsider);
@@ -530,7 +530,7 @@ export class FollowingMechanics {
           and(
             inArray(reactions.userId, eligiblePlayerIds),
             inArray(posts.authorId, candidateNpcIds),
-            gte(posts.createdAt, engagementWindowStart)
+            gte(reactions.createdAt, engagementWindowStart)
           )
         )
         .groupBy(reactions.userId, posts.authorId);

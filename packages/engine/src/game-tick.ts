@@ -825,7 +825,7 @@ export async function executeGameTick(
   // NPCs follow active players and unfollow inactive ones
   // FollowingMechanics enforces its own time-slicing using the passed-in deadline
   // =========================================================================
-  if (Date.now() < deadline) {
+  if (Date.now() < criticalOpsDeadline) {
     try {
       // Process proactive following of active players
       const followResult =
