@@ -629,7 +629,10 @@ export class FollowingMechanics {
           const MAX_ENGAGEMENT_BOOST = 3;
           const probabilityBoost =
             1 +
-            Math.min(engagementCount / ENGAGEMENT_SCALE_DIVISOR, MAX_ENGAGEMENT_BOOST);
+            Math.min(
+              engagementCount / ENGAGEMENT_SCALE_DIVISOR,
+              MAX_ENGAGEMENT_BOOST
+            );
 
           // Probability check with engagement boost applied (clamped to valid [0,1] range)
           const boostedProbability = Math.max(

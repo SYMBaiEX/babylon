@@ -688,10 +688,7 @@ export class TradeExecutionService {
           updatedAt: now,
         })
         .where(
-          and(
-            eq(poolPositions.id, position.id),
-            isNull(poolPositions.closedAt)
-          )
+          and(eq(poolPositions.id, position.id), isNull(poolPositions.closedAt))
         )
         .returning({ id: poolPositions.id });
 
