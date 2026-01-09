@@ -158,7 +158,7 @@ export class FollowingMechanics {
     }
 
     // Roll the dice
-    const willFollow = Math.random() < probability;
+    const willFollow = secureRandom() < probability;
 
     return {
       willFollow,

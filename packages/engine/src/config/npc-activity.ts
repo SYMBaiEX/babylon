@@ -473,7 +473,10 @@ export const NPC_FOLLOWING_CONFIG = {
    * @default 0.05 (5% chance to check)
    * @env NPC_UNFOLLOW_CHECK_PROBABILITY
    */
-  unfollowCheckProbability: envProbability('NPC_UNFOLLOW_CHECK_PROBABILITY', 0.05),
+  unfollowCheckProbability: envProbability(
+    'NPC_UNFOLLOW_CHECK_PROBABILITY',
+    0.05
+  ),
 
   /**
    * Days of inactivity before considering unfollow.
