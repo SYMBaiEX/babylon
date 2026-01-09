@@ -22,10 +22,22 @@ export interface ArticleRateLimitConfig {
 }
 
 /**
- * Default configuration: 2 articles per hour max
+ * Default configuration for article rate limiting.
+ *
+ * The limit can be configured via environment variable:
+ * - ARTICLE_RATE_LIMIT_PER_HOUR: Max articles per hour (default: 6)
+ *
+ * @remarks
+ * A limit of 6 articles per hour provides a reasonable news feed cadence:
+ * - ~1 article every 10 minutes on average
+ * - Enough variety without overwhelming the feed
+ * - Sustainable for LLM cost management
  */
 const DEFAULT_CONFIG: Required<ArticleRateLimitConfig> = {
-  maxArticlesPerHour: 2,
+  maxArticlesPerHour: parseInt(
+    process.env.ARTICLE_RATE_LIMIT_PER_HOUR || '6',
+    10
+  ),
   windowMs: 60 * 60 * 1000, // 1 hour
 };
 
@@ -157,17 +169,23 @@ export class ArticleRateLimiterService {
 }
 
 /**
- * Singleton instance with default config (2 articles per hour).
+ * Singleton instance with default config (6 articles per hour, configurable via env).
  *
  * @remarks
- * **TOCTOU Note**: Calling `canGenerateArticle()` and then creating an article
- * is not atomic. In concurrent environments (e.g., multiple cron jobs or workers),
- * race conditions may cause the configured limit to be exceeded by one article
- * occasionally. This is expected behavior given the in-memory/cron usage pattern
- * and the low default rate limit. If strict enforcement is required (e.g., for
- * billing or hard caps), consider using external coordination mechanisms such as
- * a distributed lock, centralized atomic counter, or database transaction with
- * row-level locking.
+ * **Concurrency Note**: The check-then-act pattern (`canGenerateArticle()` followed
+ * by article creation) is NOT atomic. In concurrent environments (e.g., multiple
+ * cron jobs, parallel article generation), race conditions may cause the configured
+ * limit to be exceeded by 1-2 articles occasionally.
+ *
+ * This is acceptable for our use case because:
+ * 1. The limit is for feed quality, not billing or hard caps
+ * 2. Cron jobs run sequentially within their own process
+ * 3. Occasional over-by-one has minimal user impact
+ *
+ * For stricter enforcement, consider:
+ * - Distributed locks (Redis SETNX)
+ * - Database row-level locking with SELECT FOR UPDATE
+ * - Optimistic locking with version counters
  */
 export const articleRateLimiter = new ArticleRateLimiterService();
 

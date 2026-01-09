@@ -43,7 +43,8 @@ describe('ArticleRateLimiterService', () => {
       const limiter = new ArticleRateLimiterService();
       const config = limiter.getConfig();
 
-      expect(config.maxArticlesPerHour).toBe(2);
+      // Default is 6 per hour (configurable via ARTICLE_RATE_LIMIT_PER_HOUR env var)
+      expect(config.maxArticlesPerHour).toBe(6);
       expect(config.windowMs).toBe(60 * 60 * 1000);
     });
 
@@ -247,7 +248,8 @@ describe('createArticleRateLimiter', () => {
     const limiter = createArticleRateLimiter({});
     const config = limiter.getConfig();
 
-    expect(config.maxArticlesPerHour).toBe(2);
+    // Default is 6 per hour (configurable via ARTICLE_RATE_LIMIT_PER_HOUR env var)
+    expect(config.maxArticlesPerHour).toBe(6);
     expect(config.windowMs).toBe(60 * 60 * 1000);
   });
 });

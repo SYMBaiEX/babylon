@@ -2054,20 +2054,11 @@ async function generateArticles(
       );
 
       let created = 0;
+      // Note: Rate limit is checked at batch start. Per-article re-checks removed
+      // to avoid N+1 DB queries. Each event creates at most 1-2 articles, and
+      // events are already bounded by Math.ceil(remaining/2). Occasional over-by-one
+      // is acceptable per TOCTOU documentation in article-rate-limiter.ts.
       for (const article of articles) {
-        // Re-check rate limit before each article insertion
-        // (another source may have created articles concurrently)
-        const { allowed: stillAllowed } =
-          await articleRateLimiter.canGenerateArticle();
-        if (!stillAllowed) {
-          logger.info(
-            'Stopping article creation - rate limit reached during batch',
-            { eventId: event.id, createdSoFar: created },
-            'GameTick'
-          );
-          break;
-        }
-
         if (!article || !article.authorOrgId) {
           logger.warn(
             'Invalid article generated',
@@ -2639,22 +2630,13 @@ async function generateBaselineArticlesParallel(
   );
 
   // Generate all articles in parallel
+  // Note: Rate limit is checked at function start (maxArticles param).
+  // Per-article re-checks removed to avoid N+1 DB queries. Baseline articles
+  // are bounded by articlesToGenerate which respects the remaining rate limit slots.
   const articlePromises = Array.from(
     { length: articlesToGenerate },
     async (_, i) => {
       if (Date.now() > deadlineMs) {
-        return 0;
-      }
-
-      // Re-check rate limit before each article
-      const { allowed: stillAllowed } =
-        await articleRateLimiter.canGenerateArticle();
-      if (!stillAllowed) {
-        logger.info(
-          'Stopping baseline article - rate limit reached during batch',
-          { index: i },
-          'GameTick'
-        );
         return 0;
       }
 
