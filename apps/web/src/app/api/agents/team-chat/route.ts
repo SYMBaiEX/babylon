@@ -63,12 +63,12 @@ import { authenticateUser } from '@babylon/api';
 import {
   chatParticipants,
   chats,
-  db,
   eq,
   groupMembers,
   groups,
   messages,
   userAgentTeamChats,
+  withTransaction,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -198,27 +198,29 @@ export async function DELETE(req: NextRequest) {
   }
 
   logger.warn(
-    `Deleting team chat for user ${user.id} (destructive operation)`,
+    `Deleting team chat (destructive operation)`,
     { chatId: teamChat.chatId, groupId: teamChat.groupId },
     'TeamChatAPI'
   );
 
-  // Delete all related data
-  await db.delete(messages).where(eq(messages.chatId, teamChat.chatId));
-  await db
-    .delete(chatParticipants)
-    .where(eq(chatParticipants.chatId, teamChat.chatId));
-  await db.delete(chats).where(eq(chats.id, teamChat.chatId));
-  await db
-    .delete(groupMembers)
-    .where(eq(groupMembers.groupId, teamChat.groupId));
-  await db.delete(groups).where(eq(groups.id, teamChat.groupId));
-  await db
-    .delete(userAgentTeamChats)
-    .where(eq(userAgentTeamChats.userId, user.id));
+  // Delete all related data in a transaction for atomicity
+  await withTransaction(async (tx) => {
+    await tx.delete(messages).where(eq(messages.chatId, teamChat.chatId));
+    await tx
+      .delete(chatParticipants)
+      .where(eq(chatParticipants.chatId, teamChat.chatId));
+    await tx.delete(chats).where(eq(chats.id, teamChat.chatId));
+    await tx
+      .delete(groupMembers)
+      .where(eq(groupMembers.groupId, teamChat.groupId));
+    await tx.delete(groups).where(eq(groups.id, teamChat.groupId));
+    await tx
+      .delete(userAgentTeamChats)
+      .where(eq(userAgentTeamChats.userId, user.id));
+  });
 
   logger.info(
-    `Team chat deleted for user ${user.id}`,
+    `Team chat deleted`,
     { chatId: teamChat.chatId, groupId: teamChat.groupId },
     'TeamChatAPI'
   );

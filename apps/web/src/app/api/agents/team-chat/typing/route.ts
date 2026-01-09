@@ -19,6 +19,12 @@ import {
 import { db, eq, users } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+/** Request body schema for typing indicator */
+const typingSchema = z.object({
+  isTyping: z.boolean(),
+});
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
@@ -35,15 +41,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
-  const { isTyping } = body as { isTyping: boolean };
-
-  if (typeof isTyping !== 'boolean') {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
     return NextResponse.json(
-      { success: false, error: 'isTyping must be a boolean' },
+      { success: false, error: 'Invalid JSON in request body' },
       { status: 400 }
     );
   }
+
+  const parseResult = typingSchema.safeParse(body);
+  if (!parseResult.success) {
+    const firstError = parseResult.error.issues[0];
+    return NextResponse.json(
+      {
+        success: false,
+        error: firstError?.message || 'isTyping must be a boolean',
+      },
+      { status: 400 }
+    );
+  }
+
+  const { isTyping } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
