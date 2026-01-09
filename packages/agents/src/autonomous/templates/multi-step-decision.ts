@@ -150,11 +150,13 @@ export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
  * Determine share behavior based on a random roll.
  * Pure function for testability - call Math.random() only at the edge.
  *
- * Probability distribution (non-overlapping ranges):
- * - 40% (0.00 - 0.40): public_only - Share publicly via POST
- * - 15% (0.40 - 0.55): both - Share both publicly AND in group chat
- * - 25% (0.55 - 0.80): group_only - Share in group chat only
- * - 20% (0.80 - 1.00): quiet - Stay quiet, no sharing
+ * Probability distribution (non-overlapping ranges) - HEAVILY BIASED AGAINST POSTING:
+ * - 10% (0.00 - 0.10): public_only - Share publicly via POST (rare!)
+ * - 5% (0.10 - 0.15): both - Share both publicly AND in group chat (very rare!)
+ * - 25% (0.15 - 0.40): group_only - Share in group chat only
+ * - 60% (0.40 - 1.00): quiet - Stay quiet, no sharing (most common!)
+ *
+ * Player agents should focus on TRADING, ENGAGING, and COMMENTING - not posting.
  *
  * @param roll - Random value between 0 and 1 (clamped if out of range)
  * @returns ShareBehavior indicating how to share the trade
@@ -163,10 +165,10 @@ export function determineShareBehavior(roll: number): ShareBehavior {
   // Defensively clamp roll to [0, 1] range
   const clampedRoll = Math.max(0, Math.min(1, roll));
 
-  if (clampedRoll < 0.4) return 'public_only';
-  if (clampedRoll < 0.55) return 'both';
-  if (clampedRoll < 0.8) return 'group_only';
-  return 'quiet';
+  if (clampedRoll < 0.1) return 'public_only'; // 10% - rare
+  if (clampedRoll < 0.15) return 'both'; // 5% - very rare
+  if (clampedRoll < 0.4) return 'group_only'; // 25%
+  return 'quiet'; // 60% - most common
 }
 
 // =============================================================================
@@ -325,57 +327,66 @@ ${
 }`
       : '';
 
-  // Action priority guidance for ALL agents (NPCs and user-created)
-  // This encourages engagement (trading, commenting, liking) OVER posting
-  // Prevents agents from posting too much and instead focuses on other game actions
+  // Action priority guidance for player-created agents
+  // STRONGLY discourages posting - agents should focus on game mechanics
   const priorityActions: string[] = [];
 
   // Always start with RESPOND
   priorityActions.push('RESPOND to pending interactions first (if any)');
 
-  // TRADING is HIGH PRIORITY - agents should trade prediction/perp markets actively
+  // TRADING is THE HIGHEST PRIORITY - this is why agents exist
   if (canTrade && !justTraded) {
     priorityActions.push(
-      'TRADE on prediction or perp markets (this is your main job!)'
+      '🔥 TRADE on prediction or perp markets - THIS IS YOUR #1 JOB!'
     );
   }
 
-  // Add conditional actions based on flags - engagement before posting
-  if (justTraded && canPost) {
-    priorityActions.push('POST about your trade (share your moves!)');
-  }
+  // Engagement actions are HIGH priority
   if (canComment) {
-    priorityActions.push('COMMENT on interesting posts in the feed');
+    priorityActions.push('COMMENT on posts in the feed (engage with others!)');
   }
   if (canEngage) {
-    priorityActions.push('LIKE posts you agree with');
-    priorityActions.push('REPOST content worth amplifying');
+    priorityActions.push('LIKE posts you find interesting');
+    priorityActions.push('REPOST valuable content');
   }
   if (canGroupChat) {
-    priorityActions.push('GROUP_MESSAGE to chat with your community');
+    priorityActions.push('GROUP_MESSAGE to discuss with your community');
   }
   if (canRespondDMs) {
-    priorityActions.push('DM someone interesting');
+    priorityActions.push('DM someone to build relationships');
   }
-  // POST is LOW PRIORITY - only if nothing else to do
-  if (canPost && !justTraded) {
+
+  // POST is VERY LOW PRIORITY - almost never do this
+  if (canPost) {
     priorityActions.push(
-      'POST only if you have something truly unique to say (LOW PRIORITY)'
+      '⚠️ POST is DISCOURAGED - only if you have NO other options (VERY LOW PRIORITY)'
     );
   }
 
   // Always end with FINISH
-  priorityActions.push('FINISH if nothing compelling');
+  priorityActions.push('FINISH if you have done 1-2 actions already');
 
   // Build numbered list from the array
   const numberedList = priorityActions
     .map((action, index) => `${index + 1}. ${action}`)
     .join('\n');
 
-  const actionPrioritySection = `
-# Action Priority (prefer trading & engagement over posting)
-${numberedList}
+  // Add strong anti-posting guidance for player agents
+  const antiPostingGuidance = isNpc
+    ? ''
+    : `
+⛔ POSTING RESTRICTION FOR PLAYER AGENTS:
+- You should POST at most ONCE per day, if at all
+- TRADING, COMMENTING, LIKING, and REPOSTING are your main activities
+- If you can TRADE, do that instead of posting
+- If you can COMMENT on something, do that instead of posting
+- Posting without a compelling reason wastes your opportunity to engage with the game
+`;
 
+  const actionPrioritySection = `
+# Action Priority (TRADING & ENGAGEMENT >> POSTING)
+${numberedList}
+${antiPostingGuidance}
 `;
 
   // Build conditional sections (only show context for enabled features)
@@ -452,20 +463,23 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
 2. **One Action**: Choose ONE action per iteration
 3. **No Duplicates**: Don't repeat the same action on the same target
-4. **Know When to Stop**: Set isFinish=true after 2-3 meaningful actions or when done
+4. **Know When to Stop**: Set isFinish=true after 1-2 meaningful actions or when done
 5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use RESPOND for all DMs.
-${canComment ? '6. **COMMENT on the feed**: Look at Recent Posts above - reply to something interesting!' : ''}
-${hasPostedThisTick ? `7. **ONE POST ONLY**: You already posted this tick. Choose ${[canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canTrade ? 'TRADE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
+${canTrade ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
+${canComment ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
+${hasPostedThisTick ? `8. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
+${!isNpc && canPost && !hasPostedThisTick ? '9. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
 
-# Action Ideas
-${canTrade ? '- **TRADE**: Take a position on a market' : ''}
-${canPost ? '- **POST**: Share your take on events, markets, or anything' : ''}
-${canComment ? "- **COMMENT**: Reply to someone's post from the feed above (use postId)" : ''}
-${canEngage ? '- **LIKE**: Show appreciation for a post you agree with or find interesting' : ''}
-${canEngage ? "- **REPOST**: Share someone else's post (optionally with your own take)" : ''}
+# Action Ideas (in order of priority)
+${canTrade ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}
+${canComment ? "- ✅ **COMMENT**: Reply to someone's post from the feed above (RECOMMENDED)" : ''}
+${canEngage ? '- ✅ **LIKE**: Show appreciation for a post you find interesting' : ''}
+${canEngage ? "- ✅ **REPOST**: Share someone else's post with your take" : ''}
 ${canRespondDMs ? '- **RESPOND**: Reply to pending DMs/mentions if you have any' : ''}
 ${canRespondDMs ? '- **DM**: Message someone from the feed (use their userId)' : ''}
-${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat (use chatId from your groups above)' : ''}
+${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat' : ''}
+${canPost && !isNpc ? '- ⚠️ **POST**: DISCOURAGED - only use if you truly have nothing else to do' : ''}
+${canPost && isNpc ? '- **POST**: Share your take on events, markets, or anything' : ''}
 
 ${
   canPost || canComment
