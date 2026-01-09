@@ -140,8 +140,10 @@ const generateAgentName = (): { username: string; displayName: string } => {
   const suffix =
     NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
 
-  // Use simple 4-digit number (looks natural, e.g., "novatrader42" or "alphabot7291")
-  const number = Math.floor(Math.random() * 9000) + 1000; // 1000-9999
+  // Use 6-digit number for better uniqueness at scale
+  // Range: 100000-999999 = 900,000 possible numbers
+  // Combined with ~2,275 name combos = ~2 billion unique usernames
+  const number = Math.floor(Math.random() * 900000) + 100000;
 
   const displayName = `${prefix} ${suffix}`;
   const username = `${prefix.toLowerCase()}${suffix.toLowerCase()}${number}`;
@@ -283,7 +285,8 @@ export function useAgentForm(): UseAgentFormResult {
     };
 
     loadTemplate();
-  }, [initialName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialName is stable (from useState initializer), runs once on mount
+  }, []);
 
   // Note: When displayName changes, we find and replace the old name with the new name
   // in the system prompt, personality, and trading strategy fields.
@@ -309,7 +312,8 @@ export function useAgentForm(): UseAgentFormResult {
         if (oldName && oldName !== value) {
           const escapeRegex = (str: string) =>
             str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const oldNameRegex = new RegExp(escapeRegex(oldName), 'g');
+          // Use word boundaries to avoid replacing substrings (e.g., "Nova" in "Innovative")
+          const oldNameRegex = new RegExp(`\\b${escapeRegex(oldName)}\\b`, 'g');
 
           setAgentData((prevAgent) => ({
             ...prevAgent,
@@ -374,12 +378,10 @@ export function useAgentForm(): UseAgentFormResult {
       }
 
       const result = await response.json();
-      const strippedValue = (result.value as string)
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .trim();
+      const value = (result.value as string).trim();
 
       if (field === 'personality') {
-        const personalityLines = strippedValue
+        const personalityLines = value
           .split('|')
           .map((s: string) => s.trim())
           .filter((s: string) => s);
@@ -387,7 +389,7 @@ export function useAgentForm(): UseAgentFormResult {
       } else {
         updateAgentField(
           field as keyof AgentFormData,
-          strippedValue.replace(/\n\n+/g, '\n')
+          value.replace(/\n\n+/g, '\n')
         );
       }
 
