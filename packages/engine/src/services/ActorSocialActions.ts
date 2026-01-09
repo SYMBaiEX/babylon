@@ -159,13 +159,14 @@ export class ActorSocialActions {
         }
 
         // Calculate probabilities based on interaction quality and count
-        const qualityFactor = Math.min(
-          avgQuality / NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality,
-          1.5
-        );
+        // Use safe denominators to prevent division by zero (fallback to 1 if zero)
+        const qualityDenominator =
+          NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality || 1;
+        const countDenominator =
+          NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction || 1;
+        const qualityFactor = Math.min(avgQuality / qualityDenominator, 1.5);
         const countFactor = Math.min(
-          interactions.length /
-            NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction,
+          interactions.length / countDenominator,
           2.0
         );
 

@@ -564,6 +564,12 @@ export class FollowingMechanics {
       // Track follows per player this tick
       const followsPerPlayer = new Map<string, number>();
 
+      // Shuffle candidate NPCs once outside the per-player loop for efficiency
+      // Each player will use a slice from this pre-shuffled array
+      const shuffledCandidateNpcs = shuffleArray([...candidateNpcs]);
+      const perPlayerCap =
+        NPC_FOLLOWING_CONFIG.maxNpcCandidatesPerPlayerPerTick;
+
       for (const player of eligiblePlayers) {
         // Bail early if deadline exceeded
         if (isTimeUp()) {
@@ -584,13 +590,8 @@ export class FollowingMechanics {
         const followingNpcIds = followsByUser.get(player.userId) ?? new Set();
 
         // Sample a bounded subset of NPCs per player to cap per-player CPU work
-        // Shuffle a copy and slice to the per-player cap, then filter by already-following
-        const perPlayerCap =
-          NPC_FOLLOWING_CONFIG.maxNpcCandidatesPerPlayerPerTick;
-        const sampledNpcs = shuffleArray([...candidateNpcs]).slice(
-          0,
-          perPlayerCap
-        );
+        // Slice from the pre-shuffled array, then filter by already-following
+        const sampledNpcs = shuffledCandidateNpcs.slice(0, perPlayerCap);
         const eligibleNpcs = sampledNpcs.filter(
           (npc) => !followingNpcIds.has(npc.id)
         );

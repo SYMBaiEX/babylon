@@ -296,19 +296,21 @@ export const NPC_SOCIAL_ACTIONS_CONFIG = {
 
   /**
    * Minimum number of prior interactions needed before social action.
+   * Must be positive (> 0) to prevent division by zero.
    *
    * @default 1 (lowered - engage players more readily)
    * @env NPC_MIN_INTERACTIONS_FOR_ACTION
    */
-  minInteractionsForAction: envNumber('NPC_MIN_INTERACTIONS_FOR_ACTION', 1),
+  minInteractionsForAction: envPositiveNumber('NPC_MIN_INTERACTIONS_FOR_ACTION', 1),
 
   /**
    * Minimum average interaction quality score needed (0.0 - 1.0).
+   * Validated and clamped to the [0,1] score range.
    *
    * @default 0.5 (lowered - be more inclusive)
    * @env NPC_MIN_INTERACTION_QUALITY
    */
-  minInteractionQuality: envNumber('NPC_MIN_INTERACTION_QUALITY', 0.5),
+  minInteractionQuality: envScore('NPC_MIN_INTERACTION_QUALITY', 0.5),
 } as const;
 
 // =============================================================================
@@ -394,6 +396,19 @@ if (
 ) {
   throw new Error(
     `Invalid group size configuration: minGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.minGroupSize}) > maxGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize}). This will cause undefined behavior in group dynamics.`
+  );
+}
+
+// Validate idealGroupSize is within [minGroupSize, maxGroupSize] range
+// Fail fast with an error to prevent the system from running with invalid config
+if (
+  NPC_GROUP_DYNAMICS_CONFIG.idealGroupSize <
+    NPC_GROUP_DYNAMICS_CONFIG.minGroupSize ||
+  NPC_GROUP_DYNAMICS_CONFIG.idealGroupSize >
+    NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize
+) {
+  throw new Error(
+    `Invalid group size configuration: idealGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.idealGroupSize}) must be within [minGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.minGroupSize}), maxGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize})]. This will cause undefined behavior in group dynamics.`
   );
 }
 
