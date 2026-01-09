@@ -150,7 +150,7 @@ export default function AgentsPage() {
 
         {/* Command Center Card - shown when user has agents */}
         {agents.length > 0 && (
-          <div className="mb-2">
+          <div className="mb-4">
             <Link href="/agents/team" className="block">
               <div className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4 transition-all hover:border-blue-500/50 hover:shadow-lg">
                 <div className="flex items-center justify-between">

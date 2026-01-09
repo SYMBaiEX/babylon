@@ -267,7 +267,7 @@ export function TeamChatMessageInput({
           onKeyDown={handleKeyDown}
           placeholder={
             agents.length > 0
-              ? 'Type a message... Use @mention to direct agents'
+              ? 'Message... @mention agents'
               : 'Type a message...'
           }
           disabled={sending || disabled}
