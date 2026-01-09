@@ -556,9 +556,17 @@ Generate ONLY the response text:`;
   /**
    * Extract @mentioned usernames from content
    */
+  /**
+   * Extract @mentioned usernames from content.
+   *
+   * Uses a regex that requires @ to be at start of word (not in email addresses).
+   * Matches usernames with alphanumerics, underscores, hyphens, and dots.
+   */
   private extractMentionedUsernames(content: string): string[] {
     const mentions: string[] = [];
-    const regex = /@(\w+)/g;
+    // Regex requires @ at word boundary (not after letters/numbers like in emails)
+    // Matches: @username, "@username", start@username won't match
+    const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)(?=[\s,.)!?]|$)/g;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(content)) !== null) {
       if (match[1]) mentions.push(match[1].toLowerCase());

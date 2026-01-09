@@ -44,7 +44,12 @@
  */
 
 import { teamChatResponseService, teamChatService } from '@babylon/agents';
-import { authenticateUser, broadcastChatMessage } from '@babylon/api';
+import {
+  authenticateUser,
+  broadcastChatMessage,
+  checkRateLimit,
+  RATE_LIMIT_CONFIGS,
+} from '@babylon/api';
 import { db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -65,6 +70,19 @@ const messageSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
+
+  // Rate limit to prevent spam (especially important with agent auto-responses)
+  const rateCheck = checkRateLimit(user.id, RATE_LIMIT_CONFIGS.SEND_MESSAGE);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Rate limit exceeded. Please wait before sending more messages.',
+        retryAfter: rateCheck.retryAfter,
+      },
+      { status: 429 }
+    );
+  }
 
   const body = await req.json();
   const parseResult = messageSchema.safeParse(body);

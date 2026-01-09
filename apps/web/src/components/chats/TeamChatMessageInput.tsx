@@ -99,8 +99,9 @@ export function TeamChatMessageInput({
 
     // Debounce mention extraction to avoid running on every keystroke
     mentionDebounceRef.current = setTimeout(() => {
-      // Broader regex to match usernames with hyphens, dots, underscores
-      const mentionRegex = /@([A-Za-z0-9_.-]+)/g;
+      // Regex matches @mentions but not email addresses
+      // Requires @ at word boundary (start or after whitespace/punctuation)
+      const mentionRegex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)/g;
       const mentions: string[] = [];
       let match: RegExpExecArray | null = null;
 
