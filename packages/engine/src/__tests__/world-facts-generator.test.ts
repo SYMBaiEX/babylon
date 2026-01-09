@@ -147,7 +147,9 @@ describe('WorldFactsGeneratorService', () => {
     test('accepts custom LLM client', () => {
       const customLlm = {
         generateJSON: mock(() => Promise.resolve({ facts: [] })),
-      } as unknown as ConstructorParameters<typeof WorldFactsGeneratorService>[1];
+      } as unknown as ConstructorParameters<
+        typeof WorldFactsGeneratorService
+      >[1];
       const generator = new WorldFactsGeneratorService({}, customLlm);
       expect(generator).toBeDefined();
     });
