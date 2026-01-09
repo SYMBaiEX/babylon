@@ -170,6 +170,20 @@ export async function POST(req: NextRequest) {
 /**
  * DELETE /api/agents/team-chat
  * Reset/delete team chat (for clearing corrupted state)
+ *
+ * ⚠️ DESTRUCTIVE OPERATION:
+ * This permanently deletes all Command Center data including:
+ * - All messages and conversation history
+ * - Group membership records
+ * - Chat participant records
+ *
+ * This operation cannot be undone. Use only for:
+ * - Clearing corrupted state
+ * - User account cleanup
+ * - Development/testing reset
+ *
+ * The team chat will be recreated automatically when the user
+ * visits Command Center again or when an agent is created.
  */
 export async function DELETE(req: NextRequest) {
   const user = await authenticateUser(req);
@@ -182,6 +196,12 @@ export async function DELETE(req: NextRequest) {
       { status: 404 }
     );
   }
+
+  logger.warn(
+    `Deleting team chat for user ${user.id} (destructive operation)`,
+    { chatId: teamChat.chatId, groupId: teamChat.groupId },
+    'TeamChatAPI'
+  );
 
   // Delete all related data
   await db.delete(messages).where(eq(messages.chatId, teamChat.chatId));
