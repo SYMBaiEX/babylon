@@ -417,10 +417,14 @@ ${npcContextSection}${tradePostEncouragement}# Current Execution Context
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
 ${formatPositionManagementGuidance(context.agentPositions)}
-${canPost ? `
+${
+  canPost
+    ? `
 # Your Recent Posts (AVOID REPEATING - check how long ago you posted!)
 ${formatAgentOwnPosts(context.agentOwnPosts)}
-` : ''}${tradingSection}
+`
+    : ''
+}${tradingSection}
 ${commentingSection}
 ${dmsSection}
 ${groupChatsSection}
