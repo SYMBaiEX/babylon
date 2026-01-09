@@ -1914,16 +1914,17 @@ async function generateArticles(
   const articleGen = new ArticleGenerator(llm);
 
   // Generate up to remaining slots (respecting hourly rate limit)
-  const articlesToGenerate = Math.min(
-    remainingAfterQuestions,
-    recentEvents.length
-  );
-  const eventsTocover = recentEvents.slice(0, articlesToGenerate);
+  // Each event can generate 1-2 articles, so limit events conservatively
+  // to avoid exceeding the rate limit
+  const maxEventsForSlots = Math.ceil(remainingAfterQuestions / 2);
+  const eventsToProcess = Math.min(maxEventsForSlots, recentEvents.length);
+  const eventsTocover = recentEvents.slice(0, eventsToProcess);
 
   logger.info(
-    `Generating ${articlesToGenerate} articles in parallel`,
+    `Processing ${eventsToProcess} events for up to ${remainingAfterQuestions} articles`,
     {
       eventCount: recentEvents.length,
+      maxSlots: remainingAfterQuestions,
     },
     'GameTick'
   );
@@ -2054,6 +2055,19 @@ async function generateArticles(
 
       let created = 0;
       for (const article of articles) {
+        // Re-check rate limit before each article insertion
+        // (another source may have created articles concurrently)
+        const { allowed: stillAllowed } =
+          await articleRateLimiter.canGenerateArticle();
+        if (!stillAllowed) {
+          logger.info(
+            'Stopping article creation - rate limit reached during batch',
+            { eventId: event.id, createdSoFar: created },
+            'GameTick'
+          );
+          break;
+        }
+
         if (!article || !article.authorOrgId) {
           logger.warn(
             'Invalid article generated',
@@ -2144,7 +2158,7 @@ async function generateArticles(
     'Parallel article generation complete',
     {
       articlesCreated,
-      attempted: articlesToGenerate,
+      eventsProcessed: eventsToProcess,
       successful: results.filter((r) => r.status === 'fulfilled').length,
       failed: results.filter((r) => r.status === 'rejected').length,
     },
@@ -2629,6 +2643,18 @@ async function generateBaselineArticlesParallel(
     { length: articlesToGenerate },
     async (_, i) => {
       if (Date.now() > deadlineMs) {
+        return 0;
+      }
+
+      // Re-check rate limit before each article
+      const { allowed: stillAllowed } =
+        await articleRateLimiter.canGenerateArticle();
+      if (!stillAllowed) {
+        logger.info(
+          'Stopping baseline article - rate limit reached during batch',
+          { index: i },
+          'GameTick'
+        );
         return 0;
       }
 

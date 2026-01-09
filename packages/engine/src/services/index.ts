@@ -65,6 +65,7 @@ export * from './trajectory-market-engine';
 // Content Generation
 // =============================================================================
 
+export * from './article-creation-service';
 export * from './article-image-service';
 export * from './article-rate-limiter';
 export * from './event-generation-helpers';

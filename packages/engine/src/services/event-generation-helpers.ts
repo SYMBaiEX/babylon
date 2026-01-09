@@ -18,6 +18,7 @@ import {
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
 import { generateArticleImageWithRetry } from './article-image-service';
+import { articleRateLimiter } from './article-rate-limiter';
 import { characterMappingService } from './character-mapping-service';
 import {
   getArcPlan,
@@ -485,6 +486,19 @@ export async function generateArticlesForArcEvent(
   timestamp: Date,
   dayNumber?: number
 ): Promise<number> {
+  // Check hourly article rate limit FIRST - this is the global throttle
+  const { allowed, currentCount, maxAllowed, remaining } =
+    await articleRateLimiter.canGenerateArticle();
+
+  if (!allowed) {
+    logger.info(
+      'Skipping arc event article generation - hourly rate limit reached',
+      { arcEventId, eventStatus, currentCount, maxAllowed },
+      'EventGeneration'
+    );
+    return 0;
+  }
+
   // Get news organizations that haven't reported on this event status
   const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
   if (newsOrgs.length === 0) {
@@ -496,12 +510,14 @@ export async function generateArticlesForArcEvent(
     return 0;
   }
 
-  // Select orgs that haven't covered this event status yet (max 2)
+  // Select orgs that haven't covered this event status yet
+  // Limit to remaining rate limit slots (not just max 2)
+  const maxOrgsAllowed = Math.min(2, remaining);
   const orgsToPublish = arcEventPacer.selectOrgsForArcEvent(
     arcEventId,
     eventStatus,
     newsOrgs,
-    2 // Maximum 2 orgs per event status
+    maxOrgsAllowed
   );
 
   if (orgsToPublish.length === 0) {
