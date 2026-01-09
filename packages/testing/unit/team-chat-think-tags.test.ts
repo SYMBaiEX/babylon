@@ -61,7 +61,9 @@ describe('stripThinkTags', () => {
 
     test('handles orphan opening tag', () => {
       const input = '<think>This never closes but here is content';
-      expect(stripThinkTags(input)).toBe('This never closes but here is content');
+      expect(stripThinkTags(input)).toBe(
+        'This never closes but here is content'
+      );
     });
 
     test('handles orphan closing tag', () => {
@@ -78,7 +80,8 @@ describe('stripThinkTags', () => {
     test('handles nested think tags (malformed)', () => {
       // The regex removes <think>outer <think>inner</think> first (greedy match to first close)
       // Then orphan </think> is also stripped
-      const input = '<think>outer <think>inner</think> still outer</think>visible';
+      const input =
+        '<think>outer <think>inner</think> still outer</think>visible';
       expect(stripThinkTags(input)).toBe('still outervisible');
     });
 
@@ -99,7 +102,8 @@ describe('stripThinkTags', () => {
     });
 
     test('preserves content between multiple think blocks', () => {
-      const input = '<think>A</think>Keep 1<think>B</think>Keep 2<think>C</think>';
+      const input =
+        '<think>A</think>Keep 1<think>B</think>Keep 2<think>C</think>';
       expect(stripThinkTags(input)).toBe('Keep 1Keep 2');
     });
 
@@ -108,16 +112,20 @@ describe('stripThinkTags', () => {
       // This is intentional - we only strip standard think blocks
       const input = '<think type="reasoning">Hidden</think>Visible';
       // The closing tag is stripped as orphan, but opening with attributes is preserved
-      expect(stripThinkTags(input)).toBe('<think type="reasoning">HiddenVisible');
+      expect(stripThinkTags(input)).toBe(
+        '<think type="reasoning">HiddenVisible'
+      );
     });
 
     test('handles special characters inside think blocks', () => {
-      const input = '<think>Contains <html> & "quotes" \'apostrophes\'</think>Clean output';
+      const input =
+        '<think>Contains <html> & "quotes" \'apostrophes\'</think>Clean output';
       expect(stripThinkTags(input)).toBe('Clean output');
     });
 
     test('handles unicode inside think blocks', () => {
-      const input = '<think>Thinking in 日本語 and emoji 🤔</think>Response here';
+      const input =
+        '<think>Thinking in 日本語 and emoji 🤔</think>Response here';
       expect(stripThinkTags(input)).toBe('Response here');
     });
 
@@ -130,7 +138,9 @@ describe('stripThinkTags', () => {
     test('does not match partial tag names', () => {
       // "thinking" should not be treated as a think tag
       const input = '<thinking>Not a think tag</thinking>Content';
-      expect(stripThinkTags(input)).toBe('<thinking>Not a think tag</thinking>Content');
+      expect(stripThinkTags(input)).toBe(
+        '<thinking>Not a think tag</thinking>Content'
+      );
     });
 
     test('handles think tags at end of content', () => {
@@ -155,8 +165,7 @@ describe('stripThinkTags', () => {
     });
 
     test('handles XSS-like content inside think blocks', () => {
-      const input =
-        '<think><script>alert("xss")</script></think>Safe content';
+      const input = '<think><script>alert("xss")</script></think>Safe content';
       const result = stripThinkTags(input);
       expect(result).not.toContain('script');
       expect(result).toBe('Safe content');
@@ -193,4 +202,3 @@ The user asked about trading strategies. I should:
     );
   });
 });
-
