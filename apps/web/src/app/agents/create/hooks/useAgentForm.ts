@@ -2,154 +2,12 @@ import type { AgentTemplate } from '@babylon/agents/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { escapeRegex, generateAgentName } from '@/utils/nameGenerator';
 
 const STORAGE_KEY = 'babylon_agent_draft';
 
-// Agent name generation
-const NAME_PREFIXES = [
-  // Greek letters
-  'Alpha',
-  'Beta',
-  'Gamma',
-  'Delta',
-  'Epsilon',
-  'Zeta',
-  'Eta',
-  'Theta',
-  'Iota',
-  'Kappa',
-  'Lambda',
-  'Mu',
-  'Nu',
-  'Xi',
-  'Omicron',
-  'Pi',
-  'Rho',
-  'Sigma',
-  'Tau',
-  'Upsilon',
-  'Phi',
-  'Chi',
-  'Psi',
-  'Omega',
-  // Tech/Cyber
-  'Quantum',
-  'Neo',
-  'Cyber',
-  'Nexus',
-  'Apex',
-  'Vertex',
-  'Pulse',
-  'Flux',
-  'Vector',
-  'Helix',
-  'Prism',
-  'Matrix',
-  'Cipher',
-  'Binary',
-  'Neural',
-  // Nature/Elements
-  'Nova',
-  'Solar',
-  'Lunar',
-  'Stellar',
-  'Cosmic',
-  'Astral',
-  'Phoenix',
-  'Storm',
-  'Thunder',
-  'Frost',
-  'Ember',
-  'Shadow',
-  'Dawn',
-  'Dusk',
-  // Power/Status
-  'Iron',
-  'Steel',
-  'Titan',
-  'Atlas',
-  'Orion',
-  'Vortex',
-  'Blaze',
-  'Spark',
-  'Echo',
-  'Phantom',
-  'Specter',
-  'Raven',
-  'Falcon',
-  'Hawk',
-  'Eagle',
-  // Abstract
-  'Zen',
-  'Aura',
-  'Axiom',
-  'Lumen',
-  'Photon',
-  'Quark',
-  'Volt',
-  'Arc',
-];
-
-const NAME_SUFFIXES = [
-  // Role-based
-  'Trader',
-  'Agent',
-  'Bot',
-  'AI',
-  'Mind',
-  'Brain',
-  'Sage',
-  'Oracle',
-  // Technical
-  'Core',
-  'Node',
-  'Edge',
-  'Prime',
-  'Pro',
-  'Max',
-  'Ultra',
-  'Plus',
-  'X',
-  'Zero',
-  'One',
-  'Protocol',
-  'System',
-  'Engine',
-  'Logic',
-  // Abstract
-  'Flow',
-  'Wave',
-  'Sync',
-  'Link',
-  'Net',
-  'Hub',
-  'Lab',
-  'Works',
-  'Force',
-  'Drive',
-  'Pulse',
-  'Signal',
-  'Stream',
-  'Grid',
-  'Mesh',
-];
-
-const generateAgentName = (): { username: string; displayName: string } => {
-  const prefix =
-    NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)]!;
-  const suffix =
-    NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)]!;
-
-  // Use 6-digit number for better uniqueness at scale
-  // Range: 100000-999999 = 900,000 possible numbers
-  // Combined with ~2,275 name combos = ~2 billion unique usernames
-  const number = Math.floor(Math.random() * 900000) + 100000;
-
-  const displayName = `${prefix} ${suffix}`;
-  const username = `${prefix.toLowerCase()}${suffix.toLowerCase()}${number}`;
-
-  return { username, displayName };
-};
+// Debounce delay for name replacement in prompts (ms)
+const NAME_REPLACEMENT_DEBOUNCE_MS = 300;
 
 export interface ProfileFormData {
   username: string;
@@ -217,6 +75,10 @@ export function useAgentForm(): UseAgentFormResult {
 
   // Track the name currently used in prompts (for replacement when user changes it)
   const nameInPromptsRef = useRef<string>(initialName.displayName);
+  // Debounce timer for name replacement to handle rapid typing
+  const nameReplacementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   // Load template on mount
   useEffect(() => {
@@ -305,29 +167,38 @@ export function useAgentForm(): UseAgentFormResult {
       setProfileData((prev) => ({ ...prev, [field]: value }));
 
       // When displayName changes, replace the old name with new name in prompts
+      // Debounced to handle rapid typing and prevent race conditions
       if (field === 'displayName' && value) {
-        const oldName = nameInPromptsRef.current;
-
-        // Only replace if there's a previous name and it's different
-        if (oldName && oldName !== value) {
-          const escapeRegex = (str: string) =>
-            str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          // Use word boundaries to avoid replacing substrings (e.g., "Nova" in "Innovative")
-          const oldNameRegex = new RegExp(`\\b${escapeRegex(oldName)}\\b`, 'g');
-
-          setAgentData((prevAgent) => ({
-            ...prevAgent,
-            system: prevAgent.system.replace(oldNameRegex, value),
-            personality: prevAgent.personality.replace(oldNameRegex, value),
-            tradingStrategy: prevAgent.tradingStrategy.replace(
-              oldNameRegex,
-              value
-            ),
-          }));
+        // Clear any pending replacement
+        if (nameReplacementTimerRef.current) {
+          clearTimeout(nameReplacementTimerRef.current);
         }
 
-        // Update the tracked name
-        nameInPromptsRef.current = value;
+        nameReplacementTimerRef.current = setTimeout(() => {
+          const oldName = nameInPromptsRef.current;
+
+          // Only replace if there's a previous name and it's different
+          if (oldName && oldName !== value) {
+            // Use word boundaries to avoid replacing substrings (e.g., "Nova" in "Innovative")
+            const oldNameRegex = new RegExp(
+              `\\b${escapeRegex(oldName)}\\b`,
+              'g'
+            );
+
+            setAgentData((prevAgent) => ({
+              ...prevAgent,
+              system: prevAgent.system.replace(oldNameRegex, value),
+              personality: prevAgent.personality.replace(oldNameRegex, value),
+              tradingStrategy: prevAgent.tradingStrategy.replace(
+                oldNameRegex,
+                value
+              ),
+            }));
+          }
+
+          // Update the tracked name after replacement
+          nameInPromptsRef.current = value;
+        }, NAME_REPLACEMENT_DEBOUNCE_MS);
       }
     },
     []

@@ -112,6 +112,7 @@ import { NextResponse } from 'next/server';
 const MAX_TOKENS = 500;
 const MAX_ATTEMPTS = 3;
 const MIN_CONTENT_LENGTH = 10;
+const RETRY_BASE_DELAY_MS = 500; // Base delay for exponential backoff
 
 /**
  * XML output format instructions appended to all prompts
@@ -321,6 +322,8 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
+      // Exponential backoff before retry
+      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
       continue; // Retry on earlier attempts
     }
 
@@ -332,17 +335,26 @@ export async function POST(req: NextRequest) {
       break;
     }
 
-    // Log warning and retry
+    // Log warning and retry with exponential backoff
     logger.warn(
       `No valid <response> block found on attempt ${attempt}`,
       {
         fieldName,
         rawLength: generatedValue.length,
         hasResponseTag: generatedValue.includes('<response>'),
-        raw: generatedValue.substring(0, 300),
+        // Truncate to 100 chars to avoid logging sensitive content in production
+        rawPreview:
+          process.env.NODE_ENV === 'development'
+            ? generatedValue.substring(0, 100)
+            : '[redacted]',
       },
       'GenerateField'
     );
+
+    // Exponential backoff before retry (500ms, 1000ms, etc.)
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+    }
   }
 
   // If all attempts failed, return error
