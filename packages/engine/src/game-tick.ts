@@ -828,9 +828,8 @@ export async function executeGameTick(
   if (Date.now() < criticalOpsDeadline) {
     try {
       // Process proactive following of active players
-      const followResult = await FollowingMechanics.processProactiveFollowing(
-        criticalOpsDeadline
-      );
+      const followResult =
+        await FollowingMechanics.processProactiveFollowing(criticalOpsDeadline);
       result.npcFollowsCreated = followResult.followsCreated;
 
       if (followResult.followsCreated > 0) {
@@ -845,9 +844,8 @@ export async function executeGameTick(
       }
 
       // Process unfollow checks (runs probabilistically)
-      const unfollowCount = await FollowingMechanics.processUnfollowChecks(
-        criticalOpsDeadline
-      );
+      const unfollowCount =
+        await FollowingMechanics.processUnfollowChecks(criticalOpsDeadline);
       result.npcUnfollows = unfollowCount;
     } catch (error) {
       logger.error(

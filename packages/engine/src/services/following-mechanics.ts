@@ -690,7 +690,9 @@ export class FollowingMechanics {
       // Calculate rotating offset based on time (changes every hour)
       const hourSeed = Math.floor(Date.now() / (60 * 60 * 1000));
       const offset =
-        totalFollows > batchSize ? (hourSeed % totalFollows) % (totalFollows - batchSize + 1) : 0;
+        totalFollows > batchSize
+          ? (hourSeed % totalFollows) % (totalFollows - batchSize + 1)
+          : 0;
 
       // Get active follows with deterministic ordering and rotating offset
       const activeFollows = await db
