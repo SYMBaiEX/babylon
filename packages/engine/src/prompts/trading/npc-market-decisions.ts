@@ -244,7 +244,7 @@ RULES:
 - amount <= MAX shown in BALANCES table (or REJECTED)
 - Perp actions (open_long/open_short): marketType=perp, ticker required
 - Prediction BUY actions (buy_yes/buy_no): marketType=prediction, marketId required
-- Prediction SELL actions (sell_yes/sell_no): marketType=prediction, marketId required (closes existing position)
+- Prediction SELL actions (sell_yes/sell_no): marketType=prediction, marketId required, amount=0 (closes entire position)
 - close_position: positionId required (exact UUID), amount=0
 - hold: all fields null, amount=0
 

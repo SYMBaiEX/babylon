@@ -162,14 +162,24 @@ export class ActorSocialActions {
           2.0
         );
 
-        const inviteProbability =
-          NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
-          qualityFactor *
-          countFactor;
-        const dmProbability =
-          NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
-          qualityFactor *
-          countFactor;
+        const inviteProbability = Math.max(
+          0,
+          Math.min(
+            1,
+            NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
+              qualityFactor *
+              countFactor
+          )
+        );
+        const dmProbability = Math.max(
+          0,
+          Math.min(
+            1,
+            NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
+              qualityFactor *
+              countFactor
+          )
+        );
 
         if (!userId) throw new Error('User ID is required');
         if (!actor.id) throw new Error('Actor ID is required');
