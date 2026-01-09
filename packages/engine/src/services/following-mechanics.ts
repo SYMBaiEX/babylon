@@ -383,7 +383,9 @@ export class FollowingMechanics {
     const hoursSinceLastReply =
       (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60);
 
-    if (hoursSinceLastReply > NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow) {
+    if (
+      hoursSinceLastReply > NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow
+    ) {
       return true; // Stopped engaging
     }
 
@@ -791,7 +793,10 @@ export class FollowingMechanics {
             const hoursSinceLastReply =
               (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60);
 
-            if (hoursSinceLastReply > NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow) {
+            if (
+              hoursSinceLastReply >
+              NPC_FOLLOWING_CONFIG.maxInactiveHoursBeforeUnfollow
+            ) {
               shouldUnfollow = true; // Stopped engaging
             }
           }
