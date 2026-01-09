@@ -14,10 +14,8 @@ export interface MentionableAgent {
 }
 
 interface MentionAutocompleteProps {
-  /** List of agents that can be mentioned */
+  /** List of agents that can be mentioned (already filtered by useMentionAutocomplete hook) */
   agents: MentionableAgent[];
-  /** Current search query (text after @) */
-  query: string;
   /** Whether the dropdown is visible */
   isOpen: boolean;
   /** Position of the dropdown */
@@ -40,7 +38,6 @@ interface MentionAutocompleteProps {
  */
 export function MentionAutocomplete({
   agents,
-  query: _query,
   isOpen,
   position,
   selectedIndex,

@@ -45,7 +45,6 @@ export function TeamChatMessageInput({
 
   const {
     isOpen,
-    query,
     position,
     selectedIndex,
     mentionStartIndex,
@@ -253,7 +252,6 @@ export function TeamChatMessageInput({
       {/* Mention autocomplete dropdown - pass pre-filtered agents from hook */}
       <MentionAutocomplete
         agents={filteredAgents}
-        query={query}
         isOpen={isOpen}
         position={position}
         selectedIndex={selectedIndex}
