@@ -193,7 +193,12 @@ export class TeamChatResponseService {
       senderDisplayName,
     } = params;
 
-    if (mentionedAgentIds.length === 0) {
+    // Deduplicate and filter out empty/whitespace agent IDs
+    const uniqueAgentIds = [
+      ...new Set(mentionedAgentIds.map((id) => id?.trim()).filter(Boolean)),
+    ];
+
+    if (uniqueAgentIds.length === 0) {
       return { triggered: 0, responses: [] };
     }
 
@@ -201,8 +206,8 @@ export class TeamChatResponseService {
     this.startNewChain(chatId);
 
     logger.info(
-      `Triggering responses from ${mentionedAgentIds.length} mentioned agent(s)`,
-      { chatId, agentIds: mentionedAgentIds },
+      `Triggering responses from ${uniqueAgentIds.length} mentioned agent(s)`,
+      { chatId, agentIds: uniqueAgentIds },
       'TeamChatResponseService'
     );
 
@@ -243,7 +248,7 @@ export class TeamChatResponseService {
       string,
       { displayName: string | null; username: string | null }
     >();
-    if (mentionedAgentIds.length > 0) {
+    if (uniqueAgentIds.length > 0) {
       const agentInfoRows = await db
         .select({
           id: users.id,
@@ -251,7 +256,7 @@ export class TeamChatResponseService {
           username: users.username,
         })
         .from(users)
-        .where(inArray(users.id, mentionedAgentIds));
+        .where(inArray(users.id, uniqueAgentIds));
 
       for (const row of agentInfoRows) {
         agentInfoMap.set(row.id, {
@@ -262,8 +267,8 @@ export class TeamChatResponseService {
     }
 
     // Process each mentioned agent with staggered timing
-    for (let i = 0; i < mentionedAgentIds.length; i++) {
-      const agentId = mentionedAgentIds[i];
+    for (let i = 0; i < uniqueAgentIds.length; i++) {
+      const agentId = uniqueAgentIds[i];
       if (!agentId) continue;
 
       // Get agent info from batch (no per-agent DB query)
