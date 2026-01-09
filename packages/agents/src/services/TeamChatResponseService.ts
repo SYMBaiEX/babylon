@@ -66,6 +66,15 @@ interface TriggerResponseResult {
   }>;
 }
 
+/** Size limits for in-memory maps to prevent unbounded growth */
+const MAP_LIMITS = {
+  MAX_COOLDOWN_ENTRIES: 10000,
+  MAX_CHAIN_ENTRIES: 1000,
+} as const;
+
+/** Maximum length for user content in prompts to prevent token overflow */
+const MAX_PROMPT_CONTENT_LENGTH = 2000;
+
 /**
  * Service for handling agent responses in team chat
  */
@@ -95,6 +104,16 @@ export class TeamChatResponseService {
   }
 
   /**
+   * Stop the periodic cleanup (for graceful shutdown or tests)
+   */
+  public stopPeriodicCleanup(): void {
+    if (this.cleanupIntervalHandle) {
+      clearInterval(this.cleanupIntervalHandle);
+      this.cleanupIntervalHandle = null;
+    }
+  }
+
+  /**
    * Start periodic cleanup of expired cooldowns and chains
    */
   private startPeriodicCleanup(): void {
@@ -105,7 +124,7 @@ export class TeamChatResponseService {
   }
 
   /**
-   * Cleanup expired cooldowns and stale chains
+   * Cleanup expired cooldowns and stale chains, enforce size limits
    */
   private cleanupExpiredEntries(): void {
     const now = Date.now();
@@ -118,11 +137,37 @@ export class TeamChatResponseService {
       }
     }
 
+    // Enforce size limit on cooldowns (evict oldest entries)
+    if (this.agentResponseCooldowns.size > MAP_LIMITS.MAX_COOLDOWN_ENTRIES) {
+      const entries = [...this.agentResponseCooldowns.entries()];
+      entries.sort((a, b) => a[1] - b[1]); // Sort by timestamp (oldest first)
+      const toDelete = entries.slice(
+        0,
+        entries.length - MAP_LIMITS.MAX_COOLDOWN_ENTRIES
+      );
+      for (const [key] of toDelete) {
+        this.agentResponseCooldowns.delete(key);
+      }
+    }
+
     // Clean stale chains (older than 5 minutes - conversation likely moved on)
     const chainExpiry = 5 * 60 * 1000;
     for (const [chatId, chain] of this.activeChains) {
       if (now - chain.startedAt > chainExpiry) {
         this.activeChains.delete(chatId);
+      }
+    }
+
+    // Enforce size limit on chains (evict oldest entries)
+    if (this.activeChains.size > MAP_LIMITS.MAX_CHAIN_ENTRIES) {
+      const entries = [...this.activeChains.entries()];
+      entries.sort((a, b) => a[1].startedAt - b[1].startedAt); // Sort by startedAt (oldest first)
+      const toDelete = entries.slice(
+        0,
+        entries.length - MAP_LIMITS.MAX_CHAIN_ENTRIES
+      );
+      for (const [key] of toDelete) {
+        this.activeChains.delete(key);
       }
     }
   }
@@ -284,6 +329,7 @@ export class TeamChatResponseService {
       const totalDelay = baseDelay + staggerDelay;
 
       // Schedule the response (non-blocking for multiple agents)
+      // Pass pre-fetched agentName to avoid redundant query
       this.scheduleAgentResponse({
         agentId,
         chatId,
@@ -291,6 +337,7 @@ export class TeamChatResponseService {
         senderDisplayName,
         conversationContext,
         delay: totalDelay,
+        agentName,
       })
         .then((responseResult) => {
           // Log completion (responses array already populated synchronously below)
@@ -331,6 +378,7 @@ export class TeamChatResponseService {
    * Schedule an agent response with delay
    *
    * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
+   * @param params.agentName - Pre-fetched agent name (optimization to avoid redundant query)
    */
   private async scheduleAgentResponse(params: {
     agentId: string;
@@ -340,6 +388,7 @@ export class TeamChatResponseService {
     conversationContext: string;
     delay: number;
     depth?: number;
+    agentName?: string;
   }): Promise<{
     success: boolean;
     agentName: string;
@@ -354,6 +403,7 @@ export class TeamChatResponseService {
       conversationContext,
       delay,
       depth = 0,
+      agentName: prefetchedAgentName,
     } = params;
 
     // Check cooldown and chain-based loop prevention before waiting (fail fast)
@@ -398,27 +448,29 @@ export class TeamChatResponseService {
       };
     }
 
-    // Get agent info and config
-    const [[agent], [config]] = await Promise.all([
-      db
+    // Get agent config. Agent name may be pre-fetched from batch query (optimization).
+    const [config] = await db
+      .select({
+        systemPrompt: userAgentConfigs.systemPrompt,
+        personality: userAgentConfigs.personality,
+      })
+      .from(userAgentConfigs)
+      .where(eq(userAgentConfigs.userId, agentId))
+      .limit(1);
+
+    // Use pre-fetched name if available, otherwise fetch it
+    let agentName = prefetchedAgentName;
+    if (!agentName) {
+      const [agent] = await db
         .select({
           displayName: users.displayName,
           username: users.username,
         })
         .from(users)
         .where(eq(users.id, agentId))
-        .limit(1),
-      db
-        .select({
-          systemPrompt: userAgentConfigs.systemPrompt,
-          personality: userAgentConfigs.personality,
-        })
-        .from(userAgentConfigs)
-        .where(eq(userAgentConfigs.userId, agentId))
-        .limit(1),
-    ]);
-
-    const agentName = agent?.displayName || agent?.username || 'Agent';
+        .limit(1);
+      agentName = agent?.displayName || agent?.username || 'Agent';
+    }
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
 
@@ -434,15 +486,19 @@ export class TeamChatResponseService {
     );
 
     // Generate response using LLM
+    // Sanitize user content to prevent prompt injection
+    const sanitizedContent = this.sanitizeForPrompt(messageContent);
+    const sanitizedContext = this.sanitizeForPrompt(conversationContext);
+
     const prompt = `${systemPrompt}
 
 ${personality ? `Your personality: ${personality}\n` : ''}
 You are ${agentName} in a team Command Center chat. ${senderDisplayName} just mentioned you directly.
 
 Recent conversation:
-${conversationContext}
+${sanitizedContext}
 
-${senderDisplayName}'s message to you: "${messageContent}"
+${senderDisplayName}'s message to you: "${sanitizedContent}"
 
 Task: Generate a helpful, direct response to ${senderDisplayName}'s message.
 - Address their request or question directly
@@ -690,22 +746,40 @@ Generate ONLY the response text:`;
   }
 
   /**
-   * Extract @mentioned usernames from content
+   * Sanitize user input for prompt injection prevention.
+   * Escapes potential prompt delimiters and limits length.
    */
+  private sanitizeForPrompt(content: string): string {
+    return (
+      content
+        // Escape backticks to prevent code block injection
+        .replace(/```/g, '` ` `')
+        // Collapse long runs of newlines
+        .replace(/\n{3,}/g, '\n\n')
+        // Truncate to prevent token overflow
+        .slice(0, MAX_PROMPT_CONTENT_LENGTH)
+    );
+  }
+
   /**
    * Extract @mentioned usernames from content.
    *
    * Uses a regex that requires @ to be at start of word (not in email addresses).
    * Matches usernames with alphanumerics, underscores, hyphens, and dots.
+   * Trailing punctuation is stripped to handle "Hey @agent." at end of sentence.
    */
   private extractMentionedUsernames(content: string): string[] {
     const mentions: string[] = [];
     // Regex requires @ at word boundary (not after letters/numbers like in emails)
     // Matches: @username, "@username", start@username won't match
-    const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)(?=[\s,.)!?]|$)/g;
+    const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)/g;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(content)) !== null) {
-      if (match[1]) mentions.push(match[1].toLowerCase());
+      if (match[1]) {
+        // Strip trailing punctuation that might be sentence-ending
+        const username = match[1].replace(/[.,!?;:)]+$/, '');
+        if (username) mentions.push(username.toLowerCase());
+      }
     }
     return mentions;
   }

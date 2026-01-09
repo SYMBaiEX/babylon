@@ -118,7 +118,7 @@ export function TeamChatMessageInput({
     }
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: value triggers resize
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value intentionally included to trigger resize on content change (not used inside effect, only as dependency trigger)
   useEffect(() => {
     resizeTextarea();
   }, [value, resizeTextarea]);
@@ -126,6 +126,17 @@ export function TeamChatMessageInput({
   // Track previous mentions to avoid infinite loop
   const prevMentionsRef = useRef<string>('');
   const mentionDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset prevMentionsRef when onMentionsChange becomes falsy to avoid stale comparisons
+  useEffect(() => {
+    if (!onMentionsChange) {
+      prevMentionsRef.current = '';
+      if (mentionDebounceRef.current) {
+        clearTimeout(mentionDebounceRef.current);
+        mentionDebounceRef.current = null;
+      }
+    }
+  }, [onMentionsChange]);
 
   // Memoized lookup map from lowercase username to agent ID
   const usernameToAgentId = useMemo(() => {
@@ -339,6 +350,11 @@ export function TeamChatMessageInput({
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            aria-label={
+              agents.length > 0
+                ? 'Message input, use @ to mention agents'
+                : 'Message input'
+            }
             placeholder={
               agents.length > 0
                 ? 'Message... @mention agents'

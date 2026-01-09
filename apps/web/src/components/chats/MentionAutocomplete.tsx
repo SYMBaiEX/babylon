@@ -2,7 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Bot } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 
 /** Agent that can be mentioned */
@@ -80,9 +80,18 @@ export function MentionAutocomplete({
     return null;
   }
 
+  // Generate stable ID for the currently selected option
+  const activeDescendantId =
+    filteredAgents[selectedIndex]
+      ? `mention-option-${filteredAgents[selectedIndex].id}`
+      : undefined;
+
   return (
     <div
       ref={containerRef}
+      role="listbox"
+      aria-label="Mention suggestions"
+      aria-activedescendant={activeDescendantId}
       className="absolute z-50 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
       style={{
         bottom: position.bottom,
@@ -93,7 +102,10 @@ export function MentionAutocomplete({
         {filteredAgents.map((agent, index) => (
           <button
             key={agent.id}
+            id={`mention-option-${agent.id}`}
             type="button"
+            role="option"
+            aria-selected={index === selectedIndex}
             onClick={() => onSelect(agent)}
             onMouseEnter={() => onIndexChange(index)}
             className={cn(
@@ -144,16 +156,18 @@ export function useMentionAutocomplete(agents: MentionableAgent[]) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
 
-  // Filter agents for current query
-  const filteredAgents = agents.filter((agent) => {
-    if (!query) return true;
-    const searchLower = query.toLowerCase();
-    const displayNameMatch = agent.displayName
-      ?.toLowerCase()
-      .includes(searchLower);
-    const usernameMatch = agent.username?.toLowerCase().includes(searchLower);
-    return displayNameMatch || usernameMatch;
-  });
+  // Filter agents for current query (memoized to avoid unnecessary recalculation)
+  const filteredAgents = useMemo(() => {
+    return agents.filter((agent) => {
+      if (!query) return true;
+      const searchLower = query.toLowerCase();
+      const displayNameMatch = agent.displayName
+        ?.toLowerCase()
+        .includes(searchLower);
+      const usernameMatch = agent.username?.toLowerCase().includes(searchLower);
+      return displayNameMatch || usernameMatch;
+    });
+  }, [agents, query]);
 
   const openAutocomplete = useCallback(
     (startIndex: number, pos: { bottom: number; left: number }) => {

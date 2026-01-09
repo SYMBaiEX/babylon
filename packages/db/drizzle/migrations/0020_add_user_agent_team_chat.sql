@@ -4,8 +4,8 @@
 CREATE TABLE IF NOT EXISTS "UserAgentTeamChat" (
   "id" text PRIMARY KEY NOT NULL,
   "userId" text NOT NULL UNIQUE,
-  "groupId" text NOT NULL,
-  "chatId" text NOT NULL,
+  "groupId" text NOT NULL UNIQUE,
+  "chatId" text NOT NULL UNIQUE,
   "createdAt" timestamp DEFAULT now() NOT NULL,
   "updatedAt" timestamp DEFAULT now() NOT NULL
 );

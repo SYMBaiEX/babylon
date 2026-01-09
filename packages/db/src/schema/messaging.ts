@@ -305,13 +305,13 @@ export const userAgentTeamChats = pgTable(
   {
     id: text('id').primaryKey(),
     userId: text('userId').notNull().unique(), // Human user who owns the agents
-    groupId: text('groupId').notNull(), // Links to Group
-    chatId: text('chatId').notNull(), // Links to Chat (for quick access)
+    groupId: text('groupId').notNull().unique(), // Links to Group (1:1)
+    chatId: text('chatId').notNull().unique(), // Links to Chat (1:1)
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
-    // userId already has unique index from .unique() constraint
+    // userId, groupId, chatId already have unique indexes from .unique() constraints
     index('UserAgentTeamChat_groupId_idx').on(table.groupId),
     index('UserAgentTeamChat_chatId_idx').on(table.chatId),
   ]

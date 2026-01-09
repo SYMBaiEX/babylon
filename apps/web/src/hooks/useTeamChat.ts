@@ -140,19 +140,23 @@ export function useTeamChat(): UseTeamChatReturn {
     [user?.id]
   );
 
-  // Subscribe to typing events on the same chat channel
+  // Subscribe to typing events on the same chat channel.
+  // Memoized to prevent re-subscription on every render - useSSEChannel uses
+  // the channel identity to determine when to reconnect. Without memoization,
+  // a new string would be created each render, causing unnecessary re-subscriptions.
   const typingChannel = useMemo(
     () => (teamChat?.chatId ? (`chat:${teamChat.chatId}` as const) : null),
     [teamChat?.chatId]
   );
   useSSEChannel(typingChannel, handleTypingEvent);
 
-  // Clean up expired typing indicators
+  // Clean up expired typing indicators.
+  // 2s interval is sufficient since expiry is 5s - no need for 1s precision.
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
       setTypingUsers((prev) => prev.filter((u) => u.expiresAt > now));
-    }, 1000);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -213,14 +217,20 @@ export function useTeamChat(): UseTeamChatReturn {
     [sendTypingIndicator]
   );
 
-  // Cleanup typing state on unmount
+  // Cleanup typing state on unmount.
+  // Wrapped in try-catch since sendTypingIndicator is async and may fail if
+  // network/auth state is already torn down during unmount.
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       if (isTypingRef.current) {
-        sendTypingIndicator(false);
+        try {
+          sendTypingIndicator(false);
+        } catch {
+          // Ignore errors during unmount - component is being destroyed anyway
+        }
       }
     };
   }, [sendTypingIndicator]);

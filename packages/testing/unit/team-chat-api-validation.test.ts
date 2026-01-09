@@ -233,15 +233,16 @@ describe('Typing API Schema Validation', () => {
     expect(result.success).toBe(false);
   });
 
-  test('rejects extra fields (schema is strict by default in zod)', () => {
-    // Note: Zod allows extra fields by default, but we test the shape
+  test('allows extra fields (Zod permits unknown keys by default)', () => {
+    // Zod allows extra fields by default and strips them from output
+    // Use .strict() if you need to reject extra fields
     const result = typingSchema.safeParse({
       isTyping: true,
       extraField: 'should be ignored',
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      // Extra field should be stripped or ignored
+      // Extra field is stripped from output
       expect(result.data.isTyping).toBe(true);
     }
   });

@@ -1002,13 +1002,12 @@ describe('Loop Prevention Behavior', () => {
     testCleanup.groupIds.push(teamChat.groupId);
     testCleanup.chatIds.push(teamChat.chatId);
 
+    // Test that empty/whitespace agent IDs are filtered out before processing
     const result = await teamChatResponseService.triggerMentionedAgentResponses(
       {
         chatId: teamChat.chatId,
         messageContent: 'Hello',
-        mentionedAgentIds: ['', '   ', undefined as unknown as string].filter(
-          Boolean
-        ),
+        mentionedAgentIds: ['', '   '].filter(Boolean),
         senderUserId: user.id,
         senderDisplayName: user.displayName,
       }

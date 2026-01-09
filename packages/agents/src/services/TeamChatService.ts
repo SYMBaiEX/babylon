@@ -72,6 +72,18 @@ export class TeamChatService {
 
     // Create new team chat in a transaction with conflict handling
     const result = await withTransaction(async (tx) => {
+      // Re-check inside transaction to avoid creating orphaned records on race condition
+      const [existingInTx] = await tx
+        .select()
+        .from(userAgentTeamChats)
+        .where(eq(userAgentTeamChats.userId, userId))
+        .limit(1);
+
+      if (existingInTx) {
+        // Another transaction won the race - return null to signal we should fetch existing
+        return null;
+      }
+
       const now = new Date();
       const [groupId, chatId, teamChatId, memberId, participantId] =
         await Promise.all([
@@ -128,24 +140,15 @@ export class TeamChatService {
         isActive: true,
       });
 
-      // 5. Create the UserAgentTeamChat record (with conflict handling for race conditions)
-      const insertResult = await tx
-        .insert(userAgentTeamChats)
-        .values({
-          id: teamChatId,
-          userId,
-          groupId,
-          chatId,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoNothing({ target: userAgentTeamChats.userId })
-        .returning();
-
-      // If insert returned nothing, another transaction created the record - return null to signal
-      if (insertResult.length === 0) {
-        return null;
-      }
+      // 5. Create the UserAgentTeamChat record
+      await tx.insert(userAgentTeamChats).values({
+        id: teamChatId,
+        userId,
+        groupId,
+        chatId,
+        createdAt: now,
+        updatedAt: now,
+      });
 
       // 6. Create welcome system message
       const welcomeMessageId = await generateSnowflakeId();
@@ -250,20 +253,23 @@ export class TeamChatService {
       return [];
     }
 
-    // Get all active group members who are agents (not the owner)
+    // Get all active group members who are agents owned by this user
+    // Filtering in SQL for better performance and defense-in-depth
     const memberRows = await db
       .select({ user: users })
       .from(groupMembers)
       .innerJoin(users, eq(groupMembers.userId, users.id))
       .where(
-        and(eq(groupMembers.groupId, gid), eq(groupMembers.isActive, true))
+        and(
+          eq(groupMembers.groupId, gid),
+          eq(groupMembers.isActive, true),
+          eq(users.isAgent, true),
+          eq(users.managedBy, userId)
+        )
       )
       .orderBy(users.createdAt);
 
-    // Filter to only agents (not the human owner)
-    return memberRows
-      .map((row) => row.user)
-      .filter((u) => u.isAgent && u.managedBy === userId);
+    return memberRows.map((row) => row.user);
   }
 
   /**
@@ -523,6 +529,7 @@ export class TeamChatService {
   /**
    * Batch add agents to team chat without system messages (for sync operations).
    * More efficient than calling addAgentToTeamChatSilent in a loop.
+   * Wrapped in transaction to ensure atomicity.
    */
   private async batchAddAgentsToTeamChatSilent(
     userId: string,
@@ -531,61 +538,63 @@ export class TeamChatService {
   ): Promise<void> {
     if (agentUserIds.length === 0) return;
 
-    const now = new Date();
+    await withTransaction(async (tx) => {
+      const now = new Date();
 
-    // Generate all IDs upfront
-    const memberIds = await Promise.all(
-      agentUserIds.map(() => generateSnowflakeId())
-    );
-    const participantIds = await Promise.all(
-      agentUserIds.map(() => generateSnowflakeId())
-    );
+      // Generate all IDs upfront
+      const memberIds = await Promise.all(
+        agentUserIds.map(() => generateSnowflakeId())
+      );
+      const participantIds = await Promise.all(
+        agentUserIds.map(() => generateSnowflakeId())
+      );
 
-    // Batch insert group members (with upsert)
-    const memberValues = agentUserIds.map((agentUserId, i) => ({
-      id: memberIds[i] as string,
-      groupId: teamChat.groupId,
-      userId: agentUserId,
-      role: 'member' as const,
-      addedBy: userId,
-      joinedAt: now,
-      isActive: true,
-      messageCount: 0,
-      qualityScore: 1.0,
-    }));
+      // Batch insert group members (with upsert)
+      const memberValues = agentUserIds.map((agentUserId, i) => ({
+        id: memberIds[i] as string,
+        groupId: teamChat.groupId,
+        userId: agentUserId,
+        role: 'member' as const,
+        addedBy: userId,
+        joinedAt: now,
+        isActive: true,
+        messageCount: 0,
+        qualityScore: 1.0,
+      }));
 
-    await db
-      .insert(groupMembers)
-      .values(memberValues)
-      .onConflictDoUpdate({
-        target: [groupMembers.groupId, groupMembers.userId],
-        set: {
-          isActive: true,
-          joinedAt: now,
-          addedBy: userId,
-          role: 'member',
-        },
-      });
+      await tx
+        .insert(groupMembers)
+        .values(memberValues)
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
+            joinedAt: now,
+            addedBy: userId,
+            role: 'member',
+          },
+        });
 
-    // Batch insert chat participants (with upsert)
-    const participantValues = agentUserIds.map((agentUserId, i) => ({
-      id: participantIds[i] as string,
-      chatId: teamChat.chatId,
-      userId: agentUserId,
-      joinedAt: now,
-      isActive: true,
-    }));
+      // Batch insert chat participants (with upsert)
+      const participantValues = agentUserIds.map((agentUserId, i) => ({
+        id: participantIds[i] as string,
+        chatId: teamChat.chatId,
+        userId: agentUserId,
+        joinedAt: now,
+        isActive: true,
+      }));
 
-    await db
-      .insert(chatParticipants)
-      .values(participantValues)
-      .onConflictDoUpdate({
-        target: [chatParticipants.chatId, chatParticipants.userId],
-        set: {
-          isActive: true,
-          joinedAt: now,
-        },
-      });
+      await tx
+        .insert(chatParticipants)
+        .values(participantValues)
+        .onConflictDoUpdate({
+          target: [chatParticipants.chatId, chatParticipants.userId],
+          set: {
+            isActive: true,
+            joinedAt: now,
+          },
+        });
+    });
   }
 }
 

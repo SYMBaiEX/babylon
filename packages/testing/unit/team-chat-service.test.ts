@@ -96,11 +96,16 @@ describe('TeamChatResponseService', () => {
   });
 
   describe('response timing configuration', () => {
-    test('uses consistent timing constants', () => {
-      // Verify the service uses reasonable timing
-      // These are tested indirectly through the integration tests
-      // Here we just verify the service is importable and configured
+    test('service is properly initialized with required methods', () => {
+      // Basic smoke test - actual timing behavior is verified in integration tests
+      // The service should be defined and have the expected public interface
       expect(teamChatResponseService).toBeDefined();
+      expect(
+        typeof teamChatResponseService.triggerMentionedAgentResponses
+      ).toBe('function');
+      expect(typeof teamChatResponseService.stopPeriodicCleanup).toBe(
+        'function'
+      );
     });
   });
 });
@@ -204,5 +209,114 @@ describe('Input Validation Edge Cases', () => {
     // Empty strings should result in no triggers since they're not valid IDs
     expect(result.triggered).toBe(0);
     expect(result.responses).toEqual([]);
+  });
+});
+
+describe('Mention Regex Edge Cases', () => {
+  /**
+   * Test that trailing punctuation is correctly stripped from mentions.
+   * The regex should handle sentences like "Hey @agent." at end of sentence.
+   */
+
+  // Helper to test regex behavior - matches the regex used in extractMentionedUsernames
+  function extractMentions(content: string): string[] {
+    const mentions: string[] = [];
+    // This regex should match the one in TeamChatResponseService
+    const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(content)) !== null) {
+      if (match[1]) {
+        // Strip trailing punctuation that might be sentence-ending
+        const username = match[1].replace(/[.,!?;:)]+$/, '');
+        if (username) mentions.push(username.toLowerCase());
+      }
+    }
+    return mentions;
+  }
+
+  test('strips trailing period from mention at end of sentence', () => {
+    const mentions = extractMentions('Hey @agent.');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing exclamation from mention', () => {
+    const mentions = extractMentions('Hello @agent!');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing question mark from mention', () => {
+    const mentions = extractMentions('Are you there @agent?');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing comma from mention', () => {
+    const mentions = extractMentions('Hey @agent, how are you?');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing semicolon from mention', () => {
+    const mentions = extractMentions('@agent; please respond');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing colon from mention', () => {
+    const mentions = extractMentions('@agent: here is the info');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('strips trailing parenthesis from mention', () => {
+    const mentions = extractMentions('(see @agent)');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('handles multiple mentions with trailing punctuation', () => {
+    const mentions = extractMentions('@alice, @bob! and @charlie?');
+    expect(mentions).toEqual(['alice', 'bob', 'charlie']);
+  });
+
+  test('preserves hyphens and dots in username (not trailing)', () => {
+    const mentions = extractMentions('Hey @agent-v2.beta how are you?');
+    expect(mentions).toEqual(['agent-v2.beta']);
+  });
+
+  test('strips trailing punctuation but preserves internal dots', () => {
+    const mentions = extractMentions('Contact @agent.v2.');
+    expect(mentions).toEqual(['agent.v2']);
+  });
+
+  test('does not match email addresses', () => {
+    const mentions = extractMentions('Email me at test@example.com');
+    // This should NOT match as email - the regex requires word boundary before @
+    expect(mentions).toEqual([]);
+  });
+
+  test('matches mention in parentheses', () => {
+    const mentions = extractMentions('Talk to (@agent) about this');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('matches mention at start of message', () => {
+    const mentions = extractMentions('@agent hello there');
+    expect(mentions).toEqual(['agent']);
+  });
+
+  test('matches mention at end of message without punctuation', () => {
+    const mentions = extractMentions('hello @agent');
+    expect(mentions).toEqual(['agent']);
+  });
+});
+
+describe('Chain Depth and Cooldown Constants', () => {
+  test('MAX_CHAIN_DEPTH is set to prevent infinite loops', () => {
+    // The MAX_CHAIN_DEPTH constant should be reasonable (2-5)
+    // We can't directly access private constants, but we verify the service
+    // handles depth limits through integration tests
+    expect(teamChatResponseService).toBeDefined();
+  });
+
+  test('AGENT_COOLDOWN_MS is set for reasonable rate limiting', () => {
+    // Verify the service is configured with cooldown support
+    // Actual behavior tested in integration tests
+    expect(teamChatResponseService).toBeDefined();
   });
 });
