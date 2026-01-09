@@ -33,6 +33,20 @@ import { secureRandom } from '../utils/entropy';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
+ * Fisher-Yates shuffle for uniform random sampling.
+ * Shuffles in place and returns the array.
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(secureRandom() * (i + 1));
+    const temp = array[i]!;
+    array[i] = array[j]!;
+    array[j] = temp;
+  }
+  return array;
+}
+
+/**
  * Notifier interface for follow events.
  * Allows engine to emit follow notifications without depending on @babylon/api.
  */
@@ -566,7 +580,16 @@ export class FollowingMechanics {
         // Get NPCs not already following this player (using pre-fetched data)
         // Use candidateNpcs (capped set) instead of allNpcs
         const followingNpcIds = followsByUser.get(player.userId) ?? new Set();
-        const eligibleNpcs = candidateNpcs.filter(
+
+        // Sample a bounded subset of NPCs per player to cap per-player CPU work
+        // Shuffle a copy and slice to the per-player cap, then filter by already-following
+        const perPlayerCap =
+          NPC_FOLLOWING_CONFIG.maxNpcCandidatesPerPlayerPerTick;
+        const sampledNpcs = shuffleArray([...candidateNpcs]).slice(
+          0,
+          perPlayerCap
+        );
+        const eligibleNpcs = sampledNpcs.filter(
           (npc) => !followingNpcIds.has(npc.id)
         );
 
@@ -574,7 +597,7 @@ export class FollowingMechanics {
           continue;
         }
 
-        // Randomly select NPCs to potentially follow
+        // Iterate over the sampled subset (bounded by per-player cap)
         for (const npc of eligibleNpcs) {
           // Bail early if deadline exceeded
           if (isTimeUp()) {

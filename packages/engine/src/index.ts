@@ -62,6 +62,7 @@ export {
   NPC_SOCIAL_ACTIONS_CONFIG,
   NPC_TICK_CONFIG,
   type NPCActivityConfig,
+  type NPCActivityPresetName,
 } from './config/npc-activity';
 export {
   DEFAULT_SIMULATION_CONFIG,

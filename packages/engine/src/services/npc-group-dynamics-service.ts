@@ -42,10 +42,10 @@ import {
 import {
   BabylonLLMClient,
   generateWorldContext,
-  NPC_GROUP_DYNAMICS_CONFIG,
   validateNoRealNames,
 } from '@babylon/engine';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
+import { NPC_GROUP_DYNAMICS_CONFIG } from '../config/npc-activity';
 import { MarketContextService } from './market-context-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 import { StaticDataRegistry } from './static-data-registry';

@@ -1664,12 +1664,16 @@ ${prompt}`
       }
 
       // Validate trading actions
-      // Allow amount === 0 for sell actions (means "close entire position") and close_position
+      // Sell actions must use amount === 0 (means "close entire position")
+      // Note: close_position and hold are already handled above with continue
       const isSellAction = decision.action.startsWith('sell');
-      const isCloseAction = decision.action === 'close_position';
-      const allowsZeroAmount = isSellAction || isCloseAction;
 
-      if (decision.amount < 0 || (decision.amount === 0 && !allowsZeroAmount)) {
+      // Reject negative amounts always, reject zero for non-sell, reject positive for sell
+      if (
+        decision.amount < 0 ||
+        (decision.amount === 0 && !isSellAction) ||
+        (decision.amount > 0 && isSellAction)
+      ) {
         const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
         logger.warn(errorMsg, {}, 'MarketDecisionEngine');
 

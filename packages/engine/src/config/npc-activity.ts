@@ -53,6 +53,23 @@ function envNumber(key: string, defaultValue: number): number {
 }
 
 /**
+ * Parse an environment variable as a positive number (> 0) with bounds checking.
+ * Returns the default and logs a warning if the value is <= 0.
+ */
+function envPositiveNumber(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value <= 0) {
+    logger.warn(
+      `${key}=${value} must be positive (> 0), using default ${defaultValue}`,
+      { key, value, defaultValue },
+      'npc-activity'
+    );
+    return defaultValue;
+  }
+  return value;
+}
+
+/**
  * Parse an environment variable as a probability (0.0-1.0) with bounds checking.
  * Clamps the value to valid probability range to prevent configuration errors.
  */
@@ -95,7 +112,7 @@ export const NPC_POSTING_CONFIG = {
    * @default 2 (low - NPCs should engage more than post)
    * @env NPC_MAX_POSTS_PER_DAY
    */
-  maxPostsPerDay: envNumber('NPC_MAX_POSTS_PER_DAY', 2),
+  maxPostsPerDay: envPositiveNumber('NPC_MAX_POSTS_PER_DAY', 2),
 
   /**
    * Minimum hours between posts for the same NPC.
@@ -104,7 +121,7 @@ export const NPC_POSTING_CONFIG = {
    * @default 3 (spread posts out more)
    * @env NPC_MIN_HOURS_BETWEEN_POSTS
    */
-  minHoursBetweenPosts: envNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
+  minHoursBetweenPosts: envPositiveNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
 
   /**
    * Boost multiplier when actor was mentioned by a player.
@@ -181,7 +198,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 20 (increased for more engagement)
    * @env NPC_MAX_LIKES_PER_TICK
    */
-  maxLikesPerTick: envNumber('NPC_MAX_LIKES_PER_TICK', 20),
+  maxLikesPerTick: envPositiveNumber('NPC_MAX_LIKES_PER_TICK', 20),
 
   /**
    * Maximum shares across all NPCs per tick.
@@ -189,7 +206,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 8 (doubled for more reposting)
    * @env NPC_MAX_SHARES_PER_TICK
    */
-  maxSharesPerTick: envNumber('NPC_MAX_SHARES_PER_TICK', 8),
+  maxSharesPerTick: envPositiveNumber('NPC_MAX_SHARES_PER_TICK', 8),
 
   /**
    * Maximum comments across all NPCs per tick.
@@ -197,7 +214,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 6 (doubled for more conversation)
    * @env NPC_MAX_COMMENTS_PER_TICK
    */
-  maxCommentsPerTick: envNumber('NPC_MAX_COMMENTS_PER_TICK', 6),
+  maxCommentsPerTick: envPositiveNumber('NPC_MAX_COMMENTS_PER_TICK', 6),
 
   /**
    * Number of NPCs to sample for engagement each tick.
@@ -205,7 +222,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 20 (increased for broader engagement)
    * @env NPC_ENGAGEMENT_ACTORS_TO_SAMPLE
    */
-  actorsToSample: envNumber('NPC_ENGAGEMENT_ACTORS_TO_SAMPLE', 20),
+  actorsToSample: envPositiveNumber('NPC_ENGAGEMENT_ACTORS_TO_SAMPLE', 20),
 
   /**
    * Number of recent posts to consider for engagement.
@@ -213,7 +230,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 40 (increased for more engagement opportunities)
    * @env NPC_ENGAGEMENT_POSTS_TO_CONSIDER
    */
-  postsToConsider: envNumber('NPC_ENGAGEMENT_POSTS_TO_CONSIDER', 40),
+  postsToConsider: envPositiveNumber('NPC_ENGAGEMENT_POSTS_TO_CONSIDER', 40),
 } as const;
 
 // =============================================================================
@@ -315,7 +332,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 3
    * @env NPC_MIN_GROUP_SIZE
    */
-  minGroupSize: envNumber('NPC_MIN_GROUP_SIZE', 3),
+  minGroupSize: envPositiveNumber('NPC_MIN_GROUP_SIZE', 3),
 
   /**
    * Maximum group size before NPCs stop joining.
@@ -323,7 +340,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 12
    * @env NPC_MAX_GROUP_SIZE
    */
-  maxGroupSize: envNumber('NPC_MAX_GROUP_SIZE', 12),
+  maxGroupSize: envPositiveNumber('NPC_MAX_GROUP_SIZE', 12),
 
   /**
    * Ideal group size (influences join/leave decisions).
@@ -331,8 +348,23 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 7
    * @env NPC_IDEAL_GROUP_SIZE
    */
-  idealGroupSize: envNumber('NPC_IDEAL_GROUP_SIZE', 7),
+  idealGroupSize: envPositiveNumber('NPC_IDEAL_GROUP_SIZE', 7),
 } as const;
+
+// Validate minGroupSize <= maxGroupSize at module initialization
+if (
+  NPC_GROUP_DYNAMICS_CONFIG.minGroupSize >
+  NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize
+) {
+  logger.error(
+    `Invalid group size configuration: minGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.minGroupSize}) > maxGroupSize (${NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize}). This will cause undefined behavior in group dynamics.`,
+    {
+      minGroupSize: NPC_GROUP_DYNAMICS_CONFIG.minGroupSize,
+      maxGroupSize: NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize,
+    },
+    'npc-activity'
+  );
+}
 
 // =============================================================================
 // CONTENT PACING CONFIGURATION
@@ -585,7 +617,7 @@ export const NPC_TICK_CONFIG = {
    * @default 3
    * @env NPC_TICK_BATCH_SIZE
    */
-  batchSize: envNumber('NPC_TICK_BATCH_SIZE', 3),
+  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 3),
 
   /**
    * Maximum consecutive errors before aborting tick (circuit breaker).
@@ -593,7 +625,7 @@ export const NPC_TICK_CONFIG = {
    * @default 5
    * @env NPC_TICK_MAX_ERRORS
    */
-  maxConsecutiveErrors: envNumber('NPC_TICK_MAX_ERRORS', 5),
+  maxConsecutiveErrors: envPositiveNumber('NPC_TICK_MAX_ERRORS', 5),
 } as const;
 
 // =============================================================================
@@ -746,12 +778,20 @@ export const NPC_ACTIVITY_PRESETS = {
 } as const;
 
 /**
+ * Type alias for valid NPC activity preset names.
+ * Provides compile-time autocomplete and type safety.
+ */
+export type NPCActivityPresetName = keyof typeof NPC_ACTIVITY_PRESETS;
+
+/**
  * Get preset values by name.
  *
- * @param presetName - Name of the preset (accepts any string for runtime flexibility)
+ * @param presetName - Name of the preset (typed for compile-time safety)
  * @returns Object with environment variable key-value pairs (frozen copy)
  */
-export function getPreset(presetName: string): Record<string, string> {
+export function getPreset(
+  presetName: NPCActivityPresetName
+): Record<string, string> {
   const preset = Object.prototype.hasOwnProperty.call(
     NPC_ACTIVITY_PRESETS,
     presetName

@@ -826,8 +826,8 @@ export async function executeGameTick(
   // FollowingMechanics enforces its own time-slicing using the passed-in deadline
   // =========================================================================
   if (Date.now() < criticalOpsDeadline) {
+    // Process proactive following of active players
     try {
-      // Process proactive following of active players
       const followResult =
         await FollowingMechanics.processProactiveFollowing(criticalOpsDeadline);
       result.npcFollowsCreated = followResult.followsCreated;
@@ -842,15 +842,29 @@ export async function executeGameTick(
           'GameTick'
         );
       }
+    } catch (error) {
+      logger.error(
+        'NPC proactive following failed',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        'GameTick'
+      );
+    }
 
-      // Process unfollow checks (runs probabilistically)
+    // Process unfollow checks (runs probabilistically) - separate try/catch so a failure doesn't hide follow progress
+    try {
       const unfollowCount =
         await FollowingMechanics.processUnfollowChecks(criticalOpsDeadline);
       result.npcUnfollows = unfollowCount;
     } catch (error) {
       logger.error(
-        'NPC following failed',
-        { error: error instanceof Error ? error.message : String(error) },
+        'NPC unfollow checks failed',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
         'GameTick'
       );
     }
