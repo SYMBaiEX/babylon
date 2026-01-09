@@ -57,6 +57,9 @@ export class TeamChatService {
    * Ensure a team chat exists for the user.
    * Creates one if it doesn't exist, returns existing if it does.
    *
+   * Uses upsert pattern to handle race conditions when multiple requests
+   * try to create a team chat simultaneously.
+   *
    * @param userId - The human user ID (not agent ID)
    * @returns Team chat info with groupId and chatId
    */
@@ -67,7 +70,7 @@ export class TeamChatService {
       return existing;
     }
 
-    // Create new team chat in a transaction
+    // Create new team chat in a transaction with conflict handling
     const result = await withTransaction(async (tx) => {
       const now = new Date();
       const [groupId, chatId, teamChatId, memberId, participantId] =
@@ -125,15 +128,24 @@ export class TeamChatService {
         isActive: true,
       });
 
-      // 5. Create the UserAgentTeamChat record
-      await tx.insert(userAgentTeamChats).values({
-        id: teamChatId,
-        userId,
-        groupId,
-        chatId,
-        createdAt: now,
-        updatedAt: now,
-      });
+      // 5. Create the UserAgentTeamChat record (with conflict handling for race conditions)
+      const insertResult = await tx
+        .insert(userAgentTeamChats)
+        .values({
+          id: teamChatId,
+          userId,
+          groupId,
+          chatId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: userAgentTeamChats.userId })
+        .returning();
+
+      // If insert returned nothing, another transaction created the record - return null to signal
+      if (insertResult.length === 0) {
+        return null;
+      }
 
       // 6. Create welcome system message
       const welcomeMessageId = await generateSnowflakeId();
@@ -156,6 +168,26 @@ export class TeamChatService {
         updatedAt: now,
       };
     });
+
+    // Handle race condition: if result is null, another transaction won - fetch existing
+    if (result === null) {
+      const existingAfterRace = await this.getTeamChat(userId);
+      if (existingAfterRace) {
+        logger.info(
+          `Team chat already created by concurrent request for user ${userId}`,
+          {
+            groupId: existingAfterRace.groupId,
+            chatId: existingAfterRace.chatId,
+          },
+          'TeamChatService'
+        );
+        return existingAfterRace;
+      }
+      // This should not happen, but fail fast if it does
+      throw new Error(
+        'Failed to create team chat: race condition with no winner'
+      );
+    }
 
     logger.info(
       `Team chat created for user ${userId}`,
