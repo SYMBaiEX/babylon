@@ -50,6 +50,20 @@ function envNumber(key: string, defaultValue: number): number {
   return Number.isNaN(parsed) ? defaultValue : parsed;
 }
 
+/**
+ * Parse an environment variable as a probability (0.0-1.0) with bounds checking.
+ * Clamps the value to valid probability range to prevent configuration errors.
+ */
+function envProbability(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value < 0 || value > 1) {
+    console.warn(
+      `[NPC Config] ${key}=${value} is outside valid probability range (0-1), clamping to bounds`
+    );
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
 // =============================================================================
 // POSTING CONFIGURATION
 // =============================================================================
@@ -68,7 +82,7 @@ export const NPC_POSTING_CONFIG = {
    * @default 0.15 (15% base, after boosts max ~20%)
    * @env NPC_POST_PROBABILITY
    */
-  baseProbability: envNumber('NPC_POST_PROBABILITY', 0.15),
+  baseProbability: envProbability('NPC_POST_PROBABILITY', 0.15),
 
   /**
    * Maximum posts per day per NPC to prevent spam.
@@ -123,7 +137,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 0.12 (doubled from original)
    * @env NPC_LIKE_PROBABILITY
    */
-  baseLikeProbability: envNumber('NPC_LIKE_PROBABILITY', 0.12),
+  baseLikeProbability: envProbability('NPC_LIKE_PROBABILITY', 0.12),
 
   /**
    * Base probability for an NPC to share/repost (0.0 - 1.0).
@@ -131,7 +145,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 0.03 (doubled from original)
    * @env NPC_SHARE_PROBABILITY
    */
-  baseShareProbability: envNumber('NPC_SHARE_PROBABILITY', 0.03),
+  baseShareProbability: envProbability('NPC_SHARE_PROBABILITY', 0.03),
 
   /**
    * Base probability for an NPC to comment (0.0 - 1.0).
@@ -139,7 +153,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @default 0.02 (increased - comments are valuable engagement)
    * @env NPC_COMMENT_PROBABILITY
    */
-  baseCommentProbability: envNumber('NPC_COMMENT_PROBABILITY', 0.02),
+  baseCommentProbability: envProbability('NPC_COMMENT_PROBABILITY', 0.02),
 
   /**
    * Boost multiplier when NPC shares an org affiliation with post author.
@@ -214,7 +228,7 @@ export const NPC_SOCIAL_ACTIONS_CONFIG = {
    * @default 0.08 (increased for more player engagement)
    * @env NPC_GROUP_INVITE_PROBABILITY
    */
-  baseInviteProbability: envNumber('NPC_GROUP_INVITE_PROBABILITY', 0.08),
+  baseInviteProbability: envProbability('NPC_GROUP_INVITE_PROBABILITY', 0.08),
 
   /**
    * Base probability for an NPC to send a direct message.
@@ -222,7 +236,7 @@ export const NPC_SOCIAL_ACTIONS_CONFIG = {
    * @default 0.05 (increased for more player engagement)
    * @env NPC_DM_PROBABILITY
    */
-  baseDmProbability: envNumber('NPC_DM_PROBABILITY', 0.05),
+  baseDmProbability: envProbability('NPC_DM_PROBABILITY', 0.05),
 
   /**
    * Minimum number of prior interactions needed before social action.
@@ -257,7 +271,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 0.06 (modest increase)
    * @env NPC_FORM_GROUP_PROBABILITY
    */
-  formGroupProbability: envNumber('NPC_FORM_GROUP_PROBABILITY', 0.06),
+  formGroupProbability: envProbability('NPC_FORM_GROUP_PROBABILITY', 0.06),
 
   /**
    * Probability for an eligible NPC to join an existing group.
@@ -265,7 +279,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 0.12 (increased for more group activity)
    * @env NPC_JOIN_GROUP_PROBABILITY
    */
-  joinGroupProbability: envNumber('NPC_JOIN_GROUP_PROBABILITY', 0.12),
+  joinGroupProbability: envProbability('NPC_JOIN_GROUP_PROBABILITY', 0.12),
 
   /**
    * Probability for an NPC to leave a group per membership per tick.
@@ -273,7 +287,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 0.02 (unchanged - churn should be low)
    * @env NPC_LEAVE_GROUP_PROBABILITY
    */
-  leaveGroupProbability: envNumber('NPC_LEAVE_GROUP_PROBABILITY', 0.02),
+  leaveGroupProbability: envProbability('NPC_LEAVE_GROUP_PROBABILITY', 0.02),
 
   /**
    * Probability for an NPC to invite a user to their group.
@@ -281,7 +295,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 0.10 (increased to bring players into groups)
    * @env NPC_USER_INVITE_PROBABILITY
    */
-  inviteUserProbability: envNumber('NPC_USER_INVITE_PROBABILITY', 0.1),
+  inviteUserProbability: envProbability('NPC_USER_INVITE_PROBABILITY', 0.1),
 
   /**
    * Probability to check for kicks each tick.
@@ -289,7 +303,7 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @default 0.15 (unchanged)
    * @env NPC_KICK_CHECK_PROBABILITY
    */
-  kickCheckProbability: envNumber('NPC_KICK_CHECK_PROBABILITY', 0.15),
+  kickCheckProbability: envProbability('NPC_KICK_CHECK_PROBABILITY', 0.15),
 
   /**
    * Minimum group size before NPCs start leaving.
@@ -411,7 +425,7 @@ export const NPC_FOLLOWING_CONFIG = {
    * @default 0.03 (3% chance per player per tick)
    * @env NPC_PROACTIVE_FOLLOW_PROBABILITY
    */
-  proactiveFollowProbability: envNumber(
+  proactiveFollowProbability: envProbability(
     'NPC_PROACTIVE_FOLLOW_PROBABILITY',
     0.03
   ),
@@ -459,7 +473,7 @@ export const NPC_FOLLOWING_CONFIG = {
    * @default 0.05 (5% chance to check)
    * @env NPC_UNFOLLOW_CHECK_PROBABILITY
    */
-  unfollowCheckProbability: envNumber('NPC_UNFOLLOW_CHECK_PROBABILITY', 0.05),
+  unfollowCheckProbability: envProbability('NPC_UNFOLLOW_CHECK_PROBABILITY', 0.05),
 
   /**
    * Days of inactivity before considering unfollow.
@@ -655,7 +669,14 @@ export const NPC_ACTIVITY_PRESETS = {
 export function getPreset(
   presetName: keyof typeof NPC_ACTIVITY_PRESETS
 ): Record<string, string> {
-  return NPC_ACTIVITY_PRESETS[presetName] ?? NPC_ACTIVITY_PRESETS.default;
+  const preset = NPC_ACTIVITY_PRESETS[presetName];
+  if (!preset) {
+    console.warn(
+      `[NPC Config] Unknown preset "${presetName}", falling back to "default"`
+    );
+    return NPC_ACTIVITY_PRESETS.default;
+  }
+  return preset;
 }
 
 /**

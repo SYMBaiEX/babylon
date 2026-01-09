@@ -20,6 +20,7 @@ import {
   eq,
   followStatuses,
   gte,
+  inArray,
   posts,
   reactions,
   userInteractions,
@@ -377,9 +378,47 @@ export class FollowingMechanics {
         .having(gte(count(posts.id), NPC_FOLLOWING_CONFIG.minPostsToFollow))
         .limit(50);
 
-      result.playersConsidered = activePlayers.length;
+      // Calculate engagement scores for candidates
+      // Engagement = likes given (0.5 pts each) + comments made (1 pt each)
+      const playerIds = activePlayers.map((p) => p.userId);
+      const engagementScores = new Map<string, number>();
 
-      if (activePlayers.length === 0) {
+      if (playerIds.length > 0) {
+        // Get reaction counts (likes given by these users in last 7 days)
+        const reactionCounts = await db
+          .select({
+            userId: reactions.userId,
+            reactionCount: count(reactions.id),
+          })
+          .from(reactions)
+          .where(
+            and(
+              inArray(reactions.userId, playerIds),
+              gte(reactions.createdAt, sevenDaysAgo)
+            )
+          )
+          .groupBy(reactions.userId);
+
+        // Calculate engagement score: posts (1pt) + reactions given (0.5pt)
+        for (const player of activePlayers) {
+          const reactionData = reactionCounts.find(
+            (r) => r.userId === player.userId
+          );
+          const reactionScore = (reactionData?.reactionCount ?? 0) * 0.5;
+          const postScore = player.postCount;
+          engagementScores.set(player.userId, postScore + reactionScore);
+        }
+      }
+
+      // Filter players by minimum engagement score
+      const eligiblePlayers = activePlayers.filter((player) => {
+        const score = engagementScores.get(player.userId) ?? player.postCount;
+        return score >= NPC_FOLLOWING_CONFIG.minEngagementToFollow;
+      });
+
+      result.playersConsidered = eligiblePlayers.length;
+
+      if (eligiblePlayers.length === 0) {
         return result;
       }
 
@@ -392,7 +431,7 @@ export class FollowingMechanics {
       // Track follows per player this tick
       const followsPerPlayer = new Map<string, number>();
 
-      for (const player of activePlayers) {
+      for (const player of eligiblePlayers) {
         if (result.followsCreated >= NPC_FOLLOWING_CONFIG.maxFollowsPerTick) {
           break;
         }

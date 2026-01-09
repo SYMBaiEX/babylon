@@ -102,7 +102,7 @@ export const CONTENT_PACING = {
    */
   peakHourStart: NPC_CONTENT_PACING_CONFIG.peakHourStart,
   peakHourEnd: NPC_CONTENT_PACING_CONFIG.peakHourEnd,
-};
+} as const;
 
 /**
  * Get the activity multiplier based on current hour.
