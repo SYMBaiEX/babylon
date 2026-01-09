@@ -188,28 +188,21 @@ describe('Input Validation Edge Cases', () => {
     expect(result.triggered).toBe(0);
   });
 
-  test('handles null-like values in array', async () => {
-    // TypeScript prevents actual nulls, but test empty strings
+  test('handles empty/whitespace values in array by not triggering for them', async () => {
+    // Empty strings and whitespace-only strings should not be processed as valid agent IDs
+    // Only 'valid-id' should be attempted (but won't find an agent in test DB)
     const result = await teamChatResponseService.triggerMentionedAgentResponses(
       {
         chatId: 'test-chat',
         messageContent: 'Hello @agent',
-        mentionedAgentIds: ['', '  ', 'valid-id'],
+        mentionedAgentIds: ['', '  '],
         senderUserId: 'user-1',
         senderDisplayName: 'User',
       }
     );
 
-    // Empty strings should be filtered or handled
-    // The actual behavior depends on validation
-    expect(result.triggered).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe('Team Chat Constants', () => {
-  test('team chat name is consistent', () => {
-    // The name "Command Center" should be consistent
-    // This is a sanity check that the service is properly configured
-    expect(teamChatResponseService).toBeDefined();
+    // Empty strings should result in no triggers since they're not valid IDs
+    expect(result.triggered).toBe(0);
+    expect(result.responses).toEqual([]);
   });
 });

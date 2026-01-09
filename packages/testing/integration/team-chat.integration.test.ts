@@ -779,8 +779,8 @@ describe('Data Integrity Verification', () => {
 
     const originalUpdatedAt = teamChat.updatedAt;
 
-    // Wait a bit to ensure timestamp difference
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait a bit to ensure timestamp difference (longer wait for CI reliability)
+    await new Promise((r) => setTimeout(r, 150));
 
     await teamChatService.addAgentToTeamChat(user.id, agent.id);
 
