@@ -8,6 +8,7 @@
 
 import {
   broadcastAgentActivity,
+  broadcastChatMessage,
   type CommentActivityData,
   type MessageActivityData,
   type PostActivityData,
@@ -1487,6 +1488,22 @@ export async function executeDirectMessage(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast to chat channel for real-time message updates
+  // This ensures all chat participants see the message immediately
+  broadcastChatMessage(chatId, {
+    id: messageId,
+    content: cleanContent,
+    chatId,
+    senderId: agentUserId,
+    createdAt: now.toISOString(),
+  }).catch((error: Error) => {
+    logger.warn(
+      `Failed to broadcast chat message: ${error.message}`,
+      { chatId, messageId },
+      'DirectExecutors'
+    );
+  });
 
   // Broadcast activity for real-time UI updates (only for non-NPCs)
   const isNpc = !!StaticDataRegistry.getActor(agentUserId);
