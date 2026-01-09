@@ -1,9 +1,13 @@
 import type { AgentTemplate } from '@babylon/agents/client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { createNameMatchRegex, generateAgentName } from '@/utils/nameGenerator';
 
 const STORAGE_KEY = 'babylon_agent_draft';
+
+// Debounce delay for name replacement in prompts (ms)
+const NAME_REPLACEMENT_DEBOUNCE_MS = 300;
 
 export interface ProfileFormData {
   username: string;
@@ -48,9 +52,12 @@ const TOTAL_PROFILE_PICTURES = 100;
 export function useAgentForm(): UseAgentFormResult {
   const { getAccessToken } = useAuth();
 
+  // Generate default agent name on mount
+  const [initialName] = useState(() => generateAgentName());
+
   const [profileData, setProfileData] = useState<ProfileFormData>({
-    username: '',
-    displayName: '',
+    username: initialName.username,
+    displayName: initialName.displayName,
     bio: '',
     profileImageUrl: '',
     coverImageUrl: '',
@@ -65,6 +72,13 @@ export function useAgentForm(): UseAgentFormResult {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
+
+  // Track the name currently used in prompts (for replacement when user changes it)
+  const nameInPromptsRef = useRef<string>(initialName.displayName);
+  // Debounce timer for name replacement to handle rapid typing
+  const nameReplacementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   // Load template on mount
   useEffect(() => {
@@ -104,10 +118,10 @@ export function useAgentForm(): UseAgentFormResult {
       const randomBanner =
         Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
 
-      // Update profile data
+      // Update profile data (preserve generated name)
       setProfileData((prev) => ({
-        username: prev.username || '',
-        displayName: prev.displayName || '',
+        username: prev.username,
+        displayName: prev.displayName,
         bio: template.description,
         profileImageUrl:
           prev.profileImageUrl ||
@@ -117,23 +131,27 @@ export function useAgentForm(): UseAgentFormResult {
           `/assets/user-banners/banner-${randomBanner}.jpg`,
       }));
 
-      // Keep {{agentName}} placeholder - will be replaced when user sets their name
-      setAgentData({
-        system: template.system,
-        personality: template.bio,
-        tradingStrategy: template.tradingStrategy,
-        initialDeposit: 100,
-      });
+      // Replace {{agentName}} placeholder with generated display name
+      const displayName = initialName.displayName;
+      setAgentData((prev) => ({
+        system: template.system.replace(/\{\{agentName\}\}/g, displayName),
+        personality: template.bio.replace(/\{\{agentName\}\}/g, displayName),
+        tradingStrategy: template.tradingStrategy.replace(
+          /\{\{agentName\}\}/g,
+          displayName
+        ),
+        initialDeposit: prev.initialDeposit,
+      }));
 
       setIsInitialized(true);
     };
 
     loadTemplate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialName is stable (from useState initializer), runs once on mount
   }, []);
 
-  // Note: {{agentName}} placeholder replacement is handled in updateProfileField
-  // when displayName is first set. Once replaced, subsequent displayName changes
-  // do not update the system prompt (it's user-editable at that point).
+  // Note: When displayName changes, we find and replace the old name with the new name
+  // in the system prompt, personality, and trading strategy fields.
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -148,24 +166,36 @@ export function useAgentForm(): UseAgentFormResult {
     (field: keyof ProfileFormData, value: string) => {
       setProfileData((prev) => ({ ...prev, [field]: value }));
 
-      // When displayName is set, replace {{agentName}} placeholder
+      // When displayName changes, replace the old name with new name in prompts
+      // Debounced to handle rapid typing and prevent race conditions
       if (field === 'displayName' && value) {
-        setAgentData((prevAgent) => {
-          if (!prevAgent.system.includes('{{agentName}}')) return prevAgent;
+        // Clear any pending replacement
+        if (nameReplacementTimerRef.current) {
+          clearTimeout(nameReplacementTimerRef.current);
+        }
 
-          return {
-            ...prevAgent,
-            system: prevAgent.system.replace(/\{\{agentName\}\}/g, value),
-            personality: prevAgent.personality.replace(
-              /\{\{agentName\}\}/g,
-              value
-            ),
-            tradingStrategy: prevAgent.tradingStrategy.replace(
-              /\{\{agentName\}\}/g,
-              value
-            ),
-          };
-        });
+        nameReplacementTimerRef.current = setTimeout(() => {
+          const oldName = nameInPromptsRef.current;
+
+          // Only replace if there's a previous name and it's different
+          if (oldName && oldName !== value) {
+            // Use flexible boundaries that handle punctuation/unicode better than \b
+            const oldNameRegex = createNameMatchRegex(oldName);
+
+            setAgentData((prevAgent) => ({
+              ...prevAgent,
+              system: prevAgent.system.replace(oldNameRegex, value),
+              personality: prevAgent.personality.replace(oldNameRegex, value),
+              tradingStrategy: prevAgent.tradingStrategy.replace(
+                oldNameRegex,
+                value
+              ),
+            }));
+          }
+
+          // Update the tracked name after replacement
+          nameInPromptsRef.current = value;
+        }, NAME_REPLACEMENT_DEBOUNCE_MS);
       }
     },
     []
@@ -216,12 +246,10 @@ export function useAgentForm(): UseAgentFormResult {
       }
 
       const result = await response.json();
-      const strippedValue = (result.value as string)
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .trim();
+      const value = (result.value as string).trim();
 
       if (field === 'personality') {
-        const personalityLines = strippedValue
+        const personalityLines = value
           .split('|')
           .map((s: string) => s.trim())
           .filter((s: string) => s);
@@ -229,7 +257,7 @@ export function useAgentForm(): UseAgentFormResult {
       } else {
         updateAgentField(
           field as keyof AgentFormData,
-          strippedValue.replace(/\n\n+/g, '\n')
+          value.replace(/\n\n+/g, '\n')
         );
       }
 

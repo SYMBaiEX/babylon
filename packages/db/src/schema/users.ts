@@ -1,5 +1,5 @@
 import type { GameOnboardingStep } from '@babylon/shared';
-import { relations, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -68,10 +68,9 @@ export const gameOnboarding = pgTable(
     // Full state as JSONB for flexibility
     // The default is generated from DEFAULT_GAME_ONBOARDING_STATE constant,
     // ensuring TypeScript validates the default against the GameOnboardingState interface.
-    // Note: sql.raw() is required because drizzle-kit doesn't support parameterized sql`` defaults
     state: jsonb('state')
       .$type<GameOnboardingState>()
-      .default(sql.raw(`'${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}'::jsonb`)),
+      .default(DEFAULT_GAME_ONBOARDING_STATE),
 
     // Quick access flags
     isComplete: boolean('isComplete').notNull().default(false),
