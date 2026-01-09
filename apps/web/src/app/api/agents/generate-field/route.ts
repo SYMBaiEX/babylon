@@ -327,6 +327,20 @@ export async function POST(req: NextRequest) {
       continue; // Retry on earlier attempts
     }
 
+    // Guard against undefined (shouldn't happen, but TypeScript requires it)
+    // This can occur if the Anthropic path continues without setting generatedValue
+    if (!generatedValue) {
+      logger.warn(
+        `No response generated on attempt ${attempt}`,
+        { fieldName, attempt },
+        'GenerateField'
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+      }
+      continue;
+    }
+
     // Try to extract clean content
     cleanedValue = extractContent(generatedValue);
 
@@ -336,17 +350,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Log warning and retry with exponential backoff
+    // Avoid logging raw model output - only log safe metadata
     logger.warn(
       `No valid <response> block found on attempt ${attempt}`,
       {
         fieldName,
         rawLength: generatedValue.length,
         hasResponseTag: generatedValue.includes('<response>'),
-        // Truncate to 100 chars to avoid logging sensitive content in production
-        rawPreview:
-          process.env.NODE_ENV === 'development'
-            ? generatedValue.substring(0, 100)
-            : '[redacted]',
       },
       'GenerateField'
     );
