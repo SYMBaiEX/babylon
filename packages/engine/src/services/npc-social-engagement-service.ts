@@ -22,6 +22,7 @@ import {
   shares,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { NPC_ENGAGEMENT_CONFIG } from '../config/npc-activity';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import { secureRandom } from '../utils/entropy';
 import { StaticDataRegistry } from './static-data-registry';
@@ -53,28 +54,6 @@ interface PostContext {
   type: string;
   authorAffiliations: string[];
 }
-
-// =============================================================================
-// CONFIG
-// =============================================================================
-
-/** Base probabilities - before affiliation/relationship boosts */
-const BASE_LIKE_PROB = 0.06;
-const BASE_SHARE_PROB = 0.015;
-const BASE_COMMENT_PROB = 0.008;
-
-/** Boost multipliers for relationships */
-const AFFILIATION_BOOST = 1.8; // Same org = 80% more likely
-const ARTICLE_BOOST = 1.5; // Articles get 50% more engagement
-
-/** Caps to prevent spam */
-const MAX_LIKES_PER_TICK = 12;
-const MAX_SHARES_PER_TICK = 4;
-const MAX_COMMENTS_PER_TICK = 3;
-
-/** Sampling config */
-const ACTORS_TO_SAMPLE = 15;
-const POSTS_TO_CONSIDER = 30;
 
 // =============================================================================
 // SERVICE CLASS
@@ -143,7 +122,7 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
       .from(posts)
       .where(and(isNull(posts.deletedAt), gte(posts.timestamp, sixHoursAgo)))
       .orderBy(desc(posts.timestamp))
-      .limit(POSTS_TO_CONSIDER);
+      .limit(NPC_ENGAGEMENT_CONFIG.postsToConsider);
 
     if (recentPostsRaw.length === 0) return result;
 
@@ -166,7 +145,7 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
       shuffled[j] = temp;
     }
     const sampledActors: ActorContext[] = shuffled
-      .slice(0, ACTORS_TO_SAMPLE)
+      .slice(0, NPC_ENGAGEMENT_CONFIG.actorsToSample)
       .map((a) => ({
         id: a.id,
         name: a.name,
@@ -201,9 +180,9 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
 
       // Early exit when all quotas are reached to avoid unnecessary work
       if (
-        result.likesCreated >= MAX_LIKES_PER_TICK &&
-        result.sharesCreated >= MAX_SHARES_PER_TICK &&
-        result.commentsCreated >= MAX_COMMENTS_PER_TICK
+        result.likesCreated >= NPC_ENGAGEMENT_CONFIG.maxLikesPerTick &&
+        result.sharesCreated >= NPC_ENGAGEMENT_CONFIG.maxSharesPerTick &&
+        result.commentsCreated >= NPC_ENGAGEMENT_CONFIG.maxCommentsPerTick
       ) {
         break actorLoop;
       }
@@ -213,7 +192,8 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
 
         // Skip likes for this actor if global like quota reached, but continue processing other posts
         // for potential shares/comments (only break inner loop for likes, not actorLoop)
-        const likesQuotaReached = result.likesCreated >= MAX_LIKES_PER_TICK;
+        const likesQuotaReached =
+          result.likesCreated >= NPC_ENGAGEMENT_CONFIG.maxLikesPerTick;
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post);
@@ -244,7 +224,10 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
         }
 
         // SHARE - use onConflictDoNothing to handle race conditions atomically
-        if (!shareSet.has(key) && result.sharesCreated < MAX_SHARES_PER_TICK) {
+        if (
+          !shareSet.has(key) &&
+          result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick
+        ) {
           if (secureRandom() < probs.share) {
             const insertResult = await db
               .insert(shares)
@@ -267,7 +250,7 @@ export async function processNPCSocialEngagements(): Promise<SocialEngagementRes
         // COMMENT - comments don't have unique constraints per-actor
         if (
           npcSocialEngagementService.getLLMClient() &&
-          result.commentsCreated < MAX_COMMENTS_PER_TICK
+          result.commentsCreated < NPC_ENGAGEMENT_CONFIG.maxCommentsPerTick
         ) {
           if (secureRandom() < probs.comment) {
             const comment = await generateNPCComment(actor, post);
@@ -344,25 +327,25 @@ function calculateEngagementProbability(
   actor: ActorContext,
   post: PostContext
 ): { like: number; share: number; comment: number } {
-  let likeProb = BASE_LIKE_PROB;
-  let shareProb = BASE_SHARE_PROB;
-  let commentProb = BASE_COMMENT_PROB;
+  let likeProb = NPC_ENGAGEMENT_CONFIG.baseLikeProbability;
+  let shareProb = NPC_ENGAGEMENT_CONFIG.baseShareProbability;
+  let commentProb = NPC_ENGAGEMENT_CONFIG.baseCommentProbability;
 
   // Affiliation boost: actors engage more with content from their orgs
   const sharedAffiliations = actor.affiliations.filter((a) =>
     post.authorAffiliations.includes(a)
   );
   if (sharedAffiliations.length > 0) {
-    likeProb *= AFFILIATION_BOOST;
-    shareProb *= AFFILIATION_BOOST;
-    commentProb *= AFFILIATION_BOOST * 1.2; // Even more likely to comment on "their people"
+    likeProb *= NPC_ENGAGEMENT_CONFIG.affiliationBoost;
+    shareProb *= NPC_ENGAGEMENT_CONFIG.affiliationBoost;
+    commentProb *= NPC_ENGAGEMENT_CONFIG.affiliationBoost * 1.2; // Even more likely to comment on "their people"
   }
 
   // Article boost: higher quality content gets more engagement
   if (post.type === 'article') {
-    likeProb *= ARTICLE_BOOST;
-    shareProb *= ARTICLE_BOOST * 1.3; // Articles get shared more
-    commentProb *= ARTICLE_BOOST;
+    likeProb *= NPC_ENGAGEMENT_CONFIG.articleBoost;
+    shareProb *= NPC_ENGAGEMENT_CONFIG.articleBoost * 1.3; // Articles get shared more
+    commentProb *= NPC_ENGAGEMENT_CONFIG.articleBoost;
   }
 
   // Add jitter for organic feel (±15% variance)

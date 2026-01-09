@@ -70,6 +70,7 @@ import {
   characterMappingService,
   createArcState,
   createParodyHeadlineGenerator,
+  FollowingMechanics,
   generateArcPulseEventsIfNeeded,
   generateArticleImageWithRetry,
   generateEvents,
@@ -128,6 +129,8 @@ export interface GameTickResult {
   npcSharesCreated?: number;
   npcCommentsCreated?: number;
   npcSocialActionsProcessed?: number;
+  npcFollowsCreated?: number;
+  npcUnfollows?: number;
   npcRebalanceActionsExecuted?: number;
   reputationSyncStats?: {
     total: number;
@@ -812,6 +815,56 @@ export async function executeGameTick(
       logger.error(
         'NPC social actions failed',
         { error: error instanceof Error ? error.message : String(error) },
+        'GameTick'
+      );
+    }
+  }
+
+  // =========================================================================
+  // NPC FOLLOWING (proactive follows and unfollow checks)
+  // NPCs follow active players and unfollow inactive ones
+  // FollowingMechanics enforces its own time-slicing using the passed-in deadline
+  // =========================================================================
+  if (Date.now() < criticalOpsDeadline) {
+    // Process proactive following of active players
+    try {
+      const followResult =
+        await FollowingMechanics.processProactiveFollowing(criticalOpsDeadline);
+      result.npcFollowsCreated = followResult.followsCreated;
+
+      if (followResult.followsCreated > 0) {
+        logger.info(
+          'NPC proactive follows processed',
+          {
+            followsCreated: followResult.followsCreated,
+            playersConsidered: followResult.playersConsidered,
+          },
+          'GameTick'
+        );
+      }
+    } catch (error) {
+      logger.error(
+        'NPC proactive following failed',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        'GameTick'
+      );
+    }
+
+    // Process unfollow checks (runs probabilistically) - separate try/catch so a failure doesn't hide follow progress
+    try {
+      const unfollowCount =
+        await FollowingMechanics.processUnfollowChecks(criticalOpsDeadline);
+      result.npcUnfollows = unfollowCount;
+    } catch (error) {
+      logger.error(
+        'NPC unfollow checks failed',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
         'GameTick'
       );
     }

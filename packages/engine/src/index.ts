@@ -48,6 +48,22 @@ export {
   type FeeTransactionType,
   type FeeType,
 } from './config/fees';
+// NPC Activity Configuration
+export {
+  getPreset,
+  logCurrentConfig,
+  NPC_ACTIVITY_CONFIG,
+  NPC_ACTIVITY_PRESETS,
+  NPC_CONTENT_PACING_CONFIG,
+  NPC_ENGAGEMENT_CONFIG,
+  NPC_FOLLOWING_CONFIG,
+  NPC_GROUP_DYNAMICS_CONFIG,
+  NPC_POSTING_CONFIG,
+  NPC_SOCIAL_ACTIONS_CONFIG,
+  NPC_TICK_CONFIG,
+  type NPCActivityConfig,
+  type NPCActivityPresetName,
+} from './config/npc-activity';
 export {
   DEFAULT_SIMULATION_CONFIG,
   PREDICTION_TEMPLATES,

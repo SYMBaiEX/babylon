@@ -33,6 +33,7 @@ import {
   getActiveEventsForPosting,
   getRecentlyMentionedActorIds,
   isActiveHour,
+  NPC_TICK_CONFIG,
   npcMemoryService,
   type PostingContext,
   postingProbabilityService,
@@ -56,17 +57,17 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Number of NPCs to process per tick (rotates through all).
- * Configurable via NPC_TICK_BATCH_SIZE environment variable.
+ * Configured via NPC_TICK_CONFIG.batchSize (env: NPC_TICK_BATCH_SIZE).
  * Target: 2-3 posts per minute total from NPCs.
- * Reduced from 40 to prevent overwhelming the feed.
  */
-const NPCS_PER_TICK = Number(process.env.NPC_TICK_BATCH_SIZE) || 3;
+const NPCS_PER_TICK = NPC_TICK_CONFIG.batchSize;
 
 /**
  * Maximum consecutive errors before aborting the tick (circuit breaker).
+ * Configured via NPC_TICK_CONFIG.maxConsecutiveErrors (env: NPC_TICK_MAX_ERRORS).
  * Prevents cascading failures if there's a systemic issue.
  */
-const MAX_CONSECUTIVE_ERRORS = Number(process.env.NPC_TICK_MAX_ERRORS) || 5;
+const MAX_CONSECUTIVE_ERRORS = NPC_TICK_CONFIG.maxConsecutiveErrors;
 
 /**
  * GET /api/cron/npc-tick

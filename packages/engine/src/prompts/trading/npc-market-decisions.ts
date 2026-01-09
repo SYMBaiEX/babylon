@@ -112,6 +112,34 @@ const TRADING_EXAMPLES: TradingExample[] = [
     amount: 2500,
     confidence: 0.6,
   },
+  {
+    title: 'NPC sells YES position (takes profit on prediction)',
+    npcId: 'npc-g',
+    npcName: 'NPC_G',
+    reasoning:
+      'YES price has risen significantly, locking in profits before resolution',
+    action: 'sell_yes',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '111222333',
+    positionId: 'null',
+    amount: 0,
+    confidence: 0.75,
+  },
+  {
+    title: 'NPC sells NO position (cuts loss on prediction)',
+    npcId: 'npc-h',
+    npcName: 'NPC_H',
+    reasoning:
+      'New evidence suggests event will occur, cutting losses on NO position',
+    action: 'sell_no',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '444555666',
+    positionId: 'null',
+    amount: 0,
+    confidence: 0.65,
+  },
 ];
 
 /**
@@ -215,7 +243,8 @@ RULES:
 - Use EXACT ticker from list (valid: {{validTickers}})
 - amount <= MAX shown in BALANCES table (or REJECTED)
 - Perp actions (open_long/open_short): marketType=perp, ticker required
-- Prediction actions (buy_yes/buy_no): marketType=prediction, marketId required
+- Prediction BUY actions (buy_yes/buy_no): marketType=prediction, marketId required
+- Prediction SELL actions (sell_yes/sell_no): marketType=prediction, marketId required, amount=0 (closes entire position)
 - close_position: positionId required (exact UUID), amount=0
 - hold: all fields null, amount=0
 

@@ -19,6 +19,7 @@ import {
   db,
   eq,
   gte,
+  isNull,
   npcTrades,
   organizationState,
   perpPositions,
@@ -287,6 +288,12 @@ export class TradeExecutionService {
       return await this.openPredictionPosition(decision, actor.id);
     }
 
+    // Handle sell actions for prediction markets (close existing position)
+    if (decision.action === 'sell_yes' || decision.action === 'sell_no') {
+      // Selling is closing a prediction market position
+      return await this.closePredictionPosition(decision, actor.id);
+    }
+
     throw new Error(`Unknown action: ${decision.action}`);
   }
 
@@ -303,6 +310,10 @@ export class TradeExecutionService {
         return 'YES';
       case 'buy_no':
         return 'NO';
+      case 'sell_yes':
+        return 'SELL_YES';
+      case 'sell_no':
+        return 'SELL_NO';
       case 'close_position':
         return 'CLOSE';
       default:
@@ -587,6 +598,145 @@ export class TradeExecutionService {
       confidence: decision.confidence,
       reasoning: decision.reasoning,
       positionId: result.positionId,
+      timestamp: now.toISOString(),
+    };
+  }
+
+  /**
+   * Close a prediction position by selling shares
+   * Used for sell_yes and sell_no actions
+   */
+  private async closePredictionPosition(
+    decision: TradingDecision,
+    actorId: string
+  ): Promise<ExecutedTrade> {
+    if (!decision.marketId) {
+      throw new Error('MarketId required for prediction sell');
+    }
+
+    // Find the actor's open position in this market
+    const sideToClose = decision.action === 'sell_yes' ? 'YES' : 'NO';
+
+    const [position] = await db
+      .select()
+      .from(poolPositions)
+      .where(
+        and(
+          eq(poolPositions.poolId, actorId),
+          eq(poolPositions.marketId, decision.marketId.toString()),
+          eq(poolPositions.side, sideToClose),
+          eq(poolPositions.marketType, 'prediction'),
+          isNull(poolPositions.closedAt)
+        )
+      )
+      .limit(1);
+
+    if (!position) {
+      throw new Error(
+        `No open ${sideToClose} position found for NPC ${decision.npcName} in market ${decision.marketId}`
+      );
+    }
+
+    const shares = position.shares ?? 0;
+    if (shares <= 0) {
+      throw new Error(
+        `Prediction position has no shares to close: ${position.id}`
+      );
+    }
+
+    const now = new Date();
+    const sideLabel: 'yes' | 'no' = sideToClose === 'YES' ? 'yes' : 'no';
+
+    const broadcast = this.createPredictionBroadcast();
+
+    const service = new CorePredictionMarketService({
+      db: new CorePredictionDbAdapter(),
+      wallet: this.buildActorWallet(actorId),
+      broadcast,
+      cache: {
+        invalidate: () => invalidateAfterPredictionTrade(decision.marketId!),
+      },
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
+
+    const sellResult = await service.sell({
+      userId: actorId,
+      marketId: decision.marketId.toString(),
+      shares,
+      positionId: position.id,
+    });
+
+    // Update the position record with a CAS guard to prevent race conditions
+    // The WHERE clause includes isNull(poolPositions.closedAt) to ensure we only
+    // update if the position is still open (optimistic locking pattern)
+    await db.transaction(async (tx: Transaction) => {
+      const updateResult = await tx
+        .update(poolPositions)
+        .set({
+          closedAt: now,
+          currentPrice:
+            sellResult.market[sideLabel === 'yes' ? 'yesPrice' : 'noPrice'] *
+            100,
+          shares: 0,
+          unrealizedPnL: 0,
+          realizedPnL: sellResult.pnl ?? 0,
+          updatedAt: now,
+        })
+        .where(
+          and(eq(poolPositions.id, position.id), isNull(poolPositions.closedAt))
+        )
+        .returning({ id: poolPositions.id });
+
+      // Check if the update succeeded (position was still open)
+      if (updateResult.length === 0) {
+        throw new Error(
+          `Position already closed: race condition detected for position ${position.id}`
+        );
+      }
+
+      await tx.insert(npcTrades).values({
+        id: await generateSnowflakeId(),
+        npcActorId: decision.npcId,
+        poolId: null,
+        marketType: 'prediction',
+        marketId: decision.marketId!.toString(),
+        action: decision.action,
+        side: sideToClose,
+        amount: sellResult.netProceeds ?? 0,
+        price: (sellResult.avgPrice ?? 0) * 100,
+        sentiment: 0,
+        reason: decision.reasoning,
+      });
+    });
+
+    await invalidateAfterPredictionTrade(decision.marketId).catch((error) => {
+      logger.warn(
+        'Failed to invalidate cache after NPC prediction sell',
+        { error, marketId: decision.marketId },
+        'TradeExecutionService'
+      );
+    });
+
+    return {
+      npcId: decision.npcId,
+      npcName: decision.npcName,
+      poolId: actorId,
+      marketType: 'prediction',
+      marketId: decision.marketId,
+      action: decision.action,
+      side: sideToClose,
+      amount: sellResult.netProceeds ?? 0,
+      size: sellResult.netProceeds ?? 0, // Executed sell volume
+      shares, // The shares that were sold (local variable)
+      executionPrice: (sellResult.avgPrice ?? 0) * 100,
+      confidence: decision.confidence,
+      reasoning: decision.reasoning,
+      positionId: position.id,
       timestamp: now.toISOString(),
     };
   }

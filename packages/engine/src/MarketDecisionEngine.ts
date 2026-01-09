@@ -1650,6 +1650,8 @@ ${prompt}`
         'open_short',
         'buy_yes',
         'buy_no',
+        'sell_yes',
+        'sell_no',
         'close_position',
         'hold',
       ];
@@ -1662,7 +1664,16 @@ ${prompt}`
       }
 
       // Validate trading actions
-      if (decision.amount <= 0) {
+      // Sell actions must use amount === 0 (means "close entire position")
+      // Note: close_position and hold are already handled above with continue
+      const isSellAction = decision.action.startsWith('sell');
+
+      // Reject negative amounts always, reject zero for non-sell, reject positive for sell
+      if (
+        decision.amount < 0 ||
+        (decision.amount === 0 && !isSellAction) ||
+        (decision.amount > 0 && isSellAction)
+      ) {
         const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
         logger.warn(errorMsg, {}, 'MarketDecisionEngine');
 
@@ -1899,8 +1910,13 @@ ${prompt}`
         }
       }
 
-      // Validate prediction actions
-      if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
+      // Validate prediction actions (buy and sell)
+      if (
+        decision.action === 'buy_yes' ||
+        decision.action === 'buy_no' ||
+        decision.action === 'sell_yes' ||
+        decision.action === 'sell_no'
+      ) {
         if (decision.marketType !== 'prediction') {
           const errorMsg = `Prediction action with non-prediction market type for ${decision.npcName}`;
           logger.warn(errorMsg, {}, 'MarketDecisionEngine');
