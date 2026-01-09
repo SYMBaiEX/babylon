@@ -1077,7 +1077,7 @@ export class MultiStepExecutor {
         // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
         // This forces agents to focus on trading, commenting, and engagement
         // NPCs are NOT affected by this limit (they need to keep the feed active)
-        if (!isNpc && Math.random() > 0.10) {
+        if (!isNpc && Math.random() > 0.1) {
           logger.info(
             `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
             undefined,
@@ -1086,7 +1086,8 @@ export class MultiStepExecutor {
           return {
             actionType: 'POST',
             success: false,
-            summary: 'Post rate limited - focus on trading and engagement instead',
+            summary:
+              'Post rate limited - focus on trading and engagement instead',
             error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
             parameters,
             timestamp: Date.now(),
