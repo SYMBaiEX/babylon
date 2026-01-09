@@ -428,6 +428,27 @@ export class FollowingMechanics {
         return result;
       }
 
+      // Batch fetch all active follows for eligible players (eliminates N+1 queries)
+      const eligiblePlayerIds = eligiblePlayers.map((p) => p.userId);
+      const allExistingFollows = await db
+        .select({ userId: followStatuses.userId, npcId: followStatuses.npcId })
+        .from(followStatuses)
+        .where(
+          and(
+            inArray(followStatuses.userId, eligiblePlayerIds),
+            eq(followStatuses.isActive, true)
+          )
+        );
+
+      // Build Map<userId, Set<npcId>> for O(1) lookup
+      const followsByUser = new Map<string, Set<string>>();
+      for (const follow of allExistingFollows) {
+        if (!followsByUser.has(follow.userId)) {
+          followsByUser.set(follow.userId, new Set());
+        }
+        followsByUser.get(follow.userId)!.add(follow.npcId);
+      }
+
       // Track follows per player this tick
       const followsPerPlayer = new Map<string, number>();
 
@@ -441,18 +462,8 @@ export class FollowingMechanics {
           continue;
         }
 
-        // Get NPCs not already following this player
-        const existingFollows = await db
-          .select({ npcId: followStatuses.npcId })
-          .from(followStatuses)
-          .where(
-            and(
-              eq(followStatuses.userId, player.userId),
-              eq(followStatuses.isActive, true)
-            )
-          );
-
-        const followingNpcIds = new Set(existingFollows.map((f) => f.npcId));
+        // Get NPCs not already following this player (using pre-fetched data)
+        const followingNpcIds = followsByUser.get(player.userId) ?? new Set();
         const eligibleNpcs = allNpcs.filter(
           (npc) => !followingNpcIds.has(npc.id)
         );
