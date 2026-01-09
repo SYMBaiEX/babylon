@@ -7,6 +7,7 @@
  * @packageDocumentation
  */
 
+import { broadcastTypingIndicator } from '@babylon/api';
 import {
   and,
   db,
@@ -356,9 +357,11 @@ export class TeamChatResponseService {
     } = params;
 
     // Check cooldown and chain-based loop prevention before waiting (fail fast)
-    if (this.isAgentOnCooldown(chatId, agentId)) {
+    // Only apply cooldown for agent-to-agent chains (depth > 0)
+    // User-initiated mentions (depth === 0) should ALWAYS trigger a response
+    if (depth > 0 && this.isAgentOnCooldown(chatId, agentId)) {
       logger.debug(
-        `Agent ${agentId} on cooldown, skipping response`,
+        `Agent ${agentId} on cooldown (A2A chain), skipping response`,
         { chatId, depth },
         'TeamChatResponseService'
       );
@@ -386,8 +389,8 @@ export class TeamChatResponseService {
     // Wait for the natural delay
     await new Promise((resolve) => setTimeout(resolve, delay));
 
-    // Re-check cooldown after delay (another response might have happened)
-    if (this.isAgentOnCooldown(chatId, agentId)) {
+    // Re-check cooldown after delay (only for A2A chains)
+    if (depth > 0 && this.isAgentOnCooldown(chatId, agentId)) {
       return {
         success: false,
         agentName: 'Agent',
@@ -418,6 +421,17 @@ export class TeamChatResponseService {
     const agentName = agent?.displayName || agent?.username || 'Agent';
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
+
+    // Broadcast typing indicator before generating response
+    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast typing indicator: ${error.message}`,
+          { chatId, agentId },
+          'TeamChatResponseService'
+        );
+      }
+    );
 
     // Generate response using LLM
     const prompt = `${systemPrompt}
@@ -455,6 +469,10 @@ Generate ONLY the response text:`;
     const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
 
     if (!cleanContent || cleanContent.length < 5) {
+      // Stop typing indicator on early failure
+      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+        () => {}
+      );
       return {
         success: false,
         agentName,
@@ -468,6 +486,17 @@ Generate ONLY the response text:`;
       chatId,
       content: cleanContent,
     });
+
+    // Stop typing indicator after sending (regardless of success)
+    broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to stop typing indicator: ${error.message}`,
+          { chatId, agentId },
+          'TeamChatResponseService'
+        );
+      }
+    );
 
     if (!sendResult.success) {
       return {
