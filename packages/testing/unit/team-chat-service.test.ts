@@ -1,8 +1,8 @@
 /**
- * TeamChatService Unit Tests
+ * TeamChatResponseService Unit Tests
  *
- * Tests the core TeamChatService functionality without database dependencies.
- * Tests the parsing/validation logic and edge cases.
+ * Tests the TeamChatResponseService functionality without database dependencies.
+ * Focuses on input validation, edge cases, and parsing logic.
  */
 
 import { describe, expect, test } from 'bun:test';
