@@ -156,11 +156,30 @@ export class ArticleRateLimiterService {
   }
 }
 
-// Singleton instance with default config (2 articles per hour)
+/**
+ * Singleton instance with default config (2 articles per hour).
+ *
+ * @remarks
+ * **TOCTOU Note**: Calling `canGenerateArticle()` and then creating an article
+ * is not atomic. In concurrent environments (e.g., multiple cron jobs or workers),
+ * race conditions may cause the configured limit to be exceeded by one article
+ * occasionally. This is expected behavior given the in-memory/cron usage pattern
+ * and the low default rate limit. If strict enforcement is required (e.g., for
+ * billing or hard caps), consider using external coordination mechanisms such as
+ * a distributed lock, centralized atomic counter, or database transaction with
+ * row-level locking.
+ */
 export const articleRateLimiter = new ArticleRateLimiterService();
 
 /**
- * Create a custom rate limiter with different limits
+ * Create a custom rate limiter with different limits.
+ *
+ * @remarks
+ * **TOCTOU Note**: The check-then-act pattern (`canGenerateArticle()` followed
+ * by article creation) is not atomic. Concurrent processes may occasionally
+ * exceed the limit by one. This is acceptable for typical in-memory/cron usage
+ * with low rate limits. For strict enforcement, use external coordination
+ * (e.g., distributed lock or centralized counter).
  *
  * @example
  * ```typescript

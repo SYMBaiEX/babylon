@@ -78,35 +78,54 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   logger.info('🌍 World facts update started', undefined, 'Cron');
 
   // Step 1: Fetch all RSS feeds
-  logger.info('Fetching RSS feeds...', undefined, 'Cron');
-  const feedResult = await rssFeedService.fetchAllFeeds();
-  logger.info(
-    `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
-    feedResult,
-    'Cron'
-  );
+  let feedResult = { fetched: 0, stored: 0, errors: 0 };
+  try {
+    logger.info('Fetching RSS feeds...', undefined, 'Cron');
+    feedResult = await rssFeedService.fetchAllFeeds();
+    logger.info(
+      `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
+      feedResult,
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error fetching RSS feeds', { error }, 'Cron');
+  }
 
   // Step 2: Transform untransformed headlines into parodies
-  logger.info('Generating parody headlines...', undefined, 'Cron');
-  const untransformedHeadlines =
-    await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
+  let parodies: Awaited<
+    ReturnType<
+      ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']
+    >
+  > = [];
+  try {
+    logger.info('Generating parody headlines...', undefined, 'Cron');
+    const untransformedHeadlines =
+      await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
 
-  const generator = createParodyHeadlineGenerator();
-  const parodies = await generator.processHeadlines(untransformedHeadlines);
-  logger.info(
-    `Generated ${parodies.length} parody headlines`,
-    { count: parodies.length },
-    'Cron'
-  );
+    const generator = createParodyHeadlineGenerator();
+    parodies = await generator.processHeadlines(untransformedHeadlines);
+    logger.info(
+      `Generated ${parodies.length} parody headlines`,
+      { count: parodies.length },
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error generating parody headlines', { error }, 'Cron');
+  }
 
   // Step 3: Clean up old headlines (older than 7 days)
-  logger.info('Cleaning up old headlines...', undefined, 'Cron');
-  const cleaned = await rssFeedService.cleanupOldHeadlines();
-  logger.info(
-    `Cleaned up ${cleaned} old headlines`,
-    { count: cleaned },
-    'Cron'
-  );
+  let cleaned = 0;
+  try {
+    logger.info('Cleaning up old headlines...', undefined, 'Cron');
+    cleaned = await rssFeedService.cleanupOldHeadlines();
+    logger.info(
+      `Cleaned up ${cleaned} old headlines`,
+      { count: cleaned },
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error cleaning up old headlines', { error }, 'Cron');
+  }
 
   // Step 4: Generate new world facts from game activity
   // This creates fresh context based on events, markets, questions, and actor activity
