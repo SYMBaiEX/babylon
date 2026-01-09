@@ -109,10 +109,10 @@ export * from './market-impact-service';
 export * from './npc-wallet-adapter';
 export * from './rss-feed-service';
 export * from './static-data-registry';
-export * from './world-facts-generator';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';
+export * from './world-facts-generator';
 
 // =============================================================================
 // Oracle & Portfolio Services

@@ -1883,7 +1883,10 @@ async function generateArticles(
   if (recentEvents.length === 0) {
     logger.info(
       'No recent events - generating baseline articles instead',
-      { questionArticles: questionArticlesCreated, remaining: remainingAfterQuestions },
+      {
+        questionArticles: questionArticlesCreated,
+        remaining: remainingAfterQuestions,
+      },
       'GameTick'
     );
 
@@ -1911,7 +1914,10 @@ async function generateArticles(
   const articleGen = new ArticleGenerator(llm);
 
   // Generate up to remaining slots (respecting hourly rate limit)
-  const articlesToGenerate = Math.min(remainingAfterQuestions, recentEvents.length);
+  const articlesToGenerate = Math.min(
+    remainingAfterQuestions,
+    recentEvents.length
+  );
   const eventsTocover = recentEvents.slice(0, articlesToGenerate);
 
   logger.info(
@@ -2307,7 +2313,11 @@ async function generateArticlesForActiveQuestions(
         ? 1 + Math.floor(Math.random() * 2) // 1-2 orgs
         : Math.min(1, eligibleOrgs.length); // 1 more org for commentary
 
-    const targetCount = Math.min(desiredCount, remainingSlots, eligibleOrgs.length);
+    const targetCount = Math.min(
+      desiredCount,
+      remainingSlots,
+      eligibleOrgs.length
+    );
 
     if (targetCount === 0) {
       continue; // No slots left
@@ -2593,7 +2603,11 @@ async function generateBaselineArticlesParallel(
   }
 
   // Limit to maxArticles (respects hourly rate limit)
-  const articlesToGenerate = Math.min(maxArticles, newsOrgs.length, articleTopics.length);
+  const articlesToGenerate = Math.min(
+    maxArticles,
+    newsOrgs.length,
+    articleTopics.length
+  );
 
   if (articlesToGenerate === 0) {
     return 0;

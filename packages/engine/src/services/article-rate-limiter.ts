@@ -41,7 +41,8 @@ export class ArticleRateLimiterService {
 
   constructor(config: Partial<ArticleRateLimitConfig> = {}) {
     this.config = {
-      maxArticlesPerHour: config.maxArticlesPerHour ?? DEFAULT_CONFIG.maxArticlesPerHour,
+      maxArticlesPerHour:
+        config.maxArticlesPerHour ?? DEFAULT_CONFIG.maxArticlesPerHour,
       windowMs: config.windowMs ?? DEFAULT_CONFIG.windowMs,
     } satisfies Required<ArticleRateLimitConfig>;
   }
@@ -78,7 +79,10 @@ export class ArticleRateLimiterService {
     remaining: number;
   }> {
     const currentCount = await this.getRecentArticleCount();
-    const remaining = Math.max(0, this.config.maxArticlesPerHour - currentCount);
+    const remaining = Math.max(
+      0,
+      this.config.maxArticlesPerHour - currentCount
+    );
 
     const result = {
       allowed: currentCount < this.config.maxArticlesPerHour,
@@ -115,7 +119,8 @@ export class ArticleRateLimiterService {
    * Convenience method for use at the start of article generation
    */
   async checkAndLog(source: string): Promise<boolean> {
-    const { allowed, currentCount, maxAllowed, remaining } = await this.canGenerateArticle();
+    const { allowed, currentCount, maxAllowed, remaining } =
+      await this.canGenerateArticle();
 
     if (allowed) {
       logger.info(

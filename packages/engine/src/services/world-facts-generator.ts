@@ -79,18 +79,28 @@ export class WorldFactsGeneratorService {
     };
   }> {
     const startTime = Date.now();
-    logger.info('Starting world facts generation', undefined, 'WorldFactsGenerator');
+    logger.info(
+      'Starting world facts generation',
+      undefined,
+      'WorldFactsGenerator'
+    );
 
     // Gather context from different sources
-    const [eventFacts, marketFacts, questionFacts, actorFacts] = await Promise.all([
-      this.generateFactsFromEvents(),
-      this.generateFactsFromMarketActivity(),
-      this.generateFactsFromQuestions(),
-      this.generateFactsFromActorActivity(),
-    ]);
+    const [eventFacts, marketFacts, questionFacts, actorFacts] =
+      await Promise.all([
+        this.generateFactsFromEvents(),
+        this.generateFactsFromMarketActivity(),
+        this.generateFactsFromQuestions(),
+        this.generateFactsFromActorActivity(),
+      ]);
 
     // Combine and deduplicate
-    const allNewFacts = [...eventFacts, ...marketFacts, ...questionFacts, ...actorFacts];
+    const allNewFacts = [
+      ...eventFacts,
+      ...marketFacts,
+      ...questionFacts,
+      ...actorFacts,
+    ];
 
     // Store the new facts
     let storedCount = 0;
@@ -213,8 +223,11 @@ Return as XML:
         }
       );
 
-      const facts = 'response' in response ? response.response.facts : response.facts;
-      return Array.isArray(facts) ? facts.filter((f) => f && f.length > 10) : [];
+      const facts =
+        'response' in response ? response.response.facts : response.facts;
+      return Array.isArray(facts)
+        ? facts.filter((f) => f && f.length > 10)
+        : [];
     } catch (error) {
       logger.error(
         'Failed to generate facts from events',
@@ -246,9 +259,7 @@ Return as XML:
       return [];
     }
 
-    const questionList = activeQuestions
-      .map((q) => `- "${q.text}"`)
-      .join('\n');
+    const questionList = activeQuestions.map((q) => `- "${q.text}"`).join('\n');
 
     const prompt = `Based on these active prediction markets in our satirical AI world, generate 1-2 world facts about what people are betting on and the current mood/sentiment.
 
@@ -290,8 +301,11 @@ Return as XML:
         }
       );
 
-      const facts = 'response' in response ? response.response.facts : response.facts;
-      return Array.isArray(facts) ? facts.filter((f) => f && f.length > 10) : [];
+      const facts =
+        'response' in response ? response.response.facts : response.facts;
+      return Array.isArray(facts)
+        ? facts.filter((f) => f && f.length > 10)
+        : [];
     } catch (error) {
       logger.error(
         'Failed to generate facts from markets',
@@ -333,7 +347,9 @@ Return as XML:
     for (const q of recentlyResolved) {
       const outcomeText = q.outcome ? 'YES' : 'NO';
       // Create a simple fact about the resolution
-      facts.push(`The prediction market "${q.text}" resolved to ${outcomeText}, which has implications for related markets and discussions.`);
+      facts.push(
+        `The prediction market "${q.text}" resolved to ${outcomeText}, which has implications for related markets and discussions.`
+      );
     }
 
     return facts.slice(0, 2);
@@ -364,12 +380,7 @@ Return as XML:
         authorId: posts.authorId,
       })
       .from(posts)
-      .where(
-        and(
-          gte(posts.timestamp, oneDayAgo),
-          isNull(posts.deletedAt)
-        )
-      )
+      .where(and(gte(posts.timestamp, oneDayAgo), isNull(posts.deletedAt)))
       .orderBy(desc(posts.timestamp))
       .limit(20);
 
@@ -425,8 +436,11 @@ Return as XML:
         }
       );
 
-      const facts = 'response' in response ? response.response.facts : response.facts;
-      return Array.isArray(facts) ? facts.filter((f) => f && f.length > 10) : [];
+      const facts =
+        'response' in response ? response.response.facts : response.facts;
+      return Array.isArray(facts)
+        ? facts.filter((f) => f && f.length > 10)
+        : [];
     } catch (error) {
       logger.error(
         'Failed to generate facts from actors',
@@ -521,9 +535,24 @@ Return as XML:
     newestFact: Date | null;
   }> {
     const [totalResult, autoResult, facts] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(worldFacts).where(eq(worldFacts.isActive, true)),
-      db.select({ count: sql<number>`count(*)::int` }).from(worldFacts).where(and(eq(worldFacts.isActive, true), eq(worldFacts.source, 'auto-generated'))),
-      db.select({ createdAt: worldFacts.createdAt }).from(worldFacts).where(eq(worldFacts.isActive, true)).orderBy(desc(worldFacts.createdAt)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(worldFacts)
+        .where(eq(worldFacts.isActive, true)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(worldFacts)
+        .where(
+          and(
+            eq(worldFacts.isActive, true),
+            eq(worldFacts.source, 'auto-generated')
+          )
+        ),
+      db
+        .select({ createdAt: worldFacts.createdAt })
+        .from(worldFacts)
+        .where(eq(worldFacts.isActive, true))
+        .orderBy(desc(worldFacts.createdAt)),
     ]);
 
     const total = totalResult[0]?.count ?? 0;

@@ -270,7 +270,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     case 'generate_world_facts': {
       // Generate new world facts from game activity
-      logger.info('Manual world facts generation triggered', undefined, 'WorldFactsAdmin');
+      logger.info(
+        'Manual world facts generation triggered',
+        undefined,
+        'WorldFactsAdmin'
+      );
       const result = await worldFactsGenerator.generateNewWorldFacts();
       logger.info(
         `Generated ${result.generated} world facts, archived ${result.archived}`,

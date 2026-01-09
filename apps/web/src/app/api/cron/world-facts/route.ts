@@ -110,7 +110,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Step 4: Generate new world facts from game activity
   // This creates fresh context based on events, markets, questions, and actor activity
-  logger.info('Generating new world facts from game activity...', undefined, 'Cron');
+  logger.info(
+    'Generating new world facts from game activity...',
+    undefined,
+    'Cron'
+  );
   const factsResult = await worldFactsGenerator.generateNewWorldFacts();
   logger.info(
     `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
