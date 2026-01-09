@@ -229,38 +229,42 @@ export function useTeamChat(): UseTeamChatReturn {
     setLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        return;
+      }
 
-    // Use POST to ensure team chat exists and sync any pre-existing agents
-    const response = await fetch('/api/agents/team-chat', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      // Use POST to ensure team chat exists and sync any pre-existing agents
+      const response = await fetch('/api/agents/team-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (response.status === 404) {
-      // No team chat exists - user has no agents
-      setTeamChat(null);
-      setLoading(false);
-      return;
-    }
+      if (response.status === 404) {
+        // No team chat exists - user has no agents
+        setTeamChat(null);
+        return;
+      }
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.message || 'Failed to load Command Center');
+        return;
+      }
+
       const data = await response.json();
-      setError(data.message || 'Failed to load Command Center');
+      setTeamChat(data.teamChat);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to load Command Center'
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const data = await response.json();
-    setTeamChat(data.teamChat);
-    setLoading(false);
   }, [getAccessToken]);
 
   // Initial load
@@ -315,62 +319,67 @@ export function useTeamChat(): UseTeamChatReturn {
     setSendError(null);
     setSendSuccess(false);
 
-    const token = await getAccessToken();
-    if (!token) {
-      setSendError('Not authenticated');
-      setSending(false);
-      return;
-    }
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setSendError('Not authenticated');
+        return;
+      }
 
-    // Use dedicated team chat message endpoint for @mention handling
-    const response = await fetch('/api/agents/team-chat/message', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        content: messageInput.trim(),
-        // Include mentioned agent IDs for priority response handling
-        mentionedAgentIds:
-          mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
-      }),
-    });
+      // Use dedicated team chat message endpoint for @mention handling
+      const response = await fetch('/api/agents/team-chat/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: messageInput.trim(),
+          // Include mentioned agent IDs for priority response handling
+          mentionedAgentIds:
+            mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
+        }),
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const data = await response.json();
+        setSendError(data.message || 'Failed to send message');
+        return;
+      }
+
       const data = await response.json();
-      setSendError(data.message || 'Failed to send message');
+
+      // Add message to realtime messages
+      if (data.message) {
+        const newMessage: ChatMessage = {
+          id: data.message.id,
+          chatId: teamChat.chatId,
+          content: data.message.content,
+          senderId: data.message.senderId,
+          type: data.message.type,
+          createdAt: data.message.createdAt,
+        };
+        addMessage(newMessage);
+      }
+
+      setMessageInput('');
+      setMentionedAgentIds([]);
+      setSendSuccess(true);
+
+      // Scroll to bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+
+      // Clear success after 2 seconds
+      setTimeout(() => setSendSuccess(false), 2000);
+    } catch (err) {
+      setSendError(
+        err instanceof Error ? err.message : 'Failed to send message'
+      );
+    } finally {
       setSending(false);
-      return;
     }
-
-    const data = await response.json();
-
-    // Add message to realtime messages
-    if (data.message) {
-      const newMessage: ChatMessage = {
-        id: data.message.id,
-        chatId: teamChat.chatId,
-        content: data.message.content,
-        senderId: data.message.senderId,
-        type: data.message.type,
-        createdAt: data.message.createdAt,
-      };
-      addMessage(newMessage);
-    }
-
-    setMessageInput('');
-    setMentionedAgentIds([]);
-    setSendSuccess(true);
-    setSending(false);
-
-    // Scroll to bottom
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-
-    // Clear success after 2 seconds
-    setTimeout(() => setSendSuccess(false), 2000);
   }, [
     teamChat,
     messageInput,
