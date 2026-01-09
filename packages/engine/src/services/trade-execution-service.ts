@@ -682,6 +682,7 @@ export class TradeExecutionService {
           currentPrice:
             sellResult.market[sideLabel === 'yes' ? 'yesPrice' : 'noPrice'] *
             100,
+          shares: 0,
           unrealizedPnL: 0,
           realizedPnL: sellResult.pnl ?? 0,
           updatedAt: now,

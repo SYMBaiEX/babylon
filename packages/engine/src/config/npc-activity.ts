@@ -59,8 +59,10 @@ function envNumber(key: string, defaultValue: number): number {
 function envProbability(key: string, defaultValue: number): number {
   const value = envNumber(key, defaultValue);
   if (value < 0 || value > 1) {
-    console.warn(
-      `[NPC Config] ${key}=${value} is outside valid probability range (0-1), clamping to bounds`
+    logger.warn(
+      `${key}=${value} is outside valid probability range (0-1), clamping to bounds`,
+      { key, value },
+      'npc-activity'
     );
   }
   return Math.max(0, Math.min(1, value));
@@ -758,8 +760,10 @@ export function getPreset(presetName: string): Record<string, string> {
     : undefined;
 
   if (!preset) {
-    console.warn(
-      `[NPC Config] Unknown preset "${presetName}", falling back to "default"`
+    logger.warn(
+      `Unknown preset "${presetName}", falling back to "default"`,
+      { presetName },
+      'npc-activity'
     );
     return Object.freeze({ ...NPC_ACTIVITY_PRESETS.default });
   }
@@ -771,13 +775,13 @@ export function getPreset(presetName: string): Record<string, string> {
  * Useful for debugging and verifying environment variable overrides.
  */
 export function logCurrentConfig(): void {
-  logger.info('=== NPC Activity Configuration ===');
-  logger.info('Posting:', NPC_POSTING_CONFIG);
-  logger.info('Engagement:', NPC_ENGAGEMENT_CONFIG);
-  logger.info('Social Actions:', NPC_SOCIAL_ACTIONS_CONFIG);
-  logger.info('Group Dynamics:', NPC_GROUP_DYNAMICS_CONFIG);
-  logger.info('Content Pacing:', NPC_CONTENT_PACING_CONFIG);
-  logger.info('Following:', NPC_FOLLOWING_CONFIG);
-  logger.info('Tick Processing:', NPC_TICK_CONFIG);
-  logger.info('================================');
+  logger.info('NPC Activity Configuration - Header', {}, 'npc-activity');
+  logger.info('NPC Activity Configuration - Posting', NPC_POSTING_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Engagement', NPC_ENGAGEMENT_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Social Actions', NPC_SOCIAL_ACTIONS_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Group Dynamics', NPC_GROUP_DYNAMICS_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Content Pacing', NPC_CONTENT_PACING_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Following', NPC_FOLLOWING_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Tick Processing', NPC_TICK_CONFIG, 'npc-activity');
+  logger.info('NPC Activity Configuration - Footer', {}, 'npc-activity');
 }
