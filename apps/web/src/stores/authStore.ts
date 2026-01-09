@@ -64,6 +64,8 @@ export interface User {
     followers?: number;
     following?: number;
   };
+  // Game guide completion
+  gameGuideCompletedAt?: string | null;
 }
 
 interface Wallet {
