@@ -150,32 +150,34 @@ export default function AgentsPage() {
 
         {/* Command Center Card - shown when user has agents */}
         {agents.length > 0 && (
-          <Link href="/agents/team">
-            <div className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4 transition-all hover:border-blue-500/50 hover:shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500">
-                    <Users className="h-6 w-6 text-white" />
+          <div className="mb-2">
+            <Link href="/agents/team" className="block">
+              <div className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4 transition-all hover:border-blue-500/50 hover:shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500">
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground text-lg">
+                        Command Center
+                      </h3>
+                      <p className="text-muted-foreground text-sm">
+                        Coordinate all {agents.length} agent
+                        {agents.length !== 1 ? 's' : ''} in one chat
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-lg">
-                      Command Center
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      Coordinate all {agents.length} agent
-                      {agents.length !== 1 ? 's' : ''} in one chat
-                    </p>
+                  <div className="flex items-center gap-2 text-blue-500">
+                    <MessageCircle className="h-5 w-5" />
+                    <span className="font-medium text-sm group-hover:underline">
+                      Open Chat
+                    </span>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 text-blue-500">
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="font-medium text-sm group-hover:underline">
-                    Open Chat
-                  </span>
                 </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+          </div>
         )}
 
         {/* Filters */}

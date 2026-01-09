@@ -205,6 +205,7 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    message: 'Team chat deleted. Visit Command Center again to create a fresh one.',
+    message:
+      'Team chat deleted. Visit Command Center again to create a fresh one.',
   });
 }
