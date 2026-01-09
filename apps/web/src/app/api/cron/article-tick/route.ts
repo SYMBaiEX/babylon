@@ -29,10 +29,19 @@ import {
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
-import { db, eq, games, generateSnowflakeId, posts, and, gte, isNull } from '@babylon/db';
 import {
-  articleRateLimiter,
+  and,
+  db,
+  eq,
+  games,
+  generateSnowflakeId,
+  gte,
+  isNull,
+  posts,
+} from '@babylon/db';
+import {
   ArticleGenerator,
+  articleRateLimiter,
   BabylonLLMClient,
   characterMappingService,
   generateArticleImageWithRetry,
@@ -271,16 +280,19 @@ export async function POST(_req: NextRequest) {
     // Generate articles based on active events
     if (activeEventsData.activeEvents.length > 0 && articlesToGenerate > 0) {
       // Pick a random event to cover
-      const eventIndex = Math.floor(secureRandom() * activeEventsData.activeEvents.length);
+      const eventIndex = Math.floor(
+        secureRandom() * activeEventsData.activeEvents.length
+      );
       const event = activeEventsData.activeEvents[eventIndex];
 
       if (event) {
         // Check if we've already covered this event by checking questionId
         const eventId = event.questionId;
-        
+
         const alreadyCovered = recentArticles.some((article) => {
           // Check if article mentions this question's topic
-          const articleText = `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
+          const articleText =
+            `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
           return articleText.includes(eventId.toLowerCase());
         });
 
@@ -455,9 +467,15 @@ Return your response as XML:
   }
 
   // Transform content to use parody names
-  const transformedTitle = await characterMappingService.transformText(articleData.title.trim());
-  const transformedSummary = await characterMappingService.transformText(articleData.summary.trim());
-  const transformedBody = await characterMappingService.transformText(articleData.article.trim());
+  const transformedTitle = await characterMappingService.transformText(
+    articleData.title.trim()
+  );
+  const transformedSummary = await characterMappingService.transformText(
+    articleData.summary.trim()
+  );
+  const transformedBody = await characterMappingService.transformText(
+    articleData.article.trim()
+  );
 
   // Generate article image if available
   let imageUrl: string | null = null;
@@ -501,7 +519,9 @@ async function generateBaselineArticle(
   llmClient: BabylonLLMClient
 ): Promise<{ id: string } | null> {
   // Pick a random actor to focus on
-  const actorIndex = Math.floor(secureRandom() * Math.min(10, actorsList.length));
+  const actorIndex = Math.floor(
+    secureRandom() * Math.min(10, actorsList.length)
+  );
   const actor = actorsList[actorIndex];
 
   const topic = actor
@@ -563,9 +583,15 @@ Return your response as XML:
   }
 
   // Transform content to use parody names
-  const transformedTitle = await characterMappingService.transformText(articleData.title.trim());
-  const transformedSummary = await characterMappingService.transformText(articleData.summary.trim());
-  const transformedBody = await characterMappingService.transformText(articleData.article.trim());
+  const transformedTitle = await characterMappingService.transformText(
+    articleData.title.trim()
+  );
+  const transformedSummary = await characterMappingService.transformText(
+    articleData.summary.trim()
+  );
+  const transformedBody = await characterMappingService.transformText(
+    articleData.article.trim()
+  );
 
   // Generate article image if available
   let imageUrl: string | null = null;
