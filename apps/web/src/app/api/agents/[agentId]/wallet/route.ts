@@ -13,7 +13,7 @@
 import { agentService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
 import { balanceTransactions, db, desc, eq, users } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -79,14 +79,14 @@ export async function POST(
   if (action === 'deposit') {
     await agentService.depositTradingBalance(agentId, user.id, amount);
     logger.info(
-      `Deposited $${amount} to agent ${agentId}`,
+      `Deposited ${BABYLON_POINTS_SYMBOL}${amount} to agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   } else {
     await agentService.withdrawTradingBalance(agentId, user.id, amount);
     logger.info(
-      `Withdrew $${amount} from agent ${agentId}`,
+      `Withdrew ${BABYLON_POINTS_SYMBOL}${amount} from agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
@@ -110,6 +110,6 @@ export async function POST(
       totalWithdrawn: Number(agent?.totalWithdrawn ?? 0),
     },
     userBalance,
-    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toFixed(2)} successfully`,
+    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} ${BABYLON_POINTS_SYMBOL}${amount.toFixed(2)} successfully`,
   });
 }

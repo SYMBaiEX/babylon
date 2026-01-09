@@ -1,5 +1,5 @@
 import type { GameOnboardingStep } from '@babylon/shared';
-import { relations, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -70,9 +70,7 @@ export const gameOnboarding = pgTable(
     // ensuring TypeScript validates the default against the GameOnboardingState interface.
     state: jsonb('state')
       .$type<GameOnboardingState>()
-      .default(
-        sql.raw(`'${JSON.stringify(DEFAULT_GAME_ONBOARDING_STATE)}'::jsonb`)
-      ),
+      .default(DEFAULT_GAME_ONBOARDING_STATE),
 
     // Quick access flags
     isComplete: boolean('isComplete').notNull().default(false),
@@ -269,6 +267,8 @@ export const users = pgTable(
     // Agent flags (config stored in UserAgentConfig table)
     isAgent: boolean('isAgent').notNull().default(false),
     managedBy: text('managedBy'),
+    // Game guide completion tracking
+    gameGuideCompletedAt: timestamp('gameGuideCompletedAt', { mode: 'date' }),
   },
   (table) => [
     index('User_displayName_idx').on(table.displayName),

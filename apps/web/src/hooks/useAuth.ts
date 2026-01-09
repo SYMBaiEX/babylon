@@ -287,6 +287,7 @@ export function useAuth(): UseAuthReturn {
             isBanned: me.user.isBanned ?? undefined,
             bannedAt: me.user.bannedAt ?? undefined,
             bannedReason: me.user.bannedReason ?? undefined,
+            gameGuideCompletedAt: me.user.gameGuideCompletedAt ?? null,
           };
 
           // Only update if data has actually changed (prevent infinite re-render loop)
@@ -310,7 +311,9 @@ export function useAuth(): UseAuthReturn {
             currentUser.hasTwitter !== hydratedUser.hasTwitter ||
             currentUser.isAdmin !== hydratedUser.isAdmin ||
             currentUser.isActor !== hydratedUser.isActor ||
-            currentUser.isBanned !== hydratedUser.isBanned;
+            currentUser.isBanned !== hydratedUser.isBanned ||
+            currentUser.gameGuideCompletedAt !==
+              hydratedUser.gameGuideCompletedAt;
 
           if (hasChanged) {
             setUser(hydratedUser);

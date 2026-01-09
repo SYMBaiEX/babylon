@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   ArrowDown,
   ArrowUp,
@@ -49,9 +49,7 @@ function formatValue(
 
   switch (format) {
     case 'currency':
-      if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
-      if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
-      return `$${num.toFixed(2)}`;
+      return formatCompactCurrency(num);
     case 'percentage':
       return `${num.toFixed(1)}%`;
     case 'number':

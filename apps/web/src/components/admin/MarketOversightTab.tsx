@@ -18,7 +18,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   AlertTriangle,
   BarChart2,
@@ -189,11 +189,8 @@ export function MarketOversightTab() {
     });
   };
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-    return `$${value.toFixed(2)}`;
-  };
+  /** Use shared formatCompactCurrency for currency formatting */
+  const formatCurrency = formatCompactCurrency;
 
   const getStatusBadge = (status: Market['status']) => {
     switch (status) {

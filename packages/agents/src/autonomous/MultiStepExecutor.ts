@@ -54,6 +54,7 @@ import { topicDiversityService } from './TopicDiversityService';
 
 import {
   type ActionTraceResult,
+  type AgentOwnPostContext,
   type AgentTickContext,
   buildMultiStepDecisionPrompt,
   type MultiStepDecision,
@@ -327,6 +328,7 @@ export class MultiStepExecutor {
     const canComment = enabledFeatures.includes('commenting');
     const canRespondDMs = enabledFeatures.includes('DMs');
     const canGroupChat = enabledFeatures.includes('groupChats');
+    const canPost = enabledFeatures.includes('posting');
 
     // Gather context in parallel - all these queries are independent
     const [
@@ -336,6 +338,7 @@ export class MultiStepExecutor {
       recentPosts,
       pendingInteractions,
       agentGroupChats,
+      agentOwnPosts,
     ] = await Promise.all([
       // Get prediction markets (only if trading enabled)
       canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
@@ -353,6 +356,8 @@ export class MultiStepExecutor {
         : Promise.resolve([]),
       // Get agent's group chats (only if group chats enabled)
       canGroupChat ? this.getAgentGroupChats(agentUserId) : Promise.resolve([]),
+      // Get agent's own recent posts (for posting frequency awareness)
+      canPost ? this.getAgentOwnPosts(agentUserId) : Promise.resolve([]),
     ]);
 
     // Get topic diversity guidance for this agent
@@ -385,6 +390,8 @@ export class MultiStepExecutor {
       // NPC's actual character data for personalized guidance
       personality: assignment?.personality,
       postStyle: assignment?.postStyle,
+      // Agent's own recent posts for self-awareness
+      agentOwnPosts,
     };
   }
 
@@ -483,6 +490,83 @@ export class MultiStepExecutor {
       // Log the error before returning empty fallback
       logger.warn(
         'Failed to fetch agent group chats',
+        {
+          agentUserId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'MultiStepExecutor'
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get agent's own recent posts for self-awareness
+   * Shows what the agent has posted recently with engagement metrics
+   */
+  private async getAgentOwnPosts(
+    agentUserId: string
+  ): Promise<AgentOwnPostContext[]> {
+    try {
+      // Use posts.timestamp for ordering to leverage Post_authorId_timestamp_idx index
+      const recentOwnPosts = await db
+        .select({
+          id: posts.id,
+          content: posts.content,
+          timestamp: posts.timestamp,
+        })
+        .from(posts)
+        .where(and(eq(posts.authorId, agentUserId), isNull(posts.deletedAt)))
+        .orderBy(desc(posts.timestamp))
+        .limit(5);
+
+      if (recentOwnPosts.length === 0) {
+        return [];
+      }
+
+      // Get engagement counts for these posts
+      const postIds = recentOwnPosts.map((p) => p.id);
+      const [likeCounts, commentCounts] = await Promise.all([
+        db
+          .select({
+            postId: reactions.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(reactions)
+          .where(
+            and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
+          )
+          .groupBy(reactions.postId),
+        db
+          .select({
+            postId: comments.postId,
+            count: sql<number>`count(*)`,
+          })
+          .from(comments)
+          .where(
+            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
+          )
+          .groupBy(comments.postId),
+      ]);
+
+      const likeCountMap = new Map<string, number>();
+      const commentCountMap = new Map<string, number>();
+      for (const row of likeCounts) {
+        if (row.postId) likeCountMap.set(row.postId, Number(row.count));
+      }
+      for (const row of commentCounts) {
+        if (row.postId) commentCountMap.set(row.postId, Number(row.count));
+      }
+
+      return recentOwnPosts.map((p) => ({
+        content: p.content,
+        timeAgo: getTimeAgo(p.timestamp),
+        likeCount: likeCountMap.get(p.id) ?? 0,
+        commentCount: commentCountMap.get(p.id) ?? 0,
+      }));
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch agent own posts',
         {
           agentUserId,
           error: error instanceof Error ? error.message : String(error),

@@ -33,6 +33,7 @@ import {
 } from '@babylon/db';
 import type { AgentCapabilities } from '@babylon/shared';
 import {
+  BABYLON_POINTS_SYMBOL,
   getCurrentChainId,
   IDENTITY_REGISTRY_BASE_SEPOLIA,
   REPUTATION_SYSTEM_BASE_SEPOLIA,
@@ -687,7 +688,7 @@ export class AgentServiceV2 {
     });
 
     logger.info(
-      `Deposited $${amount} trading balance to agent ${agentUserId}`,
+      `Deposited ${BABYLON_POINTS_SYMBOL}${amount} trading balance to agent ${agentUserId}`,
       undefined,
       'AgentService'
     );
@@ -801,7 +802,7 @@ export class AgentServiceV2 {
     });
 
     logger.info(
-      `Withdrew $${amount} trading balance from agent ${agentUserId}`,
+      `Withdrew ${BABYLON_POINTS_SYMBOL}${amount} trading balance from agent ${agentUserId}`,
       undefined,
       'AgentService'
     );
