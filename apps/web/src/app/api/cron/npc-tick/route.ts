@@ -711,62 +711,74 @@ export async function POST(_req: NextRequest) {
           (a) => a.role === 'main' || a.role === 'supporting'
         );
 
-        // Use tick-based deterministic rotation for even coverage across ticks
-        // Derive tick number from startTime (minute-based to ensure different offset each tick)
-        const tickNumber = Math.floor(startTime / 60000); // tick per minute
-        const sampleSize = Math.min(5, activeNPCs.length);
-        const startOffset = tickNumber % activeNPCs.length;
-        // Select NPCs starting at offset, wrapping around the array
-        const sampledNPCs: typeof activeNPCs = [];
-        for (let i = 0; i < sampleSize; i++) {
-          const idx = (startOffset + i) % activeNPCs.length;
-          sampledNPCs.push(activeNPCs[idx]!);
-        }
+        // Guard against empty NPC list to avoid modulo-by-zero
+        if (activeNPCs.length === 0) {
+          logger.info(
+            'No active NPCs for portfolio rebalancing',
+            undefined,
+            'NPCTick'
+          );
+        } else {
+          // Use tick-based deterministic rotation for even coverage across ticks
+          // Derive tick number from startTime (minute-based to ensure different offset each tick)
+          const tickNumber = Math.floor(startTime / 60000); // tick per minute
+          const sampleSize = Math.min(
+            NPC_TICK_CONFIG.batchSize,
+            activeNPCs.length
+          );
+          const startOffset = tickNumber % activeNPCs.length;
+          // Select NPCs starting at offset, wrapping around the array
+          const sampledNPCs: typeof activeNPCs = [];
+          for (let i = 0; i < sampleSize; i++) {
+            const idx = (startOffset + i) % activeNPCs.length;
+            sampledNPCs.push(activeNPCs[idx]!);
+          }
 
-        for (const npc of sampledNPCs) {
-          if (Date.now() >= tradeDeadline) break;
+          for (const npc of sampledNPCs) {
+            if (Date.now() >= tradeDeadline) break;
 
-          try {
-            // Determine strategy from personality
-            const strategy = determineStrategyFromPersonality(npc.personality);
+            try {
+              // Determine strategy from personality
+              const strategy = determineStrategyFromPersonality(npc.personality);
 
-            // Monitor and get rebalance actions
-            const actions = await NPCInvestmentManager.monitorPortfolio(
-              npc.id, // poolId = actorId for NPC pools
-              npc.id,
-              strategy
-            );
-
-            // Execute each rebalance action
-            for (const action of actions) {
-              await NPCInvestmentManager.executeRebalanceAction(
+              // Monitor and get rebalance actions
+              const actions = await NPCInvestmentManager.monitorPortfolio(
+                npc.id, // poolId = actorId for NPC pools
                 npc.id,
-                npc.id,
-                action
+                strategy
               );
-              rebalanceActionsExecuted++;
+
+              // Execute each rebalance action
+              for (const action of actions) {
+                await NPCInvestmentManager.executeRebalanceAction(
+                  npc.id,
+                  npc.id,
+                  action
+                );
+                rebalanceActionsExecuted++;
+              }
+            } catch (npcError) {
+              // Individual NPC rebalance failure shouldn't stop others
+              logger.debug(
+                `Portfolio rebalance failed for NPC ${npc.name}`,
+                {
+                  error:
+                    npcError instanceof Error
+                      ? npcError.message
+                      : String(npcError),
+                },
+                'NPCTick'
+              );
             }
-          } catch (npcError) {
-            // Individual NPC rebalance failure shouldn't stop others
-            logger.debug(
-              `Portfolio rebalance failed for NPC ${npc.name}`,
-              {
-                error:
-                  npcError instanceof Error
-                    ? npcError.message
-                    : String(npcError),
-              },
+          }
+
+          if (rebalanceActionsExecuted > 0) {
+            logger.info(
+              'NPC portfolio rebalancing completed',
+              { actionsExecuted: rebalanceActionsExecuted },
               'NPCTick'
             );
           }
-        }
-
-        if (rebalanceActionsExecuted > 0) {
-          logger.info(
-            'NPC portfolio rebalancing completed',
-            { actionsExecuted: rebalanceActionsExecuted },
-            'NPCTick'
-          );
         }
       } catch (error) {
         logger.error(

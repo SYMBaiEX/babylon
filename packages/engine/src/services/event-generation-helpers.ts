@@ -686,20 +686,19 @@ export function getArcEventCoverageStats() {
 }
 
 /**
- * Check if an event has already been covered by any organization.
- * Uses the arcEventPacer to determine if the event has received any coverage.
+ * Check if an event has already been covered by any organization at a specific status.
+ * Uses the arcEventPacer to determine if the event has received coverage for the given status.
  *
  * @param eventId - The event/question ID to check
  * @param status - The status level to check (default: 'created')
- * @returns True if the event has been covered by at least one org
+ * @returns True if the event has been covered by at least one org at the specified status
  */
 export function hasEventBeenCovered(
   eventId: string,
   status: ArcEventStatus = 'created'
 ): boolean {
-  const stats = arcEventPacer.getArcEventCoverageStats();
-  // Check if this event ID exists in covered events
-  return stats.eventIds.includes(eventId);
+  // Check if any org has covered this event at the specified status
+  return arcEventPacer.hasEventBeenCoveredForStatus(eventId, status);
 }
 
 /**

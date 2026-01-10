@@ -88,15 +88,36 @@ async function persistArticle(
   authorId: string,
   gameState: GameState
 ): Promise<string> {
+  // Validate required fields before doing any work
+  const trimmedTitle = payload.title?.trim() ?? '';
+  const trimmedSummary = payload.summary?.trim() ?? '';
+  const trimmedArticle = payload.article?.trim() ?? '';
+
+  if (!trimmedTitle) {
+    throw new Error('Missing article title');
+  }
+  if (!trimmedSummary) {
+    throw new Error('Missing article summary');
+  }
+  if (!trimmedArticle) {
+    throw new Error('Missing article body');
+  }
+  if (!authorId) {
+    throw new Error('Missing authorId');
+  }
+  if (!gameState?.id) {
+    throw new Error('Missing gameState.id');
+  }
+
   // Transform content to use parody names
   const transformedTitle = await characterMappingService.transformText(
-    payload.title.trim()
+    trimmedTitle
   );
   const transformedSummary = await characterMappingService.transformText(
-    payload.summary.trim()
+    trimmedSummary
   );
   const transformedBody = await characterMappingService.transformText(
-    payload.article.trim()
+    trimmedArticle
   );
 
   // Generate article image if available
