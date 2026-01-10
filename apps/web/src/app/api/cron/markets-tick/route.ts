@@ -43,8 +43,8 @@ import {
   PredictionMarketService as CorePredictionMarketService,
 } from '@babylon/core/markets/prediction';
 import {
-  and,
   type ArcStateType,
+  and,
   db,
   desc,
   eq,
@@ -410,11 +410,7 @@ export async function POST(_req: NextRequest) {
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(
-      'Markets tick failed',
-      { error: errorMessage },
-      'MarketsTick'
-    );
+    logger.error('Markets tick failed', { error: errorMessage }, 'MarketsTick');
 
     recordCronExecution('markets-tick', new Date(startTime), {
       success: false,
@@ -435,7 +431,10 @@ export async function POST(_req: NextRequest) {
  * Get active markets grouped by timeframe
  */
 async function getActiveMarketsByTimeframe(): Promise<
-  Record<string, Array<{ id: string; questionId: string; resolutionDate: Date }>>
+  Record<
+    string,
+    Array<{ id: string; questionId: string; resolutionDate: Date }>
+  >
 > {
   const now = new Date();
 
@@ -448,10 +447,7 @@ async function getActiveMarketsByTimeframe(): Promise<
     })
     .from(questions)
     .where(
-      and(
-        eq(questions.status, 'active'),
-        gte(questions.resolutionDate, now)
-      )
+      and(eq(questions.status, 'active'), gte(questions.resolutionDate, now))
     );
 
   // Group by timeframe (inferred from resolution date)
@@ -498,9 +494,7 @@ function inferTimeframe(resolutionDate: Date | null): string {
 /**
  * Get markets ready for resolution
  */
-async function getMarketsReadyForResolution(
-  now: Date
-): Promise<
+async function getMarketsReadyForResolution(now: Date): Promise<
   Array<{
     id: string;
     questionNumber: number;
@@ -516,10 +510,7 @@ async function getMarketsReadyForResolution(
     })
     .from(questions)
     .where(
-      and(
-        eq(questions.status, 'active'),
-        lte(questions.resolutionDate, now)
-      )
+      and(eq(questions.status, 'active'), lte(questions.resolutionDate, now))
     );
 
   return matureQuestions.map((q) => ({
@@ -563,13 +554,21 @@ async function resolveMarket(
     .limit(1);
 
   if (!question) {
-    logger.error(`Question not found for market ${market.questionNumber}`, {}, 'MarketsTick');
+    logger.error(
+      `Question not found for market ${market.questionNumber}`,
+      {},
+      'MarketsTick'
+    );
     return { resolved: false, oracleRevealed: false };
   }
 
   // Check if already resolved (idempotency)
   if (question.status === 'resolved') {
-    logger.info(`Market Q${market.questionNumber} already resolved`, {}, 'MarketsTick');
+    logger.info(
+      `Market Q${market.questionNumber} already resolved`,
+      {},
+      'MarketsTick'
+    );
     return { resolved: true, oracleRevealed: false };
   }
 
@@ -597,7 +596,10 @@ async function resolveMarket(
     );
 
     // Log narrative coherence check
-    if (signalAnalysis.suggestedOutcome !== 'UNCERTAIN' && signalAnalysis.confidence > 0.7) {
+    if (
+      signalAnalysis.suggestedOutcome !== 'UNCERTAIN' &&
+      signalAnalysis.confidence > 0.7
+    ) {
       const expectedOutcome = question.outcome ? 'YES' : 'NO';
       const coherent = signalAnalysis.suggestedOutcome === expectedOutcome;
       logger.info(
@@ -622,7 +624,8 @@ async function resolveMarket(
   // STEP 2: Proof Generation (if not already generated)
   // ==========================================================================
   const hasStoredProof =
-    Boolean(question.resolutionProofUrl) && Boolean(question.resolutionDescription);
+    Boolean(question.resolutionProofUrl) &&
+    Boolean(question.resolutionDescription);
 
   if (!hasStoredProof) {
     try {
@@ -644,21 +647,28 @@ async function resolveMarket(
           initialMood: a.initialMood ?? 0,
         }));
 
-      const organizations = StaticDataRegistry.getAllOrganizations().map((o) => ({
-        id: o.id,
-        name: o.name,
-        ticker: o.ticker,
-        description: o.description,
-        type: o.type,
-        canBeInvolved: o.canBeInvolved,
-        initialPrice: o.initialPrice ?? undefined,
-      }));
+      const organizations = StaticDataRegistry.getAllOrganizations().map(
+        (o) => ({
+          id: o.id,
+          name: o.name,
+          ticker: o.ticker,
+          description: o.description,
+          type: o.type,
+          canBeInvolved: o.canBeInvolved,
+          initialPrice: o.initialPrice ?? undefined,
+        })
+      );
 
       // Get recent events for proof context
       const recentDbEvents = await db
         .select()
         .from(worldEvents)
-        .where(gte(worldEvents.timestamp, new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)))
+        .where(
+          gte(
+            worldEvents.timestamp,
+            new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+          )
+        )
         .orderBy(desc(worldEvents.timestamp))
         .limit(50);
 
@@ -668,12 +678,28 @@ async function resolveMarket(
         .map((e) => ({
           id: e.id,
           day: e.dayNumber || 0,
-          type: e.eventType as 'announcement' | 'meeting' | 'leak' | 'development' | 'scandal' | 'rumor' | 'deal' | 'conflict' | 'revelation',
+          type: e.eventType as
+            | 'announcement'
+            | 'meeting'
+            | 'leak'
+            | 'development'
+            | 'scandal'
+            | 'rumor'
+            | 'deal'
+            | 'conflict'
+            | 'revelation',
           description: e.description,
           actors: (e.actors as string[]) || [],
           relatedQuestion: e.relatedQuestion || undefined,
-          pointsToward: (e.pointsToward === 'YES' || e.pointsToward === 'NO' ? e.pointsToward : undefined) as 'YES' | 'NO' | undefined,
-          visibility: e.visibility as 'public' | 'leaked' | 'secret' | 'private' | 'group',
+          pointsToward: (e.pointsToward === 'YES' || e.pointsToward === 'NO'
+            ? e.pointsToward
+            : undefined) as 'YES' | 'NO' | undefined,
+          visibility: e.visibility as
+            | 'public'
+            | 'leaked'
+            | 'secret'
+            | 'private'
+            | 'group',
         }));
 
       // Create minimal DayTimeline structure for proof generation context
@@ -743,7 +769,9 @@ async function resolveMarket(
             resolutionProofUrl: proofResult.proof?.url ?? null,
             resolutionConfidence: proofResult.confidence,
             requiresManualReview: proofResult.requiresManualReview,
-            resolutionReviewStatus: proofResult.requiresManualReview ? 'pending' : null,
+            resolutionReviewStatus: proofResult.requiresManualReview
+              ? 'pending'
+              : null,
             updatedAt: new Date(),
           })
           .where(eq(questions.id, question.id));
@@ -945,7 +973,13 @@ async function createMarketForTimeframe(
         id: o.id,
         name: o.name,
         description: o.description,
-        type: o.type as 'company' | 'media' | 'government' | 'vc' | 'organization' | 'financial',
+        type: o.type as
+          | 'company'
+          | 'media'
+          | 'government'
+          | 'vc'
+          | 'organization'
+          | 'financial',
         canBeInvolved: o.canBeInvolved ?? true,
       }));
 
@@ -1005,7 +1039,12 @@ async function createMarketForTimeframe(
       // Oracle is optional - log but don't fail market creation
       logger.debug(
         `Oracle commitment skipped (not configured or unavailable)`,
-        { error: oracleError instanceof Error ? oracleError.message : String(oracleError) },
+        {
+          error:
+            oracleError instanceof Error
+              ? oracleError.message
+              : String(oracleError),
+        },
         'MarketsTick'
       );
     }
@@ -1049,25 +1088,67 @@ async function createMarketForTimeframe(
 function inferCategory(questionText: string): MarketCategory {
   const text = questionText.toLowerCase();
 
-  if (text.includes('bitcoin') || text.includes('crypto') || text.includes('eth') || text.includes('token') || text.includes('blockchain')) {
+  if (
+    text.includes('bitcoin') ||
+    text.includes('crypto') ||
+    text.includes('eth') ||
+    text.includes('token') ||
+    text.includes('blockchain')
+  ) {
     return 'crypto';
   }
-  if (text.includes('tech') || text.includes('software') || text.includes('ai') || text.includes('stock') || text.includes('share') || text.includes('ticker')) {
+  if (
+    text.includes('tech') ||
+    text.includes('software') ||
+    text.includes('ai') ||
+    text.includes('stock') ||
+    text.includes('share') ||
+    text.includes('ticker')
+  ) {
     return 'tech';
   }
-  if (text.includes('president') || text.includes('congress') || text.includes('vote') || text.includes('election') || text.includes('senate')) {
+  if (
+    text.includes('president') ||
+    text.includes('congress') ||
+    text.includes('vote') ||
+    text.includes('election') ||
+    text.includes('senate')
+  ) {
     return 'politics';
   }
-  if (text.includes('movie') || text.includes('album') || text.includes('celebrity') || text.includes('award') || text.includes('music')) {
+  if (
+    text.includes('movie') ||
+    text.includes('album') ||
+    text.includes('celebrity') ||
+    text.includes('award') ||
+    text.includes('music')
+  ) {
     return 'entertainment';
   }
-  if (text.includes('game') || text.includes('match') || text.includes('championship') || text.includes('score') || text.includes('team')) {
+  if (
+    text.includes('game') ||
+    text.includes('match') ||
+    text.includes('championship') ||
+    text.includes('score') ||
+    text.includes('team')
+  ) {
     return 'sports';
   }
-  if (text.includes('research') || text.includes('study') || text.includes('discovery') || text.includes('experiment')) {
+  if (
+    text.includes('research') ||
+    text.includes('study') ||
+    text.includes('discovery') ||
+    text.includes('experiment')
+  ) {
     return 'science';
   }
-  if (text.includes('ceo') || text.includes('company') || text.includes('merger') || text.includes('deal') || text.includes('earnings')) {
+  if (
+    text.includes('ceo') ||
+    text.includes('company') ||
+    text.includes('merger') ||
+    text.includes('deal') ||
+    text.includes('earnings')
+  ) {
     return 'business';
   }
 
@@ -1077,7 +1158,9 @@ function inferCategory(questionText: string): MarketCategory {
 /**
  * Map our timeframe strings to database MarketTimeframe enum values
  */
-function mapTimeframeToDbType(timeframe: string): 'flash' | 'intraday' | 'daily' | 'weekly' | 'monthly' | 'quarterly' {
+function mapTimeframeToDbType(
+  timeframe: string
+): 'flash' | 'intraday' | 'daily' | 'weekly' | 'monthly' | 'quarterly' {
   switch (timeframe) {
     case '15m':
     case '30m':

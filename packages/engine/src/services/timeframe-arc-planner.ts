@@ -76,7 +76,10 @@ export interface TimeframeArcPlan {
 /**
  * Phase configurations by category
  */
-const PHASE_CONFIGS: Record<TimeframeCategory, Record<string, CompressedPhaseTargets>> = {
+const PHASE_CONFIGS: Record<
+  TimeframeCategory,
+  Record<string, CompressedPhaseTargets>
+> = {
   // Flash markets: No arc, just live trading
   flash: {
     live: {
@@ -180,7 +183,12 @@ export class TimeframeArcPlanner {
     const phaseOrder = Object.keys(phases);
 
     // Select insiders and deceivers
-    const insiders = this.selectInsiders(questionText, actors, organizations, affiliatedActorIds);
+    const insiders = this.selectInsiders(
+      questionText,
+      actors,
+      organizations,
+      affiliatedActorIds
+    );
     const deceivers = this.selectDeceivers(actors, category);
 
     const plan: TimeframeArcPlan = {
@@ -274,7 +282,10 @@ export class TimeframeArcPlanner {
   /**
    * Calculate expected certainty at a given progress point (0-1)
    */
-  calculateExpectedCertainty(progress: number, arcPlan: TimeframeArcPlan): number {
+  calculateExpectedCertainty(
+    progress: number,
+    arcPlan: TimeframeArcPlan
+  ): number {
     let cumulative = 0;
 
     for (const phase of arcPlan.phaseOrder) {
@@ -331,7 +342,8 @@ export class TimeframeArcPlanner {
     category: TimeframeCategory
   ): string[] {
     // Fewer deceivers for short timeframes (less time for misdirection)
-    const maxDeceivers = category === 'flash' ? 0 : category === 'intraday' ? 1 : 2;
+    const maxDeceivers =
+      category === 'flash' ? 0 : category === 'intraday' ? 1 : 2;
 
     const potentialDeceivers = actors.filter(
       (a) =>

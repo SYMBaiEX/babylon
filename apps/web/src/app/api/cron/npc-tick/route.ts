@@ -39,9 +39,9 @@ import {
   MarketContextService,
   MarketDecisionEngine,
   NPC_TICK_CONFIG,
+  NPCInvestmentManager,
   npcMemoryService,
   npcSocialEngagementService,
-  NPCInvestmentManager,
   type PostingContext,
   postingProbabilityService,
   processNPCSocialEngagements,
@@ -597,8 +597,9 @@ export async function POST(_req: NextRequest) {
             'NPC social actions processed',
             {
               total: socialActions.length,
-              invites: socialActions.filter((a) => a.type === 'group_chat_invite')
-                .length,
+              invites: socialActions.filter(
+                (a) => a.type === 'group_chat_invite'
+              ).length,
               dms: socialActions.filter((a) => a.type === 'dm').length,
             },
             'NPCTick'
@@ -666,9 +667,8 @@ export async function POST(_req: NextRequest) {
 
     if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
       try {
-        const baselineResult = await NPCInvestmentManager.executeBaselineInvestments(
-          new Date()
-        );
+        const baselineResult =
+          await NPCInvestmentManager.executeBaselineInvestments(new Date());
 
         if (baselineResult) {
           baselineInvestmentsExecuted = baselineResult.successfulTrades;
@@ -744,7 +744,12 @@ export async function POST(_req: NextRequest) {
             // Individual NPC rebalance failure shouldn't stop others
             logger.debug(
               `Portfolio rebalance failed for NPC ${npc.name}`,
-              { error: npcError instanceof Error ? npcError.message : String(npcError) },
+              {
+                error:
+                  npcError instanceof Error
+                    ? npcError.message
+                    : String(npcError),
+              },
               'NPCTick'
             );
           }
@@ -846,8 +851,21 @@ function determineStrategyFromPersonality(
 
   const personalityLower = personality.toLowerCase();
 
-  const aggressiveKeywords = ['erratic', 'disaster', 'memecoin', 'degen', 'bold', 'risk'];
-  const conservativeKeywords = ['vampire', 'yacht', 'philosopher', 'cautious', 'steady'];
+  const aggressiveKeywords = [
+    'erratic',
+    'disaster',
+    'memecoin',
+    'degen',
+    'bold',
+    'risk',
+  ];
+  const conservativeKeywords = [
+    'vampire',
+    'yacht',
+    'philosopher',
+    'cautious',
+    'steady',
+  ];
 
   if (aggressiveKeywords.some((k) => personalityLower.includes(k))) {
     return 'aggressive';

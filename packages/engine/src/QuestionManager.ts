@@ -1646,7 +1646,12 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         : '';
 
     // Timeframe-specific guidance
-    const categoryGuidance = this.getCategoryGuidance(category, durationLabel, actorsList, organizationsList);
+    const categoryGuidance = this.getCategoryGuidance(
+      category,
+      durationLabel,
+      actorsList,
+      organizationsList
+    );
 
     const prompt = `Generate ONE prediction market question for a ${durationLabel} timeframe.
 
@@ -1725,9 +1730,7 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
 
       // Handle XML structure variations
       const questionData =
-        response?.question ||
-        response?.response?.question ||
-        null;
+        response?.question || response?.response?.question || null;
 
       if (!questionData?.text) {
         logger.warn(
@@ -1745,7 +1748,9 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
         .trim();
 
       // Parse expected outcome
-      const outcomeStr = String(questionData.expectedOutcome || '').toLowerCase().trim();
+      const outcomeStr = String(questionData.expectedOutcome || '')
+        .toLowerCase()
+        .trim();
       const expectedOutcome = outcomeStr === 'yes' || outcomeStr === 'true';
 
       // Find affiliated actor/org IDs
@@ -1754,7 +1759,8 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
 
       if (questionData.primaryActor) {
         const actor = actorsList.find(
-          (a) => a.name.toLowerCase() === questionData.primaryActor?.toLowerCase()
+          (a) =>
+            a.name.toLowerCase() === questionData.primaryActor?.toLowerCase()
         );
         if (actor) affiliatedActorIds.push(actor.id);
       }
@@ -1774,7 +1780,8 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
 
       return {
         text: sanitizedText,
-        resolutionCriteria: questionData.resolutionCriteria || 'Verifiable via public sources',
+        resolutionCriteria:
+          questionData.resolutionCriteria || 'Verifiable via public sources',
         expectedOutcome,
         affiliatedActorIds,
         affiliatedOrgIds,
@@ -1782,7 +1789,10 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
     } catch (error) {
       logger.error(
         'Failed to generate timeframe question',
-        { error: error instanceof Error ? error.message : String(error), timeframe },
+        {
+          error: error instanceof Error ? error.message : String(error),
+          timeframe,
+        },
         'QuestionManager'
       );
       return null;
