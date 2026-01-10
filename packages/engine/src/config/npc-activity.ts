@@ -660,10 +660,10 @@ export const NPC_TICK_CONFIG = {
   /**
    * Number of NPCs to process per tick.
    *
-   * @default 3
+   * @default 5
    * @env NPC_TICK_BATCH_SIZE
    */
-  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 3),
+  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 5),
 
   /**
    * Maximum consecutive errors before aborting tick (circuit breaker).

@@ -170,7 +170,7 @@ export class ArticleRateLimiterService {
 }
 
 /**
- * Singleton instance with default config (6 articles per hour, configurable via env).
+ * Singleton instance with default config (2 articles per hour, configurable via env).
  *
  * @remarks
  * **Concurrency Note**: The check-then-act pattern (`canGenerateArticle()` followed

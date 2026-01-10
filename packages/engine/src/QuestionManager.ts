@@ -1809,13 +1809,19 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
   }
 
   /**
-   * Get human-readable duration label
+   * Get human-readable duration label with proper pluralization
    */
   private getDurationLabel(durationMs: number): string {
-    const hours = durationMs / (60 * 60 * 1000);
-    if (hours < 1) return `${Math.round(hours * 60)} minutes`;
-    if (hours < 24) return `${Math.round(hours)} hours`;
-    return `${Math.round(hours / 24)} days`;
+    const minutes = Math.round(durationMs / 60000);
+    if (minutes < 60) {
+      return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+    }
+    const hours = Math.floor(durationMs / (60 * 60 * 1000));
+    if (hours < 24) {
+      return hours === 1 ? '1 hour' : `${hours} hours`;
+    }
+    const days = Math.round(durationMs / (24 * 60 * 60 * 1000));
+    return days === 1 ? '1 day' : `${days} days`;
   }
 
   /**

@@ -711,11 +711,17 @@ export async function POST(_req: NextRequest) {
           (a) => a.role === 'main' || a.role === 'supporting'
         );
 
-        // Sample a subset to avoid processing all NPCs every tick
+        // Use tick-based deterministic rotation for even coverage across ticks
+        // Derive tick number from startTime (minute-based to ensure different offset each tick)
+        const tickNumber = Math.floor(startTime / 60000); // tick per minute
         const sampleSize = Math.min(5, activeNPCs.length);
-        const sampledNPCs = activeNPCs
-          .sort(() => Math.random() - 0.5)
-          .slice(0, sampleSize);
+        const startOffset = tickNumber % activeNPCs.length;
+        // Select NPCs starting at offset, wrapping around the array
+        const sampledNPCs: typeof activeNPCs = [];
+        for (let i = 0; i < sampleSize; i++) {
+          const idx = (startOffset + i) % activeNPCs.length;
+          sampledNPCs.push(activeNPCs[idx]!);
+        }
 
         for (const npc of sampledNPCs) {
           if (Date.now() >= tradeDeadline) break;

@@ -371,17 +371,18 @@ ${
     .map((action, index) => `${index + 1}. ${action}`)
     .join('\n');
 
-  // Add strong anti-posting guidance for player agents
-  const antiPostingGuidance = isNpc
-    ? ''
-    : `
+  // Add strong anti-posting guidance for player agents who can post
+  const antiPostingGuidance =
+    !isNpc && canPost && !hasPostedThisTick
+      ? `
 ⛔ POSTING RESTRICTION FOR PLAYER AGENTS:
 - You should POST at most ONCE per day, if at all
 - TRADING, COMMENTING, LIKING, and REPOSTING are your main activities
 - If you can TRADE, do that instead of posting
 - If you can COMMENT on something, do that instead of posting
 - Posting without a compelling reason wastes your opportunity to engage with the game
-`;
+`
+      : '';
 
   const actionPrioritySection = `
 # Action Priority (TRADING & ENGAGEMENT >> POSTING)

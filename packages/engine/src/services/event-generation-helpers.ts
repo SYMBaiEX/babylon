@@ -684,3 +684,38 @@ export async function generateArticlesForArcEvent(
 export function getArcEventCoverageStats() {
   return arcEventPacer.getArcEventCoverageStats();
 }
+
+/**
+ * Check if an event has already been covered by any organization.
+ * Uses the arcEventPacer to determine if the event has received any coverage.
+ *
+ * @param eventId - The event/question ID to check
+ * @param status - The status level to check (default: 'created')
+ * @returns True if the event has been covered by at least one org
+ */
+export function hasEventBeenCovered(
+  eventId: string,
+  status: ArcEventStatus = 'created'
+): boolean {
+  const stats = arcEventPacer.getArcEventCoverageStats();
+  // Check if this event ID exists in covered events
+  return stats.eventIds.includes(eventId);
+}
+
+/**
+ * Mark an event as covered by recording it in the pacer.
+ * This prevents future duplicate coverage of the same event.
+ *
+ * @param eventId - The event/question ID that was covered
+ * @param orgId - The organization that covered it
+ * @param articleId - The generated article ID
+ * @param status - The status at time of coverage (default: 'created')
+ */
+export function markEventAsCovered(
+  eventId: string,
+  orgId: string,
+  articleId: string,
+  status: ArcEventStatus = 'created'
+): void {
+  arcEventPacer.recordArcEventCoverage(eventId, orgId, status, articleId);
+}

@@ -29,16 +29,7 @@ import {
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
-import {
-  and,
-  db,
-  eq,
-  games,
-  generateSnowflakeId,
-  gte,
-  isNull,
-  posts,
-} from '@babylon/db';
+import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
   ArticleGenerator,
   articleRateLimiter,
@@ -46,6 +37,8 @@ import {
   characterMappingService,
   generateArticleImageWithRetry,
   getActiveEventsForPosting,
+  hasEventBeenCovered,
+  markEventAsCovered,
   StaticDataRegistry,
   secureRandom,
   worldFactsService,
@@ -71,6 +64,71 @@ export const dynamic = 'force-dynamic';
  * Respects the hourly rate limit (default 2/hour).
  */
 const MAX_ARTICLES_PER_TICK = 1;
+
+/**
+ * Article payload for persistence
+ */
+interface ArticlePayload {
+  title: string;
+  summary: string;
+  article: string;
+}
+
+/**
+ * Persist an article to the database.
+ * Handles text transformation, image generation, and DB insert.
+ *
+ * @param payload - The article content (title, summary, article body)
+ * @param authorId - The organization ID authoring the article
+ * @param gameState - Current game state for context
+ * @returns The created post ID
+ */
+async function persistArticle(
+  payload: ArticlePayload,
+  authorId: string,
+  gameState: GameState
+): Promise<string> {
+  // Transform content to use parody names
+  const transformedTitle = await characterMappingService.transformText(
+    payload.title.trim()
+  );
+  const transformedSummary = await characterMappingService.transformText(
+    payload.summary.trim()
+  );
+  const transformedBody = await characterMappingService.transformText(
+    payload.article.trim()
+  );
+
+  // Generate article image if available
+  let imageUrl: string | null = null;
+  if (process.env.FAL_KEY) {
+    imageUrl = await generateArticleImageWithRetry({
+      title: transformedTitle.transformedText,
+      summary: transformedSummary.transformedText,
+      category: 'news',
+    });
+  }
+
+  const postId = await generateSnowflakeId();
+  const now = new Date();
+
+  await db.insert(posts).values({
+    id: postId,
+    type: 'article',
+    content: transformedSummary.transformedText,
+    fullContent: transformedBody.transformedText,
+    articleTitle: transformedTitle.transformedText,
+    category: 'news',
+    imageUrl: imageUrl || undefined,
+    authorId,
+    gameId: gameState.id,
+    dayNumber: gameState.currentDay ?? 1,
+    timestamp: now,
+    createdAt: now,
+  });
+
+  return postId;
+}
 
 /**
  * GET /api/cron/article-tick
@@ -259,23 +317,8 @@ export async function POST(_req: NextRequest) {
     const articleGen = new ArticleGenerator(llmClient);
 
     let articlesCreated = 0;
+    let errorCount = 0;
     const articlesToGenerate = Math.min(MAX_ARTICLES_PER_TICK, remaining);
-
-    // Check for recent articles to avoid duplicates
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const recentArticles = await db
-      .select({
-        articleTitle: posts.articleTitle,
-        content: posts.content,
-      })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.type, 'article'),
-          gte(posts.timestamp, twoHoursAgo),
-          isNull(posts.deletedAt)
-        )
-      );
 
     // Generate articles based on active events
     if (activeEventsData.activeEvents.length > 0 && articlesToGenerate > 0) {
@@ -286,15 +329,9 @@ export async function POST(_req: NextRequest) {
       const event = activeEventsData.activeEvents[eventIndex];
 
       if (event) {
-        // Check if we've already covered this event by checking questionId
+        // Check if we've already covered this event using explicit tracking
         const eventId = event.questionId;
-
-        const alreadyCovered = recentArticles.some((article) => {
-          // Check if article mentions this question's topic
-          const articleText =
-            `${article.articleTitle || ''} ${article.content || ''}`.toLowerCase();
-          return articleText.includes(eventId.toLowerCase());
-        });
+        const alreadyCovered = hasEventBeenCovered(eventId);
 
         if (!alreadyCovered) {
           // Pick a random news org to write the article
@@ -314,6 +351,8 @@ export async function POST(_req: NextRequest) {
 
             if (article) {
               articlesCreated++;
+              // Mark this event as covered for future duplicate detection
+              markEventAsCovered(eventId, org.id, article.id);
               logger.info(
                 `Article created by ${org.name}`,
                 { eventId: event.questionId, articleId: article.id },
@@ -321,6 +360,7 @@ export async function POST(_req: NextRequest) {
               );
             }
           } catch (error) {
+            errorCount++;
             logger.error(
               'Failed to generate event article',
               {
@@ -364,6 +404,7 @@ export async function POST(_req: NextRequest) {
           );
         }
       } catch (error) {
+        errorCount++;
         logger.error(
           'Failed to generate baseline article',
           {
@@ -376,21 +417,24 @@ export async function POST(_req: NextRequest) {
     }
 
     const duration = Date.now() - startTime;
+    const success = errorCount === 0;
 
     logger.info(
       `Article tick completed in ${duration}ms`,
-      { articlesCreated },
+      { articlesCreated, errorCount, success },
       'ArticleTick'
     );
 
     recordCronExecution('article-tick', new Date(startTime), {
-      success: true,
+      success,
       articlesCreated,
+      errorCount,
     });
 
     return NextResponse.json({
-      success: true,
+      success,
       articlesCreated,
+      errorCount,
       duration,
       rateLimit: { currentCount, maxAllowed, remaining },
     });
@@ -466,45 +510,8 @@ Return your response as XML:
     return null;
   }
 
-  // Transform content to use parody names
-  const transformedTitle = await characterMappingService.transformText(
-    articleData.title.trim()
-  );
-  const transformedSummary = await characterMappingService.transformText(
-    articleData.summary.trim()
-  );
-  const transformedBody = await characterMappingService.transformText(
-    articleData.article.trim()
-  );
-
-  // Generate article image if available
-  let imageUrl: string | null = null;
-  if (process.env.FAL_KEY) {
-    imageUrl = await generateArticleImageWithRetry({
-      title: transformedTitle.transformedText,
-      summary: transformedSummary.transformedText,
-      category: 'news',
-    });
-  }
-
-  const postId = await generateSnowflakeId();
-  const now = new Date();
-
-  await db.insert(posts).values({
-    id: postId,
-    type: 'article',
-    content: transformedSummary.transformedText,
-    fullContent: transformedBody.transformedText,
-    articleTitle: transformedTitle.transformedText,
-    category: 'news',
-    imageUrl: imageUrl || undefined,
-    authorId: org.id,
-    gameId: gameState.id,
-    dayNumber: gameState.currentDay ?? 1,
-    timestamp: now,
-    createdAt: now,
-  });
-
+  // Use shared helper for transformation, image generation, and DB insert
+  const postId = await persistArticle(articleData, org.id, gameState);
   return { id: postId };
 }
 
@@ -582,44 +589,7 @@ Return your response as XML:
     return null;
   }
 
-  // Transform content to use parody names
-  const transformedTitle = await characterMappingService.transformText(
-    articleData.title.trim()
-  );
-  const transformedSummary = await characterMappingService.transformText(
-    articleData.summary.trim()
-  );
-  const transformedBody = await characterMappingService.transformText(
-    articleData.article.trim()
-  );
-
-  // Generate article image if available
-  let imageUrl: string | null = null;
-  if (process.env.FAL_KEY) {
-    imageUrl = await generateArticleImageWithRetry({
-      title: transformedTitle.transformedText,
-      summary: transformedSummary.transformedText,
-      category: 'news',
-    });
-  }
-
-  const postId = await generateSnowflakeId();
-  const now = new Date();
-
-  await db.insert(posts).values({
-    id: postId,
-    type: 'article',
-    content: transformedSummary.transformedText,
-    fullContent: transformedBody.transformedText,
-    articleTitle: transformedTitle.transformedText,
-    category: 'news',
-    imageUrl: imageUrl || undefined,
-    authorId: org.id,
-    gameId: gameState.id,
-    dayNumber: gameState.currentDay ?? 1,
-    timestamp: now,
-    createdAt: now,
-  });
-
+  // Use shared helper for transformation, image generation, and DB insert
+  const postId = await persistArticle(articleData, org.id, gameState);
   return { id: postId };
 }

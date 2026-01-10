@@ -809,7 +809,25 @@ async function resolveMarket(
   // ==========================================================================
   // STEP 3: Execute Payouts
   // ==========================================================================
-  await resolveQuestionPayouts(market.questionNumber);
+  try {
+    await resolveQuestionPayouts(market.questionNumber);
+  } catch (error) {
+    // Payout failure is critical - halt resolution to prevent partial state
+    logger.error(
+      `Payout execution failed for Q${market.questionNumber} - halting resolution`,
+      {
+        questionNumber: market.questionNumber,
+        marketId: market.id,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      'MarketsTick'
+    );
+    // Re-throw to abort cron run - positions must not be left unsettled
+    throw new Error(
+      `Payout failed for Q${market.questionNumber}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 
   // ==========================================================================
   // STEP 4: Oracle Reveal (blockchain verification)
