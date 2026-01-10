@@ -617,7 +617,10 @@ export class NewsArticlePacingEngine {
    * @param status - The status to check coverage for
    * @returns True if any org has covered this event at the specified status
    */
-  hasEventBeenCoveredForStatus(eventId: string, status: ArcEventStatus): boolean {
+  hasEventBeenCoveredForStatus(
+    eventId: string,
+    status: ArcEventStatus
+  ): boolean {
     if (!eventId || eventId.trim().length === 0) {
       return false;
     }

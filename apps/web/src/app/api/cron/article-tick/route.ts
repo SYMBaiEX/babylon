@@ -110,15 +110,12 @@ async function persistArticle(
   }
 
   // Transform content to use parody names
-  const transformedTitle = await characterMappingService.transformText(
-    trimmedTitle
-  );
-  const transformedSummary = await characterMappingService.transformText(
-    trimmedSummary
-  );
-  const transformedBody = await characterMappingService.transformText(
-    trimmedArticle
-  );
+  const transformedTitle =
+    await characterMappingService.transformText(trimmedTitle);
+  const transformedSummary =
+    await characterMappingService.transformText(trimmedSummary);
+  const transformedBody =
+    await characterMappingService.transformText(trimmedArticle);
 
   // Generate article image if available
   let imageUrl: string | null = null;

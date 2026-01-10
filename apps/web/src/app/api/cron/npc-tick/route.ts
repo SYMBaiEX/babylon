@@ -739,7 +739,9 @@ export async function POST(_req: NextRequest) {
 
             try {
               // Determine strategy from personality
-              const strategy = determineStrategyFromPersonality(npc.personality);
+              const strategy = determineStrategyFromPersonality(
+                npc.personality
+              );
 
               // Monitor and get rebalance actions
               const actions = await NPCInvestmentManager.monitorPortfolio(
