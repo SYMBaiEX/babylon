@@ -761,7 +761,7 @@ export async function POST(_req: NextRequest) {
               }
             } catch (npcError) {
               // Individual NPC rebalance failure shouldn't stop others
-              logger.debug(
+              logger.warn(
                 `Portfolio rebalance failed for NPC ${npc.name}`,
                 {
                   error:

@@ -622,10 +622,14 @@ export class NewsArticlePacingEngine {
     status: ArcEventStatus
   ): boolean {
     if (!eventId || eventId.trim().length === 0) {
-      return false;
+      throw new Error(
+        `Invalid eventId for hasEventBeenCoveredForStatus: ${eventId}`
+      );
     }
     if (!isValidArcEventStatus(status)) {
-      return false;
+      throw new Error(
+        `Invalid status for hasEventBeenCoveredForStatus: ${status}`
+      );
     }
 
     const eventCoverage = this.arcEventCoverage.get(eventId);
