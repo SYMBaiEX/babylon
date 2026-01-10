@@ -1517,4 +1517,350 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
 
     return questionsCreated;
   }
+
+  /**
+   * Generate a single question for a specific timeframe with full narrative context.
+   *
+   * @param timeframe - The market timeframe key (15m, 30m, 1h, 6h, 12h, 1d, 2d, 3d)
+   * @param durationMs - Duration in milliseconds for this market
+   * @returns Question details or null if generation fails
+   *
+   * @description
+   * Generates a single question appropriate for the specified timeframe.
+   * Uses full game context (world events, trending topics, active questions)
+   * to create narrative-connected, non-repetitive questions.
+   *
+   * Timeframe categories:
+   * - Short (15m, 30m, 1h): Immediate, observable events
+   * - Medium (6h, 12h, 1d): Daily developments and announcements
+   * - Long (2d, 3d): Multi-day narrative arcs
+   */
+  async generateTimeframeQuestion(
+    timeframe: string,
+    durationMs: number
+  ): Promise<{
+    text: string;
+    resolutionCriteria: string;
+    expectedOutcome: boolean;
+    affiliatedActorIds: string[];
+    affiliatedOrgIds: string[];
+  } | null> {
+    const category = this.getTimeframeCategory(timeframe);
+    const durationLabel = this.getDurationLabel(durationMs);
+
+    logger.info(
+      `Generating ${timeframe} question (${category} category)`,
+      { timeframe, durationMs, durationLabel },
+      'QuestionManager'
+    );
+
+    // Gather comprehensive context (same as continuous game generation)
+    const [
+      worldFactsContext,
+      recentEvents,
+      activeQuestions,
+      actorsList,
+      organizationsList,
+      trendingTagsList,
+    ] = await Promise.all([
+      worldFactsService.generatePromptContext(),
+      // Get recent events - more recent for shorter timeframes
+      db
+        .select()
+        .from(worldEvents)
+        .where(
+          and(
+            gte(
+              worldEvents.timestamp,
+              new Date(Date.now() - this.getLookbackMs(category))
+            ),
+            eq(worldEvents.visibility, 'public')
+          )
+        )
+        .orderBy(desc(worldEvents.timestamp))
+        .limit(category === 'short' ? 10 : 20),
+      // Get active questions to avoid duplication
+      db
+        .select()
+        .from(questions)
+        .where(eq(questions.status, 'active'))
+        .orderBy(desc(questions.createdAt))
+        .limit(20),
+      // Get actors
+      Promise.resolve(
+        StaticDataRegistry.getAllActors()
+          .filter((a) => a.role === 'main' || a.role === 'supporting')
+          .slice(0, 20)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            domain: a.domain,
+          }))
+      ),
+      // Get organizations
+      Promise.resolve(
+        StaticDataRegistry.getAllOrganizations()
+          .filter((o) => o.type === 'company')
+          .slice(0, 15)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+          }))
+      ),
+      // Get trending topics
+      db
+        .select({
+          tagName: tags.name,
+          tagDisplayName: tags.displayName,
+        })
+        .from(trendingTags)
+        .leftJoin(tags, eq(trendingTags.tagId, tags.id))
+        .orderBy(desc(trendingTags.score))
+        .limit(8),
+    ]);
+
+    // Build context strings
+    const eventsContext =
+      recentEvents.length > 0
+        ? `RECENT EVENTS:\n${recentEvents
+            .slice(0, 8)
+            .map((e) => `- ${e.description}`)
+            .join('\n')}`
+        : '';
+
+    const activeQContext =
+      activeQuestions.length > 0
+        ? `AVOID DUPLICATING:\n${activeQuestions
+            .slice(0, 10)
+            .map((q) => `- "${q.text}"`)
+            .join('\n')}`
+        : '';
+
+    const actorsContext = `ACTORS: ${actorsList.map((a) => a.name).join(', ')}`;
+    const orgsContext = `COMPANIES: ${organizationsList.map((o) => o.name).join(', ')}`;
+    const trendingContext =
+      trendingTagsList.length > 0
+        ? `TRENDING: ${trendingTagsList.map((t) => t.tagDisplayName || t.tagName).join(', ')}`
+        : '';
+
+    // Timeframe-specific guidance
+    const categoryGuidance = this.getCategoryGuidance(category, durationLabel, actorsList, organizationsList);
+
+    const prompt = `Generate ONE prediction market question for a ${durationLabel} timeframe.
+
+${worldFactsContext}
+
+${eventsContext}
+
+${activeQContext}
+
+${actorsContext}
+${orgsContext}
+${trendingContext}
+
+${categoryGuidance}
+
+CRITICAL RULES:
+- Must be binary (YES/NO answer only)
+- Must be VERIFIABLE within ${durationLabel}
+- Must use ONLY parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, Sim Cook, etc.)
+- Must be SPECIFIC and ENGAGING
+- Must be DIFFERENT from active questions listed above
+- Keep under 100 characters
+- If possible, BUILD ON a recent event to create narrative continuity
+
+DIVERSITY REQUIREMENT:
+- Make this question UNIQUE - not similar to existing active markets
+- Draw inspiration from trending topics or recent events when possible
+- Vary the subject (different actor/company than recent questions)
+
+XML: <response><question><text>Your question here</text><resolutionCriteria>How to verify</resolutionCriteria><expectedOutcome>yes or no</expectedOutcome><primaryActor>Actor name if relevant</primaryActor><primaryOrg>Company name if relevant</primaryOrg></question></response>`;
+
+    try {
+      type QuestionResponse = {
+        question?: {
+          text: string;
+          resolutionCriteria: string;
+          expectedOutcome: string;
+          primaryActor?: string;
+          primaryOrg?: string;
+        };
+        response?: {
+          question?: {
+            text: string;
+            resolutionCriteria: string;
+            expectedOutcome: string;
+            primaryActor?: string;
+            primaryOrg?: string;
+          };
+        };
+      };
+
+      const response = await this.llm.generateJSON<QuestionResponse>(
+        prompt,
+        {
+          properties: {
+            question: {
+              type: 'object',
+              properties: {
+                text: { type: 'string' },
+                resolutionCriteria: { type: 'string' },
+                expectedOutcome: { type: 'string' },
+                primaryActor: { type: 'string' },
+                primaryOrg: { type: 'string' },
+              },
+            },
+          },
+          required: ['question'],
+        },
+        {
+          temperature: 0.85,
+          maxTokens: 500,
+          format: 'xml',
+          promptType: 'generate_timeframe_question',
+        }
+      );
+
+      // Handle XML structure variations
+      const questionData =
+        response?.question ||
+        response?.response?.question ||
+        null;
+
+      if (!questionData?.text) {
+        logger.warn(
+          'Failed to generate timeframe question - empty response',
+          { timeframe, response },
+          'QuestionManager'
+        );
+        return null;
+      }
+
+      // Sanitize question text
+      const sanitizedText = questionData.text
+        .replace(/\{[a-zA-Z_]+\}/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Parse expected outcome
+      const outcomeStr = String(questionData.expectedOutcome || '').toLowerCase().trim();
+      const expectedOutcome = outcomeStr === 'yes' || outcomeStr === 'true';
+
+      // Find affiliated actor/org IDs
+      const affiliatedActorIds: string[] = [];
+      const affiliatedOrgIds: string[] = [];
+
+      if (questionData.primaryActor) {
+        const actor = actorsList.find(
+          (a) => a.name.toLowerCase() === questionData.primaryActor?.toLowerCase()
+        );
+        if (actor) affiliatedActorIds.push(actor.id);
+      }
+
+      if (questionData.primaryOrg) {
+        const org = organizationsList.find(
+          (o) => o.name.toLowerCase() === questionData.primaryOrg?.toLowerCase()
+        );
+        if (org) affiliatedOrgIds.push(org.id);
+      }
+
+      logger.info(
+        `Generated ${timeframe} question`,
+        { text: sanitizedText, expectedOutcome },
+        'QuestionManager'
+      );
+
+      return {
+        text: sanitizedText,
+        resolutionCriteria: questionData.resolutionCriteria || 'Verifiable via public sources',
+        expectedOutcome,
+        affiliatedActorIds,
+        affiliatedOrgIds,
+      };
+    } catch (error) {
+      logger.error(
+        'Failed to generate timeframe question',
+        { error: error instanceof Error ? error.message : String(error), timeframe },
+        'QuestionManager'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get timeframe category from timeframe key
+   */
+  private getTimeframeCategory(timeframe: string): 'short' | 'medium' | 'long' {
+    if (['15m', '30m', '1h'].includes(timeframe)) return 'short';
+    if (['6h', '12h', '1d'].includes(timeframe)) return 'medium';
+    return 'long'; // 2d, 3d
+  }
+
+  /**
+   * Get human-readable duration label
+   */
+  private getDurationLabel(durationMs: number): string {
+    const hours = durationMs / (60 * 60 * 1000);
+    if (hours < 1) return `${Math.round(hours * 60)} minutes`;
+    if (hours < 24) return `${Math.round(hours)} hours`;
+    return `${Math.round(hours / 24)} days`;
+  }
+
+  /**
+   * Get lookback period for context based on category
+   */
+  private getLookbackMs(category: 'short' | 'medium' | 'long'): number {
+    switch (category) {
+      case 'short':
+        return 2 * 60 * 60 * 1000; // 2 hours
+      case 'medium':
+        return 24 * 60 * 60 * 1000; // 1 day
+      case 'long':
+        return 7 * 24 * 60 * 60 * 1000; // 7 days
+    }
+  }
+
+  /**
+   * Get category-specific prompt guidance
+   */
+  private getCategoryGuidance(
+    category: 'short' | 'medium' | 'long',
+    durationLabel: string,
+    actors: Array<{ id: string; name: string }>,
+    orgs: Array<{ id: string; name: string }>
+  ): string {
+    const actorExample = actors[0]?.name || 'AIlon Musk';
+    const orgExample = orgs[0]?.name || 'Aipple';
+
+    switch (category) {
+      case 'short':
+        return `SHORT-TERM QUESTION (${durationLabel}):
+Generate questions about IMMEDIATE, OBSERVABLE events:
+- Social media activity: "Will ${actorExample} post within ${durationLabel}?"
+- Price movements: "Will ${orgExample} stock move 2%+ in ${durationLabel}?"
+- Breaking news: "Will there be breaking news in the next ${durationLabel}?"
+- Trading volume: "Will trading volume spike in the next ${durationLabel}?"
+- Live events: Outcomes of ongoing events`;
+
+      case 'medium':
+        return `MEDIUM-TERM QUESTION (${durationLabel}):
+Generate questions about DAILY developments:
+- Announcements: "Will ${orgExample} announce something today?"
+- Daily performance: "Will ${orgExample} close higher than it opened?"
+- Actor statements: "Will ${actorExample} make a statement today?"
+- Market trends: "Will crypto markets end the day green?"
+- Scheduled events: Outcomes of planned meetings or releases`;
+
+      case 'long':
+        return `LONG-TERM QUESTION (${durationLabel}):
+Generate questions about MULTI-DAY narratives:
+- Investigations: "Will the investigation conclude within ${durationLabel}?"
+- Major deals: "Will the merger be announced within ${durationLabel}?"
+- Product launches: "Will ${orgExample} launch their product within ${durationLabel}?"
+- Regulatory actions: "Will regulators take action within ${durationLabel}?"
+- Leadership: "Will ${actorExample} make a major decision within ${durationLabel}?"`;
+    }
+  }
 }

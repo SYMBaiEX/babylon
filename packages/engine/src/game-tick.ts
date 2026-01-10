@@ -40,7 +40,6 @@ import {
   tickTokenStats,
   trendingTags,
   widgetCaches,
-  worldEvents,
 } from '@babylon/db';
 import {
   calculatePriceFromHoldings,
@@ -54,52 +53,44 @@ import {
 } from '@babylon/shared';
 // ArticleGenerator moved to /api/cron/article-tick
 import { BabylonLLMClient } from './llm/openai-client';
-import { MarketDecisionEngine } from './MarketDecisionEngine';
-import { NPCInvestmentManager } from './npc/npc-investment-manager';
+// MarketDecisionEngine moved to npc-tick for NPC batch trading
+// NPCInvestmentManager moved to npc-tick
 // generateWorldContext moved to /api/cron/article-tick
-import { QuestionManager } from './QuestionManager';
+// QuestionManager moved to /api/cron/markets-tick for resolution proof generation
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 // Services - using barrel exports from services/index.ts
+// Note: ActorSocialActions, FollowingMechanics, MarketContextService,
+// npcSocialEngagementService, processNPCSocialEngagements, TradeExecutionService
+// moved to npc-tick for NPC behavior
 import {
-  ActorSocialActions,
   AlphaGroupInviteService,
   bootstrapGameIfNeeded,
   calculateTrendingIfNeeded,
   calculateTrendingTags,
   createArcState,
   createParodyHeadlineGenerator,
-  FollowingMechanics,
   generateArcPulseEventsIfNeeded,
   generateEvents,
   getOracleService,
   initFalClient,
   invalidateAfterPredictionTrade,
-  MarketContextService,
   NPCGroupDynamicsService,
-  npcSocialEngagementService,
   PriceUpdateService,
   processArcTick,
-  processNPCSocialEngagements,
   ReputationService,
   rssFeedService,
   StaticDataRegistry,
   syncReputationIfAvailable,
   TokenStatsService,
-  TradeExecutionService,
   timeframeArcProcessor,
   WalletService,
 } from './services';
 import type { TradingExecutionResult } from './types/market-decisions';
-import type {
-  DayTimeline,
-  Organization,
-  Question,
-  SelectedActor,
-  WorldEvent,
-} from './types/shared';
+// Note: DayTimeline, Organization, Question, SelectedActor, WorldEvent
+// moved to markets-tick for resolution proof generation
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
-import { deriveStrategyFromPersonality } from './utils/shared-utils';
+// deriveStrategyFromPersonality moved to npc-tick for portfolio rebalancing
 // worldFactsService moved to /api/cron/article-tick
 // Note: Event-market pipeline is called from within narrative-event-processor
 
@@ -191,9 +182,8 @@ export async function executeGameTick(
   const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 180000); // 3 minutes default
   const deadline = startedAt + budgetMs;
 
-  // Reserve 60 seconds for critical operations (market decisions, widget updates)
-  const criticalOpsReserveMs = 60000;
-  const criticalOpsDeadline = startedAt + budgetMs - criticalOpsReserveMs;
+  // Note: criticalOpsDeadline was previously used for NPC following,
+  // now handled in npc-tick. deadline is used for remaining game-tick operations.
 
   // Start token usage collection for this tick
   const tokenStatsTickId = TokenStatsService.startTick(`tick-${startedAt}`);
@@ -297,326 +287,27 @@ export async function executeGameTick(
     'GameTick'
   );
 
-  // Generate initial questions FIRST if this is the first tick
-  let currentActiveQuestions = activeQuestions;
-  if (activeQuestions.length === 0 && Date.now() < deadline) {
-    logger.info(
-      'First tick detected - generating initial questions',
-      {},
-      'GameTick'
-    );
-    const questionsGenerated = await generateNewQuestions(
-      5, // Generate 5 initial questions
-      llmClient,
-      deadline
-    );
-    result.questionsCreated = questionsGenerated;
-
-    // Reload active questions after generation (use new variable to avoid mutation)
-    currentActiveQuestions = await db
-      .select()
-      .from(questionsSchema)
-      .where(eq(questionsSchema.status, 'active'));
-
-    logger.info(
-      `Initial questions created: ${questionsGenerated}`,
-      { count: questionsGenerated },
-      'GameTick'
-    );
-
-    // Publish commitments to blockchain oracle
-    if (questionsGenerated > 0 && currentActiveQuestions.length > 0) {
-      const oracleResult = await publishOracleCommitments(
-        currentActiveQuestions
-      );
-      result.oracleCommits += oracleResult.committed;
-      result.oracleErrors += oracleResult.errors;
-    }
-  }
-
-  const questionsToResolve = currentActiveQuestions.filter(
-    (q: { resolutionDate: Date | null }) => {
-      if (!q.resolutionDate) return false;
-      const resolutionDate = new Date(q.resolutionDate);
-      return resolutionDate <= timestamp;
-    }
-  );
-
-  if (questionsToResolve.length > 0) {
-    logger.info(
-      `Resolving ${questionsToResolve.length} questions`,
-      { count: questionsToResolve.length },
-      'GameTick'
-    );
-
-    // Load required data for proof generation using StaticDataRegistry (preferred over loadActorsData)
-    const staticActors = StaticDataRegistry.getAllActors();
-    // Map StaticActor to SelectedActor, ensuring required fields are present
-    const allActors: SelectedActor[] = staticActors
-      .filter((actor) => actor.tier !== null)
-      .map((actor) => ({
-        id: actor.id,
-        name: actor.name,
-        description: actor.description,
-        domain: actor.domain,
-        personality: actor.personality,
-        affiliations: actor.affiliations,
-        postStyle: actor.postStyle,
-        postExample: actor.postExample,
-        tier: actor.tier!,
-        role: actor.role ?? 'unknown',
-        initialLuck:
-          (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
-        initialMood: actor.initialMood ?? 0,
-      }));
-    // Map StaticOrganization to Organization type
-    const organizations: Organization[] =
-      StaticDataRegistry.getAllOrganizations().map((o) => ({
-        id: o.id,
-        name: o.name,
-        ticker: o.ticker,
-        description: o.description,
-        type: o.type,
-        canBeInvolved: o.canBeInvolved,
-        initialPrice: o.initialPrice ?? undefined,
-      }));
-
-    // Get recent events for context
-    const recentDbEvents = await db
-      .select()
-      .from(worldEvents)
-      .where(
-        gte(
-          worldEvents.timestamp,
-          new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        )
-      )
-      .orderBy(desc(worldEvents.timestamp));
-
-    // Type guards for WorldEvent fields
-    const isValidEventType = (type: string): type is WorldEvent['type'] => {
-      return [
-        'announcement',
-        'meeting',
-        'leak',
-        'development',
-        'scandal',
-        'rumor',
-        'deal',
-        'conflict',
-        'revelation',
-        'development:occurred',
-        'news:published',
-      ].includes(type);
-    };
-
-    const isValidVisibility = (
-      vis: string
-    ): vis is WorldEvent['visibility'] => {
-      return ['public', 'leaked', 'secret', 'private', 'group'].includes(vis);
-    };
-
-    const isValidPointsToward = (
-      pt: string | null | undefined
-    ): pt is WorldEvent['pointsToward'] => {
-      return pt === null || pt === undefined || pt === 'YES' || pt === 'NO';
-    };
-
-    // Convert to DayTimeline format for QuestionManager
-    const mappedEvents: WorldEvent[] = recentDbEvents
-      .filter(
-        (e) => isValidEventType(e.eventType) && isValidVisibility(e.visibility)
-      )
-      .map((e) => ({
-        id: e.id,
-        day: e.dayNumber || 0,
-        type: e.eventType as WorldEvent['type'],
-        description: e.description,
-        actors: e.actors as string[],
-        relatedQuestion: e.relatedQuestion || undefined,
-        pointsToward: isValidPointsToward(e.pointsToward)
-          ? e.pointsToward
-          : undefined,
-        visibility: e.visibility as WorldEvent['visibility'],
-      }));
-
-    const recentTimelines: DayTimeline[] = [
-      {
-        day: 0,
-        events: mappedEvents,
-        summary: 'Recent events context',
-        groupChats: {},
-        feedPosts: [],
-        luckChanges: [],
-        moodChanges: [],
-      },
-    ];
-
-    const questionManager = new QuestionManager(llmClient);
-    const questionsToReveal: Array<{ id: string; outcome: boolean }> = [];
-
-    // Resolve payouts
-    // Each question resolution is wrapped in try/catch to prevent partial failures
-    // from breaking the entire tick. Failed resolutions will be retried next tick.
-    for (const question of questionsToResolve) {
-      try {
-        const isApproved = question.resolutionReviewStatus === 'approved';
-        const isPendingManualReview =
-          question.requiresManualReview && !isApproved;
-        const hasStoredProof =
-          Boolean(question.resolutionProofUrl) &&
-          Boolean(question.resolutionDescription);
-
-        if (isPendingManualReview && hasStoredProof) {
-          logger.info(
-            'Skipping question resolution (pending manual review)',
-            {
-              questionId: question.id,
-              questionNumber: question.questionNumber,
-              confidence: question.resolutionConfidence ?? null,
-              reviewStatus: question.resolutionReviewStatus ?? 'pending',
-            },
-            'GameTick'
-          );
-          continue;
-        }
-
-        // Generate resolution proof content
-        // We cast question to Question type - database question fields are compatible
-        const questionForManager: Question = {
-          id: question.questionNumber,
-          text: question.text,
-          scenario: question.scenarioId || 1,
-          outcome: question.outcome,
-          rank: question.rank || 1,
-          status: 'active',
-        };
-
-        // Only generate proof if we don't have one stored
-        // Avoids regenerating existing proofs when only confidence is missing
-        const shouldGenerateProof = !hasStoredProof;
-
-        let generatedProof: Awaited<
-          ReturnType<QuestionManager['generateResolutionWithProof']>
-        > | null = null;
-
-        if (shouldGenerateProof) {
-          const proofResult = await questionManager.generateResolutionWithProof(
-            questionForManager,
-            allActors,
-            organizations,
-            recentTimelines
-          );
-
-          generatedProof = proofResult;
-
-          const reviewStatus = proofResult.requiresManualReview
-            ? 'pending'
-            : null;
-
-          // Save proof article (if any) and update question atomically.
-          await db.transaction(async (tx) => {
-            if (proofResult.proof?.type === 'article') {
-              await tx.insert(posts).values({
-                id: proofResult.proof.article.id,
-                type: 'article',
-                content: proofResult.proof.article.summary,
-                fullContent: proofResult.proof.article.content,
-                articleTitle: proofResult.proof.article.title,
-                authorId: proofResult.proof.article.authorOrgId,
-                gameId: 'continuous',
-                timestamp: new Date(),
-                category: proofResult.proof.article.category,
-                sentiment: proofResult.proof.article.sentiment,
-                slant: proofResult.proof.article.slant,
-                biasScore: proofResult.proof.article.biasScore,
-              });
-            }
-
-            await tx
-              .update(questionsSchema)
-              .set({
-                resolutionDescription: proofResult.description,
-                resolutionProofUrl: proofResult.proof?.url ?? null,
-                resolutionConfidence: proofResult.confidence,
-                requiresManualReview: proofResult.requiresManualReview,
-                resolutionReviewStatus: reviewStatus,
-                updatedAt: new Date(),
-              })
-              .where(eq(questionsSchema.id, question.id));
-          });
-
-          if (proofResult.proof?.type === 'article') {
-            logger.info(
-              `Generated resolution proof for Q${question.questionNumber}`,
-              {
-                proofUrl: proofResult.proof.url,
-                articleId: proofResult.proof.article.id,
-                confidence: proofResult.confidence,
-                requiresManualReview: proofResult.requiresManualReview,
-                confidenceSignals: proofResult.confidenceSignals,
-              },
-              'GameTick'
-            );
-          }
-        }
-
-        const requiresManualReview =
-          generatedProof?.requiresManualReview ?? question.requiresManualReview;
-        const reviewStatus =
-          generatedProof?.requiresManualReview === true
-            ? 'pending'
-            : question.resolutionReviewStatus;
-
-        // If low-confidence, queue for manual review instead of resolving now.
-        if (requiresManualReview && reviewStatus !== 'approved') {
-          logger.warn(
-            'Queued question for manual resolution review',
-            {
-              questionId: question.id,
-              questionNumber: question.questionNumber,
-              confidence:
-                generatedProof?.confidence ?? question.resolutionConfidence,
-              reviewStatus: reviewStatus ?? 'pending',
-            },
-            'GameTick'
-          );
-          continue;
-        }
-
-        // resolveQuestionPayouts has its own internal transaction for payout operations
-        // and updates question status to 'resolved' atomically
-        await resolveQuestionPayouts(question.questionNumber);
-        result.questionsResolved++;
-        questionsToReveal.push({ id: question.id, outcome: question.outcome });
-      } catch (error) {
-        // Log error but continue with other questions
-        // Failed question will remain in 'active' status and be retried next tick
-        logger.error(
-          `Question resolution failed - will retry next tick`,
-          {
-            questionId: question.id,
-            questionNumber: question.questionNumber,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'GameTick'
-        );
-      }
-    }
-
-    // Publish reveals to blockchain oracle
-    const oracleResult = await publishOracleReveals(questionsToReveal);
-    result.oracleReveals += oracleResult.revealed;
-    result.oracleErrors += oracleResult.errors;
-  }
+  // ==========================================================================
+  // MARKET LIFECYCLE HANDLED BY markets-tick (not here)
+  // ==========================================================================
+  // markets-tick now owns the COMPLETE market lifecycle:
+  // - Question/Market CREATION: Generate with timeframe-appropriate arcs
+  // - RESOLUTION: Signal extraction, proof generation, payouts, oracle reveals
+  // - REPLACEMENT: Create new market when one resolves
+  //
+  // This provides single-point-of-ownership for all market operations,
+  // cleaner separation of concerns, and easier debugging.
+  // ==========================================================================
+  const currentActiveQuestions = activeQuestions;
 
   // Content generation is now centralized:
   // - Organization posts/articles: /api/cron/organization-tick
   // - NPC posts and replies: /api/cron/npc-tick
-  // - Lookahead buffer: lookahead-generation-service
+  // - Article generation: /api/cron/article-tick
+  // - Market lifecycle (create, resolve, replace): /api/cron/markets-tick
   //
-  // game-tick only handles: events, market updates, question resolution, NPC trading
-  // This prevents duplicate content and respects DRY principle.
+  // game-tick focuses on: events, arcs, world state, relationships
+  // This prevents duplicate operations and respects DRY principle.
 
   if (!skipContentGeneration) {
     // Generate world events based on active questions (events are game-tick responsibility)
@@ -639,371 +330,24 @@ export async function executeGameTick(
     );
   }
 
-  // CRITICAL PRIORITY: Generate and execute NPC trading decisions
-  // This ALWAYS runs - uses the full deadline, not the critical ops deadline
-  // Market decisions are essential for game economy and must always execute
-  logger.info(
-    'Starting critical market decision operations',
-    {
-      timeRemaining: deadline - Date.now(),
-    },
-    'GameTick'
-  );
-
-  const baselineResult =
-    await NPCInvestmentManager.executeBaselineInvestments(timestamp);
-
-  if (baselineResult) {
-    const baselineUpdates = await updateMarketPricesFromTrades(
-      timestamp,
-      baselineResult
-    );
-    result.marketsUpdated += baselineUpdates;
-  }
-
-  const contextService = new MarketContextService();
-
-  // Create LLM client for market decisions
-  // Priority: Groq > Claude > OpenAI
-  const marketDecisionLLM = BabylonLLMClient.forGameTick();
-  const marketLLMStats = marketDecisionLLM.getStats();
-  logger.info(
-    `Using ${marketLLMStats.provider} for market decisions`,
-    { model: marketLLMStats.model },
-    'GameTick'
-  );
-
-  // Configure decision engine with model and token limits from environment
-  // Use qwen/qwen3-32b on Groq for background trading operations
-  const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-
-  // Model-aware output token limits:
-  // Input and output are SEPARATE limits on modern models
-  // - Kimi models: 260k INPUT + 16k OUTPUT (separate)
-  // - qwen3-32b: 130k INPUT + 32k OUTPUT (separate)
-  const isKimiModel = modelName.toLowerCase().includes('kimi');
-  const defaultMaxOutput = isKimiModel ? 16000 : 32000;
-  const maxOutputTokens = Number.parseInt(
-    process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
-      defaultMaxOutput.toString(),
-    10
-  );
-
-  const decisionEngine = new MarketDecisionEngine(
-    marketDecisionLLM,
-    contextService,
-    {
-      model: modelName,
-      maxOutputTokens,
-    }
-  );
-  const executionService = new TradeExecutionService();
-
-  const marketDecisions = await decisionEngine.generateBatchDecisions();
-
-  if (marketDecisions.length === 0) {
-    logger.info('No NPC market trades generated this tick', {}, 'GameTick');
-  } else {
-    const executionResult =
-      await executionService.executeDecisionBatch(marketDecisions);
-
-    logger.info(
-      `NPC Trading: ${executionResult.successfulTrades} trades executed`,
-      {
-        successful: executionResult.successfulTrades,
-        failed: executionResult.failedTrades,
-        holds: executionResult.holdDecisions,
-      },
-      'GameTick'
-    );
-
-    // Update prices based on NPC trades
-    const marketsUpdated = await updateMarketPricesFromTrades(
-      timestamp,
-      executionResult
-    );
-    result.marketsUpdated += marketsUpdated;
-  }
-
   // =========================================================================
-  // NPC SOCIAL ENGAGEMENT (likes, shares, comments)
-  // Creates organic social activity to make the feed feel alive
+  // NPC TRADING AND INVESTMENT (moved to /api/cron/npc-tick)
   // =========================================================================
-  if (Date.now() < deadline) {
-    try {
-      // Set LLM client for NPC comment generation
-      npcSocialEngagementService.setLLMClient(llmClient);
+  // All NPC trading and investment logic is now in npc-tick:
+  // - Batch trading (MarketDecisionEngine)
+  // - Baseline investments (NPCInvestmentManager.executeBaselineInvestments)
+  // - Portfolio rebalancing (NPCInvestmentManager.monitorPortfolio)
+  // - Social engagement (likes, shares, comments)
+  // - Social actions (DMs, group invites)
+  // - Following mechanics
+  // This provides cleaner separation of concerns and independent scheduling.
 
-      const socialEngagementResult = await processNPCSocialEngagements();
-      result.npcLikesCreated = socialEngagementResult.likesCreated;
-      result.npcSharesCreated = socialEngagementResult.sharesCreated;
-      result.npcCommentsCreated = socialEngagementResult.commentsCreated;
-
-      if (
-        socialEngagementResult.likesCreated > 0 ||
-        socialEngagementResult.sharesCreated > 0 ||
-        socialEngagementResult.commentsCreated > 0
-      ) {
-        logger.info(
-          'NPC social engagements processed',
-          {
-            likes: socialEngagementResult.likesCreated,
-            shares: socialEngagementResult.sharesCreated,
-            comments: socialEngagementResult.commentsCreated,
-            actors: socialEngagementResult.actorsEngaged,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC social engagement failed',
-        { error: error instanceof Error ? error.message : String(error) },
-        'GameTick'
-      );
-    }
-  }
-
-  // =========================================================================
-  // NPC SOCIAL ACTIONS (DMs, group invites based on interactions)
-  // =========================================================================
-  if (Date.now() < deadline) {
-    try {
-      const socialActions =
-        await ActorSocialActions.processRandomSocialActions();
-      result.npcSocialActionsProcessed = socialActions.length;
-
-      if (socialActions.length > 0) {
-        logger.info(
-          'NPC social actions processed',
-          {
-            total: socialActions.length,
-            invites: socialActions.filter((a) => a.type === 'group_chat_invite')
-              .length,
-            dms: socialActions.filter((a) => a.type === 'dm').length,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC social actions failed',
-        { error: error instanceof Error ? error.message : String(error) },
-        'GameTick'
-      );
-    }
-  }
-
-  // =========================================================================
-  // NPC FOLLOWING (proactive follows and unfollow checks)
-  // NPCs follow active players and unfollow inactive ones
-  // FollowingMechanics enforces its own time-slicing using the passed-in deadline
-  // =========================================================================
-  if (Date.now() < criticalOpsDeadline) {
-    // Process proactive following of active players
-    try {
-      const followResult =
-        await FollowingMechanics.processProactiveFollowing(criticalOpsDeadline);
-      result.npcFollowsCreated = followResult.followsCreated;
-
-      if (followResult.followsCreated > 0) {
-        logger.info(
-          'NPC proactive follows processed',
-          {
-            followsCreated: followResult.followsCreated,
-            playersConsidered: followResult.playersConsidered,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC proactive following failed',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'GameTick'
-      );
-    }
-
-    // Process unfollow checks (runs probabilistically) - separate try/catch so a failure doesn't hide follow progress
-    try {
-      const unfollowCount =
-        await FollowingMechanics.processUnfollowChecks(criticalOpsDeadline);
-      result.npcUnfollows = unfollowCount;
-    } catch (error) {
-      logger.error(
-        'NPC unfollow checks failed',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'GameTick'
-      );
-    }
-  }
-
-  // =========================================================================
-  // NPC PORTFOLIO REBALANCING
-  // Monitor NPC portfolios and execute rebalancing actions
-  // =========================================================================
-  if (Date.now() < deadline) {
-    try {
-      // Get all active NPC pools and monitor them
-      const activePools = await db
-        .select({ id: pools.id, npcActorId: pools.npcActorId })
-        .from(pools)
-        .where(eq(pools.isActive, true))
-        .limit(10); // Limit to prevent overwhelming the tick
-
-      let rebalanceActionsExecuted = 0;
-      // Cap on total rebalance actions per tick to prevent expensive ticks
-      const maxActionsPerTick = 20;
-
-      for (const pool of activePools) {
-        if (Date.now() >= deadline) break;
-        if (rebalanceActionsExecuted >= maxActionsPerTick) {
-          logger.debug(
-            'Rebalance action cap reached, stopping pool processing',
-            { maxActionsPerTick, poolsRemaining: activePools.length },
-            'GameTick'
-          );
-          break;
-        }
-
-        // Skip pools without an NPC actor ID
-        if (!pool.npcActorId) {
-          continue;
-        }
-
-        const poolStartTime = Date.now();
-        const actor = StaticDataRegistry.getActor(pool.npcActorId);
-
-        // Determine trading strategy from actor data
-        // Prefer explicit strategy property if available, otherwise derive from personality
-        let strategy: 'aggressive' | 'conservative' | 'balanced' = 'balanced';
-        if (actor) {
-          // Check for explicit strategy property first (preferred)
-          if ('strategy' in actor && typeof actor.strategy === 'string') {
-            const explicitStrategy = actor.strategy.toLowerCase();
-            if (
-              explicitStrategy === 'aggressive' ||
-              explicitStrategy === 'conservative' ||
-              explicitStrategy === 'balanced'
-            ) {
-              strategy = explicitStrategy;
-            }
-          } else {
-            // Use utility function to derive strategy from personality
-            strategy = deriveStrategyFromPersonality(actor.personality);
-          }
-        }
-
-        const rebalanceActions = await NPCInvestmentManager.monitorPortfolio(
-          pool.id,
-          pool.npcActorId,
-          strategy
-        );
-
-        let poolActionsExecuted = 0;
-        if (rebalanceActions.length > 0) {
-          // Execute rebalance actions through NPCInvestmentManager
-          for (const action of rebalanceActions) {
-            if (rebalanceActionsExecuted >= maxActionsPerTick) break;
-            try {
-              await NPCInvestmentManager.executeRebalanceAction(
-                pool.npcActorId,
-                pool.id,
-                action
-              );
-              rebalanceActionsExecuted++;
-              poolActionsExecuted++;
-            } catch (actionError) {
-              logger.warn(
-                'Failed to execute rebalance action',
-                {
-                  poolId: pool.id,
-                  action: action.type,
-                  error:
-                    actionError instanceof Error
-                      ? actionError.message
-                      : String(actionError),
-                },
-                'GameTick'
-              );
-            }
-          }
-        }
-
-        // Log per-pool timing for performance tuning
-        const poolDuration = Date.now() - poolStartTime;
-        if (poolDuration > 100 || poolActionsExecuted > 0) {
-          logger.debug(
-            'Pool rebalance processed',
-            {
-              poolId: pool.id,
-              durationMs: poolDuration,
-              actionsExecuted: poolActionsExecuted,
-            },
-            'GameTick'
-          );
-        }
-      }
-
-      result.npcRebalanceActionsExecuted = rebalanceActionsExecuted;
-
-      if (rebalanceActionsExecuted > 0) {
-        logger.info(
-          'NPC portfolio rebalancing completed',
-          { actionsExecuted: rebalanceActionsExecuted },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC portfolio rebalancing failed',
-        { error: error instanceof Error ? error.message : String(error) },
-        'GameTick'
-      );
-    }
-  }
-
-  // Article generation is now centralized in /api/cron/organization-tick
+  // Article generation is now centralized in /api/cron/article-tick
   // Removed from game-tick to prevent duplicate content and respect DRY principle.
   // The organization-tick runs every 2 minutes with proper rate limiting.
 
-  const currentActiveCount =
-    currentActiveQuestions.length - result.questionsResolved;
-  if (currentActiveCount < 10) {
-    const shouldForceGeneration = currentActiveCount <= 0;
-    if (Date.now() < deadline || shouldForceGeneration) {
-      if (shouldForceGeneration && Date.now() >= deadline) {
-        logger.warn(
-          'No active prediction questions – forcing generation past tick budget',
-          { budgetMs, currentActiveCount },
-          'GameTick'
-        );
-      }
-
-      // If we've exceeded the tick budget, still allow a small window to avoid
-      // periods with zero active prediction markets.
-      const generationDeadline =
-        Date.now() < deadline ? deadline : Date.now() + 30_000;
-      const questionsGenerated = await generateNewQuestions(
-        Math.min(3, 15 - currentActiveCount),
-        llmClient,
-        generationDeadline
-      );
-      result.questionsCreated += questionsGenerated;
-    } else {
-      logger.warn(
-        'Skipping question generation – tick budget exceeded',
-        { budgetMs },
-        'GameTick'
-      );
-    }
-  }
+  // Question generation is now handled exclusively by markets-tick.
+  // markets-tick maintains 10 active markets across different timeframes (15m to 3d).
 
   // Process narrative arcs for active questions
   // Each question can have an arc that progresses through phases
@@ -1188,13 +532,8 @@ export async function executeGameTick(
   // Validation: Quality checks after game tick
   const validationWarnings: string[] = [];
 
-  // Verify markets were updated if NPC trading ran
-  // Check both baseline investments and market decisions
-  const hadNPCTrading =
-    baselineResult || (marketDecisions && marketDecisions.length > 0);
-  if (result.marketsUpdated === 0 && hadNPCTrading) {
-    validationWarnings.push('NPC trading executed but no markets were updated');
-  }
+  // Note: Baseline investments and NPC trading are now in npc-tick
+  // Market updates from those operations are tracked there
 
   // Verify content was generated if buffer was low and not skipped
   if (
@@ -1614,7 +953,7 @@ async function bootstrapTrending(): Promise<void> {
 // generateEvents moved to services/event-generation-helpers.ts
 
 /** Update market prices based on NPC trading activity (investment-based pricing). */
-async function updateMarketPricesFromTrades(
+export async function updateMarketPricesFromTrades(
   _timestamp: Date,
   executionResult: TradingExecutionResult
 ): Promise<number> {
@@ -1730,20 +1069,7 @@ async function updateMarketPricesFromTrades(
   return applied.length;
 }
 
-/**
- * Generate new questions using QuestionManager
- */
-async function generateNewQuestions(
-  count: number,
-  llm: BabylonLLMClient,
-  deadlineMs: number
-): Promise<number> {
-  const questionManager = new QuestionManager(llm);
-  return await questionManager.generateQuestionsForContinuousGame(
-    count,
-    deadlineMs
-  );
-}
+// generateNewQuestions removed - question generation now handled by markets-tick
 
 /**
  * Resolve question payouts
@@ -1974,9 +1300,10 @@ async function resolveMarketOnChain(
 }
 
 /**
- * Publish question commitments to blockchain oracle
+ * Publish question commitments to blockchain oracle.
+ * Called by markets-tick when new questions/markets are created.
  */
-async function publishOracleCommitments(
+export async function publishOracleCommitments(
   questions: Array<{
     id: string;
     questionNumber: number;
@@ -2061,7 +1388,7 @@ async function publishOracleCommitments(
 /**
  * Publish question reveals to blockchain oracle
  */
-async function publishOracleReveals(
+export async function publishOracleReveals(
   questions: Array<{ id: string; outcome: boolean }>
 ): Promise<{ revealed: number; errors: number }> {
   let revealed = 0;

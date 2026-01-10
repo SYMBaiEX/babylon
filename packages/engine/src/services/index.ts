@@ -58,6 +58,7 @@ export * from './onchain-market-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
 export * from './sub-market-service'; // Sub-market spawning
+export * from './timeframe-arc-planner'; // Compressed arc planning for timeframe markets
 export * from './timeframe-arc-processor'; // Time-based arc state machine
 export * from './trajectory-market-engine';
 

@@ -26,11 +26,18 @@
     },
     "src/app/api/cron/article-tick/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/cron/markets-tick/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/cron/game-tick",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/markets-tick",
       "schedule": "* * * * *"
     },
     {
