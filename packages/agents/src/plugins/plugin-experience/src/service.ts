@@ -1,4 +1,5 @@
 import {
+  type EventPayload,
   type IAgentRuntime,
   logger,
   ModelType,
@@ -132,9 +133,10 @@ export class ExperienceService extends Service {
   ): Promise<Experience> {
     // Generate embedding for the experience
     const embeddingText = `${experienceData.context} ${experienceData.action} ${experienceData.result} ${experienceData.learning}`;
-    const embedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-      prompt: embeddingText,
-    });
+    const embedding = await this.runtime.useModel(
+      ModelType.TEXT_EMBEDDING,
+      embeddingText
+    );
 
     const experience: Experience = {
       id: uuidv4() as UUID,
@@ -200,10 +202,12 @@ export class ExperienceService extends Service {
 
     // Emit event
     await this.runtime.emitEvent('EXPERIENCE_RECORDED', {
+      runtime: this.runtime,
+      source: 'plugin-experience',
       experienceId: experience.id,
       eventType: 'created',
       timestamp: experience.createdAt,
-    });
+    } as unknown as EventPayload);
 
     logger.info(
       `[ExperienceService] Recorded experience: ${experience.id} (${experience.type})`
@@ -420,12 +424,10 @@ export class ExperienceService extends Service {
     }
 
     // Generate embedding for the query text
-    const queryEmbedding = (await this.runtime.useModel(
+    const queryEmbedding = await this.runtime.useModel(
       ModelType.TEXT_EMBEDDING,
-      {
-        prompt: text,
-      }
-    )) as number[];
+      text
+    );
 
     // Calculate similarities
     const similarities: Array<{

@@ -30,11 +30,13 @@
     "@babylon/contracts": "workspace:*"
   },
   "devDependencies": {
+    "@elizaos/core": "^1.7.0",
     "@playwright/test": "^1.56.1",
     "@synthetixio/synpress": "^4.1.1",
     "@synthetixio/synpress-cache": "^0.0.13",
     "@synthetixio/synpress-metamask": "^0.0.13",
     "dotenv": "^16.4.5",
+    "nanoid": "^5.1.6",
     "next": "16.0.7",
     "playwright": "^1.56.1"
   }

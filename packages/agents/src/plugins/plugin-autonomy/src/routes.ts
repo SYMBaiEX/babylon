@@ -1,18 +1,11 @@
-import type { JsonValue } from '@babylon/shared';
-import type { IAgentRuntime, Route } from '@elizaos/core';
+import type {
+  IAgentRuntime,
+  Route,
+  RouteRequest,
+  RouteResponse,
+} from '@elizaos/core';
 import type { AutonomyService } from './service';
 import { AutonomousServiceType } from './types';
-
-interface RouteRequest {
-  body?: Record<string, JsonValue>;
-  params?: Record<string, string>;
-  query?: Record<string, string>;
-}
-
-interface RouteResponse {
-  status: (code: number) => RouteResponse;
-  json: (data: JsonValue) => JsonValue;
-}
 
 // Type guard to check if service is AutonomyService
 function isAutonomyService(service: unknown): service is AutonomyService {
@@ -243,7 +236,8 @@ export const autonomyRoutes: Route[] = [
         return;
       }
 
-      const { interval } = req.body as { interval?: JsonValue };
+      const interval = (req.body as { interval?: unknown } | undefined)
+        ?.interval;
 
       if (
         typeof interval !== 'number' ||
