@@ -801,10 +801,14 @@ async function resolveMarket(
       // Save proof to database
       await db.transaction(async (tx) => {
         // Save proof article if generated
+        // Note: Proof articles use type 'proof' (not 'article') to:
+        // 1. Avoid counting toward the article rate limiter (feed pacing)
+        // 2. Allow separate filtering in the /api/posts feed
+        // 3. Keep resolution evidence separate from news articles
         if (proofResult.proof?.type === 'article') {
           await tx.insert(posts).values({
             id: proofResult.proof.article.id,
-            type: 'article',
+            type: 'proof', // Different from 'article' - exempt from rate limiting
             content: proofResult.proof.article.summary,
             fullContent: proofResult.proof.article.content,
             articleTitle: proofResult.proof.article.title,

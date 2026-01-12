@@ -27,6 +27,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   organizationState,
   posts,
   questions,
@@ -279,7 +280,9 @@ class DatabaseService {
 
   /**
    * Get recent posts with cursor-based or offset-based pagination.
-   * Automatically filters out posts from test users.
+   * Automatically filters out:
+   * - Posts from test users
+   * - Proof articles (type='proof') which are market resolution evidence, not feed content
    *
    * @param limit - Maximum number of posts to return (default: 100)
    * @param cursorOrOffset - Cursor string for cursor-based pagination or number for offset-based
@@ -299,7 +302,10 @@ class DatabaseService {
 
     const now = new Date();
 
-    const conditions = [isNull(posts.deletedAt)];
+    // Filter conditions:
+    // - Not deleted
+    // - Not proof type (proof articles are market resolution evidence, not feed content)
+    const conditions = [isNull(posts.deletedAt), ne(posts.type, 'proof')];
 
     if (cursor) {
       conditions.push(lt(posts.timestamp, new Date(cursor)));

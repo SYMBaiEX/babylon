@@ -27,7 +27,22 @@ import {
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
 
-// Singleton pacing engine for arc event coverage tracking
+/**
+ * Singleton pacing engine for arc event coverage tracking.
+ *
+ * @remarks
+ * **In-memory only** - This singleton tracks which events have been covered
+ * by which organizations to prevent duplicate articles. The state is NOT
+ * persisted to the database and will be lost on:
+ * - Server restart/redeploy
+ * - Serverless cold start
+ * - Process termination
+ *
+ * This is acceptable because:
+ * 1. The article rate limiter (DB-backed) provides primary flood protection
+ * 2. Occasional duplicate articles after restart are not harmful
+ * 3. Most events are covered within the typical serverless warm period
+ */
 const arcEventPacer = new NewsArticlePacingEngine();
 
 // Minimal question type for event generation (only fields actually used)
@@ -713,6 +728,22 @@ export function getArcEventCoverageStats() {
  * @param eventId - The event/question ID to check
  * @param status - The status level to check (default: 'created')
  * @returns True if the event has been covered by at least one org at the specified status
+ *
+ * @remarks
+ * **LIMITATION: In-memory tracking** - Event coverage tracking is stored in-memory
+ * using a singleton `NewsArticlePacingEngine`. This means:
+ * - Tracking is lost on server restart/redeploy (cold start)
+ * - Multiple serverless instances don't share tracking state
+ * - Occasional duplicate coverage is possible after deployments
+ *
+ * This is acceptable for our use case because:
+ * 1. Duplicate articles occasionally are not harmful to user experience
+ * 2. The article rate limiter provides the primary flood protection
+ * 3. Events are typically covered within minutes, before most restarts
+ *
+ * For stricter duplicate prevention, consider DB-backed tracking with:
+ * - A `covered_events` table with (eventId, orgId, status, articleId, timestamp)
+ * - Query before generating to check existing coverage
  */
 export function hasEventBeenCovered(
   eventId: string,
