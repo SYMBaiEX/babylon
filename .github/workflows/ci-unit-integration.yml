@@ -29,7 +29,7 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: babylon_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U babylon_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -94,7 +94,7 @@ jobs:
           # Using environment variable to pass server options
           POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
