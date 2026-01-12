@@ -9,7 +9,7 @@
  * - Lazy header injection per-request (not per-client initialization)
  */
 
-import type { Message, Task } from '@a2a-js/sdk';
+import type { AgentCard, Message, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
@@ -134,11 +134,11 @@ function invalidateAgentIdentityCache(agentUserId: string): void {
 // =============================================================================
 
 /**
- * Cached agent card JSON to avoid repeated HTTP fetches
+ * Cached agent card to avoid repeated HTTP fetches
  * The agent card is the same for all agents
  */
 interface CachedAgentCard {
-  cardJson: unknown;
+  agentCard: AgentCard;
   baseUrl: string;
   fetchedAt: number;
 }
@@ -191,14 +191,14 @@ async function fetchAgentCard(): Promise<CachedAgentCard | null> {
       throw new Error(`Failed to fetch agent card: ${response.status}`);
     }
 
-    const cardJson = await response.json();
+    const agentCard = (await response.json()) as AgentCard;
     cachedAgentCard = {
-      cardJson,
+      agentCard,
       baseUrl,
       fetchedAt: Date.now(),
     };
 
-    logger.info('✅ Agent card cached', { agentCardUrl }, 'BabylonIntegration');
+    logger.info('✅ Agent card cached (used for all agents)', { agentCardUrl }, 'BabylonIntegration');
 
     return cachedAgentCard;
   } catch (error) {
@@ -265,6 +265,9 @@ function createAuthenticatedFetchForAgent(
 /**
  * Create A2A client for an agent using cached agent card
  * Each agent gets its own client with identity-specific headers
+ * 
+ * OPTIMIZED: Uses constructor directly with cached AgentCard object
+ * This avoids repeated HTTP requests to fetch the agent card for each agent
  */
 async function createA2AClientForAgent(
   identity: CachedAgentIdentity
@@ -277,17 +280,9 @@ async function createA2AClientForAgent(
   // Create client with custom fetch that injects this agent's identity headers
   const fetchImpl = createAuthenticatedFetchForAgent(identity);
 
-  type A2AClientOptions = {
-    fetchImpl?: typeof fetch;
-  };
-  const options: A2AClientOptions = { fetchImpl };
-
-  // Use fromCardUrl but with our cached base URL and custom fetch
-  const agentCardUrl = `${card.baseUrl}/.well-known/agent-card.json`;
-  return A2AClient.fromCardUrl(
-    agentCardUrl,
-    options as Parameters<typeof A2AClient.fromCardUrl>[1]
-  );
+  // Use constructor directly with cached AgentCard - avoids re-fetching!
+  // The A2AClient constructor accepts AgentCard | string
+  return new A2AClient(card.agentCard, { fetchImpl });
 }
 
 // =============================================================================

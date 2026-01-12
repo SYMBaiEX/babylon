@@ -52,13 +52,17 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const userId = user?.id;
 
   // Check if guide should auto-open (only once per session)
+  // IMPORTANT: Require user with profile to be fully loaded before showing
+  // This prevents showing on hydration before localStorage state is restored
   const shouldAutoShow =
     authenticated &&
     !loadingProfile &&
+    user !== null &&              // Must have user loaded
+    user.profileComplete &&       // Must have completed profile setup
     !needsOnboarding &&
     !needsOnchain &&
     !hasCompleted &&
-    !user?.isActor;
+    !user.isActor;
 
   useEffect(() => {
     if (shouldAutoShow && !hasAutoShown.current && !isOpen) {

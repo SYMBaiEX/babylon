@@ -488,8 +488,8 @@ export class AgentRuntimeManager {
       settings: this.getModelSettings(),
     };
 
-    // Create runtime with standard plugins
-    return this.createRuntimeWithPlugins(registration.agentId, character);
+    // Create runtime with standard plugins - pass isNpc=true to skip OpenAI/Anthropic validation
+    return this.createRuntimeWithPlugins(registration.agentId, character, undefined, true);
   }
 
   /**
@@ -522,11 +522,13 @@ export class AgentRuntimeManager {
    * @param agentId - The agent's unique identifier (used for Eliza runtime)
    * @param character - Character configuration
    * @param userId - Optional User table ID for USER_CONTROLLED agents (used for Babylon integration)
+   * @param isNpc - Whether this is an NPC agent (skips OpenAI plugin to avoid validation spam)
    */
   private async createRuntimeWithPlugins(
     agentId: string,
     character: Character,
-    userId?: string
+    userId?: string,
+    isNpc?: boolean
   ): Promise<AgentRuntime> {
     // Database configuration
     const dbPort = process.env.POSTGRES_DEV_PORT || 5432;
@@ -540,13 +542,15 @@ export class AgentRuntimeManager {
     trajectoryLoggers.set(agentId, trajectoryLogger);
 
     // Create runtime with standard plugins
+    // NPCs use GROQ only - skip OpenAI/Anthropic to avoid API validation spam during bootstrap
     const plugins: Plugin[] = [
       agentCorePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
-      // Conditionally add LLM plugins based on available API keys
+      // GROQ is always available for NPCs
       ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
-      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
-      ...(process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
+      // Only load Anthropic/OpenAI for non-NPC agents to avoid validation spam
+      ...(!isNpc && process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+      ...(!isNpc && process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
     const runtimeConfig = {
