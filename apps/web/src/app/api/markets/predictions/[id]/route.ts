@@ -122,13 +122,14 @@ export const GET = withErrorHandling(
           let currentValue = 0;
           let currentProbability = 0.5;
           try {
-            const preview = PredictionPricing.calculateSell(
+            const preview = PredictionPricing.calculateSellWithFees(
               yesShares,
               noShares,
               p.side,
-              p.shares
+              p.shares,
+              FEE_CONFIG.TRADING_FEE_RATE
             );
-            currentValue = preview.totalCost;
+            currentValue = preview.netProceeds ?? preview.totalCost;
             currentProbability = PredictionPricing.getCurrentPrice(
               yesShares,
               noShares,
@@ -140,10 +141,15 @@ export const GET = withErrorHandling(
               noShares,
               p.side
             );
-            currentValue = p.shares * currentProbability;
+            currentValue =
+              p.shares * currentProbability * (1 - FEE_CONFIG.TRADING_FEE_RATE);
           }
 
-          const costBasis = p.shares * p.avgPrice;
+          const costBasisNet = p.shares * p.avgPrice;
+          const costBasis =
+            FEE_CONFIG.TRADING_FEE_RATE > 0 && FEE_CONFIG.TRADING_FEE_RATE < 1
+              ? costBasisNet / (1 - FEE_CONFIG.TRADING_FEE_RATE)
+              : costBasisNet;
           return {
             id: p.id,
             marketId: p.marketId,

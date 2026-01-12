@@ -301,6 +301,40 @@ describe('PerpMarketService', () => {
     const balance = await wallet.getBalance('u1');
     // initial 10000 - 10.1 + net close (margin 10 + pnl 20 - fee 0.1) = 10000 + 19.8
     expect(balance.balance).toBeCloseTo(10019.8, 4);
+
+    // PnL should include fees:
+    // - perp_open records -openFee
+    // - perp_close records (netSettlement - marginPaid) which includes close fee
+    const pnls = wallet.getPnLs('u1');
+    const totalPnL = pnls.reduce((sum, p) => sum + p.pnl, 0);
+    expect(totalPnL).toBeCloseTo(19.8, 4);
+  });
+
+  it('closes a SHORT position with profit when price drops (direction + fees)', async () => {
+    const open = await service.openPosition({
+      userId: 'u1',
+      ticker: 'ABC',
+      side: 'short',
+      size: 100,
+      leverage: 10,
+    });
+
+    await db.updateMarketStats('ABC', { currentPrice: 80 });
+
+    const close = await service.closePosition({
+      userId: 'u1',
+      positionId: open.positionId,
+    });
+
+    // Short profits when price drops.
+    expect(close.realizedPnL).toBeCloseTo(20, 4);
+
+    const balance = await wallet.getBalance('u1');
+    expect(balance.balance).toBeCloseTo(10019.8, 4);
+
+    const pnls = wallet.getPnLs('u1');
+    const totalPnL = pnls.reduce((sum, p) => sum + p.pnl, 0);
+    expect(totalPnL).toBeCloseTo(19.8, 4);
   });
 
   it('liquidates a position on price drop and records loss', async () => {

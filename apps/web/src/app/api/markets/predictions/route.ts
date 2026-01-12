@@ -104,13 +104,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       let currentValue: number;
       let currentProbability: number;
       try {
-        const pricePreview = PredictionPricing.calculateSell(
+        const pricePreview = PredictionPricing.calculateSellWithFees(
           yesShares,
           noShares,
           sideKey,
-          shares
+          shares,
+          FEE_CONFIG.TRADING_FEE_RATE
         );
-        currentValue = pricePreview.totalCost;
+        currentValue = pricePreview.netProceeds ?? pricePreview.totalCost;
         currentProbability = PredictionPricing.getCurrentPrice(
           yesShares,
           noShares,
@@ -123,10 +124,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           noShares,
           sideKey
         );
-        currentValue = shares * currentProbability;
+        // Approximate net proceeds using the spot probability and fee rate.
+        currentValue =
+          shares * currentProbability * (1 - FEE_CONFIG.TRADING_FEE_RATE);
       }
 
-      const costBasis = shares * p.avgPrice;
+      // avgPrice is based on net buy amount (after fees), so gross-up cost basis.
+      const costBasisNet = shares * p.avgPrice;
+      const costBasis =
+        FEE_CONFIG.TRADING_FEE_RATE > 0 && FEE_CONFIG.TRADING_FEE_RATE < 1
+          ? costBasisNet / (1 - FEE_CONFIG.TRADING_FEE_RATE)
+          : costBasisNet;
       const positionSnapshot: UserPositionSnapshot = {
         id: p.id,
         marketId: p.marketId,

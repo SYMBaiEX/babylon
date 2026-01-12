@@ -5,7 +5,7 @@
  */
 
 import { and, asUser, db, eq, gte, markets, positions, sql } from '@babylon/db';
-import { PredictionPricing, WalletService } from '@babylon/engine';
+import { FEE_CONFIG, PredictionPricing, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -19,8 +19,6 @@ import { logger } from '../../../../shared/logger';
 import { generateSnowflakeId } from '../../../../shared/snowflake';
 
 const agentPnLService = new AgentPnLService();
-
-const TRADING_FEE_RATE = 0.001; // 0.1% fee
 
 export const buyPredictionAction: Action = {
   name: 'BUY_PREDICTION',
@@ -155,7 +153,7 @@ export const buyPredictionAction: Action = {
         Number(market.noShares),
         isBuyYes ? 'yes' : 'no',
         amount,
-        TRADING_FEE_RATE
+        FEE_CONFIG.TRADING_FEE_RATE
       );
 
       // Execute trade in transaction
@@ -170,15 +168,13 @@ export const buyPredictionAction: Action = {
         );
 
         // Update market shares
+        const nextLiquidity = Number(market.liquidity) + calculation.netAmount;
         await txDb
           .update(markets)
           .set({
-            yesShares: isBuyYes
-              ? sql`${markets.yesShares} + ${calculation.sharesBought}`
-              : String(calculation.newYesShares),
-            noShares: isBuyYes
-              ? String(calculation.newNoShares)
-              : sql`${markets.noShares} + ${calculation.sharesBought}`,
+            yesShares: String(calculation.newYesShares),
+            noShares: String(calculation.newNoShares),
+            liquidity: String(nextLiquidity),
             updatedAt: new Date(),
           })
           .where(eq(markets.id, market.id));
@@ -198,12 +194,24 @@ export const buyPredictionAction: Action = {
 
         let position;
         if (existingPosition) {
+          const existingShares = Number(existingPosition.shares);
+          const existingAvgPrice = Number(existingPosition.avgPrice);
+          const newTotalShares = existingShares + calculation.sharesBought;
+          const nextAvgPrice =
+            newTotalShares > 0
+              ? (existingShares * existingAvgPrice +
+                  calculation.sharesBought * calculation.avgPrice) /
+                newTotalShares
+              : existingAvgPrice;
+
           // Update existing position
           const [updated] = await txDb
             .update(positions)
             .set({
-              shares: sql`${positions.shares} + ${calculation.sharesBought}`,
+              shares: String(newTotalShares),
+              avgPrice: String(nextAvgPrice),
               amount: sql`${positions.amount} + ${amount}`,
+              status: 'active',
               updatedAt: new Date(),
             })
             .where(eq(positions.id, existingPosition.id))

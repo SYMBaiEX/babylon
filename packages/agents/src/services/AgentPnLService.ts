@@ -1,7 +1,11 @@
 /**
  * Agent P&L Service
  *
- * Handles P&L tracking and trade recording for agents.
+ * Records trades and related agent activity logs.
+ *
+ * Trading P&L accounting (lifetimePnL, earned points) is handled by WalletService.recordPnL
+ * via the core market services. This service should not mutate lifetimePnL to avoid
+ * double-counting and inconsistencies across entry/exit fees and partial closes.
  *
  * @packageDocumentation
  */
@@ -28,7 +32,7 @@ import { generateSnowflakeId } from '../shared/snowflake';
  */
 export class AgentPnLService {
   /**
-   * Records a trade for an agent and updates P&L
+   * Records a trade for an agent (for UI/performance tracking)
    *
    * @param params - Trade parameters
    * @param params.agentId - Agent ID
@@ -114,28 +118,6 @@ export class AgentPnLService {
         pnl: pnl ?? null,
         reasoning: reasoning ?? null,
       });
-
-      // Update agent P&L if provided
-      if (pnl !== undefined && pnl !== null) {
-        // Get current lifetimePnL
-        const agentPnLResult = await tx
-          .select({ lifetimePnL: users.lifetimePnL })
-          .from(users)
-          .where(eq(users.id, agentId))
-          .limit(1);
-
-        const currentPnL = agentPnLResult[0]?.lifetimePnL
-          ? Number.parseFloat(String(agentPnLResult[0].lifetimePnL))
-          : 0;
-
-        await tx
-          .update(users)
-          .set({
-            lifetimePnL: String(currentPnL + pnl),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, agentId));
-      }
 
       // Log the trade
       await tx.insert(agentLogs).values({

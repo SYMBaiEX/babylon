@@ -16,6 +16,14 @@ const DEFAULT_LIQUIDITY = 10_000;
 const MIN_SHARES = 0.01;
 const MIN_TRADE_AMOUNT = 1;
 
+function grossUpBuyAmount(netAmount: number, feeRate: number): number {
+  if (!Number.isFinite(netAmount)) return 0;
+  if (!Number.isFinite(feeRate) || feeRate <= 0) return netAmount;
+  const divisor = 1 - feeRate;
+  if (divisor <= 0) return netAmount;
+  return netAmount / divisor;
+}
+
 export class PredictionMarketService {
   private readonly db: PredictionDbPort;
   private readonly deps: PredictionServiceDeps;
@@ -265,7 +273,13 @@ export class PredictionMarketService {
 
     const costBasis = pos.avgPrice * shares;
     const netProceeds = calc.netProceeds ?? 0;
-    const profitLoss = netProceeds - costBasis;
+    // Position.avgPrice is based on the net buy amount (after fees), so costBasis excludes entry fees.
+    // Gross-up the cost basis to include entry fees for accurate net PnL accounting.
+    const costBasisWithFees = grossUpBuyAmount(
+      costBasis,
+      this.deps.fees.tradingFeeRate
+    );
+    const profitLoss = netProceeds - costBasisWithFees;
 
     await this.deps.wallet.credit({
       userId,
@@ -381,7 +395,11 @@ export class PredictionMarketService {
         (winningSide === 'yes' && pos.side === 'yes') ||
         (winningSide === 'no' && pos.side === 'no');
       const payout = isWinner ? pos.shares : 0;
-      const pnl = payout - pos.avgPrice * pos.shares;
+      const costBasisWithFees = grossUpBuyAmount(
+        pos.avgPrice * pos.shares,
+        this.deps.fees.tradingFeeRate
+      );
+      const pnl = payout - costBasisWithFees;
 
       if (payout > 0) {
         await this.deps.wallet.credit({

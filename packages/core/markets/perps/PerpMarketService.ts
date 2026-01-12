@@ -184,6 +184,15 @@ export class PerpMarketService {
       });
     }
 
+    // Record realized PnL impact of the OPEN operation (fees are realized immediately).
+    // Margin is not PnL; only fees should affect lifetimePnL at open.
+    await this.deps.wallet.recordPnL({
+      userId: input.userId,
+      pnl: -fee,
+      reason: 'perp_open',
+      relatedId: position.id,
+    });
+
     const result: PerpTradeResult = {
       positionId: position.id,
       ticker,
@@ -296,7 +305,9 @@ export class PerpMarketService {
 
     await this.deps.wallet.recordPnL({
       userId: input.userId,
-      pnl: realizedPnL,
+      // Net realized PnL excluding margin (which is principal) and including any
+      // fee actually collected (bounded by the settlement clamp).
+      pnl: netSettlement - marginPaid,
       reason: isFullClose ? 'perp_close' : 'perp_partial_close',
       relatedId: position.id,
     });
@@ -725,7 +736,7 @@ export class PerpMarketService {
 
     // Use transaction for atomic position + market stats update
     // This prevents race conditions when concurrent requests modify the same position
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       // Re-fetch position inside transaction to get latest state
       const freshPosition = await tx.getPositionById(existing.id);
       if (!freshPosition || freshPosition.closedAt) {
@@ -819,6 +830,16 @@ export class PerpMarketService {
 
       return result;
     });
+
+    // Record realized PnL impact of the ADD operation (fees are realized immediately).
+    await this.deps.wallet.recordPnL({
+      userId: input.userId,
+      pnl: -fee,
+      reason: 'perp_add_to_position',
+      relatedId: existing.id,
+    });
+
+    return result;
   }
 
   /**
@@ -906,13 +927,6 @@ export class PerpMarketService {
           });
         }
 
-        await this.deps.wallet.recordPnL({
-          userId: input.userId,
-          pnl: realizedPnL,
-          reason: 'perp_close',
-          relatedId: existing.id,
-        });
-
         // Close position in DB using transaction
         await tx.closePosition(existing.id, {
           currentPrice: exitPrice,
@@ -944,6 +958,18 @@ export class PerpMarketService {
           amount: totalCost,
           reason: 'perp_flip_position',
           description: `Flip to ${effectiveLeverage}x ${tradeSide} ${existing.ticker}`,
+        });
+
+        // Net realized PnL for the flip operation:
+        // - Close leg: settlement minus returned margin (includes any fee actually collected)
+        // - Open leg: fee is realized immediately
+        const netClosePnL = netSettlement - closeMarginPaid;
+        const netFlipPnL = netClosePnL - openFee;
+        await this.deps.wallet.recordPnL({
+          userId: input.userId,
+          pnl: netFlipPnL,
+          reason: 'perp_flip_position',
+          relatedId: existing.id,
         });
 
         // Create new position using transaction

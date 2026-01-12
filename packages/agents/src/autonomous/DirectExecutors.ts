@@ -38,6 +38,7 @@ import {
   users,
 } from '@babylon/db';
 import {
+  FEE_CONFIG,
   type GeneratedTag,
   generateTagsFromPost,
   PredictionPricing,
@@ -473,7 +474,7 @@ async function executePredictionTrade(params: {
     txDb: Parameters<Parameters<typeof asUser>[1]>[0]
   ) => {
     // Calculate shares and pricing (0.1% fee rate)
-    const TRADING_FEE_RATE = 0.001;
+    const TRADING_FEE_RATE = FEE_CONFIG.TRADING_FEE_RATE;
     const calculation = PredictionPricing.calculateBuyWithFees(
       Number(market.yesShares),
       Number(market.noShares),
@@ -517,12 +518,10 @@ async function executePredictionTrade(params: {
     await txDb
       .update(markets)
       .set({
-        yesShares: isBuyYes
-          ? sql`${markets.yesShares} + ${calculation.sharesBought}`
-          : String(calculation.newYesShares),
-        noShares: isBuyYes
-          ? String(calculation.newNoShares)
-          : sql`${markets.noShares} + ${calculation.sharesBought}`,
+        yesShares: String(calculation.newYesShares),
+        noShares: String(calculation.newNoShares),
+        liquidity: String(Number(market.liquidity) + calculation.netAmount),
+        updatedAt: new Date(),
       })
       .where(eq(markets.id, market.id));
 
@@ -533,17 +532,30 @@ async function executePredictionTrade(params: {
       .where(
         and(
           eq(positions.userId, agentUserId),
-          eq(positions.marketId, market.id)
+          eq(positions.marketId, market.id),
+          eq(positions.side, isBuyYes),
+          eq(positions.status, 'active')
         )
       )
       .limit(1);
     const existingPosition = existingPositionResult[0];
 
     if (existingPosition) {
+      const existingShares = Number(existingPosition.shares);
+      const existingAvgPrice = Number(existingPosition.avgPrice);
+      const newTotalShares = existingShares + calculation.sharesBought;
+      const nextAvgPrice =
+        newTotalShares > 0
+          ? (existingShares * existingAvgPrice +
+              calculation.sharesBought * calculation.avgPrice) /
+            newTotalShares
+          : existingAvgPrice;
+
       await txDb
         .update(positions)
         .set({
-          shares: sql`${positions.shares} + ${calculation.sharesBought}`,
+          shares: String(newTotalShares),
+          avgPrice: String(nextAvgPrice),
           amount: sql`${positions.amount} + ${amount}`,
           updatedAt: new Date(),
         })
@@ -643,6 +655,7 @@ async function executePredictionSell(params: {
       and(
         eq(positions.userId, agentUserId),
         eq(positions.marketId, marketId),
+        eq(positions.side, isSellYes),
         eq(positions.status, 'active')
       )
     )
@@ -693,7 +706,7 @@ async function executePredictionSell(params: {
     txDb: Parameters<Parameters<typeof asUser>[1]>[0]
   ) => {
     // Calculate sell proceeds using CPMM
-    const TRADING_FEE_RATE = 0.001;
+    const TRADING_FEE_RATE = FEE_CONFIG.TRADING_FEE_RATE;
     const calculation = PredictionPricing.calculateSellWithFees(
       Number(market.yesShares),
       Number(market.noShares),
@@ -721,7 +734,7 @@ async function executePredictionSell(params: {
       await WalletService.credit(
         agentUserId,
         netProceeds,
-        'prediction_sell',
+        'pred_sell',
         `Sold ${sharesToSell.toFixed(2)} ${isSellYes ? 'YES' : 'NO'} shares`,
         market.id
       );
@@ -735,6 +748,8 @@ async function executePredictionSell(params: {
       .set({
         yesShares: String(calculation.newYesShares),
         noShares: String(calculation.newNoShares),
+        liquidity: String(Number(market.liquidity) - calculation.totalCost),
+        updatedAt: new Date(),
       })
       .where(eq(markets.id, market.id));
 
@@ -769,10 +784,24 @@ async function executePredictionSell(params: {
     ? await asSystem(sellOperation, 'npc_prediction_sell')
     : await asUser({ userId: agentUserId }, sellOperation);
 
-  // Calculate realized P&L
-  const avgPrice = Number(existingPosition.avgPrice || 0.5);
-  const sellPrice = result.calculation.avgPrice;
-  const realizedPnL = (sellPrice - avgPrice) * result.sharesToSell;
+  // Calculate realized P&L net of fees:
+  // - net proceeds already exclude the sell fee
+  // - avgPrice is based on the net buy amount (after fees), so gross-up cost basis
+  const feeRate = FEE_CONFIG.TRADING_FEE_RATE;
+  const avgPriceNet = Number(existingPosition.avgPrice || 0.5);
+  const costBasisNet = avgPriceNet * result.sharesToSell;
+  const costBasis =
+    feeRate > 0 && feeRate < 1 ? costBasisNet / (1 - feeRate) : costBasisNet;
+  const realizedPnL = result.netProceeds - costBasis;
+
+  if (!isNpc) {
+    await WalletService.recordPnL(
+      agentUserId,
+      realizedPnL,
+      'pred_sell',
+      market.id
+    );
+  }
 
   // Record in AgentTrade
   await agentPnLService.recordTrade({
@@ -783,7 +812,7 @@ async function executePredictionSell(params: {
     action: 'close',
     side: isSellYes ? 'yes' : 'no',
     amount: result.netProceeds,
-    price: sellPrice,
+    price: result.calculation.avgPrice,
     pnl: realizedPnL,
     reasoning,
   });
