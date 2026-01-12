@@ -82,6 +82,11 @@ import {
 import type { BabylonLLMClient } from './llm/openai-client';
 import { parseXML } from './llm/xml-parser';
 import {
+  formatTradingStrategyBias,
+  getNpcTradingStrategy,
+  TRADING_STRATEGIES,
+} from './npc/trading-strategies';
+import {
   generateWorldContext,
   getShuffledExamplesText,
   npcMarketDecisions,
@@ -551,6 +556,8 @@ export class MarketDecisionEngine {
     return contexts
       .map((ctx, i) => {
         const archetype = this.mapPersonalityToArchetype(ctx.personality);
+        const strategyKey = getNpcTradingStrategy(ctx.npcId);
+        const strategy = TRADING_STRATEGIES[strategyKey];
         const exposure = this.calculateExposure(
           ctx.availableBalance,
           ctx.currentPositions
@@ -605,7 +612,8 @@ export class MarketDecisionEngine {
 
         return `[${i + 1}] TRADER DASHBOARD
 ID: ${ctx.npcId} | Name: ${ctx.npcName}
-Archetype: ${archetype} | Cash: $${ctx.availableBalance.toLocaleString()}
+Archetype: ${archetype} | Strategy: ${strategy.label} (${strategyKey})
+Bias: ${formatTradingStrategyBias(strategy)} | Cash: $${ctx.availableBalance.toLocaleString()}
 Total PnL: ${pnlSign}$${totalPnL.toFixed(0)} | Exposure: ${exposure.toFixed(1)}%
 Network: ${relationships}
 Positions: ${topPositions || 'None'}

@@ -205,7 +205,7 @@ export function getShuffledExamplesText(): string {
  */
 export const npcMarketDecisions = definePrompt({
   id: 'npc-market-decisions',
-  version: '6.0.0',
+  version: '6.1.0',
   category: 'trading',
   description: 'Generate trading decisions with full character context',
   temperature: 0.8,
@@ -261,6 +261,11 @@ CONTRARIAN BEHAVIOR (CRITICAL - avoid herding):
 - When YES price is high (>0.7), contrarians should bet NO for value
 - When NO price is low (<0.3), contrarians see opportunity
 - Skeptics, bears, and pessimists often trade against the crowd
+
+INDIVIDUAL STRATEGY BIAS (CRITICAL - avoid copy trading):
+- Each TRADER DASHBOARD includes a "Strategy" and "Bias" line (Follow trend / Contrarian / Random).
+- Apply the bias when choosing direction and sizing. Even allies should not blindly copy each other.
+- "Follow trend" aligns with market momentum/signals. "Contrarian" fades crowded/extreme prices. "Random" increases entropy (often hold/smaller size).
 
 MARKET TYPE BALANCE (IMPORTANT):
 - Use BOTH perpetuals (perp) AND prediction markets
