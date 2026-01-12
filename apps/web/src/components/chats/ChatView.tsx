@@ -106,7 +106,7 @@ export function ChatView({
       {/* Messages - Scrollable, starts at bottom via flex-col-reverse */}
       <div
         ref={containerRef}
-        className="relative min-h-0 flex-1 flex flex-col-reverse overflow-y-auto px-4 py-3"
+        className="relative flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3"
       >
         <div className="flex flex-col space-y-4">
           <MessageList

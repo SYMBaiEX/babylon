@@ -410,10 +410,10 @@ export function useChatPage() {
   );
 
   // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
-  const scrollToBottom = useCallback((_behavior: ScrollBehavior = 'auto') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatContainerRef.current;
     if (container) {
-      container.scrollTop = 0;
+      container.scrollTo({ top: 0, behavior });
     }
   }, []);
 
@@ -489,6 +489,7 @@ export function useChatPage() {
 
     if (wasEmpty) {
       setIsAtBottom(true);
+      scrollToBottom('auto');
       return;
     }
 
@@ -549,7 +550,7 @@ export function useChatPage() {
       setIsAtBottom(atBottom);
     };
 
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);

@@ -102,10 +102,10 @@ export function AgentChat({
   const usePro = agent.modelTier === 'pro';
 
   // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
-  const scrollToBottom = useCallback((_behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = chatContainerRef.current;
     if (container) {
-      container.scrollTop = 0;
+      container.scrollTo({ top: 0, behavior });
     }
   }, []);
 
@@ -411,7 +411,7 @@ export function AgentChat({
       {/* Messages - Scrollable, starts at bottom via flex-col-reverse */}
       <div
         ref={chatContainerRef}
-        className="relative min-h-0 flex-1 flex flex-col-reverse overflow-y-auto px-4 py-3"
+        className="relative flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3"
       >
         <div className="flex flex-col space-y-4">
           <MessageList
