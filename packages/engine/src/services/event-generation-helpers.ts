@@ -672,7 +672,10 @@ export async function generateArticlesForArcEvent(
                 .catch((err) => {
                   logger.warn(
                     'Failed to update article with image URL',
-                    { articleId, error: err instanceof Error ? err.message : String(err) },
+                    {
+                      articleId,
+                      error: err instanceof Error ? err.message : String(err),
+                    },
                     'EventGeneration'
                   );
                 });
@@ -681,7 +684,10 @@ export async function generateArticlesForArcEvent(
           .catch((err) => {
             logger.debug(
               'Image generation failed (non-blocking)',
-              { articleId, error: err instanceof Error ? err.message : String(err) },
+              {
+                articleId,
+                error: err instanceof Error ? err.message : String(err),
+              },
               'EventGeneration'
             );
           });

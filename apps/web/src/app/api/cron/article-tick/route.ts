@@ -136,7 +136,8 @@ async function persistArticle(
 
   // Re-check rate limit immediately before insert to prevent TOCTOU race condition
   // Another process may have created articles between the initial check and now
-  const { allowed: stillAllowed } = await articleRateLimiter.canGenerateArticle();
+  const { allowed: stillAllowed } =
+    await articleRateLimiter.canGenerateArticle();
   if (!stillAllowed) {
     throw new Error('Rate limit exceeded during article generation');
   }

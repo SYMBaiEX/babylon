@@ -163,9 +163,12 @@ describe('Article Tick Cron', () => {
       const getReq = new NextRequest('http://localhost/api/cron/article-tick', {
         method: 'GET',
       });
-      const postReq = new NextRequest('http://localhost/api/cron/article-tick', {
-        method: 'POST',
-      });
+      const postReq = new NextRequest(
+        'http://localhost/api/cron/article-tick',
+        {
+          method: 'POST',
+        }
+      );
 
       // Call both handlers
       const getRes = await GET(getReq);

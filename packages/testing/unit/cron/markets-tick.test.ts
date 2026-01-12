@@ -69,7 +69,6 @@ const createQueryBuilder = (resultFn: () => unknown) => {
   return builder;
 };
 
-
 // Mock @babylon/db - returns mockActiveQuestions for select queries
 mock.module('@babylon/db', () => ({
   db: {
