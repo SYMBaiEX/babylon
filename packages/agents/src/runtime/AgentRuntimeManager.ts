@@ -127,7 +127,8 @@ export class AgentRuntimeManager {
       // Cache runtime
       globalRuntimes.set(agentUserId, runtime);
 
-      logger.info(
+      // Use debug level for per-agent runtime creation to reduce startup noise
+      logger.debug(
         `Runtime created for ${registration.type} agent ${agentUserId}`,
         undefined,
         'AgentRuntimeManager'
@@ -348,7 +349,8 @@ export class AgentRuntimeManager {
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime);
 
-    logger.info(
+    // Use debug level for per-agent runtime creation to reduce startup noise
+    logger.debug(
       `Runtime created for agent user ${agentUserId}`,
       undefined,
       'AgentRuntimeManager'

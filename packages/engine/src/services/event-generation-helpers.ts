@@ -535,8 +535,27 @@ export async function generateArticlesForArcEvent(
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);
 
-  // Generate articles in parallel
-  const articlePromises = orgsToPublish.map(async (orgData) => {
+  // Generate articles sequentially to ensure rate limit is respected per-article.
+  // Parallel generation could cause race conditions where multiple articles pass
+  // the initial check but exceed the limit when all complete.
+  const results: Array<
+    | { status: 'fulfilled'; value: number }
+    | { status: 'rejected'; reason: unknown }
+  > = [];
+
+  for (const orgData of orgsToPublish) {
+    // Re-check rate limit before each article to prevent race conditions
+    const { allowed: stillAllowed } =
+      await articleRateLimiter.canGenerateArticle();
+    if (!stillAllowed) {
+      logger.info(
+        'Rate limit reached during arc event article generation - stopping',
+        { arcEventId, eventStatus, articlesGenerated: results.length },
+        'EventGeneration'
+      );
+      break;
+    }
+
     const org = {
       id: orgData.id,
       name: orgData.name || 'Unknown Organization',
@@ -555,112 +574,114 @@ export async function generateArticlesForArcEvent(
           ? 'resolution'
           : 'commentary';
 
-    const article = await articleGen.generateArticleForQuestion(
-      {
-        id: question.id,
-        text: question.text,
-        scenario: 1,
-        outcome: question.outcome ?? false,
-        rank: 1,
-        createdDate: new Date().toISOString().split('T')[0]!,
-        resolutionDate: '',
-        status: 'active',
-      },
-      org,
-      stage,
-      actorsList.map((a) => ({
-        id: a.id,
-        name: a.name,
-        description: a.description || '',
-        domain: Array.isArray(a.domain) ? a.domain : [a.domain || 'tech'],
-        personality: a.personality || undefined,
-        tier: a.tier ?? undefined,
-        affiliations: a.affiliations || [],
-        postStyle: a.postStyle || undefined,
-        postExample: a.postExample || '',
-        role: a.role as 'main' | 'supporting' | 'extra' | undefined,
-        initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
-        initialMood: a.initialMood || 0,
-      })),
-      [] // Events are included in context via question
-    );
+    try {
+      const article = await articleGen.generateArticleForQuestion(
+        {
+          id: question.id,
+          text: question.text,
+          scenario: 1,
+          outcome: question.outcome ?? false,
+          rank: 1,
+          createdDate: new Date().toISOString().split('T')[0]!,
+          resolutionDate: '',
+          status: 'active',
+        },
+        org,
+        stage,
+        actorsList.map((a) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description || '',
+          domain: Array.isArray(a.domain) ? a.domain : [a.domain || 'tech'],
+          personality: a.personality || undefined,
+          tier: a.tier ?? undefined,
+          affiliations: a.affiliations || [],
+          postStyle: a.postStyle || undefined,
+          postExample: a.postExample || '',
+          role: a.role as 'main' | 'supporting' | 'extra' | undefined,
+          initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
+          initialMood: a.initialMood || 0,
+        })),
+        [] // Events are included in context via question
+      );
 
-    // Transform content to replace real names with parody names
-    const transformedSummary = await characterMappingService.transformText(
-      article.summary || ''
-    );
-    const transformedContent = await characterMappingService.transformText(
-      article.content || ''
-    );
-    const transformedTitle = await characterMappingService.transformText(
-      article.title || 'Untitled'
-    );
+      // Transform content to replace real names with parody names
+      const transformedSummary = await characterMappingService.transformText(
+        article.summary || ''
+      );
+      const transformedContent = await characterMappingService.transformText(
+        article.content || ''
+      );
+      const transformedTitle = await characterMappingService.transformText(
+        article.title || 'Untitled'
+      );
 
-    const articleTimestamp = article.publishedAt || timestamp;
-    const articleId = await generateSnowflakeId();
+      const articleTimestamp = article.publishedAt || timestamp;
+      const articleId = await generateSnowflakeId();
 
-    // Generate article cover image (non-blocking, with retry)
-    let imageUrl: string | null = null;
-    if (process.env.FAL_KEY) {
-      imageUrl = await generateArticleImageWithRetry({
-        title: transformedTitle.transformedText,
-        summary: transformedSummary.transformedText,
-        category: article.category,
+      // Generate article cover image (non-blocking, with retry)
+      let imageUrl: string | null = null;
+      if (process.env.FAL_KEY) {
+        imageUrl = await generateArticleImageWithRetry({
+          title: transformedTitle.transformedText,
+          summary: transformedSummary.transformedText,
+          category: article.category,
+        });
+      }
+
+      await db.insert(posts).values({
+        id: articleId,
+        type: 'article',
+        content: transformedSummary.transformedText,
+        fullContent: transformedContent.transformedText,
+        articleTitle: transformedTitle.transformedText,
+        byline: article.byline || undefined,
+        biasScore: article.biasScore || undefined,
+        sentiment: article.sentiment || undefined,
+        slant: article.slant || undefined,
+        category: article.category || undefined,
+        imageUrl: imageUrl || undefined,
+        authorId: article.authorOrgId,
+        gameId: 'continuous',
+        dayNumber: dayNumber,
+        timestamp: articleTimestamp,
       });
-    }
 
-    await db.insert(posts).values({
-      id: articleId,
-      type: 'article',
-      content: transformedSummary.transformedText,
-      fullContent: transformedContent.transformedText,
-      articleTitle: transformedTitle.transformedText,
-      byline: article.byline || undefined,
-      biasScore: article.biasScore || undefined,
-      sentiment: article.sentiment || undefined,
-      slant: article.slant || undefined,
-      category: article.category || undefined,
-      imageUrl: imageUrl || undefined,
-      authorId: article.authorOrgId,
-      gameId: 'continuous',
-      dayNumber: dayNumber,
-      timestamp: articleTimestamp,
-    });
-
-    // Record that this org has covered this event status
-    arcEventPacer.recordArcEventCoverage(
-      arcEventId,
-      org.id,
-      eventStatus,
-      articleId
-    );
-
-    logger.info(
-      'Generated arc event article',
-      {
+      // Record that this org has covered this event status
+      arcEventPacer.recordArcEventCoverage(
         arcEventId,
+        org.id,
         eventStatus,
-        org: org.name,
-        articleId,
-        title: transformedTitle.transformedText.slice(0, 50),
-      },
-      'EventGeneration'
-    );
+        articleId
+      );
 
-    return 1;
-  });
+      logger.info(
+        'Generated arc event article',
+        {
+          arcEventId,
+          eventStatus,
+          org: org.name,
+          articleId,
+          title: transformedTitle.transformedText.slice(0, 50),
+        },
+        'EventGeneration'
+      );
 
-  const results = await Promise.allSettled(articlePromises);
+      results.push({ status: 'fulfilled', value: 1 });
+    } catch (error) {
+      results.push({ status: 'rejected', reason: error });
+      logger.warn(
+        'Failed to generate arc event article',
+        { error: error instanceof Error ? error.message : String(error) },
+        'EventGeneration'
+      );
+    }
+  }
 
   const articlesCreated = results.reduce((sum, result) => {
     if (result.status === 'fulfilled') {
       return sum + result.value;
     }
-    logger.warn(
-      'Failed to generate arc event article',
-      { error: result.reason },
-      'EventGeneration'
-    );
     return sum;
   }, 0);
 

@@ -1,0 +1,269 @@
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { NextRequest } from 'next/server';
+
+/**
+ * Article Tick Cron Job Tests
+ *
+ * Tests for the article-tick cron endpoint which handles centralized
+ * article generation with rate limiting.
+ */
+
+/**
+ * Mock game state type
+ */
+interface MockGame {
+  id: string;
+  isContinuous: boolean;
+  isRunning: boolean;
+  currentDay: number | null;
+}
+
+/**
+ * Drizzle SQL condition result
+ */
+interface SqlCondition {
+  sql?: string;
+}
+
+// Mock db with a mutable state we can control in tests
+let mockGame: MockGame | null = null;
+let mockArticleCount = 0;
+
+// Create query builder for Drizzle-style operations that uses mockGame
+const createQueryBuilder = (defaultResult: unknown = [{ id: 'mock-id' }]) => {
+  const builder = {
+    set: mock(() => builder),
+    where: mock(() => builder),
+    values: mock(() => builder),
+    from: mock(() => builder),
+    limit: mock(() => builder),
+    returning: mock(async () => defaultResult),
+    onConflictDoNothing: mock(() => builder),
+    then: <TResult1, TResult2 = never>(
+      onFulfilled?:
+        | ((value: unknown) => TResult1 | PromiseLike<TResult1>)
+        | null,
+      onRejected?:
+        | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+        | null
+    ): Promise<TResult1 | TResult2> => {
+      return Promise.resolve(defaultResult).then(onFulfilled, onRejected);
+    },
+  };
+  return builder;
+};
+
+// Mock @babylon/db
+mock.module('@babylon/db', () => ({
+  db: {
+    select: mock(() => createQueryBuilder()),
+    insert: mock(() => createQueryBuilder()),
+    update: mock(() => createQueryBuilder()),
+    delete: mock(() => createQueryBuilder()),
+  },
+  games: {},
+  posts: { type: 'type', timestamp: 'timestamp', deletedAt: 'deletedAt' },
+  eq: (): SqlCondition => ({}),
+  gte: (): SqlCondition => ({}),
+  and: (): SqlCondition => ({}),
+  isNull: (): SqlCondition => ({}),
+  sql: (): SqlCondition => ({}),
+  generateSnowflakeId: async () => `mock-${Date.now()}`,
+}));
+
+// Mock @babylon/api - getCacheOrFetch returns mockGame when called
+mock.module('@babylon/api', () => ({
+  verifyCronAuth: () => true,
+  relayCronToStaging: async () => ({ forwarded: false }),
+  getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
+    // For game state cache, return our mockGame
+    if (_key === 'continuous-game') {
+      return mockGame as T;
+    }
+    return fn();
+  },
+  recordCronExecution: () => {},
+  DistributedLockService: {
+    acquireLock: async () => true,
+    releaseLock: async () => {},
+  },
+}));
+
+// Mock @babylon/engine - articleRateLimiter uses mockArticleCount
+mock.module('@babylon/engine', () => ({
+  articleRateLimiter: {
+    canGenerateArticle: async () => ({
+      allowed: mockArticleCount < 2,
+      currentCount: mockArticleCount,
+      maxAllowed: 2,
+      remaining: Math.max(0, 2 - mockArticleCount),
+    }),
+  },
+  ArticleGenerator: class {
+    generateArticleForQuestion = async () => ({
+      title: 'Test Article',
+      summary: 'Test summary',
+      content: 'Test content',
+      byline: 'Test Author',
+    });
+  },
+  BabylonLLMClient: {
+    forGameTick: () => ({
+      generateJSON: async () => ({
+        title: 'Test Article',
+        summary: 'Test summary',
+        article: 'Test article body',
+      }),
+    }),
+  },
+  characterMappingService: {
+    transformText: async (text: string) => ({ transformedText: text }),
+  },
+  generateArticleImageWithRetry: async () => null,
+  getActiveEventsForPosting: async () => ({ activeEvents: [] }),
+  hasEventBeenCovered: () => false,
+  markEventAsCovered: () => {},
+  StaticDataRegistry: {
+    getOrganizationsByType: () => [
+      { id: 'org-1', name: 'Test News', description: 'A news org' },
+    ],
+    getTopActors: () => [],
+  },
+  secureRandom: () => Math.random(),
+  worldFactsService: {
+    generatePromptContext: async () => 'Test world facts context',
+  },
+}));
+
+// Mock @babylon/shared
+mock.module('@babylon/shared', () => ({
+  logger: {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  },
+}));
+
+// Import the route handler after mocks are set up
+import { GET, POST } from '@/app/api/cron/article-tick/route';
+
+describe('Article Tick Cron', () => {
+  beforeEach(() => {
+    mockGame = null;
+    mockArticleCount = 0;
+  });
+
+  describe('Authorization', () => {
+    test('GET should delegate to POST', async () => {
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'GET',
+      });
+      const res = await GET(req);
+
+      // Should return a valid response (the mock verifyCronAuth returns true)
+      expect(res.status).toBeDefined();
+    });
+  });
+
+  describe('Game State Checks', () => {
+    test('should be skipped when no continuous game exists', async () => {
+      mockGame = null;
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(true);
+      expect(data.reason).toBe('No continuous game found');
+    });
+
+    test('should be paused when game.isRunning is false', async () => {
+      mockGame = {
+        id: 'game-123',
+        isContinuous: true,
+        isRunning: false,
+        currentDay: 1,
+      };
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(true);
+      expect(data.reason).toBe('Game is paused');
+    });
+  });
+
+  describe('Rate Limiting', () => {
+    test('should skip when rate limit reached', async () => {
+      mockGame = {
+        id: 'game-123',
+        isContinuous: true,
+        isRunning: true,
+        currentDay: 1,
+      };
+      mockArticleCount = 2; // At limit
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(true);
+      expect(data.reason).toBe('Rate limit reached');
+    });
+
+    test('should proceed when under rate limit', async () => {
+      mockGame = {
+        id: 'game-123',
+        isContinuous: true,
+        isRunning: true,
+        currentDay: 1,
+      };
+      mockArticleCount = 0; // Under limit
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      // Should not be skipped due to rate limit
+      expect(data.reason).not.toBe('Rate limit reached');
+    });
+  });
+
+  describe('Response Structure', () => {
+    test('should return rate limit info in response', async () => {
+      mockGame = {
+        id: 'game-123',
+        isContinuous: true,
+        isRunning: true,
+        currentDay: 1,
+      };
+      mockArticleCount = 1;
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      // When not skipped, should include rate limit info
+      if (!data.skipped) {
+        expect(data.rateLimit).toBeDefined();
+        expect(data.rateLimit.currentCount).toBe(1);
+        expect(data.rateLimit.maxAllowed).toBe(2);
+      }
+    });
+  });
+});

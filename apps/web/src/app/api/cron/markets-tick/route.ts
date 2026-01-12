@@ -276,7 +276,7 @@ export async function POST(_req: NextRequest) {
     // Initialize LLM client for question generation
     const llmClient = BabylonLLMClient.forGameTick();
 
-    // Results tracking
+    // Results tracking with detailed performance metrics
     const results = {
       marketsResolved: 0,
       marketsCreated: 0,
@@ -285,23 +285,49 @@ export async function POST(_req: NextRequest) {
       marketsByTimeframe: {} as Record<string, number>,
     };
 
+    // Performance metrics for monitoring bottlenecks
+    const metrics = {
+      getActiveMarketsMs: 0,
+      resolutionMs: 0,
+      creationMs: 0,
+      totalDbQueries: 0,
+      totalLlmCalls: 0,
+    };
+
     const now = new Date();
     const deadline = startTime + 240000; // 4 minute budget (leave 1 min buffer)
 
     // Step 1: Get current market distribution
+    const activeMarketsStart = Date.now();
     const activeMarkets = await getActiveMarketsByTimeframe();
+    metrics.getActiveMarketsMs = Date.now() - activeMarketsStart;
     results.marketsByTimeframe = Object.fromEntries(
       Object.entries(activeMarkets).map(([tf, markets]) => [tf, markets.length])
     );
 
     logger.info(
       'Current market distribution',
-      results.marketsByTimeframe,
+      {
+        ...results.marketsByTimeframe,
+        queryTimeMs: metrics.getActiveMarketsMs,
+      },
       'MarketsTick'
     );
 
     // Step 2: Resolve mature markets
+    const resolutionStart = Date.now();
     const matureMarkets = await getMarketsReadyForResolution(now);
+
+    logger.info(
+      `Found ${matureMarkets.length} markets ready for resolution`,
+      {
+        matureMarkets: matureMarkets.map((m) => ({
+          id: m.id,
+          timeframe: m.timeframe,
+        })),
+      },
+      'MarketsTick'
+    );
 
     for (const market of matureMarkets) {
       if (Date.now() > deadline) {
@@ -342,8 +368,10 @@ export async function POST(_req: NextRequest) {
         );
       }
     }
+    metrics.resolutionMs = Date.now() - resolutionStart;
 
     // Step 3: Ensure market structure (fill any gaps)
+    const creationStart = Date.now();
     for (const [timeframe, config] of Object.entries(MARKET_STRUCTURE)) {
       if (Date.now() > deadline) break;
 
@@ -384,29 +412,58 @@ export async function POST(_req: NextRequest) {
         }
       }
     }
+    metrics.creationMs = Date.now() - creationStart;
 
     const durationMs = Date.now() - startTime;
 
-    // Record execution for monitoring
+    // Record execution for monitoring with detailed metrics
     recordCronExecution('markets-tick', new Date(startTime), {
       success: true,
       durationMs,
       ...results,
+      metrics,
     });
 
+    // Log detailed performance breakdown for monitoring
     logger.info(
       'Markets tick completed',
       {
         durationMs,
         ...results,
+        performanceBreakdown: {
+          activeMarketsQueryMs: metrics.getActiveMarketsMs,
+          resolutionPhaseMs: metrics.resolutionMs,
+          creationPhaseMs: metrics.creationMs,
+          overheadMs:
+            durationMs -
+            metrics.getActiveMarketsMs -
+            metrics.resolutionMs -
+            metrics.creationMs,
+        },
       },
       'MarketsTick'
     );
+
+    // Warn if execution is taking too long (over 2 minutes)
+    if (durationMs > 120000) {
+      logger.warn(
+        'Markets tick execution time exceeds 2 minutes',
+        {
+          durationMs,
+          resolutionMs: metrics.resolutionMs,
+          creationMs: metrics.creationMs,
+          marketsResolved: results.marketsResolved,
+          marketsCreated: results.marketsCreated,
+        },
+        'MarketsTick'
+      );
+    }
 
     return NextResponse.json({
       success: true,
       durationMs,
       ...results,
+      metrics,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

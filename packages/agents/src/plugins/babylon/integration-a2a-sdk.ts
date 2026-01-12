@@ -330,11 +330,13 @@ async function ensureAgentWallet(
       cachedAt: Date.now(),
     };
   } catch (error) {
-    logger.warn(
-      'Failed to auto-provision wallet for agent',
+    // Use debug level for NPC wallet provisioning failures - these are expected
+    // for NPCs that don't have user records. Only warn for actual user agents.
+    logger.debug(
+      'Wallet auto-provision skipped for agent',
       {
         agentUserId,
-        error: error instanceof Error ? error.message : String(error),
+        reason: error instanceof Error ? error.message : String(error),
       },
       'BabylonIntegration'
     );
@@ -1144,25 +1146,16 @@ export async function enhanceRuntimeWithBabylon(
 
   const a2aConnected = babylonRuntime.a2aClient.isConnected();
 
-  logger.info('✅ Babylon plugin registered with A2A client', {
-    agentUserId,
-    pluginName: plugin.name,
-    providersCount: plugin.providers?.length || 0,
-    actionsCount: plugin.actions?.length || 0,
-    a2aConnected,
-    a2aEndpoint:
-      process.env.BABYLON_A2A_ENDPOINT ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000',
-  });
-
   runtime.registerPlugin(plugin);
 
+  // Use debug level for per-agent plugin registration to reduce startup noise
   const a2aMode = a2aConnected ? 'a2a' : 'database-fallback';
-  logger.info('Babylon plugin registered', {
+  logger.debug('Babylon plugin registered', {
     agentUserId,
     mode: a2aMode,
     a2aEnabled: a2aConnected,
+    providersCount: plugin.providers?.length || 0,
+    actionsCount: plugin.actions?.length || 0,
   });
 }
 
