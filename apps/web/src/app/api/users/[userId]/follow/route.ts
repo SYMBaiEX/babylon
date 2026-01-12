@@ -97,7 +97,15 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { and, db, eq, follows, userActorFollows, users } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  follows,
+  userActorFollows,
+  users,
+  withTransaction,
+} from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import {
   generateSnowflakeId,
@@ -170,35 +178,43 @@ export const POST = withErrorHandling(
     // Also check if targetActor exists (could be actor ID that doesn't match a user)
     if (targetUser && !targetUser.isActor) {
       // Target is a regular user - use Follow model
-      // Check if already following
-      const [existingFollow] = await db
-        .select({ id: follows.id })
-        .from(follows)
-        .where(
-          and(
-            eq(follows.followerId, user.userId),
-            eq(follows.followingId, targetId)
+      // Check if already following and create follow inside transaction
+      const newFollow = await withTransaction(async (tx) => {
+        const [existingFollow] = await tx
+          .select({ id: follows.id })
+          .from(follows)
+          .where(
+            and(
+              eq(follows.followerId, user.userId),
+              eq(follows.followingId, targetId)
+            )
           )
-        )
-        .limit(1);
+          .limit(1)
+          .for('update');
 
-      if (existingFollow) {
-        throw new BusinessLogicError(
-          'Already following this user',
-          'ALREADY_FOLLOWING'
-        );
-      }
+        if (existingFollow) {
+          throw new BusinessLogicError(
+            'Already following this user',
+            'ALREADY_FOLLOWING'
+          );
+        }
 
-      // Create follow relationship and get target user details
-      const followId = await generateSnowflakeId();
-      const [newFollow] = await db
-        .insert(follows)
-        .values({
-          id: followId,
-          followerId: user.userId,
-          followingId: targetId,
-        })
-        .returning();
+        const followId = await generateSnowflakeId();
+        const [createdFollow] = await tx
+          .insert(follows)
+          .values({
+            id: followId,
+            followerId: user.userId,
+            followingId: targetId,
+          })
+          .returning();
+
+        if (!createdFollow) {
+          throw new InternalServerError('Failed to create follow record');
+        }
+
+        return createdFollow;
+      });
 
       // Get target user details
       const [targetUserDetails] = await db
