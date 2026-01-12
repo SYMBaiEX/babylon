@@ -57,8 +57,8 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const shouldAutoShow =
     authenticated &&
     !loadingProfile &&
-    user !== null &&              // Must have user loaded
-    user.profileComplete &&       // Must have completed profile setup
+    user !== null && // Must have user loaded
+    user.profileComplete && // Must have completed profile setup
     !needsOnboarding &&
     !needsOnchain &&
     !hasCompleted &&

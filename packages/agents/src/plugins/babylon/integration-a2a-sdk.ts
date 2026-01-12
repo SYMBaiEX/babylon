@@ -198,7 +198,11 @@ async function fetchAgentCard(): Promise<CachedAgentCard | null> {
       fetchedAt: Date.now(),
     };
 
-    logger.info('✅ Agent card cached (used for all agents)', { agentCardUrl }, 'BabylonIntegration');
+    logger.info(
+      '✅ Agent card cached (used for all agents)',
+      { agentCardUrl },
+      'BabylonIntegration'
+    );
 
     return cachedAgentCard;
   } catch (error) {
@@ -265,7 +269,7 @@ function createAuthenticatedFetchForAgent(
 /**
  * Create A2A client for an agent using cached agent card
  * Each agent gets its own client with identity-specific headers
- * 
+ *
  * OPTIMIZED: Uses constructor directly with cached AgentCard object
  * This avoids repeated HTTP requests to fetch the agent card for each agent
  */

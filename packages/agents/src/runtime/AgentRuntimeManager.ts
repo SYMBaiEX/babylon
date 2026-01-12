@@ -489,7 +489,12 @@ export class AgentRuntimeManager {
     };
 
     // Create runtime with standard plugins - pass isNpc=true to skip OpenAI/Anthropic validation
-    return this.createRuntimeWithPlugins(registration.agentId, character, undefined, true);
+    return this.createRuntimeWithPlugins(
+      registration.agentId,
+      character,
+      undefined,
+      true
+    );
   }
 
   /**
@@ -549,7 +554,9 @@ export class AgentRuntimeManager {
       // GROQ is always available for NPCs
       ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
       // Only load Anthropic/OpenAI for non-NPC agents to avoid validation spam
-      ...(!isNpc && process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+      ...(!isNpc && process.env.ANTHROPIC_API_KEY
+        ? [anthropicPlugin as Plugin]
+        : []),
       ...(!isNpc && process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
