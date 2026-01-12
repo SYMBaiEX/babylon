@@ -2,6 +2,7 @@ import {
   and,
   db,
   desc,
+  eq,
   gte,
   inArray,
   posts,
@@ -632,17 +633,10 @@ export async function generateArticlesForArcEvent(
       );
 
       const articleTimestamp = article.publishedAt || timestamp;
-      const articleId = await generateSnowflakeId();
 
-      // Generate article cover image (non-blocking, with retry)
-      let imageUrl: string | null = null;
-      if (process.env.FAL_KEY) {
-        imageUrl = await generateArticleImageWithRetry({
-          title: transformedTitle.transformedText,
-          summary: transformedSummary.transformedText,
-          category: article.category,
-        });
-      }
+      // Insert article first, then generate image asynchronously (fire-and-forget)
+      // This makes article creation non-blocking on image generation
+      const articleId = await generateSnowflakeId();
 
       await db.insert(posts).values({
         id: articleId,
@@ -655,12 +649,43 @@ export async function generateArticlesForArcEvent(
         sentiment: article.sentiment || undefined,
         slant: article.slant || undefined,
         category: article.category || undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl: undefined, // Will be updated asynchronously if FAL_KEY is set
         authorId: article.authorOrgId,
         gameId: 'continuous',
         dayNumber: dayNumber,
         timestamp: articleTimestamp,
       });
+
+      // Fire-and-forget image generation - updates post asynchronously after insert
+      if (process.env.FAL_KEY) {
+        generateArticleImageWithRetry({
+          title: transformedTitle.transformedText,
+          summary: transformedSummary.transformedText,
+          category: article.category,
+        })
+          .then((imageUrl) => {
+            if (imageUrl) {
+              // Update the post with the generated image URL
+              db.update(posts)
+                .set({ imageUrl })
+                .where(eq(posts.id, articleId))
+                .catch((err) => {
+                  logger.warn(
+                    'Failed to update article with image URL',
+                    { articleId, error: err instanceof Error ? err.message : String(err) },
+                    'EventGeneration'
+                  );
+                });
+            }
+          })
+          .catch((err) => {
+            logger.debug(
+              'Image generation failed (non-blocking)',
+              { articleId, error: err instanceof Error ? err.message : String(err) },
+              'EventGeneration'
+            );
+          });
+      }
 
       // Record that this org has covered this event status
       arcEventPacer.recordArcEventCoverage(

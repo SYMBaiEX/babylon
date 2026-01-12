@@ -52,6 +52,7 @@ import {
   generateSnowflakeId,
   gte,
   lte,
+  max,
   type MarketCategory,
   posts,
   questions,
@@ -83,6 +84,48 @@ interface GameState {
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
+
+// ============================================================================
+// Market Creation Configuration
+// ============================================================================
+
+/**
+ * Default scenario ID for new questions.
+ * Consistent with QuestionManager defaults.
+ */
+const DEFAULT_SCENARIO_ID = 1;
+
+/**
+ * Default initial liquidity for new markets (in base units).
+ * This determines the initial AMM pool depth.
+ */
+const DEFAULT_INITIAL_LIQUIDITY = 20000;
+
+/**
+ * Mock wallet for market creation operations.
+ * The markets-tick cron creates markets without real wallet operations
+ * since it's a system-level process, not user-initiated.
+ *
+ * These no-op stubs satisfy the CorePredictionMarketService interface
+ * while preventing any actual balance changes.
+ */
+const MOCK_WALLET = {
+  debit: async () => {},
+  credit: async () => {},
+  recordPnL: async () => {},
+  getBalance: async () => ({ balance: 0 }),
+} as const;
+
+/**
+ * Default fee configuration for system-created markets.
+ * Zero fees since these are automated market creation operations.
+ */
+const SYSTEM_MARKET_FEES = {
+  tradingFeeRate: 0,
+  platformShare: 0,
+  referrerShare: 0,
+  minFeeAmount: 0,
+} as const;
 
 /**
  * Market structure configuration - maintains exactly 10 active markets
@@ -242,6 +285,17 @@ export async function POST(_req: NextRequest) {
           .limit(1);
 
         if (!game) {
+          // Log warning so operators are alerted to missing game configuration
+          // This could indicate a DB issue or missing game setup
+          logger.warn(
+            'No continuous game found in database - using fallback state',
+            {
+              attemptedQuery: 'games.isContinuous = true',
+              fallbackId: 'continuous',
+              action: 'Markets tick will be skipped (isRunning: false)',
+            },
+            'MarketsTick'
+          );
           return {
             id: 'continuous',
             isRunning: false,
@@ -988,15 +1042,11 @@ async function createMarketForTimeframe(
     const questionId = await generateSnowflakeId();
     const questionNumber = await getNextQuestionNumber();
 
-    // Using default scenario ID (consistent with QuestionManager)
-    const scenarioId = 1;
-    const initialLiquidity = 20000;
-
     await db.insert(questions).values({
       id: questionId,
       questionNumber,
       text: questionData.text,
-      scenarioId,
+      scenarioId: DEFAULT_SCENARIO_ID,
       outcome: questionData.expectedOutcome,
       rank: 1,
       resolutionDate,
@@ -1005,25 +1055,16 @@ async function createMarketForTimeframe(
     });
 
     // Create corresponding market using CorePredictionMarketService
+    // Uses MOCK_WALLET since this is system-level creation, not user-initiated
     const marketService = new CorePredictionMarketService({
       db: new CorePredictionDbAdapter(),
-      wallet: {
-        debit: async () => {},
-        credit: async () => {},
-        recordPnL: async () => {},
-        getBalance: async () => ({ balance: 0 }),
-      },
-      fees: {
-        tradingFeeRate: 0,
-        platformShare: 0,
-        referrerShare: 0,
-        minFeeAmount: 0,
-      },
+      wallet: MOCK_WALLET,
+      fees: SYSTEM_MARKET_FEES,
     });
 
     const market = await marketService.ensureMarketExists({
       marketId: questionId,
-      initialLiquidity,
+      initialLiquidity: DEFAULT_INITIAL_LIQUIDITY,
       description: questionData.resolutionCriteria,
     });
 
@@ -1258,17 +1299,16 @@ function mapTimeframeToDbType(
 }
 
 /**
- * Get the next question number
+ * Get the next question number using an efficient MAX query.
+ * Uses a single SQL aggregation instead of fetching all rows.
  */
 async function getNextQuestionNumber(): Promise<number> {
-  const existingQuestions = await db
-    .select({ questionNumber: questions.questionNumber })
+  const result = await db
+    .select({ maxNumber: max(questions.questionNumber) })
     .from(questions);
 
-  const maxNumber = existingQuestions.reduce(
-    (max, q) => Math.max(max, q.questionNumber),
-    0
-  );
+  // Handle null/undefined case (no questions exist yet)
+  const maxNumber = result[0]?.maxNumber ?? 0;
 
   return maxNumber + 1;
 }

@@ -155,14 +155,37 @@ describe('Article Tick Cron', () => {
   });
 
   describe('Authorization', () => {
-    test('GET should delegate to POST', async () => {
-      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+    test('GET should delegate to POST and return identical response', async () => {
+      // Set up a known game state so we get predictable responses
+      mockGame = null; // No game = skipped state
+
+      // Create identical requests for GET and POST
+      const getReq = new NextRequest('http://localhost/api/cron/article-tick', {
         method: 'GET',
       });
-      const res = await GET(req);
+      const postReq = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
 
-      // Should return a valid response (the mock verifyCronAuth returns true)
-      expect(res.status).toBeDefined();
+      // Call both handlers
+      const getRes = await GET(getReq);
+      const postRes = await POST(postReq);
+
+      // Both should return the same status
+      expect(getRes.status).toBe(postRes.status);
+
+      // Both should return the same response body
+      const getBody = await getRes.json();
+      const postBody = await postRes.json();
+
+      expect(getBody.success).toBe(postBody.success);
+      expect(getBody.skipped).toBe(postBody.skipped);
+      expect(getBody.reason).toBe(postBody.reason);
+
+      // Verify the expected behavior (skipped because no game)
+      expect(getBody.success).toBe(true);
+      expect(getBody.skipped).toBe(true);
+      expect(getBody.reason).toBe('No continuous game found');
     });
   });
 
@@ -237,6 +260,12 @@ describe('Article Tick Cron', () => {
       const res = await POST(req);
       const data = await res.json();
 
+      // Positive assertions: handler succeeded and actually processed
+      expect(res.status).toBe(200);
+      expect(res.ok).toBe(true);
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(false);
+
       // Should not be skipped due to rate limit
       expect(data.reason).not.toBe('Rate limit reached');
     });
@@ -250,7 +279,7 @@ describe('Article Tick Cron', () => {
         isRunning: true,
         currentDay: 1,
       };
-      mockArticleCount = 1;
+      mockArticleCount = 1; // Under limit (2), so processing should proceed
 
       const req = new NextRequest('http://localhost/api/cron/article-tick', {
         method: 'POST',
@@ -258,12 +287,15 @@ describe('Article Tick Cron', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      // When not skipped, should include rate limit info
-      if (!data.skipped) {
-        expect(data.rateLimit).toBeDefined();
-        expect(data.rateLimit.currentCount).toBe(1);
-        expect(data.rateLimit.maxAllowed).toBe(2);
-      }
+      // Verify handler succeeded and was not skipped
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(false); // Explicit assertion - test fails if skipped
+
+      // Rate limit info should always be included when not skipped
+      expect(data.rateLimit).toBeDefined();
+      expect(data.rateLimit.currentCount).toBe(1);
+      expect(data.rateLimit.maxAllowed).toBe(2);
     });
   });
 });

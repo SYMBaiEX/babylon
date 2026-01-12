@@ -39,6 +39,10 @@ interface SqlCondition {
 let mockGame: MockGame | null = null;
 let mockActiveQuestions: MockQuestion[] = [];
 
+// Mock auth and lock states for negative-path testing
+let mockCronAuthResult = true;
+let mockAcquireLockResult = true;
+
 // Create query builder for Drizzle-style operations
 // The resultFn is called at query execution time to get the current mock state
 const createQueryBuilder = (resultFn: () => unknown) => {
@@ -65,11 +69,6 @@ const createQueryBuilder = (resultFn: () => unknown) => {
   return builder;
 };
 
-// Helper to get mature questions (those with resolution date in the past)
-const getMatureQuestions = () =>
-  mockActiveQuestions.filter(
-    (q) => q.resolutionDate <= new Date() && q.status === 'active'
-  );
 
 // Mock @babylon/db - returns mockActiveQuestions for select queries
 mock.module('@babylon/db', () => ({
@@ -95,13 +94,11 @@ mock.module('@babylon/db', () => ({
   and: (): SqlCondition => ({}),
   desc: (): SqlCondition => ({}),
   generateSnowflakeId: async () => `mock-${Date.now()}`,
-  // Export getMatureQuestions so tests can use it
-  getMatureQuestions,
 }));
 
-// Mock @babylon/api - getCacheOrFetch returns mockGame
+// Mock @babylon/api - uses mutable state for auth/lock results
 mock.module('@babylon/api', () => ({
-  verifyCronAuth: () => true,
+  verifyCronAuth: () => mockCronAuthResult,
   relayCronToStaging: async () => ({ forwarded: false }),
   getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
     // For game state cache, return our mockGame or a default non-running game
@@ -117,7 +114,7 @@ mock.module('@babylon/api', () => ({
   },
   recordCronExecution: () => {},
   DistributedLockService: {
-    acquireLock: async () => true,
+    acquireLock: async () => mockAcquireLockResult,
     releaseLock: async () => {},
   },
 }));
@@ -210,6 +207,8 @@ describe('Markets Tick Cron', () => {
   beforeEach(() => {
     mockGame = null;
     mockActiveQuestions = [];
+    mockCronAuthResult = true;
+    mockAcquireLockResult = true;
   });
 
   describe('Authorization', () => {
@@ -220,6 +219,42 @@ describe('Markets Tick Cron', () => {
       const res = await GET(req);
 
       expect(res.status).toBeDefined();
+    });
+
+    test('should reject unauthorized requests when verifyCronAuth returns false', async () => {
+      mockCronAuthResult = false;
+
+      const req = new NextRequest('http://localhost/api/cron/markets-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+
+      // Should return 401 Unauthorized
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Distributed Lock', () => {
+    test('should skip when lock cannot be acquired', async () => {
+      mockGame = {
+        id: 'game-123',
+        isContinuous: true,
+        isRunning: true,
+        currentDay: 1,
+      };
+      mockAcquireLockResult = false;
+
+      const req = new NextRequest('http://localhost/api/cron/markets-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+      const data = await res.json();
+
+      // Should indicate lock failure/skip
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.skipped).toBe(true);
+      expect(data.reason).toContain('lock');
     });
   });
 
@@ -293,7 +328,6 @@ describe('Markets Tick Cron', () => {
         currentDay: 1,
       };
       // Add a mature market (resolution date in the past)
-      // This will be detected via getMatureQuestions() helper
       mockActiveQuestions = [
         {
           id: 'q-1',

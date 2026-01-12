@@ -130,6 +130,9 @@ export class NPCBootstrapService {
     }
 
     const durationMs = Date.now() - startTime;
+    // Guard against division by zero when no NPCs exist
+    const avgPerNpcMs =
+      result.totalNpcs > 0 ? Math.round(durationMs / result.totalNpcs) : 0;
 
     // Single summary log with all relevant metrics (best practice: batch logging)
     logger.info(
@@ -140,7 +143,7 @@ export class NPCBootstrapService {
         registered: result.registered,
         failed: result.failed,
         durationMs,
-        avgPerNpcMs: Math.round(durationMs / result.totalNpcs),
+        avgPerNpcMs,
       },
       'NPCBootstrapService'
     );

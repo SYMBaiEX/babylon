@@ -61,7 +61,14 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Maximum articles to generate per tick.
- * Respects the hourly rate limit (default 2/hour).
+ *
+ * Set to 1 to ensure:
+ * - Minimal TOCTOU race window (only one article attempt per tick)
+ * - Even distribution across cron intervals
+ * - Predictable LLM cost per tick
+ *
+ * With cron running every 10 minutes, this allows up to 6 articles/hour
+ * if the rate limiter (default 2/hour) permits.
  */
 const MAX_ARTICLES_PER_TICK = 1;
 
@@ -125,6 +132,13 @@ async function persistArticle(
       summary: transformedSummary.transformedText,
       category: 'news',
     });
+  }
+
+  // Re-check rate limit immediately before insert to prevent TOCTOU race condition
+  // Another process may have created articles between the initial check and now
+  const { allowed: stillAllowed } = await articleRateLimiter.canGenerateArticle();
+  if (!stillAllowed) {
+    throw new Error('Rate limit exceeded during article generation');
   }
 
   const postId = await generateSnowflakeId();
