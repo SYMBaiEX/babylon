@@ -48,7 +48,7 @@ export interface PredictionPositionRecord {
   side: PredictionSide;
   shares: number;
   avgPrice: number;
-  status?: 'active' | 'resolved';
+  status?: 'active' | 'closed' | 'resolved';
   outcome?: boolean | null;
   pnl?: number;
   resolvedAt?: Date | null;

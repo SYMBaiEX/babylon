@@ -8,7 +8,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type {
   PredictionDbPort,
   PredictionMarketRecord,
@@ -100,8 +100,8 @@ export class PredictionDbAdapter implements PredictionDbPort {
       .where(
         and(
           eq(positions.userId, userId),
-          // Only return active positions with sellable shares
-          ne(positions.status, 'resolved')
+          // Only return active (open) positions with sellable shares
+          eq(positions.status, 'active')
         )
       );
     // Filter out positions with negligible shares (closed but not marked resolved)
