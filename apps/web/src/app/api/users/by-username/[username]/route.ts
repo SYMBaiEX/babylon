@@ -83,10 +83,10 @@ import {
   follows,
   positions,
   reactions,
+  sql,
   users,
 } from '@babylon/db';
 import { logger, UsernameParamSchema } from '@babylon/shared';
-import { sql } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 
 /**
