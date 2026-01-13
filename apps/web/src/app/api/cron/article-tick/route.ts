@@ -31,7 +31,6 @@ import {
 } from '@babylon/api';
 import { db, eq, games, generateSnowflakeId, posts } from '@babylon/db';
 import {
-  ArticleGenerator,
   articleRateLimiter,
   BabylonLLMClient,
   characterMappingService,
@@ -389,9 +388,8 @@ export async function POST(_req: NextRequest) {
     const activeEventsData = await getActiveEventsForPosting();
     const worldFactsContext = await worldFactsService.generatePromptContext();
 
-    // Create LLM client and article generator
+    // Create LLM client for article generation
     const llmClient = BabylonLLMClient.forGameTick();
-    const articleGen = new ArticleGenerator(llmClient);
 
     let articlesCreated = 0;
     let errorCount = 0;
@@ -421,7 +419,6 @@ export async function POST(_req: NextRequest) {
               org,
               actorsList,
               worldFactsContext,
-              articleGen,
               gameState,
               llmClient
             );
@@ -528,7 +525,6 @@ async function generateEventArticle(
   org: { id: string; name: string | null; description: string | null },
   _actorsList: Array<{ id: string; name: string; description?: string }>,
   worldFactsContext: string,
-  _articleGen: ArticleGenerator,
   gameState: GameState,
   llmClient: BabylonLLMClient
 ): Promise<{ id: string } | null> {

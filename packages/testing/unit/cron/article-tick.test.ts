@@ -35,7 +35,9 @@ let mockCronAuthResult = true;
 // Create query builder for Drizzle-style operations
 // The resultFn is called at query execution time to get the current mock state
 // This mirrors the markets-tick.test.ts pattern for dynamic result evaluation
-const createQueryBuilder = (resultFn: () => unknown = () => [{ id: 'mock-id' }]) => {
+const createQueryBuilder = (
+  resultFn: () => unknown = () => [{ id: 'mock-id' }]
+) => {
   const builder = {
     set: mock(() => builder),
     where: mock(() => builder),
@@ -61,8 +63,10 @@ const createQueryBuilder = (resultFn: () => unknown = () => [{ id: 'mock-id' }])
 // Mock @babylon/db - uses resultFn pattern for dynamic state evaluation
 mock.module('@babylon/db', () => ({
   db: {
-    select: mock(() => createQueryBuilder(() => mockGame ? [mockGame] : [])),
-    insert: mock(() => createQueryBuilder(() => [{ id: `mock-${Date.now()}` }])),
+    select: mock(() => createQueryBuilder(() => (mockGame ? [mockGame] : []))),
+    insert: mock(() =>
+      createQueryBuilder(() => [{ id: `mock-${Date.now()}` }])
+    ),
     update: mock(() => createQueryBuilder(() => [{ id: 'mock-updated' }])),
     delete: mock(() => createQueryBuilder(() => [{ id: 'mock-deleted' }])),
   },

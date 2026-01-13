@@ -102,6 +102,16 @@ const DEFAULT_SCENARIO_ID = 1;
 const DEFAULT_INITIAL_LIQUIDITY = 20000;
 
 /**
+ * Time budget for tick execution in milliseconds.
+ * Vercel cron has a 5-minute timeout; we use 4 minutes to leave buffer.
+ * Configurable via MARKETS_TICK_BUDGET_MS environment variable for tuning.
+ */
+const TICK_BUDGET_MS = parseInt(
+  process.env.MARKETS_TICK_BUDGET_MS || '240000',
+  10
+);
+
+/**
  * Mock wallet for market creation operations.
  * The markets-tick cron creates markets without real wallet operations
  * since it's a system-level process, not user-initiated.
@@ -349,7 +359,7 @@ export async function POST(_req: NextRequest) {
     };
 
     const now = new Date();
-    const deadline = startTime + 240000; // 4 minute budget (leave 1 min buffer)
+    const deadline = startTime + TICK_BUDGET_MS; // Configurable budget (default 4 min, leaves 1 min buffer)
 
     // Step 1: Get current market distribution
     const activeMarketsStart = Date.now();
@@ -391,7 +401,11 @@ export async function POST(_req: NextRequest) {
 
       try {
         // Resolve the market (includes proof gen, payouts, oracle reveal)
-        const resolutionResult = await resolveMarket(market, llmClient, gameState);
+        const resolutionResult = await resolveMarket(
+          market,
+          llmClient,
+          gameState
+        );
         if (resolutionResult.resolved) {
           results.marketsResolved++;
         }

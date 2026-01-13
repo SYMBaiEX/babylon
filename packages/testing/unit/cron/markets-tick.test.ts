@@ -38,8 +38,11 @@ interface SqlCondition {
 // Mock db with a mutable state we can control in tests
 let mockGame: MockGame | null = null;
 let mockActiveQuestions: MockQuestion[] = [];
-let mockMatureQuestions: MockQuestion[] = [];
-let mockWorldEvents: Array<{ id: string; timestamp: Date; description: string }> = [];
+let mockWorldEvents: Array<{
+  id: string;
+  timestamp: Date;
+  description: string;
+}> = [];
 
 // Mock auth and lock states for negative-path testing
 let mockCronAuthResult = true;
@@ -90,14 +93,7 @@ const createQueryBuilder = (
 ) => {
   const builder = {
     set: mock(() => builder),
-    where: mock(() => {
-      // For questions table with mature check, return mature questions
-      if (currentQueryTable === 'questions') {
-        // If this is a "mature" query (lte on resolutionDate), return mockMatureQuestions
-        // This is a simplification - in reality we'd parse the condition
-      }
-      return builder;
-    }),
+    where: mock(() => builder),
     values: mock(() => builder),
     from: mock((table: { _tableName?: string }) => {
       // Track which table is being queried
@@ -136,7 +132,10 @@ const createMutationBuilder = (operation: 'insert' | 'update' | 'delete') => {
     if (table && table._tableName) {
       currentQueryTable = table._tableName;
     }
-    return createQueryBuilder(() => [{ id: `mock-${operation}-id` }], operation);
+    return createQueryBuilder(
+      () => [{ id: `mock-${operation}-id` }],
+      operation
+    );
   });
 };
 
@@ -300,7 +299,6 @@ describe('Markets Tick Cron', () => {
   beforeEach(() => {
     mockGame = null;
     mockActiveQuestions = [];
-    mockMatureQuestions = [];
     mockWorldEvents = [];
     mockCronAuthResult = true;
     mockAcquireLockResult = true;
