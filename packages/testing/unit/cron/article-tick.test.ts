@@ -175,8 +175,8 @@ describe('Article Tick Cron', () => {
 
       expect(res.status).toBe(401);
       const data = await res.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Unauthorized');
+      expect(data.error).toBe('Unauthorized cron request');
+      expect(data.success).toBeUndefined();
     });
 
     test('GET should delegate to POST and return identical response', async () => {

@@ -102,14 +102,23 @@ const DEFAULT_SCENARIO_ID = 1;
 const DEFAULT_INITIAL_LIQUIDITY = 20000;
 
 /**
- * Time budget for tick execution in milliseconds.
+ * Default time budget for tick execution in milliseconds.
  * Vercel cron has a 5-minute timeout; we use 4 minutes to leave buffer.
- * Configurable via MARKETS_TICK_BUDGET_MS environment variable for tuning.
  */
-const TICK_BUDGET_MS = parseInt(
-  process.env.MARKETS_TICK_BUDGET_MS || '240000',
-  10
-);
+const DEFAULT_TICK_BUDGET_MS = 240000;
+
+/**
+ * Time budget for tick execution in milliseconds.
+ * Configurable via MARKETS_TICK_BUDGET_MS environment variable for tuning.
+ * Falls back to DEFAULT_TICK_BUDGET_MS if env value is invalid (NaN or <= 0).
+ */
+const TICK_BUDGET_MS = (() => {
+  const parsed = parseInt(process.env.MARKETS_TICK_BUDGET_MS || '', 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return DEFAULT_TICK_BUDGET_MS;
+  }
+  return parsed;
+})();
 
 /**
  * Mock wallet for market creation operations.
@@ -1136,10 +1145,10 @@ async function createMarketForTimeframe(
 
       // Step 2: Create corresponding market using CorePredictionMarketService
       // Uses MOCK_WALLET since this is system-level creation, not user-initiated
-      // Note: CorePredictionMarketService uses its own DB adapter, but if it fails,
-      // we still roll back the question insert above
+      // IMPORTANT: Pass tx to CorePredictionDbAdapter so market creation uses the same
+      // transaction - ensures atomicity with question + timeframedMarket inserts
       const marketService = new CorePredictionMarketService({
-        db: new CorePredictionDbAdapter(),
+        db: new CorePredictionDbAdapter(tx),
         wallet: MOCK_WALLET,
         fees: SYSTEM_MARKET_FEES,
       });

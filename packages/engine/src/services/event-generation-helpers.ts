@@ -647,7 +647,7 @@ export async function generateArticlesForArcEvent(
           status: 'rejected',
           reason: new Error('Rate limit exceeded during persistence'),
         });
-        continue; // Skip to next org instead of breaking entirely
+        break; // Exit loop immediately - no point trying more orgs if rate limited
       }
 
       // Insert article first, then generate image asynchronously (fire-and-forget)

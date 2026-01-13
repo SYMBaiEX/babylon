@@ -306,13 +306,29 @@ describe('Markets Tick Cron', () => {
   });
 
   describe('Authorization', () => {
-    test('GET should delegate to POST', async () => {
-      const req = new NextRequest('http://localhost/api/cron/markets-tick', {
+    test('GET should delegate to POST and return equivalent response', async () => {
+      // Set up identical conditions for both requests
+      mockGame = null; // No game = predictable skipped state
+
+      const getReq = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'GET',
       });
-      const res = await GET(req);
+      const postReq = new NextRequest('http://localhost/api/cron/markets-tick', {
+        method: 'POST',
+      });
 
-      expect(res.status).toBeDefined();
+      const getRes = await GET(getReq);
+      const postRes = await POST(postReq);
+
+      // GET should delegate to POST, so responses should match
+      expect(getRes.status).toBe(postRes.status);
+
+      const getData = await getRes.json();
+      const postData = await postRes.json();
+
+      // Key response properties should be equivalent
+      expect(getData.success).toBe(postData.success);
+      expect(getData.skipped).toBe(postData.skipped);
     });
 
     test('should reject unauthorized requests when verifyCronAuth returns false', async () => {
@@ -324,6 +340,18 @@ describe('Markets Tick Cron', () => {
       const res = await POST(req);
 
       // Should return 401 Unauthorized
+      expect(res.status).toBe(401);
+    });
+
+    test('GET should also reject unauthorized requests', async () => {
+      mockCronAuthResult = false;
+
+      const req = new NextRequest('http://localhost/api/cron/markets-tick', {
+        method: 'GET',
+      });
+      const res = await GET(req);
+
+      // GET delegates to POST, so should also return 401
       expect(res.status).toBe(401);
     });
   });

@@ -171,23 +171,25 @@ async function persistArticle(
       summary: transformedSummary.transformedText,
       category: 'news',
     })
-      .then((imageUrl) => {
+      .then(async (imageUrl) => {
         if (imageUrl) {
           // Update the post with the generated image URL
-          db.update(posts)
-            .set({ imageUrl })
-            .where(eq(posts.id, postId))
-            .catch((err) => {
-              logger.warn(
-                'Failed to update article with image URL',
-                {
-                  postId,
-                  authorId,
-                  error: err instanceof Error ? err.message : String(err),
-                },
-                'ArticleTick'
-              );
-            });
+          try {
+            await db
+              .update(posts)
+              .set({ imageUrl })
+              .where(eq(posts.id, postId));
+          } catch (err) {
+            logger.warn(
+              'Failed to update article with image URL',
+              {
+                postId,
+                authorId,
+                error: err instanceof Error ? err.message : String(err),
+              },
+              'ArticleTick'
+            );
+          }
         }
       })
       .catch((err) => {
