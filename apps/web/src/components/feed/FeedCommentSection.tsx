@@ -12,7 +12,10 @@ import { Avatar } from '@/components/shared/Avatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { TaggedText } from '@/components/shared/TaggedText';
-import { isNpcIdentifier, VerifiedBadge } from '@/components/shared/VerifiedBadge';
+import {
+  isNpcIdentifier,
+  VerifiedBadge,
+} from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useInteractionStore } from '@/stores/interactionStore';
 

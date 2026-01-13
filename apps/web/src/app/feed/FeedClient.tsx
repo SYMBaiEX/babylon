@@ -1,5 +1,9 @@
 'use client';
 
+import type { FeedPost } from '@babylon/shared';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InlineComposer } from '@/components/feed/InlineComposer';
 import { FeedToggle } from '@/components/shared/FeedToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -11,10 +15,6 @@ import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useFeedStore } from '@/stores/feedStore';
 import { useGameStore } from '@/stores/gameStore';
-import type { FeedPost } from '@babylon/shared';
-import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyFeed, PostList } from './components';
 import { useFeedPosts, useFollowingPosts, useHotPosts } from './hooks';
 

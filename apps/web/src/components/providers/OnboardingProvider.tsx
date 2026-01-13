@@ -224,7 +224,9 @@ export function OnboardingProvider({
         'Identity token state during signup',
         {
           present: Boolean(identityToken),
-          tokenPreview: identityToken ? `${identityToken.slice(0, 12)}...` : null,
+          tokenPreview: identityToken
+            ? `${identityToken.slice(0, 12)}...`
+            : null,
         },
         'OnboardingProvider'
       );
@@ -251,7 +253,8 @@ export function OnboardingProvider({
       if (data.user) {
         setUser({
           id: data.user.id,
-          walletAddress: data.user.walletAddress ?? smartWalletAddress ?? undefined,
+          walletAddress:
+            data.user.walletAddress ?? smartWalletAddress ?? undefined,
           displayName: data.user.displayName ?? payload.displayName,
           email: user?.email,
           username: data.user.username ?? payload.username,
@@ -261,7 +264,8 @@ export function OnboardingProvider({
           coverImageUrl:
             data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
           profileComplete: data.user.profileComplete ?? true,
-          reputationPoints: data.user.reputationPoints ?? user?.reputationPoints,
+          reputationPoints:
+            data.user.reputationPoints ?? user?.reputationPoints,
           hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
           hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
           farcasterUsername:
@@ -356,7 +360,10 @@ export function OnboardingProvider({
         handleProfileSubmit(autoProfile).catch((submitError: Error) => {
           logger.error(
             'Social login auto-submit failed',
-            { error: submitError.message, platform: importedProfileData.platform },
+            {
+              error: submitError.message,
+              platform: importedProfileData.platform,
+            },
             'OnboardingProvider'
           );
           setError(submitError.message);
