@@ -250,6 +250,45 @@ export const PROTO_MONKEYS_NFT_ABI = [
     outputs: [],
   },
 
+  // ERC721 approval functions
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'tokenId', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'setApprovalForAll',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'operator', type: 'address' },
+      { name: 'approved', type: 'bool' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'getApproved',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    name: 'isApprovedForAll',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'operator', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+
   // Owner functions
   {
     name: 'setSigner',
@@ -274,6 +313,24 @@ export const PROTO_MONKEYS_NFT_ABI = [
       { name: 'from', type: 'address', indexed: true },
       { name: 'to', type: 'address', indexed: true },
       { name: 'tokenId', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'Approval',
+    inputs: [
+      { name: 'owner', type: 'address', indexed: true },
+      { name: 'approved', type: 'address', indexed: true },
+      { name: 'tokenId', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'ApprovalForAll',
+    inputs: [
+      { name: 'owner', type: 'address', indexed: true },
+      { name: 'operator', type: 'address', indexed: true },
+      { name: 'approved', type: 'bool', indexed: false },
     ],
   },
   {

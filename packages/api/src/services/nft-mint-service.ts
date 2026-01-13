@@ -720,11 +720,14 @@ export async function getTokenMetadata(tokenId: number) {
     );
   }
 
+  // Use configurable base URL for external_url, defaulting to production
+  const baseUrl = process.env.NFT_METADATA_BASE_URL ?? 'https://babylon.market';
+
   return {
     name: nft.name,
     description: nft.description ?? `ProtoMonkeys #${tokenId}`,
     image: nft.imageUrl,
-    external_url: `https://babylon.market/nft/${tokenId}`,
+    external_url: `${baseUrl}/nft/${tokenId}`,
     attributes: nft.attributes ?? [],
     properties: nft.storyTitle
       ? {
