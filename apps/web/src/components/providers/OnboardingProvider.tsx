@@ -118,8 +118,12 @@ export function OnboardingProvider({
   // Store last client-submitted registration txHash so retries can sync without re-signing
   const [onchainTxHash, setOnchainTxHash] = useState<string | null>(null);
 
-  // Track if social user has auto-submitted profile
+  // Track if social user auto-submit is currently in-flight (prevents StrictMode double-invoke)
   const socialAutoSubmitRef = useRef(false);
+  // Persistent flag to prevent repeated auto-submit attempts after failure
+  // (only reset on explicit logout/cleanup, NOT on failure)
+  const [socialAutoSubmitAttempted, setSocialAutoSubmitAttempted] =
+    useState(false);
   // Prevent duplicate on-chain submissions (e.g. StrictMode double-invoking effects)
   const onchainSubmitInFlightRef = useRef(false);
 
@@ -309,6 +313,7 @@ export function OnboardingProvider({
       setOnchainReferralCode(null);
       setOnchainTxHash(null);
       socialAutoSubmitRef.current = false;
+      setSocialAutoSubmitAttempted(false);
       onchainSubmitInFlightRef.current = false;
       return;
     }
@@ -320,12 +325,16 @@ export function OnboardingProvider({
     if (needsOnboarding) {
       // For social login users (Farcaster/Twitter), skip PROFILE and auto-submit
       // They go straight to ONCHAIN stage with auto-imported profile data
+      // Check both: socialAutoSubmitRef (in-flight) and socialAutoSubmitAttempted (persistent)
       if (
         isSocialLogin &&
         importedProfileData &&
-        !socialAutoSubmitRef.current
+        !socialAutoSubmitRef.current &&
+        !socialAutoSubmitAttempted
       ) {
-        // Mark as auto-submitting to prevent duplicate submissions
+        // Mark as attempted BEFORE submission to prevent retries on failure
+        setSocialAutoSubmitAttempted(true);
+        // Mark as in-flight to prevent StrictMode double-invoke
         socialAutoSubmitRef.current = true;
         logger.info(
           'Social login user - auto-submitting profile and skipping to ONCHAIN',
@@ -367,7 +376,9 @@ export function OnboardingProvider({
             'OnboardingProvider'
           );
           setError(submitError.message);
-          // Reset the ref so user can retry via the UI
+          // Reset in-flight ref but NOT socialAutoSubmitAttempted
+          // This allows the effect to complete but prevents automatic retries
+          // User must manually submit via the PROFILE form
           socialAutoSubmitRef.current = false;
           // Fall back to manual profile entry
           setStage('PROFILE');
@@ -394,8 +405,8 @@ export function OnboardingProvider({
     }
 
     // User has completed onboarding - don't reset stage or show onboarding
-    // The handleProfileSubmit dependency is intentional - the socialAutoSubmitRef guard
-    // prevents infinite loops. This effect handles stage transitions based on auth state.
+    // The handleProfileSubmit dependency is intentional - the socialAutoSubmitAttempted
+    // and socialAutoSubmitRef guards prevent infinite loops and repeated retries.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     authenticated,
@@ -407,6 +418,7 @@ export function OnboardingProvider({
     isSocialLogin,
     importedProfileData,
     handleProfileSubmit,
+    socialAutoSubmitAttempted,
   ]);
 
   // Automatically extract social profile data from Privy user when authenticating
