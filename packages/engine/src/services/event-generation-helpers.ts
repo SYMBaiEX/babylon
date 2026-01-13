@@ -2,6 +2,7 @@ import {
   and,
   db,
   desc,
+  eq,
   gte,
   inArray,
   posts,
@@ -18,6 +19,7 @@ import {
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
 import { generateArticleImageWithRetry } from './article-image-service';
+import { articleRateLimiter } from './article-rate-limiter';
 import { characterMappingService } from './character-mapping-service';
 import {
   getArcPlan,
@@ -26,7 +28,22 @@ import {
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
 
-// Singleton pacing engine for arc event coverage tracking
+/**
+ * Singleton pacing engine for arc event coverage tracking.
+ *
+ * @remarks
+ * **In-memory only** - This singleton tracks which events have been covered
+ * by which organizations to prevent duplicate articles. The state is NOT
+ * persisted to the database and will be lost on:
+ * - Server restart/redeploy
+ * - Serverless cold start
+ * - Process termination
+ *
+ * This is acceptable because:
+ * 1. The article rate limiter (DB-backed) provides primary flood protection
+ * 2. Occasional duplicate articles after restart are not harmful
+ * 3. Most events are covered within the typical serverless warm period
+ */
 const arcEventPacer = new NewsArticlePacingEngine();
 
 // Minimal question type for event generation (only fields actually used)
@@ -485,6 +502,19 @@ export async function generateArticlesForArcEvent(
   timestamp: Date,
   dayNumber?: number
 ): Promise<number> {
+  // Check hourly article rate limit FIRST - this is the global throttle
+  const { allowed, currentCount, maxAllowed, remaining } =
+    await articleRateLimiter.canGenerateArticle();
+
+  if (!allowed) {
+    logger.info(
+      'Skipping arc event article generation - hourly rate limit reached',
+      { arcEventId, eventStatus, currentCount, maxAllowed },
+      'EventGeneration'
+    );
+    return 0;
+  }
+
   // Get news organizations that haven't reported on this event status
   const newsOrgs = StaticDataRegistry.getOrganizationsByType('media');
   if (newsOrgs.length === 0) {
@@ -496,12 +526,14 @@ export async function generateArticlesForArcEvent(
     return 0;
   }
 
-  // Select orgs that haven't covered this event status yet (max 2)
+  // Select orgs that haven't covered this event status yet
+  // Limit to remaining rate limit slots (not just max 2)
+  const maxOrgsAllowed = Math.min(2, remaining);
   const orgsToPublish = arcEventPacer.selectOrgsForArcEvent(
     arcEventId,
     eventStatus,
     newsOrgs,
-    2 // Maximum 2 orgs per event status
+    maxOrgsAllowed
   );
 
   if (orgsToPublish.length === 0) {
@@ -519,8 +551,27 @@ export async function generateArticlesForArcEvent(
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);
 
-  // Generate articles in parallel
-  const articlePromises = orgsToPublish.map(async (orgData) => {
+  // Generate articles sequentially to ensure rate limit is respected per-article.
+  // Parallel generation could cause race conditions where multiple articles pass
+  // the initial check but exceed the limit when all complete.
+  const results: Array<
+    | { status: 'fulfilled'; value: number }
+    | { status: 'rejected'; reason: unknown }
+  > = [];
+
+  for (const orgData of orgsToPublish) {
+    // Re-check rate limit before each article to prevent race conditions
+    const { allowed: stillAllowed } =
+      await articleRateLimiter.canGenerateArticle();
+    if (!stillAllowed) {
+      logger.info(
+        'Rate limit reached during arc event article generation - stopping',
+        { arcEventId, eventStatus, articlesGenerated: results.length },
+        'EventGeneration'
+      );
+      break;
+    }
+
     const org = {
       id: orgData.id,
       name: orgData.name || 'Unknown Organization',
@@ -539,122 +590,185 @@ export async function generateArticlesForArcEvent(
           ? 'resolution'
           : 'commentary';
 
-    const article = await articleGen.generateArticleForQuestion(
-      {
-        id: question.id,
-        text: question.text,
-        scenario: 1,
-        outcome: question.outcome ?? false,
-        rank: 1,
-        createdDate: new Date().toISOString().split('T')[0]!,
-        resolutionDate: '',
-        status: 'active',
-      },
-      org,
-      stage,
-      actorsList.map((a) => ({
-        id: a.id,
-        name: a.name,
-        description: a.description || '',
-        domain: Array.isArray(a.domain) ? a.domain : [a.domain || 'tech'],
-        personality: a.personality || undefined,
-        tier: a.tier ?? undefined,
-        affiliations: a.affiliations || [],
-        postStyle: a.postStyle || undefined,
-        postExample: a.postExample || '',
-        role: a.role as 'main' | 'supporting' | 'extra' | undefined,
-        initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
-        initialMood: a.initialMood || 0,
-      })),
-      [] // Events are included in context via question
-    );
+    try {
+      const article = await articleGen.generateArticleForQuestion(
+        {
+          id: question.id,
+          text: question.text,
+          scenario: 1,
+          outcome: question.outcome ?? false,
+          rank: 1,
+          createdDate: new Date().toISOString().split('T')[0]!,
+          resolutionDate: '',
+          status: 'active',
+        },
+        org,
+        stage,
+        actorsList.map((a) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description || '',
+          domain: Array.isArray(a.domain) ? a.domain : [a.domain || 'tech'],
+          personality: a.personality || undefined,
+          tier: a.tier ?? undefined,
+          affiliations: a.affiliations || [],
+          postStyle: a.postStyle || undefined,
+          postExample: a.postExample || '',
+          role: a.role as 'main' | 'supporting' | 'extra' | undefined,
+          initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
+          initialMood: a.initialMood || 0,
+        })),
+        [] // Events are included in context via question
+      );
 
-    // Transform content to replace real names with parody names
-    const transformedSummary = await characterMappingService.transformText(
-      article.summary || ''
-    );
-    const transformedContent = await characterMappingService.transformText(
-      article.content || ''
-    );
-    const transformedTitle = await characterMappingService.transformText(
-      article.title || 'Untitled'
-    );
+      // Transform content to replace real names with parody names
+      // Run all transformations concurrently to reduce latency
+      const [transformedSummary, transformedContent, transformedTitle] =
+        await Promise.all([
+          characterMappingService.transformText(article.summary || ''),
+          characterMappingService.transformText(article.content || ''),
+          characterMappingService.transformText(article.title || 'Untitled'),
+        ]);
 
-    const articleTimestamp = article.publishedAt || timestamp;
-    const articleId = await generateSnowflakeId();
+      const articleTimestamp = article.publishedAt || timestamp;
 
-    // Generate article cover image (non-blocking, with retry)
-    let imageUrl: string | null = null;
-    if (process.env.FAL_KEY) {
-      imageUrl = await generateArticleImageWithRetry({
-        title: transformedTitle.transformedText,
-        summary: transformedSummary.transformedText,
-        category: article.category,
+      // TOCTOU re-check: Verify rate limit immediately before DB insert
+      // Another process may have created articles during LLM generation
+      const { allowed: finalCheckAllowed } =
+        await articleRateLimiter.canGenerateArticle();
+      if (!finalCheckAllowed) {
+        logger.info(
+          'Rate limit reached during arc event article persistence (TOCTOU re-check)',
+          { arcEventId, eventStatus, orgId: org.id },
+          'EventGeneration'
+        );
+        // Record as rejected but not an error - rate limiting worked correctly
+        results.push({
+          status: 'rejected',
+          reason: new Error('Rate limit exceeded during persistence'),
+        });
+        break; // Exit loop immediately - no point trying more orgs if rate limited
+      }
+
+      // Insert article first, then generate image asynchronously (fire-and-forget)
+      // This makes article creation non-blocking on image generation
+      const articleId = await generateSnowflakeId();
+
+      await db.insert(posts).values({
+        id: articleId,
+        type: 'article',
+        content: transformedSummary.transformedText,
+        fullContent: transformedContent.transformedText,
+        articleTitle: transformedTitle.transformedText,
+        byline: article.byline || undefined,
+        biasScore: article.biasScore || undefined,
+        sentiment: article.sentiment || undefined,
+        slant: article.slant || undefined,
+        category: article.category || undefined,
+        imageUrl: undefined, // Will be updated asynchronously if FAL_KEY is set
+        authorId: article.authorOrgId,
+        gameId: 'continuous',
+        dayNumber: dayNumber,
+        timestamp: articleTimestamp,
       });
-    }
 
-    await db.insert(posts).values({
-      id: articleId,
-      type: 'article',
-      content: transformedSummary.transformedText,
-      fullContent: transformedContent.transformedText,
-      articleTitle: transformedTitle.transformedText,
-      byline: article.byline || undefined,
-      biasScore: article.biasScore || undefined,
-      sentiment: article.sentiment || undefined,
-      slant: article.slant || undefined,
-      category: article.category || undefined,
-      imageUrl: imageUrl || undefined,
-      authorId: article.authorOrgId,
-      gameId: 'continuous',
-      dayNumber: dayNumber,
-      timestamp: articleTimestamp,
-    });
+      // Fire-and-forget image generation - updates post asynchronously after insert
+      // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
+      if (process.env.FAL_KEY) {
+        void generateArticleImageWithRetry({
+          title: transformedTitle.transformedText,
+          summary: transformedSummary.transformedText,
+          category: article.category,
+        })
+          .then((imageUrl) => {
+            if (imageUrl) {
+              // Update the post with the generated image URL
+              db.update(posts)
+                .set({ imageUrl })
+                .where(eq(posts.id, articleId))
+                .catch((err) => {
+                  logger.warn(
+                    'Failed to update article with image URL',
+                    {
+                      arcEventId,
+                      eventStatus,
+                      orgId: org.id,
+                      articleId,
+                      error: err instanceof Error ? err.message : String(err),
+                    },
+                    'EventGeneration'
+                  );
+                });
+            }
+          })
+          .catch((err) => {
+            logger.debug(
+              'Image generation failed (non-blocking)',
+              {
+                arcEventId,
+                eventStatus,
+                orgId: org.id,
+                articleId,
+                error: err instanceof Error ? err.message : String(err),
+              },
+              'EventGeneration'
+            );
+          });
+      }
 
-    // Record that this org has covered this event status
-    arcEventPacer.recordArcEventCoverage(
-      arcEventId,
-      org.id,
-      eventStatus,
-      articleId
-    );
-
-    logger.info(
-      'Generated arc event article',
-      {
+      // Record that this org has covered this event status
+      arcEventPacer.recordArcEventCoverage(
         arcEventId,
+        org.id,
         eventStatus,
-        org: org.name,
-        articleId,
-        title: transformedTitle.transformedText.slice(0, 50),
-      },
-      'EventGeneration'
-    );
+        articleId
+      );
 
-    return 1;
-  });
+      logger.info(
+        'Generated arc event article',
+        {
+          arcEventId,
+          eventStatus,
+          org: org.name,
+          articleId,
+          title: transformedTitle.transformedText.slice(0, 50),
+        },
+        'EventGeneration'
+      );
 
-  const results = await Promise.allSettled(articlePromises);
+      results.push({ status: 'fulfilled', value: 1 });
+    } catch (error) {
+      results.push({ status: 'rejected', reason: error });
+      logger.warn(
+        'Failed to generate arc event article',
+        {
+          arcEventId,
+          eventStatus,
+          orgId: org.id,
+          orgName: org.name,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'EventGeneration'
+      );
+    }
+  }
 
   const articlesCreated = results.reduce((sum, result) => {
     if (result.status === 'fulfilled') {
       return sum + result.value;
     }
-    logger.warn(
-      'Failed to generate arc event article',
-      { error: result.reason },
-      'EventGeneration'
-    );
     return sum;
   }, 0);
 
+  // Use results.length for attempted count (reflects actual attempts, not orgsToPublish.length)
+  // This is accurate when the loop exits early due to rate limiting
   logger.info(
     'Arc event articles generated',
     {
       arcEventId,
       eventStatus,
       articlesCreated,
-      attempted: orgsToPublish.length,
+      attempted: results.length,
     },
     'EventGeneration'
   );
@@ -667,4 +781,54 @@ export async function generateArticlesForArcEvent(
  */
 export function getArcEventCoverageStats() {
   return arcEventPacer.getArcEventCoverageStats();
+}
+
+/**
+ * Check if an event has already been covered by any organization at a specific status.
+ * Uses the arcEventPacer to determine if the event has received coverage for the given status.
+ *
+ * @param eventId - The event/question ID to check
+ * @param status - The status level to check (default: 'created')
+ * @returns True if the event has been covered by at least one org at the specified status
+ *
+ * @remarks
+ * **LIMITATION: In-memory tracking** - Event coverage tracking is stored in-memory
+ * using a singleton `NewsArticlePacingEngine`. This means:
+ * - Tracking is lost on server restart/redeploy (cold start)
+ * - Multiple serverless instances don't share tracking state
+ * - Occasional duplicate coverage is possible after deployments
+ *
+ * This is acceptable for our use case because:
+ * 1. Duplicate articles occasionally are not harmful to user experience
+ * 2. The article rate limiter provides the primary flood protection
+ * 3. Events are typically covered within minutes, before most restarts
+ *
+ * For stricter duplicate prevention, consider DB-backed tracking with:
+ * - A `covered_events` table with (eventId, orgId, status, articleId, timestamp)
+ * - Query before generating to check existing coverage
+ */
+export function hasEventBeenCovered(
+  eventId: string,
+  status: ArcEventStatus = 'created'
+): boolean {
+  // Check if any org has covered this event at the specified status
+  return arcEventPacer.hasEventBeenCoveredForStatus(eventId, status);
+}
+
+/**
+ * Mark an event as covered by recording it in the pacer.
+ * This prevents future duplicate coverage of the same event.
+ *
+ * @param eventId - The event/question ID that was covered
+ * @param orgId - The organization that covered it
+ * @param articleId - The generated article ID
+ * @param status - The status at time of coverage (default: 'created')
+ */
+export function markEventAsCovered(
+  eventId: string,
+  orgId: string,
+  articleId: string,
+  status: ArcEventStatus = 'created'
+): void {
+  arcEventPacer.recordArcEventCoverage(eventId, orgId, status, articleId);
 }

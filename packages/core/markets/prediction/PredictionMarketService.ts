@@ -124,6 +124,7 @@ export class PredictionMarketService {
               (existingPos.avgPrice * existingPos.shares +
                 calc.avgPrice * calc.sharesBought) /
               (existingPos.shares + calc.sharesBought),
+            status: 'active',
             updatedAt: this.now(),
           }
         : {
@@ -216,9 +217,10 @@ export class PredictionMarketService {
 
     const yesPos = await this.db.getPosition(userId, marketId, 'yes');
     const noPos = await this.db.getPosition(userId, marketId, 'no');
-    const positions = [yesPos, noPos].filter(
-      (p): p is NonNullable<typeof p> => !!p
-    );
+    const positions = [yesPos, noPos]
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      // Exclude closed/empty positions from sell selection (we keep them for history)
+      .filter((p) => p.status !== 'closed' && p.shares > MIN_SHARES);
 
     let pos: NonNullable<typeof yesPos> | NonNullable<typeof noPos> | null =
       null;
@@ -259,10 +261,19 @@ export class PredictionMarketService {
       liquidity: newLiquidity,
     });
 
+    const costBasis = pos.avgPrice * shares;
+    const netProceeds = calc.netProceeds ?? 0;
+    const profitLoss = netProceeds - costBasis;
+
     const remaining = pos.shares - shares;
     const positionClosed = remaining <= MIN_SHARES;
     if (positionClosed) {
-      await this.db.deletePosition(pos.id);
+      await this.db.upsertPosition({
+        ...pos,
+        shares: 0,
+        status: 'closed',
+        updatedAt: this.now(),
+      });
     } else {
       await this.db.upsertPosition({
         ...pos,

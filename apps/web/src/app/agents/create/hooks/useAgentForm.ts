@@ -147,8 +147,8 @@ export function useAgentForm(): UseAgentFormResult {
     };
 
     loadTemplate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialName is stable (from useState initializer), runs once on mount
-  }, []);
+    // initialName.displayName is stable (from useState initializer), so this effectively runs once on mount
+  }, [initialName.displayName]);
 
   // Note: When displayName changes, we find and replace the old name with the new name
   // in the system prompt, personality, and trading strategy fields.

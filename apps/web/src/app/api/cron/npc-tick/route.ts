@@ -30,14 +30,24 @@ import {
 } from '@babylon/api';
 import { db, eq, games } from '@babylon/db';
 import {
+  ActorSocialActions,
+  BabylonLLMClient,
+  FollowingMechanics,
   getActiveEventsForPosting,
   getRecentlyMentionedActorIds,
   isActiveHour,
+  MarketContextService,
+  MarketDecisionEngine,
   NPC_TICK_CONFIG,
+  NPCInvestmentManager,
   npcMemoryService,
+  npcSocialEngagementService,
   type PostingContext,
   postingProbabilityService,
+  processNPCSocialEngagements,
   StaticDataRegistry,
+  TradeExecutionService,
+  updateMarketPricesFromTrades,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -457,6 +467,330 @@ export async function POST(_req: NextRequest) {
       }
     }
 
+    // =======================================================================
+    // NPC BATCH TRADING (MarketDecisionEngine)
+    // Generate and execute batch trading decisions for market liquidity
+    // =======================================================================
+    let npcTradesExecuted = 0;
+    let marketsUpdated = 0;
+    const tradeDeadline = startTime + 240000; // 4 minute budget
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      try {
+        logger.info('Starting NPC batch trading', {}, 'NPCTick');
+
+        // Initialize trading infrastructure
+        const marketDecisionLLM = BabylonLLMClient.forGameTick();
+        const contextService = new MarketContextService();
+
+        // Configure decision engine
+        const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
+        const isKimiModel = modelName.toLowerCase().includes('kimi');
+        const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+        const maxOutputTokens = Number.parseInt(
+          process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
+            defaultMaxOutput.toString(),
+          10
+        );
+
+        const decisionEngine = new MarketDecisionEngine(
+          marketDecisionLLM,
+          contextService,
+          { model: modelName, maxOutputTokens }
+        );
+        const executionService = new TradeExecutionService();
+
+        // Generate batch decisions
+        const marketDecisions = await decisionEngine.generateBatchDecisions();
+
+        if (marketDecisions.length === 0) {
+          logger.info('No NPC batch trades generated', {}, 'NPCTick');
+        } else {
+          const executionResult =
+            await executionService.executeDecisionBatch(marketDecisions);
+
+          npcTradesExecuted = executionResult.successfulTrades;
+
+          logger.info(
+            `NPC Batch Trading: ${executionResult.successfulTrades} trades executed`,
+            {
+              successful: executionResult.successfulTrades,
+              failed: executionResult.failedTrades,
+              holds: executionResult.holdDecisions,
+            },
+            'NPCTick'
+          );
+
+          // Update prices based on NPC trades
+          const timestamp = new Date();
+          marketsUpdated = await updateMarketPricesFromTrades(
+            timestamp,
+            executionResult
+          );
+        }
+      } catch (error) {
+        logger.error(
+          'NPC batch trading failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
+    // =======================================================================
+    // NPC SOCIAL ENGAGEMENT (likes, shares, comments on posts)
+    // Creates organic social activity to make the feed feel alive
+    // =======================================================================
+    let npcLikesCreated = 0;
+    let npcSharesCreated = 0;
+    let npcCommentsCreated = 0;
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      try {
+        // Set LLM client for NPC comment generation
+        const llmClient = BabylonLLMClient.forGameTick();
+        npcSocialEngagementService.setLLMClient(llmClient);
+
+        const socialEngagementResult = await processNPCSocialEngagements();
+        npcLikesCreated = socialEngagementResult.likesCreated;
+        npcSharesCreated = socialEngagementResult.sharesCreated;
+        npcCommentsCreated = socialEngagementResult.commentsCreated;
+
+        if (
+          socialEngagementResult.likesCreated > 0 ||
+          socialEngagementResult.sharesCreated > 0 ||
+          socialEngagementResult.commentsCreated > 0
+        ) {
+          logger.info(
+            'NPC social engagements processed',
+            {
+              likes: socialEngagementResult.likesCreated,
+              shares: socialEngagementResult.sharesCreated,
+              comments: socialEngagementResult.commentsCreated,
+              actors: socialEngagementResult.actorsEngaged,
+            },
+            'NPCTick'
+          );
+        }
+      } catch (error) {
+        logger.error(
+          'NPC social engagement failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
+    // =======================================================================
+    // NPC SOCIAL ACTIONS (DMs, group invites based on interactions)
+    // =======================================================================
+    let npcSocialActionsProcessed = 0;
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      try {
+        const socialActions =
+          await ActorSocialActions.processRandomSocialActions();
+        npcSocialActionsProcessed = socialActions.length;
+
+        if (socialActions.length > 0) {
+          logger.info(
+            'NPC social actions processed',
+            {
+              total: socialActions.length,
+              invites: socialActions.filter(
+                (a) => a.type === 'group_chat_invite'
+              ).length,
+              dms: socialActions.filter((a) => a.type === 'dm').length,
+            },
+            'NPCTick'
+          );
+        }
+      } catch (error) {
+        logger.error(
+          'NPC social actions failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
+    // =======================================================================
+    // NPC FOLLOWING (proactive follows and unfollow checks)
+    // NPCs follow active players and unfollow inactive ones
+    // =======================================================================
+    let npcFollowsCreated = 0;
+    let npcUnfollows = 0;
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      // Process proactive following of active players
+      try {
+        const followResult =
+          await FollowingMechanics.processProactiveFollowing(tradeDeadline);
+        npcFollowsCreated = followResult.followsCreated;
+
+        if (followResult.followsCreated > 0) {
+          logger.info(
+            'NPC proactive follows processed',
+            {
+              followsCreated: followResult.followsCreated,
+              playersConsidered: followResult.playersConsidered,
+            },
+            'NPCTick'
+          );
+        }
+      } catch (error) {
+        logger.error(
+          'NPC proactive following failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+
+      // Process unfollow checks (runs probabilistically)
+      try {
+        npcUnfollows =
+          await FollowingMechanics.processUnfollowChecks(tradeDeadline);
+      } catch (error) {
+        logger.error(
+          'NPC unfollow checks failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
+    // =======================================================================
+    // NPC BASELINE INVESTMENTS
+    // Ensure each NPC pool has an initial baseline allocation across aligned companies
+    // =======================================================================
+    let baselineInvestmentsExecuted = 0;
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      try {
+        const baselineResult =
+          await NPCInvestmentManager.executeBaselineInvestments(new Date());
+
+        if (baselineResult) {
+          baselineInvestmentsExecuted = baselineResult.successfulTrades;
+
+          logger.info(
+            'NPC baseline investments executed',
+            {
+              successful: baselineResult.successfulTrades,
+              failed: baselineResult.failedTrades,
+            },
+            'NPCTick'
+          );
+
+          // Update prices based on baseline investments
+          const baselineMarketsUpdated = await updateMarketPricesFromTrades(
+            new Date(),
+            baselineResult
+          );
+          marketsUpdated += baselineMarketsUpdated;
+        }
+      } catch (error) {
+        logger.error(
+          'NPC baseline investments failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
+    // =======================================================================
+    // NPC PORTFOLIO REBALANCING
+    // Monitor NPC portfolios and execute rebalancing actions based on strategy
+    // =======================================================================
+    let rebalanceActionsExecuted = 0;
+
+    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
+      try {
+        // Get all active NPC pools
+        const activeNPCs = StaticDataRegistry.getAllActors().filter(
+          (a) => a.role === 'main' || a.role === 'supporting'
+        );
+
+        // Guard against empty NPC list to avoid modulo-by-zero
+        if (activeNPCs.length === 0) {
+          logger.info(
+            'No active NPCs for portfolio rebalancing',
+            undefined,
+            'NPCTick'
+          );
+        } else {
+          // Use tick-based deterministic rotation for even coverage across ticks
+          // Derive tick number from startTime (minute-based to ensure different offset each tick)
+          const tickNumber = Math.floor(startTime / 60000); // tick per minute
+          const sampleSize = Math.min(
+            NPC_TICK_CONFIG.batchSize,
+            activeNPCs.length
+          );
+          const startOffset = tickNumber % activeNPCs.length;
+          // Select NPCs starting at offset, wrapping around the array
+          const sampledNPCs: typeof activeNPCs = [];
+          for (let i = 0; i < sampleSize; i++) {
+            const idx = (startOffset + i) % activeNPCs.length;
+            sampledNPCs.push(activeNPCs[idx]!);
+          }
+
+          for (const npc of sampledNPCs) {
+            if (Date.now() >= tradeDeadline) break;
+
+            try {
+              // Determine strategy from personality
+              const strategy = determineStrategyFromPersonality(
+                npc.personality
+              );
+
+              // Monitor and get rebalance actions
+              const actions = await NPCInvestmentManager.monitorPortfolio(
+                npc.id, // poolId = actorId for NPC pools
+                npc.id,
+                strategy
+              );
+
+              // Execute each rebalance action
+              for (const action of actions) {
+                await NPCInvestmentManager.executeRebalanceAction(
+                  npc.id,
+                  npc.id,
+                  action
+                );
+                rebalanceActionsExecuted++;
+              }
+            } catch (npcError) {
+              // Individual NPC rebalance failure shouldn't stop others
+              logger.warn(
+                `Portfolio rebalance failed for NPC ${npc.name}`,
+                {
+                  error:
+                    npcError instanceof Error
+                      ? npcError.message
+                      : String(npcError),
+                },
+                'NPCTick'
+              );
+            }
+          }
+
+          if (rebalanceActionsExecuted > 0) {
+            logger.info(
+              'NPC portfolio rebalancing completed',
+              { actionsExecuted: rebalanceActionsExecuted },
+              'NPCTick'
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          'NPC portfolio rebalancing failed',
+          { error: error instanceof Error ? error.message : String(error) },
+          'NPCTick'
+        );
+      }
+    }
+
     const duration = Date.now() - startTime;
 
     logger.info(
@@ -465,6 +799,16 @@ export async function POST(_req: NextRequest) {
         npcsProcessed: results.length - skippedDueToLock,
         npcsSkippedLocked: skippedDueToLock,
         totalActions: totalActionsExecuted,
+        npcTradesExecuted,
+        marketsUpdated,
+        npcLikesCreated,
+        npcSharesCreated,
+        npcCommentsCreated,
+        npcSocialActionsProcessed,
+        npcFollowsCreated,
+        npcUnfollows,
+        baselineInvestmentsExecuted,
+        rebalanceActionsExecuted,
         errors,
       },
       'NPCTick'
@@ -475,6 +819,16 @@ export async function POST(_req: NextRequest) {
       success: !abortedDueToCircuitBreaker,
       processed: results.length - skippedDueToLock,
       totalActions: totalActionsExecuted,
+      npcTradesExecuted,
+      marketsUpdated,
+      npcLikesCreated,
+      npcSharesCreated,
+      npcCommentsCreated,
+      npcSocialActionsProcessed,
+      npcFollowsCreated,
+      npcUnfollows,
+      baselineInvestmentsExecuted,
+      rebalanceActionsExecuted,
       errorCount: errors,
       skippedLocked: skippedDueToLock,
       abortedDueToCircuitBreaker,
@@ -486,6 +840,16 @@ export async function POST(_req: NextRequest) {
       skippedLocked: skippedDueToLock,
       duration,
       totalActions: totalActionsExecuted,
+      npcTradesExecuted,
+      marketsUpdated,
+      npcLikesCreated,
+      npcSharesCreated,
+      npcCommentsCreated,
+      npcSocialActionsProcessed,
+      npcFollowsCreated,
+      npcUnfollows,
+      baselineInvestmentsExecuted,
+      rebalanceActionsExecuted,
       errors,
       abortedDueToCircuitBreaker,
       results,
@@ -494,4 +858,42 @@ export async function POST(_req: NextRequest) {
     // Always release global lock
     await DistributedLockService.releaseLock('npc-tick-global', processId);
   }
+}
+
+/**
+ * Determine investment strategy from NPC personality
+ * Matches logic from NPCInvestmentManager for consistency
+ */
+function determineStrategyFromPersonality(
+  personality: string | null | undefined
+): 'aggressive' | 'conservative' | 'balanced' {
+  if (!personality) return 'balanced';
+
+  const personalityLower = personality.toLowerCase();
+
+  const aggressiveKeywords = [
+    'erratic',
+    'disaster',
+    'memecoin',
+    'degen',
+    'bold',
+    'risk',
+  ];
+  const conservativeKeywords = [
+    'vampire',
+    'yacht',
+    'philosopher',
+    'cautious',
+    'steady',
+  ];
+
+  if (aggressiveKeywords.some((k) => personalityLower.includes(k))) {
+    return 'aggressive';
+  }
+
+  if (conservativeKeywords.some((k) => personalityLower.includes(k))) {
+    return 'conservative';
+  }
+
+  return 'balanced';
 }

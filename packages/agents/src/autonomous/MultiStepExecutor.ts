@@ -261,6 +261,7 @@ export class MultiStepExecutor {
         decision.parameters,
         effectiveFeatures,
         runtime,
+        isNpc,
         { prompt, completion: rawResponse, thought: decision.thought }
       );
 
@@ -978,6 +979,7 @@ export class MultiStepExecutor {
     parameters: Record<string, unknown>,
     enabledFeatures: string[],
     runtime: IAgentRuntime,
+    isNpc: boolean,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const normalizedAction = action.toUpperCase();
@@ -1072,6 +1074,26 @@ export class MultiStepExecutor {
       }
 
       case 'POST': {
+        // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
+        // This forces agents to focus on trading, commenting, and engagement
+        // NPCs are NOT affected by this limit (they need to keep the feed active)
+        if (!isNpc && Math.random() > 0.1) {
+          logger.info(
+            `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
+            undefined,
+            'MultiStepExecutor'
+          );
+          return {
+            actionType: 'POST',
+            success: false,
+            summary:
+              'Post rate limited - focus on trading and engagement instead',
+            error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
+            parameters,
+            timestamp: Date.now(),
+          };
+        }
+
         const content = parameters.content as string;
 
         if (!content) {

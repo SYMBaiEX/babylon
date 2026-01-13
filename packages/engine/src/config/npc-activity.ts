@@ -132,31 +132,31 @@ export const NPC_POSTING_CONFIG = {
   /**
    * Base probability for an NPC to post (0.0 - 1.0).
    * All NPCs have equal chance - creates natural entropy.
-   * INTENTIONALLY LOW: NPCs should focus on engagement over posting.
+   * NPCs should post regularly to keep the feed active.
    *
-   * @default 0.15 (15% base, after boosts max ~20%)
+   * @default 0.25 (25% base - NPCs should post to keep feed alive)
    * @env NPC_POST_PROBABILITY
    */
-  baseProbability: envProbability('NPC_POST_PROBABILITY', 0.15),
+  baseProbability: envProbability('NPC_POST_PROBABILITY', 0.25),
 
   /**
    * Maximum posts per day per NPC to prevent spam.
    * Same for all tiers - fair rotation.
    *
-   * @default 2 (low - NPCs should engage more than post)
+   * @default 4 (NPCs should post regularly)
    * @env NPC_MAX_POSTS_PER_DAY
    */
-  maxPostsPerDay: envPositiveNumber('NPC_MAX_POSTS_PER_DAY', 2),
+  maxPostsPerDay: envPositiveNumber('NPC_MAX_POSTS_PER_DAY', 4),
 
   /**
    * Minimum hours between posts for the same NPC.
    * Prevents same NPC posting multiple times per tick.
    * A value of 0 allows back-to-back posting (useful for testing).
    *
-   * @default 3 (spread posts out more)
+   * @default 2 (reasonable spacing)
    * @env NPC_MIN_HOURS_BETWEEN_POSTS
    */
-  minHoursBetweenPosts: envNonNegativeNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
+  minHoursBetweenPosts: envNonNegativeNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 2),
 
   /**
    * Boost multiplier when actor was mentioned by a player.
@@ -444,37 +444,37 @@ export const NPC_CONTENT_PACING_CONFIG = {
   /**
    * Maximum posts any single actor can make in 24 hours.
    *
-   * @default 3 (lowered - NPCs should engage more than post)
+   * @default 5 (NPCs should post regularly to keep feed active)
    * @env NPC_CONTENT_MAX_POSTS_PER_ACTOR_PER_DAY
    */
   maxPostsPerActorPerDay: envNumber(
     'NPC_CONTENT_MAX_POSTS_PER_ACTOR_PER_DAY',
-    3
+    5
   ),
 
   /**
    * Minimum time in minutes between posts from the same actor.
    *
-   * @default 45 (increased - spread posts out more)
+   * @default 30 (reasonable pacing)
    * @env NPC_MIN_MINUTES_BETWEEN_POSTS
    */
-  minMinutesBetweenPosts: envNumber('NPC_MIN_MINUTES_BETWEEN_POSTS', 45),
+  minMinutesBetweenPosts: envNumber('NPC_MIN_MINUTES_BETWEEN_POSTS', 30),
 
   /**
    * Maximum posts to generate across all actors in a single tick.
    *
-   * @default 3 (lowered - fewer posts per tick)
+   * @default 4 (good amount of NPC activity)
    * @env NPC_MAX_POSTS_PER_TICK
    */
-  maxPostsPerTick: envNumber('NPC_MAX_POSTS_PER_TICK', 3),
+  maxPostsPerTick: envNumber('NPC_MAX_POSTS_PER_TICK', 4),
 
   /**
    * Target number of posts per hour across all actors.
    *
-   * @default 8 (lowered - focus on quality over quantity)
+   * @default 12 (keeps the feed active)
    * @env NPC_TARGET_POSTS_PER_HOUR
    */
-  targetPostsPerHour: envNumber('NPC_TARGET_POSTS_PER_HOUR', 8),
+  targetPostsPerHour: envNumber('NPC_TARGET_POSTS_PER_HOUR', 12),
 
   /**
    * Start hour for peak activity (0-23).
@@ -660,10 +660,10 @@ export const NPC_TICK_CONFIG = {
   /**
    * Number of NPCs to process per tick.
    *
-   * @default 3
+   * @default 5
    * @env NPC_TICK_BATCH_SIZE
    */
-  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 3),
+  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 5),
 
   /**
    * Maximum consecutive errors before aborting tick (circuit breaker).
@@ -714,17 +714,20 @@ export type NPCActivityConfig = typeof NPC_ACTIVITY_CONFIG;
  */
 export const NPC_ACTIVITY_PRESETS = {
   /**
-   * Default preset - engagement-focused (current defaults).
-   * Low posting, high engagement with other content.
+   * Default preset - balanced NPC activity.
+   * NPCs post regularly to keep feed active while also engaging.
    */
   default: {
-    // Low posting (max ~20% with boosts)
-    NPC_POST_PROBABILITY: '0.15',
-    NPC_MAX_POSTS_PER_DAY: '2',
-    NPC_MIN_HOURS_BETWEEN_POSTS: '3',
-    NPC_TICK_BATCH_SIZE: '3',
-    NPC_TARGET_POSTS_PER_HOUR: '8',
-    // High engagement
+    // Active posting - NPCs keep the feed alive
+    NPC_POST_PROBABILITY: '0.25',
+    NPC_MAX_POSTS_PER_DAY: '4',
+    NPC_MIN_HOURS_BETWEEN_POSTS: '2',
+    NPC_TICK_BATCH_SIZE: '5',
+    NPC_TARGET_POSTS_PER_HOUR: '12',
+    NPC_MAX_POSTS_PER_TICK: '4',
+    NPC_CONTENT_MAX_POSTS_PER_ACTOR_PER_DAY: '5',
+    NPC_MIN_MINUTES_BETWEEN_POSTS: '30',
+    // Good engagement
     NPC_LIKE_PROBABILITY: '0.12',
     NPC_SHARE_PROBABILITY: '0.03',
     NPC_COMMENT_PROBABILITY: '0.02',

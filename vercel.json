@@ -23,6 +23,12 @@
     },
     "src/app/api/cron/organization-tick/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/cron/article-tick/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/cron/markets-tick/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -31,12 +37,20 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/markets-tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/npc-tick",
       "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/cron/organization-tick",
-      "schedule": "1-59/2 * * * *"
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/article-tick",
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/cron/agent-tick",

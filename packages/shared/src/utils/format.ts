@@ -225,7 +225,7 @@ export function formatCurrency(
   const useThousandsSeparator =
     typeof options === 'object' && options.useThousandsSeparator;
 
-  // Handle negative numbers: sign should come before the symbol
+  // Handle negative numbers: keep symbol prefix, then sign
   const isNegative = amount < 0;
   const absoluteAmount = Math.abs(amount);
   const sign = isNegative ? '-' : '';
@@ -235,10 +235,10 @@ export function formatCurrency(
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
-    return `${sign}${BABYLON_POINTS_SYMBOL}${formatted}`;
+    return `${BABYLON_POINTS_SYMBOL}${sign}${formatted}`;
   }
 
-  return `${sign}${BABYLON_POINTS_SYMBOL}${absoluteAmount.toFixed(decimals)}`;
+  return `${BABYLON_POINTS_SYMBOL}${sign}${absoluteAmount.toFixed(decimals)}`;
 }
 
 /**
