@@ -4,6 +4,7 @@ import { cn } from '@babylon/shared';
 import { Check, Loader2, Send, X } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useTransferPoints } from '@/hooks/useTransferPoints';
 
 /**
  * Send points modal component for transferring points to other users.
@@ -54,9 +55,12 @@ export function SendPointsModal({
   onSuccess,
 }: SendPointsModalProps) {
   const { getAccessToken } = useAuth();
+  const {
+    transferPoints,
+    isLoading: isSubmitting,
+  } = useTransferPoints({ getAccessToken });
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -70,38 +74,23 @@ export function SendPointsModal({
       return;
     }
 
-    setIsSubmitting(true);
-
-    const token = await getAccessToken();
-    const response = await fetch('/api/points/transfer', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
+    try {
+      await transferPoints({
         recipientId,
         amount: numAmount,
         message: message.trim() || undefined,
-      }),
-    });
+      });
 
-    const data = await response.json();
+      setSuccess(true);
 
-    if (!response.ok) {
-      setIsSubmitting(false);
-      setError(data.error || 'Failed to send points');
-      return;
+      // Wait a moment to show success state
+      setTimeout(() => {
+        onSuccess?.();
+        handleClose();
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send points');
     }
-
-    setSuccess(true);
-    setIsSubmitting(false);
-
-    // Wait a moment to show success state
-    setTimeout(() => {
-      onSuccess?.();
-      handleClose();
-    }, 1500);
   };
 
   const handleClose = () => {

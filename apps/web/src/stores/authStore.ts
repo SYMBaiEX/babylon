@@ -116,7 +116,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'babylon-auth',
-      version: 1, // Increment this to invalidate old cached data
+      version: 2, // Increment this to invalidate old cached data
     }
   )
 );

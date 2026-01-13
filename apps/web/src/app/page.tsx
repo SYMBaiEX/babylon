@@ -11,13 +11,19 @@ const waitlistModeEnabled = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
 
 function HomePageContent() {
   const router = useRouter();
-  const { authenticated } = useAuth();
+  const { ready, authenticated } = useAuth();
   const { showLoginModal } = useLoginModal();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     // Skip redirect logic if waitlist mode is enabled
     if (waitlistModeEnabled) {
+      return;
+    }
+
+    // Wait for Privy to be ready before deciding to show login modal
+    // This prevents the modal from flashing on every page load
+    if (!ready) {
       return;
     }
 
@@ -34,7 +40,7 @@ function HomePageContent() {
     const ref = searchParams.get('ref');
     const feedUrl = ref ? `/feed?ref=${ref}` : '/feed';
     router.push(feedUrl);
-  }, [authenticated, router, showLoginModal, searchParams]);
+  }, [ready, authenticated, router, showLoginModal, searchParams]);
 
   // Show coming soon page if WAITLIST_MODE is enabled
   if (waitlistModeEnabled) {

@@ -1,17 +1,129 @@
 'use client';
 
 import type { CommentData, CommentWithReplies } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { MessageCircle, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommentCard } from '@/components/interactions/CommentCard';
 import { CommentInput } from '@/components/interactions/CommentInput';
-import { PostCard } from '@/components/posts/PostCard';
+import { Avatar } from '@/components/shared/Avatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { TaggedText } from '@/components/shared/TaggedText';
+import {
+  isNpcIdentifier,
+  VerifiedBadge,
+} from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useInteractionStore } from '@/stores/interactionStore';
+
+type PostPreviewData = {
+  id: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorUsername?: string | null;
+  authorProfileImageUrl?: string | null;
+  timestamp: string;
+};
+
+function PostPreview({ post }: { post: PostPreviewData }) {
+  const router = useRouter();
+
+  const postDate = new Date(post.timestamp);
+  const now = new Date();
+  // Clamp to 0 to handle future timestamps deterministically (treat as "Just now")
+  const diffMs = Math.max(0, now.getTime() - postDate.getTime());
+  const diffMinutes = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  const timeAgo =
+    diffMinutes < 1
+      ? 'Just now'
+      : diffMinutes < 60
+        ? `${diffMinutes}m ago`
+        : diffHours < 24
+          ? `${diffHours}h ago`
+          : postDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year:
+                postDate.getFullYear() !== now.getFullYear()
+                  ? 'numeric'
+                  : undefined,
+            });
+
+  const authorIsNPC = isNpcIdentifier(post.authorId);
+
+  return (
+    <article className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4">
+      <div className="mb-3 flex w-full items-start gap-3">
+        <Link
+          href={getProfileUrl(post.authorId, post.authorUsername)}
+          className="shrink-0 transition-opacity hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Avatar
+            id={post.authorId}
+            name={post.authorName}
+            type="actor"
+            size="sm"
+            src={post.authorProfileImageUrl || undefined}
+          />
+        </Link>
+
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="truncate font-semibold text-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.authorName}
+              </Link>
+              {authorIsNPC && <VerifiedBadge size="sm" />}
+            </div>
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="truncate text-foreground/50 text-sm hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{post.authorUsername || post.authorId}
+            </Link>
+          </div>
+
+          <time
+            className="shrink-0 text-foreground/50 text-sm"
+            title={postDate.toLocaleString()}
+          >
+            {timeAgo}
+          </time>
+        </div>
+      </div>
+
+      <div className="whitespace-pre-wrap break-words text-foreground/90 leading-relaxed">
+        <TaggedText
+          text={post.content || ''}
+          onTagClick={(tag) => {
+            if (tag.startsWith('@')) {
+              const username = tag.slice(1);
+              router.push(getProfileUrl('', username));
+              return;
+            }
+
+            if (tag.startsWith('$')) {
+              const symbol = tag.slice(1);
+              router.push(`/markets?search=${encodeURIComponent(symbol)}`);
+            }
+          }}
+        />
+      </div>
+    </article>
+  );
+}
 
 /**
  * Feed comment section component for displaying post comments.
@@ -270,6 +382,8 @@ export function FeedCommentSection({
     setComments((prev) =>
       addReplyToComment(prev, parentCommentId, optimisticReply)
     );
+    // Brief delay to allow the optimistic update to render before
+    // fetching server data, preventing visual jank from rapid state changes
     await new Promise((resolve) => setTimeout(resolve, 200));
     await loadCommentsData();
   };
@@ -404,26 +518,9 @@ export function FeedCommentSection({
 
             {/* Content - scrollable */}
             <div className="flex-1 overflow-y-auto">
-              {/* Original Post - Compact view without interactions */}
+              {/* Original Post - Compact preview */}
               <div className="px-4 pt-3">
-                <PostCard
-                  post={{
-                    id: post.id,
-                    content: post.content,
-                    authorId: post.authorId,
-                    authorName: post.authorName,
-                    authorUsername: post.authorUsername,
-                    authorProfileImageUrl: post.authorProfileImageUrl,
-                    timestamp: post.timestamp,
-                    likeCount: post.likeCount,
-                    commentCount: post.commentCount,
-                    shareCount: post.shareCount,
-                    isLiked: post.isLiked,
-                    isShared: post.isShared,
-                  }}
-                  showInteractions={false}
-                  isDetail={false}
-                />
+                <PostPreview post={post} />
               </div>
 
               {/* Visual thread connector */}
