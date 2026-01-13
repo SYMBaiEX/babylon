@@ -24,7 +24,7 @@ import {
   type JsonValue,
   lte,
   markets as marketsSchema,
-  organizations,
+  organizationState,
   perpMarketSnapshots,
   perpPositions,
   pools,
@@ -2859,15 +2859,15 @@ export async function updateMarketPricesFromTrades(
   if (selected.length === 0) return 0;
 
   const orgIds = [...new Set(selected.map((s) => s.organizationId))];
-  const orgs = await db
+  const orgStates = await db
     .select({
-      id: organizations.id,
-      initialPrice: organizations.initialPrice,
+      id: organizationState.id,
+      basePrice: organizationState.basePrice,
     })
-    .from(organizations)
-    .where(inArray(organizations.id, orgIds));
+    .from(organizationState)
+    .where(inArray(organizationState.id, orgIds));
   const initialByOrgId = new Map(
-    orgs.map((o) => [o.id, Number(o.initialPrice ?? 100)])
+    orgStates.map((o) => [o.id, Number(o.basePrice ?? 100)])
   );
 
   const tickers = selected.map((s) => s.ticker);
@@ -2894,7 +2894,13 @@ export async function updateMarketPricesFromTrades(
 
   const updates = selected
     .map((snap) => {
-      const initialPrice = initialByOrgId.get(snap.organizationId) ?? 100;
+      const basePrice = initialByOrgId.get(snap.organizationId);
+      const initialPrice =
+        typeof basePrice === 'number' &&
+        Number.isFinite(basePrice) &&
+        basePrice > 0
+          ? basePrice
+          : Number(snap.currentPrice ?? 100);
       const currentPrice = Number(snap.currentPrice ?? initialPrice);
       const netHoldings = holdingsByTicker.get(snap.ticker) ?? 0;
 
@@ -3717,18 +3723,19 @@ export async function simulateMarketVolatility(): Promise<number> {
       return 0;
     }
 
-    // Get organization initial prices for bounds
+    // Get organization base prices for bounds (do not depend on the legacy Organization table)
     const orgIds = [...new Set(markets.map((m) => m.organizationId))];
-    const orgs = await db
+    const orgStates = await db
       .select({
-        id: organizations.id,
-        initialPrice: organizations.initialPrice,
-        currentPrice: organizations.currentPrice,
+        id: organizationState.id,
+        basePrice: organizationState.basePrice,
       })
-      .from(organizations)
-      .where(inArray(organizations.id, orgIds));
+      .from(organizationState)
+      .where(inArray(organizationState.id, orgIds));
 
-    const orgMap = new Map(orgs.map((o) => [o.id, o]));
+    const basePriceByOrgId = new Map(
+      orgStates.map((o) => [o.id, Number(o.basePrice ?? 100)])
+    );
 
     let updatedCount = 0;
     const priceUpdates: Array<{
@@ -3738,11 +3745,14 @@ export async function simulateMarketVolatility(): Promise<number> {
     }> = [];
 
     for (const market of markets) {
-      const org = orgMap.get(market.organizationId);
-      if (!org) continue;
-
       const currentPrice = Number(market.currentPrice);
-      const initialPrice = Number(org.initialPrice ?? 100);
+      const basePrice = basePriceByOrgId.get(market.organizationId);
+      const initialPrice =
+        typeof basePrice === 'number' &&
+        Number.isFinite(basePrice) &&
+        basePrice > 0
+          ? basePrice
+          : currentPrice;
 
       // Get or initialize volatility state for this market
       let state = marketVolatilityState.get(market.ticker);
