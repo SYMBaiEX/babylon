@@ -184,63 +184,22 @@ export const closePerpAction: Action = {
         },
       });
 
-      // Get current price for the ticker
-      const marketSnapshot = await service.getMarketsSnapshot();
-      const market = marketSnapshot.find((m) => m.ticker === position.ticker);
-      const exitPrice = market?.currentPrice ?? Number(position.entryPrice);
-
       const positionSize = Number(position.size);
       const isPartialClose =
         closeAmount !== undefined &&
         closeAmount > 0 &&
         closeAmount < positionSize;
 
-      let pnl: number;
-      let closedAmount: number;
-      let remainingSize: number;
+      const result = await service.closePosition({
+        positionId,
+        userId: agentUserId,
+        percentage: isPartialClose ? closeAmount / positionSize : undefined,
+      });
 
-      if (isPartialClose) {
-        // Partial close - calculate proportional P&L and update position
-        closedAmount = closeAmount;
-        const closeRatio = closedAmount / positionSize;
-
-        // Calculate proportional P&L
-        const entryPrice = Number(position.entryPrice);
-        const leverage = position.leverage ?? 1;
-        const priceDiff = exitPrice - entryPrice;
-        const direction = position.side === 'long' ? 1 : -1;
-        const totalUnrealizedPnL =
-          (priceDiff / entryPrice) * positionSize * leverage * direction;
-        pnl = totalUnrealizedPnL * closeRatio;
-
-        // Update position size
-        remainingSize = positionSize - closedAmount;
-        await db
-          .update(perpPositions)
-          .set({
-            size: remainingSize,
-            lastUpdated: new Date(),
-          })
-          .where(eq(perpPositions.id, positionId));
-
-        // Credit wallet with closed amount + P&L
-        await WalletService.credit(
-          agentUserId,
-          closedAmount + pnl,
-          'perp_partial_close',
-          `Partial close ${position.ticker}: ${closedAmount} of ${positionSize}`,
-          positionId
-        );
-      } else {
-        // Full close
-        const result = await service.closePosition({
-          positionId,
-          userId: agentUserId,
-        });
-        pnl = result.realizedPnL ?? 0;
-        closedAmount = positionSize;
-        remainingSize = 0;
-      }
+      const pnl = result.realizedPnL ?? 0;
+      const closedAmount = result.size;
+      const remainingSize = result.remainingSize ?? 0;
+      const exitPrice = result.exitPrice ?? Number(position.entryPrice);
 
       const pnlStr =
         pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;

@@ -78,6 +78,7 @@
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { PredictionPricing } from '@babylon/core/markets/prediction';
 import { asPublic, asUser } from '@babylon/db';
+import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import {
   logger,
   UserIdParamSchema,
@@ -254,20 +255,26 @@ export const GET = withErrorHandling(
             const shares = Number(p.shares);
             const avgPrice = Number(p.avgPrice);
             const sideKey = p.side ? 'yes' : 'no';
-            const costBasis = shares * avgPrice;
+            const feeRate = FEE_CONFIG.TRADING_FEE_RATE;
+            const costBasisNet = shares * avgPrice;
+            const costBasis =
+              feeRate > 0 && feeRate < 1
+                ? costBasisNet / (1 - feeRate)
+                : costBasisNet;
 
             let currentValue = costBasis;
             let currentUnitPrice = shares > 0 ? avgPrice : 0;
 
             if (shares > 0 && yesShares > 0 && noShares > 0) {
-              const sellPreview = PredictionPricing.calculateSell(
+              const sellPreview = PredictionPricing.calculateSellWithFees(
                 yesShares,
                 noShares,
                 sideKey,
-                shares
+                shares,
+                feeRate
               );
-              currentValue = sellPreview.totalCost;
-              currentUnitPrice = sellPreview.totalCost / shares;
+              currentValue = sellPreview.netProceeds ?? sellPreview.totalCost;
+              currentUnitPrice = currentValue / shares;
             }
 
             const currentProbability =

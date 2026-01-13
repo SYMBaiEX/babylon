@@ -579,8 +579,8 @@ export function useMarketsPageData(): MarketsPageData {
     if (predictionPositions.length === 0) return null;
 
     const unrealizedPnL = predictionPositions.reduce((sum, pos) => {
-      const currentValue = pos.shares * pos.currentPrice;
-      const costBasis = pos.shares * pos.avgPrice;
+      const currentValue = pos.currentValue ?? pos.shares * pos.currentPrice;
+      const costBasis = pos.costBasis ?? pos.shares * pos.avgPrice;
       return sum + (currentValue - costBasis);
     }, 0);
     const totalShares = predictionPositions.reduce(
@@ -588,7 +588,7 @@ export function useMarketsPageData(): MarketsPageData {
       0
     );
     const totalValue = predictionPositions.reduce(
-      (sum, pos) => sum + pos.shares * pos.currentPrice,
+      (sum, pos) => sum + (pos.currentValue ?? pos.shares * pos.currentPrice),
       0
     );
 

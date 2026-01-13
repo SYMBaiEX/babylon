@@ -4,8 +4,8 @@
  * (Same pattern as AutonomousTradingService)
  */
 
-import { and, asUser, db, eq, markets, positions, sql } from '@babylon/db';
-import { PredictionPricing, WalletService } from '@babylon/engine';
+import { and, asUser, db, eq, markets, positions } from '@babylon/db';
+import { FEE_CONFIG, PredictionPricing, WalletService } from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -17,7 +17,6 @@ import type {
 import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
 
-const TRADING_FEE_RATE = 0.001; // 0.1% fee
 const agentPnLService = new AgentPnLService();
 
 export const sellPredictionAction: Action = {
@@ -152,7 +151,7 @@ export const sellPredictionAction: Action = {
         Number(market.noShares),
         isSellYes ? 'yes' : 'no',
         sharesToSell,
-        TRADING_FEE_RATE
+        FEE_CONFIG.TRADING_FEE_RATE
       );
 
       // Execute sell in transaction
@@ -167,15 +166,16 @@ export const sellPredictionAction: Action = {
         );
 
         // Update market shares
+        const nextLiquidity = Number(market.liquidity) - calculation.totalCost;
+        if (nextLiquidity < 0) {
+          throw new Error('Sale would exceed available liquidity');
+        }
         await txDb
           .update(markets)
           .set({
-            yesShares: isSellYes
-              ? sql`${markets.yesShares} - ${sharesToSell}`
-              : String(calculation.newYesShares),
-            noShares: isSellYes
-              ? String(calculation.newNoShares)
-              : sql`${markets.noShares} - ${sharesToSell}`,
+            yesShares: String(calculation.newYesShares),
+            noShares: String(calculation.newNoShares),
+            liquidity: String(nextLiquidity),
             updatedAt: new Date(),
           })
           .where(eq(markets.id, market.id));
@@ -209,10 +209,25 @@ export const sellPredictionAction: Action = {
       const proceeds =
         result.calculation.netProceeds ?? result.calculation.netAmount;
 
-      // Calculate realized PnL
-      const avgPrice = Number(position.avgPrice || 0.5);
-      const sellPrice = result.calculation.avgPrice ?? proceeds / sharesToSell;
-      const realizedPnL = (sellPrice - avgPrice) * sharesToSell;
+      // Calculate realized PnL net of fees:
+      // - net proceeds already exclude the sell fee
+      // - avgPrice is based on the net buy amount (after fees), so gross-up cost basis
+      const feeRate = FEE_CONFIG.TRADING_FEE_RATE;
+      const avgPriceNet = Number(position.avgPrice || 0.5);
+      const costBasisNet = avgPriceNet * sharesToSell;
+      const costBasis =
+        feeRate > 0 && feeRate < 1
+          ? costBasisNet / (1 - feeRate)
+          : costBasisNet;
+      const realizedPnL = proceeds - costBasis;
+
+      // Record PnL in the wallet ledger (AgentPnLService must not mutate lifetimePnL).
+      await WalletService.recordPnL(
+        agentUserId,
+        realizedPnL,
+        'pred_sell',
+        market.id
+      );
 
       // Record trade for UI/performance tracking
       await agentPnLService.recordTrade({
