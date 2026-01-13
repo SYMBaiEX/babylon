@@ -17,6 +17,7 @@ import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { agentWalletService } from '../../identity/AgentWalletService';
 import { logger } from '../../shared/logger';
 import type { JsonValue } from '../../types/common';
+
 type BabylonRuntime = AgentRuntime & { a2aClient?: BabylonA2AClient };
 
 // =============================================================================

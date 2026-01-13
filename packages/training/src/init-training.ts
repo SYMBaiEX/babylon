@@ -10,9 +10,7 @@
  *   await initializeTrainingPackage();
  */
 
-import {
-  areDependenciesConfigured,
-} from './dependencies';
+import { areDependenciesConfigured } from './dependencies';
 import { logger } from './utils/logger';
 
 let initialized = false;

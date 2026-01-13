@@ -1,8 +1,8 @@
 import 'server-only';
 
 import {
-  broadcastToChannel as apiBroadcastToChannel,
   DistributedLockService as ApiDistributedLockService,
+  broadcastToChannel as apiBroadcastToChannel,
   checkRateLimit as apiCheckRateLimit,
   checkRateLimitAsync as apiCheckRateLimitAsync,
   clearAllRateLimits as apiClearAllRateLimits,
@@ -11,12 +11,12 @@ import {
   resetRateLimit as apiResetRateLimit,
 } from '@babylon/api';
 import {
+  type DistributedLockProvider,
+  type RateLimitProvider,
   setBroadcastToChannel,
   setDistributedLockProvider,
   setNotifyGroupChatInvite,
   setRateLimitProvider,
-  type DistributedLockProvider,
-  type RateLimitProvider,
 } from '@babylon/engine';
 
 let initialized = false;
@@ -60,11 +60,13 @@ export function ensureEngineServices(): void {
 
   const rateLimitProvider: RateLimitProvider = {
     checkRateLimit: (userId, config) => apiCheckRateLimit(userId, config),
-    checkRateLimitAsync: (userId, config) => apiCheckRateLimitAsync(userId, config),
+    checkRateLimitAsync: (userId, config) =>
+      apiCheckRateLimitAsync(userId, config),
     clearAllRateLimits: () => apiClearAllRateLimits(),
-    getRateLimitStatus: (userId, config) => apiGetRateLimitStatus(userId, config),
-    resetRateLimit: (userId, actionType) => apiResetRateLimit(userId, actionType),
+    getRateLimitStatus: (userId, config) =>
+      apiGetRateLimitStatus(userId, config),
+    resetRateLimit: (userId, actionType) =>
+      apiResetRateLimit(userId, actionType),
   };
   setRateLimitProvider(rateLimitProvider);
 }
-

@@ -30,7 +30,7 @@ import {
   type Question,
   worldEvents,
 } from '@babylon/db';
-import { logger, type JsonValue } from '@babylon/shared';
+import { type JsonValue, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import type { LLMJsonClient } from '../llm/types';
 import type { EventContext, FeedPostContext } from '../types/market-context';
@@ -44,7 +44,10 @@ import {
 import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
 import { buildPositionsPromptContextByActorId } from './npc-positions-context-service';
-import { ensureRunningBits, toRunningBitPromptContext } from './npc-running-bit-service';
+import {
+  ensureRunningBits,
+  toRunningBitPromptContext,
+} from './npc-running-bit-service';
 
 /**
  * Safely extract content from LLM response that may be wrapped in XML structure.
@@ -1799,10 +1802,18 @@ function inferSelfInterest(actor: DiscourseActor): SelfInterest {
     personality.includes(needle) || description.includes(needle);
 
   if (has('conspiracy') || has('contrarian')) return 'chaos';
-  if (domains.includes('politics') || has('politician') || actor.role === 'politician') {
+  if (
+    domains.includes('politics') ||
+    has('politician') ||
+    actor.role === 'politician'
+  ) {
     return 'reputation';
   }
-  if (domains.includes('finance') || domains.includes('crypto') || domains.includes('tech')) {
+  if (
+    domains.includes('finance') ||
+    domains.includes('crypto') ||
+    domains.includes('tech')
+  ) {
     return 'wealth';
   }
   if (has('ideologue') || has('activist') || domains.includes('philosophy')) {
@@ -1815,14 +1826,19 @@ function isNonEmptyString(v: string | undefined): v is string {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
-function formatAgendaContext(actor: DiscourseActor, targetName: string): string {
+function formatAgendaContext(
+  actor: DiscourseActor,
+  targetName: string
+): string {
   const selfInterest = inferSelfInterest(actor);
   const orgNames = actor.affiliations
     .map((orgId) => StaticDataRegistry.getOrganization(orgId)?.name)
     .filter(isNonEmptyString);
 
   const loyaltyLine =
-    orgNames.length > 0 ? `Loyalties: ${orgNames.join(', ')}` : 'Loyalties: none';
+    orgNames.length > 0
+      ? `Loyalties: ${orgNames.join(', ')}`
+      : 'Loyalties: none';
 
   return `=== INTERNAL: YOUR MOTIVES (do not state directly) ===
 Primary motive: ${selfInterest}
@@ -2168,7 +2184,11 @@ Return your response as XML in this exact format:
       actor2Id: originalPost.authorId,
       interactionType: 'reply',
       sentiment:
-        relationship.sentiment > 0.3 ? 0.4 : relationship.sentiment < -0.3 ? -0.4 : 0.1,
+        relationship.sentiment > 0.3
+          ? 0.4
+          : relationship.sentiment < -0.3
+            ? -0.4
+            : 0.1,
       context: transformed.transformedText.slice(0, 280),
       metadata: {
         postId: createdPostId,
@@ -2369,7 +2389,11 @@ Return your response as XML in this exact format:
       actor2Id: originalPost.authorId,
       interactionType: 'quote',
       sentiment:
-        relationship.sentiment > 0.3 ? 0.35 : relationship.sentiment < -0.3 ? -0.35 : 0.05,
+        relationship.sentiment > 0.3
+          ? 0.35
+          : relationship.sentiment < -0.3
+            ? -0.35
+            : 0.05,
       context: transformed.transformedText.slice(0, 280),
       metadata: {
         postId: createdPostId,

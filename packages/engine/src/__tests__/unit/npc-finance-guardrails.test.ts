@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { StaticDataRegistry } from '../../services/static-data-registry';
 import {
   formatActorFinanceGuardrails,
   isDegenSpeaker,
 } from '../../utils/shared-utils';
-import { StaticDataRegistry } from '../../services/static-data-registry';
 
 function toGuardrailsActor(actorId: string): {
   name: string;
@@ -15,7 +15,9 @@ function toGuardrailsActor(actorId: string): {
 } {
   const actor = StaticDataRegistry.getActor(actorId);
   if (!actor) {
-    throw new Error(`Expected actor '${actorId}' to exist in StaticDataRegistry`);
+    throw new Error(
+      `Expected actor '${actorId}' to exist in StaticDataRegistry`
+    );
   }
   return {
     name: actor.name,
@@ -43,7 +45,9 @@ describe('NPC finance/ticker guardrails', () => {
     );
     expect(benRules).toContain('DO NOT talk in tickers');
 
-    const degenRules = formatActorFinanceGuardrails(toGuardrailsActor('gainzy'));
+    const degenRules = formatActorFinanceGuardrails(
+      toGuardrailsActor('gainzy')
+    );
     expect(degenRules).toBe('');
 
     const nancyRules = formatActorFinanceGuardrails(
@@ -52,4 +56,3 @@ describe('NPC finance/ticker guardrails', () => {
     expect(nancyRules).toBe('');
   });
 });
-

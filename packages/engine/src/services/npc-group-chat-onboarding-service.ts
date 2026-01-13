@@ -283,4 +283,3 @@ export async function autoJoinEmptyUsersToNpcGroupChats(
 
   return assignments.length;
 }
-

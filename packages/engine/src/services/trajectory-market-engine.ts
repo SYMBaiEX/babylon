@@ -10,7 +10,6 @@
  * - Default fallback to 'trader' if no resolver provided
  */
 
-import type { MarketDecisionEngine } from '../MarketDecisionEngine';
 import { logger } from '@babylon/shared';
 import {
   type Action,
@@ -19,6 +18,7 @@ import {
   getCurrentWindowId,
   TrajectoryRecorder,
 } from '@babylon/training';
+import type { MarketDecisionEngine } from '../MarketDecisionEngine';
 import type { TradingDecision } from '../types/market-decisions';
 
 /**

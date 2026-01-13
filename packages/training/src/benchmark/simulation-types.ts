@@ -76,4 +76,3 @@ export interface SimulationMetrics {
   /** Compared to optimal actions */
   optimalityScore: number; // 0-100, how close to optimal
 }
-

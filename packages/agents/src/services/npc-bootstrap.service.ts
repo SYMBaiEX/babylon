@@ -15,7 +15,6 @@
  * @packageDocumentation
  */
 
-import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import {
   loadActorById,
   type StaticActor,
@@ -30,6 +29,7 @@ import {
   mapActorToOASFSkills,
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
+import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 

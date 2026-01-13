@@ -134,7 +134,9 @@ function matchesWhere<T extends JsonRecord>(
 ): boolean {
   if (!where) return true;
 
-  const toComparableNumber = (v: JsonValue | Date | undefined): number | null => {
+  const toComparableNumber = (
+    v: JsonValue | Date | undefined
+  ): number | null => {
     if (typeof v === 'number') return v;
     if (v instanceof Date) return v.getTime();
     if (typeof v === 'string') {

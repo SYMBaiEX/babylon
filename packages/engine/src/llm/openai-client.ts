@@ -12,12 +12,12 @@ import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 import type { LLMCallTokenUsage } from '../types/token-stats';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
-import type { LLMJsonSchema as JSONSchema } from './types';
 import {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
   parseContinuationContent,
 } from './json-continuation-parser';
+import type { LLMJsonSchema as JSONSchema } from './types';
 import { parseXML } from './xml-parser';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';

@@ -208,7 +208,8 @@ export {
   type RelationshipChange,
   RelationshipEvolutionEngine,
 } from './RelationshipEvolutionEngine';
-
+// Rate limiting (backward-compatible re-exports from @babylon/api)
+export * from './rate-limiting';
 // Reputation Module
 export {
   calculateAverageROI,
@@ -244,8 +245,6 @@ export {
 } from './reputation';
 // Services (all exported from services/index.ts)
 export * from './services';
-// Rate limiting (backward-compatible re-exports from @babylon/api)
-export * from './rate-limiting';
 // Storage Bridge (database-agnostic storage abstraction)
 export {
   db,

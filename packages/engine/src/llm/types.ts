@@ -40,4 +40,3 @@ export interface LLMJsonClient {
     options?: LLMGenerateJSONOptions
   ): Promise<T>;
 }
-

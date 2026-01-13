@@ -111,4 +111,3 @@ export function truncateToTokenLimitSync(
   const finalTokens = countTokensSync(truncated);
   return { text: truncated, tokens: finalTokens };
 }
-

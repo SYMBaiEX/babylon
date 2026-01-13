@@ -34,13 +34,13 @@ import {
   posts,
   questions,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '../llm/openai-client';
 import { logger } from '@babylon/shared';
 import {
   CONTENT_PACING,
   getTimeOfDayMultiplier,
   shouldActorPost,
 } from '../config/content-pacing';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
 import {
   secureRandom,

@@ -21,10 +21,13 @@ import {
   isDegenSpeaker,
   stripHashtagsAndEmojis,
 } from '../utils/shared-utils';
-import { safeExtractFromResponse } from './post-generation-helpers';
 import { characterMappingService } from './character-mapping-service';
 import { buildPositionsPromptContextByActorId } from './npc-positions-context-service';
-import { ensureRunningBits, toRunningBitPromptContext } from './npc-running-bit-service';
+import {
+  ensureRunningBits,
+  toRunningBitPromptContext,
+} from './npc-running-bit-service';
+import { safeExtractFromResponse } from './post-generation-helpers';
 import { StaticDataRegistry } from './static-data-registry';
 
 // =============================================================================
@@ -215,7 +218,7 @@ export async function processNPCSocialEngagements(
       const author = StaticDataRegistry.getActor(p.authorId);
       const quotedAuthorId =
         p.type === 'quote' && typeof p.originalPostId === 'string'
-          ? quotedAuthorByOriginalPostId.get(p.originalPostId) ?? null
+          ? (quotedAuthorByOriginalPostId.get(p.originalPostId) ?? null)
           : null;
       return {
         ...p,
@@ -241,7 +244,9 @@ export async function processNPCSocialEngagements(
     // - sampled actors (who drive engagement)
     // - post authors (who should reply to comments)
     // - quoted authors (who should clap back on quote-posts)
-    const postAuthorIds = Array.from(new Set(recentPosts.map((p) => p.authorId)));
+    const postAuthorIds = Array.from(
+      new Set(recentPosts.map((p) => p.authorId))
+    );
     const quotedAuthorIds = Array.from(
       new Set(
         recentPosts
@@ -263,7 +268,9 @@ export async function processNPCSocialEngagements(
     for (const actorId of contextActorIds) {
       const a = StaticDataRegistry.getActor(actorId);
       if (!a) continue;
-      const postExample = Array.isArray(a.postExample) ? a.postExample : undefined;
+      const postExample = Array.isArray(a.postExample)
+        ? a.postExample
+        : undefined;
       const isDegen = isDegenSpeaker({
         name: a.name,
         domain: a.domain ?? [],
@@ -349,11 +356,17 @@ export async function processNPCSocialEngagements(
           if (!actor) continue;
 
           const key = `${quotePost.id}-${actor.id}`;
-          if (topLevelCommentSet.has(key) || alreadyCommented.has(key)) continue;
+          if (topLevelCommentSet.has(key) || alreadyCommented.has(key))
+            continue;
 
-          if (random() > NPC_ENGAGEMENT_CONFIG.quoteClapbackProbability) continue;
+          if (random() > NPC_ENGAGEMENT_CONFIG.quoteClapbackProbability)
+            continue;
 
-          const comment = await generateNPCComment(actor, quotePost, promptContext);
+          const comment = await generateNPCComment(
+            actor,
+            quotePost,
+            promptContext
+          );
           if (!comment) continue;
 
           try {
@@ -504,7 +517,11 @@ export async function processNPCSocialEngagements(
             continue;
           }
           if (random() < probs.comment) {
-            const comment = await generateNPCComment(actor, post, promptContext);
+            const comment = await generateNPCComment(
+              actor,
+              post,
+              promptContext
+            );
             if (comment) {
               try {
                 const commentId = await generateSnowflakeId();
@@ -911,10 +928,18 @@ function inferSelfInterest(actor: ActorContext): SelfInterest {
     personality.includes(needle) || description.includes(needle);
 
   if (has('conspiracy') || has('contrarian')) return 'chaos';
-  if (domains.includes('politics') || has('politician') || actor.role === 'politician') {
+  if (
+    domains.includes('politics') ||
+    has('politician') ||
+    actor.role === 'politician'
+  ) {
     return 'reputation';
   }
-  if (domains.includes('finance') || domains.includes('crypto') || domains.includes('tech')) {
+  if (
+    domains.includes('finance') ||
+    domains.includes('crypto') ||
+    domains.includes('tech')
+  ) {
     return 'wealth';
   }
   if (has('ideologue') || has('activist') || domains.includes('philosophy')) {
@@ -934,7 +959,9 @@ function formatAgendaPromptContext(actor: ActorContext): string {
     .filter(isNonEmptyString);
 
   const loyaltyLine =
-    orgNames.length > 0 ? `Loyalties: ${orgNames.join(', ')}` : 'Loyalties: none';
+    orgNames.length > 0
+      ? `Loyalties: ${orgNames.join(', ')}`
+      : 'Loyalties: none';
 
   return `=== INTERNAL: MOTIVES (do not state directly) ===
 Primary motive: ${selfInterest}
@@ -1264,8 +1291,7 @@ ${promptContext}
               : raw.length >= 300
                 ? 'too_long'
                 : 'unknown',
-          commentPreview:
-            raw.length > 50 ? raw.substring(0, 50) + '...' : raw,
+          commentPreview: raw.length > 50 ? raw.substring(0, 50) + '...' : raw,
         },
         'NPCSocialEngagement'
       );

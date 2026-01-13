@@ -1,5 +1,5 @@
-import nextra from 'nextra';
 import path from 'node:path';
+import nextra from 'nextra';
 
 // Next.js runs from `apps/docs`, so go up two levels for the monorepo root.
 const monorepoRoot = path.resolve(process.cwd(), '../..');

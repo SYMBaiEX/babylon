@@ -24,4 +24,3 @@ export async function broadcastToChannel(
   if (!broadcastFn) return;
   await broadcastFn(channel, data);
 }
-

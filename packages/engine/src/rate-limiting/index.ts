@@ -66,7 +66,9 @@ export function checkDuplicate(
   }
 
   const windowStart = now - config.windowMs;
-  const recentRecords = records.filter((record) => record.timestamp > windowStart);
+  const recentRecords = records.filter(
+    (record) => record.timestamp > windowStart
+  );
   duplicateStore.set(key, recentRecords);
 
   const duplicate = recentRecords.find(
@@ -104,7 +106,11 @@ export function checkDuplicate(
 
 export function clearDuplicates(userId: string, actionType: string): void {
   duplicateStore.delete(`${userId}:${actionType}`);
-  logger.info('Duplicate records cleared', { userId, actionType }, 'DuplicateDetector');
+  logger.info(
+    'Duplicate records cleared',
+    { userId, actionType },
+    'DuplicateDetector'
+  );
 }
 
 export function clearAllDuplicates(): void {
@@ -119,7 +125,9 @@ export function cleanupDuplicates(): void {
   let cleanedCount = 0;
 
   for (const [key, records] of duplicateStore.entries()) {
-    const validRecords = records.filter((record) => now - record.timestamp < maxAge);
+    const validRecords = records.filter(
+      (record) => now - record.timestamp < maxAge
+    );
     if (validRecords.length === 0) {
       duplicateStore.delete(key);
       cleanedCount++;
@@ -150,7 +158,8 @@ export function getDuplicateStats(): {
   for (const [key, records] of duplicateStore.entries()) {
     const actionType = key.split(':')[1] ?? 'unknown';
     totalRecords += records.length;
-    recordsByType[actionType] = (recordsByType[actionType] ?? 0) + records.length;
+    recordsByType[actionType] =
+      (recordsByType[actionType] ?? 0) + records.length;
   }
 
   return {
@@ -190,28 +199,52 @@ export type UserRateLimitResult = {
 export const RATE_LIMIT_CONFIGS = {
   // Content creation
   CREATE_POST: { maxRequests: 3, windowMs: 60000, actionType: 'create_post' },
-  CREATE_COMMENT: { maxRequests: 10, windowMs: 60000, actionType: 'create_comment' },
+  CREATE_COMMENT: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'create_comment',
+  },
 
   // Interactions
   LIKE_POST: { maxRequests: 20, windowMs: 60000, actionType: 'like_post' },
-  LIKE_COMMENT: { maxRequests: 20, windowMs: 60000, actionType: 'like_comment' },
+  LIKE_COMMENT: {
+    maxRequests: 20,
+    windowMs: 60000,
+    actionType: 'like_comment',
+  },
   SHARE_POST: { maxRequests: 5, windowMs: 60000, actionType: 'share_post' },
 
   // Social actions
   FOLLOW_USER: { maxRequests: 10, windowMs: 60000, actionType: 'follow_user' },
-  UNFOLLOW_USER: { maxRequests: 10, windowMs: 60000, actionType: 'unfollow_user' },
+  UNFOLLOW_USER: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'unfollow_user',
+  },
 
   // Messages
-  SEND_MESSAGE: { maxRequests: 20, windowMs: 60000, actionType: 'send_message' },
+  SEND_MESSAGE: {
+    maxRequests: 20,
+    windowMs: 60000,
+    actionType: 'send_message',
+  },
 
   // Uploads
   UPLOAD_IMAGE: { maxRequests: 5, windowMs: 60000, actionType: 'upload_image' },
 
   // Feedback
-  SUBMIT_FEEDBACK: { maxRequests: 5, windowMs: 60000, actionType: 'submit_feedback' },
+  SUBMIT_FEEDBACK: {
+    maxRequests: 5,
+    windowMs: 60000,
+    actionType: 'submit_feedback',
+  },
 
   // Profile updates
-  UPDATE_PROFILE: { maxRequests: 5, windowMs: 60000, actionType: 'update_profile' },
+  UPDATE_PROFILE: {
+    maxRequests: 5,
+    windowMs: 60000,
+    actionType: 'update_profile',
+  },
 
   // Agent actions
   GENERATE_AGENT_PROFILE: {
@@ -226,13 +259,33 @@ export const RATE_LIMIT_CONFIGS = {
   },
 
   // Market actions
-  OPEN_POSITION: { maxRequests: 10, windowMs: 60000, actionType: 'open_position' },
-  CLOSE_POSITION: { maxRequests: 10, windowMs: 60000, actionType: 'close_position' },
-  BUY_PREDICTION: { maxRequests: 10, windowMs: 60000, actionType: 'buy_prediction' },
-  SELL_PREDICTION: { maxRequests: 10, windowMs: 60000, actionType: 'sell_prediction' },
+  OPEN_POSITION: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'open_position',
+  },
+  CLOSE_POSITION: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'close_position',
+  },
+  BUY_PREDICTION: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'buy_prediction',
+  },
+  SELL_PREDICTION: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'sell_prediction',
+  },
 
   // Admin actions
-  ADMIN_ACTION: { maxRequests: 100, windowMs: 60000, actionType: 'admin_action' },
+  ADMIN_ACTION: {
+    maxRequests: 100,
+    windowMs: 60000,
+    actionType: 'admin_action',
+  },
   ADMIN_STATS: { maxRequests: 30, windowMs: 60000, actionType: 'admin_stats' },
 
   // Public endpoints
@@ -246,7 +299,11 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60000,
     actionType: 'public_balance_fetch_anonymous',
   },
-  PUBLIC_NFT_IMAGE: { maxRequests: 60, windowMs: 60000, actionType: 'public_nft_image' },
+  PUBLIC_NFT_IMAGE: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'public_nft_image',
+  },
   PUBLIC_NFT_IMAGE_ANONYMOUS: {
     maxRequests: 10,
     windowMs: 60000,
@@ -287,7 +344,9 @@ function checkRateLimitMemory(
   }
 
   const windowStart = now - config.windowMs;
-  record.recentActions = record.recentActions.filter((timestamp) => timestamp > windowStart);
+  record.recentActions = record.recentActions.filter(
+    (timestamp) => timestamp > windowStart
+  );
 
   if (record.recentActions.length >= config.maxRequests) {
     const oldestAction = record.recentActions[0];
@@ -345,7 +404,11 @@ class InMemoryRateLimitProvider implements RateLimitProvider {
 
   async resetRateLimit(userId: string, actionType: string): Promise<void> {
     memoryFallbackStore.delete(`${userId}:${actionType}`);
-    logger.info('Rate limit reset (memory)', { userId, actionType }, 'RateLimiter');
+    logger.info(
+      'Rate limit reset (memory)',
+      { userId, actionType },
+      'RateLimiter'
+    );
   }
 
   async clearAllRateLimits(): Promise<void> {
@@ -369,7 +432,9 @@ class InMemoryRateLimitProvider implements RateLimitProvider {
     }
 
     const windowStart = now - config.windowMs;
-    const validActions = record.recentActions.filter((timestamp) => timestamp > windowStart);
+    const validActions = record.recentActions.filter(
+      (timestamp) => timestamp > windowStart
+    );
     const oldestAction = validActions[0] ?? now;
 
     return {
@@ -400,7 +465,10 @@ export function checkRateLimitAsync(
   return provider.checkRateLimitAsync(userId, config);
 }
 
-export function resetRateLimit(userId: string, actionType: string): Promise<void> {
+export function resetRateLimit(
+  userId: string,
+  actionType: string
+): Promise<void> {
   return provider.resetRateLimit(userId, actionType);
 }
 
@@ -422,7 +490,9 @@ export function cleanupMemoryRateLimits(): void {
   let cleanedCount = 0;
 
   for (const [key, record] of memoryFallbackStore.entries()) {
-    const hasRecentActions = record.recentActions.some((timestamp) => now - timestamp < maxAge);
+    const hasRecentActions = record.recentActions.some(
+      (timestamp) => now - timestamp < maxAge
+    );
     if (!hasRecentActions) {
       memoryFallbackStore.delete(key);
       cleanedCount++;

@@ -412,7 +412,9 @@ const nextConfig: NextConfig = {
 // Only enable Sentry uploads in CI/Vercel builds.
 // This prevents local builds from failing if a developer has a stale/invalid token set.
 const sentryAuthToken =
-  process.env.CI || process.env.VERCEL ? sentryAuthTokenFromProcessEnv : undefined;
+  process.env.CI || process.env.VERCEL
+    ? sentryAuthTokenFromProcessEnv
+    : undefined;
 
 const sentryWebpackPluginOptions = {
   // For all available options, see:

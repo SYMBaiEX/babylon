@@ -14,9 +14,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
 import {
+  autoJoinEmptyUsersToNpcGroupChats,
   GroupChatService,
   NPCGroupDynamicsService,
-  autoJoinEmptyUsersToNpcGroupChats,
 } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 

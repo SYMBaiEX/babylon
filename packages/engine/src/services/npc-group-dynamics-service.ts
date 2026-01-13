@@ -41,8 +41,8 @@ import {
 } from '@babylon/db';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_GROUP_DYNAMICS_CONFIG } from '../config/npc-activity';
-import { generateWorldContext, validateNoRealNames } from '../prompts';
 import { BabylonLLMClient } from '../llm/openai-client';
+import { generateWorldContext, validateNoRealNames } from '../prompts';
 import { MarketContextService } from './market-context-service';
 import { autoJoinEmptyUsersToNpcGroupChats } from './npc-group-chat-onboarding-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';

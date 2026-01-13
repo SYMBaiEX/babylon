@@ -66,11 +66,6 @@
  * ```
  */
 
-import {
-  countTokensSync,
-  getSafeContextLimit,
-  truncateToTokenLimitSync,
-} from './llm/token-counter';
 import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { loadActorById } from './actors-loader';
@@ -80,6 +75,11 @@ import {
   formatSimulationRecentEvents,
 } from './config/simulation';
 import type { BabylonLLMClient } from './llm/openai-client';
+import {
+  countTokensSync,
+  getSafeContextLimit,
+  truncateToTokenLimitSync,
+} from './llm/token-counter';
 import { parseXML } from './llm/xml-parser';
 import {
   formatTradingStrategyBias,

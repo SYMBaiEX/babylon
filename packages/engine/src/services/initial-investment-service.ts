@@ -8,9 +8,9 @@
  */
 
 import { actorState, and, db, eq, getDbInstance, gte, sql } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { loadActorById } from '../actors-loader';
 import { BabylonLLMClient } from '../llm/openai-client';
-import { generateSnowflakeId, logger } from '@babylon/shared';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**

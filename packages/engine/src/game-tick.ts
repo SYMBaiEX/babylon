@@ -94,6 +94,7 @@ import {
   timeframeArcProcessor,
   WalletService,
 } from './services';
+import { broadcastToChannel } from './services/realtime-broadcaster';
 import type { TradingExecutionResult } from './types/market-decisions';
 import type {
   ActorTier,
@@ -107,7 +108,6 @@ import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
 import { deriveStrategyFromPersonality } from './utils/shared-utils';
 import { worldFactsService } from './world-facts-service';
-import { broadcastToChannel } from './services/realtime-broadcaster';
 // Note: Event-market pipeline is called from within narrative-event-processor
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
@@ -3022,10 +3022,7 @@ export async function resolveQuestionPayouts(
       },
       broadcast: {
         emit: (_channel, payload) =>
-          broadcastToChannel(
-            'markets',
-            payload as Record<string, JsonValue>
-          ),
+          broadcastToChannel('markets', payload as Record<string, JsonValue>),
       },
       cache: {
         invalidate: () => invalidateAfterPredictionTrade(marketId),

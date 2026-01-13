@@ -3,15 +3,15 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { LLMJsonClient } from '../../llm/types';
-import { StaticDataRegistry } from '../../services/static-data-registry';
-import {
-  generateNPCRepliesFromPreviousTicks,
-  type DiscourseActor,
-} from '../../services/post-generation-helpers';
 import {
   npcSocialEngagementService,
   processNPCSocialEngagements,
 } from '../../services/npc-social-engagement-service';
+import {
+  type DiscourseActor,
+  generateNPCRepliesFromPreviousTicks,
+} from '../../services/post-generation-helpers';
+import { StaticDataRegistry } from '../../services/static-data-registry';
 import {
   db,
   initializeDatabaseMode,
@@ -204,7 +204,9 @@ describe('NPC interactions (simulation mode)', () => {
         description: engager.description ?? null,
         personality: engager.personality ?? null,
         postStyle: engager.postStyle ?? null,
-        postExample: Array.isArray(engager.postExample) ? engager.postExample : undefined,
+        postExample: Array.isArray(engager.postExample)
+          ? engager.postExample
+          : undefined,
         affiliations: engager.affiliations ?? [],
         domain: engager.domain ?? [],
         role: engager.role ?? null,
@@ -278,7 +280,9 @@ describe('NPC interactions (simulation mode)', () => {
         description: engager.description ?? null,
         personality: engager.personality ?? null,
         postStyle: engager.postStyle ?? null,
-        postExample: Array.isArray(engager.postExample) ? engager.postExample : undefined,
+        postExample: Array.isArray(engager.postExample)
+          ? engager.postExample
+          : undefined,
         affiliations: engager.affiliations ?? [],
         domain: engager.domain ?? [],
         role: engager.role ?? null,
@@ -310,4 +314,3 @@ describe('NPC interactions (simulation mode)', () => {
     ).toBeGreaterThan(0);
   });
 });
-

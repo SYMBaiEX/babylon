@@ -45,26 +45,37 @@ function getGameWeekIndex(currentDay: number): number {
 function getIsoWeekKey(date: Date): string {
   // ISO week date weeks start on Monday.
   // Adapted from common ISO week algorithm (no external deps).
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const d = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
   // Thursday in current week decides the year.
   const day = d.getUTCDay() || 7; // 1..7 (Mon..Sun)
   d.setUTCDate(d.getUTCDate() + 4 - day);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  const weekNo = Math.ceil(
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  );
   const year = d.getUTCFullYear();
   const week = String(weekNo).padStart(2, '0');
   return `${year}-W${week}`;
 }
 
 function buildRunningBitKey(now: Date, currentDay?: number): string {
-  if (typeof currentDay === 'number' && Number.isFinite(currentDay) && currentDay >= 1) {
+  if (
+    typeof currentDay === 'number' &&
+    Number.isFinite(currentDay) &&
+    currentDay >= 1
+  ) {
     const weekIndex = getGameWeekIndex(currentDay);
     return `running-bit:game-week:${weekIndex}`;
   }
   return `running-bit:iso-week:${getIsoWeekKey(now)}`;
 }
 
-function hasDomain(actorDomains: string[] | undefined, domain: string): boolean {
+function hasDomain(
+  actorDomains: string[] | undefined,
+  domain: string
+): boolean {
   return Array.isArray(actorDomains) && actorDomains.includes(domain);
 }
 
@@ -128,7 +139,10 @@ function generateRunningBit(actorId: string, periodKey: string): string {
     );
   }
 
-  if (personality.includes('conspiracy') || personality.includes('contrarian')) {
+  if (
+    personality.includes('conspiracy') ||
+    personality.includes('contrarian')
+  ) {
     candidates.push(
       'You keep seeing a grand pattern where there’s clearly just chaos.',
       'You keep acting like being wrong loudly is a public service.'
@@ -202,7 +216,9 @@ export async function ensureRunningBits(
   const stateById = new Map(states.map((s) => [s.id, s]));
 
   for (const state of states) {
-    const memories = parseMemoriesSafe(state.recentMemories, { actorId: state.id });
+    const memories = parseMemoriesSafe(state.recentMemories, {
+      actorId: state.id,
+    });
     const existing = memories.find(
       (m) => m.type === 'running_bit' && m.eventId === periodKey
     );
@@ -234,7 +250,9 @@ export async function ensureRunningBits(
       sentiment: 0,
     };
 
-    const updatedMemories = [...existingMemories, newMemory].slice(-maxMemories);
+    const updatedMemories = [...existingMemories, newMemory].slice(
+      -maxMemories
+    );
     const updateRes = await db.actorState.updateMany({
       where: { id: entry.actorId, updatedAt: state.updatedAt },
       data: { recentMemories: updatedMemories, updatedAt: now },
@@ -261,4 +279,3 @@ export function toRunningBitPromptContext(bit: string | undefined): string {
   if (!trimmed) return '';
   return formatRunningBitPromptContext(trimmed);
 }
-

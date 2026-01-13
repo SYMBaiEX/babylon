@@ -69,4 +69,3 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     references: [gameOnboarding.userId],
   }),
 }));
-

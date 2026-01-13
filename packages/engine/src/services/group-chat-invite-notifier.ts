@@ -8,7 +8,9 @@ export type NotifyGroupChatInviteFn = (
 
 let notifyFn: NotifyGroupChatInviteFn | null = null;
 
-export function setNotifyGroupChatInvite(fn: NotifyGroupChatInviteFn | null): void {
+export function setNotifyGroupChatInvite(
+  fn: NotifyGroupChatInviteFn | null
+): void {
   notifyFn = fn;
 }
 
@@ -22,4 +24,3 @@ export async function notifyGroupChatInvite(
   if (!notifyFn) return;
   await notifyFn(userId, npcId, groupId, chatName, inviteId);
 }
-

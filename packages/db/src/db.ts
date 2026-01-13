@@ -68,7 +68,8 @@ function createPostgresClient(): ReturnType<typeof postgres> {
   const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
 
   // Check if SSL is already specified in the URL (sslmode=require or ssl=true)
-  const hasExplicitSSL = url.includes('sslmode=require') || url.includes('ssl=true');
+  const hasExplicitSSL =
+    url.includes('sslmode=require') || url.includes('ssl=true');
 
   // Check for cloud database providers that require SSL (Neon, Supabase, etc.)
   const isCloudProvider =
@@ -365,7 +366,9 @@ export async function asUser<T>(
 
   return withRetryInternal(() =>
     instance.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.current_user_id', ${userId}, true)`);
+      await tx.execute(
+        sql`SELECT set_config('app.current_user_id', ${userId}, true)`
+      );
       // Create a client wrapper for the transaction
       // Transaction type from Drizzle is compatible with Database
       const txClient = createDrizzleClient(tx);
@@ -391,7 +394,9 @@ export async function asSystem<T>(
 
   const result = await withRetryInternal(() =>
     instance.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.current_user_id', 'system', true)`);
+      await tx.execute(
+        sql`SELECT set_config('app.current_user_id', 'system', true)`
+      );
       // Transaction type is compatible with Database for our use case
       const txClient = createDrizzleClient(tx as Database);
       return operation(txClient);
@@ -458,4 +463,3 @@ export async function executeRaw<
   if (!instance) throw new Error('Database not initialized');
   return withRetryInternal(() => instance.execute(query)) as Promise<T[]>;
 }
-

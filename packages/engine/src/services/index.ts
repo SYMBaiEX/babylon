@@ -29,12 +29,12 @@ export * from './jsonb-validators';
 export * from './lookahead-generation-service';
 export * from './message-quality-checker';
 export * from './narrative-event-processor';
-export * from './npc-group-dynamics-service';
 export * from './npc-group-chat-onboarding-service';
+export * from './npc-group-dynamics-service';
 export * from './npc-interaction-tracker';
 export * from './npc-memory-service';
-export * from './npc-positions-context-service';
 export * from './npc-persona-generator';
+export * from './npc-positions-context-service';
 export * from './npc-running-bit-service';
 export * from './npc-social-engagement-service';
 export * from './player-influence-service';
@@ -108,12 +108,12 @@ export {
   type GameBootstrapResult,
   GameBootstrapService,
 } from './game-bootstrap-service';
+export * from './group-chat-invite-notifier';
 export * from './market-context-service';
 export * from './market-impact-service';
 export * from './npc-wallet-adapter';
 export * from './realtime-broadcaster';
 export * from './rss-feed-service';
-export * from './group-chat-invite-notifier';
 export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';

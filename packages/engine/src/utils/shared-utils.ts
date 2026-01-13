@@ -125,7 +125,10 @@ function buildToneCorpus(actor: ToneGuardrailsActor): string {
 function corpusIncludesToken(corpusLower: string, token: SlangToken): boolean {
   if (!corpusLower) return false;
   if (!token.wholeWord) return corpusLower.includes(token.needle);
-  const pattern = new RegExp(`\\b${token.needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+  const pattern = new RegExp(
+    `\\b${token.needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+    'i'
+  );
   return pattern.test(corpusLower);
 }
 

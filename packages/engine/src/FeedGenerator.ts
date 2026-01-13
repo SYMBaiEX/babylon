@@ -12,10 +12,10 @@
  * This ensures each post matches the character's unique voice and style.
  */
 
+import type { WorldEvent } from '@babylon/shared';
 import { ContentValidator, type JsonValue, logger } from '@babylon/shared';
 import { EventEmitter } from 'events';
 import { generateActorContext } from './EmotionSystem';
-import type { WorldEvent } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import {
   ambientPosts,

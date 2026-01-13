@@ -22,6 +22,8 @@ export { schema };
 // Re-export client types
 export type { DrizzleClient, JsonValue, SQLValue } from './client';
 export { TableRepository } from './client';
+// Database runtime (connection management, `db`, JSON mode)
+export * from './db';
 /**
  * Re-export unique relation types from model-types.
  *
@@ -47,9 +49,6 @@ export type {
 } from './model-types';
 // Re-export types
 export * from './types';
-
-// Database runtime (connection management, `db`, JSON mode)
-export * from './db';
 
 // ============================================================================
 // Drizzle Query Operators

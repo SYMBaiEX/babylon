@@ -22,7 +22,9 @@ function clampNonNegativeInt(value: number, fallback: number): number {
   return v >= 0 ? v : fallback;
 }
 
-function parseNullableNumber(value: number | string | null | undefined): number | null {
+function parseNullableNumber(
+  value: number | string | null | undefined
+): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   const parsed = Number(value);
@@ -44,7 +46,10 @@ function formatCurrency(n: number): string {
   return `$${formatSignedNumber(n, 0)}`;
 }
 
-function formatQuestionLabel(q: { questionNumber: number; text: string }): string {
+function formatQuestionLabel(q: {
+  questionNumber: number;
+  text: string;
+}): string {
   const trimmed = q.text.trim();
   const short = trimmed.length > 80 ? `${trimmed.slice(0, 80)}...` : trimmed;
   return `Q${q.questionNumber}: "${short}"`;
@@ -54,8 +59,14 @@ export async function buildPositionsPromptContextByActorId(
   actorIds: string[],
   options: PositionsContextOptions = {}
 ): Promise<Record<string, string>> {
-  const maxPred = clampNonNegativeInt(options.maxPredictionPositionsPerActor ?? 2, 2);
-  const maxPerps = clampNonNegativeInt(options.maxPerpPositionsPerActor ?? 2, 2);
+  const maxPred = clampNonNegativeInt(
+    options.maxPredictionPositionsPerActor ?? 2,
+    2
+  );
+  const maxPerps = clampNonNegativeInt(
+    options.maxPerpPositionsPerActor ?? 2,
+    2
+  );
 
   if (actorIds.length === 0) return {};
 
@@ -141,7 +152,7 @@ export async function buildPositionsPromptContextByActorId(
       for (const { p, pnl } of scored) {
         const qLabel =
           typeof p.questionId === 'number'
-            ? questionMap.get(p.questionId) ?? `Q${p.questionId}`
+            ? (questionMap.get(p.questionId) ?? `Q${p.questionId}`)
             : 'Unknown question';
         const side = p.side ? 'YES' : 'NO';
         const pnlText = pnl !== null ? ` (${formatCurrency(pnl)})` : '';
@@ -179,4 +190,3 @@ Let this bias your tone. If you're down bad, be defensive/coping; if you're up, 
 
   return out;
 }
-

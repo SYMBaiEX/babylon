@@ -27,8 +27,8 @@
  * ```
  */
 
-import { DistributedLockService } from './distributed-lock-service';
 import { randomBytes } from 'crypto';
+import { DistributedLockService } from './distributed-lock-service';
 
 const LOCK_ID = 'game-tick-lock';
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes

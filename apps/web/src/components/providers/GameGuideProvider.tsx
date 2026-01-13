@@ -21,13 +21,16 @@ const GAME_GUIDE_COMPLETED_KEY = 'babylon-game-guide-completed';
 /**
  * Check if user has completed game guide (checks both API and localStorage backup)
  */
-function hasCompletedGameGuide(userId: string | undefined, apiCompletedAt: string | null | undefined): boolean {
+function hasCompletedGameGuide(
+  userId: string | undefined,
+  apiCompletedAt: string | null | undefined
+): boolean {
   // If API says completed, it's completed
   if (apiCompletedAt) return true;
-  
+
   // Check localStorage backup (keyed by userId to support multiple accounts)
   if (typeof window === 'undefined' || !userId) return false;
-  
+
   try {
     const stored = localStorage.getItem(GAME_GUIDE_COMPLETED_KEY);
     if (!stored) return false;
@@ -43,12 +46,17 @@ function hasCompletedGameGuide(userId: string | undefined, apiCompletedAt: strin
  */
 function markGameGuideCompleted(userId: string): void {
   if (typeof window === 'undefined') return;
-  
+
   try {
     const stored = localStorage.getItem(GAME_GUIDE_COMPLETED_KEY);
-    const completedUsers = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
+    const completedUsers = stored
+      ? (JSON.parse(stored) as Record<string, boolean>)
+      : {};
     completedUsers[userId] = true;
-    localStorage.setItem(GAME_GUIDE_COMPLETED_KEY, JSON.stringify(completedUsers));
+    localStorage.setItem(
+      GAME_GUIDE_COMPLETED_KEY,
+      JSON.stringify(completedUsers)
+    );
   } catch {
     // Ignore localStorage errors
   }
@@ -77,8 +85,14 @@ export function useGameGuide(): GameGuideContextValue {
  * - User is not an NPC/actor
  */
 export function GameGuideProvider({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, user, loadingProfile, needsOnboarding, needsOnchain } =
-    useAuth();
+  const {
+    ready,
+    authenticated,
+    user,
+    loadingProfile,
+    needsOnboarding,
+    needsOnchain,
+  } = useAuth();
   const { setUser } = useAuthStore();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -88,7 +102,10 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
 
   const userId = user?.id;
   // Check completion via both API response AND localStorage backup
-  const hasCompleted = hasCompletedGameGuide(userId, user?.gameGuideCompletedAt);
+  const hasCompleted = hasCompletedGameGuide(
+    userId,
+    user?.gameGuideCompletedAt
+  );
 
   // Check if guide should auto-open (only once per session)
   // Only shows after user has completed onboarding (profile + on-chain)
@@ -135,7 +152,7 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
 
     // Immediately save to localStorage as backup (prevents showing again even if API fails)
     markGameGuideCompleted(currentUserId);
-    
+
     // Close the modal immediately for better UX
     setIsOpen(false);
 
@@ -164,7 +181,11 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
         if (freshUser) {
           setUser({ ...freshUser, gameGuideCompletedAt });
         }
-        logger.info('Game guide completion saved', { userId: currentUserId }, 'GameGuideProvider');
+        logger.info(
+          'Game guide completion saved',
+          { userId: currentUserId },
+          'GameGuideProvider'
+        );
       } else {
         // API failed but localStorage backup is already saved
         // User won't see the guide again, but we log the error
@@ -179,7 +200,11 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
       if (error instanceof Error && error.name === 'AbortError') return;
 
       // API failed but localStorage backup is already saved
-      logger.error('Game guide API error (localStorage backup saved)', { error, userId: currentUserId }, 'GameGuideProvider');
+      logger.error(
+        'Game guide API error (localStorage backup saved)',
+        { error, userId: currentUserId },
+        'GameGuideProvider'
+      );
     } finally {
       // Only clear submitting if not aborted (component still mounted)
       if (!controller.signal.aborted) {
