@@ -15,9 +15,13 @@ export const GET = withErrorHandling(
     { params }: { params: Promise<{ tokenId: string }> }
   ) => {
     const { tokenId: tokenIdParam } = await params;
-    const tokenId = parseInt(tokenIdParam, 10);
+    if (!/^\d+$/.test(tokenIdParam)) {
+      throw new BadRequestError('Token ID must be between 1 and 100');
+    }
 
-    if (Number.isNaN(tokenId) || tokenId < 1 || tokenId > 100) {
+    const tokenId = Number(tokenIdParam);
+
+    if (!Number.isSafeInteger(tokenId) || tokenId < 1 || tokenId > 100) {
       throw new BadRequestError('Token ID must be between 1 and 100');
     }
 

@@ -10,6 +10,7 @@
  * @module api/services/nft-mint-service
  */
 
+import { randomBytes } from 'node:crypto';
 import {
   db,
   eq,
@@ -224,10 +225,7 @@ function validateConfig(): {
  * Generate a unique nonce for minting
  */
 function generateNonce(): Hex {
-  const uuid = crypto.randomUUID().replace(/-/g, '');
-  const timestamp = Date.now().toString(16).padStart(16, '0');
-  const combined = (uuid + timestamp).slice(0, 64);
-  return `0x${combined}` as Hex;
+  return `0x${randomBytes(32).toString('hex')}` as Hex;
 }
 
 /**

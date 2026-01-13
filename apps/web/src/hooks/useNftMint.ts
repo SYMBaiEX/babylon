@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useSmartWallet } from '@/hooks/useSmartWallet';
@@ -298,11 +298,16 @@ export function useNftMint(): UseNftMintResult {
     setError(null);
   }, [eligibility?.hasMinted, eligibility?.eligible]);
 
+  const checkEligibilityRef = useRef(checkEligibility);
+  useEffect(() => {
+    checkEligibilityRef.current = checkEligibility;
+  }, [checkEligibility]);
+
   useEffect(() => {
     const abortController = new AbortController();
 
     if (authenticated) {
-      checkEligibility(abortController.signal);
+      checkEligibilityRef.current(abortController.signal);
     } else {
       setEligibility(null);
       setFlowState('idle');
@@ -311,7 +316,7 @@ export function useNftMint(): UseNftMintResult {
     return () => {
       abortController.abort();
     };
-  }, [authenticated, checkEligibility]);
+  }, [authenticated]);
 
   const isMinting = MINTING_STATES.has(flowState);
 
