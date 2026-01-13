@@ -119,6 +119,7 @@ import {
   ReplyToPostSchema,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 /**
  * POST /api/posts/[id]/reply
@@ -129,6 +130,9 @@ export const POST = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
+    // Wire engine services for notifications
+    ensureEngineServices();
+
     // 1. Authenticate user
     const user = await authenticate(request);
     const { id: postId } = PostIdParamSchema.parse(await context.params);

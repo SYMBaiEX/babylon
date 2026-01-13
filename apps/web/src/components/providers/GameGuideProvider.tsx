@@ -101,10 +101,13 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const userId = user?.id;
+  const gameGuideCompletedAt = user?.gameGuideCompletedAt;
+
   // Check completion via both API response AND localStorage backup
-  const hasCompleted = hasCompletedGameGuide(
-    userId,
-    user?.gameGuideCompletedAt
+  // Memoized to avoid localStorage access on every render
+  const hasCompleted = useMemo(
+    () => hasCompletedGameGuide(userId, gameGuideCompletedAt),
+    [userId, gameGuideCompletedAt]
   );
 
   // Check if guide should auto-open (only once per session)

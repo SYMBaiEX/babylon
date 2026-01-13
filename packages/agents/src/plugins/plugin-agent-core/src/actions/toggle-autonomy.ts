@@ -195,20 +195,19 @@ export const toggleAutonomyAction: Action = {
 
       const now = new Date();
 
-      // Ensure config row exists, then update only autonomy fields
+      // Atomic upsert config row with autonomy fields
       await db
         .insert(userAgentConfigs)
         .values({
           id: await generateSnowflakeId(),
           userId: agentUserId,
+          ...updates,
           updatedAt: now,
         })
-        .onConflictDoNothing();
-
-      await db
-        .update(userAgentConfigs)
-        .set({ ...updates, updatedAt: now })
-        .where(eq(userAgentConfigs.userId, agentUserId));
+        .onConflictDoUpdate({
+          target: userAgentConfigs.userId,
+          set: { ...updates, updatedAt: now },
+        });
 
       // Log the change for observability
       await db.insert(agentLogs).values({

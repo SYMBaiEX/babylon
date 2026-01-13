@@ -5,8 +5,8 @@
  * - Player mentions of NPCs boost response probability
  * - Large player trades add to NPC memory
  *
- * Uses Redis-backed cache for durability across restarts.
- * Falls back to in-memory cache if Redis is unavailable.
+ * Uses an in-memory LRU cache for mention tracking. This cache is local to each
+ * process instance, which is acceptable since mention boost is a soft preference.
  */
 
 import { db, eq, organizations } from '@babylon/db';
@@ -18,11 +18,6 @@ import { StaticDataRegistry } from './static-data-registry';
  * Threshold for a "significant" trade (in game currency)
  */
 const SIGNIFICANT_TRADE_THRESHOLD = 1000;
-
-/**
- * Batch size for fetching mention timestamps to avoid overwhelming Redis
- */
-// Note: Previously used for Redis-backed batching; retained in history only.
 
 /**
  * Threshold for a "large" trade that warrants special mention
@@ -40,12 +35,7 @@ const MENTION_RECENCY_SECONDS = 30 * 60; // 30 minutes
 const MAX_MENTION_CACHE_SIZE = 1000;
 
 /**
- * Cache key prefix for player mentions
- */
-// Engine runs without external cache by default.
-
-/**
- * LRU Cache for recent mentions with bounded size (in-memory fallback).
+ * LRU Cache for recent mentions with bounded size.
  * When max size is reached, oldest entries are evicted.
  */
 class LRUMentionCache {
@@ -114,7 +104,7 @@ class LRUMentionCache {
 const memoryFallbackCache = new LRUMentionCache(MAX_MENTION_CACHE_SIZE);
 
 /**
- * Record a player mention in the cache (Redis with in-memory fallback).
+ * Record a player mention in the in-memory cache.
  * Exported for testing purposes.
  */
 export async function recordMention(
@@ -399,7 +389,7 @@ export class PlayerInfluenceService {
   }
 
   /**
-   * Record a mention in the cache (Redis with in-memory fallback).
+   * Record a mention in the in-memory cache.
    * Use this for testing or when you only need to record the mention
    * without adding to NPC memory.
    */

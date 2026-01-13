@@ -155,9 +155,19 @@ export class InitialInvestmentService {
     const failureReasons: Record<string, number> = {};
 
     for (const investment of allInvestments) {
-      await InitialInvestmentService.executeInvestment(investment);
-      successfulInvestments++;
-      totalVolume += investment.amount;
+      try {
+        await InitialInvestmentService.executeInvestment(investment);
+        successfulInvestments++;
+        totalVolume += investment.amount;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'Unknown error';
+        failureReasons[reason] = (failureReasons[reason] || 0) + 1;
+        logger.warn(
+          `Failed to execute investment: ${investment.npcName} → ${investment.ticker}`,
+          { error: reason, amount: investment.amount },
+          'InitialInvestment'
+        );
+      }
     }
 
     if (Object.keys(failureReasons).length > 0) {
@@ -282,25 +292,21 @@ Return ONLY valid JSON array (no explanations):
 
 Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investments totaling their target amount.`;
 
+    // Note: The prompt requests a raw JSON array, so the response is already an array
+    // if the LLM follows the prompt correctly. Schema validation is minimal here.
     const response = await llm.generateJSON<InitialInvestment[]>(
       prompt,
       {
+        // Schema for array items validation (wrapped in investments property for compatibility)
         properties: {
-          investments: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                npcId: { type: 'string' },
-                npcName: { type: 'string' },
-                ticker: { type: 'string' },
-                orgName: { type: 'string' },
-                amount: { type: 'number' },
-                reasoning: { type: 'string' },
-              },
-            },
-          },
+          npcId: { type: 'string' },
+          npcName: { type: 'string' },
+          ticker: { type: 'string' },
+          orgName: { type: 'string' },
+          amount: { type: 'number' },
+          reasoning: { type: 'string' },
         },
+        required: ['npcId', 'npcName', 'ticker', 'orgName', 'amount', 'reasoning'],
       },
       {
         temperature: 0.7,
@@ -524,16 +530,13 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
         })
         .catch((error) => {
           // Pool might already exist from race condition, that's fine
-          // But rethrow other errors in development
-          if (process.env.NODE_ENV !== 'production') {
-            const errorCode =
-              error && typeof error === 'object' && 'code' in error
-                ? error.code
-                : null;
-            if (errorCode !== 'P2002') {
-              // P2002 = unique constraint (already exists)
-              throw error;
-            }
+          const errorCode =
+            error && typeof error === 'object' && 'code' in error
+              ? error.code
+              : null;
+          if (errorCode !== 'P2002') {
+            // P2002 = unique constraint (already exists)
+            throw error;
           }
         });
     }

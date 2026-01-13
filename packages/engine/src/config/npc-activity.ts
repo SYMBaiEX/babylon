@@ -337,6 +337,18 @@ export const NPC_ENGAGEMENT_CONFIG = {
   ),
 
   /**
+   * Probability that a discourse interaction becomes a quote-post instead of a reply.
+   * Only applies when engaging with an original post (not a reply thread).
+   *
+   * @default 0.65 (65% quote-posts, 35% direct replies)
+   * @env NPC_DISCOURSE_QUOTE_PROBABILITY
+   */
+  discourseQuoteProbability: envProbability(
+    'NPC_DISCOURSE_QUOTE_PROBABILITY',
+    0.65
+  ),
+
+  /**
    * Number of NPCs to sample for engagement each tick.
    *
    * @default 20 (increased for broader engagement)
@@ -784,6 +796,15 @@ export const NPC_TICK_CONFIG = {
    * @env NPC_TICK_MAX_ERRORS
    */
   maxConsecutiveErrors: envPositiveNumber('NPC_TICK_MAX_ERRORS', 5),
+
+  /**
+   * Maximum number of NPC discourse replies to generate per tick.
+   * Controls how many NPCs can reply/quote to previous tick's posts.
+   *
+   * @default 6
+   * @env NPC_MAX_DISCOURSE_REPLIES
+   */
+  maxDiscourseReplies: envPositiveNumber('NPC_MAX_DISCOURSE_REPLIES', 6),
 } as const;
 
 // =============================================================================

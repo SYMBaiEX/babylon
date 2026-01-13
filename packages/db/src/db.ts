@@ -397,7 +397,10 @@ export async function asSystem<T>(
       await tx.execute(
         sql`SELECT set_config('app.current_user_id', 'system', true)`
       );
-      // Transaction type is compatible with Database for our use case
+      // Type assertion is safe: the transaction `tx` from Drizzle implements
+      // the same query/execute interface used by createDrizzleClient. The
+      // operation callback only uses compatible Database methods (select,
+      // insert, update, delete, execute) that both types support.
       const txClient = createDrizzleClient(tx as Database);
       return operation(txClient);
     })

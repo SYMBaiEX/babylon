@@ -220,7 +220,6 @@ export const POST = withErrorHandling(
 
     return successResponse({
       success: true,
-      data: result,
       ...result,
     });
   }

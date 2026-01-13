@@ -11,6 +11,7 @@
  */
 
 import { $ } from 'bun';
+import { ethers } from 'ethers';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getFlag, parseArgs, wantsHelp } from '../lib/args.js';
@@ -151,7 +152,7 @@ function saveDeploymentJson(
     contracts: addresses,
     deployer,
     timestamp: new Date().toISOString(),
-    blockNumber: 0, // Will be updated if we can fetch it
+    blockNumber: 0,
   };
 
   // Save JSON file
@@ -262,8 +263,9 @@ async function deployToNetwork(
   console.log('\nContract addresses:');
   console.log(`  Diamond: ${addresses.diamond}`);
 
-  // Get deployer address from private key
-  const deployerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'; // Hardhat account #0 for local
+  // Derive deployer address from private key
+  const wallet = new ethers.Wallet(config.privateKey);
+  const deployerAddress = wallet.address;
 
   // Save to deployments JSON file (this is what @babylon/contracts loads)
   saveDeploymentJson(network, config.chainId, addresses, deployerAddress);

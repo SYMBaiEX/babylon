@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@babylon/agents": "workspace:*",
+    "@babylon/api": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
     "@babylon/testing": "workspace:*",

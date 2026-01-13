@@ -53,7 +53,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     relationName: 'UserToUser',
   }),
   managedAgents: many(users, { relationName: 'UserToUser' }),
-  AgentPerformanceMetrics: one(agentPerformanceMetrics, {
+  agentPerformanceMetrics: one(agentPerformanceMetrics, {
     fields: [users.id],
     references: [agentPerformanceMetrics.userId],
   }),
