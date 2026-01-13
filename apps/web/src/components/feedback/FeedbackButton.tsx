@@ -5,7 +5,7 @@
  * to submit general game feedback. Opens the GameFeedbackModal when clicked.
  *
  * Features:
- * - Fixed position (to the left of the post button)
+ * - Fixed position in bottom-right corner
  * - Green color to stand out
  * - Responsive design
  * - Accessible
@@ -32,7 +32,7 @@ export function FeedbackButton() {
         type="button"
         onClick={() => setIsModalOpen(true)}
         className={cn(
-          // Position to the left of the post button (which is at right-4/right-6)
+          // Fixed position in bottom-right corner, offset from edge on mobile for thumb reach
           'fixed right-20 bottom-20 z-[100] md:right-6 md:bottom-6',
           'flex items-center justify-center gap-2',
           // Green color to stand out as feedback
