@@ -85,7 +85,8 @@ export async function authenticate(
       ? ['true', '1', 'yes', 'on'].includes(
           process.env.ALLOW_TEST_PRIVY_DID_AUTH.toLowerCase()
         )
-      : process.env.NODE_ENV === 'development';
+      : process.env.NODE_ENV === 'development' ||
+        process.env.NODE_ENV === 'test';
 
   if (allowTestPrivyDidAuth && token.startsWith('did:privy:test')) {
     // Fast-path: our test Privy DIDs are of the form `did:privy:test-${userId}`,
