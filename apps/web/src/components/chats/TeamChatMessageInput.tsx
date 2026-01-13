@@ -37,10 +37,11 @@ function HighlightedText({
     }
 
     const mention = match[0]; // Full match is the @mention (capture group covers entire pattern)
-    const username = mention.slice(1).toLowerCase(); // Remove @ and lowercase
+    // Normalize: remove @ and spaces, lowercase - matches agent handle normalization
+    const handle = mention.slice(1).toLowerCase().replace(/\s+/g, '');
 
-    // Only highlight if it's a valid agent username
-    if (validUsernames.has(username)) {
+    // Only highlight if it's a valid agent mention handle
+    if (validUsernames.has(handle)) {
       parts.push(
         <mark
           key={`${match.index}-${mention}`}
@@ -138,23 +139,31 @@ export function TeamChatMessageInput({
     }
   }, [onMentionsChange]);
 
-  // Memoized lookup map from lowercase username to agent ID
-  const usernameToAgentId = useMemo(() => {
+  // Memoized lookup map from lowercase mention handle (username or displayName) to agent ID
+  // Username takes priority; displayName is a fallback for agents without usernames
+  const mentionHandleToAgentId = useMemo(() => {
     const map = new Map<string, string>();
     for (const agent of agents) {
+      // Prefer username as the mention handle
       if (agent.username) {
         map.set(agent.username.toLowerCase(), agent.id);
+      } else if (agent.displayName) {
+        // Fallback to displayName for agents without usernames
+        // Normalize: remove spaces to allow "AgentName" to match @AgentName
+        map.set(agent.displayName.toLowerCase().replace(/\s+/g, ''), agent.id);
       }
     }
     return map;
   }, [agents]);
 
-  // Set of valid usernames for highlighting
-  const validUsernames = useMemo(() => {
+  // Set of valid mention handles for highlighting
+  const validMentionHandles = useMemo(() => {
     const set = new Set<string>();
     for (const agent of agents) {
       if (agent.username) {
         set.add(agent.username.toLowerCase());
+      } else if (agent.displayName) {
+        set.add(agent.displayName.toLowerCase().replace(/\s+/g, ''));
       }
     }
     return set;
@@ -178,9 +187,9 @@ export function TeamChatMessageInput({
       let match: RegExpExecArray | null = null;
 
       while ((match = mentionRegex.exec(value)) !== null) {
-        const matchedUsername = match[1]?.toLowerCase();
-        if (matchedUsername) {
-          const agentId = usernameToAgentId.get(matchedUsername);
+        const matchedHandle = match[1]?.toLowerCase().replace(/\s+/g, '');
+        if (matchedHandle) {
+          const agentId = mentionHandleToAgentId.get(matchedHandle);
           if (agentId) {
             mentions.push(agentId);
           }
@@ -202,7 +211,7 @@ export function TeamChatMessageInput({
         clearTimeout(mentionDebounceRef.current);
       }
     };
-  }, [value, usernameToAgentId, onMentionsChange]);
+  }, [value, mentionHandleToAgentId, onMentionsChange]);
 
   // Handle selecting an agent from autocomplete
   const handleSelectAgent = useCallback(
@@ -342,7 +351,7 @@ export function TeamChatMessageInput({
             )}
             aria-hidden="true"
           >
-            <HighlightedText text={value} validUsernames={validUsernames} />
+            <HighlightedText text={value} validUsernames={validMentionHandles} />
           </div>
           {/* Actual textarea - text is transparent, caret visible */}
           <textarea

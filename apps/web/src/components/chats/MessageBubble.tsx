@@ -10,7 +10,10 @@ import { getProfilePath } from './types';
 /**
  * Extracts the displayable content from a message, stripping `<think>...</think>` reasoning blocks.
  * AI models use these tags for internal reasoning which should not be displayed to users.
- * The original message data is preserved in storage, this only affects display.
+ *
+ * Note: For agent-generated messages (e.g., DMs, team chat responses), think tags are now
+ * stripped before storage by executeDirectMessage and scheduleAgentResponse. This function
+ * serves as a fallback for older messages or edge cases where tags persist.
  *
  * If the message only contains reasoning with no actual response, returns empty string
  * which will render as a minimal placeholder in the UI.

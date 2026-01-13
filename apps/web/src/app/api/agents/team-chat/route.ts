@@ -193,7 +193,9 @@ export async function POST(req: NextRequest) {
  * DELETE /api/agents/team-chat
  * Reset/delete team chat (for clearing corrupted state)
  *
- * ⚠️ DESTRUCTIVE OPERATION:
+ * ⚠️ DESTRUCTIVE OPERATION - DEVELOPMENT ONLY:
+ * Disabled in production. Use only for development/testing.
+ *
  * This permanently deletes all Command Center data including:
  * - All messages and conversation history
  * - Group membership records
@@ -208,6 +210,14 @@ export async function POST(req: NextRequest) {
  * visits Command Center again or when an agent is created.
  */
 export async function DELETE(req: NextRequest) {
+  // Gate destructive endpoint to development only
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { success: false, error: 'This endpoint is disabled in production' },
+      { status: 403 }
+    );
+  }
+
   const user = await authenticateUser(req);
 
   const teamChat = await teamChatService.getTeamChat(user.id);
