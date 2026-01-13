@@ -20,6 +20,7 @@ import {
   eq,
   gte,
   isNull,
+  type JsonValue,
   npcTrades,
   organizationState,
   perpPositions,
@@ -43,6 +44,7 @@ import {
   type TradeImpactInput,
 } from './market-impact-service';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { broadcastToChannel } from './realtime-broadcaster';
 import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
@@ -323,11 +325,11 @@ export class TradeExecutionService {
 
   private createPredictionBroadcast() {
     return {
-      emit: async (_channel: string, payload: Record<string, unknown>) => {
+      emit: async (channel: string, payload: Record<string, unknown>) => {
         if (!isPredictionBroadcastPayload(payload)) return;
 
-        // Broadcast events are handled by the service's internal broadcast mechanism
-        // The payload is logged for debugging purposes
+        await broadcastToChannel(channel, payload as Record<string, JsonValue>);
+
         logger.debug('Prediction broadcast event', {
           type: payload.type,
           marketId: payload.marketId,
