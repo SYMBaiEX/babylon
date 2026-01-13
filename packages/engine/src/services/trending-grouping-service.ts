@@ -7,9 +7,9 @@
  * is unavailable.
  */
 
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import OpenAI from 'openai';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // Configuration
 const LLM_TIMEOUT_MS = 15000; // 15 seconds

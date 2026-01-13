@@ -85,6 +85,151 @@ export function formatActorVoiceContext(actor: {
   return parts.join('\n');
 }
 
+type ToneGuardrailsActor = {
+  postStyle?: string;
+  postExample?: string[];
+  voice?: string;
+};
+
+type SlangToken = {
+  /** How to show it in the prompt */
+  display: string;
+  /** Lowercased match token/phrase */
+  needle: string;
+  /** Whether to match as whole word (vs substring) */
+  wholeWord: boolean;
+};
+
+const GENERIC_SLANG_TOKENS: SlangToken[] = [
+  { display: 'W', needle: 'w', wholeWord: true },
+  { display: 'L', needle: 'l', wholeWord: true },
+  { display: 'dawg', needle: 'dawg', wholeWord: true },
+  { display: 'bro', needle: 'bro', wholeWord: true },
+  { display: 'fam', needle: 'fam', wholeWord: true },
+  { display: 'fr fr', needle: 'fr fr', wholeWord: false },
+  { display: 'no cap', needle: 'no cap', wholeWord: false },
+  { display: 'rizz', needle: 'rizz', wholeWord: true },
+  { display: 'ratio', needle: 'ratio', wholeWord: true },
+];
+
+function buildToneCorpus(actor: ToneGuardrailsActor): string {
+  const parts: string[] = [];
+  if (actor.voice) parts.push(actor.voice);
+  if (actor.postStyle) parts.push(actor.postStyle);
+  if (actor.postExample && actor.postExample.length > 0) {
+    parts.push(actor.postExample.join('\n'));
+  }
+  return parts.join('\n').toLowerCase();
+}
+
+function corpusIncludesToken(corpusLower: string, token: SlangToken): boolean {
+  if (!corpusLower) return false;
+  if (!token.wholeWord) return corpusLower.includes(token.needle);
+  const pattern = new RegExp(
+    `\\b${token.needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+    'i'
+  );
+  return pattern.test(corpusLower);
+}
+
+/**
+ * Per-actor tone guardrails to prevent generic internet slang bleed.
+ *
+ * Rule: slang is only allowed if it appears in the actor's own voice/style/examples.
+ */
+export function formatActorToneGuardrails(actor: ToneGuardrailsActor): string {
+  const corpusLower = buildToneCorpus(actor);
+  const forbidden = GENERIC_SLANG_TOKENS.filter(
+    (t) => !corpusIncludesToken(corpusLower, t)
+  )
+    .map((t) => t.display)
+    .slice(0, 9);
+
+  if (forbidden.length === 0) return '';
+
+  return `\n=== TONE GUARDRAILS (VOICE-STRICT) ===
+- Avoid generic internet slang unless it's explicitly part of YOUR character voice/examples.
+- For THIS character, DO NOT use: ${forbidden.join(', ')}
+=====================================`;
+}
+
+type TradingGuardrailsActor = {
+  name?: string;
+  domain?: string[];
+  personality?: string;
+  voice?: string;
+  postStyle?: string;
+  postExample?: string[];
+};
+
+const DEGEN_DOMAIN_MARKERS = new Set<string>(['trading', 'defi', 'nft']);
+
+const DEGEN_KEYWORDS = [
+  'degen',
+  'wagmi',
+  'ngmi',
+  '100x',
+  'options',
+  'insider trading',
+  'leverage',
+  'liquidation',
+  'liq ',
+  'pnl',
+  'upnl',
+  'funding',
+  'perp',
+  'futures',
+  'ape ',
+  'aping',
+  'floor',
+] as const;
+
+const TICKER_PATTERN = /\$[a-z]{2,10}\b/;
+
+/**
+ * Heuristic: is this character a "degen" speaker who should be allowed to talk
+ * in tickers/prices/leverage-style language?
+ *
+ * We keep this conservative: crypto interest alone is NOT enough.
+ */
+export function isDegenSpeaker(actor: TradingGuardrailsActor): boolean {
+  const domains = actor.domain ?? [];
+  if (domains.some((d) => DEGEN_DOMAIN_MARKERS.has(d))) return true;
+
+  const corpus = [
+    actor.personality ?? '',
+    actor.voice ?? '',
+    actor.postStyle ?? '',
+    ...(actor.postExample ?? []),
+  ]
+    .join('\n')
+    .toLowerCase();
+
+  // If they naturally talk in ticker notation in their own voice/examples, allow it.
+  if (TICKER_PATTERN.test(corpus)) return true;
+
+  return DEGEN_KEYWORDS.some((kw) => corpus.includes(kw));
+}
+
+/**
+ * Guardrails to prevent non-degen characters from drifting into trading-twitter voice
+ * (tickers, exact prices, liquidation talk).
+ */
+export function formatActorFinanceGuardrails(
+  actor: TradingGuardrailsActor
+): string {
+  if (isDegenSpeaker(actor)) return '';
+
+  const who = actor.name ? ` for ${actor.name}` : '';
+
+  return `\n=== FINANCE/TICKER GUARDRAILS${who} ===
+- DO NOT talk in tickers: no $OPENAGI / $NVDAI / $XYZ or similar.
+- DO NOT cite exact prices or liquidation levels (e.g. "$151.93", "liq at 151.93").
+- Avoid degen trading jargon: leverage, liquidation/liq, PnL/uPnL, long/short, entry/exit, funding.
+- If you reference a company or market, do it in plain English (names + narrative), not trading notation.
+=====================================`;
+}
+
 /**
  * Format full character context with entropy/variety for per-character prompts
  *

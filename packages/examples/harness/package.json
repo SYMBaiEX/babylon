@@ -12,6 +12,7 @@
     "test:agents": "bun run src/cli.ts test"
   },
   "dependencies": {
+    "@babylon/engine": "workspace:*",
     "ethers": "^6.16.0",
     "dotenv": "^16.4.7"
   },

@@ -358,7 +358,9 @@ export class EventMarketLinkerService {
     const tradingRelevant = summaries.filter((s) => s.tradingRelevant);
 
     if (tradingRelevant.length === 0) {
-      return '';
+      // IMPORTANT: This string is interpolated into required prompt variables.
+      // Returning an empty string will fail prompt rendering (and break the tick).
+      return 'EVENT-MARKET SIGNALS (recent events affecting markets):\n- None';
     }
 
     const parts = tradingRelevant.slice(0, 5).map((summary) => {

@@ -33,11 +33,14 @@ import {
   ActorSocialActions,
   BabylonLLMClient,
   FollowingMechanics,
+  generateNPCRepliesFromPreviousTicks,
   getActiveEventsForPosting,
   getRecentlyMentionedActorIds,
+  getTrendingPromptContext,
   isActiveHour,
   MarketContextService,
   MarketDecisionEngine,
+  NPC_ENGAGEMENT_CONFIG,
   NPC_TICK_CONFIG,
   NPCInvestmentManager,
   npcMemoryService,
@@ -48,10 +51,12 @@ import {
   StaticDataRegistry,
   TradeExecutionService,
   updateMarketPricesFromTrades,
+  worldFactsService,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 /** Game state shape for cache */
 interface GameState {
@@ -102,6 +107,9 @@ export async function POST(_req: NextRequest) {
       { status: 401 }
     );
   }
+
+  // Wire engine services (distributed locks, rate limiting, broadcasting)
+  ensureEngineServices();
 
   const startTime = Date.now();
   const processId = `npc-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -537,48 +545,112 @@ export async function POST(_req: NextRequest) {
       }
     }
 
-    // =======================================================================
-    // NPC SOCIAL ENGAGEMENT (likes, shares, comments on posts)
-    // Creates organic social activity to make the feed feel alive
-    // =======================================================================
-    let npcLikesCreated = 0;
-    let npcSharesCreated = 0;
-    let npcCommentsCreated = 0;
+    // -------------------------------------------------------------------------
+    // NPC-TO-NPC FEED INTERACTIONS (discourse + comments/likes/shares)
+    //
+    // This is intentionally run in npc-tick (not game-tick) so it isn't starved
+    // by market decision latency. It creates visible "replies" + "quote posts"
+    // (Post.type = reply/quote) and also Comment/Reaction/Share activity.
+    // -------------------------------------------------------------------------
+    let discourseCreated = 0;
+    let socialEngagement:
+      | {
+          likesCreated: number;
+          sharesCreated: number;
+          commentsCreated: number;
+          actorsEngaged: number;
+        }
+      | undefined;
 
-    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
-      try {
-        // Set LLM client for NPC comment generation
-        const llmClient = BabylonLLMClient.forGameTick();
-        npcSocialEngagementService.setLLMClient(llmClient);
+    try {
+      const llmClient = BabylonLLMClient.forGameTick();
 
-        const socialEngagementResult = await processNPCSocialEngagements();
-        npcLikesCreated = socialEngagementResult.likesCreated;
-        npcSharesCreated = socialEngagementResult.sharesCreated;
-        npcCommentsCreated = socialEngagementResult.commentsCreated;
-
-        if (
-          socialEngagementResult.likesCreated > 0 ||
-          socialEngagementResult.sharesCreated > 0 ||
-          socialEngagementResult.commentsCreated > 0
-        ) {
-          logger.info(
-            'NPC social engagements processed',
-            {
-              likes: socialEngagementResult.likesCreated,
-              shares: socialEngagementResult.sharesCreated,
-              comments: socialEngagementResult.commentsCreated,
-              actors: socialEngagementResult.actorsEngaged,
-            },
+      // Build lightweight shared context for NPC-to-NPC banter (no LLM call)
+      const [worldFacts, trendingContext] = await Promise.all([
+        worldFactsService.generateWorldContext(false).catch((error) => {
+          logger.warn(
+            'Failed to load world facts for NPC discourse',
+            { error: error instanceof Error ? error.message : String(error) },
             'NPCTick'
           );
-        }
-      } catch (error) {
-        logger.error(
-          'NPC social engagement failed',
-          { error: error instanceof Error ? error.message : String(error) },
+          return null;
+        }),
+        getTrendingPromptContext().catch((error) => {
+          logger.warn(
+            'Failed to load trending context for NPC discourse',
+            { error: error instanceof Error ? error.message : String(error) },
+            'NPCTick'
+          );
+          return '';
+        }),
+      ]);
+
+      // Trim world facts to avoid bloating reply/quote/comment prompts
+      const worldFactsLines =
+        worldFacts?.general?.split('\n').slice(0, 20).join('\n') ?? '';
+      const worldFactsContext = worldFactsLines
+        ? `=== WORLD CONTEXT (Current Reality — short) ===\n${worldFactsLines}\n`
+        : '';
+
+      const interactionPromptContext = [worldFactsContext, trendingContext]
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+
+      // Comment threads + lightweight engagement (likes/shares)
+      npcSocialEngagementService.setLLMClient(llmClient);
+      const engagementResult = await processNPCSocialEngagements({
+        currentDay: gameDay,
+        promptContext: interactionPromptContext,
+      });
+      socialEngagement = engagementResult;
+
+      // Public discourse: replies + quote-posts on recent NPC posts
+      const discourseActors = activeNpcs.map((a) => ({
+        id: a.id,
+        name: a.name,
+        description: a.description ?? null,
+        personality: a.personality ?? null,
+        voice: a.voice ?? null,
+        postStyle: a.postStyle ?? null,
+        postExample: Array.isArray(a.postExample) ? a.postExample : undefined,
+        affiliations: a.affiliations ?? [],
+        domain: a.domain ?? [],
+        role: a.role ?? null,
+      }));
+
+      discourseCreated = await generateNPCRepliesFromPreviousTicks(
+        llmClient,
+        discourseActors,
+        interactionPromptContext,
+        now,
+        NPC_TICK_CONFIG.maxDiscourseReplies,
+        gameDay,
+        { quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability }
+      );
+
+      if (
+        discourseCreated > 0 ||
+        engagementResult.likesCreated > 0 ||
+        engagementResult.sharesCreated > 0 ||
+        engagementResult.commentsCreated > 0
+      ) {
+        logger.info(
+          'NPC feed interactions executed',
+          {
+            discourseCreated,
+            engagement: engagementResult,
+          },
           'NPCTick'
         );
       }
+    } catch (error) {
+      // Do not fail the NPC tick if interaction generation fails (keep core NPC tick alive)
+      logger.error(
+        'NPC feed interactions failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'NPCTick'
+      );
     }
 
     // =======================================================================
@@ -801,14 +873,13 @@ export async function POST(_req: NextRequest) {
         totalActions: totalActionsExecuted,
         npcTradesExecuted,
         marketsUpdated,
-        npcLikesCreated,
-        npcSharesCreated,
-        npcCommentsCreated,
         npcSocialActionsProcessed,
         npcFollowsCreated,
         npcUnfollows,
         baselineInvestmentsExecuted,
         rebalanceActionsExecuted,
+        discourseCreated,
+        socialEngagement,
         errors,
       },
       'NPCTick'
@@ -821,14 +892,18 @@ export async function POST(_req: NextRequest) {
       totalActions: totalActionsExecuted,
       npcTradesExecuted,
       marketsUpdated,
-      npcLikesCreated,
-      npcSharesCreated,
-      npcCommentsCreated,
       npcSocialActionsProcessed,
       npcFollowsCreated,
       npcUnfollows,
       baselineInvestmentsExecuted,
       rebalanceActionsExecuted,
+      discourseCreated: discourseCreated,
+      socialEngagement: socialEngagement ? {
+        likes: socialEngagement.likesCreated,
+        shares: socialEngagement.sharesCreated,
+        comments: socialEngagement.commentsCreated,
+        actors: socialEngagement.actorsEngaged,
+      } : undefined,
       errorCount: errors,
       skippedLocked: skippedDueToLock,
       abortedDueToCircuitBreaker,
@@ -842,14 +917,13 @@ export async function POST(_req: NextRequest) {
       totalActions: totalActionsExecuted,
       npcTradesExecuted,
       marketsUpdated,
-      npcLikesCreated,
-      npcSharesCreated,
-      npcCommentsCreated,
       npcSocialActionsProcessed,
       npcFollowsCreated,
       npcUnfollows,
       baselineInvestmentsExecuted,
       rebalanceActionsExecuted,
+      discourseCreated,
+      socialEngagement,
       errors,
       abortedDueToCircuitBreaker,
       results,

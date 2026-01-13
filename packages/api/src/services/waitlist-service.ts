@@ -6,7 +6,6 @@
  * and leaderboard rankings for waitlist participants.
  */
 
-import { NotFoundError } from '@babylon/api';
 import {
   and,
   asc,
@@ -24,6 +23,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
+import { NotFoundError } from '../errors';
 import { PointsService } from './points-service';
 import { getOrCreateReferralCode } from './referral-service';
 

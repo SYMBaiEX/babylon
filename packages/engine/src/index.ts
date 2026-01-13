@@ -4,17 +4,6 @@
  */
 
 export {
-  budgetTokens,
-  countTokens,
-  countTokensSync,
-  getModelTokenLimit,
-  getSafeContextLimit,
-  MODEL_TOKEN_LIMITS,
-  truncateToTokenLimit,
-  truncateToTokenLimitSync,
-} from '@babylon/api';
-// Prediction Pricing
-export {
   calculateExpectedPayout,
   PredictionPricing,
   type ShareCalculation,
@@ -219,22 +208,8 @@ export {
   type RelationshipChange,
   RelationshipEvolutionEngine,
 } from './RelationshipEvolutionEngine';
-// Rate Limiting
-export {
-  checkDuplicate,
-  checkRateLimit,
-  checkRateLimitAsync,
-  cleanupDuplicates,
-  cleanupMemoryRateLimits,
-  clearAllDuplicates,
-  clearAllRateLimits,
-  clearDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
-  getRateLimitStatus,
-  RATE_LIMIT_CONFIGS,
-  resetRateLimit,
-} from './rate-limiting';
+// Rate limiting (backward-compatible re-exports from @babylon/api)
+export * from './rate-limiting';
 // Reputation Module
 export {
   calculateAverageROI,

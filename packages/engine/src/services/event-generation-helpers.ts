@@ -9,9 +9,9 @@ import {
   type Question,
   worldEvents,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { ArticleGenerator } from '../ArticleGenerator';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import {
   type ArcEventStatus,
   NewsArticlePacingEngine,

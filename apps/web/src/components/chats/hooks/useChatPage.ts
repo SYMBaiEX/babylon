@@ -64,6 +64,7 @@ export function useChatPage() {
     previousTop: number;
   } | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
+  const emptyChatPollAttemptsRef = useRef(0);
 
   // Debug mode
   const isDebugMode =
@@ -455,6 +456,39 @@ export function useChatPage() {
       loadChats();
     }
   }, [ready, authenticated, isDebugMode, loadChats]);
+
+  // Dev UX: if a brand-new user has zero chats, poll briefly so the list updates
+  // once the next tick auto-joins them into an NPC group chat.
+  useEffect(() => {
+    // Only in local dev (production builds should not poll)
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
+    if (!ready || !authenticated) {
+      return;
+    }
+    if (loading) {
+      return;
+    }
+
+    const hasAnyChats = allChats.length > 0;
+    if (hasAnyChats) {
+      emptyChatPollAttemptsRef.current = 0;
+      return;
+    }
+
+    const maxAttempts = 12; // ~2 minutes at 10s intervals
+    if (emptyChatPollAttemptsRef.current >= maxAttempts) {
+      return;
+    }
+
+    emptyChatPollAttemptsRef.current += 1;
+    const timeout = setTimeout(() => {
+      void loadChats();
+    }, 10_000);
+
+    return () => clearTimeout(timeout);
+  }, [ready, authenticated, loading, allChats.length, loadChats]);
 
   // Load selected chat details
   useEffect(() => {

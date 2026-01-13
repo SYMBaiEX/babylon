@@ -21,13 +21,14 @@
     "test:synpress": "playwright test --config=synpress.config.ts"
   },
   "dependencies": {
-    "@babylon/api": "workspace:*",
-    "@babylon/shared": "workspace:*",
-    "@babylon/engine": "workspace:*",
-    "@babylon/db": "workspace:*",
+    "@babylon/a2a": "workspace:*",
     "@babylon/agents": "workspace:*",
-    "@babylon/training": "workspace:*",
-    "@babylon/contracts": "workspace:*"
+    "@babylon/api": "workspace:*",
+    "@babylon/contracts": "workspace:*",
+    "@babylon/db": "workspace:*",
+    "@babylon/engine": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "@babylon/training": "workspace:*"
   },
   "devDependencies": {
     "@elizaos/core": "^1.7.0",

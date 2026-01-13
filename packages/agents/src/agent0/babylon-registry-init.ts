@@ -11,7 +11,7 @@ import { getA2AEndpoint, getMCPEndpoint } from '@babylon/shared';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import type { JsonValue } from '../types/common';
-import { getAgent0Client } from './index';
+import { getAgent0Client } from './Agent0Client';
 
 /**
  * Babylon registration result

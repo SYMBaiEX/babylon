@@ -96,6 +96,49 @@ describe('JSON Storage Backend', () => {
     expect(agents[0]!.id).toBe('user-2');
   });
 
+  test('supports Date comparisons in where clauses', async () => {
+    const t0 = new Date('2026-01-01T00:00:00.000Z');
+    const t1 = new Date('2026-01-01T01:00:00.000Z');
+    const cutoff = new Date('2026-01-01T00:30:00.000Z');
+
+    await db.user.create({
+      data: {
+        id: 'date-user-0',
+        username: 'date0',
+        displayName: 'Date 0',
+        virtualBalance: '0',
+        totalDeposited: '0',
+        reputationPoints: 0,
+        lifetimePnL: '0',
+        isAgent: false,
+        role: 'user',
+        createdAt: t0,
+      },
+    });
+
+    await db.user.create({
+      data: {
+        id: 'date-user-1',
+        username: 'date1',
+        displayName: 'Date 1',
+        virtualBalance: '0',
+        totalDeposited: '0',
+        reputationPoints: 0,
+        lifetimePnL: '0',
+        isAgent: false,
+        role: 'user',
+        createdAt: t1,
+      },
+    });
+
+    const recent = await db.user.findMany({
+      where: { createdAt: { gte: cutoff } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    expect(recent.map((u) => u.id)).toEqual(['date-user-1']);
+  });
+
   test('updates records', async () => {
     await db.user.create({
       data: {

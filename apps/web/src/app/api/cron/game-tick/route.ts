@@ -67,6 +67,7 @@ import {
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 export const maxDuration = 800;
 
@@ -84,6 +85,8 @@ export const maxDuration = 800;
  * @throws {409} Game tick already in progress (generation lock held)
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  ensureEngineServices();
+
   // 1. Verify this is a legitimate cron request using centralized auth
   if (!verifyCronAuth(request, { jobName: 'GameTickCron' })) {
     logger.warn('Unauthorized cron request attempt', undefined, 'Cron');

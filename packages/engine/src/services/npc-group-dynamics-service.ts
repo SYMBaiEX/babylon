@@ -39,14 +39,12 @@ import {
   userInteractions,
   users,
 } from '@babylon/db';
-import {
-  BabylonLLMClient,
-  generateWorldContext,
-  validateNoRealNames,
-} from '@babylon/engine';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_GROUP_DYNAMICS_CONFIG } from '../config/npc-activity';
+import { BabylonLLMClient } from '../llm/openai-client';
+import { generateWorldContext, validateNoRealNames } from '../prompts';
 import { MarketContextService } from './market-context-service';
+import { autoJoinEmptyUsersToNpcGroupChats } from './npc-group-chat-onboarding-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
 import { StaticDataRegistry } from './static-data-registry';
 import { getTierMessageGuidance } from './tier-config';
@@ -60,6 +58,7 @@ export interface GroupDynamicsResult {
   membersAdded: number;
   membersRemoved: number;
   usersInvited: number;
+  usersAutoJoined: number;
   usersKicked: number;
   messagesPosted: number;
   tieredPromotions: number;
@@ -79,6 +78,7 @@ export class NPCGroupDynamicsService {
       membersAdded: 0,
       membersRemoved: 0,
       usersInvited: 0,
+      usersAutoJoined: 0,
       usersKicked: 0,
       messagesPosted: 0,
       tieredPromotions: 0,
@@ -98,6 +98,15 @@ export class NPCGroupDynamicsService {
     // 1. Form new groups
     const newGroups = await NPCGroupDynamicsService.formNewGroups();
     result.groupsCreated = newGroups;
+
+    // 1.5. Dev/demo: ensure new users land in at least one NPC group chat
+    // This is gated behind a feature flag and disabled by default in production.
+    const autoJoined = await autoJoinEmptyUsersToNpcGroupChats({
+      enabled: NPC_GROUP_DYNAMICS_CONFIG.autoJoinEmptyUsersToNpcGroupChat,
+      batchSize: NPC_GROUP_DYNAMICS_CONFIG.autoJoinEmptyUsersBatchSize,
+      defaultMaxMembers: NPC_GROUP_DYNAMICS_CONFIG.maxGroupSize,
+    });
+    result.usersAutoJoined = autoJoined;
 
     // 2. NPCs join existing groups
     const joins = await NPCGroupDynamicsService.processGroupJoins();

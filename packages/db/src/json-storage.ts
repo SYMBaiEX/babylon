@@ -134,6 +134,18 @@ function matchesWhere<T extends JsonRecord>(
 ): boolean {
   if (!where) return true;
 
+  const toComparableNumber = (
+    v: JsonValue | Date | undefined
+  ): number | null => {
+    if (typeof v === 'number') return v;
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'string') {
+      const parsed = Date.parse(v);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+
   // Handle AND
   if (where.AND) {
     const andConditions = Array.isArray(where.AND) ? where.AND : [where.AND];
@@ -184,20 +196,32 @@ function matchesWhere<T extends JsonRecord>(
         if (ops.notIn.includes(value as JsonValue)) return false;
       }
       if ('lt' in ops) {
-        if (typeof value !== 'number' || value >= (ops.lt as number))
-          return false;
+        const left = toComparableNumber(value as JsonValue | Date | undefined);
+        const right = toComparableNumber(
+          ops.lt as JsonValue | Date | undefined
+        );
+        if (left === null || right === null || left >= right) return false;
       }
       if ('lte' in ops) {
-        if (typeof value !== 'number' || value > (ops.lte as number))
-          return false;
+        const left = toComparableNumber(value as JsonValue | Date | undefined);
+        const right = toComparableNumber(
+          ops.lte as JsonValue | Date | undefined
+        );
+        if (left === null || right === null || left > right) return false;
       }
       if ('gt' in ops) {
-        if (typeof value !== 'number' || value <= (ops.gt as number))
-          return false;
+        const left = toComparableNumber(value as JsonValue | Date | undefined);
+        const right = toComparableNumber(
+          ops.gt as JsonValue | Date | undefined
+        );
+        if (left === null || right === null || left <= right) return false;
       }
       if ('gte' in ops) {
-        if (typeof value !== 'number' || value < (ops.gte as number))
-          return false;
+        const left = toComparableNumber(value as JsonValue | Date | undefined);
+        const right = toComparableNumber(
+          ops.gte as JsonValue | Date | undefined
+        );
+        if (left === null || right === null || left < right) return false;
       }
       if ('contains' in ops && typeof ops.contains === 'string') {
         if (typeof value !== 'string' || !value.includes(ops.contains))

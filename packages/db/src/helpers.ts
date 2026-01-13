@@ -7,7 +7,7 @@
 import type { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 import type { DrizzleClient, SQLValue } from './client';
-import type { Database } from './index';
+import type { Database } from './db';
 import type { DatabaseErrorType } from './types';
 
 /**

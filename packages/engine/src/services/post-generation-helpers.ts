@@ -23,21 +23,31 @@ import {
   generateSnowflakeId,
   getDbInstance,
   gte,
-  inArray,
   isNull,
   lte,
   poolPositions,
   posts,
   type Question,
-  users,
   worldEvents,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { type JsonValue, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
+import type { LLMJsonClient } from '../llm/types';
 import type { EventContext, FeedPostContext } from '../types/market-context';
-import { stripHashtagsAndEmojis } from '../utils/shared-utils';
+import {
+  formatActorFinanceGuardrails,
+  formatActorToneGuardrails,
+  formatActorVoiceContext,
+  isDegenSpeaker,
+  stripHashtagsAndEmojis,
+} from '../utils/shared-utils';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
+import { buildPositionsPromptContextByActorId } from './npc-positions-context-service';
+import {
+  ensureRunningBits,
+  toRunningBitPromptContext,
+} from './npc-running-bit-service';
 
 /**
  * Safely extract content from LLM response that may be wrapped in XML structure.
@@ -64,8 +74,14 @@ import { characterMappingService } from './character-mapping-service';
  * 3. If response has {fieldName} directly, extract it
  * 4. Return null if field not found
  */
-export function safeExtractFromResponse<T>(
-  response: unknown,
+type JsonObject = Record<string, JsonValue>;
+
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function safeExtractFromResponse<T extends JsonValue>(
+  response: JsonValue,
   fieldName: string
 ): T | null {
   // Handle raw string responses (LLM returned text instead of XML)
@@ -75,32 +91,24 @@ export function safeExtractFromResponse<T>(
     return response as T;
   }
 
-  // Not an object
-  if (typeof response !== 'object' || response === null) {
+  // Not a record-like JSON object (arrays can't have named fields)
+  if (!isJsonObject(response)) {
     return null;
   }
 
-  // Check for wrapped response structure
+  // Check for wrapped response structure: { response: { [fieldName]: ... } }
+  const innerResponse = response.response;
   if (
-    'response' in response &&
-    typeof (response as Record<string, unknown>).response === 'object' &&
-    (response as Record<string, unknown>).response !== null
+    innerResponse &&
+    isJsonObject(innerResponse) &&
+    fieldName in innerResponse
   ) {
-    const innerResponse = (response as Record<string, unknown>).response;
-    if (
-      typeof innerResponse === 'object' &&
-      innerResponse !== null &&
-      fieldName in (innerResponse as Record<string, unknown>)
-    ) {
-      const value = (innerResponse as Record<string, unknown>)[fieldName];
-      return value !== undefined ? (value as T) : null;
-    }
+    return innerResponse[fieldName] as T;
   }
 
   // Check for direct field access
   if (fieldName in response) {
-    const value = (response as Record<string, unknown>)[fieldName];
-    return value !== undefined ? (value as T) : null;
+    return response[fieldName] as T;
   }
 
   return null;
@@ -197,6 +205,7 @@ interface ActorForPost {
   name: string;
   description?: string | null;
   personality?: string | null;
+  voice?: string | null;
   postStyle?: string | null;
   postExample?: string[] | null;
   tier?: string | null;
@@ -508,21 +517,64 @@ export async function generateNPCPost(
   // Build NPC-specific context from shared data (NO DB CALLS)
   const npcContext = buildNPCContext(actor, context);
 
-  // Optionally fetch positions for this NPC (single small query)
-  const positions = await getNPCPositions(actor.id);
-  if (positions.length > 0) {
-    npcContext.positions = positions;
+  // Determine whether this character is allowed to speak in tickers/prices.
+  // Use StaticDataRegistry as a robust fallback when caller doesn't supply full actor fields.
+  const staticActor = StaticDataRegistry.getActor(actor.id);
+  const effectiveDomain = actor.domain ?? staticActor?.domain ?? [];
+  const effectivePersonality =
+    actor.personality ?? staticActor?.personality ?? null;
+  const effectiveVoice = actor.voice ?? staticActor?.voice ?? null;
+  const effectivePostStyle = actor.postStyle ?? staticActor?.postStyle ?? null;
+  const effectivePostExamples =
+    Array.isArray(actor.postExample) && actor.postExample.length > 0
+      ? actor.postExample
+      : staticActor?.postExample;
+
+  const isDegen = isDegenSpeaker({
+    name: actor.name,
+    domain: effectiveDomain,
+    personality: effectivePersonality ?? undefined,
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: effectivePostExamples,
+  });
+
+  // Optionally fetch positions for this NPC (single small query).
+  // IMPORTANT: Only expose this to degen/trader voices to prevent ticker/price leakage.
+  if (isDegen) {
+    const positions = await getNPCPositions(actor.id);
+    if (positions.length > 0) {
+      npcContext.positions = positions;
+    }
   }
 
   const npcContextFormatted = formatNPCContext(npcContext);
 
   // Build personality context
-  const personalityContext = actor.personality
-    ? `Personality: ${actor.personality}`
+  const personalityContext = effectivePersonality
+    ? `Personality: ${effectivePersonality}`
     : '';
-  const voiceContext = actor.postStyle
-    ? `Writing Style: ${actor.postStyle}`
+  const voiceContext = effectivePostStyle
+    ? `Writing Style: ${effectivePostStyle}`
     : '';
+  const postExamples =
+    effectivePostExamples && effectivePostExamples.length > 0
+      ? effectivePostExamples
+      : undefined;
+  const toneContext = effectiveVoice ? `Voice: ${effectiveVoice}` : '';
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: actor.name,
+    domain: effectiveDomain,
+    personality: effectivePersonality ?? undefined,
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
 
   // Get character-specific configuration
   const charConfig = getCharacterConfig(actor.id);
@@ -593,7 +645,10 @@ export async function generateNPCPost(
 === WHO YOU ARE ===
 ${actor.description || ''}
 ${personalityContext}
+${toneContext}
 ${voiceContext}
+${toneGuardrails}
+${financeGuardrails}
 
 === HOW YOU WRITE (match this style exactly) ===
 ${allExamples || 'Use short, authentic posts matching your personality.'}
@@ -663,6 +718,7 @@ ${worldFactsContext}
     id: await generateSnowflakeId(),
     content: transformed.transformedText,
     authorId: actor.id,
+    relatedQuestion: question.questionNumber,
     gameId: 'continuous',
     dayNumber: currentDay,
     timestamp,
@@ -699,16 +755,41 @@ export async function generateOrganicPost(
 ): Promise<boolean> {
   const charConfig = getCharacterConfig(actor.id);
 
+  const staticActor = StaticDataRegistry.getActor(actor.id);
+  const effectiveDomain = actor.domain ?? staticActor?.domain ?? [];
+  const effectivePersonality =
+    actor.personality ?? staticActor?.personality ?? null;
+  const effectiveVoice = actor.voice ?? staticActor?.voice ?? null;
+  const effectivePostStyle = actor.postStyle ?? staticActor?.postStyle ?? null;
+  const postExamples =
+    Array.isArray(actor.postExample) && actor.postExample.length > 0
+      ? actor.postExample
+      : staticActor?.postExample;
+
   // Build personality context
-  const personalityContext = actor.personality
-    ? `Personality: ${actor.personality}`
+  const personalityContext = effectivePersonality
+    ? `Personality: ${effectivePersonality}`
     : '';
-  const voiceContext = actor.postStyle
-    ? `Writing Style: ${actor.postStyle}`
+  const voiceContext = effectivePostStyle
+    ? `Writing Style: ${effectivePostStyle}`
     : '';
+  const toneContext = effectiveVoice ? `Voice: ${effectiveVoice}` : '';
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: actor.name,
+    domain: effectiveDomain,
+    personality: effectivePersonality ?? undefined,
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
 
   // Get template posts for this character
-  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const actorExamples = postExamples?.slice(0, 4) || [];
   const templateExamples = getTemplatePosts(actor.id, 4);
   const allExamples = [...new Set([...actorExamples, ...templateExamples])]
     .slice(0, 6)
@@ -721,7 +802,10 @@ export async function generateOrganicPost(
 === WHO YOU ARE ===
 ${actor.description || ''}
 ${personalityContext}
+${toneContext}
 ${voiceContext}
+${toneGuardrails}
+${financeGuardrails}
 
 === HOW YOU WRITE (match this style exactly) ===
 ${allExamples || 'Use short, authentic posts matching your personality.'}
@@ -841,14 +925,39 @@ export async function generateRivalryPost(
 ): Promise<boolean> {
   const charConfig = getCharacterConfig(actor.id);
 
-  const personalityContext = actor.personality
-    ? `Personality: ${actor.personality}`
-    : '';
-  const voiceContext = actor.postStyle
-    ? `Writing Style: ${actor.postStyle}`
-    : '';
+  const staticActor = StaticDataRegistry.getActor(actor.id);
+  const effectiveDomain = actor.domain ?? staticActor?.domain ?? [];
+  const effectivePersonality =
+    actor.personality ?? staticActor?.personality ?? null;
+  const effectiveVoice = actor.voice ?? staticActor?.voice ?? null;
+  const effectivePostStyle = actor.postStyle ?? staticActor?.postStyle ?? null;
+  const postExamples =
+    Array.isArray(actor.postExample) && actor.postExample.length > 0
+      ? actor.postExample
+      : staticActor?.postExample;
 
-  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const personalityContext = effectivePersonality
+    ? `Personality: ${effectivePersonality}`
+    : '';
+  const voiceContext = effectivePostStyle
+    ? `Writing Style: ${effectivePostStyle}`
+    : '';
+  const toneContext = effectiveVoice ? `Voice: ${effectiveVoice}` : '';
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: actor.name,
+    domain: effectiveDomain,
+    personality: effectivePersonality ?? undefined,
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+
+  const actorExamples = postExamples?.slice(0, 4) || [];
   const templateExamples = getTemplatePosts(actor.id, 3);
   const allExamples = [...new Set([...actorExamples, ...templateExamples])]
     .slice(0, 6)
@@ -863,7 +972,10 @@ export async function generateRivalryPost(
 === WHO YOU ARE ===
 ${actor.description || ''}
 ${personalityContext}
+${toneContext}
 ${voiceContext}
+${toneGuardrails}
+${financeGuardrails}
 
 === HOW YOU WRITE ===
 ${allExamples || 'Use short, authentic posts matching your personality.'}
@@ -919,6 +1031,7 @@ ${worldFactsContext}
     id: await generateSnowflakeId(),
     content: transformed.transformedText,
     authorId: actor.id,
+    relatedQuestion: question.questionNumber,
     gameId: 'continuous',
     dayNumber: currentDay,
     timestamp,
@@ -966,14 +1079,39 @@ export async function generatePlayerReactionPost(
 ): Promise<boolean> {
   const charConfig = getCharacterConfig(actor.id);
 
-  const personalityContext = actor.personality
-    ? `Personality: ${actor.personality}`
-    : '';
-  const voiceContext = actor.postStyle
-    ? `Writing Style: ${actor.postStyle}`
-    : '';
+  const staticActor = StaticDataRegistry.getActor(actor.id);
+  const effectiveDomain = actor.domain ?? staticActor?.domain ?? [];
+  const effectivePersonality =
+    actor.personality ?? staticActor?.personality ?? null;
+  const effectiveVoice = actor.voice ?? staticActor?.voice ?? null;
+  const effectivePostStyle = actor.postStyle ?? staticActor?.postStyle ?? null;
+  const postExamples =
+    Array.isArray(actor.postExample) && actor.postExample.length > 0
+      ? actor.postExample
+      : staticActor?.postExample;
 
-  const actorExamples = actor.postExample?.slice(0, 4) || [];
+  const personalityContext = effectivePersonality
+    ? `Personality: ${effectivePersonality}`
+    : '';
+  const voiceContext = effectivePostStyle
+    ? `Writing Style: ${effectivePostStyle}`
+    : '';
+  const toneContext = effectiveVoice ? `Voice: ${effectiveVoice}` : '';
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: actor.name,
+    domain: effectiveDomain,
+    personality: effectivePersonality ?? undefined,
+    voice: effectiveVoice ?? undefined,
+    postStyle: effectivePostStyle ?? undefined,
+    postExample: postExamples,
+  });
+
+  const actorExamples = postExamples?.slice(0, 4) || [];
   const templateExamples = getTemplatePosts(actor.id, 3);
   const allExamples = [...new Set([...actorExamples, ...templateExamples])]
     .slice(0, 6)
@@ -985,7 +1123,10 @@ export async function generatePlayerReactionPost(
 === WHO YOU ARE ===
 ${actor.description || ''}
 ${personalityContext}
+${toneContext}
 ${voiceContext}
+${toneGuardrails}
+${financeGuardrails}
 
 === HOW YOU WRITE ===
 ${allExamples || 'Use short, authentic posts matching your personality.'}
@@ -1006,6 +1147,7 @@ React to this in YOUR unique voice. You might:
 - No hashtags, no emojis
 - Max 280 characters
 - React as your personality would
+- If the bet details contain ticker/price/leverage jargon, paraphrase into plain English in your own voice.
 ${getAvoidedPatternsContext(actor.id)}
 ${worldFactsContext}
 
@@ -1140,6 +1282,7 @@ ${worldFactsContext}
     type: 'post',
     content: transformed.transformedText,
     authorId: org.id,
+    relatedQuestion: question.questionNumber,
     gameId: 'continuous',
     dayNumber: currentDay,
     timestamp,
@@ -1300,6 +1443,7 @@ Return your response as XML in this exact format:
     articleTitle: articleTitle,
     imageUrl: imageUrl || undefined,
     authorId: org.id,
+    relatedQuestion: question.questionNumber,
     gameId: 'continuous',
     dayNumber: currentDay,
     timestamp,
@@ -1349,6 +1493,8 @@ interface PostForReply {
   originalPostId?: string | null;
   /** If this post is a reply, what it's replying to */
   commentOnPostId?: string | null;
+  /** Related question number (used to reuse arc-plan guidance in discourse) */
+  relatedQuestion?: number | null;
 }
 
 /**
@@ -1359,8 +1505,29 @@ export interface DiscourseActor {
   name: string;
   description?: string | null;
   personality?: string | null;
+  voice?: string | null;
   postStyle?: string | null;
   postExample?: string[];
+  affiliations: string[];
+  domain: string[];
+  role?: string | null;
+  positionsContext?: string;
+  runningBit?: string;
+}
+
+export interface GenerateNPCDiscourseOptions {
+  /**
+   * RNG source for deterministic tests.
+   * Must return a number in [0, 1).
+   */
+  random?: () => number;
+  /**
+   * Probability that a discourse interaction becomes a quote-post instead of a reply.
+   * Only applies when engaging with an original post (not a reply thread).
+   *
+   * @default 0.5
+   */
+  quoteProbability?: number;
 }
 
 /**
@@ -1374,16 +1541,22 @@ export interface DiscourseActor {
  * @param worldFactsContext - World context for prompts
  * @param timestamp - Current timestamp for new replies
  * @param maxReplies - Maximum number of replies to generate (default: 4)
+ * @param currentDay - Game-relative day number (for analytics/ordering)
+ * @param options - Optional RNG + behavior overrides (for tests)
  * @returns Number of replies successfully created
  */
 export async function generateNPCRepliesFromPreviousTicks(
-  llmClient: BabylonLLMClient,
+  llmClient: LLMJsonClient,
   actors: DiscourseActor[],
   worldFactsContext: string,
   timestamp: Date,
   maxReplies = 4,
-  currentDay?: number
+  currentDay?: number,
+  options: GenerateNPCDiscourseOptions = {}
 ): Promise<number> {
+  const random = options.random ?? Math.random;
+  const quoteProbability = options.quoteProbability ?? 0.5;
+
   if (actors.length < 2) {
     logger.debug(
       'Not enough actors for NPC discourse',
@@ -1399,27 +1572,48 @@ export async function generateNPCRepliesFromPreviousTicks(
 
   const actorIds = actors.map((a) => a.id);
 
+  // Batch-load per-actor agenda fuel for discourse (no LLM calls)
+  const [positionsByActorId, runningBitsByActorId] = await Promise.all([
+    buildPositionsPromptContextByActorId(actorIds),
+    ensureRunningBits(actorIds, { now: timestamp, currentDay }),
+  ]);
+  const actorsWithContext: DiscourseActor[] = actors.map((a) => {
+    const isDegen = isDegenSpeaker({
+      name: a.name,
+      domain: a.domain,
+      personality: a.personality ?? undefined,
+      voice: a.voice ?? undefined,
+      postStyle: a.postStyle ?? undefined,
+      postExample: a.postExample,
+    });
+    return {
+      ...a,
+      positionsContext: isDegen ? (positionsByActorId[a.id] ?? '') : '',
+      runningBit: runningBitsByActorId[a.id] ?? '',
+    };
+  });
+
   // Get recent NPC posts that can be replied to
   // Include both original posts AND first-level replies (for threaded discourse)
   // Exclude deep reply chains (posts that reply to replies of replies)
-  const recentNPCPosts = await db
-    .select({
-      id: posts.id,
-      content: posts.content,
-      authorId: posts.authorId,
-      timestamp: posts.timestamp,
-      commentOnPostId: posts.commentOnPostId,
-      originalPostId: posts.originalPostId,
-      type: posts.type,
-    })
-    .from(posts)
-    .innerJoin(users, eq(posts.authorId, users.id))
-    .where(
-      // Post is by an NPC (actor)
-      inArray(posts.authorId, actorIds)
-    )
-    .orderBy(desc(posts.timestamp))
-    .limit(40);
+  const recentNPCPosts = await db.post.findMany({
+    where: {
+      deletedAt: null,
+      authorId: { in: actorIds },
+    },
+    orderBy: { timestamp: 'desc' },
+    take: 40,
+    select: {
+      id: true,
+      content: true,
+      authorId: true,
+      timestamp: true,
+      commentOnPostId: true,
+      originalPostId: true,
+      relatedQuestion: true,
+      type: true,
+    },
+  });
 
   // Filter to posts in the right time window
   // Allow replies to:
@@ -1434,14 +1628,16 @@ export async function generateNPCRepliesFromPreviousTicks(
       // Skip posts that are too deep in reply chain
       // A post is "too deep" if it has originalPostId set AND commentOnPostId != originalPostId
       // meaning it's a reply to a reply
+      const originalPostId = post.originalPostId ?? null;
+      const commentOnPostId = post.commentOnPostId ?? null;
       const isDeepReply =
-        post.originalPostId !== null &&
-        post.commentOnPostId !== null &&
-        post.originalPostId !== post.commentOnPostId;
+        originalPostId !== null &&
+        commentOnPostId !== null &&
+        originalPostId !== commentOnPostId;
 
       if (isDeepReply) continue; // Skip deep reply chains
 
-      const author = actors.find((a) => a.id === post.authorId);
+      const author = actorsWithContext.find((a) => a.id === post.authorId);
       if (author) {
         eligiblePosts.push({
           id: post.id,
@@ -1449,8 +1645,9 @@ export async function generateNPCRepliesFromPreviousTicks(
           authorId: post.authorId,
           authorName: author.name,
           timestamp: post.timestamp,
-          originalPostId: post.originalPostId,
-          commentOnPostId: post.commentOnPostId,
+          originalPostId,
+          commentOnPostId,
+          relatedQuestion: post.relatedQuestion,
         });
       }
     }
@@ -1466,7 +1663,14 @@ export async function generateNPCRepliesFromPreviousTicks(
   }
 
   // Select random posts to reply to (up to maxReplies)
-  const shuffledPosts = [...eligiblePosts].sort(() => Math.random() - 0.5);
+  const shuffledPosts = [...eligiblePosts];
+  // Fisher-Yates shuffle (deterministic with injected RNG)
+  for (let i = shuffledPosts.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    const temp = shuffledPosts[i]!;
+    shuffledPosts[i] = shuffledPosts[j]!;
+    shuffledPosts[j] = temp;
+  }
   const postsToReplyTo = shuffledPosts.slice(
     0,
     Math.min(maxReplies, eligiblePosts.length)
@@ -1486,7 +1690,7 @@ export async function generateNPCRepliesFromPreviousTicks(
   const discoursePromises = postsToReplyTo.map(async (originalPost) => {
     // Pick a random actor to engage (not the original author)
     // Filter by cooldown to prevent repetitive interactions
-    const availableEngagers = actors.filter(
+    const availableEngagers = actorsWithContext.filter(
       (a) =>
         a.id !== originalPost.authorId &&
         canNPCReplyToNPC(a.id, originalPost.authorId)
@@ -1502,13 +1706,15 @@ export async function generateNPCRepliesFromPreviousTicks(
     }
 
     const engager =
-      availableEngagers[Math.floor(Math.random() * availableEngagers.length)];
+      availableEngagers[Math.floor(random() * availableEngagers.length)];
     if (!engager) return { type: 'none' as const, success: false };
 
     // Decide: reply (70%) or quote post (30%)
     // Quote posts only for original posts (not replies) to keep it clean
-    const shouldQuote =
-      originalPost.commentOnPostId === null && Math.random() < 0.3;
+    const isOriginalPost =
+      originalPost.commentOnPostId === null ||
+      originalPost.commentOnPostId === undefined;
+    const shouldQuote = isOriginalPost && random() < quoteProbability;
 
     let success = false;
     if (shouldQuote) {
@@ -1581,45 +1787,294 @@ export async function generateNPCRepliesFromPreviousTicks(
   return totalCreated;
 }
 
+// =============================================================================
+// DISCOURSE CONTEXT HELPERS (relationships + agendas + continuity)
+// =============================================================================
+
+type SelfInterest = 'wealth' | 'reputation' | 'ideology' | 'chaos';
+
+function inferSelfInterest(actor: DiscourseActor): SelfInterest {
+  const personality = (actor.personality ?? '').toLowerCase();
+  const description = (actor.description ?? '').toLowerCase();
+  const domains = actor.domain ?? [];
+
+  const has = (needle: string) =>
+    personality.includes(needle) || description.includes(needle);
+
+  if (has('conspiracy') || has('contrarian')) return 'chaos';
+  if (
+    domains.includes('politics') ||
+    has('politician') ||
+    actor.role === 'politician'
+  ) {
+    return 'reputation';
+  }
+  if (
+    domains.includes('finance') ||
+    domains.includes('crypto') ||
+    domains.includes('tech')
+  ) {
+    return 'wealth';
+  }
+  if (has('ideologue') || has('activist') || domains.includes('philosophy')) {
+    return 'ideology';
+  }
+  return 'reputation';
+}
+
+function isNonEmptyString(v: string | undefined): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function formatAgendaContext(
+  actor: DiscourseActor,
+  targetName: string
+): string {
+  const selfInterest = inferSelfInterest(actor);
+  const orgNames = actor.affiliations
+    .map((orgId) => StaticDataRegistry.getOrganization(orgId)?.name)
+    .filter(isNonEmptyString);
+
+  const loyaltyLine =
+    orgNames.length > 0
+      ? `Loyalties: ${orgNames.join(', ')}`
+      : 'Loyalties: none';
+
+  return `=== INTERNAL: YOUR MOTIVES (do not state directly) ===
+Primary motive: ${selfInterest}
+${loyaltyLine}
+You are interacting with ${targetName}. Keep your motive/loyalties consistent and subtle.
+==========================================`;
+}
+
+type RelationshipTone = 'respect' | 'beef' | 'neutral';
+function toneFromSentiment(sentiment: number): RelationshipTone {
+  if (sentiment > 0.3) return 'respect';
+  if (sentiment < -0.3) return 'beef';
+  return 'neutral';
+}
+
+function strengthLabel(strength: number): 'strong' | 'moderate' | 'weak' {
+  if (strength > 0.7) return 'strong';
+  if (strength > 0.4) return 'moderate';
+  return 'weak';
+}
+
+async function getPairRelationshipContext(
+  actorId: string,
+  otherActorId: string,
+  otherActorName: string
+): Promise<{ prompt: string; sentiment: number }> {
+  const relationship = await db.actorRelationship.findFirst({
+    where: {
+      OR: [
+        { actor1Id: actorId, actor2Id: otherActorId },
+        { actor1Id: otherActorId, actor2Id: actorId },
+      ],
+    },
+    select: {
+      relationshipType: true,
+      strength: true,
+      sentiment: true,
+      history: true,
+    },
+  });
+
+  if (!relationship) {
+    return {
+      prompt: `=== YOUR HISTORY WITH ${otherActorName} ===
+No notable history. Treat them like a random peer.
+=====================================`,
+      sentiment: 0,
+    };
+  }
+
+  const tone = toneFromSentiment(relationship.sentiment);
+  const strength = strengthLabel(relationship.strength);
+  const historyLine = relationship.history
+    ? `History: ${relationship.history}`
+    : 'History: (no specifics)';
+
+  const guidance =
+    tone === 'beef'
+      ? 'Guidance: You tend to challenge or dunk them (if it fits your voice).'
+      : tone === 'respect'
+        ? 'Guidance: You tend to co-sign them or add supportive context.'
+        : 'Guidance: Keep it neutral, but still react to what they said.';
+
+  return {
+    prompt: `=== YOUR HISTORY WITH ${otherActorName} ===
+Relationship: ${relationship.relationshipType} (${tone}, ${strength})
+${historyLine}
+${guidance}
+=====================================`,
+    sentiment: relationship.sentiment,
+  };
+}
+
+async function getRecentPairInteractionsContext(
+  actorId: string,
+  otherActorId: string,
+  actorName: string,
+  otherActorName: string,
+  now: Date
+): Promise<string> {
+  // Keep it tight: last 3 interactions in the past week (if any)
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const interactions = await db.npcInteraction.findMany({
+    where: {
+      OR: [
+        { actor1Id: actorId, actor2Id: otherActorId },
+        { actor1Id: otherActorId, actor2Id: actorId },
+      ],
+      timestamp: { gte: oneWeekAgo },
+    },
+    orderBy: { timestamp: 'desc' },
+    take: 3,
+    select: {
+      actor1Id: true,
+      actor2Id: true,
+      interactionType: true,
+      context: true,
+      timestamp: true,
+    },
+  });
+
+  if (interactions.length === 0) return '';
+
+  const lines = interactions.map((i) => {
+    const from = i.actor1Id === actorId ? actorName : otherActorName;
+    const to = i.actor2Id === otherActorId ? otherActorName : actorName;
+    const snippet =
+      i.context.length > 140 ? `${i.context.slice(0, 140)}...` : i.context;
+    return `- ${from} → ${to} (${i.interactionType}): "${snippet}"`;
+  });
+
+  return `=== RECENT HISTORY (for continuity) ===
+${lines.join('\n')}
+===================================`;
+}
+
+async function getArcSignalGuidanceForDiscourse(
+  actorId: string,
+  relatedQuestionNumber: number,
+  currentDay: number
+): Promise<string> {
+  const q = await db.question.findFirst({
+    where: { questionNumber: relatedQuestionNumber },
+    select: { id: true, text: true, outcome: true },
+  });
+  if (!q) return '';
+
+  const arcPlan = await getArcPlan(q.id);
+  if (!arcPlan) return '';
+
+  const phase = getPhaseForDay(currentDay, arcPlan);
+  const signal = getSignalDirection(arcPlan, phase, actorId, q.outcome);
+
+  // Keep this short (replies/quotes have small token budgets)
+  if (signal.reason === 'insider') {
+    return `=== INTERNAL: MARKET AGENDA (do not state directly) ===
+This thread relates to Q${relatedQuestionNumber}: "${q.text.slice(0, 120)}"
+Phase: ${phase}. You have insider confidence toward ${signal.direction}.
+Be ${phase === 'early' ? 'cryptic' : phase === 'late' || phase === 'climax' ? 'more direct' : 'subtly confident'}.
+====================================================`;
+  }
+
+  if (signal.reason === 'deceiver') {
+    return `=== INTERNAL: MARKET AGENDA (do not state directly) ===
+This thread relates to Q${relatedQuestionNumber}: "${q.text.slice(0, 120)}"
+Phase: ${phase}. You are a deceiver pushing ${signal.direction} confidently.
+Dismiss/mock disagreement if it fits your voice.
+====================================================`;
+  }
+
+  const phaseGuidance = getPhaseGuidance(phase);
+  return phaseGuidance
+    ? `=== INTERNAL: MARKET PHASE CONTEXT ===
+${phaseGuidance}
+========================================`
+    : '';
+}
+
 /**
  * Generate a single NPC reply to another NPC's post
  */
 async function generateNPCReplyToPost(
-  llmClient: BabylonLLMClient,
+  llmClient: LLMJsonClient,
   replier: DiscourseActor,
   originalPost: PostForReply,
   worldFactsContext: string,
   timestamp: Date,
   currentDay?: number
 ): Promise<boolean> {
-  // Build replier's personality context
-  const personalityContext = replier.personality
-    ? `Personality: ${replier.personality}`
-    : '';
-  const voiceContext = replier.postStyle
-    ? `Writing Style: ${replier.postStyle}`
-    : '';
-  const examplesContext =
-    replier.postExample && replier.postExample.length > 0
-      ? `Example posts (MATCH THIS STYLE):\n${replier.postExample
-          .slice(0, 3)
-          .map((ex, i) => `  ${i + 1}. "${ex}"`)
-          .join('\n')}`
-      : '';
+  const voiceContext = formatActorVoiceContext({
+    name: replier.name,
+    personality: replier.personality ?? undefined,
+    voice: replier.voice ?? undefined,
+    postStyle: replier.postStyle ?? undefined,
+    postExample: replier.postExample,
+  });
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: replier.voice ?? undefined,
+    postStyle: replier.postStyle ?? undefined,
+    postExample: replier.postExample,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: replier.name,
+    domain: replier.domain,
+    personality: replier.personality ?? undefined,
+    voice: replier.voice ?? undefined,
+    postStyle: replier.postStyle ?? undefined,
+    postExample: replier.postExample,
+  });
 
   // Note if this is a thread (replying to a reply)
-  const isThread = originalPost.commentOnPostId !== null;
+  const isThread =
+    originalPost.commentOnPostId !== null &&
+    originalPost.commentOnPostId !== undefined;
   const threadContext = isThread
     ? '\n(Note: This is a reply in a thread - you can jump into the conversation)'
     : '';
+
+  const relationship = await getPairRelationshipContext(
+    replier.id,
+    originalPost.authorId,
+    originalPost.authorName
+  );
+  const recentHistory = await getRecentPairInteractionsContext(
+    replier.id,
+    originalPost.authorId,
+    replier.name,
+    originalPost.authorName,
+    timestamp
+  );
+  const agendaContext = formatAgendaContext(replier, originalPost.authorName);
+  const positionsContext = replier.positionsContext ?? '';
+  const runningBitContext = toRunningBitPromptContext(replier.runningBit);
+  const signalGuidance =
+    currentDay !== undefined && typeof originalPost.relatedQuestion === 'number'
+      ? await getArcSignalGuidanceForDiscourse(
+          replier.id,
+          originalPost.relatedQuestion,
+          currentDay
+        )
+      : '';
 
   const prompt = `You ARE ${replier.name}. You're jumping into a public conversation${isThread ? ' thread' : ''} started by ${originalPost.authorName}.
 
 === YOUR CHARACTER ===
 ${replier.description || ''}
-${personalityContext}
 ${voiceContext}
-${examplesContext}
+${toneGuardrails}
+${financeGuardrails}
+
+${relationship.prompt}
+${agendaContext}
+${positionsContext}
+${runningBitContext}
+${signalGuidance}
+${recentHistory}
 
 === POST YOU'RE REPLYING TO ===
 @${originalPost.authorName}: "${originalPost.content}"${threadContext}
@@ -1629,8 +2084,8 @@ Write a natural reply (max 200 chars) to ${originalPost.authorName}'s post AS ${
 
 === REPLY DYNAMICS ===
 This is organic social media discourse. React authentically as YOUR character would:
-- AGREE: "this", "W", "based", validate their point, add supporting info
-- DISAGREE: "ratio", "L take", challenge them, call out what's wrong
+- AGREE: validate their point, add supporting info
+- DISAGREE: challenge them, call out what's wrong
 - ENGAGE: Ask a follow-up question, share your perspective, add context
 - DUNK: If they said something dumb and your character would roast, do it
 
@@ -1642,6 +2097,7 @@ Think about what ${replier.name} would ACTUALLY say to ${originalPost.authorName
 - Match YOUR character's voice exactly - look at the examples above
 - Reference what they said - don't just post in a vacuum
 - Keep it punchy and natural - this is social media, not an essay
+- Be funny via specificity and contrast (no generic "lol" unless it's in voice)
 
 ${worldFactsContext}
 
@@ -1701,17 +2157,47 @@ Return your response as XML in this exact format:
   const rootPostId =
     originalPost.originalPostId ?? // If it's a reply, use its original
     (originalPost.commentOnPostId ? originalPost.commentOnPostId : null); // If it's replying to something
+  const createdPostId = await generateSnowflakeId();
+  await db.post.create({
+    data: {
+      id: createdPostId,
+      type: 'reply',
+      content: transformed.transformedText,
+      authorId: replier.id,
+      commentOnPostId: originalPost.id,
+      originalPostId: rootPostId ?? originalPost.id, // Root of the chain
+      relatedQuestion:
+        typeof originalPost.relatedQuestion === 'number'
+          ? originalPost.relatedQuestion
+          : null,
+      gameId: 'continuous',
+      dayNumber: currentDay,
+      timestamp,
+    },
+  });
 
-  await getDbInstance().createPostWithAllFields({
-    id: await generateSnowflakeId(),
-    type: 'reply',
-    content: transformed.transformedText,
-    authorId: replier.id,
-    commentOnPostId: originalPost.id,
-    originalPostId: rootPostId ?? originalPost.id, // Root of the chain
-    gameId: 'continuous',
-    dayNumber: currentDay,
-    timestamp,
+  // Record interaction for relationship evolution + future callbacks
+  await db.npcInteraction.create({
+    data: {
+      id: await generateSnowflakeId(),
+      actor1Id: replier.id,
+      actor2Id: originalPost.authorId,
+      interactionType: 'reply',
+      sentiment:
+        relationship.sentiment > 0.3
+          ? 0.4
+          : relationship.sentiment < -0.3
+            ? -0.4
+            : 0.1,
+      context: transformed.transformedText.slice(0, 280),
+      metadata: {
+        postId: createdPostId,
+        replyToPostId: originalPost.id,
+        originalPostId: rootPostId ?? originalPost.id,
+        relatedQuestion: originalPost.relatedQuestion ?? null,
+      } satisfies Record<string, JsonValue>,
+      timestamp,
+    },
   });
 
   logger.debug(
@@ -1732,35 +2218,72 @@ Return your response as XML in this exact format:
  * Like a "retweet with comment" - shows the original post with added commentary
  */
 async function generateNPCQuotePost(
-  llmClient: BabylonLLMClient,
+  llmClient: LLMJsonClient,
   quoter: DiscourseActor,
   originalPost: PostForReply,
   worldFactsContext: string,
   timestamp: Date,
   currentDay?: number
 ): Promise<boolean> {
-  // Build quoter's personality context
-  const personalityContext = quoter.personality
-    ? `Personality: ${quoter.personality}`
-    : '';
-  const voiceContext = quoter.postStyle
-    ? `Writing Style: ${quoter.postStyle}`
-    : '';
-  const examplesContext =
-    quoter.postExample && quoter.postExample.length > 0
-      ? `Example posts (MATCH THIS STYLE):\n${quoter.postExample
-          .slice(0, 3)
-          .map((ex, i) => `  ${i + 1}. "${ex}"`)
-          .join('\n')}`
+  const voiceContext = formatActorVoiceContext({
+    name: quoter.name,
+    personality: quoter.personality ?? undefined,
+    voice: quoter.voice ?? undefined,
+    postStyle: quoter.postStyle ?? undefined,
+    postExample: quoter.postExample,
+  });
+  const toneGuardrails = formatActorToneGuardrails({
+    voice: quoter.voice ?? undefined,
+    postStyle: quoter.postStyle ?? undefined,
+    postExample: quoter.postExample,
+  });
+  const financeGuardrails = formatActorFinanceGuardrails({
+    name: quoter.name,
+    domain: quoter.domain,
+    personality: quoter.personality ?? undefined,
+    voice: quoter.voice ?? undefined,
+    postStyle: quoter.postStyle ?? undefined,
+    postExample: quoter.postExample,
+  });
+
+  const relationship = await getPairRelationshipContext(
+    quoter.id,
+    originalPost.authorId,
+    originalPost.authorName
+  );
+  const recentHistory = await getRecentPairInteractionsContext(
+    quoter.id,
+    originalPost.authorId,
+    quoter.name,
+    originalPost.authorName,
+    timestamp
+  );
+  const agendaContext = formatAgendaContext(quoter, originalPost.authorName);
+  const positionsContext = quoter.positionsContext ?? '';
+  const runningBitContext = toRunningBitPromptContext(quoter.runningBit);
+  const signalGuidance =
+    currentDay !== undefined && typeof originalPost.relatedQuestion === 'number'
+      ? await getArcSignalGuidanceForDiscourse(
+          quoter.id,
+          originalPost.relatedQuestion,
+          currentDay
+        )
       : '';
 
   const prompt = `You ARE ${quoter.name}. You're quote-posting ${originalPost.authorName}'s post to share it with YOUR take.
 
 === YOUR CHARACTER ===
 ${quoter.description || ''}
-${personalityContext}
 ${voiceContext}
-${examplesContext}
+${toneGuardrails}
+${financeGuardrails}
+
+${relationship.prompt}
+${agendaContext}
+${positionsContext}
+${runningBitContext}
+${signalGuidance}
+${recentHistory}
 
 === POST YOU'RE QUOTING ===
 @${originalPost.authorName}: "${originalPost.content}"
@@ -1770,8 +2293,8 @@ Write a quote post (max 180 chars) that shares ${originalPost.authorName}'s post
 
 === QUOTE POST DYNAMICS ===
 A quote post shares someone's post with your own take on top. React as YOUR character would:
-- AMPLIFY: "need more people to see this", "exactly this", "W post"
-- CLOWN: "bro really said this 💀", "least delusional [X] fan", dunk on them
+- AMPLIFY: push it to a wider audience, add your endorsement
+- CLOWN: dunk on them (if your character would)
 - ADD CONTEXT: "what they're not telling you is...", add your insight
 - HOT TAKE: Use their post as a jumping off point for your own take
 - DISAGREE PUBLICLY: "imagine thinking this", call out the bad take
@@ -1784,6 +2307,7 @@ The original post will be shown below yours - don't repeat their whole message.
 - Match YOUR character's voice exactly - look at the examples above
 - Keep it punchy - your commentary should stand alone
 - Don't just summarize what they said - ADD something
+- Make it funny via specificity and callbacks (no generic dunking)
 
 ${worldFactsContext}
 
@@ -1840,15 +2364,44 @@ Return your response as XML in this exact format:
     );
   }
 
-  await getDbInstance().createPostWithAllFields({
-    id: await generateSnowflakeId(),
-    type: 'quote',
-    content: transformed.transformedText,
-    authorId: quoter.id,
-    originalPostId: originalPost.id, // The post being quoted
-    gameId: 'continuous',
-    dayNumber: currentDay,
-    timestamp,
+  const createdPostId = await generateSnowflakeId();
+  await db.post.create({
+    data: {
+      id: createdPostId,
+      type: 'quote',
+      content: transformed.transformedText,
+      authorId: quoter.id,
+      originalPostId: originalPost.id, // The post being quoted
+      relatedQuestion:
+        typeof originalPost.relatedQuestion === 'number'
+          ? originalPost.relatedQuestion
+          : null,
+      gameId: 'continuous',
+      dayNumber: currentDay,
+      timestamp,
+    },
+  });
+
+  await db.npcInteraction.create({
+    data: {
+      id: await generateSnowflakeId(),
+      actor1Id: quoter.id,
+      actor2Id: originalPost.authorId,
+      interactionType: 'quote',
+      sentiment:
+        relationship.sentiment > 0.3
+          ? 0.35
+          : relationship.sentiment < -0.3
+            ? -0.35
+            : 0.05,
+      context: transformed.transformedText.slice(0, 280),
+      metadata: {
+        postId: createdPostId,
+        quotedPostId: originalPost.id,
+        relatedQuestion: originalPost.relatedQuestion ?? null,
+      } satisfies Record<string, JsonValue>,
+      timestamp,
+    },
   });
 
   logger.debug(

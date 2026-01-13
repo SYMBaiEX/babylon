@@ -17,6 +17,7 @@ import {
   extractJsonFromText,
   parseContinuationContent,
 } from './json-continuation-parser';
+import type { LLMJsonSchema as JSONSchema } from './types';
 import { parseXML } from './xml-parser';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';
@@ -52,17 +53,7 @@ export function getTokenUsageCallback(): TokenUsageCallback | null {
 /**
  * Simple JSON schema for validation
  */
-interface JSONSchema {
-  required?: string[];
-  properties?: Record<string, JsonSchemaProperty>;
-}
-
-interface JsonSchemaProperty {
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  description?: string;
-  items?: JsonSchemaProperty;
-  properties?: Record<string, JsonSchemaProperty>;
-}
+// NOTE: Schema types are shared via ./types to avoid duplicating shapes across the engine.
 
 export class BabylonLLMClient {
   private client: OpenAI;

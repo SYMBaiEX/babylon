@@ -41,6 +41,7 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 /**
  * Maximum consecutive errors before aborting the tick (circuit breaker).
@@ -108,6 +109,8 @@ export async function GET(req: NextRequest) {
  * Executes organization autonomous tick for media orgs.
  */
 export async function POST(_req: NextRequest) {
+  ensureEngineServices();
+
   // Verify cron authorization
   if (!verifyCronAuth(_req, { jobName: 'OrganizationTick' })) {
     logger.warn(

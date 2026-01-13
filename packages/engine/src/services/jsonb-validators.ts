@@ -27,6 +27,7 @@ export const NpcMemorySchema = z.object({
     'mentioned_by',
     'witnessed_event',
     'traded',
+    'running_bit',
   ]),
   timestamp: z.string(), // ISO date string
   summary: z.string(),

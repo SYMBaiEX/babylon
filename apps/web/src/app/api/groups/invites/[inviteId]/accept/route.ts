@@ -218,6 +218,9 @@ export const POST = withErrorHandling(
       'POST /api/groups/invites/:inviteId/accept'
     );
 
-    return successResponse(result);
+    return successResponse({
+      success: true,
+      ...result,
+    });
   }
 );

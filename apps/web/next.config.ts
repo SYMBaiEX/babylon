@@ -6,6 +6,11 @@ import * as path from 'path';
 // This is the app directory (apps/web), so go up two levels to get monorepo root
 const monorepoRoot = path.resolve(process.cwd(), '../..');
 
+// Capture any Sentry auth token explicitly provided by the environment before dotenv runs.
+// We intentionally ignore tokens sourced from local `.env` files to avoid stale/invalid tokens
+// breaking developer builds when CI is set in the environment (common in some shells/CI runners).
+const sentryAuthTokenFromProcessEnv = process.env.SENTRY_AUTH_TOKEN;
+
 // Load .env files from monorepo root before Next.js processes them
 // This ensures env vars are available during config evaluation and at runtime
 config({ path: path.join(monorepoRoot, '.env') });
@@ -91,6 +96,8 @@ const nextConfig: NextConfig = {
     'drizzle-orm',
     'drizzle-orm/postgres-js',
     'ioredis', // Node.js Redis client - requires tls/net modules not available in edge runtime
+    // Avoid bundling warnings from dynamic requires in @elizaos/core (server-only usage).
+    '@elizaos/core',
   ],
   images: {
     qualities: [100, 75],
@@ -254,6 +261,7 @@ const nextConfig: NextConfig = {
         'drizzle-orm/postgres-js',
         'ioredis',
         'swagger-jsdoc',
+        '@elizaos/core',
       ];
 
       if (!Array.isArray(config.externals)) {
@@ -401,6 +409,13 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Only enable Sentry uploads in CI/Vercel builds.
+// This prevents local builds from failing if a developer has a stale/invalid token set.
+const sentryAuthToken =
+  process.env.CI || process.env.VERCEL
+    ? sentryAuthTokenFromProcessEnv
+    : undefined;
+
 const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
@@ -411,13 +426,13 @@ const sentryWebpackPluginOptions = {
 
   // Auth token for uploading source maps and creating releases
   // Set SENTRY_AUTH_TOKEN in environment to enable source map uploads
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+  authToken: sentryAuthToken,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
   // Suppress warnings when auth token is not provided (e.g., local development)
-  hideSourceMaps: !process.env.SENTRY_AUTH_TOKEN,
+  hideSourceMaps: !sentryAuthToken,
 
   // Disable telemetry to suppress warnings during build
   telemetry: false,
@@ -447,6 +462,12 @@ const sentryWebpackPluginOptions = {
 // Wrap Sentry config in async function to handle top-level await
 async function getConfig(): Promise<NextConfig> {
   let resolvedConfig: NextConfig = nextConfig;
+
+  // If we're not uploading sourcemaps/releases, don't wrap the config at all.
+  // This prevents local builds from invoking Sentry CLI when a stale token is present.
+  if (!sentryAuthToken) {
+    return resolvedConfig;
+  }
 
   try {
     const { withSentryConfig } = await import('@sentry/nextjs');

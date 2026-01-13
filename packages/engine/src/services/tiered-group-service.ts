@@ -10,7 +10,6 @@
  * - Tier 3 (Followers): 500 members, public content
  */
 
-import { DistributedLockService } from '@babylon/api';
 import {
   and,
   chatParticipants,
@@ -27,6 +26,7 @@ import {
 } from '@babylon/db';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 
+import { DistributedLockService } from './distributed-lock-service';
 import { NPCInteractionTracker } from './npc-interaction-tracker';
 import { StaticDataRegistry } from './static-data-registry';
 import {

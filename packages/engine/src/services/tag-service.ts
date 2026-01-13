@@ -22,9 +22,9 @@ import {
   trendingTags,
   withTransaction,
 } from '@babylon/db';
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import OpenAI from 'openai';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // =============================================================================
 // Types
