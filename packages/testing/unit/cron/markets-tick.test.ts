@@ -313,9 +313,12 @@ describe('Markets Tick Cron', () => {
       const getReq = new NextRequest('http://localhost/api/cron/markets-tick', {
         method: 'GET',
       });
-      const postReq = new NextRequest('http://localhost/api/cron/markets-tick', {
-        method: 'POST',
-      });
+      const postReq = new NextRequest(
+        'http://localhost/api/cron/markets-tick',
+        {
+          method: 'POST',
+        }
+      );
 
       const getRes = await GET(getReq);
       const postRes = await POST(postReq);
