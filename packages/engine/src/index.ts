@@ -151,7 +151,10 @@ export { type ActiveMarketSummary, gameService } from './game-service';
 export {
   executeGameTick,
   type GameTickResult as ExecuteGameTickResult,
+  publishOracleCommitments,
+  publishOracleReveals,
   resolveQuestionPayouts,
+  updateMarketPricesFromTrades,
 } from './game-tick';
 export {
   cleanMarkdownCodeBlocks,

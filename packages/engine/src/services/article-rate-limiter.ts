@@ -22,10 +22,62 @@ export interface ArticleRateLimitConfig {
 }
 
 /**
- * Default configuration: 2 articles per hour max
+ * Default rate limit for articles per hour.
+ * Used when env var is missing or invalid.
+ */
+const DEFAULT_MAX_ARTICLES_PER_HOUR = 2;
+
+/**
+ * Parse and validate the ARTICLE_RATE_LIMIT_PER_HOUR environment variable.
+ * Returns the default value if the env var is missing, NaN, or <= 0.
+ *
+ * @returns A valid positive integer for max articles per hour
+ */
+function parseMaxArticlesPerHour(): number {
+  const envValue = process.env.ARTICLE_RATE_LIMIT_PER_HOUR;
+
+  if (!envValue) {
+    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+  }
+
+  const parsed = parseInt(envValue, 10);
+
+  if (Number.isNaN(parsed)) {
+    logger.warn(
+      `Invalid ARTICLE_RATE_LIMIT_PER_HOUR value: "${envValue}" is not a number. Using default: ${DEFAULT_MAX_ARTICLES_PER_HOUR}`,
+      { envValue, default: DEFAULT_MAX_ARTICLES_PER_HOUR },
+      'ArticleRateLimiter'
+    );
+    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+  }
+
+  if (parsed <= 0) {
+    logger.warn(
+      `Invalid ARTICLE_RATE_LIMIT_PER_HOUR value: ${parsed} must be > 0. Using default: ${DEFAULT_MAX_ARTICLES_PER_HOUR}`,
+      { envValue, parsed, default: DEFAULT_MAX_ARTICLES_PER_HOUR },
+      'ArticleRateLimiter'
+    );
+    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+  }
+
+  return parsed;
+}
+
+/**
+ * Default configuration for article rate limiting.
+ *
+ * The limit can be configured via environment variable:
+ * - ARTICLE_RATE_LIMIT_PER_HOUR: Max articles per hour (default: 2)
+ *
+ * @remarks
+ * A limit of 2 articles per hour provides a calmer news feed:
+ * - ~1 article every 30 minutes on average
+ * - Prevents article flooding that drowns out user/agent content
+ * - Sustainable for LLM cost management
+ * - Articles are high-effort content that should feel special
  */
 const DEFAULT_CONFIG: Required<ArticleRateLimitConfig> = {
-  maxArticlesPerHour: 2,
+  maxArticlesPerHour: parseMaxArticlesPerHour(),
   windowMs: 60 * 60 * 1000, // 1 hour
 };
 
@@ -157,17 +209,23 @@ export class ArticleRateLimiterService {
 }
 
 /**
- * Singleton instance with default config (2 articles per hour).
+ * Singleton instance with default config (2 articles per hour, configurable via env).
  *
  * @remarks
- * **TOCTOU Note**: Calling `canGenerateArticle()` and then creating an article
- * is not atomic. In concurrent environments (e.g., multiple cron jobs or workers),
- * race conditions may cause the configured limit to be exceeded by one article
- * occasionally. This is expected behavior given the in-memory/cron usage pattern
- * and the low default rate limit. If strict enforcement is required (e.g., for
- * billing or hard caps), consider using external coordination mechanisms such as
- * a distributed lock, centralized atomic counter, or database transaction with
- * row-level locking.
+ * **Concurrency Note**: The check-then-act pattern (`canGenerateArticle()` followed
+ * by article creation) is NOT atomic. In concurrent environments (e.g., multiple
+ * cron jobs, parallel article generation), race conditions may cause the configured
+ * limit to be exceeded by 1-2 articles occasionally.
+ *
+ * This is acceptable for our use case because:
+ * 1. The limit is for feed quality, not billing or hard caps
+ * 2. Cron jobs run sequentially within their own process
+ * 3. Occasional over-by-one has minimal user impact
+ *
+ * For stricter enforcement, consider:
+ * - Distributed locks (Redis SETNX)
+ * - Database row-level locking with SELECT FOR UPDATE
+ * - Optimistic locking with version counters
  */
 export const articleRateLimiter = new ArticleRateLimiterService();
 
@@ -193,14 +251,21 @@ export const articleRateLimiter = new ArticleRateLimiterService();
 export function createArticleRateLimiter(
   config: Partial<ArticleRateLimitConfig>
 ): ArticleRateLimiterService {
-  if (
-    config.maxArticlesPerHour !== undefined &&
-    config.maxArticlesPerHour <= 0
-  ) {
-    throw new Error('maxArticlesPerHour must be a positive number');
+  if (config.maxArticlesPerHour !== undefined) {
+    if (Number.isNaN(config.maxArticlesPerHour)) {
+      throw new Error('maxArticlesPerHour cannot be NaN');
+    }
+    if (config.maxArticlesPerHour <= 0) {
+      throw new Error('maxArticlesPerHour must be a positive number');
+    }
   }
-  if (config.windowMs !== undefined && config.windowMs <= 0) {
-    throw new Error('windowMs must be a positive number');
+  if (config.windowMs !== undefined) {
+    if (Number.isNaN(config.windowMs)) {
+      throw new Error('windowMs cannot be NaN');
+    }
+    if (config.windowMs <= 0) {
+      throw new Error('windowMs must be a positive number');
+    }
   }
   return new ArticleRateLimiterService(config);
 }

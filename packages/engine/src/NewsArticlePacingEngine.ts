@@ -609,4 +609,41 @@ export class NewsArticlePacingEngine {
       eventIds,
     };
   }
+
+  /**
+   * Check if an event has been covered by any organization at a specific status.
+   *
+   * @param eventId - The arc event ID to check
+   * @param status - The status to check coverage for
+   * @returns True if any org has covered this event at the specified status
+   */
+  hasEventBeenCoveredForStatus(
+    eventId: string,
+    status: ArcEventStatus
+  ): boolean {
+    if (!eventId || eventId.trim().length === 0) {
+      throw new Error(
+        `Invalid eventId for hasEventBeenCoveredForStatus: ${eventId}`
+      );
+    }
+    if (!isValidArcEventStatus(status)) {
+      throw new Error(
+        `Invalid status for hasEventBeenCoveredForStatus: ${status}`
+      );
+    }
+
+    const eventCoverage = this.arcEventCoverage.get(eventId);
+    if (!eventCoverage) {
+      return false;
+    }
+
+    // Check if any org has covered this event at the specified status
+    for (const coverage of eventCoverage.values()) {
+      if (coverage.lastReportedStatus === status) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }

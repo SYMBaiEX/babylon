@@ -166,9 +166,13 @@ function getDrizzleInstance(): Database | null {
     const client = getPostgresClient();
     if (!client) return null;
 
+    // Only enable SQL query logging when explicitly requested via DEBUG_SQL=true
+    // This prevents thousands of log lines during NPC bootstrap in development
+    const enableSqlLogging = process.env.DEBUG_SQL === 'true';
+
     globalForDb.drizzleDb = drizzle(client, {
       schema,
-      logger: process.env.NODE_ENV === 'development',
+      logger: enableSqlLogging,
     });
   }
 
