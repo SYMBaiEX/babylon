@@ -351,7 +351,10 @@ export function TeamChatMessageInput({
             )}
             aria-hidden="true"
           >
-            <HighlightedText text={value} validUsernames={validMentionHandles} />
+            <HighlightedText
+              text={value}
+              validUsernames={validMentionHandles}
+            />
           </div>
           {/* Actual textarea - text is transparent, caret visible */}
           <textarea
