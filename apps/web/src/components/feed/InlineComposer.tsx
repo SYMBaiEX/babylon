@@ -28,14 +28,14 @@ function useIsMac(): boolean {
  * Inline composer component for creating posts directly in the feed.
  *
  * Displays a compact post composition area at the top of the feed with the
- * user's avatar, expandable textarea, and submit button. Provides a quicker
- * alternative to the full-screen modal for post creation.
+ * user's avatar, expandable textarea, and submit button. This is the primary
+ * method for post creation in the feed.
  *
  * Features:
  * - User avatar display
  * - Auto-expanding textarea
  * - Character counter (280 limit)
- * - Submit with Enter + Cmd/Ctrl
+ * - Submit with Cmd/Ctrl + Enter keyboard shortcut
  * - Loading state during submission
  *
  * @param props - InlineComposer component props
@@ -258,7 +258,7 @@ export function InlineComposer({
 
           {/* Action Bar - shown when focused or has content */}
           {(isFocused || content) && (
-            <div className="mt-3 flex items-center justify-end border-border border-t pt-3">
+            <div className="mt-3 flex items-center justify-end pt-3">
               <div className="flex items-center gap-3">
                 {/* Character Counter */}
                 <span
@@ -276,6 +276,14 @@ export function InlineComposer({
                   )}
                 >
                   {charactersRemaining}
+                </span>
+
+                {/* Keyboard shortcut hint */}
+                <span
+                  className="text-muted-foreground text-xs"
+                  aria-label={`Keyboard shortcut: ${isMac ? 'Command' : 'Control'} plus Enter`}
+                >
+                  {isMac ? '⌘' : 'Ctrl'}+Enter
                 </span>
 
                 {/* Submit Button */}
@@ -305,21 +313,6 @@ export function InlineComposer({
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Keyboard hint - shown when focused */}
-          {isFocused && !content && (
-            <p className="mt-2 text-muted-foreground text-xs">
-              Press{' '}
-              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {isMac ? '⌘' : 'Ctrl'}
-              </kbd>{' '}
-              +{' '}
-              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                Enter
-              </kbd>{' '}
-              to post
-            </p>
           )}
         </div>
       </div>

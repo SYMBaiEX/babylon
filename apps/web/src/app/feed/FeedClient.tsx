@@ -1,8 +1,6 @@
 'use client';
 
 import type { FeedPost } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { Plus } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -29,14 +27,6 @@ const WidgetSidebar = dynamic(
   { ssr: false }
 );
 
-const CreatePostModal = dynamic(
-  () =>
-    import('@/components/posts/CreatePostModal').then((m) => ({
-      default: m.CreatePostModal,
-    })),
-  { ssr: false }
-);
-
 const TradesFeed = dynamic(
   () =>
     import('@/components/trades/TradesFeed').then((m) => ({
@@ -54,11 +44,10 @@ type FeedTab = 'latest' | 'hot' | 'following' | 'trades';
  * - Managing tab state (latest, following, trades)
  * - Coordinating data fetching hooks
  * - Handling pull-to-refresh
- * - Managing modal state
+ * - Rendering inline post composer
  *
  * Heavy components are lazy loaded:
  * - WidgetSidebar (desktop only)
- * - CreatePostModal (on demand)
  * - TradesFeed (trades tab only)
  */
 export function FeedClient() {
@@ -70,7 +59,6 @@ export function FeedClient() {
 
   // Tab state
   const [tab, setTab] = useState<FeedTab>('latest');
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Actor names for display
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
@@ -258,7 +246,6 @@ export function FeedClient() {
       };
 
       addOptimisticPost(optimisticPost);
-      setShowCreateModal(false);
 
       if (window.location.pathname !== '/feed') {
         router.push('/feed');
@@ -327,7 +314,7 @@ export function FeedClient() {
                 <InlineComposer onPostCreated={handlePostCreated} />
               )}
 
-              <div className="px-4 lg:px-6">{renderContent()}</div>
+              <div>{renderContent()}</div>
             </div>
           </div>
         </div>
@@ -335,35 +322,6 @@ export function FeedClient() {
         {/* Widget sidebar - lazy loaded, desktop only */}
         <WidgetSidebar />
       </div>
-
-      {/* Floating Post Button */}
-      {authenticated && (
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className={cn(
-            'fixed right-4 bottom-20 z-[100] md:right-6 md:bottom-6',
-            'flex items-center justify-center gap-2',
-            'bg-[#0066FF] hover:bg-[#2952d9]',
-            'font-semibold text-primary-foreground',
-            'rounded-full',
-            'transition-all duration-200',
-            'shadow-lg hover:scale-105 hover:shadow-xl',
-            'h-14 w-14 md:h-16 md:w-16'
-          )}
-          aria-label="Create Post"
-        >
-          <Plus className="h-6 w-6 md:h-7 md:w-7" />
-        </button>
-      )}
-
-      {/* Create Post Modal - lazy loaded */}
-      {showCreateModal && (
-        <CreatePostModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onPostCreated={handlePostCreated}
-        />
-      )}
     </PageContainer>
   );
 }
