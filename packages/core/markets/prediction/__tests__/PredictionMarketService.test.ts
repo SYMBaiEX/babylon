@@ -267,7 +267,39 @@ describe('PredictionMarketService', () => {
       shares: pos!.shares - sellShares,
     });
     expect(result2.positionClosed).toBe(true);
-    expect(await db.getPosition('u1', 'm1', 'yes')).toBeNull();
+    const closed = await db.getPosition('u1', 'm1', 'yes');
+    expect(closed).not.toBeNull();
+    expect(closed?.status).toBe('closed');
+    expect(closed?.shares).toBe(0);
+  });
+
+  it('should ignore closed positions when selecting a position to sell', async () => {
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 50,
+    });
+    await service.buy({ userId: 'u1', marketId: 'm1', side: 'no', amount: 50 });
+
+    const yesPos = await db.getPosition('u1', 'm1', 'yes');
+    const noPos = await db.getPosition('u1', 'm1', 'no');
+    expect(yesPos).not.toBeNull();
+    expect(noPos).not.toBeNull();
+
+    await service.sell({
+      userId: 'u1',
+      marketId: 'm1',
+      positionId: yesPos!.id,
+      shares: yesPos!.shares,
+    });
+
+    const sellNo = await service.sell({
+      userId: 'u1',
+      marketId: 'm1',
+      shares: noPos!.shares,
+    });
+    expect(sellNo.positionClosed).toBe(true);
   });
 
   it('should require positionId when both sides exist', async () => {
