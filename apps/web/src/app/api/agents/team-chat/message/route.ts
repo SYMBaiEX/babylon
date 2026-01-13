@@ -47,7 +47,7 @@ import { teamChatResponseService, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
-  checkRateLimit,
+  checkRateLimitAsync,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 import { db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
@@ -72,7 +72,10 @@ export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Rate limit to prevent spam (especially important with agent auto-responses)
-  const rateCheck = checkRateLimit(user.id, RATE_LIMIT_CONFIGS.SEND_MESSAGE);
+  const rateCheck = await checkRateLimitAsync(
+    user.id,
+    RATE_LIMIT_CONFIGS.SEND_MESSAGE
+  );
   if (!rateCheck.allowed) {
     return NextResponse.json(
       {
@@ -159,9 +162,13 @@ export async function POST(req: NextRequest) {
   let responseResult = null;
   if (mentionedAgentIds && mentionedAgentIds.length > 0) {
     // Validate that mentioned agents are actually in the team chat
-    const teamAgents = await teamChatService.getTeamChatAgents(user.id);
+    const teamAgents = await teamChatService.getTeamChatAgents(
+      user.id,
+      teamChat.groupId
+    );
+    const teamAgentIds = new Set(teamAgents.map((agent) => agent.id));
     const validMentionedIds = mentionedAgentIds.filter((id) =>
-      teamAgents.some((agent) => agent.id === id)
+      teamAgentIds.has(id)
     );
 
     if (validMentionedIds.length > 0) {

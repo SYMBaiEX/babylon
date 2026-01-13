@@ -121,6 +121,8 @@ export class TeamChatResponseService {
     this.cleanupIntervalHandle = setInterval(() => {
       this.cleanupExpiredEntries();
     }, LOOP_PREVENTION.CLEANUP_INTERVAL_MS);
+    // Avoid keeping the process alive solely due to this interval (best-effort for serverless)
+    this.cleanupIntervalHandle.unref?.();
   }
 
   /**
@@ -485,12 +487,13 @@ export class TeamChatResponseService {
       }
     );
 
-    // Generate response using LLM
-    // Sanitize user content to prevent prompt injection
-    const sanitizedContent = this.sanitizeForPrompt(messageContent);
-    const sanitizedContext = this.sanitizeForPrompt(conversationContext);
+    try {
+      // Generate response using LLM
+      // Sanitize user content to prevent prompt injection
+      const sanitizedContent = this.sanitizeForPrompt(messageContent);
+      const sanitizedContext = this.sanitizeForPrompt(conversationContext);
 
-    const prompt = `${systemPrompt}
+      const prompt = `${systemPrompt}
 
 ${personality ? `Your personality: ${personality}\n` : ''}
 You are ${agentName} in a team Command Center chat. ${senderDisplayName} just mentioned you directly.
@@ -508,87 +511,91 @@ Task: Generate a helpful, direct response to ${senderDisplayName}'s message.
 
 Generate ONLY the response text:`;
 
-    // Get runtime if available for context
-    const runtime = await agentRuntimeManager.getRuntime(agentId);
+      // Get runtime if available for context
+      const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-    const responseContent = await callGroqDirect({
-      prompt,
-      system: systemPrompt,
-      modelSize: 'large',
-      runtime,
-      temperature: 0.7,
-      maxTokens: 150,
-      actionType: 'team_chat_response',
-      purpose: 'response',
-    });
+      const responseContent = await callGroqDirect({
+        prompt,
+        system: systemPrompt,
+        modelSize: 'large',
+        runtime,
+        temperature: 0.7,
+        maxTokens: 150,
+        actionType: 'team_chat_response',
+        purpose: 'response',
+      });
 
-    const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
+      const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
 
-    if (!cleanContent || cleanContent.length < 5) {
-      // Stop typing indicator on early failure
-      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-        () => {}
-      );
-      return {
-        success: false,
-        agentName,
-        error: 'Generated response was too short or empty',
-      };
-    }
+      if (!cleanContent || cleanContent.length < 5) {
+        return {
+          success: false,
+          agentName,
+          error: 'Generated response was too short or empty',
+        };
+      }
 
-    // Send the response
-    const sendResult = await executeDirectMessage({
-      agentUserId: agentId,
-      chatId,
-      content: cleanContent,
-    });
+      // Send the response
+      const sendResult = await executeDirectMessage({
+        agentUserId: agentId,
+        chatId,
+        content: cleanContent,
+      });
 
-    // Stop typing indicator after sending (regardless of success)
-    broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-      (error: Error) => {
-        logger.warn(
-          `Failed to stop typing indicator: ${error.message}`,
+      if (!sendResult.success) {
+        return {
+          success: false,
+          agentName,
+          error: sendResult.error || 'Failed to send message',
+        };
+      }
+
+      // Mark agent as having responded (for cooldown tracking)
+      this.markAgentResponded(chatId, agentId);
+
+      // Check if this agent mentioned other agents (agent-to-agent mentions)
+      // This enables agents to coordinate with each other
+      // Only allow if we haven't exceeded max chain depth
+      if (depth < LOOP_PREVENTION.MAX_CHAIN_DEPTH) {
+        await this.handleAgentToAgentMentions({
+          respondingAgentId: agentId,
+          respondingAgentName: agentName,
+          chatId,
+          responseContent: cleanContent,
+          depth: depth + 1,
+        });
+      } else {
+        logger.debug(
+          `Max chain depth reached (${depth}), not triggering agent-to-agent mentions`,
           { chatId, agentId },
           'TeamChatResponseService'
         );
       }
-    );
 
-    if (!sendResult.success) {
+      return {
+        success: true,
+        agentName,
+        messageId: sendResult.messageId,
+      };
+    } catch (error) {
       return {
         success: false,
         agentName,
-        error: sendResult.error || 'Failed to send message',
+        error:
+          error instanceof Error ? error.message : 'Failed to generate response',
       };
-    }
-
-    // Mark agent as having responded (for cooldown tracking)
-    this.markAgentResponded(chatId, agentId);
-
-    // Check if this agent mentioned other agents (agent-to-agent mentions)
-    // This enables agents to coordinate with each other
-    // Only allow if we haven't exceeded max chain depth
-    if (depth < LOOP_PREVENTION.MAX_CHAIN_DEPTH) {
-      await this.handleAgentToAgentMentions({
-        respondingAgentId: agentId,
-        respondingAgentName: agentName,
-        chatId,
-        responseContent: cleanContent,
-        depth: depth + 1,
-      });
-    } else {
-      logger.debug(
-        `Max chain depth reached (${depth}), not triggering agent-to-agent mentions`,
-        { chatId, agentId },
-        'TeamChatResponseService'
+    } finally {
+      // Stop typing indicator even if LLM generation or send fails
+      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to stop typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
       );
     }
-
-    return {
-      success: true,
-      agentName,
-      messageId: sendResult.messageId,
-    };
   }
 
   /**

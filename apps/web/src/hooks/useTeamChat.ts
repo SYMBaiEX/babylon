@@ -263,7 +263,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.message || 'Failed to load Command Center');
+        setError(data.message || data.error || 'Failed to load Command Center');
         return;
       }
 
@@ -354,7 +354,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
       if (!response.ok) {
         const data = await response.json();
-        setSendError(data.message || 'Failed to send message');
+        setSendError(data.message || data.error || 'Failed to send message');
         return;
       }
 

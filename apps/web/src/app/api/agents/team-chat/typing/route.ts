@@ -13,7 +13,7 @@ import { teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastTypingIndicator,
-  checkRateLimit,
+  checkRateLimitAsync,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
@@ -30,13 +30,17 @@ export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
   // Rate limit typing indicators (more lenient than messages)
-  const rateLimitResult = await checkRateLimit(
+  const rateLimitResult = await checkRateLimitAsync(
     user.id,
     RATE_LIMIT_CONFIGS.TYPING_INDICATOR
   );
   if (!rateLimitResult.allowed) {
     return NextResponse.json(
-      { success: false, error: 'Rate limit exceeded' },
+      {
+        success: false,
+        error: 'Rate limit exceeded',
+        retryAfter: rateLimitResult.retryAfter,
+      },
       { status: 429 }
     );
   }

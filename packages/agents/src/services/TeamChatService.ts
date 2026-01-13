@@ -330,6 +330,8 @@ export class TeamChatService {
             joinedAt: now,
             addedBy: userId,
             role: 'member',
+            kickedAt: null,
+            kickReason: null,
           },
         });
 
@@ -572,6 +574,8 @@ export class TeamChatService {
             joinedAt: now,
             addedBy: userId,
             role: 'member',
+            kickedAt: null,
+            kickReason: null,
           },
         });
 

@@ -1496,7 +1496,10 @@ export async function executeDirectMessage(
     content: cleanContent,
     chatId,
     senderId: agentUserId,
+    type: 'user',
     createdAt: now.toISOString(),
+    isGameChat: false,
+    isDMChat: Boolean(recipientId),
   }).catch((error: Error) => {
     logger.warn(
       `Failed to broadcast chat message: ${error.message}`,
