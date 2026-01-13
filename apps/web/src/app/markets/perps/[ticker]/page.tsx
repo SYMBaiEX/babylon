@@ -46,6 +46,7 @@ import {
   invalidateWalletBalance,
   useWalletBalance,
 } from '@/stores/walletBalanceStore';
+import type { MarketTimeRange } from '@/types/markets';
 
 export default function PerpDetailPage() {
   const params = useParams();
@@ -65,6 +66,7 @@ export default function PerpDetailPage() {
   const [leverage, setLeverage] = useState(10);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('ALL');
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Use centralized positions store for better caching and performance
@@ -95,7 +97,9 @@ export default function PerpDetailPage() {
   // Fetch real price history from API
   const { history: priceHistory, refresh: refreshPriceHistory } =
     usePerpHistory(ticker, {
+      limit: 1000,
       seed: market ? { currentPrice: market.currentPrice } : undefined,
+      range: timeRange,
     });
 
   // Subscribe to real-time trade and price updates for all perp markets
@@ -419,6 +423,8 @@ export default function PerpDetailPage() {
               data={priceHistory}
               currentPrice={displayPrice}
               ticker={ticker}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
             />
           </div>
 

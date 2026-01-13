@@ -27,9 +27,15 @@
  *         schema:
  *           type: integer
  *           minimum: 1
- *           maximum: 1000
+ *           maximum: 2000
  *           default: 200
  *         description: Number of history points to return
+ *       - in: query
+ *         name: range
+ *         schema:
+ *           type: string
+ *           enum: [1H, 4H, 1D, 1W, ALL]
+ *         description: Optional server-side time range filter/downsampling
  *     responses:
  *       200:
  *         description: Price history retrieved successfully
@@ -38,15 +44,25 @@
  *
  * @example
  * ```typescript
- * const response = await fetch(`/api/markets/perps/${ticker}/history?limit=100`);
+ * const response = await fetch(`/api/markets/perps/${ticker}/history?limit=100&range=1W`);
  * const { history } = await response.json();
  * ```
  */
 
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { db, desc, eq, perpMarketSnapshots, stockPrices } from '@babylon/db';
+import {
+  and,
+  db,
+  desc,
+  eq,
+  gte,
+  perpMarketSnapshots,
+  stockPrices,
+} from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
+
+type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
 
 const ParamsSchema = z.object({
   ticker: z.string().min(1).max(20),
@@ -56,11 +72,137 @@ const QuerySchema = z.object({
   limit: z
     .preprocess(
       (value) => (value === null ? undefined : value),
-      z.coerce.number().min(1).max(1000)
+      z.coerce.number().min(1).max(2000)
     )
     .optional()
     .default(200),
+  range: z.enum(['1H', '4H', '1D', '1W', 'ALL']).optional(),
 });
+
+const RANGE_MS: Record<TimeRange, number> = {
+  '1H': 60 * 60 * 1000,
+  '4H': 4 * 60 * 60 * 1000,
+  '1D': 24 * 60 * 60 * 1000,
+  '1W': 7 * 24 * 60 * 60 * 1000,
+  ALL: 0,
+};
+
+const BUCKET_CANDIDATES_MS = [
+  60_000, // 1m
+  2 * 60_000, // 2m
+  5 * 60_000, // 5m
+  10 * 60_000, // 10m
+  15 * 60_000, // 15m
+  30 * 60_000, // 30m
+  60 * 60_000, // 1h
+  2 * 60 * 60_000, // 2h
+  4 * 60 * 60_000, // 4h
+  6 * 60 * 60_000, // 6h
+  12 * 60 * 60_000, // 12h
+  24 * 60 * 60_000, // 1d
+];
+
+function chooseBucketMs(spanMs: number, maxPoints: number): number {
+  if (!Number.isFinite(spanMs) || spanMs <= 0) return BUCKET_CANDIDATES_MS[0]!;
+  if (!Number.isFinite(maxPoints) || maxPoints <= 1)
+    return BUCKET_CANDIDATES_MS.at(-1)!;
+
+  for (const candidate of BUCKET_CANDIDATES_MS) {
+    if (Math.ceil(spanMs / candidate) <= maxPoints) return candidate;
+  }
+  return BUCKET_CANDIDATES_MS.at(-1)!;
+}
+
+function downsampleStockPrices(
+  points: Array<{
+    price: number;
+    timestamp: Date;
+    volume: number | null;
+  }>,
+  maxPoints: number
+): Array<{
+  price: number;
+  timestamp: Date;
+  openPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  volume: number;
+  change: number;
+  changePercent: number;
+}> {
+  if (points.length <= maxPoints) {
+    return points.map((p) => ({
+      price: p.price,
+      timestamp: p.timestamp,
+      openPrice: p.price,
+      highPrice: p.price,
+      lowPrice: p.price,
+      volume: Number(p.volume ?? 0),
+      change: 0,
+      changePercent: 0,
+    }));
+  }
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return [];
+
+  const spanMs = last.timestamp.getTime() - first.timestamp.getTime();
+  const bucketMs = chooseBucketMs(spanMs, maxPoints);
+
+  const buckets = new Map<
+    number,
+    {
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }
+  >();
+
+  for (const point of points) {
+    const t = point.timestamp.getTime();
+    const bucketStart = Math.floor(t / bucketMs) * bucketMs;
+    const existing = buckets.get(bucketStart);
+    const price = point.price;
+    const volume = Number(point.volume ?? 0);
+
+    if (!existing) {
+      buckets.set(bucketStart, {
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume,
+      });
+      continue;
+    }
+
+    existing.high = Math.max(existing.high, price);
+    existing.low = Math.min(existing.low, price);
+    existing.close = price;
+    existing.volume += volume;
+  }
+
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucketStart, bucket]) => {
+      const change = bucket.close - bucket.open;
+      const changePercent =
+        bucket.open === 0 ? 0 : (change / bucket.open) * 100;
+      return {
+        price: bucket.close,
+        timestamp: new Date(bucketStart),
+        openPrice: bucket.open,
+        highPrice: bucket.high,
+        lowPrice: bucket.low,
+        volume: bucket.volume,
+        change,
+        changePercent,
+      };
+    });
+}
 
 export const GET = withErrorHandling(
   async (
@@ -69,7 +211,10 @@ export const GET = withErrorHandling(
   ) => {
     const { ticker } = ParamsSchema.parse(await context.params);
     const { searchParams } = new URL(request.url);
-    const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
+    const { limit, range } = QuerySchema.parse({
+      limit: searchParams.get('limit'),
+      range: searchParams.get('range'),
+    });
 
     // Look up the organizationId from the perp market snapshot
     const [marketSnapshot] = await db
@@ -86,8 +231,15 @@ export const GET = withErrorHandling(
       });
     }
 
-    // Get price history from stockPrices table
-    const history = await db
+    const now = new Date();
+    const selectedRange = (range ?? 'ALL') as TimeRange;
+    const since =
+      selectedRange === 'ALL'
+        ? null
+        : new Date(now.getTime() - RANGE_MS[selectedRange]);
+
+    // Get price history from stockPrices table (raw points)
+    const rawHistory = await db
       .select({
         id: stockPrices.id,
         price: stockPrices.price,
@@ -100,51 +252,45 @@ export const GET = withErrorHandling(
         volume: stockPrices.volume,
       })
       .from(stockPrices)
-      .where(eq(stockPrices.organizationId, marketSnapshot.organizationId))
+      .where(
+        since
+          ? and(
+              eq(stockPrices.organizationId, marketSnapshot.organizationId),
+              gte(stockPrices.timestamp, since)
+            )
+          : eq(stockPrices.organizationId, marketSnapshot.organizationId)
+      )
       .orderBy(desc(stockPrices.timestamp))
-      .limit(limit);
+      // When a range is selected, fetch more raw points so downsampling has enough signal.
+      .limit(range ? Math.max(limit * 10, 5000) : limit);
 
-    // If we don't have enough recent data, also check older data
-    if (history.length < 10) {
-      const allHistory = await db
-        .select({
-          id: stockPrices.id,
-          price: stockPrices.price,
-          change: stockPrices.change,
-          changePercent: stockPrices.changePercent,
-          timestamp: stockPrices.timestamp,
-          openPrice: stockPrices.openPrice,
-          highPrice: stockPrices.highPrice,
-          lowPrice: stockPrices.lowPrice,
-          volume: stockPrices.volume,
-        })
-        .from(stockPrices)
-        .where(eq(stockPrices.organizationId, marketSnapshot.organizationId))
-        .orderBy(desc(stockPrices.timestamp))
-        .limit(limit);
-
-      return successResponse({
-        ticker,
-        organizationId: marketSnapshot.organizationId,
-        history: allHistory.reverse().map((point) => ({
-          id: point.id,
-          price: point.price,
-          change: point.change,
-          changePercent: point.changePercent,
-          timestamp: point.timestamp.toISOString(),
-          openPrice: point.openPrice,
-          highPrice: point.highPrice,
-          lowPrice: point.lowPrice,
-          volume: point.volume,
-        })),
-      });
-    }
+    const ascending = rawHistory.reverse();
+    const history = range
+      ? downsampleStockPrices(
+          ascending.map((p) => ({
+            price: Number(p.price),
+            timestamp: p.timestamp,
+            volume: p.volume,
+          })),
+          limit
+        ).map((p) => ({
+          id: null as string | null,
+          price: p.price,
+          change: p.change,
+          changePercent: p.changePercent,
+          timestamp: p.timestamp,
+          openPrice: p.openPrice,
+          highPrice: p.highPrice,
+          lowPrice: p.lowPrice,
+          volume: p.volume,
+        }))
+      : ascending;
 
     return successResponse({
       ticker,
       organizationId: marketSnapshot.organizationId,
-      history: history.reverse().map((point) => ({
-        id: point.id,
+      history: history.map((point) => ({
+        id: point.id ?? undefined,
         price: point.price,
         change: point.change,
         changePercent: point.changePercent,
