@@ -2814,7 +2814,7 @@ Return your response as XML in this exact format:
 // generateEvents moved to services/event-generation-helpers.ts
 
 /** Update market prices based on NPC trading activity (investment-based pricing). */
-async function updateMarketPricesFromTrades(
+export async function updateMarketPricesFromTrades(
   _timestamp: Date,
   executionResult: TradingExecutionResult
 ): Promise<number> {
@@ -3173,7 +3173,7 @@ async function resolveMarketOnChain(
 /**
  * Publish question commitments to blockchain oracle
  */
-async function publishOracleCommitments(
+export async function publishOracleCommitments(
   questions: Array<{
     id: string;
     questionNumber: number;
@@ -3258,7 +3258,7 @@ async function publishOracleCommitments(
 /**
  * Publish question reveals to blockchain oracle
  */
-async function publishOracleReveals(
+export async function publishOracleReveals(
   questions: Array<{ id: string; outcome: boolean }>
 ): Promise<{ revealed: number; errors: number }> {
   let revealed = 0;
