@@ -182,7 +182,7 @@ async function deployNftContract(): Promise<void> {
   try {
     // Deploy NFT contract using Foundry script
     const result =
-      await $`cd ${contractsDir} && NFT_SIGNER_ADDRESS=${HARDHAT_ACCOUNT_0} NFT_BASE_URI=http://localhost:3000/api/nft/metadata/ forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFTLocal --rpc-url http://localhost:8545 --broadcast`.quiet();
+      await $`cd ${contractsDir} && NFT_SIGNER_ADDRESS=${HARDHAT_ACCOUNT_0} NFT_BASE_URI=http://localhost:3000/api/nft/metadata/ forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFTLocal --rpc-url http://localhost:8545 --broadcast --sender ${HARDHAT_ACCOUNT_0}`.quiet();
 
     const output = result.text();
 
@@ -199,7 +199,7 @@ async function deployNftContract(): Promise<void> {
       return;
     }
 
-    const nftContractAddress = addressMatch[1];
+    const nftContractAddress = addressMatch[1] as string;
     console.info(
       `✅ ProtoMonkeysNFT deployed to: ${nftContractAddress}`,
       undefined,
