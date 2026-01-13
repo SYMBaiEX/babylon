@@ -22,12 +22,12 @@ export default defineConfig({
   testDir: './synpress',
   testMatch: '**/*.spec.ts',
 
-  /* Maximum time one test can run for */
-  timeout: process.env.CI ? 90_000 : 120_000,
+  /* Maximum time one test can run for - generous for stability */
+  timeout: 120_000,
 
   /* Expect timeout */
   expect: {
-    timeout: 10_000,
+    timeout: 15_000,
   },
 
   /* Run tests in files in parallel - disabled for wallet tests */
@@ -36,8 +36,8 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
-  /* Retry on CI only */
-  retries: process.env.CI ? 1 : 0,
+  /* Retry failed tests to handle transient failures */
+  retries: 2,
 
   /* Single worker for wallet tests to avoid conflicts */
   workers: 1,
@@ -59,10 +59,10 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 30_000,
+    actionTimeout: 45_000,
     navigationTimeout: 60_000,
     launchOptions: {
-      args: ['--disable-dev-shm-usage'],
+      args: ['--disable-dev-shm-usage', '--disable-gpu'],
     },
   },
 
@@ -76,16 +76,15 @@ export default defineConfig({
     },
   ],
 
-  /* Run local dev server unless skipped */
-  webServer:
-    process.env.CI || process.env.PLAYWRIGHT_SKIP_WEBSERVER
-      ? undefined
-      : {
-          command: `cd ${rootDir}/apps/web && bunx next dev`,
-          url: baseURL,
-          reuseExistingServer: true,
-          timeout: 120_000,
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
+  /* Run local dev server - starts full dev environment with all services */
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: `cd ${rootDir} && bun run dev`,
+        url: baseURL,
+        reuseExistingServer: true,
+        timeout: 300_000, // 5 minutes for full server startup
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
 });

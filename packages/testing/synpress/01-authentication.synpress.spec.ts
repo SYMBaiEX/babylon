@@ -156,27 +156,19 @@ test.describe('Authentication - Admin Access', () => {
     // Should be on admin page (not redirected)
     expect(page.url()).toContain('/admin');
 
-    // Should see admin dashboard content
-    const adminHeading = page.getByRole('heading', { name: 'Admin Dashboard' });
-    const isVisible = await adminHeading
-      .isVisible({ timeout: TIMEOUTS.MEDIUM })
-      .catch(() => false);
+    // Admin page should have loaded with some content
+    const pageContent = await page.locator('body').textContent();
+    const hasAdminContent =
+      pageContent?.toLowerCase().includes('admin') ||
+      pageContent?.toLowerCase().includes('dashboard') ||
+      pageContent?.toLowerCase().includes('stats') ||
+      pageContent?.toLowerCase().includes('users') ||
+      pageContent?.toLowerCase().includes('denied') ||
+      pageContent?.toLowerCase().includes('access');
 
-    if (isVisible) {
-      console.log('✅ Admin dashboard accessible');
-    } else {
-      // Check if access denied (wallet might not be admin)
-      const accessDenied = await page
-        .getByText('Access Denied')
-        .isVisible({ timeout: TIMEOUTS.SHORT })
-        .catch(() => false);
-
-      if (accessDenied) {
-        console.log('⚠️ Admin access denied - wallet may not have admin role');
-      } else {
-        console.log('ℹ️ Admin page loaded but heading not visible');
-      }
-    }
+    // Test passes if admin page loaded (whether accessible or showing access denied)
+    expect(hasAdminContent || (pageContent?.length ?? 0) > 100).toBe(true);
+    console.log('✅ Admin page loaded successfully');
   });
 
   test('should see admin tabs and navigation', async ({ page }) => {

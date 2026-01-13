@@ -28,8 +28,15 @@ import { logger } from '@babylon/shared';
 import { nanoid } from 'nanoid';
 
 const TOTAL_NFTS = 100;
-const PLACEHOLDER_CONTRACT = '0x0000000000000000000000000000000000000000';
-const PLACEHOLDER_CHAIN_ID = 1;
+
+// Use environment variables if set, otherwise use placeholders
+// Default chain IDs: 1 = Ethereum Mainnet, 11155111 = Sepolia, 31337 = Local
+const NFT_CONTRACT_ADDRESS =
+  process.env.NFT_CONTRACT_ADDRESS ??
+  '0x0000000000000000000000000000000000000000';
+const NFT_CHAIN_ID = process.env.NFT_CHAIN_ID
+  ? parseInt(process.env.NFT_CHAIN_ID, 10)
+  : 31337; // Default to local Hardhat
 
 // Placeholder image service (generates colorful images based on seed)
 const getPlaceholderImage = (tokenId: number) =>
@@ -214,8 +221,8 @@ async function seedCollection(): Promise<void> {
         { trait_type: 'Token Number', value: tokenId },
         { trait_type: 'Edition', value: 'Genesis' },
       ],
-      contractAddress: PLACEHOLDER_CONTRACT,
-      chainId: PLACEHOLDER_CHAIN_ID,
+      contractAddress: NFT_CONTRACT_ADDRESS,
+      chainId: NFT_CHAIN_ID,
       createdAt: now,
       updatedAt: now,
     });

@@ -7,7 +7,7 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { BabylonError, isAuthenticationError } from './errors';
+import { ApiError, BabylonError, isAuthenticationError } from './errors';
 import type { JsonValue } from './types';
 
 /**
@@ -123,6 +123,22 @@ export function errorHandler(
       },
       { status: 400 }
     );
+  }
+
+  // Handle legacy/simple API errors used by many routes
+  if (error instanceof ApiError) {
+    const errorData: Record<string, JsonValue> = { error: error.message };
+
+    if (process.env.NODE_ENV === 'development') {
+      if (error.code) {
+        errorData.code = error.code;
+      }
+      if (error.stack) {
+        errorData.stack = error.stack;
+      }
+    }
+
+    return NextResponse.json(errorData, { status: error.statusCode });
   }
 
   // Handle client errors (4xx) at lower log level - these are expected behavior
