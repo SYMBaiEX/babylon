@@ -103,6 +103,34 @@ function envScore(key: string, defaultValue: number): number {
 }
 
 /**
+ * Parse an environment variable as a boolean with a default fallback.
+ *
+ * Accepts: true/false, 1/0, yes/no (case-insensitive).
+ * Logs a warning and returns default for unrecognized values.
+ */
+function envBoolean(key: string, defaultValue: boolean): boolean {
+  const value = process.env[key];
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return false;
+  }
+
+  logger.warn(
+    `${key}="${value}" is not a valid boolean, using default ${defaultValue}`,
+    { key, value, defaultValue },
+    'npc-activity'
+  );
+  return defaultValue;
+}
+
+/**
  * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
  * Returns the default and logs a warning if the value is < 0.
  */
@@ -206,10 +234,10 @@ export const NPC_ENGAGEMENT_CONFIG = {
   /**
    * Base probability for an NPC to comment (0.0 - 1.0).
    *
-   * @default 0.02 (increased - comments are valuable engagement)
+   * @default 0.04 (increased - comments are valuable engagement)
    * @env NPC_COMMENT_PROBABILITY
    */
-  baseCommentProbability: envProbability('NPC_COMMENT_PROBABILITY', 0.02),
+  baseCommentProbability: envProbability('NPC_COMMENT_PROBABILITY', 0.04),
 
   /**
    * Boost multiplier when NPC shares an org affiliation with post author.
@@ -244,12 +272,69 @@ export const NPC_ENGAGEMENT_CONFIG = {
   maxSharesPerTick: envPositiveNumber('NPC_MAX_SHARES_PER_TICK', 8),
 
   /**
-   * Maximum comments across all NPCs per tick.
+   * Maximum total comments (including replies-to-comments) across all NPCs per tick.
    *
-   * @default 6 (doubled for more conversation)
+   * @default 18 (increased for deeper threads + more conversation)
    * @env NPC_MAX_COMMENTS_PER_TICK
    */
-  maxCommentsPerTick: envPositiveNumber('NPC_MAX_COMMENTS_PER_TICK', 6),
+  maxCommentsPerTick: envPositiveNumber('NPC_MAX_COMMENTS_PER_TICK', 18),
+
+  /**
+   * Maximum comment replies (nested comments) per tick.
+   *
+   * This budget is used for 2nd+ level comment threads (comment → reply → reply ...).
+   * If set too low, the feed has "lonely" one-off comments.
+   *
+   * @default 8
+   * @env NPC_MAX_COMMENT_REPLIES_PER_TICK
+   */
+  maxCommentRepliesPerTick: envNonNegativeNumber(
+    'NPC_MAX_COMMENT_REPLIES_PER_TICK',
+    8
+  ),
+
+  /**
+   * Maximum depth for NPC comment threads (root comment depth = 0).
+   *
+   * @default 3 (allows up to 4 total levels including the root)
+   * @env NPC_MAX_COMMENT_THREAD_DEPTH
+   */
+  maxCommentThreadDepth: envPositiveNumber('NPC_MAX_COMMENT_THREAD_DEPTH', 3),
+
+  /**
+   * Base probability that the post author replies to a comment on their post.
+   * Strong relationships (love/hate) increase the chance.
+   *
+   * @default 0.35
+   * @env NPC_COMMENT_AUTHOR_REPLY_PROBABILITY
+   */
+  commentAuthorReplyProbability: envProbability(
+    'NPC_COMMENT_AUTHOR_REPLY_PROBABILITY',
+    0.35
+  ),
+
+  /**
+   * Base probability that a thread continues after a reply (back-and-forth).
+   * Strong relationships (love/hate) increase the chance.
+   *
+   * @default 0.45
+   * @env NPC_COMMENT_THREAD_CONTINUE_PROBABILITY
+   */
+  commentThreadContinueProbability: envProbability(
+    'NPC_COMMENT_THREAD_CONTINUE_PROBABILITY',
+    0.45
+  ),
+
+  /**
+   * Probability that the quoted person "clapbacks" by commenting on a quote-post about them.
+   *
+   * @default 0.6
+   * @env NPC_QUOTE_CLAPBACK_PROBABILITY
+   */
+  quoteClapbackProbability: envProbability(
+    'NPC_QUOTE_CLAPBACK_PROBABILITY',
+    0.6
+  ),
 
   /**
    * Number of NPCs to sample for engagement each tick.
@@ -389,6 +474,33 @@ export const NPC_GROUP_DYNAMICS_CONFIG = {
    * @env NPC_IDEAL_GROUP_SIZE
    */
   idealGroupSize: envPositiveNumber('NPC_IDEAL_GROUP_SIZE', 7),
+
+  /**
+   * When enabled, users with **zero** active group memberships will be auto-joined
+   * into a random NPC group chat on the next tick.
+   *
+   * This is intended for local development to demonstrate that NPC private chats
+   * are working and actively receiving messages.
+   *
+   * @default true in development, false otherwise
+   * @env NPC_AUTO_JOIN_EMPTY_USERS_TO_NPC_GROUP_CHAT
+   */
+  autoJoinEmptyUsersToNpcGroupChat: envBoolean(
+    'NPC_AUTO_JOIN_EMPTY_USERS_TO_NPC_GROUP_CHAT',
+    process.env.NODE_ENV === 'development'
+  ),
+
+  /**
+   * Maximum number of users to auto-join per tick when
+   * `autoJoinEmptyUsersToNpcGroupChat` is enabled.
+   *
+   * @default 25
+   * @env NPC_AUTO_JOIN_EMPTY_USERS_BATCH_SIZE
+   */
+  autoJoinEmptyUsersBatchSize: envPositiveNumber(
+    'NPC_AUTO_JOIN_EMPTY_USERS_BATCH_SIZE',
+    25
+  ),
 } as const;
 
 // Validate minGroupSize <= maxGroupSize at module initialization

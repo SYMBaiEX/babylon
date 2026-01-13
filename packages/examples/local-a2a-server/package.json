@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun run --watch src/server.ts",
-    "build": "echo 'Bun-only package, no build needed'",
+    "build": "bun build --target=bun --outfile dist/index.js src/server.ts",
     "start": "bun run src/server.ts",
     "test": "bun test",
     "typecheck": "echo 'Bun-only package, types checked at runtime'"

@@ -17,7 +17,13 @@ import {
  */
 export interface NpcMemory {
   id: string;
-  type: 'posted' | 'replied_to' | 'mentioned_by' | 'witnessed_event' | 'traded';
+  type:
+    | 'posted'
+    | 'replied_to'
+    | 'mentioned_by'
+    | 'witnessed_event'
+    | 'traded'
+    | 'running_bit';
   timestamp: string; // ISO date string
   summary: string;
   actorIds?: string[];

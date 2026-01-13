@@ -70,6 +70,7 @@ import { db, eq, inArray, userAgentConfigs, users } from '@babylon/db';
 import { GROQ_MODELS, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 // Vercel function configuration
 // Note: vercel.json overrides this with 800 seconds (13.3 minutes)
@@ -108,6 +109,8 @@ export async function GET(req: NextRequest) {
  * @throws {401} Invalid or missing CRON_SECRET
  */
 export async function POST(_req: NextRequest) {
+  ensureEngineServices();
+
   // 0. Verify cron authorization using centralized auth
   if (!verifyCronAuth(_req, { jobName: 'AgentTick' })) {
     logger.warn(

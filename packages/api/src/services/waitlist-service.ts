@@ -6,7 +6,7 @@
  * and leaderboard rankings for waitlist participants.
  */
 
-import { NotFoundError } from '@babylon/api';
+import { NotFoundError } from '../errors';
 import {
   and,
   asc,

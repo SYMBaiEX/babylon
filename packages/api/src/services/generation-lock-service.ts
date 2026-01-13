@@ -27,7 +27,7 @@
  * ```
  */
 
-import { DistributedLockService } from '@babylon/api';
+import { DistributedLockService } from './distributed-lock-service';
 import { randomBytes } from 'crypto';
 
 const LOCK_ID = 'game-tick-lock';

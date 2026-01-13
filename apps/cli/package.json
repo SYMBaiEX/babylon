@@ -33,6 +33,7 @@
     "@babylon/agents": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/engine": "workspace:*",
+    "@babylon/testing": "workspace:*",
     "@babylon/training": "workspace:*",
     "@fal-ai/client": "^1.7.2",
     "@vercel/blob": "^2.0.0",

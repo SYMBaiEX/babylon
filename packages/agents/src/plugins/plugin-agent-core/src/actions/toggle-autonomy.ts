@@ -13,8 +13,9 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import { agentService } from '../../../../services/AgentService';
+import { agentLogs, db, eq, userAgentConfigs, users } from '@babylon/db';
 import { logger } from '../../../../shared/logger';
+import { generateSnowflakeId } from '../../../../shared/snowflake';
 import type {
   AutonomyFeature,
   AutonomyStatus,
@@ -164,17 +165,19 @@ export const toggleAutonomyAction: Action = {
     }
 
     try {
-      // Get agent to find manager
-      const agent = await agentService.getAgent(agentUserId);
-      if (!agent) {
+      const [agent] = await db
+        .select({ id: users.id, isAgent: users.isAgent })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (!agent || !agent.isAgent) {
         return {
           success: false,
           text: 'Agent not found.',
           error: 'Agent not found',
         };
       }
-
-      const managerUserId = agent.managedBy || agentUserId;
 
       // Build update object
       const updates: Partial<AutonomyStatus> = {};
@@ -190,8 +193,32 @@ export const toggleAutonomyAction: Action = {
         updates[configField] = enabled;
       }
 
-      // Use agentService.updateAgent for proper logging and cache management
-      await agentService.updateAgent(agentUserId, managerUserId, updates);
+      const now = new Date();
+
+      // Ensure config row exists, then update only autonomy fields
+      await db
+        .insert(userAgentConfigs)
+        .values({
+          id: await generateSnowflakeId(),
+          userId: agentUserId,
+          updatedAt: now,
+        })
+        .onConflictDoNothing();
+
+      await db
+        .update(userAgentConfigs)
+        .set({ ...updates, updatedAt: now })
+        .where(eq(userAgentConfigs.userId, agentUserId));
+
+      // Log the change for observability
+      await db.insert(agentLogs).values({
+        id: await generateSnowflakeId(),
+        agentUserId,
+        type: 'system',
+        level: 'info',
+        message: 'Autonomy configuration updated',
+        metadata: { feature, enabled },
+      });
 
       const featureDisplay =
         feature === 'all' ? 'all autonomous features' : `autonomous ${feature}`;

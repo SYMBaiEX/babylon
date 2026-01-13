@@ -50,10 +50,12 @@ export interface StaticActor {
   username?: string;
   realName?: string;
   description?: string;
+  profileDescription?: string;
   domain: string[];
   ignoreTopics?: string[];
   engagementThreshold?: number;
   personality?: string;
+  voice?: string;
   tier: ActorTier | null;
   affiliations: string[];
   postStyle?: string;
@@ -159,10 +161,12 @@ export class StaticDataRegistry {
         username?: string;
         realName?: string;
         description?: string;
+        profileDescription?: string;
         domain?: string[];
         ignoreTopics?: string[];
         engagementThreshold?: number;
         personality?: string;
+        voice?: string;
         tier?: string;
         affiliations?: string[];
         postStyle?: string;
@@ -178,10 +182,12 @@ export class StaticDataRegistry {
         username: actorAny.username,
         realName: actorAny.realName,
         description: actorAny.description,
+        profileDescription: actorAny.profileDescription,
         domain: actorAny.domain ?? [],
         ignoreTopics: actorAny.ignoreTopics,
         engagementThreshold: actorAny.engagementThreshold,
         personality: actorAny.personality,
+        voice: actorAny.voice,
         tier: (actorAny.tier as ActorTier) ?? null,
         affiliations: actorAny.affiliations ?? [],
         postStyle: actorAny.postStyle,

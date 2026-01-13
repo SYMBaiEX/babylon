@@ -11,10 +11,13 @@
  */
 
 import { $ } from 'bun';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getFlag, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
+
+// Path to deployments directory
+const DEPLOYMENTS_DIR = join(process.cwd(), 'packages', 'contracts', 'deployments');
 
 // Path to contracts package (foundry.toml location)
 const CONTRACTS_DIR = join(process.cwd(), 'packages', 'contracts');
@@ -96,8 +99,10 @@ function parseDeploymentOutput(output: string): Record<string, string> {
     ['priceStorageFacet', /PriceStorageFacet:\s*(0x[a-fA-F0-9]{40})/],
     ['identityRegistry', /IdentityRegistry:\s*(0x[a-fA-F0-9]{40})/],
     ['reputationSystem', /ReputationSystem:\s*(0x[a-fA-F0-9]{40})/],
-    ['babylonGameOracle', /BabylonGameOracle:\s*(0x[a-fA-F0-9]{40})/],
+    ['babylonOracle', /BabylonGameOracle:\s*(0x[a-fA-F0-9]{40})/],
     ['banManager', /BanManager:\s*(0x[a-fA-F0-9]{40})/],
+    ['chainlinkOracle', /ChainlinkOracle(?:\s*\(Mock\))?:\s*(0x[a-fA-F0-9]{40})/],
+    ['mockOracle', /MockOracle:\s*(0x[a-fA-F0-9]{40})/],
     ['testToken', /TestToken:\s*(0x[a-fA-F0-9]{40})/],
   ] as const;
 
@@ -107,6 +112,47 @@ function parseDeploymentOutput(output: string): Record<string, string> {
   }
 
   return addresses;
+}
+
+/**
+ * Save deployment addresses to the deployments JSON file.
+ * This ensures the @babylon/contracts package loads fresh addresses.
+ */
+function saveDeploymentJson(
+  network: string,
+  chainId: number,
+  addresses: Record<string, string>,
+  deployer: string
+): void {
+  const networkDir = network === 'local' ? 'local' : network === 'testnet' ? 'base-sepolia' : 'base';
+  const deploymentDir = join(DEPLOYMENTS_DIR, networkDir);
+  
+  // Ensure directory exists
+  if (!existsSync(deploymentDir)) {
+    mkdirSync(deploymentDir, { recursive: true });
+  }
+  
+  const deployment = {
+    network: networkDir === 'local' ? 'localnet' : networkDir,
+    chainId,
+    contracts: addresses,
+    deployer,
+    timestamp: new Date().toISOString(),
+    blockNumber: 0, // Will be updated if we can fetch it
+  };
+  
+  // Save JSON file
+  const jsonPath = join(deploymentDir, 'index.json');
+  writeFileSync(jsonPath, JSON.stringify(deployment, null, 2) + '\n');
+  
+  // Also update/create the TypeScript export if it doesn't exist
+  const tsPath = join(deploymentDir, 'index.ts');
+  if (!existsSync(tsPath)) {
+    const tsContent = `import deployment from './index.json';\nexport default deployment;\n`;
+    writeFileSync(tsPath, tsContent);
+  }
+  
+  logger.success(`Saved deployment to ${jsonPath}`);
 }
 
 async function checkForge(): Promise<boolean> {
@@ -202,6 +248,12 @@ async function deployToNetwork(
   logger.success('Deployment complete!');
   console.log('\nContract addresses:');
   console.log(`  Diamond: ${addresses.diamond}`);
+
+  // Get deployer address from private key
+  const deployerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'; // Hardhat account #0 for local
+  
+  // Save to deployments JSON file (this is what @babylon/contracts loads)
+  saveDeploymentJson(network, config.chainId, addresses, deployerAddress);
 
   // Save to env file
   const envFile = network === 'local' ? '.env.local' : `.env.${network}`;

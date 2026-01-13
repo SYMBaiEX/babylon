@@ -10,7 +10,7 @@
  * - Default fallback to 'trader' if no resolver provided
  */
 
-import type { MarketDecisionEngine } from '@babylon/engine';
+import type { MarketDecisionEngine } from '../MarketDecisionEngine';
 import { logger } from '@babylon/shared';
 import {
   type Action,

@@ -8,12 +8,10 @@
  */
 
 import { actorState, and, db, eq, getDbInstance, gte, sql } from '@babylon/db';
-import {
-  BabylonLLMClient,
-  loadActorById,
-  StaticDataRegistry,
-} from '@babylon/engine';
+import { loadActorById } from '../actors-loader';
+import { BabylonLLMClient } from '../llm/openai-client';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { StaticDataRegistry } from './static-data-registry';
 
 /**
  * Initial investment specification

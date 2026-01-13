@@ -10,11 +10,49 @@ import {
   useRef,
   useState,
 } from 'react';
-import { toast } from 'sonner';
 import { GameGuideModal } from '@/components/onboarding/GameGuideModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { apiFetch } from '@/utils/api-fetch';
+
+/** LocalStorage key for tracking game guide completion (backup for API) */
+const GAME_GUIDE_COMPLETED_KEY = 'babylon-game-guide-completed';
+
+/**
+ * Check if user has completed game guide (checks both API and localStorage backup)
+ */
+function hasCompletedGameGuide(userId: string | undefined, apiCompletedAt: string | null | undefined): boolean {
+  // If API says completed, it's completed
+  if (apiCompletedAt) return true;
+  
+  // Check localStorage backup (keyed by userId to support multiple accounts)
+  if (typeof window === 'undefined' || !userId) return false;
+  
+  try {
+    const stored = localStorage.getItem(GAME_GUIDE_COMPLETED_KEY);
+    if (!stored) return false;
+    const completedUsers = JSON.parse(stored) as Record<string, boolean>;
+    return completedUsers[userId] === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark game guide as completed in localStorage (backup for API)
+ */
+function markGameGuideCompleted(userId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const stored = localStorage.getItem(GAME_GUIDE_COMPLETED_KEY);
+    const completedUsers = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
+    completedUsers[userId] = true;
+    localStorage.setItem(GAME_GUIDE_COMPLETED_KEY, JSON.stringify(completedUsers));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 interface GameGuideContextValue {
   isOpen: boolean;
@@ -34,12 +72,12 @@ export function useGameGuide(): GameGuideContextValue {
 /**
  * Manages the game onboarding guide. Auto-shows when:
  * - User is authenticated with complete profile
- * - On-chain step is done/skipped
- * - Guide not yet completed
+ * - On-chain step is done
+ * - Guide not yet completed (checked via API AND localStorage backup)
  * - User is not an NPC/actor
  */
 export function GameGuideProvider({ children }: { children: React.ReactNode }) {
-  const { authenticated, user, loadingProfile, needsOnboarding, needsOnchain } =
+  const { ready, authenticated, user, loadingProfile, needsOnboarding, needsOnchain } =
     useAuth();
   const { setUser } = useAuthStore();
 
@@ -48,21 +86,19 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const hasAutoShown = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const hasCompleted = Boolean(user?.gameGuideCompletedAt);
   const userId = user?.id;
+  // Check completion via both API response AND localStorage backup
+  const hasCompleted = hasCompletedGameGuide(userId, user?.gameGuideCompletedAt);
 
   // Check if guide should auto-open (only once per session)
-  // IMPORTANT: Require user with profile to be fully loaded before showing
-  // This prevents showing on hydration before localStorage state is restored
+  // Only shows after user has completed onboarding (profile + on-chain)
   const shouldAutoShow =
     authenticated &&
     !loadingProfile &&
-    user !== null && // Must have user loaded
-    user.profileComplete && // Must have completed profile setup
     !needsOnboarding &&
     !needsOnchain &&
     !hasCompleted &&
-    !user.isActor;
+    !user?.isActor;
 
   useEffect(() => {
     if (shouldAutoShow && !hasAutoShown.current && !isOpen) {
@@ -72,13 +108,14 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
     }
   }, [shouldAutoShow, isOpen, userId]);
 
-  // Reset on logout
+  // Reset on logout - only when Privy is ready and user is confirmed logged out
+  // Don't reset during initial load when `ready` is false
   useEffect(() => {
-    if (!authenticated) {
+    if (ready && !authenticated) {
       hasAutoShown.current = false;
       setIsOpen(false);
     }
-  }, [authenticated]);
+  }, [ready, authenticated]);
 
   // Cleanup: abort any in-flight request on unmount
   useEffect(() => {
@@ -92,6 +129,15 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
   const handleComplete = useCallback(async () => {
     // Guard against double-submit or missing user
     if (!user || isSubmitting) return;
+
+    // Capture userId for logging (user object might change during async)
+    const currentUserId = user.id;
+
+    // Immediately save to localStorage as backup (prevents showing again even if API fails)
+    markGameGuideCompleted(currentUserId);
+    
+    // Close the modal immediately for better UX
+    setIsOpen(false);
 
     // Abort any previous in-flight request
     abortControllerRef.current?.abort();
@@ -113,25 +159,27 @@ export function GameGuideProvider({ children }: { children: React.ReactNode }) {
         const { gameGuideCompletedAt } = (await res.json()) as {
           gameGuideCompletedAt: string;
         };
-        setUser({ ...user, gameGuideCompletedAt });
-        // Only close modal on success
-        setIsOpen(false);
+        // Use fresh user state from store to avoid overwriting newer data with stale closure
+        const freshUser = useAuthStore.getState().user;
+        if (freshUser) {
+          setUser({ ...freshUser, gameGuideCompletedAt });
+        }
+        logger.info('Game guide completion saved', { userId: currentUserId }, 'GameGuideProvider');
       } else {
+        // API failed but localStorage backup is already saved
+        // User won't see the guide again, but we log the error
         logger.error(
-          'Failed to save game guide',
-          { status: res.status },
+          'Failed to save game guide to API (localStorage backup saved)',
+          { status: res.status, userId: currentUserId },
           'GameGuideProvider'
         );
-        toast.error('Failed to save progress. Please try again.');
-        // Keep modal open so user can retry
       }
     } catch (error) {
       // Ignore abort errors, they're expected on unmount
       if (error instanceof Error && error.name === 'AbortError') return;
 
-      logger.error('Game guide API error', { error }, 'GameGuideProvider');
-      toast.error('Failed to save progress. Please try again.');
-      // Keep modal open so user can retry
+      // API failed but localStorage backup is already saved
+      logger.error('Game guide API error (localStorage backup saved)', { error, userId: currentUserId }, 'GameGuideProvider');
     } finally {
       // Only clear submitting if not aborted (component still mounted)
       if (!controller.signal.aborted) {

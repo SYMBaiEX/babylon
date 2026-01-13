@@ -35,6 +35,7 @@ import {
 } from '@babylon/db';
 import type { GroupChat } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
+import { notifyGroupChatInvite } from './group-chat-invite-notifier';
 
 /**
  * Generate a deterministic group ID from a chat ID.
@@ -407,7 +408,6 @@ export class GroupChatService {
     });
 
     // Send notification to user about the invite (with inviteId for proper linking)
-    const { notifyGroupChatInvite } = await import('@babylon/api');
     await notifyGroupChatInvite(userId, npcId, groupId, chatName, inviteId!);
   }
 

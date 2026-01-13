@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import { agentRuntimeManager } from '@babylon/agents';
+import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import {
   loadActorById,
   type StaticActor,

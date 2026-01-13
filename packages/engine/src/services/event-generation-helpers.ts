@@ -9,7 +9,7 @@ import {
   type Question,
   worldEvents,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '@babylon/engine';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { ArticleGenerator } from '../ArticleGenerator';
 import {

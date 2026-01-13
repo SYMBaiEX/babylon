@@ -12,6 +12,7 @@ import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 import type { LLMCallTokenUsage } from '../types/token-stats';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
+import type { LLMJsonSchema as JSONSchema } from './types';
 import {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
@@ -52,17 +53,7 @@ export function getTokenUsageCallback(): TokenUsageCallback | null {
 /**
  * Simple JSON schema for validation
  */
-interface JSONSchema {
-  required?: string[];
-  properties?: Record<string, JsonSchemaProperty>;
-}
-
-interface JsonSchemaProperty {
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  description?: string;
-  items?: JsonSchemaProperty;
-  properties?: Record<string, JsonSchemaProperty>;
-}
+// NOTE: Schema types are shared via ./types to avoid duplicating shapes across the engine.
 
 export class BabylonLLMClient {
   private client: OpenAI;

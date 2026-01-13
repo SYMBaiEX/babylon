@@ -13,7 +13,11 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
-import { GroupChatService, NPCGroupDynamicsService } from '@babylon/engine';
+import {
+  GroupChatService,
+  NPCGroupDynamicsService,
+  autoJoinEmptyUsersToNpcGroupChats,
+} from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Test data cleanup tracking
@@ -252,6 +256,63 @@ describe('Group Chat Dynamics Integration Tests', () => {
 
   afterEach(async () => {
     await cleanupTestData();
+  });
+
+  describe('NPC group chat onboarding (dev demo)', () => {
+    test('auto-joins users with zero group chats into an NPC group chat', async () => {
+      const npc = await createTestActor({ name: 'Onboarding NPC' });
+      const user = await createTestUser({
+        isAgent: false,
+        displayName: 'Brand New User',
+      });
+
+      // Create an NPC group chat with the NPC as owner + participant
+      const chat = await createTestGroupChat({
+        name: "Onboarding NPC's Circle",
+        npcAdminId: npc.id,
+      });
+      await addChatParticipant({ chatId: chat.id, userId: npc.id });
+      await createGroupMembership({
+        groupId: chat.groupId,
+        userId: npc.id,
+        role: 'owner',
+        addedBy: npc.id,
+      });
+
+      const usersJoined = await autoJoinEmptyUsersToNpcGroupChats({
+        enabled: true,
+        batchSize: 10,
+        defaultMaxMembers: 12,
+        userIdAllowlist: [user.id],
+        chatIdAllowlist: [chat.id],
+      });
+
+      expect(usersJoined).toBe(1);
+
+      const membership = await db.groupMember.findFirst({
+        where: {
+          groupId: chat.groupId,
+          userId: user.id,
+          isActive: true,
+        },
+      });
+      expect(membership).not.toBeNull();
+      if (membership) {
+        testIds.membershipIds.push(membership.id);
+      }
+
+      const participant = await db.chatParticipant.findFirst({
+        where: {
+          chatId: chat.id,
+          userId: user.id,
+          isActive: true,
+        },
+      });
+      expect(participant).not.toBeNull();
+      if (participant) {
+        testIds.participantIds.push(participant.id);
+      }
+    });
   });
 
   describe('User and Agent Parity', () => {

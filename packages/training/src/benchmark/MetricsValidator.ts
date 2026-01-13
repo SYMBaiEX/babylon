@@ -7,7 +7,7 @@
 import type { ValidationResult } from '../training/ConfigValidator';
 import { logger } from '../utils/logger';
 import type { GroundTruth } from './BenchmarkDataGenerator';
-import type { AgentAction, SimulationMetrics } from './SimulationEngine';
+import type { AgentAction, SimulationMetrics } from './simulation-types';
 
 export class MetricsValidator {
   /**

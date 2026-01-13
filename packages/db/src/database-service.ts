@@ -14,28 +14,18 @@
  */
 
 import { generateSnowflakeId } from '@babylon/shared';
+import { and, count, desc, eq, gte, inArray, isNull, lt, lte } from 'drizzle-orm';
 import {
   actorState,
-  and,
-  count,
-  db,
-  desc,
-  eq,
   games,
-  gte,
-  inArray,
-  isNull,
-  lt,
-  lte,
-  ne,
-  or,
   organizationState,
   posts,
   questions,
   stockPrices,
   users,
   worldEvents,
-} from './index';
+} from './schema';
+import { db } from './db';
 import { logger } from './logger';
 import type {
   ActorStateRow,
@@ -194,6 +184,7 @@ class DatabaseService {
     commentOnPostId?: string;
     parentCommentId?: string;
     originalPostId?: string;
+    relatedQuestion?: number;
   }) {
     const safeDayNumber =
       typeof data.dayNumber === 'number' &&
@@ -206,6 +197,24 @@ class DatabaseService {
     if (data.dayNumber !== undefined && safeDayNumber === undefined) {
       logger.warn('[Post] Invalid dayNumber value', {
         dayNumber: data.dayNumber,
+        postId: data.id,
+      });
+    }
+
+    const safeRelatedQuestion =
+      typeof data.relatedQuestion === 'number' &&
+      Number.isFinite(data.relatedQuestion) &&
+      data.relatedQuestion >= 0 &&
+      data.relatedQuestion <= 2147483647
+        ? Math.floor(data.relatedQuestion)
+        : undefined;
+
+    if (
+      data.relatedQuestion !== undefined &&
+      safeRelatedQuestion === undefined
+    ) {
+      logger.warn('[Post] Invalid relatedQuestion value', {
+        relatedQuestion: data.relatedQuestion,
         postId: data.id,
       });
     }
@@ -231,6 +240,7 @@ class DatabaseService {
         commentOnPostId: data.commentOnPostId,
         parentCommentId: data.parentCommentId,
         originalPostId: data.originalPostId,
+        relatedQuestion: safeRelatedQuestion,
       })
       .returning();
 
@@ -281,9 +291,7 @@ class DatabaseService {
 
   /**
    * Get recent posts with cursor-based or offset-based pagination.
-   * Automatically filters out:
-   * - Posts from test users
-   * - Proof articles (type='proof') which are market resolution evidence, not feed content
+   * Automatically filters out posts from test users.
    *
    * @param limit - Maximum number of posts to return (default: 100)
    * @param cursorOrOffset - Cursor string for cursor-based pagination or number for offset-based
@@ -303,14 +311,7 @@ class DatabaseService {
 
     const now = new Date();
 
-    // Filter conditions:
-    // - Not deleted
-    // - Not proof type (proof articles are market resolution evidence, not feed content)
-    // - Allow NULL type since SQL NULL != 'proof' yields unknown
-    const conditions = [
-      isNull(posts.deletedAt),
-      or(isNull(posts.type), ne(posts.type, 'proof')),
-    ];
+    const conditions = [isNull(posts.deletedAt)];
 
     if (cursor) {
       conditions.push(lt(posts.timestamp, new Date(cursor)));

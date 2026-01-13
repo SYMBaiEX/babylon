@@ -9,7 +9,6 @@
  * Falls back to in-memory cache if Redis is unavailable.
  */
 
-import { getCache, invalidateCache, setCache } from '@babylon/api';
 import { db, eq, organizations } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { npcMemoryService } from './npc-memory-service';
@@ -23,7 +22,7 @@ const SIGNIFICANT_TRADE_THRESHOLD = 1000;
 /**
  * Batch size for fetching mention timestamps to avoid overwhelming Redis
  */
-const MENTION_LOOKUP_BATCH_SIZE = 20;
+// Note: Previously used for Redis-backed batching; retained in history only.
 
 /**
  * Threshold for a "large" trade that warrants special mention
@@ -43,12 +42,7 @@ const MAX_MENTION_CACHE_SIZE = 1000;
 /**
  * Cache key prefix for player mentions
  */
-const MENTION_CACHE_PREFIX = 'player:mention';
-
-/**
- * Cache key for the set of all recently mentioned actor IDs
- */
-const MENTION_SET_KEY = 'player:mention:set';
+// Engine runs without external cache by default.
 
 /**
  * LRU Cache for recent mentions with bounded size (in-memory fallback).
@@ -127,57 +121,19 @@ export async function recordMention(
   actorId: string,
   timestamp: Date
 ): Promise<void> {
-  const timestampIso = timestamp.toISOString();
-
   // Always update local fallback cache for wasMentionedRecentlySync to work
   // This ensures sync checks work even when Redis is the primary store
   memoryFallbackCache.set(actorId, timestamp);
 
-  try {
-    // Store in Redis with TTL for distributed access
-    await setCache(
-      actorId,
-      { timestamp: timestampIso },
-      { namespace: MENTION_CACHE_PREFIX, ttl: MENTION_RECENCY_SECONDS }
-    );
-
-    // NOTE: The MENTION_SET_KEY read-modify-write pattern was removed because it's
-    // vulnerable to race conditions and the cache API doesn't support atomic set ops.
-    // Mention tracking now relies on getRecentlyMentionedActorIds' in-memory fallback
-    // until an atomic cache operation (like SADD) is available.
-
-    logger.debug('Mention recorded in Redis', { actorId }, 'PlayerInfluence');
-  } catch {
-    // Redis failed, but local cache is already set above
-    logger.debug(
-      'Redis unavailable, using memory fallback only',
-      { actorId },
-      'PlayerInfluence'
-    );
-  }
+  // NOTE: This engine package intentionally does not depend on @babylon/api (Redis cache).
+  // Mention tracking uses the in-memory fallback only. The mention boost is a soft preference,
+  // so local-only semantics are acceptable.
 }
 
 /**
  * Get the last mention timestamp for an actor
  */
 async function getMentionTimestamp(actorId: string): Promise<Date | null> {
-  try {
-    const cached = await getCache<{ timestamp: string }>(actorId, {
-      namespace: MENTION_CACHE_PREFIX,
-    });
-
-    if (cached?.timestamp) {
-      return new Date(cached.timestamp);
-    }
-  } catch {
-    // Log but don't return from cache lookup error - fall through to memory fallback
-    logger.debug(
-      'Redis cache lookup failed, will check memory fallback',
-      { actorId },
-      'PlayerInfluence'
-    );
-  }
-
   // Check in-memory fallback (could have been set before Redis connected or if Redis failed)
   const memoryValue = memoryFallbackCache.get(actorId);
   return memoryValue ?? null;
@@ -187,11 +143,6 @@ async function getMentionTimestamp(actorId: string): Promise<Date | null> {
  * Remove a mention from the cache
  */
 async function removeMention(actorId: string): Promise<void> {
-  try {
-    await invalidateCache(actorId, { namespace: MENTION_CACHE_PREFIX });
-  } catch {
-    // Ignore Redis errors
-  }
   memoryFallbackCache.delete(actorId);
 }
 
@@ -283,41 +234,7 @@ export async function getRecentlyMentionedActorIds(): Promise<string[]> {
   const now = new Date();
   const recentIds: string[] = [];
 
-  try {
-    // Try to get from Redis set
-    const cachedSet = await getCache<string[]>(MENTION_SET_KEY, {});
-    if (cachedSet && cachedSet.length > 0) {
-      // Batch fetch timestamps in controlled chunks to avoid overwhelming Redis
-      const timestampResults: { actorId: string; timestamp: Date | null }[] =
-        [];
-
-      for (let i = 0; i < cachedSet.length; i += MENTION_LOOKUP_BATCH_SIZE) {
-        const batch = cachedSet.slice(i, i + MENTION_LOOKUP_BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (actorId) => ({
-            actorId,
-            timestamp: await getMentionTimestamp(actorId),
-          }))
-        );
-        timestampResults.push(...batchResults);
-      }
-
-      // Filter to only recently mentioned actors
-      for (const { actorId, timestamp } of timestampResults) {
-        if (
-          timestamp &&
-          now.getTime() - timestamp.getTime() < MENTION_RECENCY_SECONDS * 1000
-        ) {
-          recentIds.push(actorId);
-        }
-      }
-      return recentIds;
-    }
-  } catch {
-    // Fallback to in-memory
-  }
-
-  // Fallback to in-memory cache
+  // In-memory cache
   // Collect IDs to delete separately to avoid modifying Map during iteration
   const idsToDelete: string[] = [];
   for (const [actorId, lastMention] of memoryFallbackCache.entries()) {

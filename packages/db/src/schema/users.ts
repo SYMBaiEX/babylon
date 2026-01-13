@@ -15,9 +15,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
-import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';
-import { userAgentConfigs } from './user-agent-configs';
 
 // Re-export for consumers
 export type { GameOnboardingStep } from '@babylon/shared';
@@ -566,61 +564,6 @@ export const userApiKeys = pgTable(
     index('UserApiKey_userId_revokedAt_idx').on(table.userId, table.revokedAt),
   ]
 );
-
-// Relations
-export const usersRelations = relations(users, ({ many, one }) => ({
-  onboardingIntent: one(onboardingIntents, {
-    fields: [users.id],
-    references: [onboardingIntents.userId],
-  }),
-  followerFollows: many(follows, { relationName: 'Follow_followerIdToUser' }),
-  followingFollows: many(follows, { relationName: 'Follow_followingIdToUser' }),
-  targetFavorites: many(favorites, {
-    relationName: 'Favorite_targetUserIdToUser',
-  }),
-  userFavorites: many(favorites, { relationName: 'Favorite_userIdToUser' }),
-  blockerBlocks: many(userBlocks, {
-    relationName: 'UserBlock_blockerIdToUser',
-  }),
-  blockedBlocks: many(userBlocks, {
-    relationName: 'UserBlock_blockedIdToUser',
-  }),
-  muterMutes: many(userMutes, { relationName: 'UserMute_muterIdToUser' }),
-  mutedMutes: many(userMutes, { relationName: 'UserMute_mutedIdToUser' }),
-  referrerReferrals: many(referrals, {
-    relationName: 'Referral_referrerIdToUser',
-  }),
-  referredReferrals: many(referrals, {
-    relationName: 'Referral_referredUserIdToUser',
-  }),
-  twitterOAuthToken: one(twitterOAuthTokens, {
-    fields: [users.id],
-    references: [twitterOAuthTokens.userId],
-  }),
-  userActorFollows: many(userActorFollows),
-  profileUpdateLogs: many(profileUpdateLogs),
-  manager: one(users, {
-    fields: [users.managedBy],
-    references: [users.id],
-    relationName: 'UserToUser',
-  }),
-  managedAgents: many(users, { relationName: 'UserToUser' }),
-  AgentPerformanceMetrics: one(agentPerformanceMetrics, {
-    fields: [users.id],
-    references: [agentPerformanceMetrics.userId],
-  }),
-  apiKeys: many(userApiKeys, {
-    relationName: 'UserApiKey_userIdToUser',
-  }),
-  agentConfig: one(userAgentConfigs, {
-    fields: [users.id],
-    references: [userAgentConfigs.userId],
-  }),
-  gameOnboarding: one(gameOnboarding, {
-    fields: [users.id],
-    references: [gameOnboarding.userId],
-  }),
-}));
 
 export const gameOnboardingRelations = relations(gameOnboarding, ({ one }) => ({
   user: one(users, {

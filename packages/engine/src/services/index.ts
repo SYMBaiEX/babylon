@@ -30,9 +30,12 @@ export * from './lookahead-generation-service';
 export * from './message-quality-checker';
 export * from './narrative-event-processor';
 export * from './npc-group-dynamics-service';
+export * from './npc-group-chat-onboarding-service';
 export * from './npc-interaction-tracker';
 export * from './npc-memory-service';
+export * from './npc-positions-context-service';
 export * from './npc-persona-generator';
+export * from './npc-running-bit-service';
 export * from './npc-social-engagement-service';
 export * from './player-influence-service';
 export * from './posting-probability-service';
@@ -60,7 +63,6 @@ export * from './signal-extraction-service';
 export * from './sub-market-service'; // Sub-market spawning
 export * from './timeframe-arc-planner'; // Compressed arc planning for timeframe markets
 export * from './timeframe-arc-processor'; // Time-based arc state machine
-export * from './trajectory-market-engine';
 
 // =============================================================================
 // Content Generation
@@ -98,6 +100,7 @@ export * from './trending-grouping-service';
 // =============================================================================
 
 export * from './character-mapping-service';
+export * from './distributed-lock-service';
 export * from './earned-points-service';
 export * from './fee-service';
 export {
@@ -108,7 +111,9 @@ export {
 export * from './market-context-service';
 export * from './market-impact-service';
 export * from './npc-wallet-adapter';
+export * from './realtime-broadcaster';
 export * from './rss-feed-service';
+export * from './group-chat-invite-notifier';
 export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';

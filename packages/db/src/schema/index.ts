@@ -20,3 +20,4 @@ export * from './trading';
 export * from './training';
 export * from './user-agent-configs';
 export * from './users';
+export * from './users-relations';

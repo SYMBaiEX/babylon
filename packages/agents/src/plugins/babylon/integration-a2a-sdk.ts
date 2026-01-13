@@ -17,7 +17,7 @@ import type { AgentRuntime, Plugin } from '@elizaos/core';
 import { agentWalletService } from '../../identity/AgentWalletService';
 import { logger } from '../../shared/logger';
 import type { JsonValue } from '../../types/common';
-import type { BabylonRuntime } from './types';
+type BabylonRuntime = AgentRuntime & { a2aClient?: BabylonA2AClient };
 
 // =============================================================================
 // Agent Identity Cache - Redis/Memory fallback for 300k+ users

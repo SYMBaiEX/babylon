@@ -27,7 +27,6 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@babylon/api": "workspace:*",
     "@babylon/contracts": "workspace:*",
     "@babylon/core": "workspace:*",
     "@babylon/db": "workspace:*",

@@ -34,7 +34,7 @@ import {
   posts,
   questions,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '@babylon/engine';
+import type { BabylonLLMClient } from '../llm/openai-client';
 import { logger } from '@babylon/shared';
 import {
   CONTENT_PACING,

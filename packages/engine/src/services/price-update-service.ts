@@ -6,9 +6,11 @@ import {
   organizationState,
   organizations,
 } from '@babylon/db';
-import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '@babylon/shared';
+import { FEE_CONFIG } from '../config/fees';
+import { broadcastToChannel } from './realtime-broadcaster';
+import { WalletService } from './wallet-service';
 
 export type PriceUpdateSource =
   | 'user_trade'
@@ -158,20 +160,28 @@ export class PriceUpdateService {
 
       // Broadcast price updates (handled by API layer if available)
       try {
-        const { broadcastToChannel } = await import('@babylon/api');
+        const updatesForBroadcast: JsonValue = appliedUpdates.map((u) => ({
+          organizationId: u.organizationId,
+          oldPrice: u.oldPrice,
+          newPrice: u.newPrice,
+          change: u.change,
+          changePercent: u.changePercent,
+          source: u.source,
+          reason: u.reason ?? null,
+          metadata: u.metadata ?? null,
+          timestamp: u.timestamp,
+        }));
+
         await broadcastToChannel('markets', {
           type: 'price_update',
-          updates: JSON.parse(JSON.stringify(appliedUpdates)) as JsonValue,
+          updates: updatesForBroadcast,
         });
 
         // If any updates include a canonical perp ticker, also broadcast a
         // `perp_price_update` for real-time UI hooks/stores.
         const perpUpdates = appliedUpdates
           .map((u) => {
-            const tickerRaw =
-              u.metadata && typeof u.metadata === 'object'
-                ? (u.metadata as Record<string, unknown>).ticker
-                : undefined;
+            const tickerRaw = u.metadata?.ticker;
             const ticker =
               typeof tickerRaw === 'string' && tickerRaw.length > 0
                 ? tickerRaw.toUpperCase()
@@ -191,7 +201,7 @@ export class PriceUpdateService {
         if (perpUpdates.length > 0) {
           await broadcastToChannel('markets', {
             type: 'perp_price_update',
-            updates: perpUpdates as unknown as JsonValue,
+            updates: perpUpdates,
           });
         }
       } catch {

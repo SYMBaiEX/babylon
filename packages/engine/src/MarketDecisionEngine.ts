@@ -70,7 +70,7 @@ import {
   countTokensSync,
   getSafeContextLimit,
   truncateToTokenLimitSync,
-} from '@babylon/api';
+} from './llm/token-counter';
 import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { loadActorById } from './actors-loader';
@@ -722,6 +722,8 @@ Current Focus: ${recentTopics || 'Market General'}
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
         richGameContext: worldContext.richGameContext || '',
+        // BAB-5: Event-market signals (required variable)
+        eventMarketSignals,
       });
       const prefixTokens = countTokensSync(promptPrefix);
       const bufferTokens = Math.floor(this.tokenConfig.maxContextTokens * 0.1); // 10% buffer
@@ -744,6 +746,8 @@ Current Focus: ${recentTopics || 'Market General'}
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
         richGameContext: worldContext.richGameContext || '',
+        // BAB-5: Event-market signals (required variable)
+        eventMarketSignals,
       });
 
       promptTokens = countTokensSync(prompt);
@@ -2273,40 +2277,78 @@ ${prompt}`
   /**
    * Get cached event-market signals or fetch if expired (BAB-5)
    * Provides context about how recent events affect prediction markets
+   *
+   * IMPORTANT: This function MUST never return an empty string, as eventMarketSignals
+   * is a required variable in the npc-market-decisions prompt template.
    */
   private async getCachedEventMarketSignals(): Promise<string> {
     const now = Date.now();
+    const FALLBACK_SIGNALS =
+      'EVENT-MARKET SIGNALS (recent events affecting markets):\n- None';
 
-    // Return cached if still valid
+    // Return cached if still valid (and non-empty)
     if (
       this.eventMarketSignalsCache &&
       now - this.eventMarketSignalsCache.timestamp < this.CACHE_TTL_MS
     ) {
-      logger.debug(
-        'Using cached event-market signals',
-        { age: now - this.eventMarketSignalsCache.timestamp },
+      const cached = this.eventMarketSignalsCache.signals;
+      // Ensure cached value is not empty
+      if (cached && cached.trim().length > 0) {
+        logger.debug(
+          'Using cached event-market signals',
+          { age: now - this.eventMarketSignalsCache.timestamp },
+          'MarketDecisionEngine'
+        );
+        return cached;
+      }
+      // Cache was empty, invalidate and refetch
+      logger.warn(
+        'Cached event-market signals was empty, refetching',
+        {},
         'MarketDecisionEngine'
       );
-      return this.eventMarketSignalsCache.signals;
     }
 
     // Simulation mode bypass - uses centralized constants from config/simulation.ts
     if (isSimulationMode()) {
       const signals = formatSimulationEventMarketSignals();
-      this.eventMarketSignalsCache = { signals, timestamp: now };
-      return signals;
+      // Ensure simulation signals are non-empty
+      const validSignals =
+        signals && signals.trim().length > 0 ? signals : FALLBACK_SIGNALS;
+      this.eventMarketSignalsCache = { signals: validSignals, timestamp: now };
+      return validSignals;
     }
 
     // Fetch fresh event-market summaries
-    const summaries =
-      await EventMarketLinkerService.getMarketEventSummaries(24);
-    const signals = EventMarketLinkerService.formatForTradingContext(summaries);
+    let signals: string;
+    try {
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
+      signals = EventMarketLinkerService.formatForTradingContext(summaries);
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch event-market signals, using fallback',
+        { error: error instanceof Error ? error.message : String(error) },
+        'MarketDecisionEngine'
+      );
+      signals = FALLBACK_SIGNALS;
+    }
+
+    // Final safety check: ensure we never return empty string
+    if (!signals || signals.trim().length === 0) {
+      logger.warn(
+        'Event-market signals was empty after fetch, using fallback',
+        {},
+        'MarketDecisionEngine'
+      );
+      signals = FALLBACK_SIGNALS;
+    }
 
     // Cache it
     this.eventMarketSignalsCache = { signals, timestamp: now };
     logger.debug(
       'Cached event-market signals',
-      { summaryCount: summaries.length },
+      { signalsLength: signals.length },
       'MarketDecisionEngine'
     );
 

@@ -15,7 +15,7 @@
 import { ContentValidator, type JsonValue, logger } from '@babylon/shared';
 import { EventEmitter } from 'events';
 import { generateActorContext } from './EmotionSystem';
-import type { WorldEvent } from './GameWorld';
+import type { WorldEvent } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import {
   ambientPosts,
