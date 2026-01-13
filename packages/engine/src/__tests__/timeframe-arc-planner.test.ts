@@ -138,7 +138,7 @@ describe('TimeframeArcPlanner', () => {
       expect(plan.phaseOrder).toEqual(['early', 'middle', 'late', 'climax']);
     });
 
-    test('should select fewer deceivers for shorter timeframes', () => {
+    test('should select no deceivers for flash timeframes', () => {
       const flashPlan = timeframeArcPlanner.planTimeframeArc(
         'q-flash',
         'Quick question?',
@@ -149,8 +149,56 @@ describe('TimeframeArcPlanner', () => {
         mockOrganizations
       );
 
-      // Flash markets should have no deceivers
+      // Flash markets should have no deceivers (max=0)
       expect(flashPlan.deceivers.length).toBe(0);
+    });
+
+    test('should select up to 1 deceiver for intraday timeframes', () => {
+      const intradayPlan = timeframeArcPlanner.planTimeframeArc(
+        'q-intraday',
+        'Intraday question?',
+        '1h',
+        60 * 60 * 1000,
+        true,
+        mockActors,
+        mockOrganizations
+      );
+
+      // Intraday markets: max=1 deceiver, limited by available contrarian actors
+      expect(intradayPlan.deceivers.length).toBeGreaterThanOrEqual(0);
+      expect(intradayPlan.deceivers.length).toBeLessThanOrEqual(1);
+    });
+
+    test('should select up to 2 deceivers for daily timeframes', () => {
+      const dailyPlan = timeframeArcPlanner.planTimeframeArc(
+        'q-daily',
+        'Daily question?',
+        '1d',
+        24 * 60 * 60 * 1000,
+        true,
+        mockActors,
+        mockOrganizations
+      );
+
+      // Daily markets: max=2 deceivers, limited by available contrarian actors
+      expect(dailyPlan.deceivers.length).toBeGreaterThanOrEqual(0);
+      expect(dailyPlan.deceivers.length).toBeLessThanOrEqual(2);
+    });
+
+    test('should select up to 2 deceivers for weekly timeframes', () => {
+      const weeklyPlan = timeframeArcPlanner.planTimeframeArc(
+        'q-weekly',
+        'Weekly question?',
+        '3d',
+        3 * 24 * 60 * 60 * 1000,
+        true,
+        mockActors,
+        mockOrganizations
+      );
+
+      // Weekly markets: max=2 deceivers, limited by available contrarian actors
+      expect(weeklyPlan.deceivers.length).toBeGreaterThanOrEqual(0);
+      expect(weeklyPlan.deceivers.length).toBeLessThanOrEqual(2);
     });
 
     test('should preserve affiliated actor and org IDs', () => {
@@ -416,8 +464,8 @@ describe('TimeframeArcPlanner', () => {
         createdAt: new Date(),
       };
 
-      // Run multiple times to verify range
-      for (let i = 0; i < 10; i++) {
+      // Run multiple times to verify range (100 iterations reduces flakiness)
+      for (let i = 0; i < 100; i++) {
         const strength = timeframeArcPlanner.getClueStrength(
           'resolution',
           plan

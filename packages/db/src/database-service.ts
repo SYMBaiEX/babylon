@@ -28,6 +28,7 @@ import {
   lt,
   lte,
   ne,
+  or,
   organizationState,
   posts,
   questions,
@@ -305,7 +306,11 @@ class DatabaseService {
     // Filter conditions:
     // - Not deleted
     // - Not proof type (proof articles are market resolution evidence, not feed content)
-    const conditions = [isNull(posts.deletedAt), ne(posts.type, 'proof')];
+    // - Allow NULL type since SQL NULL != 'proof' yields unknown
+    const conditions = [
+      isNull(posts.deletedAt),
+      or(isNull(posts.type), ne(posts.type, 'proof')),
+    ];
 
     if (cursor) {
       conditions.push(lt(posts.timestamp, new Date(cursor)));
