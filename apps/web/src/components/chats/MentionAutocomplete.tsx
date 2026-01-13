@@ -2,7 +2,13 @@
 
 import { cn } from '@babylon/shared';
 import { Bot } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 
 /** Agent that can be mentioned */
@@ -81,10 +87,9 @@ export function MentionAutocomplete({
   }
 
   // Generate stable ID for the currently selected option
-  const activeDescendantId =
-    filteredAgents[selectedIndex]
-      ? `mention-option-${filteredAgents[selectedIndex].id}`
-      : undefined;
+  const activeDescendantId = filteredAgents[selectedIndex]
+    ? `mention-option-${filteredAgents[selectedIndex].id}`
+    : undefined;
 
   return (
     <div

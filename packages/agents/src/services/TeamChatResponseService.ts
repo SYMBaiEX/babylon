@@ -582,7 +582,9 @@ Generate ONLY the response text:`;
         success: false,
         agentName,
         error:
-          error instanceof Error ? error.message : 'Failed to generate response',
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate response',
       };
     } finally {
       // Stop typing indicator even if LLM generation or send fails
