@@ -98,7 +98,7 @@ export function InlineComposer({
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { authenticated, user } = useAuth();
-  const isMac = useIsMac();
+  const _isMac = useIsMac();
 
   const charactersRemaining = MAX_LENGTH - content.length;
   const isOverLimit = charactersRemaining < 0;
@@ -171,14 +171,6 @@ export function InlineComposer({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Cmd/Ctrl + Enter
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
   // Track pending resize frame to avoid duplicate rAF calls
   const resizeFrameRef = useRef<number | null>(null);
 
@@ -227,7 +219,6 @@ export function InlineComposer({
             ref={textareaRef}
             value={content}
             onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => !content && setIsFocused(false)}
             placeholder="What's happening?"
@@ -258,7 +249,7 @@ export function InlineComposer({
 
           {/* Action Bar - shown when focused or has content */}
           {(isFocused || content) && (
-            <div className="mt-3 flex items-center justify-end border-border border-t pt-3">
+            <div className="mt-3 flex items-center justify-end pt-3">
               <div className="flex items-center gap-3">
                 {/* Character Counter */}
                 <span
@@ -278,6 +269,14 @@ export function InlineComposer({
                   {charactersRemaining}
                 </span>
 
+                {/* Keyboard shortcut hint */}
+                <span
+                  className="text-muted-foreground text-xs"
+                  aria-label={`Keyboard shortcut: ${_isMac ? 'Command' : 'Control'} plus Enter`}
+                >
+                  {_isMac ? '⌘' : 'Ctrl'}+Enter
+                </span>
+
                 {/* Submit Button */}
                 <button
                   type="button"
@@ -288,7 +287,7 @@ export function InlineComposer({
                     'transition-all duration-200',
                     canSubmit
                       ? 'bg-[#0066FF] text-white hover:bg-[#0052CC]'
-                      : 'cursor-not-allowed bg-muted text-muted-foreground'
+                      : 'cursor-not-allowed bg-gray-700 text-gray-500'
                   )}
                 >
                   {isSubmitting ? (
@@ -305,21 +304,6 @@ export function InlineComposer({
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Keyboard hint - shown when focused */}
-          {isFocused && !content && (
-            <p className="mt-2 text-muted-foreground text-xs">
-              Press{' '}
-              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {isMac ? '⌘' : 'Ctrl'}
-              </kbd>{' '}
-              +{' '}
-              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                Enter
-              </kbd>{' '}
-              to post
-            </p>
           )}
         </div>
       </div>

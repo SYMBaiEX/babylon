@@ -13,7 +13,7 @@ import { FeedClient } from './FeedClient';
  * 1. Server component for immediate shell render
  * 2. Suspense boundary for streaming
  * 3. FeedClient handles interactive elements
- * 4. Heavy components (WidgetSidebar, CreatePostModal) are lazy loaded in FeedClient
+ * 4. Heavy components (WidgetSidebar) are lazy loaded in FeedClient
  */
 export default function FeedPage() {
   return (

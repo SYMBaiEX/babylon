@@ -598,8 +598,17 @@ export function useAuth(): UseAuthReturn {
   }, [authenticated, privyUser, synchronizeWallet]);
 
   // Fetch user only when authentication status or user ID changes
+  // IMPORTANT: Only clear auth when Privy is READY and user is not authenticated.
+  // Don't clear on initial load when `ready` is false - that would wipe persisted state
+  // (like hasSkippedOnchain) before Privy has had a chance to restore the session.
   useEffect(() => {
     if (!authenticated || !privyUser) {
+      // Don't clear auth until Privy is ready - otherwise we'd wipe persisted state
+      // on every page refresh before Privy has a chance to restore the session
+      if (!ready) {
+        return;
+      }
+
       // Prevent clearing auth multiple times in a row (infinite loop prevention)
       if (hasClearedAuthRef.current) {
         return;
@@ -648,7 +657,7 @@ export function useAuth(): UseAuthReturn {
     // Reset the cleared auth ref when we become authenticated
     hasClearedAuthRef.current = false;
     void fetchCurrentUser();
-  }, [authenticated, privyUser?.id, fetchCurrentUser, privyUser]);
+  }, [ready, authenticated, privyUser?.id, fetchCurrentUser, privyUser]);
 
   // Link social accounts only once per user session
   // Removed wallet?.address from dependencies to prevent spam

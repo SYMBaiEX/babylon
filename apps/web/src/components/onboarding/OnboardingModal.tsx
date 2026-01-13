@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Sparkles,
   Upload,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -69,14 +68,16 @@ export interface ImportedProfileData {
  */
 interface OnboardingModalProps {
   isOpen: boolean;
+  /** Whether to display as full-screen blocking UI (no dismiss) */
+  isFullScreen?: boolean;
   stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
   isSubmitting: boolean;
   error?: string | null;
   isWalletReady: boolean;
   onSubmitProfile: (payload: OnboardingProfilePayload) => Promise<void>;
   onRetryOnchain: () => Promise<void>;
-  onSkipOnchain: () => void;
-  onClose: () => void;
+  /** Called when onboarding is fully complete (after COMPLETED stage) */
+  onComplete: () => void;
   onLogout?: () => Promise<void>;
   user: {
     id?: string;
@@ -85,7 +86,8 @@ interface OnboardingModalProps {
     onChainRegistered?: boolean;
   } | null;
   importedData?: ImportedProfileData | null;
-  initialEmail?: string | null;
+  /** Whether user logged in via social (Farcaster/Twitter) - skips PROFILE stage */
+  isSocialLogin?: boolean;
 }
 
 /**
@@ -139,23 +141,21 @@ function resolveAssetUrl(value?: string | null): string | undefined {
 
 export function OnboardingModal({
   isOpen,
+  isFullScreen: _isFullScreen = true,
   stage,
   isSubmitting,
   error,
   isWalletReady,
   onSubmitProfile,
   onRetryOnchain,
-  onSkipOnchain,
-  onClose,
+  onComplete,
   onLogout,
   user,
   importedData,
-  initialEmail,
+  isSocialLogin: _isSocialLogin = false,
 }: OnboardingModalProps) {
-  const [displayName, setDisplayName] = useState('');
+  // Simplified form: username serves as display name initially
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [bio, setBio] = useState('');
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
   const [uploadedProfileImage, setUploadedProfileImage] = useState<
@@ -194,15 +194,12 @@ export function OnboardingModal({
         platform: importedData.platform,
         hasProfileImage: !!importedData.profileImageUrl,
         hasCoverImage: !!importedData.coverImageUrl,
-        hasBio: !!importedData.bio,
       },
       'OnboardingModal'
     );
 
-    // Set text fields from social data
-    setDisplayName(importedData.displayName);
+    // Set username from social data (displayName = username in simplified flow)
     setUsername(importedData.username);
-    setBio(importedData.bio || '');
 
     // If we have a profile image URL from social import, use it
     if (importedData.profileImageUrl) {
@@ -215,14 +212,9 @@ export function OnboardingModal({
       );
     }
 
-    // If we have a cover/banner URL from social import, use it
-    if (importedData.coverImageUrl) {
-      setUploadedBanner(importedData.coverImageUrl);
-    } else {
-      // No social banner - generate a random one
-      setUploadedBanner(null);
-      setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1);
-    }
+    // Banner is auto-populated randomly (no customization in onboarding)
+    setUploadedBanner(null);
+    setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1);
   }, [importedData, stage]);
 
   useEffect(() => {
@@ -255,13 +247,10 @@ export function OnboardingModal({
       if (profileResult.status === 'fulfilled' && profileResult.value.ok) {
         const generated =
           (await profileResult.value.json()) as GeneratedProfileResponse;
-        setDisplayName(generated.name);
+        // In simplified flow, username = displayName
         setUsername(generated.username);
-        setBio(generated.bio);
       } else {
-        setDisplayName('New Babylonian');
         setUsername(`user_${Math.random().toString(36).slice(2, 10)}`);
-        setBio('Just joined Babylon!');
       }
 
       if (assetsResult.status === 'fulfilled' && assetsResult.value.ok) {
@@ -283,13 +272,6 @@ export function OnboardingModal({
 
     void initializeProfile();
   }, [isOpen, stage, importedData]);
-
-  // Initialize email from initialEmail prop when available
-  useEffect(() => {
-    if (initialEmail && !email && stage === 'PROFILE') {
-      setEmail(initialEmail);
-    }
-  }, [initialEmail, email, stage]);
 
   useEffect(() => {
     if (stage !== 'PROFILE') return;
@@ -354,11 +336,7 @@ export function OnboardingModal({
 
     setFormError(null);
 
-    if (!displayName.trim()) {
-      setFormError('Please enter a display name');
-      return;
-    }
-
+    // Validate username (which also serves as display name)
     if (!username.trim() || username.length < 3) {
       setFormError('Please pick a username of at least 3 characters');
       return;
@@ -383,11 +361,12 @@ export function OnboardingModal({
       return;
     }
 
+    // Simplified payload: username = displayName, bio is empty
+    const trimmedUsername = username.trim().toLowerCase();
     const profilePayload: OnboardingProfilePayload = {
-      username: username.trim().toLowerCase(),
-      displayName: displayName.trim(),
-      email: email.trim() || undefined,
-      bio: bio.trim() || undefined,
+      username: trimmedUsername,
+      displayName: trimmedUsername, // Username serves as display name initially
+      bio: '', // Empty bio by default (can be customized later in settings)
       profileImageUrl: resolveAssetUrl(
         uploadedProfileImage ??
           `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
@@ -396,7 +375,6 @@ export function OnboardingModal({
         uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`
       ),
       // Include imported social account data if available
-      // These fields trigger automatic reward point awards (300 points per social account)
       importedFrom: importedData?.platform || null,
       twitterId:
         importedData?.platform === 'twitter' ? importedData.twitterId : null,
@@ -416,201 +394,169 @@ export function OnboardingModal({
     await onSubmitProfile(profilePayload);
   };
 
+  /**
+   * Simplified profile form for onboarding.
+   * - Profile picture: customizable with carousel + upload
+   * - Username: required, serves as display name initially
+   * - Banner: auto-populated (no customization in onboarding)
+   * - Bio: empty by default (can be customized later)
+   * - Email: removed (can be added later in settings)
+   */
   const renderProfileForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-6 p-6">
-      <div className="space-y-2">
-        <label className="block font-medium text-sm">Profile Banner</label>
-        <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
-          <Image
-            src={currentBanner}
-            alt="Profile banner"
-            fill
-            className="object-cover"
-            unoptimized
-          />
-          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={() => cycleBanner('prev')}
-              className="rounded-lg bg-background/80 p-2 hover:bg-background"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <label className="cursor-pointer rounded-lg bg-background/80 p-2 hover:bg-background">
-              <Upload className="h-5 w-5" />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleBannerUpload}
-                className="hidden"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => cycleBanner('next')}
-              className="rounded-lg bg-background/80 p-2 hover:bg-background"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-8 p-6 md:p-8">
+      {/* Banner preview (auto-populated, no controls) */}
+      <div className="-mx-6 -mt-6 md:-mx-8 md:-mt-8 relative h-32 overflow-hidden bg-muted md:h-40">
+        <Image
+          src={currentBanner}
+          alt="Profile banner"
+          fill
+          className="object-cover"
+          unoptimized
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
       </div>
 
-      <div className="flex items-start gap-4">
-        <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
+      {/* Profile picture - centered and prominent with touch-friendly controls */}
+      <div className="-mt-16 md:-mt-20 flex flex-col items-center">
+        <div className="group relative h-28 w-28 overflow-hidden rounded-full border-4 border-background bg-muted shadow-lg md:h-32 md:w-32">
           <Image
             src={currentProfileImage}
             alt="Profile picture"
             fill
             className="object-cover"
             unoptimized
+            priority
           />
-          <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+          {/* Overlay controls - always visible on mobile, hover on desktop */}
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <button
               type="button"
               onClick={() => cycleProfilePicture('prev')}
-              className="rounded-lg bg-background/80 p-1.5 hover:bg-background"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-background/90 shadow-sm transition-transform hover:bg-background active:scale-95"
+              aria-label="Previous avatar"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
-            <label className="cursor-pointer rounded-lg bg-background/80 p-1.5 hover:bg-background">
-              <Upload className="h-4 w-4" />
+            <label className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-background/90 shadow-sm transition-transform hover:bg-background active:scale-95">
+              <Upload className="h-5 w-5" />
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleProfileImageUpload}
                 className="hidden"
               />
+              <span className="sr-only">Upload avatar</span>
             </label>
             <button
               type="button"
               onClick={() => cycleProfilePicture('next')}
-              className="rounded-lg bg-background/80 p-1.5 hover:bg-background"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-background/90 shadow-sm transition-transform hover:bg-background active:scale-95"
+              aria-label="Next avatar"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5" />
             </button>
           </div>
         </div>
+        <p className="mt-3 text-center text-muted-foreground text-xs">
+          Choose an avatar or upload your own
+        </p>
+      </div>
 
-        <div className="flex-1 space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="displayName" className="block font-medium text-sm">
-              Display Name
-            </label>
-            <input
-              id="displayName"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your display name"
-              className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-              maxLength={50}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="username" className="block font-medium text-sm">
-              Username
-            </label>
-            <div className="relative">
-              <span className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground">
-                @
-              </span>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your handle"
-                className="w-full rounded-lg border border-border bg-muted py-2 pr-3 pl-8 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-                maxLength={20}
-              />
-              {isCheckingUsername && (
-                <RefreshCw className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-              {usernameStatus === 'available' && !isCheckingUsername && (
-                <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
-              )}
-              {usernameStatus === 'taken' && !isCheckingUsername && (
-                <AlertCircle className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
-              )}
-            </div>
-            {usernameStatus === 'taken' && usernameSuggestion && (
-              <p className="text-muted-foreground text-xs">
-                Suggestion:{' '}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => setUsername(usernameSuggestion)}
-                >
-                  {usernameSuggestion}
-                </button>
-              </p>
+      {/* Username field - prominent and centered */}
+      <div className="mx-auto w-full max-w-sm space-y-3 px-2">
+        <label htmlFor="username" className="block text-center font-medium">
+          Choose your username
+        </label>
+        <div className="relative">
+          <span className="-translate-y-1/2 absolute top-1/2 left-4 font-medium text-muted-foreground">
+            @
+          </span>
+          <input
+            id="username"
+            type="text"
+            value={username}
+            onChange={(e) =>
+              setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))
+            }
+            placeholder="your_username"
+            className={cn(
+              'w-full rounded-xl border-2 bg-muted px-4 py-3.5 pr-12 pl-9 text-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:ring-offset-2',
+              usernameStatus === 'available' && 'border-green-500/50',
+              usernameStatus === 'taken' && 'border-red-500/50',
+              !usernameStatus && 'border-border'
+            )}
+            maxLength={20}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="done"
+          />
+          <div className="-translate-y-1/2 absolute top-1/2 right-4">
+            {isCheckingUsername && (
+              <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+            {usernameStatus === 'available' && !isCheckingUsername && (
+              <Check className="h-5 w-5 text-green-500" />
+            )}
+            {usernameStatus === 'taken' && !isCheckingUsername && (
+              <AlertCircle className="h-5 w-5 text-red-500" />
             )}
           </div>
         </div>
+        {usernameStatus === 'taken' && usernameSuggestion && (
+          <p className="text-center text-muted-foreground text-sm">
+            Username taken. Try:{' '}
+            <button
+              type="button"
+              className="font-medium text-[#0066FF] hover:underline"
+              onClick={() => setUsername(usernameSuggestion)}
+            >
+              @{usernameSuggestion}
+            </button>
+          </p>
+        )}
+        {usernameStatus === 'available' && !isCheckingUsername && (
+          <p className="text-center text-green-600 text-sm">
+            ✓ Username available
+          </p>
+        )}
+        {!usernameStatus && username.length < 3 && username.length > 0 && (
+          <p className="text-center text-muted-foreground text-sm">
+            Username must be at least 3 characters
+          </p>
+        )}
+        {!usernameStatus && username.length === 0 && (
+          <p className="text-center text-muted-foreground text-sm">
+            This will be your unique handle on Babylon
+          </p>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="email" className="block font-medium text-sm">
-          Email{' '}
-          <span className="font-normal text-muted-foreground text-xs">
-            (optional)
-          </span>
-        </label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your.email@example.com"
-          className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-        />
-        <p className="text-muted-foreground text-xs">
-          Used for important updates and marketing (optional)
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <label htmlFor="bio" className="block font-medium text-sm">
-          Bio
-        </label>
-        <textarea
-          id="bio"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          placeholder="Tell the world who you are"
-          rows={3}
-          maxLength={280}
-          className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-        />
-        <p className="text-right text-muted-foreground text-xs">
-          {bio.length}/280
-        </p>
-      </div>
-
+      {/* Error display */}
       {(formError || error) && (
-        <div className="flex items-center gap-2 text-red-500 text-sm">
-          <AlertCircle className="h-4 w-4" />
+        <div className="mx-auto flex max-w-sm items-center justify-center gap-2 text-red-500 text-sm">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{formError || error}</span>
         </div>
       )}
 
-      <div className="flex items-start gap-4">
-        <label className="group flex flex-1 cursor-pointer items-start gap-3">
+      {/* Terms and submit */}
+      <div className="mx-auto w-full max-w-sm space-y-5 px-2">
+        <label className="group flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50 active:bg-muted/70">
           <input
             type="checkbox"
             checked={acceptedTerms}
             onChange={(e) => setAcceptedTerms(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-border text-[#0066FF] focus:ring-2 focus:ring-[#0066FF] focus:ring-offset-0"
+            className="mt-0.5 h-5 w-5 shrink-0 rounded border-border text-[#0066FF] focus:ring-2 focus:ring-[#0066FF] focus:ring-offset-2"
           />
-          <span className="text-muted-foreground text-sm group-hover:text-foreground">
+          <span className="text-muted-foreground text-sm leading-relaxed group-hover:text-foreground">
             I accept the{' '}
             <a
               href="https://docs.babylon.market/legal/terms-of-service"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0066FF] hover:underline"
+              className="font-medium text-[#0066FF] hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               Terms of Service
@@ -620,7 +566,7 @@ export function OnboardingModal({
               href="https://docs.babylon.market/legal/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0066FF] hover:underline"
+              className="font-medium text-[#0066FF] hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               Privacy Policy
@@ -630,12 +576,28 @@ export function OnboardingModal({
         <button
           type="submit"
           className={cn(
-            'whitespace-nowrap rounded-lg bg-[#0066FF] px-4 py-2 text-primary-foreground hover:bg-[#0066FF]/90',
-            isSubmitting && 'opacity-60'
+            'w-full rounded-xl bg-[#0066FF] px-6 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98]',
+            (isSubmitting ||
+              usernameStatus === 'taken' ||
+              !acceptedTerms ||
+              username.length < 3) &&
+              'cursor-not-allowed opacity-50'
           )}
-          disabled={isSubmitting}
+          disabled={
+            isSubmitting ||
+            usernameStatus === 'taken' ||
+            !acceptedTerms ||
+            username.length < 3
+          }
         >
-          {isSubmitting ? 'Saving...' : 'Continue'}
+          {isSubmitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              Creating Profile...
+            </span>
+          ) : (
+            'Continue'
+          )}
         </button>
       </div>
     </form>
@@ -651,16 +613,6 @@ export function OnboardingModal({
     });
   };
 
-  const cycleBanner = (direction: 'next' | 'prev') => {
-    setUploadedBanner(null);
-    setBannerIndex((prev) => {
-      if (direction === 'next') {
-        return prev >= TOTAL_BANNERS ? 1 : prev + 1;
-      }
-      return prev <= 1 ? TOTAL_BANNERS : prev - 1;
-    });
-  };
-
   const handleProfileImageUpload = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -673,18 +625,9 @@ export function OnboardingModal({
     reader.readAsDataURL(file);
   };
 
-  const handleBannerUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadedBanner(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const canClose = !isSubmitting; // Allow closing at any stage when not submitting
-  const canLogout = stage !== 'COMPLETED' && !isSubmitting && onLogout;
+  // In full-screen mode, no close button - only logout is available
+  // On-chain registration is MANDATORY (no skip option)
+  const canLogout = !isSubmitting && onLogout;
 
   const handleLogout = async () => {
     if (onLogout) {
@@ -707,230 +650,321 @@ export function OnboardingModal({
 
   if (!isOpen) return null;
 
+  // Full-screen blocking onboarding UI with safe areas for mobile
   return (
-    <>
-      <div
-        className={cn(
-          'fixed inset-0 z-[100] rounded-lg bg-black/70 backdrop-blur-sm transition-opacity duration-300',
-          isVisible ? 'opacity-100' : 'opacity-0'
-        )}
-        onClick={canClose ? onClose : undefined}
-      />
-      <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
-        <div
-          className={cn(
-            'my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-xl transition-all duration-300',
-            isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-border border-b p-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-[#0066FF]/10 p-2">
-                <Sparkles className="h-6 w-6 text-[#0066FF]" />
-              </div>
-              <div>
-                <h2 className="font-bold text-2xl">Welcome to Babylon!</h2>
-                <p className="text-muted-foreground text-sm">
-                  {stage === 'PROFILE'
-                    ? 'Set up your profile'
-                    : stage === 'ONCHAIN'
-                      ? 'Complete registration'
-                      : 'Setup complete!'}
-                </p>
-                {stage === 'PROFILE' && importedData && (
-                  <p className="mt-1 text-[#0066FF] text-xs">
-                    Imported from{' '}
-                    {importedData.platform === 'twitter' ? '𝕏' : 'Farcaster'}
-                  </p>
-                )}
-                {user?.username && stage !== 'PROFILE' && (
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    @{user.username}
-                  </p>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={canClose ? onClose : undefined}
-              className="rounded-lg p-2 hover:bg-muted disabled:opacity-50"
-              disabled={!canClose}
-              title={canClose ? 'Close' : 'Complete onboarding to close'}
-            >
-              <X className="h-5 w-5" />
-            </button>
+    <div
+      className={cn(
+        'fixed inset-0 z-[100] flex flex-col bg-background transition-opacity duration-300',
+        // Safe area padding for notched phones
+        'pb-safe',
+        isVisible ? 'opacity-100' : 'opacity-0'
+      )}
+    >
+      {/* Header with safe area for notched phones */}
+      <div className="flex shrink-0 items-center justify-between border-border border-b px-4 py-4 pt-safe md:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded-lg bg-[#0066FF]/10 p-2">
+            <Sparkles className="h-5 w-5 text-[#0066FF] md:h-6 md:w-6" />
           </div>
-
-          {stage === 'COMPLETED' ? (
-            <div className="flex flex-col items-center gap-4 p-12">
-              <Check className="h-10 w-10 text-[#0066FF]" />
-              <p className="font-semibold text-lg">
-                Onboarding complete! Enjoy Babylon 🎉
+          <div className="min-w-0">
+            <h2 className="truncate font-bold text-lg md:text-xl">
+              {stage === 'COMPLETED'
+                ? 'Welcome to Babylon!'
+                : stage === 'ONCHAIN'
+                  ? 'Almost there!'
+                  : 'Set up your profile'}
+            </h2>
+            {stage === 'PROFILE' && importedData && (
+              <p className="text-[#0066FF] text-xs">
+                Imported from{' '}
+                {importedData.platform === 'twitter' ? '𝕏' : 'Farcaster'}
               </p>
+            )}
+            {user?.username && stage !== 'PROFILE' && (
+              <p className="truncate text-muted-foreground text-xs">
+                @{user.username}
+              </p>
+            )}
+          </div>
+        </div>
+        {/* Logout button in header - larger touch target on mobile */}
+        {canLogout && (
+          <button
+            onClick={handleLogout}
+            className="shrink-0 rounded-lg px-3 py-2 text-muted-foreground text-sm hover:bg-muted hover:text-foreground active:bg-muted/80"
+            disabled={isSubmitting}
+          >
+            Logout
+          </button>
+        )}
+      </div>
+
+      {/* Main content area - scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-lg">
+          {stage === 'COMPLETED' ? (
+            <div className="flex flex-col items-center gap-8 p-8 text-center md:p-12">
+              {/* Success animation container */}
+              <div className="relative">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10 md:h-24 md:w-24">
+                  <Check className="h-10 w-10 text-green-500 md:h-12 md:w-12" />
+                </div>
+                {/* Decorative ring */}
+                <div
+                  className="absolute inset-0 animate-ping rounded-full bg-green-500/20"
+                  style={{ animationDuration: '2s' }}
+                />
+              </div>
+              <div className="space-y-3">
+                <h3 className="font-bold text-2xl md:text-3xl">
+                  You&apos;re all set! 🎉
+                </h3>
+                <p className="mx-auto max-w-sm text-muted-foreground">
+                  Your profile is ready and you&apos;re registered on the
+                  blockchain.
+                </p>
+              </div>
               <button
                 type="button"
-                className="rounded-lg bg-[#0066FF] px-4 py-2 text-primary-foreground"
-                onClick={onClose}
+                className="w-full max-w-xs rounded-xl bg-[#0066FF] px-8 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98]"
+                onClick={onComplete}
               >
-                Close
+                Start Exploring
               </button>
             </div>
           ) : stage === 'ONCHAIN' ? (
-            <div className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="flex flex-col items-center gap-6 p-8 text-center md:p-12">
               {isSubmitting ? (
                 <>
-                  <div className="w-full max-w-md space-y-3">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="mx-auto h-4 w-3/4" />
+                  <div className="relative flex h-20 w-20 items-center justify-center md:h-24 md:w-24">
+                    <div className="absolute inset-0 rounded-full border-4 border-[#0066FF]/20" />
+                    <div
+                      className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#0066FF]"
+                      style={{ animationDuration: '1s' }}
+                    />
+                    <Sparkles className="h-8 w-8 text-[#0066FF] md:h-10 md:w-10" />
                   </div>
-                  <p className="font-semibold text-lg">
-                    Finalising on-chain registration...
-                  </p>
-                  <p className="max-w-md text-muted-foreground text-sm">
-                    Waiting for blockchain confirmation. This may take 10-30
-                    seconds.
-                  </p>
-                  <p className="mt-2 text-muted-foreground/70 text-xs">
-                    You can close this window and return later - your
-                    registration will continue in the background.
+                  <div className="space-y-2">
+                    <p className="font-semibold text-lg md:text-xl">
+                      Registering on-chain...
+                    </p>
+                    <p className="mx-auto max-w-sm text-muted-foreground text-sm">
+                      Confirming your identity on the blockchain. This usually
+                      takes 10-30 seconds.
+                    </p>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full max-w-xs overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-2 animate-pulse rounded-full bg-[#0066FF]"
+                      style={{
+                        width: '60%',
+                        animation: 'pulse 2s ease-in-out infinite',
+                      }}
+                    />
+                  </div>
+                  <p className="text-muted-foreground/60 text-xs">
+                    Please don&apos;t close this window
                   </p>
                 </>
               ) : error ? (
                 <>
-                  <AlertCircle className="h-8 w-8 text-red-500" />
-                  <p className="font-semibold text-lg">Registration Error</p>
-                  <p className="max-w-md text-red-500 text-sm">{error}</p>
-                  <div className="mt-4 flex flex-col gap-2">
-                    {!error.toLowerCase().includes('already registered') && (
-                      <div className="max-w-md text-muted-foreground text-xs">
-                        <p className="mb-2 font-medium">Common issues:</p>
-                        <ul className="list-inside list-disc space-y-1 text-left">
-                          <li>Transaction rejected in wallet</li>
-                          <li>Insufficient gas on Base Sepolia</li>
-                          <li>Network connectivity issues</li>
-                        </ul>
-                      </div>
-                    )}
-                    {error.toLowerCase().includes('already registered') && (
-                      <div className="max-w-md text-left text-muted-foreground text-xs">
-                        <p className="mb-2">
-                          Your wallet is already registered on the blockchain.
-                          This can happen if you previously completed
-                          registration or if another account is using this
-                          wallet.
-                        </p>
-                        <p>
-                          You can skip this step and continue using the platform
-                          with your off-chain profile.
-                        </p>
-                      </div>
-                    )}
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        type="button"
-                        className="rounded-lg bg-[#0066FF] px-4 py-2 text-primary-foreground disabled:opacity-50"
-                        onClick={onRetryOnchain}
-                        disabled={isSubmitting}
-                      >
-                        Retry Registration
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg bg-muted px-4 py-2 text-foreground"
-                        onClick={onSkipOnchain}
-                      >
-                        Skip for Now
-                      </button>
-                    </div>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 md:h-24 md:w-24">
+                    <AlertCircle className="h-10 w-10 text-red-500 md:h-12 md:w-12" />
                   </div>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-lg md:text-xl">
+                      Registration Failed
+                    </p>
+                    <p className="mx-auto max-w-sm text-red-500 text-sm">
+                      {error}
+                    </p>
+                  </div>
+                  <div className="mx-auto max-w-sm rounded-lg bg-muted/50 p-4 text-left text-muted-foreground text-sm">
+                    <p className="mb-2 font-medium">Troubleshooting tips:</p>
+                    <ul className="list-inside list-disc space-y-1 text-xs">
+                      <li>Check your internet connection</li>
+                      <li>Make sure you have ETH for gas on Base Sepolia</li>
+                      <li>Try refreshing and attempting again</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    className="w-full max-w-xs rounded-xl bg-[#0066FF] px-6 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98] disabled:opacity-50"
+                    onClick={onRetryOnchain}
+                    disabled={isSubmitting}
+                  >
+                    Try Again
+                  </button>
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-8 w-8 text-[#0066FF]" />
-                  <p className="font-semibold text-lg">
-                    Complete On-Chain Registration
-                  </p>
-                  <div className="max-w-md space-y-2 text-muted-foreground text-sm">
-                    <p>
-                      Register your identity on Base Sepolia blockchain to
-                      unlock full features:
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#0066FF]/10 md:h-24 md:w-24">
+                    <Sparkles className="h-10 w-10 text-[#0066FF] md:h-12 md:w-12" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-lg md:text-xl">
+                      Final Step
                     </p>
-                    <ul className="list-inside list-disc space-y-1 text-left">
-                      <li>On-chain reputation tracking</li>
-                      <li>Verifiable trading history</li>
-                      <li>NFT-based identity</li>
-                    </ul>
+                    <p className="mx-auto max-w-sm text-muted-foreground text-sm">
+                      Register on the blockchain to unlock all features
+                    </p>
+                  </div>
+                  {/* Features list */}
+                  <div className="mx-auto grid w-full max-w-sm gap-3">
+                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
+                        <Check className="h-4 w-4 text-[#0066FF]" />
+                      </div>
+                      <span className="text-sm">
+                        On-chain reputation tracking
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
+                        <Check className="h-4 w-4 text-[#0066FF]" />
+                      </div>
+                      <span className="text-sm">
+                        Verifiable trading history
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0066FF]/10">
+                        <Check className="h-4 w-4 text-[#0066FF]" />
+                      </div>
+                      <span className="text-sm">
+                        NFT-based identity (ERC-8004)
+                      </span>
+                    </div>
                   </div>
                   {user?.walletAddress && (
-                    <p className="text-muted-foreground/70 text-xs">
-                      Wallet: {user.walletAddress.slice(0, 6)}...
-                      {user.walletAddress.slice(-4)}
+                    <p className="rounded-lg bg-muted/50 px-4 py-2 font-mono text-muted-foreground text-xs">
+                      {user.walletAddress.slice(0, 8)}...
+                      {user.walletAddress.slice(-6)}
                     </p>
                   )}
                   {!isWalletReady && (
-                    <p className="max-w-md text-amber-500 text-xs">
-                      Preparing your Babylon smart wallet. We&apos;ll continue
-                      automatically once it&apos;s ready.
-                    </p>
+                    <div className="flex items-center gap-2 text-amber-500 text-sm">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Preparing your smart wallet...</span>
+                    </div>
                   )}
-                  <div className="mt-4 flex w-full max-w-xs flex-col gap-2">
-                    <button
-                      type="button"
-                      className="w-full rounded-lg bg-[#0066FF] px-4 py-2 text-primary-foreground hover:bg-[#0066FF]/90 disabled:opacity-50"
-                      onClick={onRetryOnchain}
-                      disabled={isSubmitting || !isWalletReady}
-                    >
-                      {isWalletReady
-                        ? 'Register On-Chain'
-                        : 'Preparing Wallet...'}
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full px-4 py-2 text-muted-foreground text-sm hover:text-foreground hover:underline"
-                      onClick={onSkipOnchain}
-                    >
-                      Skip & Continue Exploring
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className={cn(
+                      'w-full max-w-xs rounded-xl bg-[#0066FF] px-6 py-4 font-semibold text-white shadow-lg transition-all hover:bg-[#0055DD] hover:shadow-xl active:scale-[0.98]',
+                      (!isWalletReady || isSubmitting) &&
+                        'cursor-not-allowed opacity-50'
+                    )}
+                    onClick={onRetryOnchain}
+                    disabled={isSubmitting || !isWalletReady}
+                  >
+                    {isWalletReady
+                      ? 'Complete Registration'
+                      : 'Preparing Wallet...'}
+                  </button>
                 </>
               )}
             </div>
           ) : isLoadingDefaults ? (
-            <div className="flex flex-col items-center gap-4 p-12">
-              <div className="w-full max-w-md space-y-3">
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="mx-auto h-24 w-24 rounded-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
+            <div className="flex flex-col items-center p-6 md:p-8">
+              {/* Banner skeleton */}
+              <Skeleton className="-mx-6 -mt-6 md:-mx-8 md:-mt-8 h-32 w-[calc(100%+48px)] md:h-40 md:w-[calc(100%+64px)]" />
+              {/* Avatar skeleton */}
+              <Skeleton className="-mt-14 md:-mt-16 h-28 w-28 rounded-full border-4 border-background md:h-32 md:w-32" />
+              {/* Text skeletons */}
+              <div className="mt-6 w-full max-w-sm space-y-4">
+                <Skeleton className="mx-auto h-6 w-40" />
+                <Skeleton className="h-14 w-full rounded-xl" />
+                <Skeleton className="mx-auto h-4 w-48" />
+              </div>
+              {/* Terms and button skeleton */}
+              <div className="mt-6 w-full max-w-sm space-y-4">
+                <Skeleton className="h-12 w-full rounded-lg" />
+                <Skeleton className="h-14 w-full rounded-xl" />
               </div>
             </div>
           ) : (
             renderProfileForm()
           )}
-
-          {/* Footer with logout option */}
-          {canLogout && (
-            <div className="flex justify-center gap-4 border-border border-t p-4 text-muted-foreground text-xs">
-              <button
-                onClick={handleLogout}
-                className="hover:text-foreground hover:underline"
-                disabled={isSubmitting}
-              >
-                Logout & Switch Account
-              </button>
-              {stage === 'ONCHAIN' && (
-                <button
-                  onClick={onSkipOnchain}
-                  className="hover:text-foreground hover:underline"
-                  disabled={isSubmitting}
-                >
-                  Skip On-Chain Registration
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
-    </>
+
+      {/* Progress indicator */}
+      <div className="shrink-0 border-border border-t px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-xs items-center justify-center gap-3">
+          {/* Step 1: Profile */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-full font-medium text-xs transition-all',
+                stage === 'PROFILE'
+                  ? 'bg-[#0066FF] text-white'
+                  : stage === 'ONCHAIN' || stage === 'COMPLETED'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-muted text-muted-foreground'
+              )}
+            >
+              {stage === 'ONCHAIN' || stage === 'COMPLETED' ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                '1'
+              )}
+            </div>
+            <span className="hidden text-xs sm:inline">Profile</span>
+          </div>
+
+          {/* Connector */}
+          <div
+            className={cn(
+              'h-0.5 w-8 rounded-full transition-colors',
+              stage === 'ONCHAIN' || stage === 'COMPLETED'
+                ? 'bg-green-500'
+                : 'bg-muted'
+            )}
+          />
+
+          {/* Step 2: On-chain */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-full font-medium text-xs transition-all',
+                stage === 'ONCHAIN'
+                  ? 'bg-[#0066FF] text-white'
+                  : stage === 'COMPLETED'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-muted text-muted-foreground'
+              )}
+            >
+              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '2'}
+            </div>
+            <span className="hidden text-xs sm:inline">Register</span>
+          </div>
+
+          {/* Connector */}
+          <div
+            className={cn(
+              'h-0.5 w-8 rounded-full transition-colors',
+              stage === 'COMPLETED' ? 'bg-green-500' : 'bg-muted'
+            )}
+          />
+
+          {/* Step 3: Complete */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-full font-medium text-xs transition-all',
+                stage === 'COMPLETED'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-muted text-muted-foreground'
+              )}
+            >
+              {stage === 'COMPLETED' ? <Check className="h-3.5 w-3.5" /> : '3'}
+            </div>
+            <span className="hidden text-xs sm:inline">Done</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
