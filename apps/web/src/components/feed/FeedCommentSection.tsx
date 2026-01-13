@@ -34,7 +34,8 @@ function PostPreview({ post }: { post: PostPreviewData }) {
 
   const postDate = new Date(post.timestamp);
   const now = new Date();
-  const diffMs = now.getTime() - postDate.getTime();
+  // Clamp to 0 to handle future timestamps deterministically (treat as "Just now")
+  const diffMs = Math.max(0, now.getTime() - postDate.getTime());
   const diffMinutes = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
 
