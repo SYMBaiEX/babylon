@@ -27,15 +27,22 @@ import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService';
 
+function getStringSetting(
+  runtime: IAgentRuntime,
+  key: string
+): string | undefined {
+  const value = runtime.getSetting(key);
+  return typeof value === 'string' ? value : undefined;
+}
+
 /**
  * Gets Groq base URL from runtime settings
  * @internal
  */
-function getBaseURL(runtime: {
-  getSetting: (key: string) => string | undefined;
-}): string {
+function getBaseURL(runtime: IAgentRuntime): string {
   return (
-    runtime.getSetting('GROQ_BASE_URL') || 'https://api.groq.com/openai/v1'
+    getStringSetting(runtime, 'GROQ_BASE_URL') ||
+    'https://api.groq.com/openai/v1'
   );
 }
 
@@ -174,7 +181,11 @@ async function generateGroqObject(
     });
   }
 
-  return object;
+  if (typeof object === 'object' && object !== null && !Array.isArray(object)) {
+    return object as Record<string, unknown>;
+  }
+
+  return { value: object } satisfies Record<string, unknown>;
 }
 
 export const groqPlugin: Plugin = {
@@ -213,8 +224,8 @@ export const groqPlugin: Plugin = {
       const max_response_length = 8000;
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
-        fetch: runtime.fetch,
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
 
@@ -256,11 +267,11 @@ export const groqPlugin: Plugin = {
       }: GenerateTextParams
     ) => {
       const baseURL = getBaseURL(runtime);
-      const apiKey = runtime.getSetting('GROQ_API_KEY') || '';
+      const apiKey = getStringSetting(runtime, 'GROQ_API_KEY') ?? '';
 
       const groq = createGroq({
         apiKey,
-        fetch: runtime.fetch,
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
 
@@ -305,7 +316,8 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
       const model = GROQ_MODELS.FREE.modelId;
@@ -318,7 +330,8 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
       const model = GROQ_MODELS.PRO.modelId;

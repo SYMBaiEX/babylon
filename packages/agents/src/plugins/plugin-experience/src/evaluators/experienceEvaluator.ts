@@ -124,7 +124,10 @@ export const experienceEvaluator: Evaluator = {
     }
 
     // Get last 10 messages as context for analysis
-    const recentMessages = state?.recentMessagesData?.slice(-10) || [];
+    const recentMessagesData = state?.recentMessagesData;
+    const recentMessages = Array.isArray(recentMessagesData)
+      ? recentMessagesData.slice(-10)
+      : [];
     if (recentMessages.length < 3) {
       logger.debug(
         '[experienceEvaluator] Not enough messages for experience extraction'

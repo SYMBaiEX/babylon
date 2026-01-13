@@ -29,7 +29,7 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: babylon_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U babylon_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -44,14 +44,14 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: 'packages/training/python/requirements.txt'
+          cache-dependency-path: 'packages/training/python/requirements-ci.txt'
 
       - name: Install Python dependencies
         working-directory: packages/training/python
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          pip install -r requirements-ci.txt
+          pip install -e . --no-deps
 
       - name: Run Python unit tests
         working-directory: packages/training/python
@@ -94,7 +94,7 @@ jobs:
           # Using environment variable to pass server options
           POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

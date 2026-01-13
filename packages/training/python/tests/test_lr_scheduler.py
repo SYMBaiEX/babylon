@@ -16,8 +16,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import torch
-from torch.optim import AdamW
+
+try:
+    import torch
+    from torch.optim import AdamW
+except ImportError:
+    pytest.skip("torch not installed", allow_module_level=True)
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -573,4 +577,3 @@ class TestBoundaryConditions:
             assert not math.isnan(lr)
             assert not math.isinf(lr)
             scheduler.step()
-

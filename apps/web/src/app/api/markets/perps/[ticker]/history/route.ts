@@ -44,8 +44,7 @@
  */
 
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { db, perpMarketSnapshots, stockPrices } from '@babylon/db';
-import { desc, eq } from 'drizzle-orm';
+import { db, desc, eq, perpMarketSnapshots, stockPrices } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 

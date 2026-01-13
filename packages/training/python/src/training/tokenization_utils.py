@@ -21,11 +21,25 @@ handles this automatically. This module provides utilities for:
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
-
-from transformers import PreTrainedTokenizer
+from typing import Dict, List, Optional, Protocol, Tuple
 
 logger = logging.getLogger(__name__)
+
+class ChatTokenizer(Protocol):
+    """Minimal tokenizer interface needed by the masking utilities.
+
+    This intentionally avoids importing heavy optional deps (e.g. `transformers`)
+    at import time so the module can be used in lightweight environments.
+    """
+
+    def apply_chat_template(
+        self,
+        messages: List[Dict[str, str]],
+        return_tensors: Optional[object] = None,
+        add_generation_prompt: bool = False,
+    ) -> List[int]: ...
+
+    def encode(self, text: str, add_special_tokens: bool = True) -> List[int]: ...
 
 
 @dataclass
@@ -39,7 +53,7 @@ class TokenizationResult:
 
 
 def tokenize_for_trainer(
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: ChatTokenizer,
     messages: List[Dict[str, str]],
     add_generation_prompt: bool = False,
 ) -> TokenizationResult:
@@ -154,7 +168,7 @@ def tokenize_for_trainer(
 
 
 def tokenize_conversation_for_trainer(
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: ChatTokenizer,
     messages: List[Dict[str, str]],
 ) -> TokenizationResult:
     """
@@ -239,7 +253,7 @@ def tokenize_conversation_for_trainer(
 def validate_masks(
     tokens: List[int],
     masks: List[int],
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: ChatTokenizer,
 ) -> Tuple[bool, List[str]]:
     """
     Validate that masks are correctly applied for GRPO training.
@@ -318,7 +332,7 @@ def create_masks_from_response_start(
 def fix_historical_masks(
     tokens: List[int],
     masks: List[int],
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: ChatTokenizer,
     messages: List[Dict[str, str]],
 ) -> List[int]:
     """
@@ -385,5 +399,4 @@ def fix_historical_masks(
     # If all else fails, return original masks with warning
     logger.error("Could not fix masks, returning original")
     return masks
-
 
