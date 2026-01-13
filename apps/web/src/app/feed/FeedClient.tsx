@@ -44,7 +44,7 @@ type FeedTab = 'latest' | 'hot' | 'following' | 'trades';
  * - Managing tab state (latest, following, trades)
  * - Coordinating data fetching hooks
  * - Handling pull-to-refresh
- * - Managing modal state
+ * - Rendering inline post composer
  *
  * Heavy components are lazy loaded:
  * - WidgetSidebar (desktop only)

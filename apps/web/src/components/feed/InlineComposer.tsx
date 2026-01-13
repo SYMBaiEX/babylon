@@ -28,14 +28,14 @@ function useIsMac(): boolean {
  * Inline composer component for creating posts directly in the feed.
  *
  * Displays a compact post composition area at the top of the feed with the
- * user's avatar, expandable textarea, and submit button. Provides a quicker
- * alternative to the full-screen modal for post creation.
+ * user's avatar, expandable textarea, and submit button. This is the primary
+ * method for post creation in the feed.
  *
  * Features:
  * - User avatar display
  * - Auto-expanding textarea
  * - Character counter (280 limit)
- * - Submit with Enter + Cmd/Ctrl
+ * - Submit with Cmd/Ctrl + Enter keyboard shortcut
  * - Loading state during submission
  *
  * @param props - InlineComposer component props
@@ -98,7 +98,7 @@ export function InlineComposer({
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { authenticated, user } = useAuth();
-  const _isMac = useIsMac();
+  const isMac = useIsMac();
 
   const charactersRemaining = MAX_LENGTH - content.length;
   const isOverLimit = charactersRemaining < 0;
@@ -171,6 +171,14 @@ export function InlineComposer({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Cmd/Ctrl + Enter
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
   // Track pending resize frame to avoid duplicate rAF calls
   const resizeFrameRef = useRef<number | null>(null);
 
@@ -219,6 +227,7 @@ export function InlineComposer({
             ref={textareaRef}
             value={content}
             onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => !content && setIsFocused(false)}
             placeholder="What's happening?"
@@ -272,9 +281,9 @@ export function InlineComposer({
                 {/* Keyboard shortcut hint */}
                 <span
                   className="text-muted-foreground text-xs"
-                  aria-label={`Keyboard shortcut: ${_isMac ? 'Command' : 'Control'} plus Enter`}
+                  aria-label={`Keyboard shortcut: ${isMac ? 'Command' : 'Control'} plus Enter`}
                 >
-                  {_isMac ? '⌘' : 'Ctrl'}+Enter
+                  {isMac ? '⌘' : 'Ctrl'}+Enter
                 </span>
 
                 {/* Submit Button */}
@@ -287,7 +296,7 @@ export function InlineComposer({
                     'transition-all duration-200',
                     canSubmit
                       ? 'bg-[#0066FF] text-white hover:bg-[#0052CC]'
-                      : 'cursor-not-allowed bg-gray-700 text-gray-500'
+                      : 'cursor-not-allowed bg-muted text-muted-foreground'
                   )}
                 >
                   {isSubmitting ? (

@@ -600,7 +600,7 @@ export function useAuth(): UseAuthReturn {
   // Fetch user only when authentication status or user ID changes
   // IMPORTANT: Only clear auth when Privy is READY and user is not authenticated.
   // Don't clear on initial load when `ready` is false - that would wipe persisted state
-  // (like hasSkippedOnchain) before Privy has had a chance to restore the session.
+  // before Privy has had a chance to restore the session.
   useEffect(() => {
     if (!authenticated || !privyUser) {
       // Don't clear auth until Privy is ready - otherwise we'd wipe persisted state

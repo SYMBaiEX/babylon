@@ -68,8 +68,6 @@ export interface ImportedProfileData {
  */
 interface OnboardingModalProps {
   isOpen: boolean;
-  /** Whether to display as full-screen blocking UI (no dismiss) */
-  isFullScreen?: boolean;
   stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
   isSubmitting: boolean;
   error?: string | null;
@@ -86,8 +84,6 @@ interface OnboardingModalProps {
     onChainRegistered?: boolean;
   } | null;
   importedData?: ImportedProfileData | null;
-  /** Whether user logged in via social (Farcaster/Twitter) - skips PROFILE stage */
-  isSocialLogin?: boolean;
 }
 
 /**
@@ -141,7 +137,6 @@ function resolveAssetUrl(value?: string | null): string | undefined {
 
 export function OnboardingModal({
   isOpen,
-  isFullScreen: _isFullScreen = true,
   stage,
   isSubmitting,
   error,
@@ -152,7 +147,6 @@ export function OnboardingModal({
   onLogout,
   user,
   importedData,
-  isSocialLogin: _isSocialLogin = false,
 }: OnboardingModalProps) {
   // Simplified form: username serves as display name initially
   const [username, setUsername] = useState('');
@@ -229,20 +223,11 @@ export function OnboardingModal({
     const initializeProfile = async () => {
       setIsLoadingDefaults(true);
 
+      // Promise.allSettled never rejects - individual results have status 'fulfilled' or 'rejected'
       const [profileResult, assetsResult] = await Promise.allSettled([
         apiFetch('/api/onboarding/generate-profile', { auth: false }),
         apiFetch('/api/onboarding/random-assets', { auth: false }),
-      ]).catch((initError: Error) => {
-        logger.warn(
-          'Failed to initialize onboarding defaults',
-          { error: initError },
-          'OnboardingModal'
-        );
-        return [
-          { status: 'rejected' as const, reason: initError },
-          { status: 'rejected' as const, reason: initError },
-        ];
-      });
+      ]);
 
       if (profileResult.status === 'fulfilled' && profileResult.value.ok) {
         const generated =
@@ -323,10 +308,14 @@ export function OnboardingModal({
       }
     };
 
-    void checkUsername();
+    // Debounce username check to avoid excessive API calls during typing
+    const debounceTimer = setTimeout(() => {
+      void checkUsername();
+    }, 300);
 
     return () => {
       cancelled = true;
+      clearTimeout(debounceTimer);
     };
   }, [username, stage]);
 

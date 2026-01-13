@@ -810,7 +810,6 @@ export function OnboardingProvider({
     return (
       <OnboardingModal
         isOpen
-        isFullScreen
         stage={stage}
         isSubmitting={isSubmitting}
         error={error}
@@ -821,7 +820,6 @@ export function OnboardingProvider({
         onLogout={logout}
         user={user}
         importedData={importedProfileData}
-        isSocialLogin={isSocialLogin}
       />
     );
   }

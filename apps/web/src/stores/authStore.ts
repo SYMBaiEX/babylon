@@ -80,15 +80,12 @@ interface AuthState {
   isLoadingProfile: boolean;
   needsOnboarding: boolean;
   needsOnchain: boolean;
-  /** Whether user has skipped on-chain registration (persisted so modal doesn't reappear) */
-  hasSkippedOnchain: boolean;
   setUser: (user: User) => void;
   setWallet: (wallet: Wallet) => void;
   setLoadedUserId: (userId: string) => void;
   setIsLoadingProfile: (loading: boolean) => void;
   setNeedsOnboarding: (needsOnboarding: boolean) => void;
   setNeedsOnchain: (needsOnchain: boolean) => void;
-  setHasSkippedOnchain: (skipped: boolean) => void;
   clearAuth: () => void;
 }
 
@@ -101,14 +98,12 @@ export const useAuthStore = create<AuthState>()(
       isLoadingProfile: false,
       needsOnboarding: false,
       needsOnchain: false,
-      hasSkippedOnchain: false,
       setUser: (user) => set({ user }),
       setWallet: (wallet) => set({ wallet }),
       setLoadedUserId: (userId) => set({ loadedUserId: userId }),
       setIsLoadingProfile: (loading) => set({ isLoadingProfile: loading }),
       setNeedsOnboarding: (needsOnboarding) => set({ needsOnboarding }),
       setNeedsOnchain: (needsOnchain) => set({ needsOnchain }),
-      setHasSkippedOnchain: (skipped) => set({ hasSkippedOnchain: skipped }),
       clearAuth: () =>
         set({
           user: null,
@@ -117,7 +112,6 @@ export const useAuthStore = create<AuthState>()(
           isLoadingProfile: false,
           needsOnboarding: false,
           needsOnchain: false,
-          hasSkippedOnchain: false,
         }),
     }),
     {
