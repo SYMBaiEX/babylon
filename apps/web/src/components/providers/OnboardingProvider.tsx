@@ -394,6 +394,9 @@ export function OnboardingProvider({
     }
 
     // User has completed onboarding - don't reset stage or show onboarding
+    // The handleProfileSubmit dependency is intentional - the socialAutoSubmitRef guard
+    // prevents infinite loops. This effect handles stage transitions based on auth state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     authenticated,
     loadingProfile,
@@ -532,18 +535,46 @@ export function OnboardingProvider({
     const dataParam = params.get('data');
 
     if (socialImport && dataParam) {
-      const profileData = JSON.parse(
-        decodeURIComponent(dataParam)
-      ) as ImportedProfileData;
-      logger.info(
-        'Social profile data received from URL',
-        { platform: socialImport },
-        'OnboardingProvider'
-      );
+      try {
+        const parsed = JSON.parse(decodeURIComponent(dataParam)) as unknown;
 
-      setImportedProfileData(profileData);
-      setHasProgressedPastSocialImport(true);
-      setStage('PROFILE');
+        // Validate the imported data structure
+        if (
+          typeof parsed !== 'object' ||
+          parsed === null ||
+          !('platform' in parsed) ||
+          !('username' in parsed) ||
+          !('displayName' in parsed) ||
+          (parsed.platform !== 'twitter' && parsed.platform !== 'farcaster') ||
+          typeof parsed.username !== 'string' ||
+          typeof parsed.displayName !== 'string'
+        ) {
+          logger.warn(
+            'Invalid social profile data structure from URL',
+            { socialImport },
+            'OnboardingProvider'
+          );
+          return;
+        }
+
+        const profileData = parsed as ImportedProfileData;
+        logger.info(
+          'Social profile data received from URL',
+          { platform: socialImport },
+          'OnboardingProvider'
+        );
+
+        setImportedProfileData(profileData);
+        setHasProgressedPastSocialImport(true);
+        setStage('PROFILE');
+      } catch (parseError) {
+        logger.warn(
+          'Failed to parse social profile data from URL',
+          { error: parseError },
+          'OnboardingProvider'
+        );
+        // Clean up malformed URL params and continue without imported data
+      }
 
       // Clean up URL
       const newUrl = new URL(window.location.href);

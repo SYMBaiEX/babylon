@@ -381,6 +381,8 @@ export function FeedCommentSection({
     setComments((prev) =>
       addReplyToComment(prev, parentCommentId, optimisticReply)
     );
+    // Brief delay to allow the optimistic update to render before
+    // fetching server data, preventing visual jank from rapid state changes
     await new Promise((resolve) => setTimeout(resolve, 200));
     await loadCommentsData();
   };

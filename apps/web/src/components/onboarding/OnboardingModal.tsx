@@ -607,6 +607,14 @@ export function OnboardingModal({
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Validate file size (max 5MB)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      setFormError('Image must be less than 5MB');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedProfileImage(reader.result as string);
