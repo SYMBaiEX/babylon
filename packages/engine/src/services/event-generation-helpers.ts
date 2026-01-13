@@ -622,17 +622,33 @@ export async function generateArticlesForArcEvent(
       );
 
       // Transform content to replace real names with parody names
-      const transformedSummary = await characterMappingService.transformText(
-        article.summary || ''
-      );
-      const transformedContent = await characterMappingService.transformText(
-        article.content || ''
-      );
-      const transformedTitle = await characterMappingService.transformText(
-        article.title || 'Untitled'
-      );
+      // Run all transformations concurrently to reduce latency
+      const [transformedSummary, transformedContent, transformedTitle] =
+        await Promise.all([
+          characterMappingService.transformText(article.summary || ''),
+          characterMappingService.transformText(article.content || ''),
+          characterMappingService.transformText(article.title || 'Untitled'),
+        ]);
 
       const articleTimestamp = article.publishedAt || timestamp;
+
+      // TOCTOU re-check: Verify rate limit immediately before DB insert
+      // Another process may have created articles during LLM generation
+      const { allowed: finalCheckAllowed } =
+        await articleRateLimiter.canGenerateArticle();
+      if (!finalCheckAllowed) {
+        logger.info(
+          'Rate limit reached during arc event article persistence (TOCTOU re-check)',
+          { arcEventId, eventStatus, orgId: org.id },
+          'EventGeneration'
+        );
+        // Record as rejected but not an error - rate limiting worked correctly
+        results.push({
+          status: 'rejected',
+          reason: new Error('Rate limit exceeded during persistence'),
+        });
+        continue; // Skip to next org instead of breaking entirely
+      }
 
       // Insert article first, then generate image asynchronously (fire-and-forget)
       // This makes article creation non-blocking on image generation
@@ -657,8 +673,9 @@ export async function generateArticlesForArcEvent(
       });
 
       // Fire-and-forget image generation - updates post asynchronously after insert
+      // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
       if (process.env.FAL_KEY) {
-        generateArticleImageWithRetry({
+        void generateArticleImageWithRetry({
           title: transformedTitle.transformedText,
           summary: transformedSummary.transformedText,
           category: article.category,
@@ -673,6 +690,9 @@ export async function generateArticlesForArcEvent(
                   logger.warn(
                     'Failed to update article with image URL',
                     {
+                      arcEventId,
+                      eventStatus,
+                      orgId: org.id,
                       articleId,
                       error: err instanceof Error ? err.message : String(err),
                     },
@@ -685,6 +705,9 @@ export async function generateArticlesForArcEvent(
             logger.debug(
               'Image generation failed (non-blocking)',
               {
+                arcEventId,
+                eventStatus,
+                orgId: org.id,
                 articleId,
                 error: err instanceof Error ? err.message : String(err),
               },
@@ -718,7 +741,13 @@ export async function generateArticlesForArcEvent(
       results.push({ status: 'rejected', reason: error });
       logger.warn(
         'Failed to generate arc event article',
-        { error: error instanceof Error ? error.message : String(error) },
+        {
+          arcEventId,
+          eventStatus,
+          orgId: org.id,
+          orgName: org.name,
+          error: error instanceof Error ? error.message : String(error),
+        },
         'EventGeneration'
       );
     }
@@ -731,13 +760,15 @@ export async function generateArticlesForArcEvent(
     return sum;
   }, 0);
 
+  // Use results.length for attempted count (reflects actual attempts, not orgsToPublish.length)
+  // This is accurate when the loop exits early due to rate limiting
   logger.info(
     'Arc event articles generated',
     {
       arcEventId,
       eventStatus,
       articlesCreated,
-      attempted: orgsToPublish.length,
+      attempted: results.length,
     },
     'EventGeneration'
   );

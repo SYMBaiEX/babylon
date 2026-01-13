@@ -38,22 +38,82 @@ interface SqlCondition {
 // Mock db with a mutable state we can control in tests
 let mockGame: MockGame | null = null;
 let mockActiveQuestions: MockQuestion[] = [];
+let mockMatureQuestions: MockQuestion[] = [];
+let mockWorldEvents: Array<{ id: string; timestamp: Date; description: string }> = [];
 
 // Mock auth and lock states for negative-path testing
 let mockCronAuthResult = true;
 let mockAcquireLockResult = true;
 
+// Track which table is being queried for table-aware mocking
+let currentQueryTable: string | null = null;
+
+// Table reference symbols for detection
+const TABLE_REFS = {
+  games: { _tableName: 'games' },
+  questions: {
+    _tableName: 'questions',
+    status: 'status',
+    resolutionDate: 'resolutionDate',
+    id: 'id',
+    questionNumber: 'questionNumber',
+  },
+  timeframedMarkets: { _tableName: 'timeframedMarkets' },
+  worldEvents: { _tableName: 'worldEvents', timestamp: 'timestamp' },
+  posts: { _tableName: 'posts' },
+};
+
+// Get mock data based on the current query table
+const getTableData = (): unknown => {
+  switch (currentQueryTable) {
+    case 'games':
+      return mockGame ? [mockGame] : [];
+    case 'questions':
+      // Return active questions by default; mature questions handled via where clause
+      return mockActiveQuestions;
+    case 'worldEvents':
+      return mockWorldEvents;
+    case 'timeframedMarkets':
+      return [];
+    case 'posts':
+      return [];
+    default:
+      return [];
+  }
+};
+
 // Create query builder for Drizzle-style operations
 // The resultFn is called at query execution time to get the current mock state
-const createQueryBuilder = (resultFn: () => unknown) => {
+const createQueryBuilder = (
+  resultFn: () => unknown,
+  operation: 'select' | 'insert' | 'update' | 'delete' = 'select'
+) => {
   const builder = {
     set: mock(() => builder),
-    where: mock(() => builder),
+    where: mock(() => {
+      // For questions table with mature check, return mature questions
+      if (currentQueryTable === 'questions') {
+        // If this is a "mature" query (lte on resolutionDate), return mockMatureQuestions
+        // This is a simplification - in reality we'd parse the condition
+      }
+      return builder;
+    }),
     values: mock(() => builder),
-    from: mock(() => builder),
+    from: mock((table: { _tableName?: string }) => {
+      // Track which table is being queried
+      if (table && table._tableName) {
+        currentQueryTable = table._tableName;
+      }
+      return builder;
+    }),
     limit: mock(() => builder),
     orderBy: mock(() => builder),
-    returning: mock(async () => resultFn()),
+    returning: mock(async () => {
+      if (operation === 'insert') return [{ id: `mock-${Date.now()}` }];
+      if (operation === 'update') return [{ id: 'mock-updated' }];
+      if (operation === 'delete') return [{ id: 'mock-deleted' }];
+      return resultFn();
+    }),
     onConflictDoNothing: mock(() => builder),
     then: <TResult1, TResult2 = never>(
       onFulfilled?:
@@ -63,35 +123,69 @@ const createQueryBuilder = (resultFn: () => unknown) => {
         | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
         | null
     ): Promise<TResult1 | TResult2> => {
-      return Promise.resolve(resultFn()).then(onFulfilled, onRejected);
+      const result = resultFn();
+      return Promise.resolve(result).then(onFulfilled, onRejected);
     },
   };
   return builder;
 };
 
-// Mock @babylon/db - returns mockActiveQuestions for select queries
+// Create table-aware insert/update/delete builders
+const createMutationBuilder = (operation: 'insert' | 'update' | 'delete') => {
+  return mock((table: { _tableName?: string }) => {
+    if (table && table._tableName) {
+      currentQueryTable = table._tableName;
+    }
+    return createQueryBuilder(() => [{ id: `mock-${operation}-id` }], operation);
+  });
+};
+
+// Mock @babylon/db - table-aware query handling
 mock.module('@babylon/db', () => ({
   db: {
-    select: mock(() => createQueryBuilder(() => mockActiveQuestions)),
-    insert: mock(() => createQueryBuilder(() => [{ id: 'mock-id' }])),
-    update: mock(() => createQueryBuilder(() => [{ id: 'mock-id' }])),
-    delete: mock(() => createQueryBuilder(() => [{ id: 'mock-id' }])),
+    select: mock((columns?: Record<string, unknown>) => {
+      // Reset table tracking for new query
+      currentQueryTable = null;
+      // If selecting specific columns (like MAX), handle specially
+      if (columns && 'maxNumber' in columns) {
+        // This is the getNextQuestionNumber query
+        return createQueryBuilder(() => {
+          const maxNum = mockActiveQuestions.reduce(
+            (max, q) => Math.max(max, q.questionNumber),
+            0
+          );
+          return [{ maxNumber: maxNum > 0 ? maxNum : null }];
+        });
+      }
+      return createQueryBuilder(() => getTableData());
+    }),
+    insert: createMutationBuilder('insert'),
+    update: createMutationBuilder('update'),
+    delete: createMutationBuilder('delete'),
+    transaction: mock(
+      async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
+        // Create a transaction context that mirrors the db interface
+        const tx = {
+          select: mock(() => createQueryBuilder(() => getTableData())),
+          insert: createMutationBuilder('insert'),
+          update: createMutationBuilder('update'),
+          delete: createMutationBuilder('delete'),
+        };
+        return callback(tx);
+      }
+    ),
   },
-  games: {},
-  questions: {
-    status: 'status',
-    resolutionDate: 'resolutionDate',
-    id: 'id',
-    questionNumber: 'questionNumber',
-  },
-  timeframedMarkets: {},
-  worldEvents: {},
-  posts: {},
+  games: TABLE_REFS.games,
+  questions: TABLE_REFS.questions,
+  timeframedMarkets: TABLE_REFS.timeframedMarkets,
+  worldEvents: TABLE_REFS.worldEvents,
+  posts: TABLE_REFS.posts,
   eq: (): SqlCondition => ({}),
   gte: (): SqlCondition => ({}),
   lte: (): SqlCondition => ({}),
   and: (): SqlCondition => ({}),
   desc: (): SqlCondition => ({}),
+  max: (col: unknown) => ({ _aggregation: 'max', column: col }),
   generateSnowflakeId: async () => `mock-${Date.now()}`,
 }));
 
@@ -206,8 +300,11 @@ describe('Markets Tick Cron', () => {
   beforeEach(() => {
     mockGame = null;
     mockActiveQuestions = [];
+    mockMatureQuestions = [];
+    mockWorldEvents = [];
     mockCronAuthResult = true;
     mockAcquireLockResult = true;
+    currentQueryTable = null;
   });
 
   describe('Authorization', () => {
@@ -249,11 +346,11 @@ describe('Markets Tick Cron', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      // Should indicate lock failure/skip
+      // Should indicate lock failure/skip (route returns "Previous tick still running")
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.skipped).toBe(true);
-      expect(data.reason).toContain('lock');
+      expect(data.reason).toContain('Previous tick still running');
     });
   });
 
@@ -415,6 +512,11 @@ describe('Markets Tick Cron', () => {
 describe('Market Timeframe Configuration', () => {
   test('should have correct market distribution (10 total)', () => {
     // Expected: 1x 3-day, 1x 2-day, 1x 1-day, 1x 12-hour, 1x 6-hour, 1x 1-hour, 2x 30-minute, 2x 15-minute
+    //
+    // IMPORTANT: These values are a deliberate contract-style duplication of the production
+    // MARKET_TIMEFRAMES config in markets-tick/route.ts. Do NOT import production internals here.
+    // If the production config changes, this test must be updated to match. This ensures the
+    // test acts as a contract verification rather than a tautology.
     const expectedMarkets = {
       '3d': 1,
       '2d': 1,

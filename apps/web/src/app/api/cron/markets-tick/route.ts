@@ -391,7 +391,7 @@ export async function POST(_req: NextRequest) {
 
       try {
         // Resolve the market (includes proof gen, payouts, oracle reveal)
-        const resolutionResult = await resolveMarket(market, llmClient);
+        const resolutionResult = await resolveMarket(market, llmClient, gameState);
         if (resolutionResult.resolved) {
           results.marketsResolved++;
         }
@@ -604,6 +604,10 @@ function inferTimeframe(resolutionDate: Date | null): string {
 
 /**
  * Get markets ready for resolution
+ *
+ * NOTE: We join with timeframedMarkets to get the canonical stored timeframe,
+ * NOT inferTimeframe(resolutionDate). For mature markets, inferTimeframe would
+ * return '15m' since (resolutionDate - now) is negative, which is incorrect.
  */
 async function getMarketsReadyForResolution(now: Date): Promise<
   Array<{
@@ -613,13 +617,16 @@ async function getMarketsReadyForResolution(now: Date): Promise<
     resolutionDate: Date;
   }>
 > {
+  // Join questions with timeframedMarkets to get the stored timeframe
   const matureQuestions = await db
     .select({
       id: questions.id,
       questionNumber: questions.questionNumber,
       resolutionDate: questions.resolutionDate,
+      timeframe: timeframedMarkets.timeframe,
     })
     .from(questions)
+    .leftJoin(timeframedMarkets, eq(timeframedMarkets.questionId, questions.id))
     .where(
       and(eq(questions.status, 'active'), lte(questions.resolutionDate, now))
     );
@@ -627,7 +634,8 @@ async function getMarketsReadyForResolution(now: Date): Promise<
   return matureQuestions.map((q) => ({
     id: q.id,
     questionNumber: q.questionNumber,
-    timeframe: inferTimeframe(q.resolutionDate),
+    // Use stored timeframe from timeframedMarkets; fallback to '1d' if not found
+    timeframe: q.timeframe ?? '1d',
     resolutionDate: q.resolutionDate,
   }));
 }
@@ -649,7 +657,8 @@ async function resolveMarket(
     questionNumber: number;
     timeframe: string;
   },
-  llmClient: BabylonLLMClient
+  llmClient: BabylonLLMClient,
+  gameState: GameState
 ): Promise<{ resolved: boolean; oracleRevealed: boolean }> {
   logger.info(
     `Resolving ${market.timeframe} market`,
@@ -853,6 +862,7 @@ async function resolveMarket(
       );
 
       // Save proof to database
+      const proofTimestamp = new Date();
       await db.transaction(async (tx) => {
         // Save proof article if generated
         // Note: Proof articles use type 'proof' (not 'article') to:
@@ -867,8 +877,10 @@ async function resolveMarket(
             fullContent: proofResult.proof.article.content,
             articleTitle: proofResult.proof.article.title,
             authorId: proofResult.proof.article.authorOrgId,
-            gameId: 'continuous',
-            timestamp: new Date(),
+            gameId: gameState.id,
+            dayNumber: gameState.currentDay ?? 1,
+            timestamp: proofTimestamp,
+            createdAt: proofTimestamp,
             category: proofResult.proof.article.category,
             sentiment: proofResult.proof.article.sentiment,
             slant: proofResult.proof.article.slant,
@@ -1038,37 +1050,12 @@ async function createMarketForTimeframe(
       return false;
     }
 
-    // Create the question in the database
+    // Pre-generate IDs before transaction to track for potential cleanup
     const questionId = await generateSnowflakeId();
     const questionNumber = await getNextQuestionNumber();
+    const timeframedMarketId = await generateSnowflakeId();
 
-    await db.insert(questions).values({
-      id: questionId,
-      questionNumber,
-      text: questionData.text,
-      scenarioId: DEFAULT_SCENARIO_ID,
-      outcome: questionData.expectedOutcome,
-      rank: 1,
-      resolutionDate,
-      status: 'active',
-      updatedAt: now,
-    });
-
-    // Create corresponding market using CorePredictionMarketService
-    // Uses MOCK_WALLET since this is system-level creation, not user-initiated
-    const marketService = new CorePredictionMarketService({
-      db: new CorePredictionDbAdapter(),
-      wallet: MOCK_WALLET,
-      fees: SYSTEM_MARKET_FEES,
-    });
-
-    const market = await marketService.ensureMarketExists({
-      marketId: questionId,
-      initialLiquidity: DEFAULT_INITIAL_LIQUIDITY,
-      description: questionData.resolutionCriteria,
-    });
-
-    // Create timeframe-appropriate arc plan
+    // Create timeframe-appropriate arc plan before transaction
     // Arc plan is used for:
     // 1. Determining signal direction in events (via timeframe-arc-processor)
     // 2. Identifying insider/deceiver NPCs for authentic posting
@@ -1115,25 +1102,59 @@ async function createMarketForTimeframe(
       questionData.affiliatedOrgIds
     );
 
-    // Register in timeframedMarkets table - this is the SINGLE SOURCE OF TRUTH
-    // for timeframe-based market state. The timeframe-arc-processor.ts reads from this
-    // table to:
-    // - Advance arc state (e.g., setup -> active -> climax)
-    // - Generate events with appropriate signal direction
-    // - Spawn sub-markets if configured
-    const timeframedMarketId = await generateSnowflakeId();
-    await db.insert(timeframedMarkets).values({
-      id: timeframedMarketId,
-      questionId,
-      timeframe: mapTimeframeToDbType(timeframe),
-      category: inferCategory(questionData.text),
-      startTime: now,
-      endTime: resolutionDate,
-      arcState: (arcPlan.phaseOrder[0] || 'setup') as ArcStateType,
-      arcStateEnteredAt: now,
-      // Store affiliated actors/orgs for context in NPC behavior
-      affiliatedActorIds: arcPlan.affiliatedActorIds,
-      affiliatedOrgIds: arcPlan.affiliatedOrgIds,
+    // Wrap all DB writes in a transaction to prevent orphaned rows
+    // If any step fails, the entire transaction rolls back
+    let market!: { id: string };
+
+    await db.transaction(async (tx) => {
+      // Step 1: Create the question in the database
+      await tx.insert(questions).values({
+        id: questionId,
+        questionNumber,
+        text: questionData.text,
+        scenarioId: DEFAULT_SCENARIO_ID,
+        outcome: questionData.expectedOutcome,
+        rank: 1,
+        resolutionDate,
+        status: 'active',
+        updatedAt: now,
+      });
+
+      // Step 2: Create corresponding market using CorePredictionMarketService
+      // Uses MOCK_WALLET since this is system-level creation, not user-initiated
+      // Note: CorePredictionMarketService uses its own DB adapter, but if it fails,
+      // we still roll back the question insert above
+      const marketService = new CorePredictionMarketService({
+        db: new CorePredictionDbAdapter(),
+        wallet: MOCK_WALLET,
+        fees: SYSTEM_MARKET_FEES,
+      });
+
+      market = await marketService.ensureMarketExists({
+        marketId: questionId,
+        initialLiquidity: DEFAULT_INITIAL_LIQUIDITY,
+        description: questionData.resolutionCriteria,
+      });
+
+      // Step 3: Register in timeframedMarkets table - this is the SINGLE SOURCE OF TRUTH
+      // for timeframe-based market state. The timeframe-arc-processor.ts reads from this
+      // table to:
+      // - Advance arc state (e.g., setup -> active -> climax)
+      // - Generate events with appropriate signal direction
+      // - Spawn sub-markets if configured
+      await tx.insert(timeframedMarkets).values({
+        id: timeframedMarketId,
+        questionId,
+        timeframe: mapTimeframeToDbType(timeframe),
+        category: inferCategory(questionData.text),
+        startTime: now,
+        endTime: resolutionDate,
+        arcState: (arcPlan.phaseOrder[0] || 'setup') as ArcStateType,
+        arcStateEnteredAt: now,
+        // Store affiliated actors/orgs for context in NPC behavior
+        affiliatedActorIds: arcPlan.affiliatedActorIds,
+        affiliatedOrgIds: arcPlan.affiliatedOrgIds,
+      });
     });
 
     // Publish oracle commitment for blockchain verifiability
@@ -1308,7 +1329,22 @@ async function getNextQuestionNumber(): Promise<number> {
     .from(questions);
 
   // Handle null/undefined case (no questions exist yet)
-  const maxNumber = result[0]?.maxNumber ?? 0;
+  const rawMaxNumber = result[0]?.maxNumber;
+
+  // Coerce to JS number - DB may return string, bigint, or number
+  let maxNumber: number;
+  if (rawMaxNumber === null || rawMaxNumber === undefined) {
+    maxNumber = 0;
+  } else if (typeof rawMaxNumber === 'bigint') {
+    maxNumber = Number(rawMaxNumber);
+  } else if (typeof rawMaxNumber === 'string') {
+    maxNumber = parseInt(rawMaxNumber, 10);
+    if (Number.isNaN(maxNumber)) {
+      maxNumber = 0;
+    }
+  } else {
+    maxNumber = Number(rawMaxNumber);
+  }
 
   return maxNumber + 1;
 }

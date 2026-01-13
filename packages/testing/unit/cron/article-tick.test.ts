@@ -29,15 +29,20 @@ interface SqlCondition {
 let mockGame: MockGame | null = null;
 let mockArticleCount = 0;
 
-// Create query builder for Drizzle-style operations that uses mockGame
-const createQueryBuilder = (defaultResult: unknown = [{ id: 'mock-id' }]) => {
+// Mock auth state for negative-path testing
+let mockCronAuthResult = true;
+
+// Create query builder for Drizzle-style operations
+// The resultFn is called at query execution time to get the current mock state
+// This mirrors the markets-tick.test.ts pattern for dynamic result evaluation
+const createQueryBuilder = (resultFn: () => unknown = () => [{ id: 'mock-id' }]) => {
   const builder = {
     set: mock(() => builder),
     where: mock(() => builder),
     values: mock(() => builder),
     from: mock(() => builder),
     limit: mock(() => builder),
-    returning: mock(async () => defaultResult),
+    returning: mock(async () => resultFn()),
     onConflictDoNothing: mock(() => builder),
     then: <TResult1, TResult2 = never>(
       onFulfilled?:
@@ -47,19 +52,19 @@ const createQueryBuilder = (defaultResult: unknown = [{ id: 'mock-id' }]) => {
         | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
         | null
     ): Promise<TResult1 | TResult2> => {
-      return Promise.resolve(defaultResult).then(onFulfilled, onRejected);
+      return Promise.resolve(resultFn()).then(onFulfilled, onRejected);
     },
   };
   return builder;
 };
 
-// Mock @babylon/db
+// Mock @babylon/db - uses resultFn pattern for dynamic state evaluation
 mock.module('@babylon/db', () => ({
   db: {
-    select: mock(() => createQueryBuilder()),
-    insert: mock(() => createQueryBuilder()),
-    update: mock(() => createQueryBuilder()),
-    delete: mock(() => createQueryBuilder()),
+    select: mock(() => createQueryBuilder(() => mockGame ? [mockGame] : [])),
+    insert: mock(() => createQueryBuilder(() => [{ id: `mock-${Date.now()}` }])),
+    update: mock(() => createQueryBuilder(() => [{ id: 'mock-updated' }])),
+    delete: mock(() => createQueryBuilder(() => [{ id: 'mock-deleted' }])),
   },
   games: {},
   posts: { type: 'type', timestamp: 'timestamp', deletedAt: 'deletedAt' },
@@ -71,9 +76,9 @@ mock.module('@babylon/db', () => ({
   generateSnowflakeId: async () => `mock-${Date.now()}`,
 }));
 
-// Mock @babylon/api - getCacheOrFetch returns mockGame when called
+// Mock @babylon/api - uses mutable state for auth and game cache
 mock.module('@babylon/api', () => ({
-  verifyCronAuth: () => true,
+  verifyCronAuth: () => mockCronAuthResult,
   relayCronToStaging: async () => ({ forwarded: false }),
   getCacheOrFetch: async <T>(_key: string, fn: () => Promise<T>) => {
     // For game state cache, return our mockGame
@@ -152,9 +157,24 @@ describe('Article Tick Cron', () => {
   beforeEach(() => {
     mockGame = null;
     mockArticleCount = 0;
+    mockCronAuthResult = true;
   });
 
   describe('Authorization', () => {
+    test('should reject unauthorized requests when verifyCronAuth returns false', async () => {
+      mockCronAuthResult = false;
+
+      const req = new NextRequest('http://localhost/api/cron/article-tick', {
+        method: 'POST',
+      });
+      const res = await POST(req);
+
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Unauthorized');
+    });
+
     test('GET should delegate to POST and return identical response', async () => {
       // Set up a known game state so we get predictable responses
       mockGame = null; // No game = skipped state

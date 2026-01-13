@@ -82,19 +82,26 @@ interface ArticlePayload {
 }
 
 /**
+ * Result type for persistArticle to handle rate-limiting gracefully
+ */
+type PersistArticleResult =
+  | { success: true; postId: string }
+  | { success: false; rateLimited: true };
+
+/**
  * Persist an article to the database.
  * Handles text transformation, image generation, and DB insert.
  *
  * @param payload - The article content (title, summary, article body)
  * @param authorId - The organization ID authoring the article
  * @param gameState - Current game state for context
- * @returns The created post ID
+ * @returns Success with post ID, or rate-limited result (not an error)
  */
 async function persistArticle(
   payload: ArticlePayload,
   authorId: string,
   gameState: GameState
-): Promise<string> {
+): Promise<PersistArticleResult> {
   // Validate required fields before doing any work
   const trimmedTitle = payload.title?.trim() ?? '';
   const trimmedSummary = payload.summary?.trim() ?? '';
@@ -116,35 +123,32 @@ async function persistArticle(
     throw new Error('Missing gameState.id');
   }
 
-  // Transform content to use parody names
-  const transformedTitle =
-    await characterMappingService.transformText(trimmedTitle);
-  const transformedSummary =
-    await characterMappingService.transformText(trimmedSummary);
-  const transformedBody =
-    await characterMappingService.transformText(trimmedArticle);
-
-  // Generate article image if available
-  let imageUrl: string | null = null;
-  if (process.env.FAL_KEY) {
-    imageUrl = await generateArticleImageWithRetry({
-      title: transformedTitle.transformedText,
-      summary: transformedSummary.transformedText,
-      category: 'news',
-    });
-  }
+  // Transform content to use parody names - run concurrently to reduce latency
+  const [transformedTitle, transformedSummary, transformedBody] =
+    await Promise.all([
+      characterMappingService.transformText(trimmedTitle),
+      characterMappingService.transformText(trimmedSummary),
+      characterMappingService.transformText(trimmedArticle),
+    ]);
 
   // Re-check rate limit immediately before insert to prevent TOCTOU race condition
   // Another process may have created articles between the initial check and now
   const { allowed: stillAllowed } =
     await articleRateLimiter.canGenerateArticle();
   if (!stillAllowed) {
-    throw new Error('Rate limit exceeded during article generation');
+    // Return rate-limited result instead of throwing - this is not an error condition
+    logger.info(
+      'Article skipped due to rate limit (TOCTOU re-check)',
+      { authorId },
+      'ArticleTick'
+    );
+    return { success: false, rateLimited: true };
   }
 
   const postId = await generateSnowflakeId();
   const now = new Date();
 
+  // Insert article first without image - image generation is fire-and-forget
   await db.insert(posts).values({
     id: postId,
     type: 'article',
@@ -152,7 +156,7 @@ async function persistArticle(
     fullContent: transformedBody.transformedText,
     articleTitle: transformedTitle.transformedText,
     category: 'news',
-    imageUrl: imageUrl || undefined,
+    imageUrl: undefined, // Will be updated asynchronously if FAL_KEY is set
     authorId,
     gameId: gameState.id,
     dayNumber: gameState.currentDay ?? 1,
@@ -160,7 +164,47 @@ async function persistArticle(
     createdAt: now,
   });
 
-  return postId;
+  // Fire-and-forget image generation - updates post asynchronously after insert
+  // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
+  if (process.env.FAL_KEY) {
+    void generateArticleImageWithRetry({
+      title: transformedTitle.transformedText,
+      summary: transformedSummary.transformedText,
+      category: 'news',
+    })
+      .then((imageUrl) => {
+        if (imageUrl) {
+          // Update the post with the generated image URL
+          db.update(posts)
+            .set({ imageUrl })
+            .where(eq(posts.id, postId))
+            .catch((err) => {
+              logger.warn(
+                'Failed to update article with image URL',
+                {
+                  postId,
+                  authorId,
+                  error: err instanceof Error ? err.message : String(err),
+                },
+                'ArticleTick'
+              );
+            });
+        }
+      })
+      .catch((err) => {
+        logger.debug(
+          'Image generation failed (non-blocking)',
+          {
+            postId,
+            authorId,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          'ArticleTick'
+        );
+      });
+  }
+
+  return { success: true, postId };
 }
 
 /**
@@ -544,8 +588,14 @@ Return your response as XML:
   }
 
   // Use shared helper for transformation, image generation, and DB insert
-  const postId = await persistArticle(articleData, org.id, gameState);
-  return { id: postId };
+  const result = await persistArticle(articleData, org.id, gameState);
+
+  // Handle rate-limited result (not an error, just return null)
+  if (!result.success) {
+    return null;
+  }
+
+  return { id: result.postId };
 }
 
 /**
@@ -623,6 +673,12 @@ Return your response as XML:
   }
 
   // Use shared helper for transformation, image generation, and DB insert
-  const postId = await persistArticle(articleData, org.id, gameState);
-  return { id: postId };
+  const result = await persistArticle(articleData, org.id, gameState);
+
+  // Handle rate-limited result (not an error, just return null)
+  if (!result.success) {
+    return null;
+  }
+
+  return { id: result.postId };
 }
