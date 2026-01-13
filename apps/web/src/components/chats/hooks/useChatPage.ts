@@ -409,15 +409,11 @@ export function useChatPage() {
     [getAccessToken, user]
   );
 
-  // Scroll to bottom
+  // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatContainerRef.current;
     if (container) {
-      requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight;
-      });
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+      container.scrollTo({ top: 0, behavior });
     }
   }, []);
 
@@ -479,29 +475,30 @@ export function useChatPage() {
     }
   }, [realtimeMessages]);
 
-  // Scroll to bottom on new messages
+  // Handle new messages and auto-scroll
   useEffect(() => {
+    if (loadingChat) return;
+
     const msgs = chatDetails?.messages || [];
     const lastId = msgs.length > 0 ? msgs[msgs.length - 1]?.id : null;
     if (!lastId) return;
 
     const isNewMessage = lastId !== lastMessageIdRef.current;
-    const shouldForce = lastMessageIdRef.current === null;
+    const wasEmpty = lastMessageIdRef.current === null;
     lastMessageIdRef.current = lastId;
 
-    if (shouldForce) {
-      scrollToBottom('auto');
+    if (wasEmpty) {
       setIsAtBottom(true);
+      scrollToBottom('auto');
       return;
     }
 
     if (isNewMessage && isAtBottom) {
       scrollToBottom('smooth');
-      setIsAtBottom(true);
     }
-  }, [chatDetails?.messages, isAtBottom, scrollToBottom]);
+  }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
 
-  // Intersection observer for infinite scroll
+  // Load older messages when scrolling up
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -512,12 +509,9 @@ export function useChatPage() {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        if (
-          entry.isIntersecting &&
-          container.scrollTop < 200 &&
-          hasMore &&
-          !isLoadingMore
-        ) {
+        const maxScrollTop = container.scrollHeight - container.clientHeight;
+        const nearTop = container.scrollTop >= maxScrollTop - 200;
+        if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
           pendingScrollAdjustRef.current = {
             previousHeight: container.scrollHeight,
             previousTop: container.scrollTop,
@@ -545,20 +539,18 @@ export function useChatPage() {
     pendingScrollAdjustRef.current = null;
   }, [isLoadingMore]);
 
-  // Track scroll position
+  // Track scroll position for auto-scroll behavior
   useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
       const threshold = 50;
-      const atBottom =
-        container.scrollTop + container.clientHeight >=
-        container.scrollHeight - threshold;
+      const atBottom = container.scrollTop <= threshold;
       setIsAtBottom(atBottom);
     };
 
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
