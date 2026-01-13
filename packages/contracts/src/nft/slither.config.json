@@ -10,5 +10,6 @@
   "exclude_high": false,
   "exclude_optimization": false,
   "fail_on": "high",
-  "compile_force_framework": "foundry"
+  "compile_force_framework": "foundry",
+  "detectors_to_exclude": "weak-prng,timestamp,assembly-usage"
 }

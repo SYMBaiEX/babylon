@@ -117,14 +117,16 @@ export interface EligibilityResponse {
 }
 
 /**
- * Mint preparation response (contract call data)
+ * Mint preparation response (contract call data with signature)
  */
 export interface MintPrepareResponse {
   contractAddress: string;
   chainId: number;
-  functionName: string;
-  args: string[];
-  value: string;
+  to: string;
+  deadline: number;
+  nonce: string;
+  signature: string;
+  encodedData: string;
 }
 
 /**
