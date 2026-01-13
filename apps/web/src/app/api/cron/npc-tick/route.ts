@@ -898,12 +898,14 @@ export async function POST(_req: NextRequest) {
       baselineInvestmentsExecuted,
       rebalanceActionsExecuted,
       discourseCreated: discourseCreated,
-      socialEngagement: socialEngagement ? {
-        likes: socialEngagement.likesCreated,
-        shares: socialEngagement.sharesCreated,
-        comments: socialEngagement.commentsCreated,
-        actors: socialEngagement.actorsEngaged,
-      } : undefined,
+      socialEngagement: socialEngagement
+        ? {
+            likes: socialEngagement.likesCreated,
+            shares: socialEngagement.sharesCreated,
+            comments: socialEngagement.commentsCreated,
+            actors: socialEngagement.actorsEngaged,
+          }
+        : undefined,
       errorCount: errors,
       skippedLocked: skippedDueToLock,
       abortedDueToCircuitBreaker,
