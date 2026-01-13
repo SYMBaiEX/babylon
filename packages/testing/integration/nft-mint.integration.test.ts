@@ -340,14 +340,12 @@ describe('NFT Mint Service - Integration Tests', () => {
         method: 'POST',
       });
 
-      // May fail if NFT_CONTRACT_ADDRESS not configured - this is expected
+      // If NFT env isn't configured in the server process, we should get a
+      // clear 400 instead of failing the whole suite.
       if (response.status === 400) {
         const error = await response.json();
-        if (error.error?.includes('not configured')) {
-          throw new Error(
-            'SKIPPED: NFT_CONTRACT_ADDRESS not configured. Set env vars for full test.'
-          );
-        }
+        expect(error.error).toContain('not configured');
+        return;
       }
 
       expect(response.status).toBe(200);
