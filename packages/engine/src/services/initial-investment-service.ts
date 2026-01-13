@@ -306,7 +306,14 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
           amount: { type: 'number' },
           reasoning: { type: 'string' },
         },
-        required: ['npcId', 'npcName', 'ticker', 'orgName', 'amount', 'reasoning'],
+        required: [
+          'npcId',
+          'npcName',
+          'ticker',
+          'orgName',
+          'amount',
+          'reasoning',
+        ],
       },
       {
         temperature: 0.7,
