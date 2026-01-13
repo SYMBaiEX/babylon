@@ -261,10 +261,6 @@ export class PredictionMarketService {
       liquidity: newLiquidity,
     });
 
-    const costBasis = pos.avgPrice * shares;
-    const netProceeds = calc.netProceeds ?? 0;
-    const profitLoss = netProceeds - costBasis;
-
     const remaining = pos.shares - shares;
     const positionClosed = remaining <= MIN_SHARES;
     if (positionClosed) {
