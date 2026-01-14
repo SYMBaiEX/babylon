@@ -9,8 +9,10 @@
  * @see src/lib/services/agent-registry.service.ts
  */
 
-import type { TrustLevel } from '@babylon/agents';
+import type { AgentRegistration, TrustLevel } from '@babylon/agents';
 import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
+import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -42,18 +44,20 @@ const DiscoveryQuerySchema = z.object({
 
 /**
  * Authenticate the request using API key from Authorization header
+ * Returns the agent registration if authenticated, null otherwise
  */
-async function authenticateRequest(req: NextRequest): Promise<boolean> {
+async function authenticateRequest(
+  req: NextRequest
+): Promise<AgentRegistration | null> {
   const authHeader = req.headers.get('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return false;
+    return null;
   }
 
   const apiKey = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-  const agent = await agentRegistry.verifyExternalAgentApiKey(apiKey);
-  return !!agent;
+  return agentRegistry.verifyExternalAgentApiKey(apiKey);
 }
 
 /**
@@ -63,9 +67,9 @@ async function authenticateRequest(req: NextRequest): Promise<boolean> {
  */
 export async function GET(req: NextRequest) {
   // Authenticate the request
-  const isAuthenticated = await authenticateRequest(req);
+  const agent = await authenticateRequest(req);
 
-  if (!isAuthenticated) {
+  if (!agent) {
     return NextResponse.json(
       {
         success: false,
@@ -73,6 +77,47 @@ export async function GET(req: NextRequest) {
         message: 'Invalid or missing API key',
       },
       { status: 401 }
+    );
+  }
+
+  // Rate limit check - use agent's discoveryRateLimit or default to 60/min
+  const agentRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const rateLimitConfig = {
+    ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
+    maxRequests: agentRateLimit,
+  };
+
+  const rateLimitResult = await checkRateLimitAsync(
+    agent.agentId,
+    rateLimitConfig
+  );
+
+  if (!rateLimitResult.allowed) {
+    logger.warn(
+      'External agent discovery rate limit exceeded',
+      {
+        agentId: agent.agentId,
+        retryAfter: rateLimitResult.retryAfter,
+        limit: agentRateLimit,
+      },
+      'ExternalAgentDiscovery'
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded for discovery requests',
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          'X-RateLimit-Limit': String(agentRateLimit),
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 0),
+        },
+      }
     );
   }
 
@@ -171,9 +216,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   // Authenticate the request
-  const isAuthenticated = await authenticateRequest(req);
+  const agent = await authenticateRequest(req);
 
-  if (!isAuthenticated) {
+  if (!agent) {
     return NextResponse.json(
       {
         success: false,
@@ -181,6 +226,47 @@ export async function POST(req: NextRequest) {
         message: 'Invalid or missing API key',
       },
       { status: 401 }
+    );
+  }
+
+  // Rate limit check - use agent's discoveryRateLimit or default to 60/min
+  const agentRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const rateLimitConfig = {
+    ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
+    maxRequests: agentRateLimit,
+  };
+
+  const rateLimitResult = await checkRateLimitAsync(
+    agent.agentId,
+    rateLimitConfig
+  );
+
+  if (!rateLimitResult.allowed) {
+    logger.warn(
+      'External agent discovery rate limit exceeded',
+      {
+        agentId: agent.agentId,
+        retryAfter: rateLimitResult.retryAfter,
+        limit: agentRateLimit,
+      },
+      'ExternalAgentDiscovery'
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded for discovery requests',
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          'X-RateLimit-Limit': String(agentRateLimit),
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 0),
+        },
+      }
     );
   }
 
