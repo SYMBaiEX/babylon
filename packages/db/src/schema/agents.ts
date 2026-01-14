@@ -322,8 +322,7 @@ export const agentCapabilities = pgTable(
 );
 
 // ExternalAgentConnection
-// NOTE: After modifying this schema, run `bun run db:generate` to create a migration
-// for the new registeredByUserId, revokedAt, and revokedBy fields
+// NOTE: After modifying this schema, run `bun run db:generate` to create a migration.
 export const externalAgentConnections = pgTable(
   'ExternalAgentConnection',
   {

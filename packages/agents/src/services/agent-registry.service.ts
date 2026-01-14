@@ -23,6 +23,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNull,
   or,
   type User,
   users,
@@ -704,24 +705,32 @@ export class AgentRegistryService {
     const agents = await db
       .select()
       .from(externalAgentConnections)
-      .where(eq(externalAgentConnections.authType, 'apiKey'));
+      .where(
+        and(
+          eq(externalAgentConnections.authType, 'apiKey'),
+          isNull(externalAgentConnections.revokedAt)
+        )
+      );
 
     for (const agent of agents) {
       if (!agent.authCredentials) continue;
 
-      // Skip revoked agents
-      if (agent.revokedAt) {
-        logger.info(
-          `Skipping revoked agent ${agent.externalId}`,
-          undefined,
+      // Decrypt and verify credentials - continue to next agent if this one fails
+      let credentials: { apiKeyHash?: string } | undefined;
+      try {
+        const decrypted = this.decryptCredentials(agent.authCredentials);
+        credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
+      } catch (error) {
+        logger.warn(
+          `Failed to parse auth credentials for external agent ${agent.externalId}`,
+          {
+            externalId: agent.externalId,
+            error: error instanceof Error ? error.message : String(error),
+          },
           'AgentRegistryService'
         );
         continue;
       }
-
-      // Decrypt and verify credentials - continue to next agent if this one fails
-      const decrypted = this.decryptCredentials(agent.authCredentials);
-      const credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
 
       if (
         credentials?.apiKeyHash &&
@@ -752,36 +761,41 @@ export class AgentRegistryService {
    * @param {string} externalId - External agent ID
    * @param {string} revokedBy - User ID of the person revoking the agent
    * @returns {Promise<void>}
-   * @throws {Error} If agent not found
+   * @throws {Error} If agent not found or already revoked
    */
   async revokeExternalAgent(
     externalId: string,
     revokedBy: string
   ): Promise<void> {
-    // Check if external agent exists
-    const [agent] = await db
-      .select()
-      .from(externalAgentConnections)
-      .where(eq(externalAgentConnections.externalId, externalId))
-      .limit(1);
-
-    if (!agent) {
-      throw new Error(`External agent not found: ${externalId}`);
-    }
-
-    if (agent.revokedAt) {
-      throw new Error(`External agent already revoked: ${externalId}`);
-    }
-
-    // Revoke the agent
-    await db
+    const now = new Date();
+    const [updated] = await db
       .update(externalAgentConnections)
       .set({
-        revokedAt: new Date(),
+        revokedAt: now,
         revokedBy,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
-      .where(eq(externalAgentConnections.externalId, externalId));
+      .where(
+        and(
+          eq(externalAgentConnections.externalId, externalId),
+          isNull(externalAgentConnections.revokedAt)
+        )
+      )
+      .returning({ externalId: externalAgentConnections.externalId });
+
+    if (!updated) {
+      const [agent] = await db
+        .select({ revokedAt: externalAgentConnections.revokedAt })
+        .from(externalAgentConnections)
+        .where(eq(externalAgentConnections.externalId, externalId))
+        .limit(1);
+
+      if (!agent) {
+        throw new Error(`External agent not found: ${externalId}`);
+      }
+
+      throw new Error(`External agent already revoked: ${externalId}`);
+    }
 
     // Log the revocation event
     logger.info(

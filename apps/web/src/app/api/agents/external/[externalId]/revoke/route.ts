@@ -9,7 +9,7 @@
  */
 
 import { agentRegistry } from '@babylon/agents';
-import { authenticate, isUserAdmin } from '@babylon/api';
+import { authenticate, isAuthenticationError, isUserAdmin } from '@babylon/api';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -92,14 +92,24 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       { status: 200 }
     );
   } catch (error) {
+    if (isAuthenticationError(error)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+
     logger.error(
       'Failed to revoke external agent',
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: message },
       'ExternalAgentRevoke'
     );
 
-    if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+    if (message.includes('already revoked')) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+
+    if (message.includes('not found')) {
+      return NextResponse.json({ error: message }, { status: 404 });
     }
 
     return NextResponse.json(
