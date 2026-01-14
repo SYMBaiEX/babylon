@@ -237,39 +237,46 @@ type ExecutorOperationResult =
   | JsonValue;
 
 export class BabylonAgentExecutor implements AgentExecutor {
-  // Singleton instance for direct execution (bypasses HTTP)
-  private static instance: BabylonAgentExecutor | null = null;
-
   /**
-   * Execute an operation directly without HTTP.
-   * Use this for server-side calls to avoid Vercel serverless self-call issues.
+   * Execute operation directly without A2A HTTP protocol
+   * Used for server-side internal calls to bypass Vercel serverless HTTP limitations
+   *
+   * @param operation - The operation name (e.g., 'portfolio.get_balance')
+   * @param params - Operation parameters
+   * @param agentUserId - The agent's user ID for context
+   * @returns Operation result as JsonValue
    */
-  static async executeDirectly(
+  public static async executeDirectly(
     operation: string,
     params: Record<string, JsonValue>,
-    userId?: string
+    agentUserId: string
   ): Promise<JsonValue> {
-    if (!BabylonAgentExecutor.instance) {
-      BabylonAgentExecutor.instance = new BabylonAgentExecutor();
-    }
+    const executor = new BabylonAgentExecutor();
+    const command: BabylonCommand = { operation, params };
+    const taskId = `direct-${Date.now()}`;
 
+    // Create minimal RequestContext for the operation
     const context: RequestContext = {
-      taskId: `direct-${Date.now()}`,
-      contextId: userId || 'system',
+      taskId,
+      contextId: agentUserId,
       userMessage: {
         kind: 'message',
-        messageId: `msg-${Date.now()}`,
+        messageId: `direct-msg-${Date.now()}`,
         role: 'user',
-        parts: [],
+        parts: [{ kind: 'text', text: `Direct call: ${operation}` }],
       },
-      task: null as unknown as Task,
+      task: {
+        kind: 'task',
+        id: taskId,
+        contextId: agentUserId,
+        status: { state: 'working', timestamp: new Date().toISOString() },
+        artifacts: [],
+      },
     };
 
-    const result = await BabylonAgentExecutor.instance.executeOperation(
-      { operation, params },
-      context
-    );
-    return result as JsonValue;
+    const result = await executor.executeOperation(command, context);
+    // Cast to JsonValue since ExecutorOperationResult is compatible at runtime
+    return result as unknown as JsonValue;
   }
 
   async execute(
@@ -350,7 +357,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     eventBus.finished();
   }
 
-  async executeOperation(
+  private async executeOperation(
     command: BabylonCommand,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
@@ -588,43 +595,36 @@ export class BabylonAgentExecutor implements AgentExecutor {
   private async listPerpetualMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
 
-    try {
-      const drizzle = getRawDrizzle();
-      const snapshots = await drizzle
-        .select({
-          ticker: perpMarketSnapshots.ticker,
-          name: perpMarketSnapshots.name,
-          organizationId: perpMarketSnapshots.organizationId,
-          currentPrice: perpMarketSnapshots.currentPrice,
-          change24h: perpMarketSnapshots.change24h,
-          changePercent24h: perpMarketSnapshots.changePercent24h,
-          volume24h: perpMarketSnapshots.volume24h,
-          openInterest: perpMarketSnapshots.openInterest,
-          fundingRate: perpMarketSnapshots.fundingRate,
-        })
-        .from(perpMarketSnapshots)
-        .limit(limit);
+    const drizzle = getRawDrizzle();
+    const snapshots = await drizzle
+      .select({
+        ticker: perpMarketSnapshots.ticker,
+        name: perpMarketSnapshots.name,
+        organizationId: perpMarketSnapshots.organizationId,
+        currentPrice: perpMarketSnapshots.currentPrice,
+        change24h: perpMarketSnapshots.change24h,
+        changePercent24h: perpMarketSnapshots.changePercent24h,
+        volume24h: perpMarketSnapshots.volume24h,
+        openInterest: perpMarketSnapshots.openInterest,
+        fundingRate: perpMarketSnapshots.fundingRate,
+      })
+      .from(perpMarketSnapshots)
+      .limit(limit);
 
-      return {
-        perpetuals: snapshots.map((s) => ({
-          name: s.name || s.ticker,
-          ticker: s.ticker,
-          currentPrice: Number(s.currentPrice) || 0,
-          priceChange24h: Number(s.change24h) || 0,
-          volume24h: Number(s.volume24h) || 0,
-          openInterest: Number(s.openInterest) || 0,
-          fundingRate:
-            typeof s.fundingRate === 'object' && s.fundingRate !== null
-              ? (s.fundingRate as { rate?: number }).rate || 0
-              : 0,
-        })),
-      };
-    } catch (error) {
-      logger.warn('Failed to fetch perpMarketSnapshots, returning empty', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return { perpetuals: [] };
-    }
+    return {
+      perpetuals: snapshots.map((s) => ({
+        name: s.name || s.ticker,
+        ticker: s.ticker,
+        currentPrice: Number(s.currentPrice) || 0,
+        priceChange24h: Number(s.change24h) || 0,
+        volume24h: Number(s.volume24h) || 0,
+        openInterest: Number(s.openInterest) || 0,
+        fundingRate:
+          typeof s.fundingRate === 'object' && s.fundingRate !== null
+            ? (s.fundingRate as { rate?: number }).rate || 0
+            : 0,
+      })),
+    };
   }
 
   private async getUserProfile(params: Record<string, JsonValue>) {

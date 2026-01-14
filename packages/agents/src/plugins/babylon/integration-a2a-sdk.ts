@@ -9,7 +9,7 @@
  * - Lazy header injection per-request (not per-client initialization)
  */
 
-import type { AgentCard } from '@a2a-js/sdk';
+import type { AgentCard, Message, Task } from '@a2a-js/sdk';
 import { A2AClient } from '@a2a-js/sdk/client';
 import { db } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
@@ -441,15 +441,18 @@ export class BabylonA2AClient {
   }
 
   /**
-   * Execute via A2A protocol or direct executor
-   * Uses direct executor on server-side to avoid Vercel serverless 503 errors
-   * Falls back to A2A SDK for external/client-side calls
+   * Execute via A2A message/send with skills
+   * Maps a2a.* methods to A2A protocol
+   *
+   * On server-side (Vercel serverless), uses direct executor to avoid HTTP self-call issues.
+   * On client-side or when A2A protocol is explicitly needed, uses SDK client with HTTP.
    */
   private async executeViaA2A(
     action: string,
     params: Record<string, JsonValue>
   ): Promise<JsonValue> {
     // Map camelCase actions to category.snake_case operation names
+    // This follows the executor's convention (e.g., 'social.create_post', 'stats.leaderboard')
     const operationMap: Record<string, string> = {
       // Portfolio operations
       getBalance: 'portfolio.get_balance',
@@ -479,8 +482,8 @@ export class BabylonA2AClient {
 
     const operationName = operationMap[action] || action;
 
-    // On server-side (Next.js API routes), use direct executor to avoid HTTP self-call
-    // This fixes Vercel serverless 503 errors
+    // On server-side (Next.js API routes), use direct executor to bypass HTTP
+    // This fixes Vercel serverless 503 errors from self-calls
     const isServerSide = typeof window === 'undefined';
     if (isServerSide) {
       const { BabylonAgentExecutor } = await import('@babylon/a2a');
@@ -491,31 +494,100 @@ export class BabylonA2AClient {
       );
     }
 
-    // Client-side or when SDK client is needed: use A2A protocol
+    // Client-side: use A2A SDK with HTTP (for true agent-to-agent communication)
     if (!this.sdkClient) {
       throw new Error('A2A client not available');
     }
 
-    // Map action to skill ID for A2A protocol
+    // Map action to skill ID - comprehensive mapping for all 69+ A2A methods
     const skillMap: Record<string, string> = {
+      // Portfolio & Balance
       getBalance: 'portfolio-balance',
       getPositions: 'portfolio-balance',
       getUserWallet: 'portfolio-balance',
+      transferPoints: 'portfolio-balance',
+      // Prediction Markets
       getPredictions: 'prediction-markets',
+      buyShares: 'prediction-markets',
+      sellShares: 'prediction-markets',
+      getTrades: 'prediction-markets',
+      getTradeHistory: 'prediction-markets',
+      // Perpetual Futures
       getPerpetuals: 'perpetual-futures',
+      openPosition: 'perpetual-futures',
+      closePosition: 'perpetual-futures',
+      // Market Data
+      getMarketData: 'prediction-markets',
+      getMarketPrices: 'prediction-markets',
+      subscribeMarket: 'prediction-markets',
+      // Social Feed
       getFeed: 'social-feed',
+      getPost: 'social-feed',
       createPost: 'social-feed',
+      deletePost: 'social-feed',
       likePost: 'social-feed',
+      unlikePost: 'social-feed',
+      sharePost: 'social-feed',
+      getComments: 'social-feed',
+      createComment: 'social-feed',
+      deleteComment: 'social-feed',
+      likeComment: 'social-feed',
+      // User Management
       getUserProfile: 'user-social-graph',
+      updateProfile: 'user-social-graph',
+      followUser: 'user-social-graph',
+      unfollowUser: 'user-social-graph',
+      getFollowers: 'user-social-graph',
+      getFollowing: 'user-social-graph',
       searchUsers: 'user-social-graph',
-      getLeaderboard: 'stats-discovery',
-      getSystemStats: 'stats-discovery',
-      getTrendingTags: 'stats-discovery',
-      getOrganizations: 'stats-discovery',
+      favoriteProfile: 'user-social-graph',
+      unfavoriteProfile: 'user-social-graph',
+      getFavorites: 'user-social-graph',
+      getFavoritePosts: 'user-social-graph',
+      // Messaging
       getChats: 'messaging-chats',
+      getChatMessages: 'messaging-chats',
+      sendMessage: 'messaging-chats',
+      createGroup: 'messaging-chats',
+      leaveChat: 'messaging-chats',
       getUnreadCount: 'messaging-chats',
+      // Notifications
       getNotifications: 'messaging-chats',
+      markNotificationsRead: 'messaging-chats',
+      getGroupInvites: 'messaging-chats',
+      acceptGroupInvite: 'messaging-chats',
+      declineGroupInvite: 'messaging-chats',
+      // Stats & Discovery
+      getLeaderboard: 'stats-discovery',
+      getUserStats: 'stats-discovery',
+      getSystemStats: 'stats-discovery',
+      getReferrals: 'stats-discovery',
+      getReferralStats: 'stats-discovery',
+      getReferralCode: 'stats-discovery',
+      getReputation: 'stats-discovery',
+      getReputationBreakdown: 'stats-discovery',
+      getTrendingTags: 'stats-discovery',
+      getPostsByTag: 'stats-discovery',
+      getOrganizations: 'stats-discovery',
+      // Agent Discovery
+      discoverAgents: 'stats-discovery',
+      getAgentInfo: 'stats-discovery',
+      // Payments
+      paymentRequest: 'portfolio-balance',
+      paymentReceipt: 'portfolio-balance',
+      // Moderation
+      blockUser: 'user-social-graph',
+      unblockUser: 'user-social-graph',
+      muteUser: 'user-social-graph',
+      unmuteUser: 'user-social-graph',
+      reportUser: 'user-social-graph',
+      reportPost: 'social-feed',
+      getBlocks: 'user-social-graph',
+      getMutes: 'user-social-graph',
+      checkBlockStatus: 'user-social-graph',
+      checkMuteStatus: 'user-social-graph',
     };
+
     const skillId = skillMap[action] || 'portfolio-balance';
 
     const response = await this.sdkClient.sendMessage({
@@ -527,55 +599,82 @@ export class BabylonA2AClient {
           {
             kind: 'data',
             data: { operation: operationName, params },
-            metadata: { skillId },
+            metadata: {
+              skillId,
+            },
           },
         ],
       },
     });
 
-    // Handle A2A response
-    type DataPart = { kind: 'data'; data: JsonValue };
-    const isDataPart = (part: { kind: string }): part is DataPart =>
-      part.kind === 'data' && 'data' in part;
+    // Type for data part in A2A messages
+    interface DataPart {
+      kind: 'data';
+      data: JsonValue;
+    }
 
+    function isDataPart(part: { kind: string }): part is DataPart {
+      return part.kind === 'data' && 'data' in part;
+    }
+
+    // Handle response - extract Task or Message
+    let task: Task | undefined;
     if ('result' in response && response.result) {
       const result = response.result;
       if (typeof result === 'object' && result !== null && 'kind' in result) {
-        if (result.kind === 'message') {
-          const msg = result as { parts: Array<{ kind: string }> };
+        if (result.kind === 'task') {
+          task = result as Task;
+        } else if (result.kind === 'message') {
+          // Direct message response
+          const msg = result as Message;
           const dataPart = msg.parts.find((p) => isDataPart(p));
           return dataPart && isDataPart(dataPart) ? dataPart.data : {};
-        }
-        if (result.kind === 'task') {
-          // For tasks, poll for completion
-          const task = result as { id: string; status?: { state: string }; artifacts?: Array<{ parts: Array<{ kind: string }> }> };
-          const maxWaitMs = 30000;
-          const startTime = Date.now();
-          
-          while (Date.now() - startTime < maxWaitMs) {
-            const taskResponse = await this.sdkClient.getTask({ id: task.id });
-            if ('result' in taskResponse && taskResponse.result) {
-              const taskResult = taskResponse.result as { task?: typeof task };
-              if (taskResult.task?.status?.state === 'completed') {
-                const artifact = taskResult.task.artifacts?.[0];
-                if (artifact) {
-                  const dataPart = artifact.parts.find((p) => isDataPart(p));
-                  return dataPart && isDataPart(dataPart) ? dataPart.data : {};
-                }
-                return {};
-              }
-              if (['failed', 'canceled', 'rejected'].includes(taskResult.task?.status?.state || '')) {
-                throw new Error(`Task ${taskResult.task?.status?.state}`);
-              }
-            }
-            await new Promise((r) => setTimeout(r, 500));
-          }
-          throw new Error('Task timeout');
         }
       }
     }
 
-    return {};
+    if (!task) {
+      throw new Error('Expected task response from A2A');
+    }
+
+    // Poll for completion
+    const maxWaitMs = 30000;
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+      const taskResponse = await this.sdkClient.getTask({ id: task.id });
+
+      if ('result' in taskResponse && taskResponse.result) {
+        const result = taskResponse.result as { task?: Task };
+        if (result.task) {
+          task = result.task;
+        }
+      }
+
+      const state = task.status?.state;
+      if (state === 'completed') {
+        if (task.artifacts && task.artifacts.length > 0) {
+          const artifact = task.artifacts[0];
+          if (artifact) {
+            const dataPart = artifact.parts.find((p) => isDataPart(p));
+            return dataPart && isDataPart(dataPart) ? dataPart.data : {};
+          }
+        }
+        return {};
+      }
+
+      if (state === 'failed' || state === 'canceled' || state === 'rejected') {
+        const messagePart = task.status?.message?.parts?.[0];
+        const errorText =
+          messagePart && 'text' in messagePart
+            ? messagePart.text
+            : 'Unknown error';
+        throw new Error(`Task ${state}: ${errorText}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    throw new Error('Task did not complete within timeout');
   }
 
   /**
