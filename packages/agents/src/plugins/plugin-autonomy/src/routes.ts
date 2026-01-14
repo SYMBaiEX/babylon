@@ -1,9 +1,12 @@
-import type {
-  IAgentRuntime,
-  Route,
-  RouteRequest,
-  RouteResponse,
-} from '@elizaos/core';
+import type { IAgentRuntime, Route } from '@elizaos/core';
+
+// Route handler request/response types (elizaos/core uses any in v1.6.5+)
+type RouteRequest = { body?: unknown };
+type RouteResponse = {
+  status: (code: number) => RouteResponse;
+  json: (data: unknown) => void;
+};
+
 import type { AutonomyService } from './service';
 import { AutonomousServiceType } from './types';
 
