@@ -78,6 +78,27 @@ Archetype-specific adjustment to reward. Ranges from -0.5 to +0.5. Rewards on-ar
 
 Ordered list of metrics most important for each archetype. First metric has highest weight in scoring.
 
+### Market Regime
+
+Classification of overall market conditions:
+- **Bull**: Average price increase > +5%
+- **Bear**: Average price decrease < -5%
+- **Sideways**: Price change between -5% and +5%
+
+Used by enhanced rewards to adjust scoring based on market context.
+
+### Counterfactual Alpha
+
+Measures skill vs luck: `Alpha = Actual P&L - Expected P&L`
+
+- Positive alpha = outperformed the market
+- Negative alpha = underperformed the market
+- Expected P&L is based on market regime (+5% bull, -5% bear, 0% sideways)
+
+### Temporal Credit
+
+Attribution of final P&L back to individual trading decisions. Decisions closer to the outcome receive more credit (exponential decay).
+
 ### Rubric
 
 Detailed evaluation criteria for an archetype. Defines what makes excellent, good, average, and poor performance.

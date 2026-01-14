@@ -269,3 +269,12 @@ logger.info(f"  Std:  {np.std(scores):.3f}")
 logger.info(f"  Components: pnl={pnl:.3f}, fmt={fmt:.3f}, rsn={rsn:.3f}")
 ```
 
+## Enhanced Rewards
+
+For more sophisticated reward calculation that accounts for market conditions, see [Enhanced Rewards](./enhanced-rewards.md):
+
+- **Market Regime Detection** - Classify bull/bear/sideways conditions
+- **Counterfactual Alpha** - Measure skill vs luck
+- **Temporal Credit** - Attribute delayed outcomes to decisions
+- **Configurable Weights** - YAML-based weight profiles
+

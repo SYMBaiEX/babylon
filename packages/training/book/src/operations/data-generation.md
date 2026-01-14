@@ -127,6 +127,34 @@ This enables training agents that can learn to:
 - React appropriately to news
 - Distinguish signal from noise
 
+### Price Context for Enhanced Rewards
+
+When using `--causal`, the ground truth includes price history that enables [Enhanced Rewards](../scoring/enhanced-rewards.md):
+
+```json
+{
+  "priceHistory": {
+    "BTC": [100000, 102000, 105000, 103000],
+    "ETH": [4000, 4100, 4200, 4150]
+  },
+  "initialPrices": {"BTC": 100000, "ETH": 4000},
+  "finalPrices": {"BTC": 103000, "ETH": 4150}
+}
+```
+
+The import script merges this into trajectory metadata as `price_context`:
+
+```bash
+python scripts/import_json_trajectories.py \
+  --source ./training-data-output \
+  --inject-ground-truth
+```
+
+This enables:
+- **Market regime detection** (bull/bear/sideways)
+- **Counterfactual alpha** (skill vs luck measurement)
+- **Per-market outcome tracking**
+
 ## Archetype Distribution
 
 Agents are assigned archetypes based on NPC characteristics:

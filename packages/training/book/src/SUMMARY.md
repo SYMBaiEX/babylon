@@ -25,6 +25,7 @@
 # Scoring & Rewards
 
 - [Reward System](./scoring/reward-system.md)
+- [Enhanced Rewards](./scoring/enhanced-rewards.md)
 - [Deterministic Judge](./scoring/python-judge.md)
 - [LLM-as-Judge](./scoring/llm-judge.md)
 - [Archetype Rubrics](./scoring/rubrics.md)
