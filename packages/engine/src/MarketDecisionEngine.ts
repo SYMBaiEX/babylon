@@ -671,6 +671,7 @@ Current Focus: ${recentTopics || 'Market General'}
     let prompt = renderPrompt(npcMarketDecisions, {
       examples,
       marketTable,
+      npcCount: contexts.length.toString(),
       npcsList,
       validNpcIds,
       validTickers,

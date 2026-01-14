@@ -234,6 +234,9 @@ export const npcMarketDecisions = definePrompt({
 === ONGOING NARRATIVES ===
 {{ongoingNarrativesContext}}
 
+=== MARKET SNAPSHOT (Perps + Predictions) ===
+{{marketTable}}
+
 EXAMPLES:
 {{examples}}
 
