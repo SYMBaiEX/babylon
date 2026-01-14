@@ -89,6 +89,7 @@ export interface PredictionMarket {
   scenario: number;
   yesShares?: number;
   noShares?: number;
+  tradeCount?: number;
   oracleCommitTxHash?: string | null;
   oracleRevealTxHash?: string | null;
   oraclePublishedAt?: string | null;

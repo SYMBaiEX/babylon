@@ -1,11 +1,21 @@
 /**
  * Sell Prediction Action
- * Sell shares from a prediction market position via direct DB operations
- * (Same pattern as AutonomousTradingService)
+ * Sell shares from a prediction market position via core PredictionMarketService
  */
 
-import { and, asUser, db, eq, markets, positions } from '@babylon/db';
-import { FEE_CONFIG, PredictionPricing, WalletService } from '@babylon/engine';
+import type { JsonValue } from '@babylon/api';
+import { broadcastToChannel } from '@babylon/api';
+import {
+  PredictionDbAdapter,
+  PredictionMarketService,
+} from '@babylon/core/markets/prediction';
+import { and, asUser, db, eq, positions } from '@babylon/db';
+import {
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
+  WalletService,
+} from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -129,116 +139,87 @@ export const sellPredictionAction: Action = {
         };
       }
 
-      // Get market
-      const [market] = await db
-        .select()
-        .from(markets)
-        .where(eq(markets.id, position.marketId))
-        .limit(1);
+      const sell = await asUser({ userId: agentUserId }, async (txDb) => {
+        const marketId = position.marketId;
+        const service = new PredictionMarketService({
+          db: new PredictionDbAdapter(txDb),
+          wallet: {
+            debit: ({ userId, amount, reason, description, relatedId }) =>
+              WalletService.debit(
+                userId,
+                amount,
+                reason,
+                description ?? '',
+                relatedId
+              ),
+            credit: ({ userId, amount, reason, description, relatedId }) =>
+              WalletService.credit(
+                userId,
+                amount,
+                reason,
+                description ?? '',
+                relatedId
+              ),
+            recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+              await WalletService.recordPnL(userId, pnl, reason, relatedId);
+            },
+            getBalance: (uid: string) => WalletService.getBalance(uid),
+          },
+          broadcast: {
+            emit: (channel, payload) =>
+              broadcastToChannel(channel, payload as Record<string, JsonValue>),
+          },
+          cache: {
+            invalidate: () => invalidateAfterPredictionTrade(marketId),
+          },
+          fees: {
+            tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+            platformShare: FEE_CONFIG.PLATFORM_SHARE,
+            referrerShare: FEE_CONFIG.REFERRER_SHARE,
+            minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+          },
+          feeProcessor: {
+            processTradingFee: ({
+              userId,
+              amount,
+              type,
+              relatedId,
+              positionId,
+            }) =>
+              FeeService.processTradingFee(
+                userId,
+                type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+                amount,
+                positionId,
+                relatedId
+              ),
+          },
+        });
 
-      if (!market) {
-        return {
-          success: false,
-          text: 'Market not found.',
-          error: 'Market not found',
-        };
-      }
+        const result = await service.sell({
+          userId: agentUserId,
+          marketId,
+          positionId,
+          shares: sharesToSell,
+        });
 
-      // Calculate sell proceeds
-      const isSellYes = position.side;
-      const calculation = PredictionPricing.calculateSellWithFees(
-        Number(market.yesShares),
-        Number(market.noShares),
-        isSellYes ? 'yes' : 'no',
-        sharesToSell,
-        FEE_CONFIG.TRADING_FEE_RATE
-      );
-
-      // Execute sell in transaction
-      const result = await asUser({ userId: agentUserId }, async (txDb) => {
-        // Credit proceeds to balance
-        await WalletService.credit(
-          agentUserId,
-          calculation.netProceeds ?? calculation.netAmount,
-          'pred_sell',
-          `Sold ${sharesToSell} ${isSellYes ? 'YES' : 'NO'} shares: ${market.question.substring(0, 50)}...`,
-          market.id
-        );
-
-        // Update market shares
-        const nextLiquidity = Number(market.liquidity) - calculation.totalCost;
-        if (nextLiquidity < 0) {
-          throw new Error('Sale would exceed available liquidity');
-        }
-        await txDb
-          .update(markets)
-          .set({
-            yesShares: String(calculation.newYesShares),
-            noShares: String(calculation.newNoShares),
-            liquidity: String(nextLiquidity),
-            updatedAt: new Date(),
-          })
-          .where(eq(markets.id, market.id));
-
-        // Update or close position
-        const remainingShares = currentShares - sharesToSell;
-        if (remainingShares <= 0) {
-          // Close position
-          await txDb
-            .update(positions)
-            .set({
-              shares: '0',
-              status: 'closed',
-              updatedAt: new Date(),
-            })
-            .where(eq(positions.id, position.id));
-        } else {
-          // Update position
-          await txDb
-            .update(positions)
-            .set({
-              shares: String(remainingShares),
-              updatedAt: new Date(),
-            })
-            .where(eq(positions.id, position.id));
-        }
-
-        return { remainingShares, calculation };
+        return { marketId, result };
       });
 
-      const proceeds =
-        result.calculation.netProceeds ?? result.calculation.netAmount;
-
-      // Calculate realized PnL net of fees:
-      // - net proceeds already exclude the sell fee
-      // - avgPrice is based on the net buy amount (after fees), so gross-up cost basis
-      const feeRate = FEE_CONFIG.TRADING_FEE_RATE;
-      const avgPriceNet = Number(position.avgPrice || 0.5);
-      const costBasisNet = avgPriceNet * sharesToSell;
-      const costBasis =
-        feeRate > 0 && feeRate < 1
-          ? costBasisNet / (1 - feeRate)
-          : costBasisNet;
-      const realizedPnL = proceeds - costBasis;
-
-      // Record PnL in the wallet ledger (AgentPnLService must not mutate lifetimePnL).
-      await WalletService.recordPnL(
-        agentUserId,
-        realizedPnL,
-        'pred_sell',
-        market.id
-      );
+      const proceeds = sell.result.netProceeds ?? 0;
+      const realizedPnL = sell.result.pnl ?? 0;
+      const remainingShares = sell.result.remainingShares ?? 0;
 
       // Record trade for UI/performance tracking
       await agentPnLService.recordTrade({
         agentId: agentUserId,
         userId: agentUserId,
         marketType: 'prediction',
-        marketId: position.marketId,
+        marketId: sell.marketId,
         action: 'close',
-        side: isSellYes ? 'yes' : 'no',
+        side: position.side ? 'yes' : 'no',
         amount: proceeds,
-        price: result.calculation.avgPrice ?? proceeds / sharesToSell,
+        price: sell.result.avgPrice,
         reasoning: (state?.data?.thought as string) || 'Chat-initiated sell',
         pnl: realizedPnL,
       });
@@ -248,25 +229,25 @@ export const sellPredictionAction: Action = {
         positionId,
         sharesSold: sharesToSell,
         proceeds,
-        remainingShares: result.remainingShares,
+        remainingShares,
       });
 
       return {
         success: true,
-        text: `Sold ${sharesToSell} shares for $${proceeds.toFixed(2)}. Remaining: ${result.remainingShares.toFixed(2)} shares.`,
+        text: `Sold ${sharesToSell} shares for $${proceeds.toFixed(2)}. Remaining: ${remainingShares.toFixed(2)} shares.`,
         data: {
           positionId,
-          marketId: position.marketId,
-          side: isSellYes ? 'YES' : 'NO',
+          marketId: sell.marketId,
+          side: position.side ? 'YES' : 'NO',
           sharesSold: sharesToSell,
           proceeds,
-          remainingShares: result.remainingShares,
+          remainingShares,
         },
         values: {
           positionId,
           sharesSold: sharesToSell,
           proceeds,
-          remainingShares: result.remainingShares,
+          remainingShares,
         },
       };
     } catch (error) {

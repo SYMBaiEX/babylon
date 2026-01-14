@@ -118,6 +118,11 @@ export const npcTrades = pgTable(
   },
   (table) => [
     index('NPCTrade_executedAt_idx').on(table.executedAt),
+    index('NPCTrade_marketType_marketId_executedAt_idx').on(
+      table.marketType,
+      table.marketId,
+      table.executedAt
+    ),
     index('NPCTrade_marketType_ticker_idx').on(table.marketType, table.ticker),
     index('NPCTrade_npcActorId_executedAt_idx').on(
       table.npcActorId,

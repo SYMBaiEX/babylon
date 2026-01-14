@@ -393,7 +393,7 @@ export default function PredictionDetailPage() {
   );
   const timeLeft = getTimeUntilResolution();
   const totalVolume = yesShares + noShares;
-  const totalTrades = Math.floor(totalVolume / 10); // Rough estimate
+  const totalTrades = market.tradeCount ?? 0;
 
   return (
     <PageContainer className="mx-auto max-w-7xl pt-2" ref={pageContainerRef}>
@@ -440,7 +440,9 @@ export default function PredictionDetailPage() {
                 <Users className="h-3 w-3" />
                 Trades
               </div>
-              <div className="font-bold text-lg">{totalTrades}</div>
+              <div className="font-bold text-lg">
+                {totalTrades.toLocaleString()}
+              </div>
             </div>
             <div className="rounded-lg bg-green-600/15 px-3 py-3">
               <div className="mb-1 flex items-center gap-2 text-green-600 text-xs">

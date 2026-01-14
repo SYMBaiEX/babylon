@@ -4,6 +4,15 @@ import {
   PredictionMarketService,
   PredictionPricing,
 } from '@babylon/core/markets/prediction';
+import {
+  and,
+  balanceTransactions,
+  count,
+  db,
+  eq,
+  inArray,
+  npcTrades,
+} from '@babylon/db';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
 import {
   logger,
@@ -169,6 +178,31 @@ export const GET = withErrorHandling(
       primaryPosition = userPositions[0] ?? null;
     }
 
+    const [balanceTradeCountRows, npcTradeCountRows] = await Promise.all([
+      db
+        .select({ count: count() })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.relatedId, marketId),
+            inArray(balanceTransactions.type, ['pred_buy', 'pred_sell'])
+          )
+        ),
+      db
+        .select({ count: count() })
+        .from(npcTrades)
+        .where(
+          and(
+            eq(npcTrades.marketType, 'prediction'),
+            eq(npcTrades.marketId, marketId)
+          )
+        ),
+    ]);
+
+    const tradeCount =
+      Number(balanceTradeCountRows[0]?.count ?? 0) +
+      Number(npcTradeCountRows[0]?.count ?? 0);
+
     const payload = {
       id: market.id,
       text: market.question,
@@ -182,6 +216,7 @@ export const GET = withErrorHandling(
       yesShares,
       noShares,
       liquidity: market.liquidity,
+      tradeCount,
       yesProbability: yesProb,
       noProbability: noProb,
       userPosition: primaryPosition,
