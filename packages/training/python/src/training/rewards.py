@@ -241,6 +241,129 @@ class TrajectoryRewardInputs:
     successful_actions: int = 0
 
 
+# =============================================================================
+# Enhanced Reward Signals: Counterfactual & Temporal Credit
+# =============================================================================
+
+@dataclass
+class CounterfactualResult:
+    """
+    Result of counterfactual analysis: what would have happened without action?
+    
+    Alpha = Actual P&L - Benchmark P&L
+    - Positive alpha: Agent added value through trading (skill)
+    - Negative alpha: Agent would have been better off holding (luck or error)
+    
+    Attributes:
+        hold_pnl: P&L if agent held cash (always 0)
+        benchmark_pnl: Expected P&L based on market regime
+        alpha: Actual - Benchmark (the skill signal)
+        actual_pnl: The agent's actual P&L
+    """
+    hold_pnl: float = 0.0
+    benchmark_pnl: float = 0.0
+    alpha: float = 0.0
+    actual_pnl: float = 0.0
+    
+    def to_dict(self) -> Dict:
+        """Serialize for logging."""
+        return {
+            "hold_pnl": self.hold_pnl,
+            "benchmark_pnl": self.benchmark_pnl,
+            "alpha": self.alpha,
+            "actual_pnl": self.actual_pnl,
+        }
+
+
+@dataclass
+class TemporalCredit:
+    """
+    Credit assignment for a decision with delayed outcome.
+    
+    When a trade is made, the actual P&L may not be known until later
+    (e.g., position closed, market resolved). This tracks the credit
+    weight based on temporal distance from outcome.
+    
+    Attributes:
+        decision_step: Step index where decision was made
+        outcome_step: Step index where outcome was observed
+        credit_weight: Weight for this credit (decays with distance)
+        outcome_pnl: The P&L attributed to this decision
+        market_id: Market/ticker affected by the decision
+    """
+    decision_step: int = 0
+    outcome_step: int = 0
+    credit_weight: float = 1.0
+    outcome_pnl: float = 0.0
+    market_id: Optional[str] = None
+    
+    def to_dict(self) -> Dict:
+        """Serialize for logging."""
+        return {
+            "decision_step": self.decision_step,
+            "outcome_step": self.outcome_step,
+            "credit_weight": self.credit_weight,
+            "outcome_pnl": self.outcome_pnl,
+            "market_id": self.market_id,
+        }
+
+
+# Temporal credit decay rate (per step)
+TEMPORAL_CREDIT_DECAY = 0.9
+
+
+def compute_counterfactual(
+    actual_pnl: float,
+    starting_balance: float,
+    regime_overall: str,
+    regime_expected_return: float = 0.0,
+) -> CounterfactualResult:
+    """
+    Compute counterfactual: what would have happened without action?
+    
+    This answers the question: "Did the agent's actions add value, or was
+    the P&L just due to market conditions?"
+    
+    In a bull market, everyone makes money. In a bear market, not losing
+    is an achievement. The counterfactual adjusts for this.
+    
+    Args:
+        actual_pnl: The agent's actual P&L
+        starting_balance: Initial balance for computing expected returns
+        regime_overall: Market regime ("bull", "bear", "sideways")
+        regime_expected_return: Expected return for this regime (0.05 = +5%)
+    
+    Returns:
+        CounterfactualResult with alpha (skill signal)
+    
+    Examples:
+        Bull market (+5% expected), agent made +3%:
+            alpha = 3% - 5% = -2% (underperformed)
+        
+        Bear market (-5% expected), agent lost -2%:
+            alpha = -2% - (-5%) = +3% (outperformed)
+        
+        Sideways (0% expected), agent made +1%:
+            alpha = 1% - 0% = +1% (added value)
+    """
+    # Hold cash benchmark (always 0)
+    hold_pnl = 0.0
+    
+    # Regime-adjusted benchmark
+    # In bull market, expect positive return; in bear, expect negative
+    benchmark_pnl = starting_balance * regime_expected_return
+    
+    # Alpha: skill signal (did actions add value vs benchmark?)
+    alpha = actual_pnl - benchmark_pnl
+    
+    return CounterfactualResult(
+        hold_pnl=hold_pnl,
+        benchmark_pnl=benchmark_pnl,
+        alpha=alpha,
+        actual_pnl=actual_pnl,
+    )
+
+
 def calculate_pnl_reward(start_balance: float, end_balance: float) -> float:
     """
     Calculate PnL Reward.
@@ -414,6 +537,122 @@ def composite_reward(
     ) / total_weight
 
     return max(-1.0, min(1.0, composite))
+
+
+# =============================================================================
+# Regime-Adjusted Reward Functions
+# =============================================================================
+
+def regime_adjusted_pnl_reward(
+    actual_pnl: float,
+    starting_balance: float,
+    regime_overall: str,
+    regime_volatility: float = 0.5,
+    regime_expected_return: float = 0.0,
+) -> float:
+    """
+    Calculate P&L reward adjusted for market conditions.
+    
+    This adjusts raw P&L to account for market regime:
+    - Bull market: Everyone makes money, so we subtract expected bull return
+    - Bear market: Not losing is winning, so we add expected bear loss
+    - Sideways: Neutral adjustment
+    
+    High volatility dampens the signal (more noise = less reliable P&L).
+    
+    Args:
+        actual_pnl: Agent's actual P&L
+        starting_balance: Initial balance
+        regime_overall: "bull", "bear", or "sideways"
+        regime_volatility: Normalized volatility (0.0 = calm, 1.0 = extreme)
+        regime_expected_return: Expected return for this regime (e.g., 0.05 for bull)
+    
+    Returns:
+        Adjusted reward in [-1.0, 1.0] range
+    """
+    if starting_balance <= 0:
+        return 0.0
+    
+    # Normalize to return percentage
+    actual_return = actual_pnl / starting_balance
+    
+    # Subtract expected return to isolate skill
+    # Bull: subtract +5% expectation
+    # Bear: subtract -5% expectation (effectively adding credit for preservation)
+    # Sideways: no adjustment
+    adjusted_return = actual_return - regime_expected_return
+    
+    # Apply volatility dampening
+    # High volatility = more noise, dampen the signal
+    # volatility 0.0 -> factor 1.0 (no dampening)
+    # volatility 1.0 -> factor 0.5 (50% dampening)
+    volatility_factor = 1.0 - (regime_volatility * 0.5)
+    adjusted_return *= volatility_factor
+    
+    # Scale to reward range: 10% adjusted return = 1.0 reward
+    scaled_reward = adjusted_return * 10.0
+    
+    return max(-1.0, min(1.0, scaled_reward))
+
+
+def calculate_alpha_reward(
+    alpha: float,
+    starting_balance: float,
+) -> float:
+    """
+    Convert alpha (skill signal) to a normalized reward.
+    
+    Alpha is the difference between actual P&L and benchmark P&L.
+    Positive alpha = added value, negative alpha = destroyed value.
+    
+    Args:
+        alpha: Counterfactual alpha (actual_pnl - benchmark_pnl)
+        starting_balance: For normalization
+    
+    Returns:
+        Normalized reward in [-1.0, 1.0]
+    """
+    if starting_balance <= 0:
+        return 0.0
+    
+    # Normalize alpha as percentage of starting balance
+    alpha_pct = alpha / starting_balance
+    
+    # Scale: 5% alpha = 1.0 reward (more sensitive than raw PnL)
+    scaled = alpha_pct * 20.0
+    
+    return max(-1.0, min(1.0, scaled))
+
+
+def calculate_temporal_credit_bonus(
+    credits: List[TemporalCredit],
+    starting_balance: float,
+) -> float:
+    """
+    Calculate bonus from temporal credit assignment.
+    
+    Aggregates credit-weighted outcomes from delayed rewards.
+    
+    Args:
+        credits: List of temporal credits from decisions
+        starting_balance: For normalization
+    
+    Returns:
+        Bonus in [-0.5, 0.5] range
+    """
+    if not credits or starting_balance <= 0:
+        return 0.0
+    
+    # Sum credit-weighted outcomes
+    total_credited_pnl = sum(c.outcome_pnl * c.credit_weight for c in credits)
+    
+    # Normalize as percentage of starting balance
+    credited_pct = total_credited_pnl / starting_balance
+    
+    # Scale: 5% credited = 0.5 bonus
+    scaled = credited_pct * 10.0
+    
+    return max(-0.5, min(0.5, scaled))
 
 
 def relative_scores(rewards: list[float]) -> list[float]:
@@ -1341,4 +1580,175 @@ def archetype_composite_reward(
         + behavior_bonus * weights["behavior"]
     ) / total_weight
 
+    return max(-1.0, min(1.0, composite))
+
+
+# =============================================================================
+# Enhanced Composite Reward (with Regime & Counterfactual)
+# =============================================================================
+
+# Import MarketRegime here to avoid circular imports at module load
+# The actual import happens in the function to ensure market_regime module is loaded
+
+
+def enhanced_composite_reward(
+    inputs: TrajectoryRewardInputs,
+    archetype: str,
+    behavior_metrics: Optional[BehaviorMetrics] = None,
+    regime_overall: Optional[str] = None,
+    regime_volatility: float = 0.5,
+    regime_expected_return: float = 0.0,
+    counterfactual_alpha: Optional[float] = None,
+    temporal_credits: Optional[List[TemporalCredit]] = None,
+    weight_profile: str = "default",
+) -> float:
+    """
+    Enhanced archetype-aware reward with regime adjustment and counterfactual.
+    
+    This is the full-featured reward function that accounts for:
+    1. Market regime (bull/bear/sideways adjustment)
+    2. Counterfactual alpha (skill vs luck)
+    3. Temporal credit (delayed reward attribution)
+    4. Archetype-specific behavior bonuses
+    5. Format and reasoning quality
+    
+    Backward compatible: if regime args are None, falls back to original
+    archetype_composite_reward logic.
+    
+    Weight distribution (when enhanced mode active):
+        - regime_adjusted_pnl: 35%
+        - skill_alpha: 20%
+        - temporal_bonus: 5%
+        - format: 15%
+        - reasoning: 10%
+        - behavior: 15%
+    
+    Args:
+        inputs: Standard trajectory reward inputs
+        archetype: Agent archetype for behavior weighting
+        behavior_metrics: Optional behavior metrics for archetype bonus
+        regime_overall: Market regime ("bull", "bear", "sideways") or None
+        regime_volatility: Normalized volatility (0.0-1.0)
+        regime_expected_return: Expected return for this regime
+        counterfactual_alpha: Pre-computed alpha (actual - benchmark)
+        temporal_credits: List of temporal credit assignments
+        weight_profile: Reward weight profile name from reward_weights.yaml
+    
+    Returns:
+        Composite reward score in [-1.0, 1.0]
+    """
+    archetype_norm = normalize_archetype(archetype)
+    
+    # Check if we have enhanced context
+    has_enhanced_context = regime_overall is not None or counterfactual_alpha is not None
+    
+    if not has_enhanced_context:
+        # Fallback to original archetype_composite_reward
+        return archetype_composite_reward(inputs, archetype, behavior_metrics)
+    
+    # ==========================================================================
+    # Enhanced Mode: Full reward computation with regime awareness
+    # ==========================================================================
+    
+    # 1. Regime-Adjusted PnL Score
+    if regime_overall is not None:
+        pnl_score = regime_adjusted_pnl_reward(
+            actual_pnl=inputs.final_pnl,
+            starting_balance=inputs.starting_balance,
+            regime_overall=regime_overall,
+            regime_volatility=regime_volatility,
+            regime_expected_return=regime_expected_return,
+        )
+    else:
+        # No regime info, use standard PnL reward
+        pnl_score = calculate_pnl_reward(inputs.starting_balance, inputs.end_balance)
+    
+    # Archetype-specific PnL adjustments (carried over from original)
+    if archetype_norm == "degen" and pnl_score < 0:
+        pnl_score = pnl_score * 0.3  # Degens not penalized hard for losses
+    if archetype_norm == "social-butterfly" and pnl_score < 0:
+        pnl_score = pnl_score * 0.5  # Social butterflies don't care about trading
+    
+    # Bankruptcy check (even for degens)
+    if inputs.end_balance <= 0 and archetype_norm not in ("degen", "social-butterfly"):
+        return -1.0  # Hard penalty for bankruptcy
+    
+    # 2. Skill Alpha Score (Counterfactual)
+    alpha_score = 0.0
+    if counterfactual_alpha is not None:
+        alpha_score = calculate_alpha_reward(
+            alpha=counterfactual_alpha,
+            starting_balance=inputs.starting_balance,
+        )
+    
+    # 3. Temporal Credit Bonus
+    temporal_bonus = 0.0
+    if temporal_credits:
+        temporal_bonus = calculate_temporal_credit_bonus(
+            credits=temporal_credits,
+            starting_balance=inputs.starting_balance,
+        )
+    
+    # 4. Risk penalty for risky actions (except degens)
+    risk_penalty = 0.0
+    if inputs.risky_actions_count > 0 and archetype_norm != "degen":
+        risk_penalty = inputs.risky_actions_count * ARCHETYPE_RISK_PENALTY_MULTIPLIER
+    
+    # 5. Format and Reasoning scores
+    format_score = inputs.format_score
+    reasoning_score = inputs.reasoning_score
+    
+    # 6. Behavior bonus from archetype-specific behaviors
+    behavior_bonus = 0.0
+    if behavior_metrics is not None:
+        behavior_bonus = calculate_archetype_behavior_bonus(archetype_norm, behavior_metrics)
+        
+        # Incorporate priority metrics from rubrics.json
+        priority_score = calculate_priority_weighted_score(archetype_norm, behavior_metrics)
+        
+        # Blend: 70% behavior bonus, 30% priority metrics
+        behavior_bonus = behavior_bonus * 0.7 + (priority_score - 0.5) * 0.3
+    
+    # ==========================================================================
+    # Enhanced Weight Distribution
+    # ==========================================================================
+    # Weights designed to emphasize skill (alpha) over luck (raw PnL)
+    
+    from .reward_config import get_reward_weights
+
+    profile_weights = get_reward_weights(weight_profile)
+    weights = {
+        "regime_pnl": float(profile_weights.get("regime_pnl", profile_weights.get("pnl", 0.0))),
+        "skill_alpha": float(profile_weights.get("skill_alpha", profile_weights.get("alpha", 0.0))),
+        "temporal_bonus": float(profile_weights.get("temporal_bonus", profile_weights.get("temporal", 0.0))),
+        "format": float(profile_weights.get("format", 0.0)),
+        "reasoning": float(profile_weights.get("reasoning", 0.0)),
+        "behavior": float(profile_weights.get("behavior", 0.0)),
+    }
+
+    total_weight = sum(weights.values())
+    if total_weight <= 0:
+        weights = {
+            "regime_pnl": 0.35,
+            "skill_alpha": 0.20,
+            "temporal_bonus": 0.05,
+            "format": 0.15,
+            "reasoning": 0.10,
+            "behavior": 0.15,
+        }
+        total_weight = 1.0
+
+    if abs(total_weight - 1.0) > 1e-6:
+        weights = {k: v / total_weight for k, v in weights.items()}
+    
+    # Compute weighted composite
+    composite = (
+        (pnl_score - risk_penalty) * weights["regime_pnl"]
+        + alpha_score * weights["skill_alpha"]
+        + temporal_bonus * weights["temporal_bonus"]
+        + format_score * weights["format"]
+        + reasoning_score * weights["reasoning"]
+        + behavior_bonus * weights["behavior"]
+    )
+    
     return max(-1.0, min(1.0, composite))
