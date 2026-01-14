@@ -693,6 +693,11 @@ export class MarketContextService {
     npcId: string,
     npcName: string
   ): Promise<EventContext[]> {
+    // In simulation mode, events are not persisted to DB - return empty
+    if (isSimulationMode()) {
+      return [];
+    }
+
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
@@ -754,6 +759,11 @@ export class MarketContextService {
    * @returns Array of the NPC's recent posts
    */
   async getRecentPostsByNPC(npcId: string): Promise<FeedPostContext[]> {
+    // In simulation mode, posts are not persisted to DB - return empty
+    if (isSimulationMode()) {
+      return [];
+    }
+
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
