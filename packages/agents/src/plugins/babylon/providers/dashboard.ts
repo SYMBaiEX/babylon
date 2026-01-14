@@ -132,7 +132,7 @@ ${
   predictionsData.predictions && predictionsData.predictions.length > 0
     ? `Recent: ${predictionsData.predictions
         .slice(0, 3)
-        .map((p) => p.question.substring(0, 50))
+        .map((p) => (p.question || 'Unknown').substring(0, 50))
         .join(', ')}`
     : 'No active markets'
 }
@@ -140,8 +140,8 @@ ${
 📱 SOCIAL FEED
 Recent Posts: ${recentPosts}
 ${
-  feedData.posts && feedData.posts.length > 0
-    ? `Latest: ${feedData.posts[0]?.content.substring(0, 100)}...`
+  feedData.posts && feedData.posts.length > 0 && feedData.posts[0]?.content
+    ? `Latest: ${feedData.posts[0].content.substring(0, 100)}...`
     : 'No recent posts'
 }
 
@@ -159,8 +159,8 @@ ${
 🔔 NOTIFICATIONS
 Unread: ${unreadNotifications}
 ${
-  notificationsData.notifications && notificationsData.notifications.length > 0
-    ? `Latest: ${notificationsData.notifications[0]?.message.substring(0, 80)}...`
+  notificationsData.notifications && notificationsData.notifications.length > 0 && notificationsData.notifications[0]?.message
+    ? `Latest: ${notificationsData.notifications[0].message.substring(0, 80)}...`
     : 'No notifications'
 }
 
