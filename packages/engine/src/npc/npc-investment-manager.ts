@@ -851,22 +851,12 @@ export class NPCInvestmentManager {
       const tradeService = new TradeExecutionService();
       const actor = StaticDataRegistry.getActor(npcUserId);
 
-      // Determine the correct action based on market type and position side
-      let tradeAction: TradingDecision['action'];
-      if (action.marketType === 'perp') {
-        tradeAction = 'close_position';
-      } else {
-        // For prediction markets, use sell_yes or sell_no based on side
-        tradeAction =
-          action.side === 'YES' || action.side === 'yes'
-            ? 'sell_yes'
-            : 'sell_no';
-      }
-
       const decision: TradingDecision = {
         npcId: npcUserId,
         npcName: actor?.name || 'Unknown',
-        action: tradeAction,
+        // TradeExecutionService supports closing both perp and prediction positions via `close_position`
+        // when a `positionId` is provided.
+        action: 'close_position',
         marketType: action.marketType,
         ticker: action.ticker,
         marketId: action.marketId,
@@ -883,8 +873,11 @@ export class NPCInvestmentManager {
           {
             npcUserId,
             positionId: action.positionId,
+            action: result.action,
+            side: result.side,
             executionPrice: result.executionPrice,
-            pnl: result.amount,
+            amount: result.amount,
+            size: result.size,
           },
           'NPCInvestmentManager'
         );
@@ -913,7 +906,6 @@ export class NPCInvestmentManager {
       // For perp markets, we could adjust margin/size directly
       // This is left as a future enhancement
     }
-    // Add other action types (open) as needed
   }
 
   /**
