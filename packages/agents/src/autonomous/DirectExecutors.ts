@@ -315,7 +315,8 @@ function createPredictionWalletAdapter(
       reason: string;
       description?: string;
       relatedId?: string;
-    }) => WalletService.debit(uid, amt, reason, description ?? '', relatedId),
+    }) =>
+      WalletService.debit(uid, amt, reason, description ?? '', relatedId, txDb),
     credit: ({
       userId: uid,
       amount: amt,
@@ -328,7 +329,15 @@ function createPredictionWalletAdapter(
       reason: string;
       description?: string;
       relatedId?: string;
-    }) => WalletService.credit(uid, amt, reason, description ?? '', relatedId),
+    }) =>
+      WalletService.credit(
+        uid,
+        amt,
+        reason,
+        description ?? '',
+        relatedId,
+        txDb
+      ),
     recordPnL: async ({
       userId: uid,
       pnl,

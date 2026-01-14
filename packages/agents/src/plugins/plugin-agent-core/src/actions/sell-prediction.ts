@@ -150,7 +150,8 @@ export const sellPredictionAction: Action = {
                 amount,
                 reason,
                 description ?? '',
-                relatedId
+                relatedId,
+                txDb
               ),
             credit: ({ userId, amount, reason, description, relatedId }) =>
               WalletService.credit(
@@ -158,7 +159,8 @@ export const sellPredictionAction: Action = {
                 amount,
                 reason,
                 description ?? '',
-                relatedId
+                relatedId,
+                txDb
               ),
             recordPnL: async ({ userId, pnl, reason, relatedId }) => {
               await WalletService.recordPnL(userId, pnl, reason, relatedId);
