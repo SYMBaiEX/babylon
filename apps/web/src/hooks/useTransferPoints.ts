@@ -101,8 +101,17 @@ export function useTransferPoints(options: UseTransferPointsOptions = {}) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to transfer points');
+        // Attempt to parse JSON error, but handle non-JSON responses gracefully
+        let errorMessage = `Failed to transfer points (${response.status} ${response.statusText})`;
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Response wasn't JSON (e.g., HTML error page), use fallback message
+        }
+        throw new Error(errorMessage);
       }
 
       return (await response.json()) as TransferPointsResponse;

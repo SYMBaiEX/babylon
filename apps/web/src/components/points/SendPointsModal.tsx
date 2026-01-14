@@ -2,7 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Check, Loader2, Send, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTransferPoints } from '@/hooks/useTransferPoints';
 
@@ -63,6 +63,16 @@ export function SendPointsModal({
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const successTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount to prevent calling callbacks after unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,8 +93,9 @@ export function SendPointsModal({
 
       setSuccess(true);
 
-      // Wait a moment to show success state
-      setTimeout(() => {
+      // Wait a moment to show success state, then close
+      // Store timer ID so we can clear it on unmount
+      successTimeoutRef.current = setTimeout(() => {
         onSuccess?.();
         handleClose();
       }, 1500);

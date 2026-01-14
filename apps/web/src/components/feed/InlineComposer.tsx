@@ -279,11 +279,12 @@ export function InlineComposer({
                 </span>
 
                 {/* Keyboard shortcut hint */}
-                <span
-                  className="text-muted-foreground text-xs"
-                  aria-label={`Keyboard shortcut: ${isMac ? 'Command' : 'Control'} plus Enter`}
-                >
+                <span className="text-muted-foreground text-xs">
                   {isMac ? '⌘' : 'Ctrl'}+Enter
+                  <span className="sr-only">
+                    Keyboard shortcut: {isMac ? 'Command' : 'Control'} plus
+                    Enter
+                  </span>
                 </span>
 
                 {/* Submit Button */}

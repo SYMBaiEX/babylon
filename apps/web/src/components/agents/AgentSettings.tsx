@@ -128,11 +128,17 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
     // Create preview
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onload = () => {
       setProfileImage({
         file,
         preview: reader.result as string,
       });
+      // Clear URL input when file is selected for consistency
+      setFormData((prev) => ({ ...prev, profileImageUrl: '' }));
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read image file');
+      setProfileImage({ file: null, preview: null });
     };
     reader.readAsDataURL(file);
   };
@@ -170,6 +176,15 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
         }
 
         const uploadData = await uploadResponse.json();
+        if (
+          !uploadData ||
+          typeof uploadData.url !== 'string' ||
+          uploadData.url.trim() === ''
+        ) {
+          toast.error('Invalid upload response');
+          setSaving(false);
+          return;
+        }
         updatedData.profileImageUrl = uploadData.url;
       }
 
@@ -327,12 +342,16 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
                 {/* URL Input as fallback */}
                 <Input
                   value={formData.profileImageUrl}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       profileImageUrl: e.target.value,
-                    })
-                  }
+                    });
+                    // Clear file upload when URL is entered for consistency
+                    if (e.target.value.trim()) {
+                      setProfileImage({ file: null, preview: null });
+                    }
+                  }}
                   placeholder="Or paste image URL..."
                   className="w-full text-sm"
                   disabled={saving}
