@@ -624,6 +624,8 @@ async function executePredictionTrade(params: {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: isNpc ? 'npc_trade' : 'user_trade',
+      tradeActorType: isNpc ? 'npc' : 'user',
       feeProcessor: isNpc
         ? undefined
         : {
@@ -728,6 +730,8 @@ async function executePredictionSell(params: {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: isNpc ? 'npc_trade' : 'user_trade',
+      tradeActorType: isNpc ? 'npc' : 'user',
       feeProcessor: isNpc
         ? undefined
         : {

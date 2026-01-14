@@ -243,6 +243,37 @@ describe('PredictionMarketService', () => {
     expect(cache.keys).toContain('prediction:m1:*');
   });
 
+  it('buy should allow overriding trade attribution', async () => {
+    service = new PredictionMarketService({
+      db,
+      wallet,
+      broadcast,
+      cache,
+      clock: { now: () => new Date() },
+      fees: feeConfig,
+      feeProcessor,
+      tradeSource: 'npc_trade',
+      tradeActorType: 'npc',
+    });
+
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
+
+    expect(db.snapshots[0]?.source).toBe('npc_trade');
+
+    const event = broadcast.events[0]?.payload as unknown as {
+      type?: string;
+      trade?: { actorType?: string; source?: string };
+    };
+    expect(event.type).toBe('prediction_trade');
+    expect(event.trade?.actorType).toBe('npc');
+    expect(event.trade?.source).toBe('npc_trade');
+  });
+
   it('sell should decrease position, compute pnl, and close when remaining small', async () => {
     await service.buy({
       userId: 'u1',
