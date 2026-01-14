@@ -63,7 +63,7 @@ export const agentWalletProvider: Provider = {
 
     // Get balance and positions via A2A
     const [balanceData, positionsData] = await Promise.all([
-      babylonRuntime.a2aClient.getBalance(),
+      babylonRuntime.a2aClient.getBalance(agentUserId),
       babylonRuntime.a2aClient.getPositions(agentUserId),
     ]);
 
@@ -109,9 +109,9 @@ export const agentWalletProvider: Provider = {
       output += `📊 PREDICTION MARKET POSITIONS (${positions.marketPositions.length}):
 ${positions.marketPositions
   .map((p) => {
-    return `• ${p.question.substring(0, 60)}...
-  Side: ${p.side.toUpperCase()} | Shares: ${p.shares.toFixed(2)} @ avg $${p.avgPrice.toFixed(2)}
-  Current: $${p.currentPrice.toFixed(2)} | Value: $${(p.shares * p.currentPrice).toFixed(2)}
+    return `• ${(p.question || 'Unknown Market').substring(0, 60)}...
+  Side: ${(p.side || 'UNKNOWN').toUpperCase()} | Shares: ${(p.shares || 0).toFixed(2)} @ avg $${(p.avgPrice || 0).toFixed(2)}
+  Current: $${(p.currentPrice || 0).toFixed(2)} | Value: $${((p.shares || 0) * (p.currentPrice || 0)).toFixed(2)}
   P&L: ${(p.unrealizedPnL || 0) >= 0 ? '+' : ''}$${(p.unrealizedPnL || 0).toFixed(2)}`;
   })
   .join('\n\n')}
