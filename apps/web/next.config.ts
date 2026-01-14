@@ -96,8 +96,9 @@ const nextConfig: NextConfig = {
     'drizzle-orm',
     'drizzle-orm/postgres-js',
     'ioredis', // Node.js Redis client - requires tls/net modules not available in edge runtime
-    // Avoid bundling warnings from dynamic requires in @elizaos/core (server-only usage).
-    '@elizaos/core',
+    // NOTE: @elizaos/core was removed from externals because it's ESM-only ("type": "module").
+    // Externalizing ESM packages causes require() errors at Vercel runtime (ERR_REQUIRE_ESM).
+    // Webpack now bundles it directly which resolves the ESM compatibility issue.
   ],
   images: {
     qualities: [100, 75],
@@ -255,13 +256,13 @@ const nextConfig: NextConfig = {
       // to externalize them so they're resolved at runtime from node_modules
       // NOTE: Do NOT externalize @babylon/* packages - they are TypeScript source files
       // and must be transpiled by webpack via transpilePackages
+      // NOTE: @elizaos/core intentionally excluded - it's ESM-only and must be bundled
       const serverExternalPackagesList = [
         'postgres',
         'drizzle-orm',
         'drizzle-orm/postgres-js',
         'ioredis',
         'swagger-jsdoc',
-        '@elizaos/core',
       ];
 
       if (!Array.isArray(config.externals)) {
