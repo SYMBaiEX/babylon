@@ -15,6 +15,7 @@
 import { and, db, desc, gte, lte, worldEvents } from '@babylon/db';
 import { RelationshipEvolutionEngine } from '../RelationshipEvolutionEngine';
 import { MarketContextService } from '../services/market-context-service';
+import { isSimulationMode } from '../storage-bridge';
 import type { Actor, FeedPost, Question, WorldEvent } from '../types/shared';
 import { CONTEXT_LIMITS, truncateArray, truncateText } from './context-limits';
 import { extractDayFromTimestamp } from './date-utils';
@@ -87,6 +88,7 @@ export async function buildComprehensiveNPCContext(
   questions?: Question[]
 ): Promise<ComprehensiveNPCContext> {
   const marketContextService = new MarketContextService();
+  const simulationMode = isSimulationMode();
 
   const personalEventsRaw = await marketContextService.getEventsForNPC(
     actor.id,
@@ -104,7 +106,7 @@ export async function buildComprehensiveNPCContext(
     ),
   }));
 
-  let recentEvents;
+  let recentEvents: ComprehensiveNPCContext['recentEvents'] = [];
   if (allPreviousEvents && allPreviousEvents.length > 0) {
     const filteredEvents = allPreviousEvents
       .filter((e) => e.day < currentDay)
@@ -127,6 +129,9 @@ export async function buildComprehensiveNPCContext(
       ),
       pointsToward: e.pointsToward || undefined,
     }));
+  } else if (simulationMode) {
+    // In simulation mode, events are not persisted to the DB.
+    recentEvents = [];
   } else {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -215,38 +220,40 @@ export async function buildComprehensiveNPCContext(
     resolvedOutcome: q.resolvedOutcome ?? undefined,
   }));
 
-  const relationshipContext =
-    await RelationshipEvolutionEngine.getActorRelationships(actor.id);
-  const relationships = shuffleArray(relationshipContext)
-    .slice(0, 10)
-    .map((rel) => {
-      const isActor1 = rel.actor1Id === actor.id;
-      const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
-      const sentimentDesc: 'respect' | 'beef' | 'neutral' =
-        rel.sentiment > 0.3
-          ? 'respect'
-          : rel.sentiment < -0.3
-            ? 'beef'
-            : 'neutral';
-      const strengthDesc: 'strong' | 'moderate' | 'weak' =
-        rel.strength > 0.7
-          ? 'strong'
-          : rel.strength > 0.4
-            ? 'moderate'
-            : 'weak';
+  const relationships = simulationMode
+    ? []
+    : shuffleArray(await RelationshipEvolutionEngine.getActorRelationships(actor.id))
+        .slice(0, 10)
+        .map((rel) => {
+          const isActor1 = rel.actor1Id === actor.id;
+          const otherActorId = isActor1 ? rel.actor2Id : rel.actor1Id;
+          const sentimentDesc: 'respect' | 'beef' | 'neutral' =
+            rel.sentiment > 0.3
+              ? 'respect'
+              : rel.sentiment < -0.3
+                ? 'beef'
+                : 'neutral';
+          const strengthDesc: 'strong' | 'moderate' | 'weak' =
+            rel.strength > 0.7
+              ? 'strong'
+              : rel.strength > 0.4
+                ? 'moderate'
+                : 'weak';
 
-      return {
-        otherActorName: otherActorId,
-        type: rel.relationshipType,
-        sentiment: sentimentDesc,
-        strength: strengthDesc,
-        history: rel.history ? truncateText(rel.history, 100) : undefined,
-      };
-    });
+          return {
+            otherActorName: otherActorId,
+            type: rel.relationshipType,
+            sentiment: sentimentDesc,
+            strength: strengthDesc,
+            history: rel.history ? truncateText(rel.history, 100) : undefined,
+          };
+        });
 
-  const npcContext = await marketContextService.buildContextForNPC(actor.id);
-  const marketPositions: Array<{ market: string; side: string; pnl?: number }> =
-    npcContext?.currentPositions
+  let marketPositions: Array<{ market: string; side: string; pnl?: number }> =
+    [];
+  if (!simulationMode) {
+    const npcContext = await marketContextService.buildContextForNPC(actor.id);
+    marketPositions = npcContext?.currentPositions
       ? shuffleArray(npcContext.currentPositions)
           .slice(0, 5)
           .map((pos) => ({
@@ -256,6 +263,7 @@ export async function buildComprehensiveNPCContext(
               'pnl' in pos && typeof pos.pnl === 'number' ? pos.pnl : undefined,
           }))
       : [];
+  }
 
   const shuffledPersonalEvents = shuffleArray(personalEvents);
 
