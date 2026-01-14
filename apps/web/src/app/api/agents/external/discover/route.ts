@@ -9,8 +9,10 @@
  * @see src/lib/services/agent-registry.service.ts
  */
 
-import type { TrustLevel } from '@babylon/agents';
+import type { AgentRegistration, TrustLevel } from '@babylon/agents';
 import { AgentStatus, AgentType, agentRegistry } from '@babylon/agents';
+import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -40,20 +42,36 @@ const DiscoveryQuerySchema = z.object({
   offset: z.coerce.number().min(0).optional().default(0),
 });
 
+// Body validation for POST-based discovery
+const DiscoveryBodySchema = z.object({
+  types: z.array(z.nativeEnum(AgentType)).optional(),
+  statuses: z.array(z.nativeEnum(AgentStatus)).optional(),
+  minTrustLevel: z.coerce.number().min(0).max(4).optional(),
+  requiredCapabilities: z.array(z.string()).optional(),
+  requiredSkills: z.array(z.string()).optional(),
+  requiredDomains: z.array(z.string()).optional(),
+  matchMode: z.enum(['all', 'any']).optional(),
+  search: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
+
 /**
  * Authenticate the request using API key from Authorization header
+ * Returns the agent registration if authenticated, null otherwise
  */
-async function authenticateRequest(req: NextRequest): Promise<boolean> {
+async function authenticateRequest(
+  req: NextRequest
+): Promise<AgentRegistration | null> {
   const authHeader = req.headers.get('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return false;
+    return null;
   }
 
   const apiKey = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-  const agent = await agentRegistry.verifyExternalAgentApiKey(apiKey);
-  return !!agent;
+  return agentRegistry.verifyExternalAgentApiKey(apiKey);
 }
 
 /**
@@ -63,9 +81,9 @@ async function authenticateRequest(req: NextRequest): Promise<boolean> {
  */
 export async function GET(req: NextRequest) {
   // Authenticate the request
-  const isAuthenticated = await authenticateRequest(req);
+  const agent = await authenticateRequest(req);
 
-  if (!isAuthenticated) {
+  if (!agent) {
     return NextResponse.json(
       {
         success: false,
@@ -73,6 +91,49 @@ export async function GET(req: NextRequest) {
         message: 'Invalid or missing API key',
       },
       { status: 401 }
+    );
+  }
+
+  // Rate limit check - use agent's discoveryRateLimit or default to 60/min
+  // Clamp to valid bounds: min 1, max 1000 requests per minute
+  const rawRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const agentRateLimit = Math.min(Math.max(rawRateLimit, 1), 1000);
+  const rateLimitConfig = {
+    ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
+    maxRequests: agentRateLimit,
+  };
+
+  const rateLimitResult = await checkRateLimitAsync(
+    agent.agentId,
+    rateLimitConfig
+  );
+
+  if (!rateLimitResult.allowed) {
+    logger.warn(
+      'External agent discovery rate limit exceeded',
+      {
+        agentId: agent.agentId,
+        retryAfter: rateLimitResult.retryAfter,
+        limit: agentRateLimit,
+      },
+      'ExternalAgentDiscovery'
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded for discovery requests',
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          'X-RateLimit-Limit': String(agentRateLimit),
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 0),
+        },
+      }
     );
   }
 
@@ -89,7 +150,19 @@ export async function GET(req: NextRequest) {
     offset: searchParams.get('offset') || undefined,
   };
 
-  const validated = DiscoveryQuerySchema.parse(query);
+  const validatedResult = DiscoveryQuerySchema.safeParse(query);
+  if (!validatedResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        details: validatedResult.error.issues,
+      },
+      { status: 400 }
+    );
+  }
+
+  const validated = validatedResult.data;
 
   // Build discovery filter
   const filter: DiscoveryFilter = {};
@@ -140,16 +213,16 @@ export async function GET(req: NextRequest) {
   const agents = await agentRegistry.discoverAgents(filter);
 
   // Transform agents for external API response
-  const results = agents.map((agent) => ({
-    agentId: agent.agentId,
-    name: agent.name,
-    type: agent.type,
-    status: agent.status,
-    trustLevel: agent.trustLevel,
-    capabilities: agent.capabilities,
-    discoveryMetadata: agent.discoveryMetadata,
-    endpoints: agent.discoveryMetadata?.endpoints,
-    lastActiveAt: agent.lastActiveAt,
+  const results = agents.map((discoveredAgent) => ({
+    agentId: discoveredAgent.agentId,
+    name: discoveredAgent.name,
+    type: discoveredAgent.type,
+    status: discoveredAgent.status,
+    trustLevel: discoveredAgent.trustLevel,
+    capabilities: discoveredAgent.capabilities,
+    discoveryMetadata: discoveredAgent.discoveryMetadata,
+    endpoints: discoveredAgent.discoveryMetadata?.endpoints,
+    lastActiveAt: discoveredAgent.lastActiveAt,
   }));
 
   return NextResponse.json({
@@ -171,9 +244,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   // Authenticate the request
-  const isAuthenticated = await authenticateRequest(req);
+  const agent = await authenticateRequest(req);
 
-  if (!isAuthenticated) {
+  if (!agent) {
     return NextResponse.json(
       {
         success: false,
@@ -184,33 +257,102 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Rate limit check - use agent's discoveryRateLimit or default to 60/min
+  // Clamp to valid bounds: min 1, max 1000 requests per minute
+  const rawRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const agentRateLimit = Math.min(Math.max(rawRateLimit, 1), 1000);
+  const rateLimitConfig = {
+    ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
+    maxRequests: agentRateLimit,
+  };
+
+  const rateLimitResult = await checkRateLimitAsync(
+    agent.agentId,
+    rateLimitConfig
+  );
+
+  if (!rateLimitResult.allowed) {
+    logger.warn(
+      'External agent discovery rate limit exceeded',
+      {
+        agentId: agent.agentId,
+        retryAfter: rateLimitResult.retryAfter,
+        limit: agentRateLimit,
+      },
+      'ExternalAgentDiscovery'
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded for discovery requests',
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          'X-RateLimit-Limit': String(agentRateLimit),
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 0),
+        },
+      }
+    );
+  }
+
   // Parse request body
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        message: 'Invalid JSON body',
+      },
+      { status: 400 }
+    );
+  }
+
+  const validatedBodyResult = DiscoveryBodySchema.safeParse(body);
+  if (!validatedBodyResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        details: validatedBodyResult.error.issues,
+      },
+      { status: 400 }
+    );
+  }
+
+  const validatedBody = validatedBodyResult.data;
 
   // Discover agents using agent registry
-  const agents = await agentRegistry.discoverAgents(body);
+  const agents = await agentRegistry.discoverAgents(validatedBody);
 
   // Transform agents for external API response
-  const results = agents.map((agent) => ({
-    agentId: agent.agentId,
-    name: agent.name,
-    type: agent.type,
-    status: agent.status,
-    trustLevel: agent.trustLevel,
-    capabilities: agent.capabilities,
-    discoveryMetadata: agent.discoveryMetadata,
-    endpoints: agent.discoveryMetadata?.endpoints,
-    lastActiveAt: agent.lastActiveAt,
+  const results = agents.map((discoveredAgent) => ({
+    agentId: discoveredAgent.agentId,
+    name: discoveredAgent.name,
+    type: discoveredAgent.type,
+    status: discoveredAgent.status,
+    trustLevel: discoveredAgent.trustLevel,
+    capabilities: discoveredAgent.capabilities,
+    discoveryMetadata: discoveredAgent.discoveryMetadata,
+    endpoints: discoveredAgent.discoveryMetadata?.endpoints,
+    lastActiveAt: discoveredAgent.lastActiveAt,
   }));
 
   return NextResponse.json({
     success: true,
     agents: results,
     pagination: {
-      limit: body.limit || 20,
-      offset: body.offset || 0,
+      limit: validatedBody.limit,
+      offset: validatedBody.offset,
       total: results.length,
     },
-    filters: body,
+    filters: validatedBody,
   });
 }

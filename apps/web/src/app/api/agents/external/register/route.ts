@@ -11,7 +11,14 @@
 
 import type { ExternalAgentConnectionParams } from '@babylon/agents';
 import { agentRegistry } from '@babylon/agents';
-import { authenticate, generateApiKey, hashApiKey } from '@babylon/api';
+import {
+  authenticate,
+  checkRateLimitAsync,
+  generateApiKey,
+  hashApiKey,
+  RATE_LIMIT_CONFIGS,
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -80,9 +87,69 @@ export async function POST(req: NextRequest) {
   // Authenticate the request (requires valid Privy session)
   const authUser = await authenticate(req);
 
+  // Rate limit check - 5 registrations per hour per user
+  const rateLimitResult = await checkRateLimitAsync(
+    authUser.userId,
+    RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_REGISTER
+  );
+
+  if (!rateLimitResult.allowed) {
+    logger.warn(
+      'External agent registration rate limit exceeded',
+      {
+        userId: authUser.userId,
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      'ExternalAgentRegister'
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded for agent registration',
+        retryAfter: rateLimitResult.retryAfter,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter ?? 3600),
+          'X-RateLimit-Limit': String(
+            RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_REGISTER.maxRequests
+          ),
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 0),
+        },
+      }
+    );
+  }
+
   // Parse and validate request body
-  const body = await req.json();
-  const validated = ExternalAgentRegisterSchema.parse(body);
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        message: 'Invalid JSON body',
+      },
+      { status: 400 }
+    );
+  }
+
+  const validatedResult = ExternalAgentRegisterSchema.safeParse(body);
+  if (!validatedResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        details: validatedResult.error.issues,
+      },
+      { status: 400 }
+    );
+  }
+  const validated = validatedResult.data;
 
   // Generate API key for this external agent
   const apiKey = generateApiKey();
