@@ -237,6 +237,48 @@ type ExecutorOperationResult =
   | JsonValue;
 
 export class BabylonAgentExecutor implements AgentExecutor {
+  /**
+   * Execute operation directly without A2A HTTP protocol
+   * Used for server-side internal calls to bypass Vercel serverless HTTP limitations
+   *
+   * @param operation - The operation name (e.g., 'portfolio.get_balance')
+   * @param params - Operation parameters
+   * @param agentUserId - The agent's user ID for context
+   * @returns Operation result as JsonValue
+   */
+  public static async executeDirectly(
+    operation: string,
+    params: Record<string, JsonValue>,
+    agentUserId: string
+  ): Promise<JsonValue> {
+    const executor = new BabylonAgentExecutor();
+    const command: BabylonCommand = { operation, params };
+    const taskId = `direct-${Date.now()}`;
+
+    // Create minimal RequestContext for the operation
+    const context: RequestContext = {
+      taskId,
+      contextId: agentUserId,
+      userMessage: {
+        kind: 'message',
+        messageId: `direct-msg-${Date.now()}`,
+        role: 'user',
+        parts: [{ kind: 'text', text: `Direct call: ${operation}` }],
+      },
+      task: {
+        kind: 'task',
+        id: taskId,
+        contextId: agentUserId,
+        status: { state: 'working', timestamp: new Date().toISOString() },
+        artifacts: [],
+      },
+    };
+
+    const result = await executor.executeOperation(command, context);
+    // Cast to JsonValue since ExecutorOperationResult is compatible at runtime
+    return result as unknown as JsonValue;
+  }
+
   async execute(
     requestContext: RequestContext,
     eventBus: ExecutionEventBus

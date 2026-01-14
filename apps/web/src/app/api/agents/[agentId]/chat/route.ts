@@ -287,11 +287,13 @@ export const POST = withErrorHandling(
       );
 
       // Compose state with providers
-      const state: State = await runtime.composeState(elizaMessage, [
-        'RECENT_MESSAGES',
-        'ACTION_STATE',
-        'ACTIONS',
-      ]);
+      // Use strict filtering (3rd param = true) to ONLY run the specified providers
+      // This prevents all Babylon A2A providers from running unnecessarily
+      const state: State = await runtime.composeState(
+        elizaMessage,
+        ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS'],
+        true
+      );
 
       // Add custom values to state
       state.values = {
@@ -500,10 +502,11 @@ export const POST = withErrorHandling(
 
     // Generate summary/response - always run to get proper user-facing message
     {
-      const state = await runtime.composeState(elizaMessage, [
-        'RECENT_MESSAGES',
-        'ACTION_STATE',
-      ]);
+      const state = await runtime.composeState(
+        elizaMessage,
+        ['RECENT_MESSAGES', 'ACTION_STATE'],
+        true
+      );
       state.values = {
         ...state.values,
         agentId, // Pass agentId for actions that need it

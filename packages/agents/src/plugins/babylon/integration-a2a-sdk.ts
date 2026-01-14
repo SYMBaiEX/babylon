@@ -443,14 +443,62 @@ export class BabylonA2AClient {
   /**
    * Execute via A2A message/send with skills
    * Maps a2a.* methods to A2A protocol
+   *
+   * On server-side (Vercel serverless), uses direct executor to avoid HTTP self-call issues.
+   * On client-side or when A2A protocol is explicitly needed, uses SDK client with HTTP.
    */
   private async executeViaA2A(
     action: string,
     params: Record<string, JsonValue>
   ): Promise<JsonValue> {
-    if (!this.sdkClient) {
-      throw new Error('A2A client not available - use database fallback');
+    // Map camelCase actions to category.snake_case operation names
+    // This follows the executor's convention (e.g., 'social.create_post', 'stats.leaderboard')
+    const operationMap: Record<string, string> = {
+      // Portfolio operations
+      getBalance: 'portfolio.get_balance',
+      getPositions: 'portfolio.get_positions',
+      getUserWallet: 'portfolio.get_user_wallet',
+      // Social operations
+      createPost: 'social.create_post',
+      getFeed: 'social.get_feed',
+      likePost: 'social.like_post',
+      // Stats operations
+      getSystemStats: 'stats.system',
+      getLeaderboard: 'stats.leaderboard',
+      getTrendingTags: 'stats.trending_tags',
+      getPostsByTag: 'stats.posts_by_tag',
+      getOrganizations: 'stats.get_organizations',
+      // Markets operations
+      getPredictions: 'markets.list_prediction',
+      getPerpetuals: 'markets.list_perpetuals',
+      // Users operations
+      searchUsers: 'users.search',
+      getUserProfile: 'users.get_profile',
+      // Messaging operations
+      getChats: 'messaging.get_chats',
+      getUnreadCount: 'messaging.get_unread_count',
+      getNotifications: 'messaging.get_notifications',
+    };
+
+    const operationName = operationMap[action] || action;
+
+    // On server-side (Next.js API routes), use direct executor to bypass HTTP
+    // This fixes Vercel serverless 503 errors from self-calls
+    const isServerSide = typeof window === 'undefined';
+    if (isServerSide) {
+      const { BabylonAgentExecutor } = await import('@babylon/a2a');
+      return BabylonAgentExecutor.executeDirectly(
+        operationName,
+        params,
+        this.agentId
+      );
     }
+
+    // Client-side: use A2A SDK with HTTP (for true agent-to-agent communication)
+    if (!this.sdkClient) {
+      throw new Error('A2A client not available');
+    }
+
     // Map action to skill ID - comprehensive mapping for all 69+ A2A methods
     const skillMap: Record<string, string> = {
       // Portfolio & Balance
@@ -541,38 +589,6 @@ export class BabylonA2AClient {
     };
 
     const skillId = skillMap[action] || 'portfolio-balance';
-
-    // Map camelCase actions to category.snake_case operation names
-    // This follows the executor's convention (e.g., 'social.create_post', 'stats.leaderboard')
-    const operationMap: Record<string, string> = {
-      // Portfolio operations
-      getBalance: 'portfolio.get_balance',
-      getPositions: 'portfolio.get_positions',
-      getUserWallet: 'portfolio.get_user_wallet',
-      // Social operations
-      createPost: 'social.create_post',
-      getFeed: 'social.get_feed',
-      likePost: 'social.like_post',
-      // Stats operations
-      getSystemStats: 'stats.system',
-      getLeaderboard: 'stats.leaderboard',
-      getTrendingTags: 'stats.trending_tags',
-      getPostsByTag: 'stats.posts_by_tag',
-      getOrganizations: 'stats.get_organizations',
-      // Markets operations
-      getPredictions: 'markets.list_prediction',
-      getPerpetuals: 'markets.list_perpetuals',
-      // Users operations
-      searchUsers: 'users.search',
-      getUserProfile: 'users.get_profile',
-      // Messaging operations
-      getChats: 'messaging.get_chats',
-      getUnreadCount: 'messaging.get_unread_count',
-      getNotifications: 'messaging.get_notifications',
-    };
-
-    // Use mapped operation name if available, otherwise use original action
-    const operationName = operationMap[action] || action;
 
     const response = await this.sdkClient.sendMessage({
       message: {
