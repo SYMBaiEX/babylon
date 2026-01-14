@@ -986,10 +986,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       (sum, p) => sum + p.unrealizedPnL,
       0
     );
-    const perpPnL = perpPositions.reduce(
-      (sum, p) => sum + p.unrealizedPnL,
-      0
-    );
+    const perpPnL = perpPositions.reduce((sum, p) => sum + p.unrealizedPnL, 0);
 
     return {
       marketPositions,
