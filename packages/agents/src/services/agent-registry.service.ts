@@ -281,6 +281,7 @@ export class AgentRegistryService {
       capabilities,
       authentication,
       agentCard,
+      registeredByUserId,
     } = params;
 
     // Check if already registered
@@ -356,6 +357,7 @@ export class AgentRegistryService {
       agentCardJson: agentCard
         ? (JSON.parse(JSON.stringify(agentCard)) as JsonValue)
         : null,
+      registeredByUserId,
       updatedAt: new Date(),
     });
 
@@ -707,6 +709,16 @@ export class AgentRegistryService {
     for (const agent of agents) {
       if (!agent.authCredentials) continue;
 
+      // Skip revoked agents
+      if (agent.revokedAt) {
+        logger.info(
+          `Skipping revoked agent ${agent.externalId}`,
+          undefined,
+          'AgentRegistryService'
+        );
+        continue;
+      }
+
       // Decrypt and verify credentials - continue to next agent if this one fails
       const decrypted = this.decryptCredentials(agent.authCredentials);
       const credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
@@ -729,6 +741,74 @@ export class AgentRegistryService {
     }
 
     return null;
+  }
+
+  /**
+   * Revoke an external agent's API key
+   *
+   * @description Sets the revokedAt timestamp and revokedBy user ID on an external agent connection.
+   * After revocation, the agent's API key will no longer be valid for authentication.
+   *
+   * @param {string} externalId - External agent ID
+   * @param {string} revokedBy - User ID of the person revoking the agent
+   * @returns {Promise<void>}
+   * @throws {Error} If agent not found
+   */
+  async revokeExternalAgent(
+    externalId: string,
+    revokedBy: string
+  ): Promise<void> {
+    // Check if external agent exists
+    const [agent] = await db
+      .select()
+      .from(externalAgentConnections)
+      .where(eq(externalAgentConnections.externalId, externalId))
+      .limit(1);
+
+    if (!agent) {
+      throw new Error(`External agent not found: ${externalId}`);
+    }
+
+    if (agent.revokedAt) {
+      throw new Error(`External agent already revoked: ${externalId}`);
+    }
+
+    // Revoke the agent
+    await db
+      .update(externalAgentConnections)
+      .set({
+        revokedAt: new Date(),
+        revokedBy,
+        updatedAt: new Date(),
+      })
+      .where(eq(externalAgentConnections.externalId, externalId));
+
+    // Log the revocation event
+    logger.info(
+      `External agent ${externalId} revoked by ${revokedBy}`,
+      { externalId, revokedBy },
+      'AgentRegistryService'
+    );
+  }
+
+  /**
+   * Get external agent connection by externalId
+   *
+   * @description Retrieves the external agent connection record including revocation status.
+   *
+   * @param {string} externalId - External agent ID
+   * @returns {Promise<ExternalAgentConnection | null>} External agent connection or null
+   */
+  async getExternalAgentConnection(
+    externalId: string
+  ): Promise<ExternalAgentConnection | null> {
+    const [agent] = await db
+      .select()
+      .from(externalAgentConnections)
+      .where(eq(externalAgentConnections.externalId, externalId))
+      .limit(1);
+
+    return agent ?? null;
   }
 
   /**

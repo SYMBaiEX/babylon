@@ -322,6 +322,8 @@ export const agentCapabilities = pgTable(
 );
 
 // ExternalAgentConnection
+// NOTE: After modifying this schema, run `bun run db:generate` to create a migration
+// for the new registeredByUserId, revokedAt, and revokedBy fields
 export const externalAgentConnections = pgTable(
   'ExternalAgentConnection',
   {
@@ -336,6 +338,9 @@ export const externalAgentConnections = pgTable(
     isHealthy: boolean('isHealthy').notNull().default(true),
     lastHealthCheck: timestamp('lastHealthCheck', { mode: 'date' }),
     lastConnected: timestamp('lastConnected', { mode: 'date' }),
+    registeredByUserId: text('registeredByUserId'),
+    revokedAt: timestamp('revokedAt', { mode: 'date' }),
+    revokedBy: text('revokedBy'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },

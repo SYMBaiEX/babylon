@@ -274,4 +274,7 @@ export interface ExternalAgentConnectionParams {
 
   /** Agent Card metadata */
   agentCard?: AgentCard;
+
+  /** User ID of the person registering the agent */
+  registeredByUserId?: string;
 }
