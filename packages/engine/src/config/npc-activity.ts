@@ -914,6 +914,10 @@ export const NPC_ACTIVITY_PRESETS = {
     NPC_GROUP_INVITE_PROBABILITY: '0.08',
     NPC_DM_PROBABILITY: '0.05',
     NPC_MIN_INTERACTIONS_FOR_ACTION: '1',
+    // Trading - balanced defaults
+    NPC_TRADE_PROBABILITY: '0.6',
+    NPC_MAX_TRADES_PER_DAY: '20',
+    NPC_MIN_MINUTES_BETWEEN_TRADES: '5',
   },
 
   /**
@@ -944,6 +948,10 @@ export const NPC_ACTIVITY_PRESETS = {
     NPC_MIN_INTERACTION_QUALITY: '0.4',
     NPC_JOIN_GROUP_PROBABILITY: '0.15',
     NPC_USER_INVITE_PROBABILITY: '0.12',
+    // High trading - engagement-heavy NPCs play the game more
+    NPC_TRADE_PROBABILITY: '0.8',
+    NPC_MAX_TRADES_PER_DAY: '30',
+    NPC_MIN_MINUTES_BETWEEN_TRADES: '3',
   },
 
   /**
@@ -971,6 +979,10 @@ export const NPC_ACTIVITY_PRESETS = {
     NPC_JOIN_GROUP_PROBABILITY: '0.15',
     NPC_USER_INVITE_PROBABILITY: '0.12',
     NPC_TARGET_POSTS_PER_HOUR: '15',
+    // Higher trading activity
+    NPC_TRADE_PROBABILITY: '0.75',
+    NPC_MAX_TRADES_PER_DAY: '25',
+    NPC_MIN_MINUTES_BETWEEN_TRADES: '3',
   },
 
   /**
@@ -985,6 +997,10 @@ export const NPC_ACTIVITY_PRESETS = {
     NPC_SHARE_PROBABILITY: '0.01',
     NPC_COMMENT_PROBABILITY: '0.005',
     NPC_TARGET_POSTS_PER_HOUR: '3',
+    // Low trading - reduced NPC market activity
+    NPC_TRADE_PROBABILITY: '0.2',
+    NPC_MAX_TRADES_PER_DAY: '5',
+    NPC_MIN_MINUTES_BETWEEN_TRADES: '15',
   },
 
   /**
@@ -999,6 +1015,10 @@ export const NPC_ACTIVITY_PRESETS = {
     NPC_SHARE_PROBABILITY: '0.2',
     NPC_COMMENT_PROBABILITY: '0.1',
     NPC_TARGET_POSTS_PER_HOUR: '60',
+    // Very high trading for automated testing
+    NPC_TRADE_PROBABILITY: '0.9',
+    NPC_MAX_TRADES_PER_DAY: '50',
+    NPC_MIN_MINUTES_BETWEEN_TRADES: '0',
   },
 } as const;
 

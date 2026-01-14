@@ -6,6 +6,24 @@
  *
  * NPC perp trades now use PerpMarketService for consistency with user trades,
  * ensuring funding and liquidation logic applies uniformly.
+ *
+ * ## NPC Trade Rate Limiting
+ *
+ * NPC trading is rate-limited at two levels (by design):
+ *
+ * 1. **Probability Filter (MarketDecisionEngine)**: Before LLM calls, NPCs are
+ *    filtered by `NPC_TRADE_PROBABILITY` (default 60%). This reduces LLM API
+ *    costs and spreads trading decisions across ticks.
+ *
+ * 2. **Hard Rate Limits (TradeExecutionService)**: Before execution, each NPC
+ *    is checked against cooldown (`NPC_MIN_MINUTES_BETWEEN_TRADES`) and daily
+ *    cap (`NPC_MAX_TRADES_PER_DAY`) via `NpcTradeRateLimiter`.
+ *
+ * The dual filtering is intentional:
+ * - Probability filter = reduces LLM workload per tick (cost optimization)
+ * - Execution filter = enforces hard rate limits (behavior control)
+ *
+ * @see NpcTradeRateLimiter for rate limiting implementation details
  */
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
@@ -29,11 +47,8 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
-import {
-  getMaxTradesPerDay,
-  getMinMinutesBetweenTrades,
-} from '../config/npc-activity';
 import { isSimulationMode } from '../storage-bridge';
+import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import type {
   ExecutedTrade,
   MarketAction,
@@ -96,71 +111,6 @@ const isPredictionBroadcastPayload = (
   const type = (payload as { type?: unknown }).type;
   return type === 'prediction_trade' || type === 'prediction_resolution';
 };
-
-// =============================================================================
-// NPC TRADE RATE LIMITING
-// =============================================================================
-
-/**
- * In-memory tracking of last trade timestamp per NPC.
- * Used to enforce minimum time between trades.
- */
-const npcLastTradeTime = new Map<string, number>();
-
-/**
- * In-memory tracking of daily trade count per NPC.
- * Resets when the date changes.
- */
-const npcDailyTradeCount = new Map<string, { date: string; count: number }>();
-
-/**
- * Check if an NPC is allowed to trade based on cooldown and daily limits.
- *
- * @param npcId - The NPC's actor ID
- * @returns true if the NPC can trade, false if rate limited
- */
-function canNpcTrade(npcId: string): boolean {
-  const now = Date.now();
-
-  // Check cooldown between trades
-  const lastTrade = npcLastTradeTime.get(npcId) || 0;
-  const cooldownMs = getMinMinutesBetweenTrades() * 60 * 1000;
-
-  if (now - lastTrade < cooldownMs) {
-    return false;
-  }
-
-  // Check daily trade limit
-  const today = new Date().toISOString().split('T')[0]!;
-  const dailyData = npcDailyTradeCount.get(npcId);
-  if (
-    dailyData !== undefined &&
-    dailyData.date === today &&
-    dailyData.count >= getMaxTradesPerDay()
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Record that an NPC has made a trade.
- * Updates both the last trade timestamp and daily count.
- *
- * @param npcId - The NPC's actor ID
- */
-function recordNpcTrade(npcId: string): void {
-  npcLastTradeTime.set(npcId, Date.now());
-
-  const today = new Date().toISOString().split('T')[0]!;
-  const dailyData = npcDailyTradeCount.get(npcId);
-  if (dailyData !== undefined && dailyData.date === today) {
-    dailyData.count++;
-  } else {
-    npcDailyTradeCount.set(npcId, { date: today, count: 1 });
-  }
-}
 
 export class TradeExecutionService {
   /**
@@ -230,8 +180,10 @@ export class TradeExecutionService {
         continue;
       }
 
-      // Check rate limits before executing
-      if (!canNpcTrade(decision.npcId)) {
+      // Check rate limits before executing (cooldown + daily cap)
+      // Uses NpcTradeRateLimiter which supports pluggable providers for distributed deployments
+      const canTrade = await NpcTradeRateLimiter.canTrade(decision.npcId);
+      if (!canTrade) {
         rateLimitedCount++;
         logger.debug(
           `NPC ${decision.npcName} rate limited, skipping trade`,
@@ -248,7 +200,7 @@ export class TradeExecutionService {
         result.successfulTrades++;
 
         // Record successful trade for rate limiting
-        recordNpcTrade(decision.npcId);
+        await NpcTradeRateLimiter.recordTrade(decision.npcId);
 
         if (executedTrade.marketType === 'perp') {
           result.totalVolumePerp += executedTrade.size;
@@ -307,12 +259,19 @@ export class TradeExecutionService {
 
     const duration = Date.now() - startTime;
 
+    // Periodically clean up stale rate limit entries to prevent memory growth
+    // This is cheap (O(n) scan) and only runs when using in-memory provider
+    const cleanedEntries = NpcTradeRateLimiter.cleanupStaleEntries();
+    const providerStats = NpcTradeRateLimiter.getProviderStats();
+
     logger.info(
       `Executed ${result.successfulTrades} trades in ${duration}ms`,
       {
         ...result,
         rateLimited: rateLimitedCount,
         durationMs: duration,
+        ...(cleanedEntries > 0 && { rateLimitEntriesCleaned: cleanedEntries }),
+        ...(providerStats && { rateLimitMapSize: providerStats.lastTradeTime }),
       },
       'TradeExecutionService'
     );
