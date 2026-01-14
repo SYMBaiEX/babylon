@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
       }),
     },
     agentCard: validated.agentCard,
+    registeredByUserId: authUser.userId,
   };
 
   // Register the external agent
