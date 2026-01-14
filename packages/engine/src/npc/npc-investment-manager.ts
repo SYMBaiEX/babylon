@@ -704,13 +704,11 @@ export class NPCInvestmentManager {
     poolId: string,
     threshold: number // e.g., 0.25 = 25% profit
   ): Promise<PortfolioPosition[]> {
-    const positionsResult = await db
+    // Query only open positions (closedAt IS NULL) directly in SQL for efficiency
+    const openPositions = await db
       .select()
       .from(poolPositions)
-      .where(eq(poolPositions.poolId, poolId));
-
-    // Filter for open positions only
-    const openPositions = positionsResult.filter((p) => p.closedAt === null);
+      .where(and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt)));
 
     const profitablePositions: PortfolioPosition[] = [];
 
@@ -766,7 +764,7 @@ export class NPCInvestmentManager {
     const maxPositionAllocation = {
       aggressive: 0.25, // 25% max per position
       conservative: 0.15, // 15% max per position
-      balanced: 0.20, // 20% max per position
+      balanced: 0.2, // 20% max per position
     };
 
     const targetUtilization = {
@@ -775,13 +773,11 @@ export class NPCInvestmentManager {
       balanced: 65,
     };
 
-    // Get open positions
-    const positionsResult = await db
+    // Get open positions directly in SQL for efficiency
+    const openPositions = await db
       .select()
       .from(poolPositions)
-      .where(eq(poolPositions.poolId, poolId));
-
-    const openPositions = positionsResult.filter((p) => p.closedAt === null);
+      .where(and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt)));
 
     // Check for positions that have grown too large (need partial profit-taking)
     const maxAllocation = maxPositionAllocation[strategy];
@@ -790,34 +786,39 @@ export class NPCInvestmentManager {
     for (const position of openPositions) {
       const positionValue =
         Number(position.size) + Number(position.unrealizedPnL || 0);
-      const currentAllocation = totalValue > 0 ? positionValue / totalValue : 0;
 
-      // If position is more than 1.5x the max allocation, take partial profits
+      // Guard against division by zero
+      if (positionValue <= 0 || totalValue <= 0) {
+        continue;
+      }
+
+      const currentAllocation = positionValue / totalValue;
+
+      // If position is more than 1.5x the max allocation, log for monitoring
+      // Note: Resize action is not yet implemented - logging only for now
       if (currentAllocation > maxAllocation * 1.5) {
-        const excessValue = positionValue - totalValue * maxAllocation;
-        const resizeRatio = 1 - excessValue / positionValue;
-
-        actions.push({
-          type: 'resize',
-          positionId: position.id,
-          marketType:
-            position.marketType === 'perp' ||
-            position.marketType === 'prediction'
-              ? position.marketType
-              : 'prediction',
-          ticker: position.ticker ?? undefined,
-          marketId: position.marketId ?? undefined,
-          side: position.side,
-          targetSize: Number(position.size) * resizeRatio,
-          reason: `Position overweight: ${(currentAllocation * 100).toFixed(1)}% > ${(maxAllocation * 100).toFixed(1)}% target`,
-        });
+        logger.info(
+          `Position overweight detected: ${(currentAllocation * 100).toFixed(1)}% > ${(maxAllocation * 100).toFixed(1)}% target`,
+          {
+            poolId,
+            positionId: position.id,
+            ticker: position.ticker,
+            currentAllocation: currentAllocation * 100,
+            maxAllocation: maxAllocation * 100,
+          },
+          'NPCInvestmentManager'
+        );
+        // TODO: Implement resize action when partial position closing is supported
       }
     }
 
     // Note: Redeploying idle cash is handled by baseline allocations
     // and the regular trading engine. We only flag it here for logging.
     const targetUtil = targetUtilization[strategy];
-    if (metrics.utilization < targetUtil - 20 && metrics.availableBalance > 100) {
+    if (
+      metrics.utilization < targetUtil - 20 &&
+      metrics.availableBalance > 100
+    ) {
       logger.info(
         `Idle cash detected: ${metrics.utilization.toFixed(1)}% utilization, $${metrics.availableBalance.toFixed(2)} available`,
         { poolId, strategy, targetUtilization: targetUtil },
@@ -857,7 +858,9 @@ export class NPCInvestmentManager {
       } else {
         // For prediction markets, use sell_yes or sell_no based on side
         tradeAction =
-          action.side === 'YES' || action.side === 'yes' ? 'sell_yes' : 'sell_no';
+          action.side === 'YES' || action.side === 'yes'
+            ? 'sell_yes'
+            : 'sell_no';
       }
 
       const decision: TradingDecision = {
