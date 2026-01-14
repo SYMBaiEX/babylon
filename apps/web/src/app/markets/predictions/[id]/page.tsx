@@ -36,7 +36,7 @@ import type {
   PredictionTradeSSE,
 } from '@/hooks/usePredictionMarketStream';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import type { PredictionMarket } from '@/types/markets';
+import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
 
 /**
  * Extended prediction market with detail page specific fields.
@@ -71,6 +71,7 @@ export default function PredictionDetailPage() {
     []
   );
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('ALL');
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
 
   const recalculatePositionMetrics = useCallback(
@@ -149,7 +150,9 @@ export default function PredictionDetailPage() {
   );
   const { history: priceHistory, refresh: refreshPriceHistory } =
     usePredictionHistory(marketId ?? null, {
+      limit: 1000,
       seed: historySeed,
+      range: timeRange,
     });
   const amountNum = Number.parseFloat(amount) || 0;
   const calculation =
@@ -484,6 +487,8 @@ export default function PredictionDetailPage() {
             <PredictionProbabilityChart
               data={priceHistory}
               marketId={marketId}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
               showBrush={true}
             />
           </div>

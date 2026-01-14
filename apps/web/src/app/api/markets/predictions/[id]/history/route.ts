@@ -1,18 +1,103 @@
 import { successResponse, withErrorHandling } from '@babylon/api';
-import { db, desc, eq, predictionPriceHistories } from '@babylon/db';
+import { and, db, desc, eq, gte, predictionPriceHistories } from '@babylon/db';
 import { PredictionMarketIdSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
+
+type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
 
 const QuerySchema = z.object({
   limit: z
     .preprocess(
       (value) => (value === null ? undefined : value),
-      z.coerce.number().min(1).max(1000)
+      z.coerce.number().min(1).max(2000)
     )
     .optional()
     .default(200),
+  range: z.enum(['1H', '4H', '1D', '1W', 'ALL']).optional(),
 });
+
+const RANGE_MS: Record<TimeRange, number> = {
+  '1H': 60 * 60 * 1000,
+  '4H': 4 * 60 * 60 * 1000,
+  '1D': 24 * 60 * 60 * 1000,
+  '1W': 7 * 24 * 60 * 60 * 1000,
+  ALL: 0,
+};
+
+const BUCKET_CANDIDATES_MS = [
+  60_000, // 1m
+  2 * 60_000, // 2m
+  5 * 60_000, // 5m
+  10 * 60_000, // 10m
+  15 * 60_000, // 15m
+  30 * 60_000, // 30m
+  60 * 60_000, // 1h
+  2 * 60 * 60_000, // 2h
+  4 * 60 * 60_000, // 4h
+  6 * 60 * 60_000, // 6h
+  12 * 60 * 60_000, // 12h
+  24 * 60 * 60_000, // 1d
+];
+
+function chooseBucketMs(spanMs: number, maxPoints: number): number {
+  if (!Number.isFinite(spanMs) || spanMs <= 0) return BUCKET_CANDIDATES_MS[0]!;
+  if (!Number.isFinite(maxPoints) || maxPoints <= 1)
+    return BUCKET_CANDIDATES_MS.at(-1)!;
+
+  for (const candidate of BUCKET_CANDIDATES_MS) {
+    if (Math.ceil(spanMs / candidate) <= maxPoints) return candidate;
+  }
+  return BUCKET_CANDIDATES_MS.at(-1)!;
+}
+
+function downsamplePredictionHistory(
+  points: Array<{
+    id: string;
+    yesPrice: number;
+    noPrice: number;
+    yesShares: number;
+    noShares: number;
+    liquidity: number;
+    eventType: string;
+    source: string;
+    createdAt: Date;
+  }>,
+  maxPoints: number
+): Array<{
+  id: string;
+  yesPrice: number;
+  noPrice: number;
+  yesShares: number;
+  noShares: number;
+  liquidity: number;
+  eventType: string;
+  source: string;
+  createdAt: Date;
+}> {
+  if (points.length <= maxPoints) return points;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return [];
+
+  const spanMs = last.createdAt.getTime() - first.createdAt.getTime();
+  const bucketMs = chooseBucketMs(spanMs, maxPoints);
+
+  const buckets = new Map<number, (typeof points)[number]>();
+  for (const point of points) {
+    const t = point.createdAt.getTime();
+    const bucketStart = Math.floor(t / bucketMs) * bucketMs;
+    // Keep the most recent point in each bucket (points are expected ascending).
+    buckets.set(bucketStart, point);
+  }
+
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucketStart, point]) => ({
+      ...point,
+      createdAt: new Date(bucketStart),
+    }));
+}
 
 export const GET = withErrorHandling(
   async (
@@ -23,24 +108,54 @@ export const GET = withErrorHandling(
       await context.params
     );
     const { searchParams } = new URL(request.url);
-    const { limit } = QuerySchema.parse({ limit: searchParams.get('limit') });
+    const { limit, range } = QuerySchema.parse({
+      limit: searchParams.get('limit'),
+      range: searchParams.get('range'),
+    });
 
-    const history = await db
+    const now = new Date();
+    const selectedRange = (range ?? 'ALL') as TimeRange;
+    const since =
+      selectedRange === 'ALL'
+        ? null
+        : new Date(now.getTime() - RANGE_MS[selectedRange]);
+
+    const rawHistory = await db
       .select()
       .from(predictionPriceHistories)
-      .where(eq(predictionPriceHistories.marketId, marketId))
+      .where(
+        since
+          ? and(
+              eq(predictionPriceHistories.marketId, marketId),
+              gte(predictionPriceHistories.createdAt, since)
+            )
+          : eq(predictionPriceHistories.marketId, marketId)
+      )
       .orderBy(desc(predictionPriceHistories.createdAt))
-      .limit(limit);
+      .limit(range ? Math.max(limit * 10, 5000) : limit);
+
+    const ascending = rawHistory.reverse().map((point) => ({
+      ...point,
+      yesPrice: Number(point.yesPrice),
+      noPrice: Number(point.noPrice),
+      yesShares: Number(point.yesShares),
+      noShares: Number(point.noShares),
+      liquidity: Number(point.liquidity),
+    }));
+
+    const history = range
+      ? downsamplePredictionHistory(ascending, limit)
+      : ascending;
 
     return successResponse({
       marketId,
-      history: history.reverse().map((point) => ({
+      history: history.map((point) => ({
         id: point.id,
-        yesPrice: Number(point.yesPrice),
-        noPrice: Number(point.noPrice),
-        yesShares: Number(point.yesShares),
-        noShares: Number(point.noShares),
-        liquidity: Number(point.liquidity),
+        yesPrice: point.yesPrice,
+        noPrice: point.noPrice,
+        yesShares: point.yesShares,
+        noShares: point.noShares,
+        liquidity: point.liquidity,
         eventType: point.eventType,
         source: point.source,
         timestamp: point.createdAt.toISOString(),

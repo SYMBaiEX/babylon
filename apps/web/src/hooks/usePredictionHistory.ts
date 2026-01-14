@@ -2,6 +2,7 @@ import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
+import type { MarketTimeRange } from '@/types/markets';
 
 /**
  * Represents a single point in prediction market price history.
@@ -37,6 +38,8 @@ interface SeedSnapshot {
 interface UsePredictionHistoryOptions {
   /** Maximum number of history points to keep (default: 200) */
   limit?: number;
+  /** Optional server-side time range filter/downsampling */
+  range?: MarketTimeRange;
   /** Seed data to use if API fails or returns no data */
   seed?: SeedSnapshot;
 }
@@ -73,6 +76,7 @@ export function usePredictionHistory(
   options?: UsePredictionHistoryOptions
 ) {
   const limit = options?.limit ?? 100;
+  const range = options?.range;
   const seedRef = useRef<SeedSnapshot | undefined>(options?.seed);
   const [history, setHistory] = useState<PredictionHistoryPoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -192,8 +196,12 @@ export function usePredictionHistory(
     setError(null);
 
     try {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (range) {
+        params.set('range', range);
+      }
       const response = await fetch(
-        `/api/markets/predictions/${encodeURIComponent(marketId)}/history?limit=${limit}`
+        `/api/markets/predictions/${encodeURIComponent(marketId)}/history?${params.toString()}`
       );
 
       let data: unknown = null;
@@ -244,7 +252,7 @@ export function usePredictionHistory(
     } finally {
       setLoading(false);
     }
-  }, [marketId, limit, formatHistory, fallbackFromSeed]);
+  }, [marketId, limit, range, formatHistory, fallbackFromSeed]);
 
   // Fetch history on mount and when marketId changes
   useEffect(() => {
