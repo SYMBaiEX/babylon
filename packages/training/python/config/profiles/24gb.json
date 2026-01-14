@@ -5,6 +5,7 @@
   "vllm_gpu_memory": 0.40,
   "batch_size": 2,
   "max_token_length": 4096,
+  "group_size": 4,
   "notes": "Comfortable headroom for larger batches and longer sequences"
 }
 

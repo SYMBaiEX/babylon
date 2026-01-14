@@ -19,6 +19,7 @@ import {
   clearJsonStorage,
   exportJsonState,
   getJsonState,
+  getJsonStoragePath,
   initJsonStorage,
   loadJsonSnapshot,
   saveJsonSnapshot,
@@ -264,7 +265,13 @@ export function isSimulationMode(): boolean {
 }
 
 // Re-export JSON storage utilities
-export { exportJsonState, getJsonState, loadJsonSnapshot, saveJsonSnapshot };
+export {
+  exportJsonState,
+  getJsonState,
+  getJsonStoragePath,
+  loadJsonSnapshot,
+  saveJsonSnapshot,
+};
 
 // ============================================================================
 // Main Exports

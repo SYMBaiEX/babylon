@@ -599,6 +599,11 @@ export function isJsonMode(): boolean {
   return storageState !== null;
 }
 
+/** Get the current JSON storage base path (JSON/memory mode only). */
+export function getJsonStoragePath(): string | null {
+  return storagePath;
+}
+
 /** Clear JSON storage state (for testing) */
 export function clearJsonStorage(): void {
   storageState = createEmptyState();
