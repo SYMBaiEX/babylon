@@ -517,6 +517,8 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: 'npc_trade',
+      tradeActorType: 'npc',
     });
 
     const result = await service.buy({
@@ -662,6 +664,8 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: 'npc_trade',
+      tradeActorType: 'npc',
     });
 
     const sellResult = await service.sell({
