@@ -1,0 +1,286 @@
+# Data Generation
+
+Generate training trajectories using the simulation engine.
+
+## Overview
+
+```mermaid
+graph LR
+    SIM[Simulation Engine] --> |runs| AGENTS[NPC Agents]
+    AGENTS --> |decisions| REC[TrajectoryRecorder]
+    REC --> |saves| JSON[JSON Files]
+    JSON --> |import| DB[(PostgreSQL)]
+```
+
+## Quick Start
+
+```bash
+# Generate 2 hours of simulation data
+bun run packages/engine/examples/generate-training-data.ts --hours 2
+
+# Output: ./training-data-output/
+```
+
+## Command Options
+
+```bash
+bun run packages/engine/examples/generate-training-data.ts [options]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--causal` | false | Enable causal simulation (hidden facts → events) |
+| `--days N` | 1 | Number of days to simulate |
+| `--hours N` | 24 | Hours per day |
+| `--seed N` | timestamp | Random seed for reproducibility |
+| `--npcs N` | 10 | Number of NPC agents |
+
+### Examples
+
+```bash
+# Quick test (1 hour)
+bun run packages/engine/examples/generate-training-data.ts --hours 1
+
+# Full day with causal simulation
+bun run packages/engine/examples/generate-training-data.ts --causal
+
+# Multi-day reproducible run
+bun run packages/engine/examples/generate-training-data.ts --causal --days 3 --seed 12345
+
+# More agents for diversity
+bun run packages/engine/examples/generate-training-data.ts --npcs 20 --hours 4
+```
+
+## Output Structure
+
+```
+training-data-output/
+├── state.json           # Game state snapshot
+├── ground-truth.json    # Causal events (if --causal)
+└── trajectories/
+    ├── traj_abc123.json
+    ├── traj_def456.json
+    └── ...
+```
+
+### Trajectory File Format
+
+```json
+{
+  "trajectory": {
+    "trajectoryId": "traj_abc123",
+    "agentId": "npc_001",
+    "archetype": "trader",
+    "windowId": "2025-01-13-14",
+    "stepsJson": [...],
+    "finalPnL": 150.50,
+    "finalBalance": 10150.50,
+    "tradesExecuted": 8,
+    "episodeLength": 12,
+    "startTime": "2025-01-13T14:00:00Z",
+    "endTime": "2025-01-13T15:00:00Z"
+  }
+}
+```
+
+## Causal Simulation Mode
+
+With `--causal`, the simulation includes hidden narrative facts that drive events:
+
+```bash
+bun run packages/engine/examples/generate-training-data.ts --causal --seed 42
+```
+
+### How It Works
+
+1. **Hidden fact generated**: "Company X will announce partnership"
+2. **Events scheduled**: Day 2, Hour 10 - "Partnership announced"
+3. **Price impact**: ETH price moves based on event
+4. **Agent response**: Agents observe and react
+
+### Ground Truth File
+
+```json
+{
+  "seed": 42,
+  "hiddenNarrativeFacts": [
+    {
+      "fact": "Major protocol upgrade coming for ETH",
+      "affectsTickers": ["ETH"],
+      "sentiment": "bullish"
+    }
+  ],
+  "causalEvents": [
+    {
+      "day": 2,
+      "hour": 10,
+      "eventType": "PROTOCOL_UPGRADE",
+      "description": "Ethereum announces major upgrade",
+      "priceChanges": {"ETH": 0.15}
+    }
+  ]
+}
+```
+
+This enables training agents that can learn to:
+- Anticipate events from subtle signals
+- React appropriately to news
+- Distinguish signal from noise
+
+## Archetype Distribution
+
+Agents are assigned archetypes based on NPC characteristics:
+
+```typescript
+function deriveArchetype(npc: NPCCharacteristics): string {
+  if (npc.personality.riskTolerance > 0.8) return "degen";
+  if (npc.personality.socialness > 0.8) return "social-butterfly";
+  if (npc.willingToLie) return "scammer";
+  return "trader";
+}
+```
+
+### Customize Distribution
+
+Edit `generate-training-data.ts` or use:
+
+```bash
+# More NPCs = more archetype variety
+bun run packages/engine/examples/generate-training-data.ts --npcs 30
+```
+
+## Importing to Database
+
+After generation, import to PostgreSQL:
+
+```bash
+# Using Makefile
+make tier4-import
+
+# Or directly
+cd packages/training/python
+python scripts/import_json_trajectories.py --source ../../training-data-output
+```
+
+### Import Options
+
+```bash
+python scripts/import_json_trajectories.py \
+  --source ./training-data-output \
+  --verbose \
+  --dry-run  # Validate without inserting
+```
+
+### Import Output
+
+```
+IMPORT SUMMARY
+==============
+Total files:          150
+Valid trajectories:   142
+Invalid trajectories: 8
+Inserted:             142
+Skipped (existing):   0
+Failed:               0
+
+Archetypes found:
+  - trader: 85
+  - degen: 32
+  - social-butterfly: 15
+  - researcher: 10
+```
+
+## Data Quality
+
+### Validation Checks
+
+The importer validates:
+
+| Check | Requirement |
+|-------|-------------|
+| Required fields | trajectoryId, agentId, windowId |
+| Steps present | stepsJson not empty |
+| LLM calls present | At least 1 LLM call |
+| Valid archetype | Known archetype name |
+
+### Minimum for Training
+
+| Metric | Minimum | Recommended |
+|--------|---------|-------------|
+| Total trajectories | 50 | 500+ |
+| Unique windows | 10 | 50+ |
+| Steps per trajectory | 3 | 10+ |
+| Archetypes | 1 | All 12 |
+
+## Parallel Generation
+
+For large datasets, run multiple seeds in parallel:
+
+```bash
+# Terminal 1
+bun run generate-training-data.ts --seed 1 --hours 24 &
+
+# Terminal 2
+bun run generate-training-data.ts --seed 2 --hours 24 &
+
+# Terminal 3
+bun run generate-training-data.ts --seed 3 --hours 24 &
+```
+
+Or use the shell script:
+
+```bash
+./scripts/generate_dataset.sh --hours 24 --parallel 4
+```
+
+## LLM Provider
+
+Generation requires an LLM for agent decisions. Supported:
+
+| Provider | Env Var | Model |
+|----------|---------|-------|
+| Groq | `GROQ_API_KEY` | qwen/qwen3-32b |
+| OpenAI | `OPENAI_API_KEY` | gpt-4o-mini |
+| Anthropic | `ANTHROPIC_API_KEY` | claude-3-sonnet |
+
+```bash
+# Use Groq (fastest, free tier available)
+export GROQ_API_KEY=your_key
+bun run generate-training-data.ts --hours 2
+```
+
+## Troubleshooting
+
+### No API Key
+
+```
+Error: No API keys found. Set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY
+```
+
+**Fix**: Set an API key in environment.
+
+### Empty Trajectories
+
+Some agents may produce empty trajectories if:
+- LLM returns invalid actions
+- Simulation errors
+
+**Fix**: These are filtered out during import. Generate more data.
+
+### Slow Generation
+
+Simulation speed depends on:
+- LLM API latency
+- Number of NPCs
+- Hours simulated
+
+**Tip**: Use Groq (faster) or reduce NPCs for testing.
+
+### Duplicate Trajectories
+
+```
+Skipped (existing): 50
+```
+
+This is normal - the importer skips already-imported trajectories by ID.
+
