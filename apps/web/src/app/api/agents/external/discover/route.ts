@@ -95,7 +95,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Rate limit check - use agent's discoveryRateLimit or default to 60/min
-  const agentRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  // Clamp to valid bounds: min 1, max 1000 requests per minute
+  const rawRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const agentRateLimit = Math.min(Math.max(rawRateLimit, 1), 1000);
   const rateLimitConfig = {
     ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
     maxRequests: agentRateLimit,
@@ -256,7 +258,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Rate limit check - use agent's discoveryRateLimit or default to 60/min
-  const agentRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  // Clamp to valid bounds: min 1, max 1000 requests per minute
+  const rawRateLimit = agent.discoveryMetadata?.limits?.rateLimit ?? 60;
+  const agentRateLimit = Math.min(Math.max(rawRateLimit, 1), 1000);
   const rateLimitConfig = {
     ...RATE_LIMIT_CONFIGS.EXTERNAL_AGENT_DISCOVER,
     maxRequests: agentRateLimit,

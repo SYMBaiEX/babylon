@@ -124,8 +124,32 @@ export async function POST(req: NextRequest) {
   }
 
   // Parse and validate request body
-  const body = await req.json();
-  const validated = ExternalAgentRegisterSchema.parse(body);
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        message: 'Invalid JSON body',
+      },
+      { status: 400 }
+    );
+  }
+
+  const validatedResult = ExternalAgentRegisterSchema.safeParse(body);
+  if (!validatedResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Validation error',
+        details: validatedResult.error.issues,
+      },
+      { status: 400 }
+    );
+  }
+  const validated = validatedResult.data;
 
   // Generate API key for this external agent
   const apiKey = generateApiKey();
