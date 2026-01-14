@@ -110,7 +110,11 @@ export const POST = withErrorHandling(
     // Compose state with ACTIONS provider to get actionsWithDescriptions
     // Use strict filtering (3rd param = true) to ONLY run the specified providers
     // This prevents all Babylon A2A providers from running unnecessarily
-    const state = await runtime.composeState(onboardingMessage, ['ACTIONS'], true);
+    const state = await runtime.composeState(
+      onboardingMessage,
+      ['ACTIONS'],
+      true
+    );
 
     // Add custom values to state
     state.values = {
