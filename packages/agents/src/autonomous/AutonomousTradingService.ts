@@ -185,7 +185,7 @@ ${contextString}
 
 Strategy: ${config?.tradingStrategy || 'Balanced risk/reward seeking alpha'}
 
-Suggested Trade Size (25% of balance, min $25, max $500): $${suggestedTradeSizeText}
+Suggested Trade Size (${SUGGESTED_TRADE_PERCENT * 100}% of balance, min $${MIN_SUGGESTED_TRADE_SIZE}, max $${MAX_SUGGESTED_TRADE_SIZE}): $${suggestedTradeSizeText}
 Recommended range: invest roughly 10-50% of your balance per trade.
 
 Task: Decide on ONE trade to make, or hold if nothing looks good.
