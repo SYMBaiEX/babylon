@@ -16,10 +16,10 @@ from src.training.online_env import (
     build_observation_prompt,
     parse_action_from_response,
     extract_thinking,
-    score_response,
     BabylonOnlineEnv,
     BabylonOnlineEnvConfig,
 )
+from src.training.quality_scorer import score_response
 from src.training.scenario_pool import (
     Scenario,
     ScenarioPoolConfig,
@@ -284,7 +284,7 @@ Line 3
 
 
 class TestScoreResponse:
-    """Tests for score_response"""
+    """Tests for score_response - returns QualityScore object"""
 
     def test_well_formatted_response(self):
         scenario = Scenario(id="test", source="synthetic")
@@ -296,42 +296,43 @@ Looking at the risk, a small position of 0.1 BTC seems reasonable.
 
 {"action": "open_perp", "ticker": "BTC", "size": 0.1, "direction": "long"}"""
         
-        score, metrics = score_response(response, scenario, "trader")
+        result = score_response(response, scenario, "trader")
         
-        assert metrics["has_thinking"] is True
-        assert metrics["has_valid_action"] is True
-        assert metrics["action_type"] == "open_perp"
-        assert metrics["format_score"] > 0.5
-        assert metrics["reasoning_score"] > 0.3
+        assert result.has_thinking is True
+        assert result.has_valid_action is True
+        assert result.action_type == "open_perp"
+        assert result.format_score > 0.5
+        assert result.reasoning_score > 0.3
 
     def test_no_thinking_tags(self):
         scenario = Scenario(id="test", source="synthetic")
         response = '{"action": "wait", "reason": "unclear"}'
         
-        score, metrics = score_response(response, scenario, "trader")
+        result = score_response(response, scenario, "trader")
         
-        assert metrics["has_thinking"] is False
-        assert metrics["has_valid_action"] is True
-        assert metrics["format_score"] < 0.5
+        assert result.has_thinking is False
+        assert result.has_valid_action is True
+        assert result.format_score < 0.5
 
     def test_invalid_action(self):
         scenario = Scenario(id="test", source="synthetic")
         response = "<think>Analysis here</think>\nI'll wait for now."
         
-        score, metrics = score_response(response, scenario, "trader")
+        result = score_response(response, scenario, "trader")
         
-        assert metrics["has_thinking"] is True
-        assert metrics["has_valid_action"] is False
-        assert metrics["action_type"] is None
+        assert result.has_thinking is True
+        assert result.has_valid_action is False
+        assert result.action_type is None
 
     def test_very_short_response_penalized(self):
         scenario = Scenario(id="test", source="synthetic")
         response = '{"action": "wait"}'
         
-        score, metrics = score_response(response, scenario, "trader")
+        result = score_response(response, scenario, "trader")
         
-        # Short responses should have lower format scores
-        assert metrics["format_score"] <= 0.3
+        # Short responses should have lower format scores and length penalties
+        assert result.format_score < 0.5
+        assert result.length_penalty < 0
 
     def test_reasoning_with_analysis_terms(self):
         scenario = Scenario(id="test", source="synthetic")
@@ -343,10 +344,10 @@ Given the probability of success and managing risk, I'll proceed.
 
 {"action": "buy", "market": "m1", "amount": 100, "side": "yes"}"""
         
-        score, metrics = score_response(response, scenario, "trader")
+        result = score_response(response, scenario, "trader")
         
         # Should have high reasoning score due to analysis terms
-        assert metrics["reasoning_score"] > 0.4
+        assert result.reasoning_score > 0.4
 
     def test_different_archetypes_affect_score(self):
         scenario = Scenario(id="test", source="synthetic")
@@ -354,12 +355,12 @@ Given the probability of success and managing risk, I'll proceed.
         response = """<think>Quick analysis - buying now.</think>
 {"action": "buy", "market": "m1", "amount": 1000, "side": "yes"}"""
         
-        trader_score, _ = score_response(response, scenario, "trader")
-        degen_score, _ = score_response(response, scenario, "degen")
+        trader_result = score_response(response, scenario, "trader")
+        degen_result = score_response(response, scenario, "degen")
         
         # Both should be scored (actual values depend on reward weights)
-        assert trader_score is not None
-        assert degen_score is not None
+        assert trader_result is not None
+        assert degen_result is not None
 
 
 # =============================================================================
@@ -508,12 +509,12 @@ I'll take a small long position because the risk/reward is favorable.
             '{"action": "wait"}',
         ]
         
-        scores = []
+        results = []
         for resp in responses:
-            score, _ = score_response(resp, scenario, "trader")
-            scores.append(score)
+            result = score_response(resp, scenario, "trader")
+            results.append(result)
         
-        # Higher quality responses should generally score higher
-        # (Though exact ordering depends on reward weights)
-        assert all(isinstance(s, float) for s in scores)
+        # All responses should produce valid QualityScore objects
+        assert all(result is not None for result in results)
+        assert all(0.0 <= result.format_score <= 1.0 for result in results)
 
