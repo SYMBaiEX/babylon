@@ -56,7 +56,8 @@ export async function invalidatePredictionTradesCache(
   marketId: string
 ): Promise<void> {
   if (cacheClient) {
-    const pattern = `market-trades:prediction-trades:${marketId}:*`;
+    // Support versioned keys (e.g. `prediction-trades:v2:<marketId>:...`).
+    const pattern = `market-trades:prediction-trades*:${marketId}:*`;
     const deletedCount = await cacheClient.deleteByPattern(pattern);
 
     if (deletedCount > 0) {
@@ -90,7 +91,8 @@ export async function invalidatePredictionTradesCache(
  */
 export async function invalidatePerpTradesCache(ticker: string): Promise<void> {
   if (cacheClient) {
-    const pattern = `market-trades:perp-trades:${ticker}:*`;
+    const tickerKey = ticker.toLowerCase();
+    const pattern = `market-trades:perp-trades:${tickerKey}:*`;
     const deletedCount = await cacheClient.deleteByPattern(pattern);
 
     if (deletedCount > 0) {

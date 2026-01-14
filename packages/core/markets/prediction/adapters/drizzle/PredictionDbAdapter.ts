@@ -8,7 +8,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import type { InferInsertModel } from 'drizzle-orm';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type {
   PredictionDbPort,
   PredictionMarketRecord,
@@ -248,6 +248,14 @@ export class PredictionDbAdapter implements PredictionDbPort {
           eq(positions.marketId, marketId),
           eq(positions.side, toSideBool(side))
         )
+      )
+      // If duplicates exist, prefer the active/most-recent position.
+      .orderBy(
+        desc(
+          sql<number>`case when ${positions.status} = 'active' then 1 else 0 end`
+        ),
+        desc(positions.updatedAt),
+        desc(positions.createdAt)
       )
       .limit(1);
     return p ? mapPosition(p) : null;

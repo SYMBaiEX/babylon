@@ -14,6 +14,7 @@
 
 import {
   balanceTransactions,
+  type DrizzleClient,
   db,
   desc,
   eq,
@@ -120,7 +121,7 @@ export class WalletService {
    * @private
    */
   private static async applyBalanceChange(
-    tx: Transaction,
+    tx: Transaction | DrizzleClient,
     userId: string,
     delta: number,
     type: string,
@@ -271,7 +272,7 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<void> {
     const delta = -amount;
 
@@ -309,7 +310,7 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<void> {
     if (tx) {
       await WalletService.applyBalanceChange(
