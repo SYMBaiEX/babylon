@@ -18,7 +18,8 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server';
-import { db } from '@babylon/db';
+import { db, getRawDrizzle } from '@babylon/db';
+import { perpMarketSnapshots } from '@babylon/db/schema';
 import type { JsonValue } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { v4 as uuidv4 } from 'uuid';
@@ -236,6 +237,48 @@ type ExecutorOperationResult =
   | JsonValue;
 
 export class BabylonAgentExecutor implements AgentExecutor {
+  /**
+   * Execute operation directly without A2A HTTP protocol
+   * Used for server-side internal calls to bypass Vercel serverless HTTP limitations
+   *
+   * @param operation - The operation name (e.g., 'portfolio.get_balance')
+   * @param params - Operation parameters
+   * @param agentUserId - The agent's user ID for context
+   * @returns Operation result as JsonValue
+   */
+  public static async executeDirectly(
+    operation: string,
+    params: Record<string, JsonValue>,
+    agentUserId: string
+  ): Promise<JsonValue> {
+    const executor = new BabylonAgentExecutor();
+    const command: BabylonCommand = { operation, params };
+    const taskId = `direct-${Date.now()}`;
+
+    // Create minimal RequestContext for the operation
+    const context: RequestContext = {
+      taskId,
+      contextId: agentUserId,
+      userMessage: {
+        kind: 'message',
+        messageId: `direct-msg-${Date.now()}`,
+        role: 'user',
+        parts: [{ kind: 'text', text: `Direct call: ${operation}` }],
+      },
+      task: {
+        kind: 'task',
+        id: taskId,
+        contextId: agentUserId,
+        status: { state: 'working', timestamp: new Date().toISOString() },
+        artifacts: [],
+      },
+    };
+
+    const result = await executor.executeOperation(command, context);
+    // Cast to JsonValue since ExecutorOperationResult is compatible at runtime
+    return result as unknown as JsonValue;
+  }
+
   async execute(
     requestContext: RequestContext,
     eventBus: ExecutionEventBus
@@ -319,6 +362,13 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     switch (command.operation) {
+      // Portfolio operations
+      case 'portfolio.get_balance':
+        return this.getBalance(command.params, context);
+      case 'portfolio.get_positions':
+        return this.getPositions(command.params, context);
+      case 'portfolio.get_user_wallet':
+        return this.getUserWallet(command.params, context);
       case 'social.create_post':
         return this.createPost(command.params, context);
       case 'social.get_feed':
@@ -327,8 +377,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.likePost(command.params, context);
       case 'markets.list_prediction':
         return this.listPredictionMarkets(command.params);
+      case 'markets.list_perpetuals':
+        return this.listPerpetualMarkets(command.params);
       case 'users.search':
         return this.searchUsers(command.params);
+      case 'users.get_profile':
+        return this.getUserProfile(command.params);
       case 'stats.system':
         return this.getSystemStats();
       case 'stats.leaderboard':
@@ -337,6 +391,15 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.getTrendingTags(command.params);
       case 'stats.posts_by_tag':
         return this.getPostsByTag(command.params);
+      case 'stats.get_organizations':
+        return this.getOrganizations(command.params);
+      // Messaging operations
+      case 'messaging.get_chats':
+        return this.getChatsHandler(command.params, context);
+      case 'messaging.get_unread_count':
+        return this.getUnreadCountHandler(command.params, context);
+      case 'messaging.get_notifications':
+        return this.getNotificationsHandler(command.params, context);
       case 'moderation.create_escrow_payment':
         return this.createEscrowPayment(command.params, context);
       case 'moderation.verify_escrow_payment':
@@ -529,6 +592,175 @@ export class BabylonAgentExecutor implements AgentExecutor {
     };
   }
 
+  private async listPerpetualMarkets(params: Record<string, JsonValue>) {
+    const limit = this.parsePositiveInt(params.limit, 20, 50);
+
+    let snapshots: Array<{
+      ticker: string;
+      name: string | null;
+      organizationId: string;
+      currentPrice: number;
+      change24h: number | null;
+      changePercent24h: number | null;
+      volume24h: number | null;
+      openInterest: number | null;
+      fundingRate: unknown;
+    }>;
+
+    try {
+      const drizzle = getRawDrizzle();
+      snapshots = await drizzle
+        .select({
+          ticker: perpMarketSnapshots.ticker,
+          name: perpMarketSnapshots.name,
+          organizationId: perpMarketSnapshots.organizationId,
+          currentPrice: perpMarketSnapshots.currentPrice,
+          change24h: perpMarketSnapshots.change24h,
+          changePercent24h: perpMarketSnapshots.changePercent24h,
+          volume24h: perpMarketSnapshots.volume24h,
+          openInterest: perpMarketSnapshots.openInterest,
+          fundingRate: perpMarketSnapshots.fundingRate,
+        })
+        .from(perpMarketSnapshots)
+        .limit(limit);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message.includes(
+          'getRawDrizzle() is only available in PostgreSQL mode'
+        ) ||
+        message.includes('Database not initialized')
+      ) {
+        logger.debug('Perpetual markets unavailable, returning empty', {
+          message,
+        });
+        return { perpetuals: [] };
+      }
+      throw error;
+    }
+
+    return {
+      perpetuals: snapshots.map((s) => ({
+        name: s.name || s.ticker,
+        type: 'perpetual',
+        ticker: s.ticker,
+        currentPrice: Number(s.currentPrice) || 0,
+        priceChange24h: Number(s.change24h) || 0,
+        volume24h: Number(s.volume24h) || 0,
+        openInterest: Number(s.openInterest) || 0,
+        fundingRate:
+          typeof s.fundingRate === 'object' && s.fundingRate !== null
+            ? (s.fundingRate as { rate?: number }).rate || 0
+            : 0,
+      })),
+    };
+  }
+
+  private async getUserProfile(params: Record<string, JsonValue>) {
+    const userId =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
+    if (!userId) {
+      throw new Error('userId is required');
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        reputationPoints: true,
+        virtualBalance: true,
+        walletAddress: true,
+        isAgent: true,
+      },
+    });
+
+    if (!user) {
+      logger.debug('User not found for getUserProfile, returning defaults', {
+        userId,
+      });
+      return {
+        id: userId,
+        username: null,
+        displayName: null,
+        bio: null,
+        profileImageUrl: null,
+        reputationPoints: 0,
+        virtualBalance: 0,
+        walletAddress: null,
+        isAgent: false,
+      };
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      bio: user.bio,
+      profileImageUrl: user.profileImageUrl,
+      reputationPoints: user.reputationPoints || 0,
+      virtualBalance: Number(user.virtualBalance) || 0,
+      walletAddress: user.walletAddress,
+      isAgent: user.isAgent,
+    };
+  }
+
+  private async getOrganizations(params: Record<string, JsonValue>) {
+    const limit = this.parsePositiveInt(params.limit, 20, 100);
+    // Get organization states
+    const orgStates = await db.organizationState.findMany({
+      take: limit,
+      orderBy: { currentPrice: 'desc' },
+      select: {
+        id: true,
+        currentPrice: true,
+        basePrice: true,
+      },
+    });
+    return {
+      organizations: orgStates.map((o) => ({
+        id: o.id,
+        name: o.id,
+        ticker: o.id,
+        currentPrice: Number(o.currentPrice) || 0,
+        initialPrice: Number(o.basePrice) || 0,
+        priceChangePercentage:
+          Number(o.basePrice) > 0
+            ? ((Number(o.currentPrice) - Number(o.basePrice)) /
+                Number(o.basePrice)) *
+              100
+            : 0,
+      })),
+    };
+  }
+
+  private async getChatsHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return empty chats - actual chat data requires more complex queries
+    return { chats: [] };
+  }
+
+  private async getUnreadCountHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return 0 unread count as default
+    return { unreadCount: 0 };
+  }
+
+  private async getNotificationsHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return empty notifications as default
+    return { notifications: [] };
+  }
+
   private async searchUsers(params: Record<string, JsonValue>) {
     const query = typeof params.query === 'string' ? params.query.trim() : '';
     if (!query) {
@@ -685,6 +917,195 @@ export class BabylonAgentExecutor implements AgentExecutor {
       return fallback;
     }
     return Math.min(parsed, max);
+  }
+
+  // Portfolio operations
+  private async getBalance(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    // Try to get userId from params, then from x-agent-id header (via contextId), then taskId
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        virtualBalance: true,
+        reputationPoints: true,
+      },
+    });
+
+    // Return default values if user not found (graceful degradation for onboarding)
+    if (!user) {
+      logger.debug('User not found for getBalance, returning defaults', {
+        userId,
+      });
+      return {
+        balance: 0,
+        reputationPoints: 0,
+      };
+    }
+
+    return {
+      balance: Number(user.virtualBalance) || 0,
+      reputationPoints: user.reputationPoints || 0,
+    };
+  }
+
+  private async getPositions(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    // Check if user exists first (for graceful handling)
+    const userExists = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    // Return empty positions if user not found (graceful degradation for onboarding)
+    if (!userExists) {
+      logger.debug('User not found for getPositions, returning empty', {
+        userId,
+      });
+      return {
+        marketPositions: [],
+        perpPositions: [],
+        totalPnL: 0,
+      };
+    }
+
+    // Get prediction market positions
+    const marketPositionsRaw = await db.position.findMany({
+      where: {
+        userId,
+        shares: { gt: '0' },
+        status: 'active',
+      },
+    });
+
+    const marketIds = [
+      ...new Set(marketPositionsRaw.map((p) => p.marketId).filter(Boolean)),
+    ];
+    const markets =
+      marketIds.length > 0
+        ? await db.market.findMany({
+            where: { id: { in: marketIds } },
+            select: {
+              id: true,
+              question: true,
+              resolved: true,
+              yesShares: true,
+              noShares: true,
+            },
+          })
+        : [];
+    const marketMap = new Map(markets.map((m) => [m.id, m]));
+
+    const perpPositionsRaw = await db.perpPosition.findMany({
+      where: {
+        userId,
+        closedAt: null,
+      },
+    });
+
+    const orgIds = [
+      ...new Set(perpPositionsRaw.map((p) => p.organizationId).filter(Boolean)),
+    ];
+    const orgStates =
+      orgIds.length > 0
+        ? await db.organizationState.findMany({
+            where: { id: { in: orgIds } },
+            select: { id: true, currentPrice: true },
+          })
+        : [];
+    const orgStateMap = new Map(orgStates.map((o) => [o.id, o]));
+
+    const marketPositions = marketPositionsRaw.map((p) => {
+      const market = marketMap.get(p.marketId);
+      const side: 'YES' | 'NO' = p.outcome === true ? 'YES' : 'NO';
+
+      // CPMM price: yesPrice = noShares / total, noPrice = yesShares / total
+      const yesShares = Number(market?.yesShares ?? 0);
+      const noShares = Number(market?.noShares ?? 0);
+      const totalShares = yesShares + noShares;
+      const currentPrice =
+        totalShares > 0
+          ? side === 'YES'
+            ? noShares / totalShares
+            : yesShares / totalShares
+          : 0.5;
+
+      const avgPrice = Number(p.avgPrice);
+      const shares = Number(p.shares);
+      const unrealizedPnL = (currentPrice - avgPrice) * shares;
+
+      return {
+        id: p.id,
+        marketId: String(p.marketId),
+        question: market?.question || 'Unknown',
+        side,
+        shares,
+        avgPrice,
+        currentPrice,
+        unrealizedPnL,
+      };
+    });
+
+    const perpPositions = perpPositionsRaw.map((p) => {
+      const orgState = orgStateMap.get(p.organizationId);
+      const currentPrice = Number(orgState?.currentPrice ?? p.entryPrice);
+      return {
+        id: p.id,
+        ticker: p.ticker,
+        side: p.side as 'long' | 'short',
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        currentPrice,
+        leverage: Number(p.leverage),
+        unrealizedPnL: Number(p.unrealizedPnL) || 0,
+      };
+    });
+
+    const marketPnL = marketPositions.reduce(
+      (sum, p) => sum + p.unrealizedPnL,
+      0
+    );
+    const perpPnL = perpPositions.reduce((sum, p) => sum + p.unrealizedPnL, 0);
+
+    return {
+      marketPositions,
+      perpPositions,
+      totalPnL: marketPnL + perpPnL,
+    };
+  }
+
+  private async getUserWallet(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    const [balance, positions] = await Promise.all([
+      this.getBalance({ userId }, context),
+      this.getPositions({ userId }, context),
+    ]);
+
+    return {
+      balance: balance as JsonValue,
+      positions: positions as JsonValue,
+    };
   }
 
   async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {

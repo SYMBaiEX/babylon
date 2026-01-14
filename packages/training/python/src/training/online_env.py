@@ -499,7 +499,7 @@ class BabylonOnlineEnv(BaseEnv):
                 base_url="http://localhost:9001/v1",
                 api_key="x",
                 num_requests_for_eval=64,
-                server_type="vllm",  # vLLM required for tokens_and_logprobs
+                server_type="openai",  # vLLM provides OpenAI-compatible API
             ),
         ]
         

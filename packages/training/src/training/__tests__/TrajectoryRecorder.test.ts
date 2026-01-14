@@ -19,6 +19,7 @@ mock.module('@babylon/db', () => ({
   trajectories: {},
   llmCallLogs: {},
   isSimulationMode: () => true, // Always use simulation mode for tests
+  getJsonStoragePath: () => null,
 }));
 
 // Import the REAL class after mocking db

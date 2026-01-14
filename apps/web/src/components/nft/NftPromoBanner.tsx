@@ -21,10 +21,10 @@ export function NftPromoBanner() {
   };
 
   return (
-    <div className="relative z-[60] flex items-center justify-between gap-4 border-[#0066FF]/30 border-b bg-[#0066FF]/10 px-4 py-2">
-      <p className="min-w-0 text-foreground text-sm">
+    <div className="fixed top-14 right-0 left-0 z-[60] flex items-center justify-between gap-4 border-[#0066FF]/30 border-b bg-[#0066FF]/90 px-4 py-2 backdrop-blur-sm md:top-0">
+      <p className="min-w-0 text-sm text-white">
         <span className="font-semibold">ProtoMonkeys</span>
-        <span className="hidden text-muted-foreground sm:inline">
+        <span className="hidden text-white/80 sm:inline">
           {' '}
           — Exclusive NFTs for top 100 players on leaderboard
         </span>
@@ -32,13 +32,13 @@ export function NftPromoBanner() {
       <div className="flex shrink-0 items-center gap-2">
         <Link
           href="/nft"
-          className="rounded-full bg-[#0066FF] px-4 py-1.5 font-medium text-sm text-white transition-all hover:bg-[#2952d9]"
+          className="rounded-full bg-white px-4 py-1.5 font-medium text-[#0066FF] text-sm transition-all hover:bg-white/90"
         >
           View
         </Link>
         <button
           onClick={handleDismiss}
-          className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+          className="rounded-full p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Dismiss"
         >
           <X className="h-4 w-4" />

@@ -93,38 +93,51 @@ export class PriceUpdateService {
         continue;
       }
 
+      const orgId = update.organizationId;
+
+      // Prefer OrganizationState as the source of truth for dynamic pricing.
+      // The `Organization` table is not guaranteed to be seeded in all envs.
+      const [state] = await db
+        .select({
+          id: organizationState.id,
+          currentPrice: organizationState.currentPrice,
+          basePrice: organizationState.basePrice,
+        })
+        .from(organizationState)
+        .where(eq(organizationState.id, orgId))
+        .limit(1);
+
+      // Best-effort: keep `Organization.currentPrice` in sync if the row exists.
       const [organization] = await db
         .select({
           id: organizations.id,
           currentPrice: organizations.currentPrice,
         })
         .from(organizations)
-        .where(eq(organizations.id, update.organizationId))
+        .where(eq(organizations.id, orgId))
         .limit(1);
 
-      if (!organization) {
-        logger.warn(
-          'Organization not found for price update',
-          { organizationId: update.organizationId },
-          'PriceUpdateService'
-        );
-        continue;
-      }
-
-      const oldPrice = Number(organization.currentPrice ?? update.newPrice);
+      const oldPriceCandidate =
+        organization?.currentPrice ??
+        state?.currentPrice ??
+        state?.basePrice ??
+        update.newPrice;
+      const oldPrice = Number(oldPriceCandidate ?? update.newPrice);
       const change = update.newPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
-      await db
-        .update(organizations)
-        .set({ currentPrice: update.newPrice, updatedAt: now })
-        .where(eq(organizations.id, organization.id));
+      if (organization) {
+        await db
+          .update(organizations)
+          .set({ currentPrice: update.newPrice, updatedAt: now })
+          .where(eq(organizations.id, organization.id));
+      }
 
       // Keep runtime price state in sync (used across engine + widgets)
       await db
         .insert(organizationState)
         .values({
-          id: organization.id,
+          id: orgId,
           currentPrice: update.newPrice,
           updatedAt: now,
         })
@@ -134,16 +147,16 @@ export class PriceUpdateService {
         });
 
       await getDbInstance().recordPriceUpdate(
-        organization.id,
+        orgId,
         update.newPrice,
         change,
         changePercent
       );
 
-      priceMap.set(organization.id, update.newPrice);
+      priceMap.set(orgId, update.newPrice);
 
       appliedUpdates.push({
-        organizationId: organization.id,
+        organizationId: orgId,
         oldPrice,
         newPrice: update.newPrice,
         change,

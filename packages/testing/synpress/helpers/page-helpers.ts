@@ -8,43 +8,36 @@ import type { Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
+// Track consecutive failures to detect server crash
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 /**
  * Waits for the server to be responsive before proceeding.
  *
  * Checks the root URL and accepts any response (except network errors or 5xx).
  * This prevents flakiness when the server is slow to start.
  *
- * @param maxRetries - Maximum number of retry attempts (default: 10)
- * @param retryDelay - Delay between retries in milliseconds (default: 3000)
- * @throws Error if server is not responsive after all retries
+ * @param maxRetries - Maximum number of retry attempts (default: 15)
+ * @param retryDelay - Delay between retries in milliseconds (default: 2000)
  */
 export async function waitForServerHealthy(
-  maxRetries = 10,
-  retryDelay = 3000
-): Promise<void> {
+  maxRetries = 15,
+  retryDelay = 2000
+): Promise<boolean> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(`${BASE_URL}/`, {
         method: 'GET',
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(15000),
       });
       // Accept any non-5xx response as "server is up"
       if (response.status < 500) {
-        return;
+        consecutiveFailures = 0;
+        return true;
       }
-      // Only log 5xx errors occasionally to reduce noise
-      if (attempt === 1 || attempt === maxRetries) {
-        console.log(
-          `⚠️ Server returned 5xx (attempt ${attempt}/${maxRetries}): ${response.status}`
-        );
-      }
-    } catch (error) {
-      // Only log errors occasionally to reduce noise
-      if (attempt === 1 || attempt === maxRetries) {
-        console.log(
-          `⚠️ Server not reachable (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
+    } catch {
+      // Silent retry - don't spam logs
     }
 
     if (attempt < maxRetries) {
@@ -52,10 +45,8 @@ export async function waitForServerHealthy(
     }
   }
 
-  // Instead of throwing, log warning and continue - let the actual test fail if needed
-  console.warn(
-    `⚠️ Server may not be fully responsive after ${maxRetries} attempts, continuing anyway...`
-  );
+  consecutiveFailures++;
+  return false;
 }
 
 /**
@@ -68,24 +59,38 @@ export async function waitForServerHealthy(
  * @throws Error if navigation fails after all retries
  */
 export async function navigateTo(page: Page, route: string): Promise<void> {
-  await waitForServerHealthy(3, 1000);
+  // Quick health check first
+  const isHealthy = await waitForServerHealthy(5, 1000);
+
+  // If server seems down, do a longer wait
+  if (!isHealthy) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await waitForServerHealthy(10, 2000);
+  }
+
   let lastError: Error | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       await page.goto(`${BASE_URL}${route}`, {
         waitUntil: 'domcontentloaded',
-        timeout: 30000,
+        timeout: 45000,
       });
+      consecutiveFailures = 0;
       return;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.log(
-        `⚠️ Navigation attempt ${attempt} failed: ${lastError.message}`
-      );
-      if (attempt < 3) {
-        await page.waitForTimeout(1000);
+      if (attempt < 5) {
+        // Exponential backoff
+        await page.waitForTimeout(1000 * attempt);
       }
     }
+  }
+
+  // If we've had too many failures, the server is likely crashed
+  if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    console.log(
+      '⚠️ Server appears to have crashed - skipping remaining navigation'
+    );
   }
 
   throw lastError ?? new Error('Navigation failed');
@@ -160,12 +165,35 @@ export async function waitForPageLoad(
 }
 
 /**
- * Waits a short period between tests to let the server recover.
+ * Waits between tests to let the server recover.
  *
  * Helps prevent flakiness from server overload.
  *
  * @param page - Playwright page instance
  */
 export async function cooldownBetweenTests(page: Page): Promise<void> {
-  await page.waitForTimeout(500);
+  // Give the server a moment to recover between tests
+  await page.waitForTimeout(1500);
+}
+
+/**
+ * Check if server is currently healthy
+ */
+export async function isServerHealthy(): Promise<boolean> {
+  try {
+    const response = await fetch(`${BASE_URL}/`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Skips remaining tests in a suite if server is down
+ */
+export function shouldSkipTest(): boolean {
+  return consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
 }

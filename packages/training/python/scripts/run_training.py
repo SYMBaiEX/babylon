@@ -176,6 +176,7 @@ class TrainingOrchestrator:
         model_name: str = "Qwen/Qwen2.5-3B-Instruct",
         training_steps: int = 100,
         batch_size: int = 4,
+        group_size: Optional[int] = None,
         learning_rate: float = 1e-5,
         min_learning_rate: float = 1e-7,
         lr_scheduler: str = "cosine",
@@ -193,6 +194,11 @@ class TrainingOrchestrator:
         wandb_run_name: Optional[str] = None,
         skip_services: bool = False,
         log_dir: str = "./logs",
+        # Offline environment tuning (Phase 1)
+        lookback_hours: Optional[int] = None,
+        min_agents_per_window: Optional[int] = None,
+        min_actions_per_trajectory: Optional[int] = None,
+        max_steps_per_trajectory: Optional[int] = None,
         # Phase 3: Online training parameters
         mode: str = "offline",
         bridge_url: str = "http://localhost:3001",
@@ -206,6 +212,7 @@ class TrainingOrchestrator:
         self.model_name = model_name
         self.training_steps = training_steps
         self.batch_size = batch_size
+        self.group_size = group_size
         self.learning_rate = learning_rate
         self.min_learning_rate = min_learning_rate
         self.lr_scheduler = lr_scheduler
@@ -223,6 +230,11 @@ class TrainingOrchestrator:
         self.wandb_run_name = wandb_run_name
         self.skip_services = skip_services
         self.log_dir = Path(log_dir)
+        # Offline environment tuning
+        self.lookback_hours = lookback_hours
+        self.min_agents_per_window = min_agents_per_window
+        self.min_actions_per_trajectory = min_actions_per_trajectory
+        self.max_steps_per_trajectory = max_steps_per_trajectory
         # Phase 3: Online training
         self.mode = mode
         self.bridge_url = bridge_url
@@ -356,6 +368,30 @@ class TrainingOrchestrator:
             "--openai.model_name", self.model_name,
             "--openai.base_url", f"http://localhost:{self.vllm_port}/v1",
         ]
+
+        if self.group_size is not None:
+            env_cmd.extend(["--env.group_size", str(self.group_size)])
+
+        if self.lookback_hours is not None:
+            env_cmd.extend(["--env.lookback_hours", str(self.lookback_hours)])
+        if self.min_agents_per_window is not None:
+            env_cmd.extend(
+                ["--env.min_agents_per_window", str(self.min_agents_per_window)]
+            )
+        if self.min_actions_per_trajectory is not None:
+            env_cmd.extend(
+                [
+                    "--env.min_actions_per_trajectory",
+                    str(self.min_actions_per_trajectory),
+                ]
+            )
+        if self.max_steps_per_trajectory is not None:
+            env_cmd.extend(
+                [
+                    "--env.max_steps_per_trajectory",
+                    str(self.max_steps_per_trajectory),
+                ]
+            )
         
         if not self.use_wandb:
             env_cmd.extend(["--env.use_wandb", "false"])
@@ -397,6 +433,9 @@ class TrainingOrchestrator:
             "--env.use_simulation_bridge", "true",
             "--env.simulation_bridge_url", self.bridge_url,
         ]
+
+        if self.group_size is not None:
+            env_cmd.extend(["--env.group_size", str(self.group_size)])
         
         if not self.use_wandb:
             env_cmd.extend(["--env.use_wandb", "false"])
@@ -444,6 +483,9 @@ class TrainingOrchestrator:
             "--env.simulation_bridge_url", self.bridge_url,
             "--env.online_ratio", str(self.hybrid_online_ratio),
         ]
+
+        if self.group_size is not None:
+            env_cmd.extend(["--env.group_size", str(self.group_size)])
         
         if not self.use_wandb:
             env_cmd.extend(["--env.use_wandb", "false"])
@@ -655,6 +697,12 @@ def main():
         default=4,
         help="Batch size"
     )
+    parser.add_argument(
+        "--group-size",
+        type=int,
+        default=None,
+        help="GRPO group size (completions per prompt)"
+    )
     
     # Learning rate settings
     parser.add_argument(
@@ -763,6 +811,34 @@ def main():
         action="store_true",
         help="Skip environment validation"
     )
+
+    # Offline environment tuning (affects BabylonRLAIFEnv only)
+    parser.add_argument(
+        "--lookback-hours",
+        type=int,
+        default=None,
+        help="Hours to look back for trajectories"
+    )
+    parser.add_argument(
+        "--min-agents-per-window",
+        type=int,
+        default=None,
+        help="Minimum agents required per window"
+    )
+    parser.add_argument(
+        "--min-actions",
+        "--min-actions-per-trajectory",
+        dest="min_actions_per_trajectory",
+        type=int,
+        default=None,
+        help="Minimum actions required per trajectory"
+    )
+    parser.add_argument(
+        "--max-steps-per-trajectory",
+        type=int,
+        default=None,
+        help="Maximum steps to include from each trajectory"
+    )
     
     # Training Mode (Phase 3)
     parser.add_argument(
@@ -811,6 +887,8 @@ def main():
         args.batch_size = profile["batch_size"]
     if args.vllm_gpu_memory == 0.45 and "vllm_gpu_memory" in profile:  # 0.45 is the default
         args.vllm_gpu_memory = profile["vllm_gpu_memory"]
+    if args.group_size is None and "group_size" in profile:
+        args.group_size = profile["group_size"]
     
     # Phase 4: Read multi-GPU settings from profile
     args.tensor_parallel_size = profile.get("tensor_parallel_size", 1)
@@ -821,8 +899,9 @@ def main():
     # Log effective settings
     if args.profile:
         tp_info = f", tp={args.tensor_parallel_size}" if args.tensor_parallel_size > 1 else ""
+        group_info = f", group={args.group_size}" if args.group_size is not None else ""
         logger.info(f"Using profile '{args.profile}': model={args.model}, "
-                    f"vllm_mem={args.vllm_gpu_memory:.0%}, batch={args.batch_size}{tp_info}")
+                    f"vllm_mem={args.vllm_gpu_memory:.0%}, batch={args.batch_size}{group_info}{tp_info}")
     
     # Validate environment
     if not args.skip_validation:
@@ -838,6 +917,7 @@ def main():
         model_name=args.model,
         training_steps=args.steps,
         batch_size=args.batch_size,
+        group_size=args.group_size,
         learning_rate=args.lr,
         min_learning_rate=args.min_lr,
         lr_scheduler=args.lr_scheduler,
@@ -855,6 +935,11 @@ def main():
         wandb_run_name=args.wandb_run_name,
         skip_services=args.skip_services,
         log_dir=args.log_dir,
+        # Offline environment tuning
+        lookback_hours=args.lookback_hours,
+        min_agents_per_window=args.min_agents_per_window,
+        min_actions_per_trajectory=args.min_actions_per_trajectory,
+        max_steps_per_trajectory=args.max_steps_per_trajectory,
         # Phase 3: Online training
         mode=args.mode,
         bridge_url=args.bridge_url,

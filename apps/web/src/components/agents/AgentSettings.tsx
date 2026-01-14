@@ -1,8 +1,8 @@
 'use client';
 
-import { Save, Trash2 } from 'lucide-react';
+import { Camera, Save, Trash2, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,6 +70,11 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
   const { getAccessToken } = useAuth();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [profileImage, setProfileImage] = useState<{
+    file: File | null;
+    preview: string | null;
+  }>({ file: null, preview: null });
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: agent.name,
     description: agent.description || '',
@@ -105,6 +110,39 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
     setFormData((prev) => ({ ...prev, ...newConfig }));
   };
 
+  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfileImage({
+        file,
+        preview: reader.result as string,
+      });
+      // Clear URL input when file is selected for consistency
+      setFormData((prev) => ({ ...prev, profileImageUrl: '' }));
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read image file');
+      setProfileImage({ file: null, preview: null });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const token = await getAccessToken();
@@ -114,31 +152,74 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
       return;
     }
 
-    const res = await fetch(`/api/agents/${agent.id}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...formData,
-        bio: formData.personality.trim() ? [formData.personality.trim()] : [],
-        system: formData.tradingStrategy.trim()
-          ? `${formData.system}\n\nTrading Strategy: ${formData.tradingStrategy}`
-          : formData.system,
-      }),
-    });
+    try {
+      const updatedData = { ...formData };
 
-    if (!res.ok) {
-      const error = (await res.json()) as { error?: string };
-      toast.error(error.error || 'Failed to update agent');
+      // Upload profile image if changed
+      if (profileImage.file) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', profileImage.file);
+        uploadFormData.append('type', 'profile');
+
+        const uploadResponse = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: uploadFormData,
+        });
+
+        if (!uploadResponse.ok) {
+          toast.error('Failed to upload profile image');
+          setSaving(false);
+          return;
+        }
+
+        const uploadData = await uploadResponse.json();
+        if (
+          !uploadData ||
+          typeof uploadData.url !== 'string' ||
+          uploadData.url.trim() === ''
+        ) {
+          toast.error('Invalid upload response');
+          setSaving(false);
+          return;
+        }
+        updatedData.profileImageUrl = uploadData.url;
+      }
+
+      const res = await fetch(`/api/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...updatedData,
+          bio: updatedData.personality.trim()
+            ? [updatedData.personality.trim()]
+            : [],
+          system: updatedData.tradingStrategy.trim()
+            ? `${updatedData.system}\n\nTrading Strategy: ${updatedData.tradingStrategy}`
+            : updatedData.system,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = (await res.json()) as { error?: string };
+        toast.error(error.error || 'Failed to update agent');
+        setSaving(false);
+        return;
+      }
+
+      toast.success('Agent updated successfully');
+      setProfileImage({ file: null, preview: null }); // Reset image state
+      onUpdate();
       setSaving(false);
-      return;
+    } catch (_error) {
+      toast.error('An error occurred while saving');
+      setSaving(false);
     }
-
-    toast.success('Agent updated successfully');
-    onUpdate();
-    setSaving(false);
   };
 
   const handleDelete = async () => {
@@ -218,16 +299,68 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
           <div>
             <label className="mb-2 block font-medium text-sm">
-              Profile Image URL
+              Profile Image
             </label>
-            <Input
-              value={formData.profileImageUrl}
-              onChange={(e) =>
-                setFormData({ ...formData, profileImageUrl: e.target.value })
-              }
-              placeholder="https://..."
-              className="w-full"
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              {/* Image Preview */}
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                {profileImage.preview || formData.profileImageUrl ? (
+                  <img
+                    src={profileImage.preview || formData.profileImageUrl}
+                    alt="Profile preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                    <Camera className="h-8 w-8" />
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Controls */}
+              <div className="flex flex-1 flex-col gap-2">
+                <input
+                  ref={profileImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageSelect}
+                  className="hidden"
+                  disabled={saving}
+                />
+                <button
+                  type="button"
+                  onClick={() => profileImageInputRef.current?.click()}
+                  disabled={saving}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 font-medium text-sm transition-colors hover:bg-muted/50 disabled:opacity-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  {profileImage.preview || formData.profileImageUrl
+                    ? 'Change Image'
+                    : 'Upload Image'}
+                </button>
+
+                {/* URL Input as fallback */}
+                <Input
+                  value={formData.profileImageUrl}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData,
+                      profileImageUrl: e.target.value,
+                    });
+                    // Clear file upload when URL is entered for consistency
+                    if (e.target.value.trim()) {
+                      setProfileImage({ file: null, preview: null });
+                    }
+                  }}
+                  placeholder="Or paste image URL..."
+                  className="w-full text-sm"
+                  disabled={saving}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Upload an image or provide a URL. Max 5MB.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

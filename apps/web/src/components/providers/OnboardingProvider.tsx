@@ -145,8 +145,8 @@ export function OnboardingProvider({
       return;
     }
 
-    // First time: wait 1-1.5 seconds for app to load (shorter delay for blocking UI)
-    const delay = Math.random() * 500 + 1000; // 1-1.5 seconds
+    // First time: wait 1 second for app to load (shorter delay for blocking UI)
+    const delay = 1000; // Fixed 1 second delay for consistent UX
     const timer = setTimeout(() => {
       setIsReadyToShow(true);
       setHasInitialized(true);
@@ -235,62 +235,68 @@ export function OnboardingProvider({
         'OnboardingProvider'
       );
 
-      const response = await apiFetch('/api/users/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          referralCode: referralCode ?? undefined,
-          identityToken: identityToken ?? undefined,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        const message =
-          data?.error ||
-          `Failed to complete signup (status ${response.status})`;
-        setIsSubmitting(false);
-        throw new Error(message);
-      }
-
-      if (data.user) {
-        setUser({
-          id: data.user.id,
-          walletAddress:
-            data.user.walletAddress ?? smartWalletAddress ?? undefined,
-          displayName: data.user.displayName ?? payload.displayName,
-          email: user?.email,
-          username: data.user.username ?? payload.username,
-          bio: data.user.bio ?? payload.bio,
-          profileImageUrl:
-            data.user.profileImageUrl ?? payload.profileImageUrl ?? undefined,
-          coverImageUrl:
-            data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
-          profileComplete: data.user.profileComplete ?? true,
-          reputationPoints:
-            data.user.reputationPoints ?? user?.reputationPoints,
-          hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
-          hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
-          farcasterUsername:
-            data.user.farcasterUsername ?? user?.farcasterUsername,
-          twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
-          nftTokenId: data.user.nftTokenId ?? undefined,
-          createdAt: data.user.createdAt ?? user?.createdAt,
-          onChainRegistered:
-            data.user.onChainRegistered ?? user?.onChainRegistered,
+      try {
+        const response = await apiFetch('/api/users/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            referralCode: referralCode ?? undefined,
+            identityToken: identityToken ?? undefined,
+          }),
         });
-      }
-      setNeedsOnboarding(false);
-      setNeedsOnchain(true);
 
-      clearReferralCode();
-      setSubmittedProfile(payload);
-      setOnchainReferralCode(referralCode ?? null);
-      setOnchainTxHash(null);
-      setPendingOnchainSubmission({ ...payload });
-      setStage('ONCHAIN');
-      setIsSubmitting(false);
+        const data = await response.json();
+        if (!response.ok) {
+          const message =
+            data?.error ||
+            `Failed to complete signup (status ${response.status})`;
+          setIsSubmitting(false);
+          throw new Error(message);
+        }
+
+        if (data.user) {
+          setUser({
+            id: data.user.id,
+            walletAddress:
+              data.user.walletAddress ?? smartWalletAddress ?? undefined,
+            displayName: data.user.displayName ?? payload.displayName,
+            email: user?.email,
+            username: data.user.username ?? payload.username,
+            bio: data.user.bio ?? payload.bio,
+            profileImageUrl:
+              data.user.profileImageUrl ?? payload.profileImageUrl ?? undefined,
+            coverImageUrl:
+              data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
+            profileComplete: data.user.profileComplete ?? true,
+            reputationPoints:
+              data.user.reputationPoints ?? user?.reputationPoints,
+            hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
+            hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
+            farcasterUsername:
+              data.user.farcasterUsername ?? user?.farcasterUsername,
+            twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
+            nftTokenId: data.user.nftTokenId ?? undefined,
+            createdAt: data.user.createdAt ?? user?.createdAt,
+            onChainRegistered:
+              data.user.onChainRegistered ?? user?.onChainRegistered,
+          });
+        }
+        setNeedsOnboarding(false);
+        setNeedsOnchain(true);
+
+        clearReferralCode();
+        setSubmittedProfile(payload);
+        setOnchainReferralCode(referralCode ?? null);
+        setOnchainTxHash(null);
+        setPendingOnchainSubmission({ ...payload });
+        setStage('ONCHAIN');
+        setIsSubmitting(false);
+      } catch (err) {
+        setIsSubmitting(false);
+        // Re-throw to let caller handle the error
+        throw err;
+      }
     },
     [
       user,

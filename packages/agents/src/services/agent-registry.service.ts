@@ -23,6 +23,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNull,
   or,
   type User,
   users,
@@ -281,6 +282,7 @@ export class AgentRegistryService {
       capabilities,
       authentication,
       agentCard,
+      registeredByUserId,
     } = params;
 
     // Check if already registered
@@ -356,6 +358,7 @@ export class AgentRegistryService {
       agentCardJson: agentCard
         ? (JSON.parse(JSON.stringify(agentCard)) as JsonValue)
         : null,
+      registeredByUserId,
       updatedAt: new Date(),
     });
 
@@ -702,14 +705,32 @@ export class AgentRegistryService {
     const agents = await db
       .select()
       .from(externalAgentConnections)
-      .where(eq(externalAgentConnections.authType, 'apiKey'));
+      .where(
+        and(
+          eq(externalAgentConnections.authType, 'apiKey'),
+          isNull(externalAgentConnections.revokedAt)
+        )
+      );
 
     for (const agent of agents) {
       if (!agent.authCredentials) continue;
 
       // Decrypt and verify credentials - continue to next agent if this one fails
-      const decrypted = this.decryptCredentials(agent.authCredentials);
-      const credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
+      let credentials: { apiKeyHash?: string } | undefined;
+      try {
+        const decrypted = this.decryptCredentials(agent.authCredentials);
+        credentials = JSON.parse(decrypted) as { apiKeyHash?: string };
+      } catch (error) {
+        logger.warn(
+          `Failed to parse auth credentials for external agent ${agent.externalId}`,
+          {
+            externalId: agent.externalId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'AgentRegistryService'
+        );
+        continue;
+      }
 
       if (
         credentials?.apiKeyHash &&
@@ -729,6 +750,79 @@ export class AgentRegistryService {
     }
 
     return null;
+  }
+
+  /**
+   * Revoke an external agent's API key
+   *
+   * @description Sets the revokedAt timestamp and revokedBy user ID on an external agent connection.
+   * After revocation, the agent's API key will no longer be valid for authentication.
+   *
+   * @param {string} externalId - External agent ID
+   * @param {string} revokedBy - User ID of the person revoking the agent
+   * @returns {Promise<void>}
+   * @throws {Error} If agent not found or already revoked
+   */
+  async revokeExternalAgent(
+    externalId: string,
+    revokedBy: string
+  ): Promise<void> {
+    const now = new Date();
+    const [updated] = await db
+      .update(externalAgentConnections)
+      .set({
+        revokedAt: now,
+        revokedBy,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(externalAgentConnections.externalId, externalId),
+          isNull(externalAgentConnections.revokedAt)
+        )
+      )
+      .returning({ externalId: externalAgentConnections.externalId });
+
+    if (!updated) {
+      const [agent] = await db
+        .select({ revokedAt: externalAgentConnections.revokedAt })
+        .from(externalAgentConnections)
+        .where(eq(externalAgentConnections.externalId, externalId))
+        .limit(1);
+
+      if (!agent) {
+        throw new Error(`External agent not found: ${externalId}`);
+      }
+
+      throw new Error(`External agent already revoked: ${externalId}`);
+    }
+
+    // Log the revocation event
+    logger.info(
+      `External agent ${externalId} revoked by ${revokedBy}`,
+      { externalId, revokedBy },
+      'AgentRegistryService'
+    );
+  }
+
+  /**
+   * Get external agent connection by externalId
+   *
+   * @description Retrieves the external agent connection record including revocation status.
+   *
+   * @param {string} externalId - External agent ID
+   * @returns {Promise<ExternalAgentConnection | null>} External agent connection or null
+   */
+  async getExternalAgentConnection(
+    externalId: string
+  ): Promise<ExternalAgentConnection | null> {
+    const [agent] = await db
+      .select()
+      .from(externalAgentConnections)
+      .where(eq(externalAgentConnections.externalId, externalId))
+      .limit(1);
+
+    return agent ?? null;
   }
 
   /**

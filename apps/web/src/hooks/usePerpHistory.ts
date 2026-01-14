@@ -6,6 +6,7 @@ import {
   type PerpTradeSSE,
   usePerpMarketStream,
 } from '@/hooks/usePerpMarketStream';
+import type { MarketTimeRange } from '@/types/markets';
 
 /**
  * Represents a single point in perpetual market price history.
@@ -37,6 +38,8 @@ interface SeedSnapshot {
 interface UsePerpHistoryOptions {
   /** Maximum number of history points to keep (default: 200) */
   limit?: number;
+  /** Optional server-side time range filter/downsampling */
+  range?: MarketTimeRange;
   /** Seed data to use if API fails or returns no data */
   seed?: SeedSnapshot;
 }
@@ -73,6 +76,7 @@ export function usePerpHistory(
   options?: UsePerpHistoryOptions
 ) {
   const limit = options?.limit ?? 200;
+  const range = options?.range;
   const seedRef = useRef<SeedSnapshot | undefined>(options?.seed);
   const [history, setHistory] = useState<PerpHistoryPoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -262,8 +266,12 @@ export function usePerpHistory(
     setError(null);
 
     try {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (range) {
+        params.set('range', range);
+      }
       const response = await fetch(
-        `/api/markets/perps/${encodeURIComponent(ticker)}/history?limit=${limit}`
+        `/api/markets/perps/${encodeURIComponent(ticker)}/history?${params.toString()}`
       );
 
       let data: unknown = null;
@@ -317,7 +325,7 @@ export function usePerpHistory(
     } finally {
       setLoading(false);
     }
-  }, [ticker, limit, formatHistory, fallbackFromSeed]);
+  }, [ticker, limit, range, formatHistory, fallbackFromSeed]);
 
   useEffect(() => {
     void fetchHistory();

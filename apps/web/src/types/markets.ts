@@ -210,6 +210,19 @@ export interface DisplayPerpPosition {
 // =============================================================================
 
 /**
+ * Supported time ranges for market charts and history queries.
+ */
+export type MarketTimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
+
+export const MARKET_TIME_RANGES: MarketTimeRange[] = [
+  '1H',
+  '4H',
+  '1D',
+  '1W',
+  'ALL',
+];
+
+/**
  * Price point for perp price charts.
  */
 export interface PerpHistoryPoint {

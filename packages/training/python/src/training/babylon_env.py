@@ -43,7 +43,14 @@ from .rewards import (
     TrajectoryRewardInputs,
     BehaviorMetrics,
     archetype_composite_reward,
+    enhanced_composite_reward,
+    compute_counterfactual,
 )
+from .market_regime import (
+    extract_regime_from_trajectory,
+)
+from .temporal_credit import attribute_temporal_credit
+from .reward_config import get_regime_expected_return, get_temporal_decay_rate
 from .rubric_loader import has_custom_rubric, normalize_archetype
 from .tokenization_utils import tokenize_for_trainer
 from .quality_scorer import score_response
@@ -86,6 +93,11 @@ class BabylonEnvConfig(BaseEnvConfig):
     max_steps_per_trajectory: int = Field(
         default=20,
         description="Maximum steps to include from each trajectory"
+    )
+
+    reward_weight_profile: str = Field(
+        default_factory=lambda: os.getenv("REWARD_WEIGHT_PROFILE", "default"),
+        description="Reward weight profile name from packages/training/python/config/reward_weights.yaml",
     )
 
     # RLAIF Judge settings (Legacy - kept for config compatibility)
@@ -164,6 +176,11 @@ class BabylonRLAIFEnv(BaseEnv):
         self.judge_scores_buffer: List[float] = []
         self.judge_format_scores: List[float] = []
         self.judge_reasoning_scores: List[float] = []
+        self.enhanced_reward_metrics = {
+            "regime_counts": {"bull": 0, "bear": 0, "sideways": 0},
+            "alphas": [],
+            "volatilities": [],
+        }
 
         # Evaluation suite for tracking progress
         self.eval_suite: Optional[EvaluationSuite] = None
@@ -270,7 +287,9 @@ class BabylonRLAIFEnv(BaseEnv):
                     t."windowId",
                     t."scenarioId",
                     t."stepsJson",
+                    t."metadataJson",
                     t."finalPnL",
+                    t."finalBalance",
                     t."episodeLength",
                     t."totalReward",
                     t."archetype",
@@ -315,6 +334,30 @@ class BabylonRLAIFEnv(BaseEnv):
                 )
                 archetype = 'default'
 
+            metadata = row.get("metadataJson") or {}
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata) if metadata else {}
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Malformed metadataJson for trajectory {row['trajectoryId']}: {e}"
+                    )
+                    metadata = {}
+
+            final_pnl = float(row["finalPnL"] or 0.0)
+
+            final_balance: Optional[float] = None
+            starting_balance: Optional[float] = None
+            raw_final_balance = row.get("finalBalance")
+            if raw_final_balance is not None:
+                try:
+                    final_balance = float(raw_final_balance)
+                    starting_balance = final_balance - final_pnl
+                except (TypeError, ValueError) as e:
+                    logger.warning(
+                        f"Malformed finalBalance for trajectory {row['trajectoryId']}: {e}"
+                    )
+
             groups[group_key].append({
                 'trajectory_id': row['trajectoryId'],
                 'agent_id': row['agentId'],
@@ -322,8 +365,11 @@ class BabylonRLAIFEnv(BaseEnv):
                 'window_id': row['windowId'],
                 'scenario_id': row['scenarioId'],
                 'archetype': archetype,
+                'metadata': metadata,
                 'steps': steps,
-                'final_pnl': float(row['finalPnL'] or 0),
+                'final_pnl': final_pnl,
+                'final_balance': final_balance,
+                'starting_balance': starting_balance,
                 'episode_length': row['episodeLength'] or len(steps),
                 'total_reward': float(row['totalReward'] or 0),
             })
@@ -370,6 +416,32 @@ class BabylonRLAIFEnv(BaseEnv):
             self.judge_scores_buffer = []
             self.judge_format_scores = []
             self.judge_reasoning_scores = []
+        
+        # Add enhanced reward metrics (regime, alpha, temporal)
+        m = self.enhanced_reward_metrics
+        counts = m["regime_counts"]
+        total = sum(counts.values())
+        has_enhanced_metrics = total > 0 or bool(m["alphas"]) or bool(m["volatilities"])
+
+        if has_enhanced_metrics:
+            if total > 0:
+                for regime in ("bull", "bear", "sideways"):
+                    wandb_metrics[f"train/regime_{regime}_pct"] = counts[regime] / total
+
+            if m["alphas"]:
+                wandb_metrics["train/counterfactual_alpha_mean"] = sum(m["alphas"]) / len(m["alphas"])
+                wandb_metrics["train/counterfactual_alpha_min"] = min(m["alphas"])
+                wandb_metrics["train/counterfactual_alpha_max"] = max(m["alphas"])
+
+            if m["volatilities"]:
+                wandb_metrics["train/market_volatility_mean"] = sum(m["volatilities"]) / len(m["volatilities"])
+
+            # Reset for next logging interval
+            self.enhanced_reward_metrics = {
+                "regime_counts": {"bull": 0, "bear": 0, "sideways": 0},
+                "alphas": [],
+                "volatilities": [],
+            }
 
         self.judgement_samples = []  # Clear after logging
         await super().wandb_log(wandb_metrics)
@@ -701,6 +773,8 @@ You receive market updates and must analyze, reason, and then act."""
         """
         logger.debug(f"Scoring {len(rollout_data)} rollouts with deterministic judge")
         scores = []
+        weight_profile = self.config.reward_weight_profile
+        temporal_decay_rate = get_temporal_decay_rate()
 
         for item in rollout_data:
             traj = item["trajectory"]
@@ -751,11 +825,28 @@ You receive market updates and must analyze, reason, and then act."""
             behavior_metrics = self._extract_behavior_metrics(traj)
 
             # 5. Build reward inputs
-            final_pnl = traj.get("final_pnl", 0.0)
+            final_pnl = float(traj.get("final_pnl", 0.0) or 0.0)
+
+            starting_balance = traj.get("starting_balance")
+            if starting_balance is None:
+                final_balance = traj.get("final_balance")
+                if final_balance is not None:
+                    try:
+                        starting_balance = float(final_balance) - final_pnl
+                    except (TypeError, ValueError):
+                        starting_balance = None
+            starting_balance = float(starting_balance) if starting_balance is not None else 10000.0
+
+            end_balance = traj.get("final_balance")
+            try:
+                end_balance = float(end_balance) if end_balance is not None else starting_balance + final_pnl
+            except (TypeError, ValueError):
+                end_balance = starting_balance + final_pnl
+
             reward_inputs = TrajectoryRewardInputs(
                 final_pnl=final_pnl,
-                starting_balance=10000.0,
-                end_balance=10000.0 + final_pnl,
+                starting_balance=starting_balance,
+                end_balance=end_balance,
                 format_score=fmt_score,
                 reasoning_score=rsn_score,
                 risky_actions_count=0,
@@ -763,12 +854,56 @@ You receive market updates and must analyze, reason, and then act."""
                 total_actions=behavior_metrics.episode_length,
             )
 
-            # 6. Compute archetype-aware composite score
-            base_score = archetype_composite_reward(
-                inputs=reward_inputs,
-                archetype=archetype_norm,
-                behavior_metrics=behavior_metrics,
-            )
+            # 6. Compute enhanced reward with regime awareness
+            # Try to extract market regime from trajectory metadata
+            regime = extract_regime_from_trajectory(traj)
+            
+            if regime is not None:
+                # Enhanced path: use regime-adjusted counterfactual reward
+                regime_expected_return = get_regime_expected_return(regime.overall)
+                
+                # Compute counterfactual alpha
+                counterfactual = compute_counterfactual(
+                    actual_pnl=final_pnl,
+                    starting_balance=starting_balance,
+                    regime_overall=regime.overall,
+                    regime_expected_return=regime_expected_return,
+                )
+                
+                # Compute temporal credits from trajectory steps
+                steps = traj.get("steps", [])
+                outcome_data = traj.get("market_outcomes", None)
+                temporal_credits = attribute_temporal_credit(
+                    steps=steps,
+                    final_pnl=final_pnl,
+                    outcome_data=outcome_data,
+                    decay_rate=temporal_decay_rate,
+                )
+                
+                # Use enhanced composite reward
+                base_score = enhanced_composite_reward(
+                    inputs=reward_inputs,
+                    archetype=archetype_norm,
+                    behavior_metrics=behavior_metrics,
+                    regime_overall=regime.overall,
+                    regime_volatility=regime.volatility,
+                    regime_expected_return=regime_expected_return,
+                    counterfactual_alpha=counterfactual.alpha,
+                    temporal_credits=temporal_credits,
+                    weight_profile=weight_profile,
+                )
+                
+                # Track enhanced metrics for W&B
+                self.enhanced_reward_metrics["regime_counts"][regime.overall] += 1
+                self.enhanced_reward_metrics["alphas"].append(counterfactual.alpha)
+                self.enhanced_reward_metrics["volatilities"].append(regime.volatility)
+            else:
+                # Fallback: standard archetype composite reward
+                base_score = archetype_composite_reward(
+                    inputs=reward_inputs,
+                    archetype=archetype_norm,
+                    behavior_metrics=behavior_metrics,
+                )
             
             # 7. GRPO adjustment: Blend base score with action quality
             # For multiple completions per prompt, action quality provides variance

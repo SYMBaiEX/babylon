@@ -213,23 +213,84 @@ class JsonTrajectoryReader:
     def __init__(self, directory_path: str):
         self._directory = Path(directory_path)
         self._trajectories_by_window: Dict[str, List[Dict]] = {}
+        self._ground_truth: Optional[Dict] = None
 
         if not self._directory.is_dir():
             raise FileNotFoundError(
                 f"Source directory not found: {self._directory.resolve()}")
 
+        self._load_ground_truth()
         self._scan_files()
         logger.info(
             f"Found {len(self._trajectories_by_window)} windows in {self._directory}")
+    
+    def _load_ground_truth(self):
+        """Load ground truth for enhanced rewards if available."""
+        gt_path = self._directory / "ground-truth.json"
+        if not gt_path.exists():
+            # Check parent directory (trajectories may be in subdirectory)
+            gt_path = self._directory.parent / "ground-truth.json"
+        
+        if gt_path.exists():
+            try:
+                with open(gt_path, "r", encoding="utf-8") as f:
+                    self._ground_truth = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to load ground truth from {gt_path}: {e}")
+                self._ground_truth = None
+                return
+            logger.info(f"Loaded ground truth from {gt_path}")
+    
+    def _build_price_context(self) -> Dict:
+        """Build price context from ground truth for enhanced rewards."""
+        if not self._ground_truth:
+            return {}
+        
+        price_context = {}
+        if "priceHistory" in self._ground_truth:
+            initial_prices = {}
+            final_prices = {}
+            for ticker, history in self._ground_truth["priceHistory"].items():
+                if history and len(history) > 0:
+                    initial_prices[ticker] = history[0]
+                    final_prices[ticker] = history[-1]
+            price_context = {
+                "initialPrices": initial_prices,
+                "finalPrices": final_prices,
+                "priceHistory": self._ground_truth["priceHistory"],
+            }
+        
+        return price_context
 
     def _scan_files(self):
         file_count = 0
+        price_context = self._build_price_context()
+        
         for file_path in self._directory.glob("*.json"):
+            # Skip ground-truth.json
+            if file_path.name == "ground-truth.json":
+                continue
+            
             file_count += 1
             try:
                 with file_path.open('r', encoding='utf-8') as f:
                     data = json.load(f)
                 trajectory_data = data.get('trajectory', data)
+                
+                # Merge ground truth into metadata for enhanced rewards
+                if price_context:
+                    metadata = trajectory_data.get("metadata", {})
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata) if metadata else {}
+                        except json.JSONDecodeError as e:
+                            logger.warning(
+                                f"Malformed metadata JSON in {file_path}, ignoring metadata: {e}"
+                            )
+                            metadata = {}
+                    metadata["ground_truth"] = price_context
+                    trajectory_data["metadata"] = metadata
+                
                 window_id = trajectory_data.get("windowId", "default_window")
                 if window_id not in self._trajectories_by_window:
                     self._trajectories_by_window[window_id] = []

@@ -1,7 +1,7 @@
 'use client';
 
 import type { OnboardingProfilePayload } from '@babylon/shared';
-import { cn, logger } from '@babylon/shared';
+import { CHAIN, cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
   Check,
@@ -12,7 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
 
@@ -608,6 +608,12 @@ export function OnboardingModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Validate MIME type
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please select an image file');
+      return;
+    }
+
     // Validate file size (max 5MB)
     const MAX_FILE_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
@@ -616,8 +622,14 @@ export function OnboardingModal({
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onload = () => {
       setUploadedProfileImage(reader.result as string);
+      setFormError(null);
+    };
+    reader.onerror = () => {
+      logger.error('Failed to read image file', {}, 'OnboardingModal');
+      setFormError('Failed to read image file. Please try again.');
+      setUploadedProfileImage(null);
     };
     reader.readAsDataURL(file);
   };
@@ -633,6 +645,7 @@ export function OnboardingModal({
   };
 
   const [isVisible, setIsVisible] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Trigger fade-in animation after mount
   useEffect(() => {
@@ -645,11 +658,65 @@ export function OnboardingModal({
     return undefined;
   }, [isOpen]);
 
+  // Focus trap: constrain keyboard focus to modal while open
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!isOpen || stage === 'COMPLETED' || !modalRef.current) return;
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!firstElement || !lastElement) return;
+
+      if (e.shiftKey) {
+        // Shift+Tab: if on first element, wrap to last
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab: if on last element, wrap to first
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    },
+    [isOpen, stage]
+  );
+
+  // Set up focus trap and initial focus
+  useEffect(() => {
+    if (!isOpen || stage === 'COMPLETED') return;
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Focus first focusable element when modal opens
+    const timer = setTimeout(() => {
+      if (modalRef.current) {
+        const firstFocusable = modalRef.current.querySelector<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }
+    }, 100);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
+    };
+  }, [isOpen, stage, handleKeyDown]);
+
   if (!isOpen) return null;
 
   // Full-screen blocking onboarding UI with safe areas for mobile
   return (
     <div
+      ref={modalRef}
       className={cn(
         'fixed inset-0 z-[100] flex flex-col bg-background transition-opacity duration-300',
         // Safe area padding for notched phones
@@ -781,7 +848,7 @@ export function OnboardingModal({
                     <p className="mb-2 font-medium">Troubleshooting tips:</p>
                     <ul className="list-inside list-disc space-y-1 text-xs">
                       <li>Check your internet connection</li>
-                      <li>Make sure you have ETH for gas on Base Sepolia</li>
+                      <li>Make sure you have ETH for gas on {CHAIN.name}</li>
                       <li>Try refreshing and attempting again</li>
                     </ul>
                   </div>

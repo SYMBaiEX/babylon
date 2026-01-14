@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Trophy,
   User,
+  Users,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -164,7 +165,16 @@ function SidebarContent() {
       href: '/agents',
       icon: Bot,
       color: '#0066FF',
-      active: pathname === '/agents' || pathname.startsWith('/agents/'),
+      active:
+        pathname === '/agents' ||
+        (pathname.startsWith('/agents/') && pathname !== '/agents/team'),
+    },
+    {
+      name: 'Command Center',
+      href: '/agents/team',
+      icon: Users,
+      color: '#0066FF',
+      active: pathname === '/agents/team',
     },
     {
       name: 'Rewards',

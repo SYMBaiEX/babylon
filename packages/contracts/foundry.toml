@@ -3,7 +3,7 @@ src = "."
 test = "test"
 out = "out"
 libs = ["../../node_modules", "dependencies"]
-solc = "0.8.27"
+solc = "0.8.33"
 optimizer = true
 optimizer_runs = 200
 via_ir = true
@@ -38,6 +38,6 @@ bracket_spacing = true
 
 # Soldeer dependencies
 [dependencies]
-forge-std = "1.9.4"
-"@openzeppelin-contracts" = "5.2.0"
+forge-std = "1.9.7"
+"@openzeppelin-contracts" = "5.4.0"
 

@@ -25,7 +25,7 @@ import {
   db,
   eq,
   isNull,
-  organizations,
+  organizationState,
   perpMarketSnapshots,
   perpPositions,
 } from '@babylon/db';
@@ -220,28 +220,33 @@ export async function applyUserTradePriceImpact(ticker: string): Promise<void> {
 
     const organizationId = snapshot.organizationId;
 
-    // 2. Get organization data (initialPrice, currentPrice)
-    const [org] = await db
+    // 2. Get dynamic org pricing state (basePrice/currentPrice)
+    // Do not depend on the legacy `Organization` table which may not be seeded in some envs.
+    const [state] = await db
       .select({
-        id: organizations.id,
-        currentPrice: organizations.currentPrice,
-        initialPrice: organizations.initialPrice,
+        id: organizationState.id,
+        currentPrice: organizationState.currentPrice,
+        basePrice: organizationState.basePrice,
       })
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
+      .from(organizationState)
+      .where(eq(organizationState.id, organizationId))
       .limit(1);
 
-    if (!org) {
+    if (!state) {
       logger.warn(
-        'Organization not found for price impact',
+        'OrganizationState not found for price impact',
         { ticker: normalizedTicker, organizationId },
         'PerpPriceImpact'
       );
       return;
     }
 
-    const initialPrice = Number(org.initialPrice ?? 100);
-    const currentPrice = Number(org.currentPrice ?? initialPrice);
+    const initialPrice = Number(
+      state.basePrice ?? snapshot.currentPrice ?? 100
+    );
+    const currentPrice = Number(
+      snapshot.currentPrice ?? state.currentPrice ?? initialPrice
+    );
 
     // 3. Get all open positions for this ticker
     // Note: positions use ticker (e.g., "AIPHB"), not organizationId

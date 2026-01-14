@@ -41,6 +41,7 @@ export const ROUTES = {
   AGENTS: '/agents',
   AGENTS_CREATE: '/agents/create',
   AGENTS_BY_ID: (id: string) => `/agents/${id}`,
+  AGENTS_TEAM_CHAT: '/agents/team',
 
   // Content
   POST_BY_ID: (id: string) => `/post/${id}`,
@@ -88,6 +89,7 @@ export const AUTHENTICATED_ROUTES = [
   ROUTES.SETTINGS,
   ROUTES.SETTINGS_MODERATION,
   ROUTES.AGENTS_CREATE,
+  ROUTES.AGENTS_TEAM_CHAT,
 ];
 
 /**

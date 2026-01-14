@@ -9,6 +9,7 @@ import {
   formatChartTime,
   useLightweightChart,
 } from '@/components/charts/LightweightChartBase';
+import { MARKET_TIME_RANGES, type MarketTimeRange } from '@/types/markets';
 
 /**
  * Price point structure for chart data.
@@ -38,16 +39,13 @@ interface PerpPriceChartProps {
   currentPrice: number;
   /** Market ticker symbol */
   ticker: string;
+  /** Selected time range */
+  timeRange: MarketTimeRange;
+  /** Time range selection handler */
+  onTimeRangeChange: (range: MarketTimeRange) => void;
   /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
 }
-
-/**
- * Time range options for chart filtering.
- */
-type TimeRange = '1H' | '4H' | '1D' | '1W' | 'ALL';
-
-const TIME_RANGES: TimeRange[] = ['1H', '4H', '1D', '1W', 'ALL'];
 
 /**
  * Perpetual price chart using TradingView Lightweight Charts.
@@ -71,8 +69,9 @@ export function PerpPriceChart({
   data,
   currentPrice,
   ticker,
+  timeRange,
+  onTimeRangeChange,
 }: PerpPriceChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const [chartInitError, setChartInitError] = useState<string | null>(null);
   const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const lastPriceLineRef = useRef<ReturnType<
@@ -107,7 +106,7 @@ export function PerpPriceChart({
     let filtered = validData;
     if (timeRange !== 'ALL') {
       const now = Date.now();
-      const ranges: Record<TimeRange, number> = {
+      const ranges: Record<MarketTimeRange, number> = {
         '1H': 60 * 60 * 1000,
         '4H': 4 * 60 * 60 * 1000,
         '1D': 24 * 60 * 60 * 1000,
@@ -316,10 +315,10 @@ export function PerpPriceChart({
 
         {/* Time range selector */}
         <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
-          {TIME_RANGES.map((range) => (
+          {MARKET_TIME_RANGES.map((range) => (
             <button
               key={range}
-              onClick={() => setTimeRange(range)}
+              onClick={() => onTimeRangeChange(range)}
               className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
                 timeRange === range
                   ? 'bg-primary text-primary-foreground'
