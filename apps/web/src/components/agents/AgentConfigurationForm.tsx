@@ -116,16 +116,16 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
         {/* Info banner about Autonomous Trading - shows current state with context */}
         <div
           role="status"
-          className="mb-4 flex gap-3 rounded-lg border border-blue-800/50 bg-blue-900/20 p-3 sm:p-4"
+          className="mb-4 flex gap-3 rounded-lg border border-primary/20 bg-accent p-3 sm:p-4"
         >
-          <Info className="h-5 w-5 shrink-0 text-blue-400" aria-hidden="true" />
+          <Info className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
           <div className="text-sm">
             {data.autonomousEnabled ? (
               <>
-                <p className="font-medium text-blue-200">
+                <p className="font-medium text-accent-foreground">
                   Autonomous Trading is currently enabled
                 </p>
-                <p className="mt-1 text-blue-300">
+                <p className="mt-1 text-foreground/80">
                   Your agent will evaluate markets and execute trades based on
                   its trading strategy. You can see all trades in the Activity
                   tab and in the "My Moves" section.
@@ -133,10 +133,10 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
               </>
             ) : (
               <>
-                <p className="font-medium text-blue-200">
+                <p className="font-medium text-accent-foreground">
                   Autonomous Trading is currently disabled
                 </p>
-                <p className="mt-1 text-blue-300">
+                <p className="mt-1 text-foreground/80">
                   Enable the toggle below to allow your agent to evaluate
                   markets and execute trades. You can see all trades in the
                   Activity tab and in the "My Moves" section.
