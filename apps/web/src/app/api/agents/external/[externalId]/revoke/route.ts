@@ -33,7 +33,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Get the external agent connection to check ownership
-    const connection = await agentRegistry.getExternalAgentConnection(externalId);
+    const connection =
+      await agentRegistry.getExternalAgentConnection(externalId);
 
     if (!connection) {
       return NextResponse.json(
@@ -42,15 +43,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Check if already revoked
-    if (connection.revokedAt) {
-      return NextResponse.json(
-        { error: 'External agent already revoked' },
-        { status: 400 }
-      );
-    }
-
     // Check authorization: only owner or admin can revoke
+    // Note: revokedAt check is handled by the service layer to avoid race conditions
     const isOwner = connection.registeredByUserId === authUser.userId;
     const isAdmin = await isUserAdmin(authUser.userId);
 
@@ -101,10 +95,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     );
 
     if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 404 });
     }
 
     return NextResponse.json(

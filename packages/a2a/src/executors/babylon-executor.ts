@@ -626,7 +626,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (
-        message.includes('getRawDrizzle() is only available in PostgreSQL mode') ||
+        message.includes(
+          'getRawDrizzle() is only available in PostgreSQL mode'
+        ) ||
         message.includes('Database not initialized')
       ) {
         logger.debug('Perpetual markets unavailable, returning empty', {

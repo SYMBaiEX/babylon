@@ -351,6 +351,7 @@ export const externalAgentConnections = pgTable(
     index('ExternalAgentConnection_externalId_idx').on(table.externalId),
     index('ExternalAgentConnection_protocol_idx').on(table.protocol),
     index('ExternalAgentConnection_isHealthy_idx').on(table.isHealthy),
+    index('ExternalAgentConnection_revokedAt_idx').on(table.revokedAt),
   ]
 );
 
