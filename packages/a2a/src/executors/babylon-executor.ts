@@ -553,25 +553,52 @@ export class BabylonAgentExecutor implements AgentExecutor {
   private async listPerpetualMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
 
-    const drizzle = getRawDrizzle();
-    const snapshots = await drizzle
-      .select({
-        ticker: perpMarketSnapshots.ticker,
-        name: perpMarketSnapshots.name,
-        organizationId: perpMarketSnapshots.organizationId,
-        currentPrice: perpMarketSnapshots.currentPrice,
-        change24h: perpMarketSnapshots.change24h,
-        changePercent24h: perpMarketSnapshots.changePercent24h,
-        volume24h: perpMarketSnapshots.volume24h,
-        openInterest: perpMarketSnapshots.openInterest,
-        fundingRate: perpMarketSnapshots.fundingRate,
-      })
-      .from(perpMarketSnapshots)
-      .limit(limit);
+    let snapshots: Array<{
+      ticker: string;
+      name: string | null;
+      organizationId: string;
+      currentPrice: number;
+      change24h: number | null;
+      changePercent24h: number | null;
+      volume24h: number | null;
+      openInterest: number | null;
+      fundingRate: unknown;
+    }>;
+
+    try {
+      const drizzle = getRawDrizzle();
+      snapshots = await drizzle
+        .select({
+          ticker: perpMarketSnapshots.ticker,
+          name: perpMarketSnapshots.name,
+          organizationId: perpMarketSnapshots.organizationId,
+          currentPrice: perpMarketSnapshots.currentPrice,
+          change24h: perpMarketSnapshots.change24h,
+          changePercent24h: perpMarketSnapshots.changePercent24h,
+          volume24h: perpMarketSnapshots.volume24h,
+          openInterest: perpMarketSnapshots.openInterest,
+          fundingRate: perpMarketSnapshots.fundingRate,
+        })
+        .from(perpMarketSnapshots)
+        .limit(limit);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message.includes('getRawDrizzle() is only available in PostgreSQL mode') ||
+        message.includes('Database not initialized')
+      ) {
+        logger.debug('Perpetual markets unavailable, returning empty', {
+          message,
+        });
+        return { perpetuals: [] };
+      }
+      throw error;
+    }
 
     return {
       perpetuals: snapshots.map((s) => ({
         name: s.name || s.ticker,
+        type: 'perpetual',
         ticker: s.ticker,
         currentPrice: Number(s.currentPrice) || 0,
         priceChange24h: Number(s.change24h) || 0,
@@ -586,9 +613,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
   }
 
   private async getUserProfile(params: Record<string, JsonValue>) {
-    const userId = typeof params.userId === 'string' ? params.userId : '';
+    const userId =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
     if (!userId) {
-      return { profile: null };
+      throw new Error('userId is required');
     }
 
     const user = await db.user.findUnique({
@@ -601,25 +629,38 @@ export class BabylonAgentExecutor implements AgentExecutor {
         profileImageUrl: true,
         reputationPoints: true,
         virtualBalance: true,
+        walletAddress: true,
         isAgent: true,
       },
     });
 
     if (!user) {
-      return { profile: null };
+      logger.debug('User not found for getUserProfile, returning defaults', {
+        userId,
+      });
+      return {
+        id: userId,
+        username: null,
+        displayName: null,
+        bio: null,
+        profileImageUrl: null,
+        reputationPoints: 0,
+        virtualBalance: 0,
+        walletAddress: null,
+        isAgent: false,
+      };
     }
 
     return {
-      profile: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        bio: user.bio,
-        profileImageUrl: user.profileImageUrl,
-        reputationPoints: user.reputationPoints,
-        balance: Number(user.virtualBalance) || 0,
-        isAgent: user.isAgent,
-      },
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      bio: user.bio,
+      profileImageUrl: user.profileImageUrl,
+      reputationPoints: user.reputationPoints || 0,
+      virtualBalance: Number(user.virtualBalance) || 0,
+      walletAddress: user.walletAddress,
+      isAgent: user.isAgent,
     };
   }
 
@@ -632,6 +673,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       select: {
         id: true,
         currentPrice: true,
+        basePrice: true,
       },
     });
     return {
@@ -640,6 +682,13 @@ export class BabylonAgentExecutor implements AgentExecutor {
         name: o.id,
         ticker: o.id,
         currentPrice: Number(o.currentPrice) || 0,
+        initialPrice: Number(o.basePrice) || 0,
+        priceChangePercentage:
+          Number(o.basePrice) > 0
+            ? ((Number(o.currentPrice) - Number(o.basePrice)) /
+                Number(o.basePrice)) *
+              100
+            : 0,
       })),
     };
   }
@@ -1004,34 +1053,14 @@ export class BabylonAgentExecutor implements AgentExecutor {
         ? params.userId
         : context.contextId || context.taskId;
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        walletAddress: true,
-        virtualBalance: true,
-        reputationPoints: true,
-      },
-    });
-
-    // Return default values if user not found (graceful degradation for onboarding)
-    if (!user) {
-      logger.debug('User not found for getUserWallet, returning defaults', {
-        userId,
-      });
-      return {
-        userId,
-        walletAddress: null,
-        balance: 0,
-        reputationPoints: 0,
-      };
-    }
+    const [balance, positions] = await Promise.all([
+      this.getBalance({ userId }, context),
+      this.getPositions({ userId }, context),
+    ]);
 
     return {
-      userId: user.id,
-      walletAddress: user.walletAddress,
-      balance: Number(user.virtualBalance) || 0,
-      reputationPoints: user.reputationPoints || 0,
+      balance: balance as JsonValue,
+      positions: positions as JsonValue,
     };
   }
 
