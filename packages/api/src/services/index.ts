@@ -22,6 +22,7 @@ export * from './generation-lock-service';
 // Moderation Services
 export * from './moderation';
 export * from './nft-group-service';
+export * from './nft-mint-service';
 export * from './nft-verification-service';
 export * from './notification-service';
 // Onchain Service

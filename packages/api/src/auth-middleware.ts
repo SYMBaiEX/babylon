@@ -78,6 +78,55 @@ export async function authenticate(
     );
   }
 
+  // Local dev convenience: allow using a test user's Privy DID directly as the
+  // Bearer token (used by API integration tests). Disabled by default in prod.
+  const allowTestPrivyDidAuth =
+    process.env.ALLOW_TEST_PRIVY_DID_AUTH !== undefined
+      ? ['true', '1', 'yes', 'on'].includes(
+          process.env.ALLOW_TEST_PRIVY_DID_AUTH.toLowerCase()
+        )
+      : process.env.NODE_ENV === 'development' ||
+        process.env.NODE_ENV === 'test';
+
+  if (allowTestPrivyDidAuth && token.startsWith('did:privy:test')) {
+    // Fast-path: our test Privy DIDs are of the form `did:privy:test-${userId}`,
+    // where `userId` is the DB user id (snowflake). Avoid a DB read when possible.
+    if (token.startsWith('did:privy:test-')) {
+      const embeddedUserId = token.slice('did:privy:test-'.length);
+      const isSnowflakeId = /^\d{15,20}$/.test(embeddedUserId);
+      if (isSnowflakeId) {
+        return {
+          userId: embeddedUserId,
+          dbUserId: embeddedUserId,
+          privyId: token,
+          walletAddress: undefined,
+          email: undefined,
+          isAgent: false,
+        };
+      }
+    }
+
+    const dbUserResult = await db
+      .select({ id: users.id, walletAddress: users.walletAddress })
+      .from(users)
+      .where(eq(users.privyId, token))
+      .limit(1);
+    const dbUser = dbUserResult[0];
+
+    if (!dbUser) {
+      throw new AuthenticationError('Test user not found');
+    }
+
+    return {
+      userId: dbUser.id,
+      dbUserId: dbUser.id,
+      privyId: token,
+      walletAddress: dbUser.walletAddress ?? undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  }
+
   // Try agent session authentication first (faster)
   const agentSession = await verifyAgentSession(token);
   if (agentSession) {
@@ -90,23 +139,53 @@ export async function authenticate(
 
   // Try Privy authentication
   const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
 
-  const dbUserResult = await db
-    .select({ id: users.id, walletAddress: users.walletAddress })
-    .from(users)
-    .where(eq(users.privyId, claims.userId))
-    .limit(1);
-  const dbUser = dbUserResult[0];
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
 
-  return {
-    userId: dbUser?.id ?? claims.userId,
-    dbUserId: dbUser?.id,
-    privyId: claims.userId,
-    walletAddress: dbUser?.walletAddress ?? undefined,
-    email: undefined,
-    isAgent: false,
-  };
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
+  const tokensToTry =
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
+
+  let lastError: Error | undefined;
+
+  for (const tokenToVerify of tokensToTry) {
+    try {
+      const claims = await privy.verifyAuthToken(tokenToVerify);
+
+      const dbUserResult = await db
+        .select({ id: users.id, walletAddress: users.walletAddress })
+        .from(users)
+        .where(eq(users.privyId, claims.userId))
+        .limit(1);
+      const dbUser = dbUserResult[0];
+
+      return {
+        userId: dbUser?.id ?? claims.userId,
+        dbUserId: dbUser?.id,
+        privyId: claims.userId,
+        walletAddress: dbUser?.walletAddress ?? undefined,
+        email: undefined,
+        isAgent: false,
+      };
+    } catch (error) {
+      lastError = error as Error;
+      // If this isn't the last token to try, continue to the next one
+      if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+        continue;
+      }
+    }
+  }
+
+  // If we get here, all tokens failed verification
+  throw lastError ?? new AuthenticationError('Token verification failed');
 }
 
 /**
@@ -159,23 +238,51 @@ export async function optionalAuth(
 
   // Try Privy authentication - return null on failure (optional auth)
   const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
 
-  const dbUserResult = await db
-    .select({ id: users.id, walletAddress: users.walletAddress })
-    .from(users)
-    .where(eq(users.privyId, claims.userId))
-    .limit(1);
-  const dbUser = dbUserResult[0];
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
 
-  return {
-    userId: dbUser?.id ?? claims.userId,
-    dbUserId: dbUser?.id,
-    privyId: claims.userId,
-    walletAddress: dbUser?.walletAddress ?? undefined,
-    email: undefined,
-    isAgent: false,
-  };
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
+  const tokensToTry =
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
+
+  for (const tokenToVerify of tokensToTry) {
+    try {
+      const claims = await privy.verifyAuthToken(tokenToVerify);
+
+      const dbUserResult = await db
+        .select({ id: users.id, walletAddress: users.walletAddress })
+        .from(users)
+        .where(eq(users.privyId, claims.userId))
+        .limit(1);
+      const dbUser = dbUserResult[0];
+
+      return {
+        userId: dbUser?.id ?? claims.userId,
+        dbUserId: dbUser?.id,
+        privyId: claims.userId,
+        walletAddress: dbUser?.walletAddress ?? undefined,
+        email: undefined,
+        isAgent: false,
+      };
+    } catch {
+      // If this isn't the last token to try, continue to the next one
+      if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+        continue;
+      }
+      // For optional auth, return null on final failure
+      return null;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -201,15 +308,20 @@ export async function optionalAuthFromHeaders(
   }
 
   // Try Privy authentication - return null on failure (optional auth)
-  const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
+  try {
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
 
-  return {
-    userId: claims.userId,
-    walletAddress: undefined,
-    email: undefined,
-    isAgent: false,
-  };
+    return {
+      userId: claims.userId,
+      walletAddress: undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  } catch {
+    // For optional auth, return null on failure
+    return null;
+  }
 }
 
 /**

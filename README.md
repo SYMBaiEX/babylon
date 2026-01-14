@@ -168,6 +168,123 @@ See `.env.example` for complete list.
 
 ---
 
+## 🖼️ NFT Deployment (ProtoMonkeys)
+
+Deploy the ProtoMonkeys NFT collection for the Top 100 leaderboard rewards.
+
+### Local Development (Automatic)
+
+**NFT minting works automatically with `bun run dev`!** The dev startup:
+1. Deploys ProtoMonkeysNFT contract to local Hardhat
+2. Seeds the NFT collection (100 NFTs with placeholder metadata)
+3. Creates eligibility snapshots for all test users
+
+```bash
+bun run dev   # ← NFT minting ready out of the box!
+```
+
+Visit `http://localhost:3000/nft` to mint your NFT.
+
+### Manual Local Setup (if needed)
+
+```bash
+# 1. Start local Hardhat node
+cd packages/contracts
+bun hardhat:node
+
+# 2. Deploy NFT contract (new terminal)
+NFT_SIGNER_ADDRESS=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 \
+NFT_BASE_URI=http://localhost:3000/api/nft/metadata/ \
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFTLocal \
+  --rpc-url http://localhost:8545 --broadcast
+
+# 3. Set the deployed address in .env
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=31337
+NFT_SIGNER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# 4. Seed NFT collection and snapshots
+bun run scripts/seed-nft-collection.ts
+bun run scripts/seed-nft-snapshot-local.ts
+```
+
+### Environment Variables (Production)
+
+```bash
+# NFT Contract Configuration
+NFT_CONTRACT_ADDRESS=0x...          # Set after deployment
+NFT_CHAIN_ID=1                      # 1 = Mainnet, 11155111 = Sepolia, 31337 = Local
+NFT_SIGNER_PRIVATE_KEY=0x...        # Backend signer private key (NEVER COMMIT)
+NFT_SIGNER_ADDRESS=0x...            # Public address of signer
+NFT_BASE_URI=https://babylon.market/api/nft/metadata/
+```
+
+Generate a signer keypair for production:
+```bash
+cast wallet new  # Save the private key securely!
+```
+
+### Sepolia Testnet
+
+```bash
+cd packages/contracts
+
+# Deploy to Sepolia
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
+  --rpc-url https://rpc.sepolia.org \
+  --broadcast --verify
+
+# Update environment
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=11155111
+```
+
+### Ethereum Mainnet
+
+```bash
+cd packages/contracts
+
+# Deploy to mainnet (requires ETH for gas)
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
+  --rpc-url https://eth.llamarpc.com \
+  --broadcast --verify
+
+# Update environment
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=1
+```
+
+### Post-Deployment Setup
+
+```bash
+# 1. Seed NFT collection with metadata (100 NFTs)
+bun run scripts/seed-nft-collection.ts
+
+# 2. Create eligibility snapshot from leaderboard (top 100 users)
+# This populates the nftSnapshot table for mint eligibility
+```
+
+### Contract Tests
+
+```bash
+cd packages/contracts
+forge test --match-contract ProtoMonkeysNFT -vvv
+```
+
+### Architecture
+
+| Component | Description |
+|-----------|-------------|
+| `ProtoMonkeysNFT.sol` | ERC-721 contract with ECDSA signature-gated minting |
+| `/api/nft/eligibility` | Check if user is in top 100 snapshot |
+| `/api/nft/mint/prepare` | Generate signed mint transaction |
+| `/api/nft/mint/confirm` | Verify on-chain mint, update database |
+| `/api/nft/metadata/[tokenId]` | ERC-721 metadata endpoint |
+
+See [`docs/nft-drop-implementation-plan.md`](docs/nft-drop-implementation-plan.md) for complete technical details.
+
+---
+
 ## 📚 Documentation
 
 **[📖 Full Documentation →](https://docs.babylon.market)**

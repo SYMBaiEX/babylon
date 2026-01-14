@@ -26,15 +26,30 @@ function getRemappings(): Array<[string, string]> {
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: '0.8.27',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    compilers: [
+      {
+        version: '0.8.33',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          viaIR: true,
+          evmVersion: 'cancun',
+        },
       },
-      viaIR: true,
-      evmVersion: 'cancun',
-    },
+      {
+        version: '0.8.27',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          viaIR: true,
+          evmVersion: 'cancun',
+        },
+      },
+    ],
   },
   paths: {
     sources: './',
