@@ -36,7 +36,8 @@ function PostPreview({ post }: { post: PostPreviewData }) {
   const now = new Date();
 
   // Defensive check for invalid timestamps
-  const isValidDate = !isNaN(postDate.getTime()) && isFinite(postDate.getTime());
+  const isValidDate =
+    !isNaN(postDate.getTime()) && isFinite(postDate.getTime());
 
   let timeAgo: string;
   if (!isValidDate) {

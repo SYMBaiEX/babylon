@@ -55,10 +55,9 @@ export function SendPointsModal({
   onSuccess,
 }: SendPointsModalProps) {
   const { getAccessToken } = useAuth();
-  const {
-    transferPoints,
-    isLoading: isSubmitting,
-  } = useTransferPoints({ getAccessToken });
+  const { transferPoints, isLoading: isSubmitting } = useTransferPoints({
+    getAccessToken,
+  });
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);

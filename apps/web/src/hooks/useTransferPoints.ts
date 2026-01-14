@@ -116,7 +116,7 @@ export function useTransferPoints(options: UseTransferPointsOptions = {}) {
 
       return (await response.json()) as TransferPointsResponse;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       // Invalidate all balance-related queries to refresh UI
       // This ensures sender and recipient balances update immediately
 
