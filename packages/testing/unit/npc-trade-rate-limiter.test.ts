@@ -7,8 +7,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import {
-  NpcTradeRateLimiter,
   type NpcTradeRateLimitConfig,
+  NpcTradeRateLimiter,
   type NpcTradeRateLimitProvider,
   resetNpcTradeRateLimitProvider,
   setNpcTradeRateLimitProvider,
@@ -79,7 +79,11 @@ class TestableNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
 
   async getStats(
     npcId: string
-  ): Promise<{ lastTradeTime: number; dailyCount: number; date: string } | null> {
+  ): Promise<{
+    lastTradeTime: number;
+    dailyCount: number;
+    date: string;
+  } | null> {
     const lastTrade = this.lastTradeTime.get(npcId);
     const dailyData = this.dailyTradeCount.get(npcId);
 

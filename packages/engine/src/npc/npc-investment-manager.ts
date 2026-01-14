@@ -708,7 +708,9 @@ export class NPCInvestmentManager {
     const openPositions = await db
       .select()
       .from(poolPositions)
-      .where(and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt)));
+      .where(
+        and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt))
+      );
 
     const profitablePositions: PortfolioPosition[] = [];
 
@@ -777,7 +779,9 @@ export class NPCInvestmentManager {
     const openPositions = await db
       .select()
       .from(poolPositions)
-      .where(and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt)));
+      .where(
+        and(eq(poolPositions.poolId, poolId), isNull(poolPositions.closedAt))
+      );
 
     // Check for positions that have grown too large (need partial profit-taking)
     const maxAllocation = maxPositionAllocation[strategy];

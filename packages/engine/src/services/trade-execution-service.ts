@@ -48,7 +48,6 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
 import { isSimulationMode } from '../storage-bridge';
-import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import type {
   ExecutedTrade,
   MarketAction,
@@ -61,6 +60,7 @@ import {
   aggregateTradeImpacts,
   type TradeImpactInput,
 } from './market-impact-service';
+import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
 import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';

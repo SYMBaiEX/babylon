@@ -101,7 +101,11 @@ export interface NpcTradeRateLimitProvider {
    */
   getStats(
     npcId: string
-  ): Promise<{ lastTradeTime: number; dailyCount: number; date: string } | null>;
+  ): Promise<{
+    lastTradeTime: number;
+    dailyCount: number;
+    date: string;
+  } | null>;
 }
 
 // =============================================================================
@@ -179,7 +183,11 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
 
   async getStats(
     npcId: string
-  ): Promise<{ lastTradeTime: number; dailyCount: number; date: string } | null> {
+  ): Promise<{
+    lastTradeTime: number;
+    dailyCount: number;
+    date: string;
+  } | null> {
     const lastTrade = this.lastTradeTime.get(npcId);
     const dailyData = this.dailyTradeCount.get(npcId);
 
@@ -191,8 +199,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
 
     return {
       lastTradeTime: lastTrade ?? 0,
-      dailyCount:
-        dailyData && dailyData.date === today ? dailyData.count : 0,
+      dailyCount: dailyData && dailyData.date === today ? dailyData.count : 0,
       date: dailyData?.date ?? today,
     };
   }
@@ -341,7 +348,11 @@ export class NpcTradeRateLimiter {
    */
   static async getStats(
     npcId: string
-  ): Promise<{ lastTradeTime: number; dailyCount: number; date: string } | null> {
+  ): Promise<{
+    lastTradeTime: number;
+    dailyCount: number;
+    date: string;
+  } | null> {
     return provider.getStats(npcId);
   }
 
