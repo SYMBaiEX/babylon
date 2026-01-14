@@ -18,7 +18,8 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server';
-import { db } from '@babylon/db';
+import { db, getRawDrizzle } from '@babylon/db';
+import { perpMarketSnapshots } from '@babylon/db/schema';
 import type { JsonValue } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { v4 as uuidv4 } from 'uuid';
@@ -551,23 +552,36 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
   private async listPerpetualMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
-    // Get organization states for perpetual markets
-    const orgStates = await db.organizationState.findMany({
-      take: limit,
-      orderBy: { currentPrice: 'desc' },
-      select: {
-        id: true,
-        currentPrice: true,
-      },
-    });
+
+    const drizzle = getRawDrizzle();
+    const snapshots = await drizzle
+      .select({
+        ticker: perpMarketSnapshots.ticker,
+        name: perpMarketSnapshots.name,
+        organizationId: perpMarketSnapshots.organizationId,
+        currentPrice: perpMarketSnapshots.currentPrice,
+        change24h: perpMarketSnapshots.change24h,
+        changePercent24h: perpMarketSnapshots.changePercent24h,
+        volume24h: perpMarketSnapshots.volume24h,
+        openInterest: perpMarketSnapshots.openInterest,
+        fundingRate: perpMarketSnapshots.fundingRate,
+      })
+      .from(perpMarketSnapshots)
+      .limit(limit);
+
     return {
-      perpetuals: orgStates.map(
-        (o: { id: string; currentPrice: number | null }) => ({
-          id: o.id,
-          ticker: o.id,
-          currentPrice: Number(o.currentPrice) || 0,
-        })
-      ),
+      perpetuals: snapshots.map((s) => ({
+        name: s.name || s.ticker,
+        ticker: s.ticker,
+        currentPrice: Number(s.currentPrice) || 0,
+        priceChange24h: Number(s.change24h) || 0,
+        volume24h: Number(s.volume24h) || 0,
+        openInterest: Number(s.openInterest) || 0,
+        fundingRate:
+          typeof s.fundingRate === 'object' && s.fundingRate !== null
+            ? (s.fundingRate as { rate?: number }).rate || 0
+            : 0,
+      })),
     };
   }
 
@@ -885,7 +899,6 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
 
-    // Get markets for positions to include question text
     const marketIds = [
       ...new Set(marketPositionsRaw.map((p) => p.marketId).filter(Boolean)),
     ];
@@ -893,43 +906,82 @@ export class BabylonAgentExecutor implements AgentExecutor {
       marketIds.length > 0
         ? await db.market.findMany({
             where: { id: { in: marketIds } },
-            select: { id: true, question: true, resolved: true },
+            select: {
+              id: true,
+              question: true,
+              resolved: true,
+              yesShares: true,
+              noShares: true,
+            },
           })
         : [];
     const marketMap = new Map(markets.map((m) => [m.id, m]));
 
-    // Get perpetual positions (closedAt is null means position is open)
-    const perpPositions = await db.perpPosition.findMany({
+    const perpPositionsRaw = await db.perpPosition.findMany({
       where: {
         userId,
         closedAt: null,
       },
     });
 
+    const orgIds = [
+      ...new Set(perpPositionsRaw.map((p) => p.organizationId).filter(Boolean)),
+    ];
+    const orgStates =
+      orgIds.length > 0
+        ? await db.organizationState.findMany({
+            where: { id: { in: orgIds } },
+            select: { id: true, currentPrice: true },
+          })
+        : [];
+    const orgStateMap = new Map(orgStates.map((o) => [o.id, o]));
+
     return {
       marketPositions: marketPositionsRaw.map((p) => {
         const market = marketMap.get(p.marketId);
+        const side: 'YES' | 'NO' = p.outcome === true ? 'YES' : 'NO';
+
+        // CPMM price: yesPrice = noShares / total, noPrice = yesShares / total
+        const yesShares = Number(market?.yesShares ?? 0);
+        const noShares = Number(market?.noShares ?? 0);
+        const totalShares = yesShares + noShares;
+        const currentPrice =
+          totalShares > 0
+            ? side === 'YES'
+              ? noShares / totalShares
+              : yesShares / totalShares
+            : 0.5;
+
+        const avgPrice = Number(p.avgPrice);
+        const shares = Number(p.shares);
+        const unrealizedPnL = (currentPrice - avgPrice) * shares;
+
         return {
           id: p.id,
           marketId: String(p.marketId),
-          marketQuestion: market?.question || 'Unknown',
-          outcome: p.outcome,
-          shares: Number(p.shares),
-          avgPrice: Number(p.avgPrice),
-          unrealizedPnL: 0, // Would need current price to calculate
+          question: market?.question || 'Unknown',
+          side,
+          shares,
+          avgPrice,
+          currentPrice,
+          unrealizedPnL,
         };
       }),
-      perpPositions: perpPositions.map((p) => ({
-        id: p.id,
-        ticker: p.ticker,
-        organizationId: p.organizationId,
-        side: p.side,
-        size: Number(p.size),
-        entryPrice: Number(p.entryPrice),
-        leverage: Number(p.leverage),
-        unrealizedPnL: Number(p.unrealizedPnL) || 0,
-      })),
-      totalPnL: perpPositions.reduce(
+      perpPositions: perpPositionsRaw.map((p) => {
+        const orgState = orgStateMap.get(p.organizationId);
+        const currentPrice = Number(orgState?.currentPrice ?? p.entryPrice);
+        return {
+          id: p.id,
+          ticker: p.ticker,
+          side: p.side as 'long' | 'short',
+          size: Number(p.size),
+          entryPrice: Number(p.entryPrice),
+          currentPrice,
+          leverage: Number(p.leverage),
+          unrealizedPnL: Number(p.unrealizedPnL) || 0,
+        };
+      }),
+      totalPnL: perpPositionsRaw.reduce(
         (sum, p) => sum + (Number(p.unrealizedPnL) || 0),
         0
       ),
