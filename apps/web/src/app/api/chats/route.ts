@@ -186,6 +186,7 @@ import {
   groupMembers,
   inArray,
   messages,
+  userAgentTeamChats,
   users,
 } from '@babylon/db';
 import {
@@ -319,6 +320,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
+    // Get user's Command Center chat ID to exclude from regular chat list
+    // Command Center is managed separately at /agents/team
+    const [teamChat] = await dbClient
+      .select({ chatId: userAgentTeamChats.chatId })
+      .from(userAgentTeamChats)
+      .where(eq(userAgentTeamChats.userId, user.userId))
+      .limit(1);
+    const teamChatId = teamChat?.chatId;
+
     // Get user's group memberships
     const memberships = await dbClient
       .select()
@@ -340,13 +350,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .from(chats)
             .where(inArray(chats.groupId, groupIds))
         : [];
-    const groupChatIds = groupChatsWithGroupId.map((c) => c.id);
+
+    // Filter out Command Center from group chats
+    const filteredGroupChats = teamChatId
+      ? groupChatsWithGroupId.filter((c) => c.id !== teamChatId)
+      : groupChatsWithGroupId;
+    const groupChatIds = filteredGroupChats.map((c) => c.id);
     // Map groupId -> chatId for lookup
     const groupIdToChatId = new Map(
-      groupChatsWithGroupId.map((c) => [c.groupId, c.id])
+      filteredGroupChats.map((c) => [c.groupId, c.id])
     );
     // Map chatId -> chat details
-    const chatDetailsMap = new Map(groupChatsWithGroupId.map((c) => [c.id, c]));
+    const chatDetailsMap = new Map(filteredGroupChats.map((c) => [c.id, c]));
 
     // Get last messages for group chats
     const groupChatMessages = await Promise.all(

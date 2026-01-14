@@ -201,10 +201,12 @@ async function ensureSmartWalletAddress(privyId: string): Promise<{
   let embeddedWallet = pickEmbeddedEvmWallet(user);
 
   if (!smartWalletAddress) {
+    // Note: createEthereumWallet must be true when creating a smart wallet
+    // If user already has an embedded wallet, Privy will skip creating a new one
     const updated = (await privyClient.createWallets({
       userId: privyId,
       createEthereumSmartWallet: true,
-      createEthereumWallet: !embeddedWallet,
+      createEthereumWallet: true,
     })) as PrivyUserWithSmartWallet;
 
     smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;

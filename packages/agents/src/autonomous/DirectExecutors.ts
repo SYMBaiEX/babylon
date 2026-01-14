@@ -8,6 +8,7 @@
 
 import {
   broadcastAgentActivity,
+  broadcastChatMessage,
   type CommentActivityData,
   type MessageActivityData,
   type PostActivityData,
@@ -1279,17 +1280,29 @@ export async function executeDirectComment(
 // =============================================================================
 
 /**
- * Send a message directly without LLM decision-making.
- * Just creates the message with the given content.
+ * Strip `<think>...</think>` reasoning blocks from content.
+ * Removes paired blocks first, then any orphan tags.
+ * Returns empty string if only reasoning was present.
  */
+function stripThinkTags(text: string): string {
+  // Remove paired <think>...</think> blocks
+  const withoutBlocks = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Also strip orphan tags (unclosed/unmatched)
+  return withoutBlocks.replace(/<\/?think>/gi, '').trim();
+}
+
 export async function executeDirectMessage(
   params: DirectMessageParams
 ): Promise<DirectMessageResult> {
   const { agentUserId, chatId: providedChatId, recipientId, content } = params;
 
-  const cleanContent = content?.trim() ?? '';
+  // Strip think tags and clean content
+  const cleanContent = stripThinkTags(content?.trim() ?? '');
   if (cleanContent.length < 3) {
-    return { success: false, error: 'Content too short' };
+    return {
+      success: false,
+      error: 'Content too short or only contained thinking',
+    };
   }
   let chatId = providedChatId;
 
@@ -1475,6 +1488,25 @@ export async function executeDirectMessage(
     undefined,
     'DirectExecutors'
   );
+
+  // Broadcast to chat channel for real-time message updates
+  // This ensures all chat participants see the message immediately
+  broadcastChatMessage(chatId, {
+    id: messageId,
+    content: cleanContent,
+    chatId,
+    senderId: agentUserId,
+    type: 'user',
+    createdAt: now.toISOString(),
+    isGameChat: false,
+    isDMChat: Boolean(recipientId),
+  }).catch((error: Error) => {
+    logger.warn(
+      `Failed to broadcast chat message: ${error.message}`,
+      { chatId, messageId },
+      'DirectExecutors'
+    );
+  });
 
   // Broadcast activity for real-time UI updates (only for non-NPCs)
   const isNpc = !!StaticDataRegistry.getActor(agentUserId);

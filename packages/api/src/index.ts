@@ -215,6 +215,7 @@ export {
   broadcastAgentActivity,
   broadcastChatMessage,
   broadcastToChannel,
+  broadcastTypingIndicator,
   type CommentActivityData,
   type MessageActivityData,
   type PostActivityData,

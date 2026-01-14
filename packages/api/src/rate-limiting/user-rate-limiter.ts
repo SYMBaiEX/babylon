@@ -61,6 +61,11 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60000,
     actionType: 'send_message',
   }, // 20 messages per minute
+  TYPING_INDICATOR: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'typing_indicator',
+  }, // 60 typing indicators per minute (1 per second max)
 
   // Uploads
   UPLOAD_IMAGE: { maxRequests: 5, windowMs: 60000, actionType: 'upload_image' }, // 5 uploads per minute
