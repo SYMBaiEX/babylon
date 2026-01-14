@@ -29,6 +29,10 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
+import {
+  getMaxTradesPerDay,
+  getMinMinutesBetweenTrades,
+} from '../config/npc-activity';
 import { isSimulationMode } from '../storage-bridge';
 import type {
   ExecutedTrade,
@@ -93,6 +97,71 @@ const isPredictionBroadcastPayload = (
   return type === 'prediction_trade' || type === 'prediction_resolution';
 };
 
+// =============================================================================
+// NPC TRADE RATE LIMITING
+// =============================================================================
+
+/**
+ * In-memory tracking of last trade timestamp per NPC.
+ * Used to enforce minimum time between trades.
+ */
+const npcLastTradeTime = new Map<string, number>();
+
+/**
+ * In-memory tracking of daily trade count per NPC.
+ * Resets when the date changes.
+ */
+const npcDailyTradeCount = new Map<string, { date: string; count: number }>();
+
+/**
+ * Check if an NPC is allowed to trade based on cooldown and daily limits.
+ *
+ * @param npcId - The NPC's actor ID
+ * @returns true if the NPC can trade, false if rate limited
+ */
+function canNpcTrade(npcId: string): boolean {
+  const now = Date.now();
+
+  // Check cooldown between trades
+  const lastTrade = npcLastTradeTime.get(npcId) || 0;
+  const cooldownMs = getMinMinutesBetweenTrades() * 60 * 1000;
+
+  if (now - lastTrade < cooldownMs) {
+    return false;
+  }
+
+  // Check daily trade limit
+  const today = new Date().toISOString().split('T')[0]!;
+  const dailyData = npcDailyTradeCount.get(npcId);
+  if (
+    dailyData !== undefined &&
+    dailyData.date === today &&
+    dailyData.count >= getMaxTradesPerDay()
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Record that an NPC has made a trade.
+ * Updates both the last trade timestamp and daily count.
+ *
+ * @param npcId - The NPC's actor ID
+ */
+function recordNpcTrade(npcId: string): void {
+  npcLastTradeTime.set(npcId, Date.now());
+
+  const today = new Date().toISOString().split('T')[0]!;
+  const dailyData = npcDailyTradeCount.get(npcId);
+  if (dailyData !== undefined && dailyData.date === today) {
+    dailyData.count++;
+  } else {
+    npcDailyTradeCount.set(npcId, { date: today, count: 1 });
+  }
+}
+
 export class TradeExecutionService {
   /**
    * Execute a batch of trading decisions
@@ -152,9 +221,24 @@ export class TradeExecutionService {
       process.env.STRICT_LLM_VALIDATION === 'true' ||
       process.env.STRICT_LLM_VALIDATION === '1';
 
+    // Track rate-limited trades for logging
+    let rateLimitedCount = 0;
+
     for (const decision of decisions) {
       if (decision.action === 'hold') {
         result.holdDecisions++;
+        continue;
+      }
+
+      // Check rate limits before executing
+      if (!canNpcTrade(decision.npcId)) {
+        rateLimitedCount++;
+        logger.debug(
+          `NPC ${decision.npcName} rate limited, skipping trade`,
+          { npcId: decision.npcId, action: decision.action },
+          'TradeExecutionService'
+        );
+        result.holdDecisions++; // Count as hold since we're not executing
         continue;
       }
 
@@ -162,6 +246,9 @@ export class TradeExecutionService {
         const executedTrade = await this.executeSingleDecision(decision);
         result.executedTrades.push(executedTrade);
         result.successfulTrades++;
+
+        // Record successful trade for rate limiting
+        recordNpcTrade(decision.npcId);
 
         if (executedTrade.marketType === 'perp') {
           result.totalVolumePerp += executedTrade.size;
@@ -224,6 +311,7 @@ export class TradeExecutionService {
       `Executed ${result.successfulTrades} trades in ${duration}ms`,
       {
         ...result,
+        rateLimited: rateLimitedCount,
         durationMs: duration,
       },
       'TradeExecutionService'

@@ -205,6 +205,48 @@ export const NPC_POSTING_CONFIG = {
 } as const;
 
 // =============================================================================
+// TRADING CONFIGURATION
+// =============================================================================
+
+/**
+ * Configuration for NPC trading behavior.
+ *
+ * Controls how often NPCs consider trading and the limits on their trading activity.
+ */
+export const NPC_TRADING_CONFIG = {
+  /**
+   * Base probability for an NPC to consider trading per tick (0.0 - 1.0).
+   * Higher than posting since trading is a core game mechanic.
+   *
+   * @default 0.6 (60% chance to consider trading per tick)
+   * @env NPC_TRADE_PROBABILITY
+   */
+  baseProbability: envProbability('NPC_TRADE_PROBABILITY', 0.6),
+
+  /**
+   * Maximum trades per day per NPC to prevent excessive trading.
+   * Higher than posts since trading is more central to gameplay.
+   *
+   * @default 20
+   * @env NPC_MAX_TRADES_PER_DAY
+   */
+  maxTradesPerDay: envPositiveNumber('NPC_MAX_TRADES_PER_DAY', 20),
+
+  /**
+   * Minimum minutes between trades for the same NPC.
+   * Prevents same NPC trading multiple times per tick.
+   * A value of 0 allows back-to-back trading (useful for testing).
+   *
+   * @default 5 (5 minute cooldown)
+   * @env NPC_MIN_MINUTES_BETWEEN_TRADES
+   */
+  minMinutesBetweenTrades: envNonNegativeNumber(
+    'NPC_MIN_MINUTES_BETWEEN_TRADES',
+    5
+  ),
+} as const;
+
+// =============================================================================
 // SOCIAL ENGAGEMENT CONFIGURATION
 // =============================================================================
 
@@ -818,6 +860,7 @@ export const NPC_TICK_CONFIG = {
  */
 export const NPC_ACTIVITY_CONFIG = {
   posting: NPC_POSTING_CONFIG,
+  trading: NPC_TRADING_CONFIG,
   engagement: NPC_ENGAGEMENT_CONFIG,
   socialActions: NPC_SOCIAL_ACTIONS_CONFIG,
   groupDynamics: NPC_GROUP_DYNAMICS_CONFIG,
@@ -1004,6 +1047,11 @@ export function logCurrentConfig(): void {
     'npc-activity'
   );
   logger.info(
+    'NPC Activity Configuration - Trading',
+    NPC_TRADING_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
     'NPC Activity Configuration - Engagement',
     NPC_ENGAGEMENT_CONFIG,
     'npc-activity'
@@ -1034,4 +1082,35 @@ export function logCurrentConfig(): void {
     'npc-activity'
   );
   logger.info('NPC Activity Configuration - Footer', {}, 'npc-activity');
+}
+
+// =============================================================================
+// TRADING CONFIGURATION GETTERS
+// =============================================================================
+
+/**
+ * Get the base probability for an NPC to consider trading.
+ *
+ * @returns The trading probability (0.0 - 1.0)
+ */
+export function getTradingProbability(): number {
+  return NPC_TRADING_CONFIG.baseProbability;
+}
+
+/**
+ * Get the maximum number of trades per day per NPC.
+ *
+ * @returns The maximum trades per day
+ */
+export function getMaxTradesPerDay(): number {
+  return NPC_TRADING_CONFIG.maxTradesPerDay;
+}
+
+/**
+ * Get the minimum minutes between trades for the same NPC.
+ *
+ * @returns The minimum minutes between trades
+ */
+export function getMinMinutesBetweenTrades(): number {
+  return NPC_TRADING_CONFIG.minMinutesBetweenTrades;
 }
