@@ -249,6 +249,138 @@ export GROQ_API_KEY=your_key
 bun run generate-training-data.ts --hours 2
 ```
 
+## Long-Running Simulations (24+ Hours)
+
+For generating large training datasets, you'll want to run simulations for extended periods. This section covers running simulations that survive SSH disconnects.
+
+### Recommended: tmux (Reattachable Sessions)
+
+`tmux` lets you detach from a running process and reattach later, even after SSH disconnect.
+
+**Start the simulation:**
+
+```bash
+# Create a named tmux session
+tmux new -s training
+
+# Inside tmux, run the simulation (no nohup needed)
+cd /home/dev/bab && bun run packages/engine/examples/generate-training-data.ts \
+  --causal \
+  --days 60 \
+  --npcs 15 \
+  --seed 20250114 \
+  2>&1 | tee training-generation.log
+```
+
+**Detach from session:**
+
+Press `Ctrl+B`, then `D` to detach. The simulation continues running.
+
+**After SSH reconnect:**
+
+```bash
+# Reattach to see live output
+tmux attach -t training
+
+# List all sessions
+tmux ls
+
+# Kill session when done
+tmux kill-session -t training
+```
+
+**tmux navigation:**
+
+| Command | Action |
+|---------|--------|
+| `Ctrl+B, D` | Detach |
+| `Ctrl+B, [` | Scroll mode (arrows to scroll, `q` to exit) |
+| `Ctrl+B, c` | New window |
+| `Ctrl+B, n` | Next window |
+| `Ctrl+B, p` | Previous window |
+
+### Alternative: nohup (Fire and Forget)
+
+If you don't need to reattach:
+
+```bash
+cd /home/dev/bab && \
+nohup bun run packages/engine/examples/generate-training-data.ts \
+  --causal \
+  --days 60 \
+  --npcs 15 \
+  --seed 20250114 \
+  > training-generation.log 2>&1 &
+
+# Save the PID for later
+echo $! > training.pid
+echo "Started with PID: $(cat training.pid)"
+```
+
+**Monitor progress:**
+
+```bash
+# Watch log in real-time
+tail -f training-generation.log
+
+# Check if still running
+ps aux | grep $(cat training.pid)
+
+# Count completed ticks
+grep -c "Tick " training-generation.log
+```
+
+### Recommended Parameters for 24-Hour Run
+
+Based on typical LLM latency (~30-60 seconds per tick):
+
+| Duration | Days | Hours/Day | Total Ticks | Estimated Time |
+|----------|------|-----------|-------------|----------------|
+| 12 hours | 30 | 24 | 720 | ~12h @ 60s/tick |
+| 24 hours | 60 | 24 | 1440 | ~24h @ 60s/tick |
+| 48 hours | 120 | 24 | 2880 | ~48h @ 60s/tick |
+
+**24-hour command (copy-paste ready):**
+
+```bash
+tmux new -s training -d "cd /home/dev/bab && bun run packages/engine/examples/generate-training-data.ts --causal --days 60 --npcs 15 --seed 20250114 2>&1 | tee training-generation.log"
+
+# Attach to see progress
+tmux attach -t training
+```
+
+### After Completion
+
+```bash
+# Check output
+ls -la training-data-output/
+
+# Count trajectories
+ls training-data-output/trajectories/ | wc -l
+
+# Import to database
+cd packages/training && make tier4-import
+
+# Or directly
+cd packages/training/python && python scripts/import_json_trajectories.py --source ../../../training-data-output
+```
+
+### Recovery if Interrupted
+
+If the simulation crashes or you kill it early:
+
+1. **Data is preserved**: Trajectories are saved per-tick to `./training-data-output/trajectories/`
+2. **Resume not supported**: You'll need to restart, but existing files won't be overwritten
+3. **Import what you have**: Run the import on partial data
+
+```bash
+# Check what you got
+find training-data-output/trajectories -name "*.json" | wc -l
+
+# Import anyway
+make tier4-import
+```
+
 ## Troubleshooting
 
 ### No API Key

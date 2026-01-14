@@ -185,6 +185,81 @@ python scripts/run_training.py \
 
 This continues from step 51.
 
+## Long-Running Training (Hours/Days)
+
+For training runs that take hours or days, use tmux to survive SSH disconnects.
+
+### Start Training in tmux
+
+```bash
+# Create named session
+tmux new -s train
+
+# Activate venv and start training
+cd /home/dev/bab/packages/training
+source python/venv/bin/activate
+python scripts/run_training.py \
+  --profile 12gb \
+  --steps 500 \
+  2>&1 | tee training.log
+```
+
+**Detach**: `Ctrl+B`, then `D`
+
+**Reattach after SSH reconnect**:
+
+```bash
+tmux attach -t train
+```
+
+### Alternative: nohup
+
+```bash
+cd /home/dev/bab/packages/training
+source python/venv/bin/activate
+
+nohup python scripts/run_training.py \
+  --profile 12gb \
+  --steps 500 \
+  > training.log 2>&1 &
+
+echo $! > train.pid
+```
+
+**Monitor**:
+
+```bash
+tail -f training.log
+nvidia-smi  # Check GPU usage
+```
+
+### Recommended Steps for Different Durations
+
+| Duration | Steps | Expected Quality |
+|----------|-------|------------------|
+| 1 hour | 100-200 | Basic patterns |
+| 4 hours | 500-800 | Good for eval |
+| 8 hours | 1000-1500 | Production candidate |
+| 24 hours | 3000+ | Best quality |
+
+### Checkpoints
+
+Training saves checkpoints every 10 steps by default:
+
+```text
+trained_models/
+├── step_10/
+├── step_20/
+├── step_30/
+└── ...
+```
+
+If training crashes, resume from the last checkpoint:
+
+```bash
+python scripts/run_training.py --profile 12gb --resume ./trained_models/step_30
+```
+
 ## Common Issues
 
 ### CUDA Out of Memory
