@@ -77,9 +77,7 @@ class TestableNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
     this.dailyTradeCount.clear();
   }
 
-  async getStats(
-    npcId: string
-  ): Promise<{
+  async getStats(npcId: string): Promise<{
     lastTradeTime: number;
     dailyCount: number;
     date: string;

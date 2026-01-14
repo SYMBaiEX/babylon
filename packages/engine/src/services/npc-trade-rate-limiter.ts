@@ -99,9 +99,7 @@ export interface NpcTradeRateLimitProvider {
    * @param npcId - The NPC's actor ID
    * @returns Current rate limit stats or null if no data
    */
-  getStats(
-    npcId: string
-  ): Promise<{
+  getStats(npcId: string): Promise<{
     lastTradeTime: number;
     dailyCount: number;
     date: string;
@@ -181,9 +179,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
     this.dailyTradeCount.clear();
   }
 
-  async getStats(
-    npcId: string
-  ): Promise<{
+  async getStats(npcId: string): Promise<{
     lastTradeTime: number;
     dailyCount: number;
     date: string;
@@ -346,9 +342,7 @@ export class NpcTradeRateLimiter {
    * @param npcId - The NPC's actor ID
    * @returns Stats or null if no data
    */
-  static async getStats(
-    npcId: string
-  ): Promise<{
+  static async getStats(npcId: string): Promise<{
     lastTradeTime: number;
     dailyCount: number;
     date: string;
