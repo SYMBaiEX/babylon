@@ -43,7 +43,18 @@ from .rewards import (
     TrajectoryRewardInputs,
     BehaviorMetrics,
     archetype_composite_reward,
+    enhanced_composite_reward,
+    compute_counterfactual,
+    TemporalCredit,
 )
+from .market_regime import (
+    MarketRegime,
+    extract_regime_from_trajectory,
+    get_expected_return,
+    detect_regime_from_prices,
+)
+from .temporal_credit import attribute_temporal_credit
+from .reward_config import get_regime_expected_return
 from .rubric_loader import has_custom_rubric, normalize_archetype
 from .tokenization_utils import tokenize_for_trainer
 from .quality_scorer import score_response
@@ -370,6 +381,33 @@ class BabylonRLAIFEnv(BaseEnv):
             self.judge_scores_buffer = []
             self.judge_format_scores = []
             self.judge_reasoning_scores = []
+        
+        # Add enhanced reward metrics (regime, alpha, temporal)
+        if hasattr(self, 'enhanced_reward_metrics') and self.enhanced_reward_metrics:
+            metrics = self.enhanced_reward_metrics
+            total_regimes = metrics['regime_bulls'] + metrics['regime_bears'] + metrics['regime_sideways']
+            
+            if total_regimes > 0:
+                wandb_metrics["train/regime_bull_pct"] = metrics['regime_bulls'] / total_regimes
+                wandb_metrics["train/regime_bear_pct"] = metrics['regime_bears'] / total_regimes
+                wandb_metrics["train/regime_sideways_pct"] = metrics['regime_sideways'] / total_regimes
+            
+            if metrics['alphas']:
+                wandb_metrics["train/counterfactual_alpha_mean"] = sum(metrics['alphas']) / len(metrics['alphas'])
+                wandb_metrics["train/counterfactual_alpha_min"] = min(metrics['alphas'])
+                wandb_metrics["train/counterfactual_alpha_max"] = max(metrics['alphas'])
+            
+            if metrics['volatilities']:
+                wandb_metrics["train/market_volatility_mean"] = sum(metrics['volatilities']) / len(metrics['volatilities'])
+            
+            # Reset for next logging interval
+            self.enhanced_reward_metrics = {
+                'regime_bulls': 0,
+                'regime_bears': 0,
+                'regime_sideways': 0,
+                'alphas': [],
+                'volatilities': [],
+            }
 
         self.judgement_samples = []  # Clear after logging
         await super().wandb_log(wandb_metrics)
@@ -752,10 +790,11 @@ You receive market updates and must analyze, reason, and then act."""
 
             # 5. Build reward inputs
             final_pnl = traj.get("final_pnl", 0.0)
+            starting_balance = 10000.0
             reward_inputs = TrajectoryRewardInputs(
                 final_pnl=final_pnl,
-                starting_balance=10000.0,
-                end_balance=10000.0 + final_pnl,
+                starting_balance=starting_balance,
+                end_balance=starting_balance + final_pnl,
                 format_score=fmt_score,
                 reasoning_score=rsn_score,
                 risky_actions_count=0,
@@ -763,12 +802,67 @@ You receive market updates and must analyze, reason, and then act."""
                 total_actions=behavior_metrics.episode_length,
             )
 
-            # 6. Compute archetype-aware composite score
-            base_score = archetype_composite_reward(
-                inputs=reward_inputs,
-                archetype=archetype_norm,
-                behavior_metrics=behavior_metrics,
-            )
+            # 6. Compute enhanced reward with regime awareness
+            # Try to extract market regime from trajectory metadata
+            regime = extract_regime_from_trajectory(traj)
+            
+            if regime is not None:
+                # Enhanced path: use regime-adjusted counterfactual reward
+                regime_expected_return = get_regime_expected_return(regime.overall)
+                
+                # Compute counterfactual alpha
+                counterfactual = compute_counterfactual(
+                    actual_pnl=final_pnl,
+                    starting_balance=starting_balance,
+                    regime_overall=regime.overall,
+                    regime_expected_return=regime_expected_return,
+                )
+                
+                # Compute temporal credits from trajectory steps
+                steps = traj.get("steps", [])
+                outcome_data = traj.get("market_outcomes", None)
+                temporal_credits = attribute_temporal_credit(
+                    steps=steps,
+                    final_pnl=final_pnl,
+                    outcome_data=outcome_data,
+                )
+                
+                # Use enhanced composite reward
+                base_score = enhanced_composite_reward(
+                    inputs=reward_inputs,
+                    archetype=archetype_norm,
+                    behavior_metrics=behavior_metrics,
+                    regime_overall=regime.overall,
+                    regime_volatility=regime.volatility,
+                    regime_expected_return=regime_expected_return,
+                    counterfactual_alpha=counterfactual.alpha,
+                    temporal_credits=temporal_credits,
+                )
+                
+                # Track enhanced metrics for W&B
+                if not hasattr(self, 'enhanced_reward_metrics'):
+                    self.enhanced_reward_metrics = {
+                        'regime_bulls': 0,
+                        'regime_bears': 0,
+                        'regime_sideways': 0,
+                        'alphas': [],
+                        'volatilities': [],
+                    }
+                if regime.overall == 'bull':
+                    self.enhanced_reward_metrics['regime_bulls'] += 1
+                elif regime.overall == 'bear':
+                    self.enhanced_reward_metrics['regime_bears'] += 1
+                else:
+                    self.enhanced_reward_metrics['regime_sideways'] += 1
+                self.enhanced_reward_metrics['alphas'].append(counterfactual.alpha)
+                self.enhanced_reward_metrics['volatilities'].append(regime.volatility)
+            else:
+                # Fallback: standard archetype composite reward
+                base_score = archetype_composite_reward(
+                    inputs=reward_inputs,
+                    archetype=archetype_norm,
+                    behavior_metrics=behavior_metrics,
+                )
             
             # 7. GRPO adjustment: Blend base score with action quality
             # For multiple completions per prompt, action quality provides variance
