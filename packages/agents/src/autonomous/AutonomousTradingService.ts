@@ -30,9 +30,9 @@ import { logger } from '../shared/logger';
 import { executeDirectTrade } from './DirectExecutors';
 import { resolvePerpTicker } from './utils/resolvePerpTicker';
 
-const SUGGESTED_TRADE_PERCENT = 0.1;
-const MIN_SUGGESTED_TRADE_SIZE = 10;
-const MIN_SUGGESTED_TRADE_SIZE_LABEL = MIN_SUGGESTED_TRADE_SIZE.toFixed(0);
+const SUGGESTED_TRADE_PERCENT = 0.25; // 25% of balance for more aggressive trading
+const MIN_SUGGESTED_TRADE_SIZE = 25; // $25 minimum per trade
+const MAX_SUGGESTED_TRADE_SIZE = 500; // $500 cap per trade
 
 export class AutonomousTradingService {
   /**
@@ -159,6 +159,7 @@ export class AutonomousTradingService {
               balance.balance * SUGGESTED_TRADE_PERCENT,
               MIN_SUGGESTED_TRADE_SIZE
             ),
+            MAX_SUGGESTED_TRADE_SIZE,
             balance.balance
           )
         : 0;
@@ -184,8 +185,8 @@ ${contextString}
 
 Strategy: ${config?.tradingStrategy || 'Balanced risk/reward seeking alpha'}
 
-Suggested Trade Size (10% of balance, min $${MIN_SUGGESTED_TRADE_SIZE_LABEL}): $${suggestedTradeSizeText}
-Recommended range: invest roughly 5-20% of your balance per trade.
+Suggested Trade Size (25% of balance, min $25, max $500): $${suggestedTradeSizeText}
+Recommended range: invest roughly 10-50% of your balance per trade.
 
 Task: Decide on ONE trade to make, or hold if nothing looks good.
 
