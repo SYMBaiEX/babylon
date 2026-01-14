@@ -553,36 +553,43 @@ export class BabylonAgentExecutor implements AgentExecutor {
   private async listPerpetualMarkets(params: Record<string, JsonValue>) {
     const limit = this.parsePositiveInt(params.limit, 20, 50);
 
-    const drizzle = getRawDrizzle();
-    const snapshots = await drizzle
-      .select({
-        ticker: perpMarketSnapshots.ticker,
-        name: perpMarketSnapshots.name,
-        organizationId: perpMarketSnapshots.organizationId,
-        currentPrice: perpMarketSnapshots.currentPrice,
-        change24h: perpMarketSnapshots.change24h,
-        changePercent24h: perpMarketSnapshots.changePercent24h,
-        volume24h: perpMarketSnapshots.volume24h,
-        openInterest: perpMarketSnapshots.openInterest,
-        fundingRate: perpMarketSnapshots.fundingRate,
-      })
-      .from(perpMarketSnapshots)
-      .limit(limit);
+    try {
+      const drizzle = getRawDrizzle();
+      const snapshots = await drizzle
+        .select({
+          ticker: perpMarketSnapshots.ticker,
+          name: perpMarketSnapshots.name,
+          organizationId: perpMarketSnapshots.organizationId,
+          currentPrice: perpMarketSnapshots.currentPrice,
+          change24h: perpMarketSnapshots.change24h,
+          changePercent24h: perpMarketSnapshots.changePercent24h,
+          volume24h: perpMarketSnapshots.volume24h,
+          openInterest: perpMarketSnapshots.openInterest,
+          fundingRate: perpMarketSnapshots.fundingRate,
+        })
+        .from(perpMarketSnapshots)
+        .limit(limit);
 
-    return {
-      perpetuals: snapshots.map((s) => ({
-        name: s.name || s.ticker,
-        ticker: s.ticker,
-        currentPrice: Number(s.currentPrice) || 0,
-        priceChange24h: Number(s.change24h) || 0,
-        volume24h: Number(s.volume24h) || 0,
-        openInterest: Number(s.openInterest) || 0,
-        fundingRate:
-          typeof s.fundingRate === 'object' && s.fundingRate !== null
-            ? (s.fundingRate as { rate?: number }).rate || 0
-            : 0,
-      })),
-    };
+      return {
+        perpetuals: snapshots.map((s) => ({
+          name: s.name || s.ticker,
+          ticker: s.ticker,
+          currentPrice: Number(s.currentPrice) || 0,
+          priceChange24h: Number(s.change24h) || 0,
+          volume24h: Number(s.volume24h) || 0,
+          openInterest: Number(s.openInterest) || 0,
+          fundingRate:
+            typeof s.fundingRate === 'object' && s.fundingRate !== null
+              ? (s.fundingRate as { rate?: number }).rate || 0
+              : 0,
+        })),
+      };
+    } catch (error) {
+      logger.warn('Failed to fetch perpMarketSnapshots, returning empty', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { perpetuals: [] };
+    }
   }
 
   private async getUserProfile(params: Record<string, JsonValue>) {
