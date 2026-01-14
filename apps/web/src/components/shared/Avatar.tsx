@@ -83,6 +83,10 @@ export function Avatar({
   const [primaryImageError, setPrimaryImageError] = useState(false);
   const [fallbackImageError, setFallbackImageError] = useState(false);
 
+  // Check if ID is purely numeric (likely a snowflake ID without static image)
+  const isNumericId = id && /^\d+$/.test(id);
+  const sanitizedId = id && !isNumericId ? sanitizeId(id) : undefined;
+
   // Determine the image path to use:
   // 1. If src is provided directly (uploaded profile image), use it
   // 2. Otherwise, use imageUrl if provided
@@ -92,15 +96,11 @@ export function Avatar({
   let imagePath: string | undefined;
   let fallbackPath: string | undefined;
 
-  // Check if ID is purely numeric (likely a snowflake ID without static image)
-  const isNumericId = id && /^\d+$/.test(id);
-
   if (src) {
     imagePath = src;
   } else if (imageUrl) {
     imagePath = imageUrl;
-  } else if (id && !isNumericId) {
-    const sanitizedId = sanitizeId(id);
+  } else if (sanitizedId) {
     if (type === 'business') {
       imagePath = `/images/organizations/${sanitizedId}.jpg`;
     } else if (type === 'user') {
@@ -112,8 +112,9 @@ export function Avatar({
     }
   }
 
-  // Generate deterministic fallback based on id
-  if (id && !src && !imageUrl) {
+  // Generate deterministic fallback based on id - always generate for non-user types
+  // This ensures a fallback even if src is provided but fails to load
+  if (id) {
     // Hash the id to get a number between 1-100
     const hash = Array.from(id).reduce(
       (acc, char) => acc + char.charCodeAt(0),
@@ -127,11 +128,12 @@ export function Avatar({
   const displayName = alt || name || (id ? id : 'User');
   const initial = displayName.charAt(0).toUpperCase();
 
-  // Reset error flags when source changes
+  // Reset error flags when source changes (props that affect image path)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: These ARE component props that should trigger the effect when changed
   useEffect(() => {
     setPrimaryImageError(false);
     setFallbackImageError(false);
-  }, []);
+  }, [src, imageUrl, id, type]);
 
   // Base sizes in rem
   const baseSizes = {

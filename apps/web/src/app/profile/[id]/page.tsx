@@ -192,14 +192,32 @@ export default function ActorProfilePage() {
 
     if (userResponse?.ok) {
       const userData = await userResponse.json();
-      if (userData.user) {
-        const user = userData.user;
+      const user = userData.user;
+
+      // Database has two types of records in User table:
+      // 1. Human users (isActor=false) - real people who signed up
+      // 2. NPC records (isActor=true) - actors stored in User table for game interactions
+      //
+      // Skip NPC records - let the actor lookup below handle them
+      // since it has proper static image fallbacks (/images/actors/{id}.jpg)
+      //
+      // Also skip "shell" records that have no meaningful profile data
+      // (created when an org/actor ID was used as authorId for posts)
+      const isNonActorUser =
+        user &&
+        !user.isActor &&
+        (user.displayName ||
+          user.username ||
+          user.profileImageUrl ||
+          user.walletAddress);
+
+      if (isNonActorUser) {
         setActorInfo({
           id: user.id,
           name: user.displayName || user.username || 'User',
           description: user.bio || '',
-          role: user.isActor ? 'Actor' : 'User',
-          type: user.isActor ? 'actor' : ('user' as const),
+          role: 'User',
+          type: 'user' as const,
           isUser: true,
           username: user.username,
           profileImageUrl: user.profileImageUrl,
@@ -241,14 +259,16 @@ export default function ActorProfilePage() {
 
       if (usernameLookupResponse?.ok) {
         const usernameData = await usernameLookupResponse.json();
-        if (usernameData.user) {
-          const user = usernameData.user;
+        const user = usernameData.user;
+
+        // Skip NPC records (isActor=true) - let actor lookup handle them
+        if (user && !user.isActor) {
           setActorInfo({
             id: user.id,
             name: user.displayName || user.username || 'User',
             description: user.bio || '',
-            role: user.isActor ? 'Actor' : 'User',
-            type: user.isActor ? 'actor' : ('user' as const),
+            role: 'User',
+            type: 'user' as const,
             isUser: true,
             username: user.username,
             profileImageUrl: user.profileImageUrl,
@@ -290,18 +310,24 @@ export default function ActorProfilePage() {
       console.error('Error fetching actors:', error);
     }
 
-    // Find actor by id, username, or name
+    // Find actor by id, username, or name (case-insensitive for username and name)
+    const actorIdLower = actorId.toLowerCase();
     let actor = actorsDb.actors?.find((a) => a.id === actorId);
     if (!actor) {
       actor = actorsDb.actors?.find(
-        (a) => 'username' in a && a.username === actorId
+        (a) =>
+          'username' in a &&
+          typeof a.username === 'string' &&
+          a.username.toLowerCase() === actorIdLower
       );
     }
     if (!actor) {
-      actor = actorsDb.actors?.find((a) => a.name === actorId);
+      actor = actorsDb.actors?.find(
+        (a) => a.name.toLowerCase() === actorIdLower
+      );
     }
     if (actor) {
-      // Find which game this actor belongs to
+      // Find which game this actor belongs to (use actual actor.id, not URL parameter)
       let gameId: string | null = null;
       for (const game of allGames) {
         const allActors = [
@@ -309,7 +335,7 @@ export default function ActorProfilePage() {
           ...(game.setup?.supportingActors || []),
           ...(game.setup?.extras || []),
         ];
-        if (allActors.some((a) => a.id === actorId)) {
+        if (allActors.some((a) => a.id === actor.id)) {
           gameId = game.id;
           break;
         }
@@ -364,10 +390,12 @@ export default function ActorProfilePage() {
       return;
     }
 
-    // Find organization
+    // Find organization (case-insensitive for name)
     let org = actorsDb.organizations?.find((o) => o.id === actorId);
     if (!org) {
-      org = actorsDb.organizations?.find((o) => o.name === actorId);
+      org = actorsDb.organizations?.find(
+        (o) => o.name.toLowerCase() === actorIdLower
+      );
     }
     if (org) {
       // Fetch organization stats from database (orgs are also stored as actors)
