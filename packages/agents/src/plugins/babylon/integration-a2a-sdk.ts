@@ -441,8 +441,9 @@ export class BabylonA2AClient {
   }
 
   /**
-   * Execute via direct executor (bypasses HTTP for server-side calls)
-   * Maps a2a.* methods to executor operations
+   * Execute via A2A protocol or direct executor
+   * Uses direct executor on server-side to avoid Vercel serverless 503 errors
+   * Falls back to A2A SDK for external/client-side calls
    */
   private async executeViaA2A(
     action: string,
@@ -478,15 +479,103 @@ export class BabylonA2AClient {
 
     const operationName = operationMap[action] || action;
 
-    // Use direct executor to bypass HTTP (fixes Vercel serverless 503 errors)
-    const { BabylonAgentExecutor } = await import('@babylon/a2a');
-    const result = await BabylonAgentExecutor.executeDirectly(
-      operationName,
-      params,
-      this.agentId
-    );
+    // On server-side (Next.js API routes), use direct executor to avoid HTTP self-call
+    // This fixes Vercel serverless 503 errors
+    const isServerSide = typeof window === 'undefined';
+    if (isServerSide) {
+      const { BabylonAgentExecutor } = await import('@babylon/a2a');
+      return BabylonAgentExecutor.executeDirectly(
+        operationName,
+        params,
+        this.agentId
+      );
+    }
 
-    return result;
+    // Client-side or when SDK client is needed: use A2A protocol
+    if (!this.sdkClient) {
+      throw new Error('A2A client not available');
+    }
+
+    // Map action to skill ID for A2A protocol
+    const skillMap: Record<string, string> = {
+      getBalance: 'portfolio-balance',
+      getPositions: 'portfolio-balance',
+      getUserWallet: 'portfolio-balance',
+      getPredictions: 'prediction-markets',
+      getPerpetuals: 'perpetual-futures',
+      getFeed: 'social-feed',
+      createPost: 'social-feed',
+      likePost: 'social-feed',
+      getUserProfile: 'user-social-graph',
+      searchUsers: 'user-social-graph',
+      getLeaderboard: 'stats-discovery',
+      getSystemStats: 'stats-discovery',
+      getTrendingTags: 'stats-discovery',
+      getOrganizations: 'stats-discovery',
+      getChats: 'messaging-chats',
+      getUnreadCount: 'messaging-chats',
+      getNotifications: 'messaging-chats',
+    };
+    const skillId = skillMap[action] || 'portfolio-balance';
+
+    const response = await this.sdkClient.sendMessage({
+      message: {
+        kind: 'message',
+        messageId: crypto.randomUUID(),
+        role: 'user',
+        parts: [
+          {
+            kind: 'data',
+            data: { operation: operationName, params },
+            metadata: { skillId },
+          },
+        ],
+      },
+    });
+
+    // Handle A2A response
+    type DataPart = { kind: 'data'; data: JsonValue };
+    const isDataPart = (part: { kind: string }): part is DataPart =>
+      part.kind === 'data' && 'data' in part;
+
+    if ('result' in response && response.result) {
+      const result = response.result;
+      if (typeof result === 'object' && result !== null && 'kind' in result) {
+        if (result.kind === 'message') {
+          const msg = result as { parts: Array<{ kind: string }> };
+          const dataPart = msg.parts.find((p) => isDataPart(p));
+          return dataPart && isDataPart(dataPart) ? dataPart.data : {};
+        }
+        if (result.kind === 'task') {
+          // For tasks, poll for completion
+          const task = result as { id: string; status?: { state: string }; artifacts?: Array<{ parts: Array<{ kind: string }> }> };
+          const maxWaitMs = 30000;
+          const startTime = Date.now();
+          
+          while (Date.now() - startTime < maxWaitMs) {
+            const taskResponse = await this.sdkClient.getTask({ id: task.id });
+            if ('result' in taskResponse && taskResponse.result) {
+              const taskResult = taskResponse.result as { task?: typeof task };
+              if (taskResult.task?.status?.state === 'completed') {
+                const artifact = taskResult.task.artifacts?.[0];
+                if (artifact) {
+                  const dataPart = artifact.parts.find((p) => isDataPart(p));
+                  return dataPart && isDataPart(dataPart) ? dataPart.data : {};
+                }
+                return {};
+              }
+              if (['failed', 'canceled', 'rejected'].includes(taskResult.task?.status?.state || '')) {
+                throw new Error(`Task ${taskResult.task?.status?.state}`);
+              }
+            }
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          throw new Error('Task timeout');
+        }
+      }
+    }
+
+    return {};
   }
 
   /**
