@@ -45,7 +45,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     // Check authorization: only owner or admin can revoke
     // Note: revokedAt check is handled by the service layer to avoid race conditions
-    const isOwner = connection.registeredByUserId === authUser.userId;
+    // Legacy agents (registered before this feature) have null registeredByUserId,
+    // meaning only admins can revoke them since ownership cannot be verified
+    const isOwner =
+      connection.registeredByUserId !== null &&
+      connection.registeredByUserId === authUser.userId;
     const isAdmin = await isUserAdmin(authUser.userId);
 
     if (!isOwner && !isAdmin) {
