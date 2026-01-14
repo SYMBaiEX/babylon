@@ -936,55 +936,65 @@ export class BabylonAgentExecutor implements AgentExecutor {
         : [];
     const orgStateMap = new Map(orgStates.map((o) => [o.id, o]));
 
+    const marketPositions = marketPositionsRaw.map((p) => {
+      const market = marketMap.get(p.marketId);
+      const side: 'YES' | 'NO' = p.outcome === true ? 'YES' : 'NO';
+
+      // CPMM price: yesPrice = noShares / total, noPrice = yesShares / total
+      const yesShares = Number(market?.yesShares ?? 0);
+      const noShares = Number(market?.noShares ?? 0);
+      const totalShares = yesShares + noShares;
+      const currentPrice =
+        totalShares > 0
+          ? side === 'YES'
+            ? noShares / totalShares
+            : yesShares / totalShares
+          : 0.5;
+
+      const avgPrice = Number(p.avgPrice);
+      const shares = Number(p.shares);
+      const unrealizedPnL = (currentPrice - avgPrice) * shares;
+
+      return {
+        id: p.id,
+        marketId: String(p.marketId),
+        question: market?.question || 'Unknown',
+        side,
+        shares,
+        avgPrice,
+        currentPrice,
+        unrealizedPnL,
+      };
+    });
+
+    const perpPositions = perpPositionsRaw.map((p) => {
+      const orgState = orgStateMap.get(p.organizationId);
+      const currentPrice = Number(orgState?.currentPrice ?? p.entryPrice);
+      return {
+        id: p.id,
+        ticker: p.ticker,
+        side: p.side as 'long' | 'short',
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        currentPrice,
+        leverage: Number(p.leverage),
+        unrealizedPnL: Number(p.unrealizedPnL) || 0,
+      };
+    });
+
+    const marketPnL = marketPositions.reduce(
+      (sum, p) => sum + p.unrealizedPnL,
+      0
+    );
+    const perpPnL = perpPositions.reduce(
+      (sum, p) => sum + p.unrealizedPnL,
+      0
+    );
+
     return {
-      marketPositions: marketPositionsRaw.map((p) => {
-        const market = marketMap.get(p.marketId);
-        const side: 'YES' | 'NO' = p.outcome === true ? 'YES' : 'NO';
-
-        // CPMM price: yesPrice = noShares / total, noPrice = yesShares / total
-        const yesShares = Number(market?.yesShares ?? 0);
-        const noShares = Number(market?.noShares ?? 0);
-        const totalShares = yesShares + noShares;
-        const currentPrice =
-          totalShares > 0
-            ? side === 'YES'
-              ? noShares / totalShares
-              : yesShares / totalShares
-            : 0.5;
-
-        const avgPrice = Number(p.avgPrice);
-        const shares = Number(p.shares);
-        const unrealizedPnL = (currentPrice - avgPrice) * shares;
-
-        return {
-          id: p.id,
-          marketId: String(p.marketId),
-          question: market?.question || 'Unknown',
-          side,
-          shares,
-          avgPrice,
-          currentPrice,
-          unrealizedPnL,
-        };
-      }),
-      perpPositions: perpPositionsRaw.map((p) => {
-        const orgState = orgStateMap.get(p.organizationId);
-        const currentPrice = Number(orgState?.currentPrice ?? p.entryPrice);
-        return {
-          id: p.id,
-          ticker: p.ticker,
-          side: p.side as 'long' | 'short',
-          size: Number(p.size),
-          entryPrice: Number(p.entryPrice),
-          currentPrice,
-          leverage: Number(p.leverage),
-          unrealizedPnL: Number(p.unrealizedPnL) || 0,
-        };
-      }),
-      totalPnL: perpPositionsRaw.reduce(
-        (sum, p) => sum + (Number(p.unrealizedPnL) || 0),
-        0
-      ),
+      marketPositions,
+      perpPositions,
+      totalPnL: marketPnL + perpPnL,
     };
   }
 
