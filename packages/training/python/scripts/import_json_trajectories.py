@@ -283,6 +283,18 @@ def import_trajectories(
     
     logger.info(f"Found {stats.total_files} trajectory files in {traj_dir}")
     
+    # Load ground truth for enhanced rewards (if available)
+    ground_truth = None
+    ground_truth_path = source_dir / "ground-truth.json"
+    if ground_truth_path.exists():
+        with open(ground_truth_path, "r", encoding="utf-8") as f:
+            ground_truth = json.load(f)
+        logger.info(f"Loaded ground truth from {ground_truth_path}")
+        if "priceHistory" in ground_truth:
+            logger.info(f"  - Price history for {len(ground_truth.get('priceHistory', {}))} tickers")
+        if "causalEvents" in ground_truth:
+            logger.info(f"  - {len(ground_truth.get('causalEvents', []))} causal events")
+    
     # Get database connection (skip if dry run)
     conn = None
     if not dry_run:
@@ -298,6 +310,37 @@ def import_trajectories(
             # Handle wrapped format (trajectory key) vs direct format
             traj_data = data.get("trajectory", data)
             trajectory_id = traj_data.get("trajectoryId", file_path.stem)
+            
+            # Merge ground truth into metadata for enhanced rewards
+            if ground_truth:
+                traj_metadata = traj_data.get("metadata", {})
+                if isinstance(traj_metadata, str):
+                    traj_metadata = json.loads(traj_metadata) if traj_metadata else {}
+                
+                # Build price context from ground truth
+                price_context = {}
+                if "priceHistory" in ground_truth:
+                    # Extract initial and final prices from history
+                    initial_prices = {}
+                    final_prices = {}
+                    for ticker, history in ground_truth["priceHistory"].items():
+                        if history and len(history) > 0:
+                            initial_prices[ticker] = history[0]
+                            final_prices[ticker] = history[-1]
+                    price_context["initial_prices"] = initial_prices
+                    price_context["final_prices"] = final_prices
+                    price_context["price_history"] = ground_truth["priceHistory"]
+                
+                # Include causal events for reference
+                if "causalEvents" in ground_truth:
+                    price_context["causal_events"] = ground_truth["causalEvents"]
+                
+                traj_metadata["ground_truth"] = {
+                    "initialPrices": price_context.get("initial_prices", {}),
+                    "finalPrices": price_context.get("final_prices", {}),
+                    "priceHistory": ground_truth.get("priceHistory", {}),
+                }
+                traj_data["metadata"] = traj_metadata
             
             # Validate
             is_valid, issues = validate_trajectory(traj_data)
