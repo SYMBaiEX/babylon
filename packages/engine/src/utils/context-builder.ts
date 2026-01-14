@@ -222,9 +222,7 @@ export async function buildComprehensiveNPCContext(
 
   const relationships = simulationMode
     ? []
-    : shuffleArray(
-        await RelationshipEvolutionEngine.getActorRelationships(actor.id)
-      )
+    : shuffleArray(await RelationshipEvolutionEngine.getActorRelationships(actor.id))
         .slice(0, 10)
         .map((rel) => {
           const isActor1 = rel.actor1Id === actor.id;
