@@ -237,6 +237,41 @@ type ExecutorOperationResult =
   | JsonValue;
 
 export class BabylonAgentExecutor implements AgentExecutor {
+  // Singleton instance for direct execution (bypasses HTTP)
+  private static instance: BabylonAgentExecutor | null = null;
+
+  /**
+   * Execute an operation directly without HTTP.
+   * Use this for server-side calls to avoid Vercel serverless self-call issues.
+   */
+  static async executeDirectly(
+    operation: string,
+    params: Record<string, JsonValue>,
+    userId?: string
+  ): Promise<JsonValue> {
+    if (!BabylonAgentExecutor.instance) {
+      BabylonAgentExecutor.instance = new BabylonAgentExecutor();
+    }
+
+    const context: RequestContext = {
+      taskId: `direct-${Date.now()}`,
+      contextId: userId || 'system',
+      userMessage: {
+        kind: 'message',
+        messageId: `msg-${Date.now()}`,
+        role: 'user',
+        parts: [],
+      },
+      task: null as unknown as Task,
+    };
+
+    const result = await BabylonAgentExecutor.instance.executeOperation(
+      { operation, params },
+      context
+    );
+    return result as JsonValue;
+  }
+
   async execute(
     requestContext: RequestContext,
     eventBus: ExecutionEventBus
@@ -315,7 +350,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     eventBus.finished();
   }
 
-  private async executeOperation(
+  async executeOperation(
     command: BabylonCommand,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
