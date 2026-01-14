@@ -53,7 +53,7 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-sm text-foreground">
+            <span className="font-medium text-foreground text-sm">
               Live Activity
             </span>
             {agentId && <ConnectionIndicator isConnected={isConnected} />}
@@ -166,8 +166,8 @@ function EmptyState({ message }: { message: string }) {
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Activity className="h-6 w-6 text-muted-foreground" />
       </div>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <p className="mt-1 text-xs text-muted-foreground/70">
+      <p className="text-muted-foreground text-sm">{message}</p>
+      <p className="mt-1 text-muted-foreground/70 text-xs">
         Activity will appear here when your agent takes actions
       </p>
     </div>

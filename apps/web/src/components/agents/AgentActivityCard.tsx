@@ -75,14 +75,14 @@ export const AgentActivityCard = memo(function AgentActivityCard({
           {/* Header Row */}
           <div className="flex flex-wrap items-center gap-2">
             {showAgent && activity.agent && (
-              <span className="font-medium text-sm text-foreground">
+              <span className="font-medium text-foreground text-sm">
                 {activity.agent.name}
               </span>
             )}
-            <span className="font-medium text-sm text-foreground">
+            <span className="font-medium text-foreground text-sm">
               {getActivityTitle(activity)}
             </span>
-            <span className="text-xs text-muted-foreground">{timeAgo}</span>
+            <span className="text-muted-foreground text-xs">{timeAgo}</span>
           </div>
 
           {/* Activity-specific content */}
@@ -126,11 +126,15 @@ function getActivityIcon(activity: AgentActivity) {
   }
 
   if (isCommentActivity(activity)) {
-    return <MessageCircle className="h-5 w-5 text-violet-600 dark:text-violet-400" />;
+    return (
+      <MessageCircle className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+    );
   }
 
   if (isMessageActivity(activity)) {
-    return <MessageCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
+    return (
+      <MessageCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+    );
   }
 
   return <MessageSquare className="h-5 w-5 text-muted-foreground" />;
@@ -147,8 +151,7 @@ function getActivityIconBackground(activity: AgentActivity): string {
   }
 
   if (isPostActivity(activity)) return 'bg-primary/10';
-  if (isCommentActivity(activity))
-    return 'bg-violet-100 dark:bg-violet-900/30';
+  if (isCommentActivity(activity)) return 'bg-violet-100 dark:bg-violet-900/30';
   if (isMessageActivity(activity)) return 'bg-amber-100 dark:bg-amber-900/30';
 
   return 'bg-muted';
@@ -200,15 +203,17 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
         </div>
 
         {marketQuestion && (
-          <p className="line-clamp-2 text-sm text-muted-foreground">{marketQuestion}</p>
+          <p className="line-clamp-2 text-muted-foreground text-sm">
+            {marketQuestion}
+          </p>
         )}
 
         {expanded && reasoning && (
           <div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
-            <p className="mb-1 font-medium text-xs text-muted-foreground uppercase">
+            <p className="mb-1 font-medium text-muted-foreground text-xs uppercase">
               Reasoning
             </p>
-            <p className="text-sm text-foreground/80">{reasoning}</p>
+            <p className="text-foreground/80 text-sm">{reasoning}</p>
           </div>
         )}
       </div>
@@ -218,7 +223,10 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
   if (isPostActivity(activity)) {
     return (
       <p
-        className={cn('text-sm text-muted-foreground', expanded ? '' : 'line-clamp-2')}
+        className={cn(
+          'text-muted-foreground text-sm',
+          expanded ? '' : 'line-clamp-2'
+        )}
       >
         {activity.data.contentPreview}
       </p>
@@ -228,7 +236,10 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
   if (isCommentActivity(activity)) {
     return (
       <p
-        className={cn('text-sm text-muted-foreground', expanded ? '' : 'line-clamp-2')}
+        className={cn(
+          'text-muted-foreground text-sm',
+          expanded ? '' : 'line-clamp-2'
+        )}
       >
         {activity.data.contentPreview}
       </p>
@@ -239,7 +250,7 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
     return (
       <p
         className={cn(
-          'text-sm text-muted-foreground italic',
+          'text-muted-foreground text-sm italic',
           expanded ? '' : 'line-clamp-2'
         )}
       >
