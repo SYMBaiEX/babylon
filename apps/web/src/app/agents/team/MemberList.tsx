@@ -79,12 +79,13 @@ export function MemberList({ user, teamChat, onClose }: MemberListProps) {
             </Link>
           </p>
         ) : (
-          <div className="space-y-3">
+          <nav role="list" aria-label="Team agents" className="space-y-3">
             {teamChat.agents.map((agent) => (
               <Link
                 key={agent.id}
                 href={`/agents/${agent.id}`}
                 onClick={onClose}
+                role="listitem"
                 className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
               >
                 <Avatar
@@ -102,10 +103,13 @@ export function MemberList({ user, teamChat, onClose }: MemberListProps) {
                     </p>
                   )}
                 </div>
-                <Bot className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                <Bot
+                  className="h-4 w-4 flex-shrink-0 text-blue-500"
+                  aria-hidden="true"
+                />
               </Link>
             ))}
-          </div>
+          </nav>
         )}
       </div>
 

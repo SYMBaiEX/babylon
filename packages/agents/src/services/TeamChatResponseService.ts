@@ -75,6 +75,9 @@ const MAP_LIMITS = {
 /** Maximum length for user content in prompts to prevent token overflow */
 const MAX_PROMPT_CONTENT_LENGTH = 2000;
 
+/** Maximum length for LLM-generated responses before storage */
+const MAX_RESPONSE_CONTENT_LENGTH = 4000;
+
 /**
  * Service for handling agent responses in team chat
  */
@@ -525,7 +528,13 @@ Generate ONLY the response text:`;
         purpose: 'response',
       });
 
-      const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
+      // Clean and validate LLM response before storage
+      // - Remove surrounding quotes
+      // - Enforce max length to match API validation (4000 chars)
+      const cleanContent = responseContent
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .slice(0, MAX_RESPONSE_CONTENT_LENGTH);
 
       if (!cleanContent || cleanContent.length < 5) {
         return {
@@ -756,15 +765,31 @@ Generate ONLY the response text:`;
 
   /**
    * Sanitize user input for prompt injection prevention.
-   * Escapes potential prompt delimiters and limits length.
+   * Escapes potential prompt delimiters, limits length, and handles edge cases.
+   *
+   * Hardening includes:
+   * - Escape code block delimiters
+   * - Collapse long runs of newlines
+   * - Remove Unicode direction override characters (LTR/RTL overrides)
+   * - Collapse very long runs of repeated characters (tokenization attack prevention)
+   * - Truncate to max length
    */
   private sanitizeForPrompt(content: string): string {
     return (
       content
+        // Remove Unicode direction override characters (can confuse models or hide text)
+        // U+202A-U+202E: LTR/RTL embedding, override, isolate
+        // U+2066-U+2069: isolate controls
+        // U+200E, U+200F: LTR/RTL marks
+        // biome-ignore lint/suspicious/noMisleadingCharacterClass: Intentionally matching Unicode control characters for security sanitization
+        .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, '')
         // Escape backticks to prevent code block injection
         .replace(/```/g, '` ` `')
         // Collapse long runs of newlines
         .replace(/\n{3,}/g, '\n\n')
+        // Collapse very long runs of repeated characters (>50 same char in a row)
+        // This prevents tokenization attacks and excessive token usage
+        .replace(/(.)\1{50,}/g, (_match, char) => char.repeat(10) + '...')
         // Truncate to prevent token overflow
         .slice(0, MAX_PROMPT_CONTENT_LENGTH)
     );
@@ -776,11 +801,20 @@ Generate ONLY the response text:`;
    * Uses a regex that requires @ to be at start of word (not in email addresses).
    * Matches usernames with alphanumerics, underscores, hyphens, and dots.
    * Trailing punctuation is stripped to handle "Hey @agent." at end of sentence.
+   *
+   * **Known Limitations:**
+   * - URLs like `https://twitter.com/@username` may match `@username`
+   * - Markdown links `[@mention](url)` may match `@mention`
+   * - These edge cases are acceptable for team chat where such patterns are rare
+   * - For stricter matching, consider negative lookbehind for `://` or `[`
+   *
+   * The current regex prioritizes simplicity and false positives over missing mentions.
    */
   private extractMentionedUsernames(content: string): string[] {
     const mentions: string[] = [];
     // Regex requires @ at word boundary (not after letters/numbers like in emails)
     // Matches: @username, "@username", start@username won't match
+    // Known limitation: URLs like https://example.com/@user may still match
     const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)/g;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(content)) !== null) {

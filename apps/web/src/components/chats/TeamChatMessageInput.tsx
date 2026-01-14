@@ -37,8 +37,8 @@ function HighlightedText({
     }
 
     const mention = match[0]; // Full match is the @mention (capture group covers entire pattern)
-    // Normalize: remove @ and spaces, lowercase - matches agent handle normalization
-    const handle = mention.slice(1).toLowerCase().replace(/\s+/g, '');
+    // Normalize: remove @ and lowercase - the regex never includes whitespace in mentions
+    const handle = mention.slice(1).toLowerCase();
 
     // Only highlight if it's a valid agent mention handle
     if (validUsernames.has(handle)) {
@@ -140,17 +140,23 @@ export function TeamChatMessageInput({
   }, [onMentionsChange]);
 
   // Memoized lookup map from lowercase mention handle (username or displayName) to agent ID
-  // Username takes priority; displayName is a fallback for agents without usernames
+  // Username takes priority and is never overwritten by displayName
   const mentionHandleToAgentId = useMemo(() => {
     const map = new Map<string, string>();
+    // First pass: insert all username-derived keys (these take priority)
     for (const agent of agents) {
-      // Prefer username as the mention handle
       if (agent.username) {
         map.set(agent.username.toLowerCase(), agent.id);
-      } else if (agent.displayName) {
-        // Fallback to displayName for agents without usernames
+      }
+    }
+    // Second pass: insert displayName-derived keys only if key doesn't already exist
+    for (const agent of agents) {
+      if (!agent.username && agent.displayName) {
         // Normalize: remove spaces to allow "AgentName" to match @AgentName
-        map.set(agent.displayName.toLowerCase().replace(/\s+/g, ''), agent.id);
+        const displayKey = agent.displayName.toLowerCase().replace(/\s+/g, '');
+        if (!map.has(displayKey)) {
+          map.set(displayKey, agent.id);
+        }
       }
     }
     return map;
@@ -221,8 +227,10 @@ export function TeamChatMessageInput({
       const textarea = textareaRef.current;
       if (!textarea) return;
 
-      // Get the mention text to use (prefer username, fallback to displayName)
-      const mentionText = agent.username || agent.displayName || 'agent';
+      // Get the mention text to use (prefer username, fallback to displayName, then agent ID)
+      // Never insert a blank or generic "@agent" - always use a real identifier
+      const mentionText =
+        agent.username || agent.displayName || `agent-${agent.id}`;
 
       // Replace the @query with @username
       const beforeMention = value.slice(0, mentionStartIndex);
