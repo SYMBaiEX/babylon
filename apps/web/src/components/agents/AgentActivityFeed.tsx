@@ -52,8 +52,8 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
       {showConnectionStatus && (
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-zinc-400" />
-            <span className="font-medium text-sm text-zinc-300">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-sm text-foreground">
               Live Activity
             </span>
             {agentId && <ConnectionIndicator isConnected={isConnected} />}
@@ -62,8 +62,8 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
             onClick={() => void refresh()}
             disabled={isLoading}
             className={cn(
-              'rounded-md p-1.5 transition-colors hover:bg-zinc-800',
-              'text-zinc-400 hover:text-zinc-200'
+              'rounded-md p-1.5 transition-colors hover:bg-muted',
+              'text-muted-foreground hover:text-foreground'
             )}
             title="Refresh"
           >
@@ -74,14 +74,14 @@ export const AgentActivityFeed = memo(function AgentActivityFeed({
 
       {/* Error state with retry button */}
       {error && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-800 bg-red-900/20 p-3">
-          <p className="text-red-400 text-sm">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-destructive text-sm">
             Failed to load activity: {error.message}
           </p>
           <button
             onClick={() => void refresh()}
             disabled={isLoading}
-            className="ml-3 shrink-0 rounded-md bg-red-800/50 px-3 py-1 text-red-300 text-sm transition-colors hover:bg-red-800 disabled:opacity-50"
+            className="ml-3 shrink-0 rounded-md bg-destructive/20 px-3 py-1 text-destructive text-sm transition-colors hover:bg-destructive/30 disabled:opacity-50"
           >
             {isLoading ? 'Retrying...' : 'Retry'}
           </button>
@@ -125,8 +125,8 @@ function ConnectionIndicator({ isConnected }: { isConnected: boolean }) {
       className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium text-xs',
         isConnected
-          ? 'bg-emerald-900/30 text-emerald-400'
-          : 'bg-zinc-800 text-zinc-500'
+          ? 'bg-success/20 text-success'
+          : 'bg-muted text-muted-foreground'
       )}
     >
       {isConnected ? (
@@ -147,12 +147,12 @@ function ConnectionIndicator({ isConnected }: { isConnected: boolean }) {
 // Loading skeleton component
 function ActivitySkeleton() {
   return (
-    <div className="animate-pulse rounded-lg border border-zinc-800 p-4">
+    <div className="animate-pulse rounded-lg border border-border p-4">
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-800" />
+        <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />
         <div className="flex-1 space-y-2">
-          <div className="h-4 w-48 rounded bg-zinc-800" />
-          <div className="h-3 w-32 rounded bg-zinc-800" />
+          <div className="h-4 w-48 rounded bg-muted" />
+          <div className="h-3 w-32 rounded bg-muted" />
         </div>
       </div>
     </div>
@@ -163,11 +163,11 @@ function ActivitySkeleton() {
 function EmptyState({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800">
-        <Activity className="h-6 w-6 text-zinc-500" />
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <Activity className="h-6 w-6 text-muted-foreground" />
       </div>
-      <p className="text-sm text-zinc-400">{message}</p>
-      <p className="mt-1 text-xs text-zinc-500">
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <p className="mt-1 text-xs text-muted-foreground/70">
         Activity will appear here when your agent takes actions
       </p>
     </div>
