@@ -384,27 +384,25 @@ class BabylonRLAIFEnv(BaseEnv):
         
         # Add enhanced reward metrics (regime, alpha, temporal)
         if hasattr(self, 'enhanced_reward_metrics') and self.enhanced_reward_metrics:
-            metrics = self.enhanced_reward_metrics
-            total_regimes = metrics['regime_bulls'] + metrics['regime_bears'] + metrics['regime_sideways']
+            m = self.enhanced_reward_metrics
+            counts = m['regime_counts']
+            total = sum(counts.values())
             
-            if total_regimes > 0:
-                wandb_metrics["train/regime_bull_pct"] = metrics['regime_bulls'] / total_regimes
-                wandb_metrics["train/regime_bear_pct"] = metrics['regime_bears'] / total_regimes
-                wandb_metrics["train/regime_sideways_pct"] = metrics['regime_sideways'] / total_regimes
+            if total > 0:
+                for regime in ('bull', 'bear', 'sideways'):
+                    wandb_metrics[f"train/regime_{regime}_pct"] = counts[regime] / total
             
-            if metrics['alphas']:
-                wandb_metrics["train/counterfactual_alpha_mean"] = sum(metrics['alphas']) / len(metrics['alphas'])
-                wandb_metrics["train/counterfactual_alpha_min"] = min(metrics['alphas'])
-                wandb_metrics["train/counterfactual_alpha_max"] = max(metrics['alphas'])
+            if m['alphas']:
+                wandb_metrics["train/counterfactual_alpha_mean"] = sum(m['alphas']) / len(m['alphas'])
+                wandb_metrics["train/counterfactual_alpha_min"] = min(m['alphas'])
+                wandb_metrics["train/counterfactual_alpha_max"] = max(m['alphas'])
             
-            if metrics['volatilities']:
-                wandb_metrics["train/market_volatility_mean"] = sum(metrics['volatilities']) / len(metrics['volatilities'])
+            if m['volatilities']:
+                wandb_metrics["train/market_volatility_mean"] = sum(m['volatilities']) / len(m['volatilities'])
             
             # Reset for next logging interval
             self.enhanced_reward_metrics = {
-                'regime_bulls': 0,
-                'regime_bears': 0,
-                'regime_sideways': 0,
+                'regime_counts': {'bull': 0, 'bear': 0, 'sideways': 0},
                 'alphas': [],
                 'volatilities': [],
             }
@@ -842,18 +840,11 @@ You receive market updates and must analyze, reason, and then act."""
                 # Track enhanced metrics for W&B
                 if not hasattr(self, 'enhanced_reward_metrics'):
                     self.enhanced_reward_metrics = {
-                        'regime_bulls': 0,
-                        'regime_bears': 0,
-                        'regime_sideways': 0,
+                        'regime_counts': {'bull': 0, 'bear': 0, 'sideways': 0},
                         'alphas': [],
                         'volatilities': [],
                     }
-                if regime.overall == 'bull':
-                    self.enhanced_reward_metrics['regime_bulls'] += 1
-                elif regime.overall == 'bear':
-                    self.enhanced_reward_metrics['regime_bears'] += 1
-                else:
-                    self.enhanced_reward_metrics['regime_sideways'] += 1
+                self.enhanced_reward_metrics['regime_counts'][regime.overall] += 1
                 self.enhanced_reward_metrics['alphas'].append(counterfactual.alpha)
                 self.enhanced_reward_metrics['volatilities'].append(regime.volatility)
             else:

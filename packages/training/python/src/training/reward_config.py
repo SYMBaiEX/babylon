@@ -11,9 +11,6 @@ from typing import Dict, Optional
 import yaml
 
 
-# Config version for cache invalidation
-REWARD_CONFIG_VERSION = "1.0.0"
-
 # Find the config directory relative to this file
 _CURRENT_DIR = Path(__file__).parent
 _CONFIG_DIR = _CURRENT_DIR.parent.parent.parent / "config"
@@ -80,7 +77,7 @@ class RewardWeightConfig:
             # Skip non-profile sections
             if key in ("regime_thresholds", "regime_expected_returns", "temporal", "volatility"):
                 continue
-            if isinstance(value, dict) and "regime_pnl" in value or "pnl" in value:
+            if isinstance(value, dict) and ("regime_pnl" in value or "pnl" in value):
                 self._weights_profiles[key] = value
         
         if not self._weights_profiles:

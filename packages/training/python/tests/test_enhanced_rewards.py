@@ -10,14 +10,10 @@ from typing import Dict, List
 
 from src.training.market_regime import (
     MarketRegime,
-    PriceContext,
     detect_market_regime,
     detect_regime_from_prices,
     extract_regime_from_trajectory,
     calculate_volatility,
-    calculate_price_change_pct,
-    detect_ticker_trend,
-    detect_overall_regime,
     get_expected_return,
     BULL_THRESHOLD,
     BEAR_THRESHOLD,
@@ -146,8 +142,8 @@ class TestMarketRegimeDetection:
         assert regime.overall == "bull"
         assert regime.avg_change_pct == 10.0
     
-    def test_price_context_serialization(self):
-        """PriceContext can be serialized and deserialized."""
+    def test_market_regime_serialization(self):
+        """MarketRegime can be serialized and deserialized."""
         regime = MarketRegime(
             overall="bull",
             volatility=0.3,
@@ -155,18 +151,12 @@ class TestMarketRegimeDetection:
             avg_change_pct=7.5,
         )
         
-        context = PriceContext(
-            initial_prices={"BTC": 100000},
-            final_prices={"BTC": 110000},
-            regime=regime,
-        )
+        data = regime.to_dict()
+        restored = MarketRegime.from_dict(data)
         
-        data = context.to_dict()
-        restored = PriceContext.from_dict(data)
-        
-        assert restored.initial_prices == context.initial_prices
-        assert restored.final_prices == context.final_prices
-        assert restored.regime.overall == "bull"
+        assert restored.overall == regime.overall
+        assert restored.volatility == regime.volatility
+        assert restored.per_ticker == regime.per_ticker
     
     def test_extract_regime_from_trajectory_metadata(self):
         """Extract regime from trajectory price_context metadata."""

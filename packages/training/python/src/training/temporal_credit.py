@@ -16,9 +16,8 @@ This implements a form of temporal difference credit assignment common in RL,
 adapted for the trading domain where outcomes are delayed.
 """
 
-from dataclasses import dataclass, field
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
-import math
 
 from .rewards import TemporalCredit, TEMPORAL_CREDIT_DECAY
 
@@ -193,10 +192,8 @@ def attribute_temporal_credit(
         return []
     
     # Group decisions by market for per-market credit assignment
-    decisions_by_market: Dict[str, List[Tuple[int, Dict]]] = {}
+    decisions_by_market: Dict[str, List[Tuple[int, Dict]]] = defaultdict(list)
     for step_idx, market_id, step in trading_decisions:
-        if market_id not in decisions_by_market:
-            decisions_by_market[market_id] = []
         decisions_by_market[market_id].append((step_idx, step))
     
     outcome_step = len(steps) - 1  # Assume outcome at end of trajectory
@@ -279,7 +276,7 @@ def attribute_credit_with_intermediate_outcomes(
     credits: List[TemporalCredit] = []
     
     # Track open positions and their opening step
-    open_positions: Dict[str, List[int]] = {}  # market_id -> [opening step indices]
+    open_positions: Dict[str, List[int]] = defaultdict(list)
     
     for i, step in enumerate(steps):
         action = step.get("action", {})
@@ -291,8 +288,6 @@ def attribute_credit_with_intermediate_outcomes(
         
         # Track opening positions
         if any(t in action_type for t in ("buy", "open", "long")):
-            if market_id not in open_positions:
-                open_positions[market_id] = []
             open_positions[market_id].append(i)
         
         # Process closing positions with P&L
@@ -329,47 +324,17 @@ def attribute_credit_with_intermediate_outcomes(
 
 
 def aggregate_credits_by_step(credits: List[TemporalCredit]) -> Dict[int, float]:
-    """
-    Aggregate temporal credits by decision step.
-    
-    Useful for understanding which decisions contributed most to outcomes.
-    
-    Args:
-        credits: List of temporal credits
-    
-    Returns:
-        Dict mapping step index to total credited P&L
-    """
-    aggregated: Dict[int, float] = {}
-    
+    """Aggregate temporal credits by decision step."""
+    aggregated: Dict[int, float] = defaultdict(float)
     for credit in credits:
-        step = credit.decision_step
-        if step not in aggregated:
-            aggregated[step] = 0.0
-        aggregated[step] += credit.outcome_pnl
-    
-    return aggregated
+        aggregated[credit.decision_step] += credit.outcome_pnl
+    return dict(aggregated)
 
 
 def aggregate_credits_by_market(credits: List[TemporalCredit]) -> Dict[str, float]:
-    """
-    Aggregate temporal credits by market.
-    
-    Useful for understanding which markets contributed most to outcomes.
-    
-    Args:
-        credits: List of temporal credits
-    
-    Returns:
-        Dict mapping market_id to total credited P&L
-    """
-    aggregated: Dict[str, float] = {}
-    
+    """Aggregate temporal credits by market."""
+    aggregated: Dict[str, float] = defaultdict(float)
     for credit in credits:
-        market = credit.market_id or "unknown"
-        if market not in aggregated:
-            aggregated[market] = 0.0
-        aggregated[market] += credit.outcome_pnl
-    
-    return aggregated
+        aggregated[credit.market_id or "unknown"] += credit.outcome_pnl
+    return dict(aggregated)
 

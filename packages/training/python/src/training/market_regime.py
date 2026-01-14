@@ -13,7 +13,7 @@ Key concepts:
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
 
 
@@ -93,43 +93,6 @@ class MarketRegime:
             per_ticker={},
             avg_change_pct=0.0,
             window_id=None,
-        )
-
-
-@dataclass
-class PriceContext:
-    """
-    Price data context embedded in trajectory metadata.
-    
-    This is captured at trajectory generation time to make trajectories
-    self-contained for training (no DB lookup needed).
-    """
-    initial_prices: Dict[str, float]
-    final_prices: Dict[str, float]
-    price_history: Dict[str, List[float]] = field(default_factory=dict)
-    regime: Optional[MarketRegime] = None
-    window_id: Optional[str] = None
-    
-    def to_dict(self) -> Dict:
-        """Serialize for trajectory metadata storage."""
-        return {
-            "initial_prices": self.initial_prices,
-            "final_prices": self.final_prices,
-            "price_history": self.price_history,
-            "regime": self.regime.to_dict() if self.regime else None,
-            "window_id": self.window_id,
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> "PriceContext":
-        """Deserialize from trajectory metadata."""
-        regime_data = data.get("regime")
-        return cls(
-            initial_prices=data.get("initial_prices", {}),
-            final_prices=data.get("final_prices", {}),
-            price_history=data.get("price_history", {}),
-            regime=MarketRegime.from_dict(regime_data) if regime_data else None,
-            window_id=data.get("window_id"),
         )
 
 
