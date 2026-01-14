@@ -159,7 +159,9 @@ ${
 🔔 NOTIFICATIONS
 Unread: ${unreadNotifications}
 ${
-  notificationsData.notifications && notificationsData.notifications.length > 0 && notificationsData.notifications[0]?.message
+  notificationsData.notifications &&
+  notificationsData.notifications.length > 0 &&
+  notificationsData.notifications[0]?.message
     ? `Latest: ${notificationsData.notifications[0].message.substring(0, 80)}...`
     : 'No notifications'
 }
