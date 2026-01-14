@@ -12,9 +12,12 @@ Key concepts:
 - Per-ticker trends: Individual asset movements for granular analysis
 """
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -143,6 +146,11 @@ def calculate_price_change_pct(initial: float, final: float) -> float:
         Percentage change (e.g., 5.0 for +5%)
     """
     if initial <= 0:
+        logger.debug(
+            "Invalid initial price for pct change calculation (initial=%s, final=%s)",
+            initial,
+            final,
+        )
         return 0.0
     return ((final - initial) / initial) * 100
 
@@ -339,4 +347,3 @@ def get_expected_return(regime: MarketRegime) -> float:
         Expected return as decimal (e.g., 0.05 for +5%)
     """
     return REGIME_EXPECTED_RETURNS.get(regime.overall, 0.0)
-

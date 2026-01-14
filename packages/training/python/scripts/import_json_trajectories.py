@@ -287,13 +287,18 @@ def import_trajectories(
     ground_truth = None
     ground_truth_path = source_dir / "ground-truth.json"
     if ground_truth_path.exists():
-        with open(ground_truth_path, "r", encoding="utf-8") as f:
-            ground_truth = json.load(f)
-        logger.info(f"Loaded ground truth from {ground_truth_path}")
-        if "priceHistory" in ground_truth:
-            logger.info(f"  - Price history for {len(ground_truth.get('priceHistory', {}))} tickers")
-        if "causalEvents" in ground_truth:
-            logger.info(f"  - {len(ground_truth.get('causalEvents', []))} causal events")
+        try:
+            with open(ground_truth_path, "r", encoding="utf-8") as f:
+                ground_truth = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to load ground truth from {ground_truth_path}: {e}")
+            ground_truth = None
+        else:
+            logger.info(f"Loaded ground truth from {ground_truth_path}")
+            if "priceHistory" in ground_truth:
+                logger.info(f"  - Price history for {len(ground_truth.get('priceHistory', {}))} tickers")
+            if "causalEvents" in ground_truth:
+                logger.info(f"  - {len(ground_truth.get('causalEvents', []))} causal events")
     
     # Get database connection (skip if dry run)
     conn = None
@@ -315,7 +320,13 @@ def import_trajectories(
             if ground_truth:
                 traj_metadata = traj_data.get("metadata", {})
                 if isinstance(traj_metadata, str):
-                    traj_metadata = json.loads(traj_metadata) if traj_metadata else {}
+                    try:
+                        traj_metadata = json.loads(traj_metadata) if traj_metadata else {}
+                    except (TypeError, json.JSONDecodeError) as e:
+                        logger.warning(
+                            f"Malformed metadata JSON for trajectory {trajectory_id}, ignoring metadata: {e}"
+                        )
+                        traj_metadata = {}
                 
                 # Build price context from ground truth
                 price_context = {}
@@ -452,4 +463,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

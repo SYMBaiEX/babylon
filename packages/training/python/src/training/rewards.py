@@ -1600,6 +1600,7 @@ def enhanced_composite_reward(
     regime_expected_return: float = 0.0,
     counterfactual_alpha: Optional[float] = None,
     temporal_credits: Optional[List[TemporalCredit]] = None,
+    weight_profile: str = "default",
 ) -> float:
     """
     Enhanced archetype-aware reward with regime adjustment and counterfactual.
@@ -1631,6 +1632,7 @@ def enhanced_composite_reward(
         regime_expected_return: Expected return for this regime
         counterfactual_alpha: Pre-computed alpha (actual - benchmark)
         temporal_credits: List of temporal credit assignments
+        weight_profile: Reward weight profile name from reward_weights.yaml
     
     Returns:
         Composite reward score in [-1.0, 1.0]
@@ -1712,23 +1714,41 @@ def enhanced_composite_reward(
     # ==========================================================================
     # Weights designed to emphasize skill (alpha) over luck (raw PnL)
     
-    ENHANCED_WEIGHTS = {
-        "regime_pnl": 0.35,      # Regime-adjusted P&L
-        "alpha": 0.20,           # Skill signal (counterfactual)
-        "temporal": 0.05,        # Delayed reward attribution
-        "format": 0.15,          # Response format quality
-        "reasoning": 0.10,       # Reasoning quality
-        "behavior": 0.15,        # Archetype-aligned behavior
+    from .reward_config import get_reward_weights
+
+    profile_weights = get_reward_weights(weight_profile)
+    weights = {
+        "regime_pnl": float(profile_weights.get("regime_pnl", profile_weights.get("pnl", 0.0))),
+        "skill_alpha": float(profile_weights.get("skill_alpha", profile_weights.get("alpha", 0.0))),
+        "temporal_bonus": float(profile_weights.get("temporal_bonus", profile_weights.get("temporal", 0.0))),
+        "format": float(profile_weights.get("format", 0.0)),
+        "reasoning": float(profile_weights.get("reasoning", 0.0)),
+        "behavior": float(profile_weights.get("behavior", 0.0)),
     }
+
+    total_weight = sum(weights.values())
+    if total_weight <= 0:
+        weights = {
+            "regime_pnl": 0.35,
+            "skill_alpha": 0.20,
+            "temporal_bonus": 0.05,
+            "format": 0.15,
+            "reasoning": 0.10,
+            "behavior": 0.15,
+        }
+        total_weight = 1.0
+
+    if abs(total_weight - 1.0) > 1e-6:
+        weights = {k: v / total_weight for k, v in weights.items()}
     
     # Compute weighted composite
     composite = (
-        (pnl_score - risk_penalty) * ENHANCED_WEIGHTS["regime_pnl"]
-        + alpha_score * ENHANCED_WEIGHTS["alpha"]
-        + temporal_bonus * ENHANCED_WEIGHTS["temporal"]
-        + format_score * ENHANCED_WEIGHTS["format"]
-        + reasoning_score * ENHANCED_WEIGHTS["reasoning"]
-        + behavior_bonus * ENHANCED_WEIGHTS["behavior"]
+        (pnl_score - risk_penalty) * weights["regime_pnl"]
+        + alpha_score * weights["skill_alpha"]
+        + temporal_bonus * weights["temporal_bonus"]
+        + format_score * weights["format"]
+        + reasoning_score * weights["reasoning"]
+        + behavior_bonus * weights["behavior"]
     )
     
     return max(-1.0, min(1.0, composite))

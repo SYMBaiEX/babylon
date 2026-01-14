@@ -232,8 +232,13 @@ class JsonTrajectoryReader:
             gt_path = self._directory.parent / "ground-truth.json"
         
         if gt_path.exists():
-            with open(gt_path, "r", encoding="utf-8") as f:
-                self._ground_truth = json.load(f)
+            try:
+                with open(gt_path, "r", encoding="utf-8") as f:
+                    self._ground_truth = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to load ground truth from {gt_path}: {e}")
+                self._ground_truth = None
+                return
             logger.info(f"Loaded ground truth from {gt_path}")
     
     def _build_price_context(self) -> Dict:
@@ -276,7 +281,13 @@ class JsonTrajectoryReader:
                 if price_context:
                     metadata = trajectory_data.get("metadata", {})
                     if isinstance(metadata, str):
-                        metadata = json.loads(metadata) if metadata else {}
+                        try:
+                            metadata = json.loads(metadata) if metadata else {}
+                        except json.JSONDecodeError as e:
+                            logger.warning(
+                                f"Malformed metadata JSON in {file_path}, ignoring metadata: {e}"
+                            )
+                            metadata = {}
                     metadata["ground_truth"] = price_context
                     trajectory_data["metadata"] = metadata
                 
