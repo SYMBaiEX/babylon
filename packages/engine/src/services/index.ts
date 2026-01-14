@@ -37,6 +37,7 @@ export * from './npc-persona-generator';
 export * from './npc-positions-context-service';
 export * from './npc-running-bit-service';
 export * from './npc-social-engagement-service';
+export * from './npc-trade-rate-limiter';
 export * from './player-influence-service';
 export * from './posting-probability-service';
 export * from './reply-rate-limiter';

@@ -69,6 +69,7 @@
 import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { loadActorById } from './actors-loader';
+import { getTradingProbability } from './config/npc-activity';
 import {
   formatSimulationEventMarketSignals,
   formatSimulationPredictionMarkets,
@@ -372,7 +373,31 @@ export class MarketDecisionEngine {
     );
 
     // Convert contexts to array
-    const npcs = Array.from(contexts.values());
+    const allNpcs = Array.from(contexts.values());
+
+    // Filter NPCs by trading probability - only include NPCs that pass a random roll
+    // This reduces the number of NPCs that get trading decisions each tick
+    const tradingProbability = getTradingProbability();
+    const npcs = allNpcs.filter(() => Math.random() < tradingProbability);
+
+    logger.info(
+      `Filtered NPCs by trading probability`,
+      {
+        totalNpcs: allNpcs.length,
+        eligibleNpcs: npcs.length,
+        tradingProbability,
+      },
+      'MarketDecisionEngine'
+    );
+
+    if (npcs.length === 0) {
+      logger.info(
+        'No NPCs passed trading probability filter this tick',
+        { tradingProbability, totalNpcs: allNpcs.length },
+        'MarketDecisionEngine'
+      );
+      return [];
+    }
 
     // Calculate how many NPCs we can process per batch
     // For OpenAI models, be more conservative due to combined input+output limits
