@@ -63,7 +63,7 @@ export const agentWalletProvider: Provider = {
 
     // Get balance and positions via A2A
     const [balanceData, positionsData] = await Promise.all([
-      babylonRuntime.a2aClient.getBalance(),
+      babylonRuntime.a2aClient.getBalance(agentUserId),
       babylonRuntime.a2aClient.getPositions(agentUserId),
     ]);
 

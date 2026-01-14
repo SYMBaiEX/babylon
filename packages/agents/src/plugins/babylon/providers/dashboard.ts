@@ -67,7 +67,9 @@ export const dashboardProvider: Provider = {
     // Fetch ALL dashboard data via A2A protocol
     const [balance, positions, predictions, feed, chats, notifications] =
       await Promise.all([
-        babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
+        babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {
+          userId: agentUserId,
+        }),
         babylonRuntime.a2aClient.sendRequest('a2a.getPositions', {
           userId: agentUserId,
         }),

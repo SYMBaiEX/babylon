@@ -319,6 +319,13 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     switch (command.operation) {
+      // Portfolio operations
+      case 'portfolio.get_balance':
+        return this.getBalance(command.params, context);
+      case 'portfolio.get_positions':
+        return this.getPositions(command.params, context);
+      case 'portfolio.get_user_wallet':
+        return this.getUserWallet(command.params, context);
       case 'social.create_post':
         return this.createPost(command.params, context);
       case 'social.get_feed':
@@ -327,8 +334,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.likePost(command.params, context);
       case 'markets.list_prediction':
         return this.listPredictionMarkets(command.params);
+      case 'markets.list_perpetuals':
+        return this.listPerpetualMarkets(command.params);
       case 'users.search':
         return this.searchUsers(command.params);
+      case 'users.get_profile':
+        return this.getUserProfile(command.params);
       case 'stats.system':
         return this.getSystemStats();
       case 'stats.leaderboard':
@@ -337,6 +348,15 @@ export class BabylonAgentExecutor implements AgentExecutor {
         return this.getTrendingTags(command.params);
       case 'stats.posts_by_tag':
         return this.getPostsByTag(command.params);
+      case 'stats.get_organizations':
+        return this.getOrganizations(command.params);
+      // Messaging operations
+      case 'messaging.get_chats':
+        return this.getChatsHandler(command.params, context);
+      case 'messaging.get_unread_count':
+        return this.getUnreadCountHandler(command.params, context);
+      case 'messaging.get_notifications':
+        return this.getNotificationsHandler(command.params, context);
       case 'moderation.create_escrow_payment':
         return this.createEscrowPayment(command.params, context);
       case 'moderation.verify_escrow_payment':
@@ -529,6 +549,109 @@ export class BabylonAgentExecutor implements AgentExecutor {
     };
   }
 
+  private async listPerpetualMarkets(params: Record<string, JsonValue>) {
+    const limit = this.parsePositiveInt(params.limit, 20, 50);
+    // Get organization states for perpetual markets
+    const orgStates = await db.organizationState.findMany({
+      take: limit,
+      orderBy: { currentPrice: 'desc' },
+      select: {
+        id: true,
+        currentPrice: true,
+      },
+    });
+    return {
+      perpetuals: orgStates.map((o: { id: string; currentPrice: number | null }) => ({
+        id: o.id,
+        ticker: o.id,
+        currentPrice: Number(o.currentPrice) || 0,
+      })),
+    };
+  }
+
+  private async getUserProfile(params: Record<string, JsonValue>) {
+    const userId = typeof params.userId === 'string' ? params.userId : '';
+    if (!userId) {
+      return { profile: null };
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        reputationPoints: true,
+        virtualBalance: true,
+        isAgent: true,
+      },
+    });
+
+    if (!user) {
+      return { profile: null };
+    }
+
+    return {
+      profile: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        bio: user.bio,
+        profileImageUrl: user.profileImageUrl,
+        reputationPoints: user.reputationPoints,
+        balance: Number(user.virtualBalance) || 0,
+        isAgent: user.isAgent,
+      },
+    };
+  }
+
+  private async getOrganizations(params: Record<string, JsonValue>) {
+    const limit = this.parsePositiveInt(params.limit, 20, 100);
+    // Get organization states
+    const orgStates = await db.organizationState.findMany({
+      take: limit,
+      orderBy: { currentPrice: 'desc' },
+      select: {
+        id: true,
+        currentPrice: true,
+      },
+    });
+    return {
+      organizations: orgStates.map((o) => ({
+        id: o.id,
+        name: o.id,
+        ticker: o.id,
+        currentPrice: Number(o.currentPrice) || 0,
+      })),
+    };
+  }
+
+  private async getChatsHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return empty chats - actual chat data requires more complex queries
+    return { chats: [] };
+  }
+
+  private async getUnreadCountHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return 0 unread count as default
+    return { unreadCount: 0 };
+  }
+
+  private async getNotificationsHandler(
+    _params: Record<string, JsonValue>,
+    _context: RequestContext
+  ) {
+    // Return empty notifications as default
+    return { notifications: [] };
+  }
+
   private async searchUsers(params: Record<string, JsonValue>) {
     const query = typeof params.query === 'string' ? params.query.trim() : '';
     if (!query) {
@@ -685,6 +808,170 @@ export class BabylonAgentExecutor implements AgentExecutor {
       return fallback;
     }
     return Math.min(parsed, max);
+  }
+
+  // Portfolio operations
+  private async getBalance(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    // Try to get userId from params, then from x-agent-id header (via contextId), then taskId
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        virtualBalance: true,
+        reputationPoints: true,
+      },
+    });
+
+    // Return default values if user not found (graceful degradation for onboarding)
+    if (!user) {
+      logger.debug('User not found for getBalance, returning defaults', {
+        userId,
+      });
+      return {
+        balance: 0,
+        reputationPoints: 0,
+      };
+    }
+
+    return {
+      balance: Number(user.virtualBalance) || 0,
+      reputationPoints: user.reputationPoints || 0,
+    };
+  }
+
+  private async getPositions(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    // Check if user exists first (for graceful handling)
+    const userExists = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    // Return empty positions if user not found (graceful degradation for onboarding)
+    if (!userExists) {
+      logger.debug('User not found for getPositions, returning empty', {
+        userId,
+      });
+      return {
+        marketPositions: [],
+        perpPositions: [],
+        totalPnL: 0,
+      };
+    }
+
+    // Get prediction market positions
+    const marketPositionsRaw = await db.position.findMany({
+      where: {
+        userId,
+        shares: { gt: '0' },
+        status: 'active',
+      },
+    });
+
+    // Get markets for positions to include question text
+    const marketIds = [
+      ...new Set(marketPositionsRaw.map((p) => p.marketId).filter(Boolean)),
+    ];
+    const markets =
+      marketIds.length > 0
+        ? await db.market.findMany({
+            where: { id: { in: marketIds } },
+            select: { id: true, question: true, resolved: true },
+          })
+        : [];
+    const marketMap = new Map(markets.map((m) => [m.id, m]));
+
+    // Get perpetual positions (closedAt is null means position is open)
+    const perpPositions = await db.perpPosition.findMany({
+      where: {
+        userId,
+        closedAt: null,
+      },
+    });
+
+    return {
+      marketPositions: marketPositionsRaw.map((p) => {
+        const market = marketMap.get(p.marketId);
+        return {
+          id: p.id,
+          marketId: String(p.marketId),
+          marketQuestion: market?.question || 'Unknown',
+          outcome: p.outcome,
+          shares: Number(p.shares),
+          avgPrice: Number(p.avgPrice),
+          unrealizedPnL: 0, // Would need current price to calculate
+        };
+      }),
+      perpPositions: perpPositions.map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        organizationId: p.organizationId,
+        side: p.side,
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        leverage: Number(p.leverage),
+        unrealizedPnL: Number(p.unrealizedPnL) || 0,
+      })),
+      totalPnL: perpPositions.reduce(
+        (sum, p) => sum + (Number(p.unrealizedPnL) || 0),
+        0
+      ),
+    };
+  }
+
+  private async getUserWallet(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const userId =
+      typeof params.userId === 'string' && params.userId
+        ? params.userId
+        : context.contextId || context.taskId;
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        walletAddress: true,
+        virtualBalance: true,
+        reputationPoints: true,
+      },
+    });
+
+    // Return default values if user not found (graceful degradation for onboarding)
+    if (!user) {
+      logger.debug('User not found for getUserWallet, returning defaults', {
+        userId,
+      });
+      return {
+        userId,
+        walletAddress: null,
+        balance: 0,
+        reputationPoints: 0,
+      };
+    }
+
+    return {
+      userId: user.id,
+      walletAddress: user.walletAddress,
+      balance: Number(user.virtualBalance) || 0,
+      reputationPoints: user.reputationPoints || 0,
+    };
   }
 
   async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {

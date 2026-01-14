@@ -545,6 +545,10 @@ export class BabylonA2AClient {
     // Map camelCase actions to category.snake_case operation names
     // This follows the executor's convention (e.g., 'social.create_post', 'stats.leaderboard')
     const operationMap: Record<string, string> = {
+      // Portfolio operations
+      getBalance: 'portfolio.get_balance',
+      getPositions: 'portfolio.get_positions',
+      getUserWallet: 'portfolio.get_user_wallet',
       // Social operations
       createPost: 'social.create_post',
       getFeed: 'social.get_feed',
@@ -554,10 +558,17 @@ export class BabylonA2AClient {
       getLeaderboard: 'stats.leaderboard',
       getTrendingTags: 'stats.trending_tags',
       getPostsByTag: 'stats.posts_by_tag',
+      getOrganizations: 'stats.get_organizations',
       // Markets operations
       getPredictions: 'markets.list_prediction',
+      getPerpetuals: 'markets.list_perpetuals',
       // Users operations
       searchUsers: 'users.search',
+      getUserProfile: 'users.get_profile',
+      // Messaging operations
+      getChats: 'messaging.get_chats',
+      getUnreadCount: 'messaging.get_unread_count',
+      getNotifications: 'messaging.get_notifications',
     };
 
     // Use mapped operation name if available, otherwise use original action

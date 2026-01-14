@@ -60,7 +60,9 @@ export const portfolioProvider: Provider = {
     }
 
     const [balanceData, positionsData] = await Promise.all([
-      babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
+      babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {
+        userId: agentUserId,
+      }),
       babylonRuntime.a2aClient.sendRequest('a2a.getPositions', {
         userId: agentUserId,
       }),
