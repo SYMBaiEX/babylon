@@ -295,6 +295,7 @@ def _calculate_whale_bonus(metrics: BehaviorMetrics) -> float:
 ```
 
 Add to dispatcher:
+
 ```python
 elif archetype == "whale":
     return _calculate_whale_bonus(metrics)

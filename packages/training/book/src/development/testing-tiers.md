@@ -45,6 +45,7 @@ make tier1
 ```
 
 Runs:
+
 ```bash
 cd python && pytest tests/ -v \
     --ignore=tests/integration/ \
@@ -54,7 +55,7 @@ cd python && pytest tests/ -v \
 
 ### Key Test Files
 
-```
+```text
 python/tests/
 ├── test_archetype_scoring.py    # Archetype reward weights
 ├── test_format_validator.py     # Response parsing
@@ -96,6 +97,7 @@ make tier2
 ```
 
 Runs:
+
 ```bash
 cd python && pytest tests/integration/test_json_mode_integration.py -v -x
 ```
@@ -244,7 +246,7 @@ make tier4-generate
 
 ### Expected Output
 
-```
+```text
 [INFO] Starting training with profile: 12gb
 [INFO] Loaded 50 trajectories from database
 [INFO] Starting vLLM server on port 8001...

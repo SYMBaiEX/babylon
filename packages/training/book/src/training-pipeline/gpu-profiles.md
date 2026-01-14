@@ -140,12 +140,14 @@ vllm_cmd = [
 ## Creating Custom Profiles
 
 1. Copy an existing profile:
-```bash
+
+   ```bash
 cp python/config/profiles/24gb.json python/config/profiles/my-gpu.json
-```
+   ```
 
 2. Adjust settings:
-```json
+
+   ```json
 {
   "name": "My Custom GPU",
   "model": "Qwen/Qwen2.5-3B-Instruct",
@@ -154,12 +156,13 @@ cp python/config/profiles/24gb.json python/config/profiles/my-gpu.json
   "max_token_length": 2048,
   "group_size": 4
 }
-```
+   ```
 
 3. Test it:
-```bash
-python scripts/run_training.py --profile my-gpu --steps 1
-```
+
+   ```bash
+   python scripts/run_training.py --profile my-gpu --steps 1
+   ```
 
 ## Tuning Tips
 
@@ -230,6 +233,7 @@ For testing without GPU:
 ```
 
 Use with:
+
 ```bash
 CUDA_VISIBLE_DEVICES="" python scripts/run_training.py --profile cpu --steps 1
 ```

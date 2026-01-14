@@ -28,24 +28,28 @@ python -m vllm.entrypoints.openai.api_server \
 ### CUDA Out of Memory
 
 **Symptom:**
-```
+
+```text
 RuntimeError: CUDA out of memory. Tried to allocate X MiB
 ```
 
 **Causes & Fixes:**
 
 1. **vLLM using too much memory**
+
    ```bash
    # Reduce vLLM allocation
    python scripts/run_training.py --profile 12gb --vllm-gpu-memory 0.2
    ```
 
 2. **Batch size too large**
+
    ```bash
    python scripts/run_training.py --profile 12gb --batch-size 1
    ```
 
 3. **Another process using GPU**
+
    ```bash
    # Check what's using GPU
    nvidia-smi
@@ -60,24 +64,28 @@ RuntimeError: CUDA out of memory. Tried to allocate X MiB
 ### vLLM Won't Start
 
 **Symptom:**
-```
+
+```text
 TimeoutError: vLLM server did not start within 120s
 ```
 
 **Fixes:**
 
 1. **Increase timeout**
+
    ```bash
    export VLLM_STARTUP_TIMEOUT=300
    ```
 
 2. **Check GPU availability**
+
    ```bash
    nvidia-smi
    # Should show free memory
    ```
 
 3. **Try manual start**
+
    ```bash
    python -m vllm.entrypoints.openai.api_server \
        --model Qwen/Qwen2.5-0.5B-Instruct \
@@ -86,6 +94,7 @@ TimeoutError: vLLM server did not start within 120s
    ```
 
 4. **Check port not in use**
+
    ```bash
    lsof -i :8001
    # Kill if occupied
@@ -94,13 +103,15 @@ TimeoutError: vLLM server did not start within 120s
 ### No Trajectories Found
 
 **Symptom:**
-```
+
+```text
 ValueError: No valid trajectory groups found
 ```
 
 **Fixes:**
 
 1. **Check database has data**
+
    ```sql
    SELECT COUNT(*) FROM trajectories;
    SELECT COUNT(*) FROM trajectories 
@@ -108,17 +119,20 @@ ValueError: No valid trajectory groups found
    ```
 
 2. **Generate data**
+
    ```bash
    make tier4-generate
    make tier4-import
    ```
 
 3. **Increase lookback window**
+
    ```bash
    python scripts/run_training.py --lookback-hours 168  # 1 week
    ```
 
 4. **Lower requirements**
+
    ```bash
    python scripts/run_training.py --min-agents-per-window 1 --min-actions 2
    ```
@@ -128,6 +142,7 @@ ValueError: No valid trajectory groups found
 **Causes:**
 
 1. **All scores identical** - GRPO needs variance
+
    ```bash
    # Check in W&B or logs
    # Look for: score_std > 0.1
@@ -135,11 +150,13 @@ ValueError: No valid trajectory groups found
    Fix: Check scoring pipeline
 
 2. **Learning rate too low**
+
    ```bash
    python scripts/run_training.py --lr 5e-5
    ```
 
 3. **Bad data** - All trajectories similar
+
    ```bash
    # Generate more diverse data
    bun run generate-training-data.ts --npcs 20 --hours 24
@@ -148,13 +165,15 @@ ValueError: No valid trajectory groups found
 ### Scores All Same
 
 **Symptom:**
-```
+
+```text
 [WARNING] All scores identical in batch, GRPO will skip
 ```
 
 **Fixes:**
 
 1. **Check format validation**
+
    ```python
    # Debug in Python
    from training.format_validator import validate_response_format
@@ -166,6 +185,7 @@ ValueError: No valid trajectory groups found
    - Look for epsilon in `_score_with_judge`
 
 3. **Increase group_size**
+
    ```bash
    python scripts/run_training.py --group-size 8
    ```
@@ -173,25 +193,29 @@ ValueError: No valid trajectory groups found
 ### Database Connection Failed
 
 **Symptom:**
-```
+
+```text
 ConnectionRefusedError: [Errno 111] Connection refused
 ```
 
 **Fixes:**
 
 1. **Start database**
+
    ```bash
    make db-up
    make db-migrate
    ```
 
 2. **Check DATABASE_URL**
+
    ```bash
    echo $DATABASE_URL
    # Should be: postgresql://user:pass@host:port/db
    ```
 
 3. **Test connection**
+
    ```bash
    psql $DATABASE_URL -c "SELECT 1"
    ```
@@ -199,22 +223,26 @@ ConnectionRefusedError: [Errno 111] Connection refused
 ### Import Errors
 
 **Symptom:**
-```
+
+```text
 ModuleNotFoundError: No module named 'training'
 ```
 
 **Fix:**
+
 ```bash
 cd packages/training/python
 pip install -e .
 ```
 
 **Symptom:**
-```
+
+```text
 ModuleNotFoundError: No module named 'atroposlib'
 ```
 
 **Fix:**
+
 ```bash
 pip install atroposlib
 # or
@@ -312,7 +340,7 @@ watch -n 1 nvidia-smi
 # - No OOM
 ```
 
-### Check W&B Logs
+## Check W&B Logs
 
 For training issues, W&B provides:
 
@@ -321,7 +349,7 @@ For training issues, W&B provides:
 3. **Learning rate** - Per scheduler
 4. **Gradient norm** - Should be 0.1-10
 
-### Profiling
+## Profiling
 
 ```python
 import cProfile

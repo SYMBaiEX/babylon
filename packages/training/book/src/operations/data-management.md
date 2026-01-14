@@ -143,6 +143,7 @@ def extract_archetype_from_trajectory(traj_data: dict) -> str:
 """export_trajectories.py - Export DB to JSON"""
 
 import json
+import os
 import psycopg2
 from pathlib import Path
 

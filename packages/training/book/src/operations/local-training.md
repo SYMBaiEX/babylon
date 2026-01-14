@@ -37,6 +37,7 @@ make venv
 ```
 
 This runs:
+
 ```bash
 cd python && python3 -m venv venv
 pip install -r requirements.txt
@@ -60,6 +61,7 @@ make db-up
 This starts PostgreSQL on port 5434 via Docker Compose.
 
 For JSON mode (no DB needed):
+
 ```bash
 # Just run training directly
 python scripts/run_training.py --profile 12gb --skip-validation
@@ -123,7 +125,7 @@ python scripts/run_training.py \
 
 ### Terminal Output
 
-```
+```text
 2025-01-13 10:00:00 [INFO] Starting training with profile: 12gb
 2025-01-13 10:00:05 [INFO] Loaded 150 trajectories from database
 2025-01-13 10:00:10 [INFO] vLLM server started on port 8001
@@ -136,6 +138,7 @@ python scripts/run_training.py \
 ### GPU Usage
 
 In another terminal:
+
 ```bash
 watch -n 1 nvidia-smi
 ```
@@ -153,13 +156,13 @@ export WANDB_API_KEY=your_key
 python scripts/run_training.py --profile 12gb
 ```
 
-View at: https://wandb.ai/your-team/babylon-training
+View at: [W&B Dashboard](https://wandb.ai/your-team/babylon-training)
 
 ## Checkpoints
 
 Saved to `python/trained_models/`:
 
-```
+```text
 trained_models/
 ├── step_5/
 │   ├── model.safetensors
@@ -186,22 +189,24 @@ This continues from step 51.
 
 ### CUDA Out of Memory
 
-```
+```text
 RuntimeError: CUDA out of memory
 ```
 
 **Fix**: Use smaller profile or reduce batch size:
+
 ```bash
 python scripts/run_training.py --profile 12gb --batch-size 1
 ```
 
 ### vLLM Startup Timeout
 
-```
+```text
 TimeoutError: vLLM server did not start within 120s
 ```
 
 **Fix**: Check GPU memory, or increase timeout:
+
 ```bash
 export VLLM_STARTUP_TIMEOUT=300
 python scripts/run_training.py --profile 12gb
@@ -209,11 +214,12 @@ python scripts/run_training.py --profile 12gb
 
 ### No Trajectories Found
 
-```
+```text
 ValueError: No valid trajectory groups found
 ```
 
 **Fix**: Generate or import data:
+
 ```bash
 make tier4-generate
 make tier4-import
@@ -221,11 +227,12 @@ make tier4-import
 
 ### Database Connection Failed
 
-```
+```text
 ConnectionRefusedError: [Errno 111] Connection refused
 ```
 
 **Fix**: Start database:
+
 ```bash
 make db-up
 make db-migrate

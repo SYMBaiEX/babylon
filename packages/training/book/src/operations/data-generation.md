@@ -173,7 +173,7 @@ python scripts/import_json_trajectories.py \
 
 ### Import Output
 
-```
+```text
 IMPORT SUMMARY
 ==============
 Total files:          150

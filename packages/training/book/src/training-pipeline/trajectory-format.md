@@ -319,7 +319,8 @@ def validate_trajectory(traj_data: dict) -> tuple[bool, list[str]]:
 ### JSON Mode (Development)
 
 Trajectories saved to files:
-```
+
+```text
 training-data-output/
 ├── state.json           # Game state snapshot
 ├── ground-truth.json    # Causal events (if --causal)
@@ -341,6 +342,7 @@ LIMIT 10;
 ```
 
 Import JSON to DB:
+
 ```bash
 cd packages/training/python
 python scripts/import_json_trajectories.py --source ../../training-data-output

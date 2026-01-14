@@ -133,7 +133,7 @@ def compute_grpo_loss(model, tokens, scores, group_size):
 
 ```yaml
 env:
-  tokenizer_name: Qwen/Qwen2.5-0.5B-Instruct
+  tokenizer_name: Qwen/Qwen2.5-3B-Instruct
   group_size: 4                    # Completions per prompt
   
   # Experiment tracking

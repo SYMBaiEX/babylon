@@ -28,7 +28,8 @@ export WANDB_API_KEY=your_key_here
 ```
 
 Or add to `.env`:
-```
+
+```text
 WANDB_API_KEY=your_key_here
 ```
 
@@ -211,6 +212,7 @@ python scripts/run_training.py --profile 12gb
 ```
 
 Later, sync to cloud:
+
 ```bash
 wandb sync ./wandb/offline-run-*
 ```
@@ -219,7 +221,7 @@ wandb sync ./wandb/offline-run-*
 
 ### "API key not found"
 
-```
+```text
 wandb: ERROR api_key not configured
 ```
 
@@ -263,6 +265,7 @@ WANDB_ENTITY ?=
 ```
 
 Usage:
+
 ```bash
 make train-cloud PROFILE=l40 WANDB_PROJECT=my-project
 ```
