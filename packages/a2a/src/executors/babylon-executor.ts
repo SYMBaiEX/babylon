@@ -561,11 +561,13 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
     return {
-      perpetuals: orgStates.map((o: { id: string; currentPrice: number | null }) => ({
-        id: o.id,
-        ticker: o.id,
-        currentPrice: Number(o.currentPrice) || 0,
-      })),
+      perpetuals: orgStates.map(
+        (o: { id: string; currentPrice: number | null }) => ({
+          id: o.id,
+          ticker: o.id,
+          currentPrice: Number(o.currentPrice) || 0,
+        })
+      ),
     };
   }
 
