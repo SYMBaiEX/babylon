@@ -13,6 +13,7 @@ export DATABASE_URL=postgresql://user:password@host:port/database
 ```
 
 Examples:
+
 ```bash
 # Local development
 DATABASE_URL=postgresql://babylon:password@localhost:5432/babylon
@@ -212,6 +213,7 @@ OPENAI_API_KEY=sk-your-key
 ```
 
 Python auto-loads via `dotenv`:
+
 ```python
 from dotenv import load_dotenv
 load_dotenv()  # Loads .env file

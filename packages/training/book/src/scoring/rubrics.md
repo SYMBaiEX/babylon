@@ -200,9 +200,9 @@ normalize_archetype("DEGEN")  # "degen"
 ## Loading Rubrics in TypeScript
 
 ```typescript
-import { getRubricForArchetype, getPriorityMetrics } from '@babylon/training';
+import { getRubric, getPriorityMetrics } from '@babylon/training';
 
-const rubric = getRubricForArchetype('trader');
+const rubric = getRubric('trader');
 const metrics = getPriorityMetrics('trader');
 ```
 
@@ -223,26 +223,29 @@ const metrics = getPriorityMetrics('trader');
 ```
 
 2. Export and validate:
-```bash
-bun run packages/training/scripts/export-rubrics.ts
-```
+
+   ```bash
+   bun run packages/training/scripts/export-rubrics.ts
+   ```
 
 3. Add behavior bonus function in `rewards.py`:
-```python
-def _calculate_my_archetype_bonus(metrics: BehaviorMetrics) -> float:
-    # Custom bonus logic
-    pass
-```
+
+   ```python
+   def _calculate_my_archetype_bonus(metrics: BehaviorMetrics) -> float:
+       # Custom bonus logic
+       pass
+   ```
 
 4. Add weights in `rewards.py`:
-```python
-ARCHETYPE_REWARD_WEIGHTS["my-archetype"] = {
-    "pnl": 0.40,
-    "format": 0.20,
-    "reasoning": 0.20,
-    "behavior": 0.20,
-}
-```
+
+   ```python
+   ARCHETYPE_REWARD_WEIGHTS["my-archetype"] = {
+       "pnl": 0.40,
+       "format": 0.20,
+       "reasoning": 0.20,
+       "behavior": 0.20,
+   }
+   ```
 
 ## Rubric Design Principles
 

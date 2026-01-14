@@ -45,7 +45,7 @@ graph TB
 
 ### Key TypeScript Files
 
-```
+```text
 packages/training/src/
 ├── training/
 │   ├── TrajectoryRecorder.ts   # Core recording logic
@@ -79,7 +79,7 @@ packages/training/src/
 
 ### Key Python Files
 
-```
+```text
 packages/training/python/
 ├── src/
 │   ├── training/

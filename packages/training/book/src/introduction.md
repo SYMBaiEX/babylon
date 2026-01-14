@@ -58,6 +58,7 @@ graph TB
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.11+
 - CUDA-capable GPU (12GB+ VRAM)
 - PostgreSQL (for production) or JSON mode (for development)

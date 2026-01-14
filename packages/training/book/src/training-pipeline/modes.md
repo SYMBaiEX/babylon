@@ -73,13 +73,15 @@ graph LR
 
 ### Running Online Training
 
-**Terminal 1: Start Bridge Server**
+#### Terminal 1: Start Bridge Server
+
 ```bash
 make bridge-server
 # or: cd packages/engine && bun run src/services/simulation-bridge-server.ts
 ```
 
-**Terminal 2: Start Training**
+#### Terminal 2: Start Training
+
 ```bash
 make train-online
 # or:
@@ -150,19 +152,22 @@ python scripts/run_training.py --mode hybrid --hybrid-online-ratio 0.3
 
 ## Mode Selection Guide
 
-### Use Offline When:
+### Use Offline When
+
 - You have sufficient historical data (100+ trajectories)
 - Training on cloud/cluster (no interactive simulation)
 - Reproducible training runs needed
 - First pass training before online refinement
 
-### Use Online When:
+### Use Online When
+
 - Debugging model behavior
 - Testing new scenarios
 - Low historical data
 - Need immediate feedback on changes
 
-### Use Hybrid When:
+### Use Hybrid When
+
 - Balancing exploration vs. exploitation
 - Incrementally improving a trained model
 - Adding new archetypes while maintaining existing behavior
@@ -179,6 +184,7 @@ python scripts/run_training.py --mode hybrid --hybrid-online-ratio 0.3
 | Archetypes represented | 1 | All 12 |
 
 Check your data:
+
 ```bash
 # Query database directly
 psql $DATABASE_URL -c "SELECT archetype, COUNT(*) FROM trajectories GROUP BY archetype"
@@ -198,6 +204,7 @@ psql $DATABASE_URL -c "SELECT \"windowId\", COUNT(*) FROM trajectories GROUP BY 
 ## Troubleshooting
 
 ### Offline: "No trajectories found"
+
 ```bash
 # Check database has data
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM trajectories"
@@ -207,6 +214,7 @@ python scripts/run_training.py --lookback-hours 168  # 1 week
 ```
 
 ### Online: "Bridge not responding"
+
 ```bash
 # Check if bridge is running
 curl http://localhost:3001/health

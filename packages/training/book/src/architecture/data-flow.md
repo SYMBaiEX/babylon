@@ -41,6 +41,7 @@ flowchart TB
 ## Stage 1: Data Generation
 
 ### Simulation Engine
+
 The TypeScript simulation (`packages/engine/`) runs the game world:
 
 ```typescript
@@ -58,6 +59,7 @@ for (let day = 1; day <= config.simulationDays; day++) {
 ```
 
 ### Trajectory Recording
+
 Each agent decision is captured by `TrajectoryRecorder`:
 
 ```typescript
@@ -121,6 +123,7 @@ await recorder.endTrajectory(trajectoryId, { finalPnL, finalBalance });
 ## Stage 3: Loading
 
 ### Trajectory Reader
+
 Python loads trajectories from DB or JSON:
 
 ```python
@@ -142,6 +145,7 @@ async with self.db_pool.acquire() as conn:
 ```
 
 ### Grouping by Window
+
 Trajectories are grouped inline so agents from the same time window compete:
 
 ```python
@@ -212,9 +216,10 @@ For GRPO, each prompt gets `group_size` (default 4) completions, scored relative
 ## Stage 5: Output
 
 ### Checkpoints
+
 Saved every N steps:
 
-```
+```text
 trained_models/
 ├── step_5/
 │   ├── model.safetensors
@@ -226,6 +231,7 @@ trained_models/
 ```
 
 ### W&B Metrics
+
 Logged each step:
 
 | Metric | Description |

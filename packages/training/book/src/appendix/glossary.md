@@ -25,7 +25,7 @@ Each archetype has unique success criteria and reward weights.
 
 A time slice (typically 1 hour) during which trajectories are grouped. Agents in the same window faced similar market conditions, making their trajectories comparable.
 
-```
+```text
 windowId: "2025-01-13-14"  # Day 2025-01-13, hour 14
 ```
 

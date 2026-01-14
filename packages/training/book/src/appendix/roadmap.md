@@ -95,7 +95,7 @@ Issues are tracked in Linear. Key issue categories:
 
 ### Current Architecture
 
-```
+```text
 Simulation → DB → Training → Manual Deploy
 ```
 
@@ -167,7 +167,6 @@ mdbook serve
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | Jan 2025 | Initial documentation |
-| - | - | - |
 
 ## Contact
 

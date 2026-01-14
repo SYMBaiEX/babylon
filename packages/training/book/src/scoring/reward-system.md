@@ -179,18 +179,20 @@ We add small deterministic tiebreakers:
 def _add_tiebreaker(score: float, response: str, action_type: str) -> float:
     epsilon = 0.0
     
-    # Length-based (different responses, different length)
-    epsilon += (len(response) % 100) * 0.0001
+    # Length-based (scaled down to avoid dominating real differences)
+    epsilon += (len(response) % 100) * 0.000001
     
-    # Content-based (different content, different hash)
+    # Content-based (deterministic, tiny contribution)
     content_hash = sum(ord(c) for c in response[:50]) % 1000
-    epsilon += content_hash * 0.00001
+    epsilon += content_hash * 0.0000001
     
     # Action-based
     if action_type:
         type_hash = sum(ord(c) for c in action_type) % 100
-        epsilon += type_hash * 0.0001
+        epsilon += type_hash * 0.000001
     
+    # Clamp to ensure tiebreaker never exceeds 1e-3
+    epsilon = min(epsilon, 1e-3)
     return score + epsilon
 ```
 
@@ -221,7 +223,7 @@ Optional running normalization across training:
 class RewardNormalizer:
     def __init__(self):
         self.mean = 0.0
-        self.var = 1.0
+        self.m2 = 0.0  # Sum of squared differences (not variance)
         self.count = 0
     
     def update(self, reward: float):
@@ -230,12 +232,12 @@ class RewardNormalizer:
         delta = reward - self.mean
         self.mean += delta / self.count
         delta2 = reward - self.mean
-        self.var += delta * delta2
+        self.m2 += delta * delta2  # Accumulate M2
     
     def normalize(self, reward: float) -> float:
         if self.count < 2:
             return reward
-        std = math.sqrt(self.var / (self.count - 1) + 1e-8)
+        std = math.sqrt(self.m2 / (self.count - 1) + 1e-8)
         return (reward - self.mean) / std
 ```
 

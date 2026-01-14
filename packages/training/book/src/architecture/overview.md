@@ -140,7 +140,7 @@ The languages communicate through:
 
 ## File System Layout
 
-```
+```text
 packages/training/
 ├── src/                    # TypeScript source
 │   ├── training/           # TrajectoryRecorder

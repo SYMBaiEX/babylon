@@ -4,7 +4,7 @@ A guide to the key files and their purposes.
 
 ## Directory Structure
 
-```
+```text
 packages/training/
 ├── book/                    # This documentation (mdbook)
 ├── config/
@@ -252,7 +252,7 @@ class BehaviorMetrics:
 
 ### TypeScript → Python
 
-```
+```text
 TypeScript:
   TrajectoryRecorder → PostgreSQL/JSON
 
@@ -262,7 +262,7 @@ Python:
 
 ### Shared Config
 
-```
+```text
 config/rubrics.json
   ↓
 rubric_loader.py (Python)

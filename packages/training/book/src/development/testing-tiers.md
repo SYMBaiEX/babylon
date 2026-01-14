@@ -71,16 +71,11 @@ python/tests/
 def test_archetype_weights_sum_to_one():
     for archetype, weights in ARCHETYPE_REWARD_WEIGHTS.items():
         total = sum(weights.values())
-        assert abs(total - 1.0) < 1e-9
+        assert abs(total - 1.0) < 1e-9, f"{archetype} weights don't sum to 1"
 
 def test_pnl_reward_positive():
     score = calculate_pnl_reward(start=10000, end=11000)
     assert score == 1.0  # 10% gain = max score
-
-def test_archetype_weights_sum_to_one():
-    for archetype, weights in ARCHETYPE_REWARD_WEIGHTS.items():
-        total = sum(weights.values())
-        assert abs(total - 1.0) < 1e-9, f"{archetype} weights don't sum to 1"
 ```
 
 ## Tier 2: JSON Mode Integration

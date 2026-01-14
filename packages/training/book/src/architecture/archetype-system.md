@@ -124,10 +124,13 @@ export function deriveArchetype(npc: NPCCharacteristics): string {
   }
   
   // 3. Analyze personality keywords for best match
-  // Keywords like "aggressive", "risk-taking" → "degen"
-  // Keywords like "social", "networker" → "social-butterfly"
-  const bestMatch = matchPersonalityKeywords(npc.personality);
-  if (bestMatch) return bestMatch;
+  // Uses PERSONALITY_KEYWORDS map: { "aggressive": "degen", "social": "social-butterfly", ... }
+  // Filters npc.personality traits against keywords, finds best archetype match
+  const matchingKeywords = Object.entries(PERSONALITY_KEYWORDS)
+    .filter(([keyword]) => npc.personality.toLowerCase().includes(keyword));
+  if (matchingKeywords.length > 0) {
+    return matchingKeywords[0][1];  // Return first matching archetype
+  }
   
   // 4. Default to trader
   return "trader";
