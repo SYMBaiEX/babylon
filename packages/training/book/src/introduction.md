@@ -85,9 +85,8 @@ make train-12gb
 # Generate trajectories with the simulation engine
 bun run packages/engine/examples/generate-training-data.ts --causal --hours 2
 
-# Import to database (from training-data-output/)
-cd packages/training/python
-python scripts/import_json_trajectories.py --source ../../training-data-output
+# Import to database
+python packages/training/python/scripts/import_json_trajectories.py --source ./training-data-output
 ```
 
 ## Who This Book Is For
@@ -106,4 +105,3 @@ python scripts/import_json_trajectories.py --source ../../training-data-output
 | GPU Profiles | `packages/training/python/config/profiles/` |
 | Rubrics | `packages/training/config/rubrics.json` |
 | Makefile | `packages/training/Makefile` |
-

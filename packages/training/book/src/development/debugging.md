@@ -159,7 +159,7 @@ ValueError: No valid trajectory groups found
 
    ```bash
    # Generate more diverse data
-   bun run generate-training-data.ts --npcs 20 --hours 24
+   bun run packages/engine/examples/generate-training-data.ts --npcs 20 --hours 24
    ```
 
 ### Scores All Same
@@ -394,4 +394,3 @@ tail -100 python/logs/training.log
    - GPU info
    - Input data (anonymized)
    - Full error traceback
-

@@ -196,7 +196,7 @@ For training runs that take hours or days, use tmux to survive SSH disconnects.
 tmux new -s train
 
 # Activate venv and start training
-cd /home/dev/bab/packages/training
+cd packages/training
 source python/venv/bin/activate
 python scripts/run_training.py \
   --profile 12gb \
@@ -215,7 +215,7 @@ tmux attach -t train
 ### Alternative: nohup
 
 ```bash
-cd /home/dev/bab/packages/training
+cd packages/training
 source python/venv/bin/activate
 
 nohup python scripts/run_training.py \
@@ -353,4 +353,3 @@ make tier4
 | RTX 3060 12GB | 120 | 50 min |
 | RTX 4090 24GB | 200 | 30 min |
 | L40 48GB | 300 | 20 min |
-

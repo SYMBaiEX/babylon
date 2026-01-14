@@ -67,7 +67,7 @@ def score_format(response: str) -> float:
         score += 0.4
     
     # Action type is recognized
-    if result.action.action_type in VALID_ACTIONS:
+    if result.action.action_type in VALID_ACTION_TYPES:
         score += 0.3
     
     # Required parameters present
@@ -161,6 +161,7 @@ Different archetypes prioritize different components:
 | scammer | 0.35 | 0.15 | 0.20 | 0.30 |
 | information-trader | 0.35 | 0.20 | 0.20 | 0.25 |
 | goody-twoshoes | 0.15 | 0.25 | 0.20 | **0.40** |
+| ass-kisser | 0.10 | 0.20 | 0.15 | **0.55** |
 | perps-trader | **0.50** | 0.15 | 0.20 | 0.15 |
 | super-predictor | 0.30 | 0.20 | 0.25 | 0.25 |
 | infosec | 0.25 | 0.25 | **0.30** | 0.20 |
@@ -209,10 +210,10 @@ GRPO normalizes scores within each group (batch):
 
 ```python
 # Inside GRPO loss
-scores = scores.view(-1, group_size)  # [batch, 4]
-mean = scores.mean(dim=1, keepdim=True)
-std = scores.std(dim=1, keepdim=True) + 1e-8
-advantages = (scores - mean) / std
+ scores = scores.view(-1, group_size)  # [batch, group_size]
+ mean = scores.mean(dim=1, keepdim=True)
+ std = scores.std(dim=1, keepdim=True) + 1e-8
+ advantages = (scores - mean) / std
 ```
 
 ### Historical Normalization
@@ -277,4 +278,3 @@ For more sophisticated reward calculation that accounts for market conditions, s
 - **Counterfactual Alpha** - Measure skill vs luck
 - **Temporal Credit** - Attribute delayed outcomes to decisions
 - **Configurable Weights** - YAML-based weight profiles
-

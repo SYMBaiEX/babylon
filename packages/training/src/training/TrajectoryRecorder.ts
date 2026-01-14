@@ -7,7 +7,13 @@
  * @packageDocumentation
  */
 
-import { db, llmCallLogs, trajectories } from '@babylon/db';
+import {
+  db,
+  getJsonStoragePath,
+  isSimulationMode,
+  llmCallLogs,
+  trajectories,
+} from '@babylon/db'; // keep this at db not engine to avoid circular dep
 import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 import { generateSnowflakeId } from '../utils/snowflake';
@@ -28,7 +34,6 @@ export type {
   Action,
 };
 
-import { isSimulationMode } from '@babylon/db'; // keep this at db not engine to avoid circular dep
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -281,7 +286,10 @@ export class TrajectoryRecorder {
 
     // Simulation Mode Bypass
     if (isSimulationMode()) {
-      const outputDir = './training-data-output/trajectories';
+      const basePath = getJsonStoragePath();
+      const outputDir = basePath
+        ? path.join(basePath, 'trajectories')
+        : './training-data-output/trajectories';
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }

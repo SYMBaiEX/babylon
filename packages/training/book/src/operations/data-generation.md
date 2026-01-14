@@ -34,6 +34,7 @@ bun run packages/engine/examples/generate-training-data.ts [options]
 | `--hours N` | 24 | Hours per day |
 | `--seed N` | timestamp | Random seed for reproducibility |
 | `--npcs N` | 10 | Number of NPC agents |
+| `--output DIR` | `./training-data-output` | Output directory for JSON artifacts |
 
 ### Examples
 
@@ -53,7 +54,7 @@ bun run packages/engine/examples/generate-training-data.ts --npcs 20 --hours 4
 
 ## Output Structure
 
-```
+```text
 training-data-output/
 ├── state.json           # Game state snapshot
 ├── ground-truth.json    # Causal events (if --causal)
@@ -145,7 +146,7 @@ When using `--causal`, the ground truth includes price history that enables [Enh
 The import script merges this into trajectory metadata as `price_context`:
 
 ```bash
-python scripts/import_json_trajectories.py \
+python packages/training/python/scripts/import_json_trajectories.py \
   --source ./training-data-output \
   --inject-ground-truth
 ```
@@ -179,21 +180,20 @@ bun run packages/engine/examples/generate-training-data.ts --npcs 30
 
 ## Importing to Database
 
-After generation, import to PostgreSQL:
+After generation, import to PostgreSQL (run commands from the repo root):
 
 ```bash
 # Using Makefile
-make tier4-import
+cd packages/training && make tier4-import
 
 # Or directly
-cd packages/training/python
-python scripts/import_json_trajectories.py --source ../../training-data-output
+python packages/training/python/scripts/import_json_trajectories.py --source ./training-data-output
 ```
 
 ### Import Options
 
 ```bash
-python scripts/import_json_trajectories.py \
+python packages/training/python/scripts/import_json_trajectories.py \
   --source ./training-data-output \
   --verbose \
   --dry-run  # Validate without inserting
@@ -242,23 +242,23 @@ The importer validates:
 
 ## Parallel Generation
 
-For large datasets, run multiple seeds in parallel:
+For large datasets, run multiple seeds in parallel (run from the repo root and use a unique `--output` per worker to avoid collisions):
 
 ```bash
 # Terminal 1
-bun run generate-training-data.ts --seed 1 --hours 24 &
+bun run packages/engine/examples/generate-training-data.ts --seed 1 --hours 24 --output ./training-data-output/seed_1 &
 
 # Terminal 2
-bun run generate-training-data.ts --seed 2 --hours 24 &
+bun run packages/engine/examples/generate-training-data.ts --seed 2 --hours 24 --output ./training-data-output/seed_2 &
 
 # Terminal 3
-bun run generate-training-data.ts --seed 3 --hours 24 &
+bun run packages/engine/examples/generate-training-data.ts --seed 3 --hours 24 --output ./training-data-output/seed_3 &
 ```
 
 Or use the shell script:
 
 ```bash
-./scripts/generate_dataset.sh --hours 24 --parallel 4
+./packages/training/scripts/generate_dataset.sh 24 4
 ```
 
 ## LLM Provider
@@ -268,13 +268,13 @@ Generation requires an LLM for agent decisions. Supported:
 | Provider | Env Var | Model |
 |----------|---------|-------|
 | Groq | `GROQ_API_KEY` | qwen/qwen3-32b |
-| OpenAI | `OPENAI_API_KEY` | gpt-4o-mini |
-| Anthropic | `ANTHROPIC_API_KEY` | claude-3-sonnet |
+| OpenAI | `OPENAI_API_KEY` | gpt-5-mini-2025-08-07 |
+| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-5-20250929 |
 
 ```bash
 # Use Groq (fastest, free tier available)
 export GROQ_API_KEY=your_key
-bun run generate-training-data.ts --hours 2
+bun run packages/engine/examples/generate-training-data.ts --hours 2
 ```
 
 ## Long-Running Simulations (24+ Hours)
@@ -292,7 +292,7 @@ For generating large training datasets, you'll want to run simulations for exten
 tmux new -s training
 
 # Inside tmux, run the simulation (no nohup needed)
-cd /home/dev/bab && bun run packages/engine/examples/generate-training-data.ts \
+bun run packages/engine/examples/generate-training-data.ts \
   --causal \
   --days 60 \
   --npcs 15 \
@@ -332,7 +332,6 @@ tmux kill-session -t training
 If you don't need to reattach:
 
 ```bash
-cd /home/dev/bab && \
 nohup bun run packages/engine/examples/generate-training-data.ts \
   --causal \
   --days 60 \
@@ -371,7 +370,7 @@ Based on typical LLM latency (~30-60 seconds per tick):
 **24-hour command (copy-paste ready):**
 
 ```bash
-tmux new -s training -d "cd /home/dev/bab && bun run packages/engine/examples/generate-training-data.ts --causal --days 60 --npcs 15 --seed 20250114 2>&1 | tee training-generation.log"
+tmux new -s training -d "bun run packages/engine/examples/generate-training-data.ts --causal --days 60 --npcs 15 --seed 20250114 2>&1 | tee training-generation.log"
 
 # Attach to see progress
 tmux attach -t training
@@ -390,7 +389,7 @@ ls training-data-output/trajectories/ | wc -l
 cd packages/training && make tier4-import
 
 # Or directly
-cd packages/training/python && python scripts/import_json_trajectories.py --source ../../../training-data-output
+python packages/training/python/scripts/import_json_trajectories.py --source ./training-data-output
 ```
 
 ### Recovery if Interrupted
@@ -406,14 +405,14 @@ If the simulation crashes or you kill it early:
 find training-data-output/trajectories -name "*.json" | wc -l
 
 # Import anyway
-make tier4-import
+cd packages/training && make tier4-import
 ```
 
 ## Troubleshooting
 
 ### No API Key
 
-```
+```text
 Error: No API keys found. Set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY
 ```
 
@@ -443,4 +442,3 @@ Skipped (existing): 50
 ```
 
 This is normal - the importer skips already-imported trajectories by ID.
-

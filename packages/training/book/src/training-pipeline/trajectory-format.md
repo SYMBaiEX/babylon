@@ -344,7 +344,5 @@ LIMIT 10;
 Import JSON to DB:
 
 ```bash
-cd packages/training/python
-python scripts/import_json_trajectories.py --source ../../training-data-output
+python packages/training/python/scripts/import_json_trajectories.py --source ./training-data-output
 ```
-

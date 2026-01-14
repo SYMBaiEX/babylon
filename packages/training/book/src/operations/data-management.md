@@ -77,16 +77,14 @@ asyncio.run(main())
 ### From JSON Files
 
 ```bash
-cd packages/training/python
-
-# Import from default location
-python scripts/import_json_trajectories.py
+# Import from default location (./training-data-output)
+python packages/training/python/scripts/import_json_trajectories.py
 
 # Import from custom location
-python scripts/import_json_trajectories.py --source /path/to/trajectories
+python packages/training/python/scripts/import_json_trajectories.py --source /path/to/trajectories
 
 # Dry run (validate only)
-python scripts/import_json_trajectories.py --dry-run --verbose
+python packages/training/python/scripts/import_json_trajectories.py --dry-run --verbose
 ```
 
 ### Import Validation
@@ -334,4 +332,3 @@ For reproducible research, consider:
   "trajectories": [...]
 }
 ```
-

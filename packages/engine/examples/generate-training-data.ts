@@ -58,6 +58,8 @@ interface TrainingDataConfig {
   simulationDays: number;
   /** Number of hours per day to simulate (default: 24, use lower for quick tests) */
   hoursPerDay: number;
+  /** Output directory for JSON artifacts */
+  outputDir: string;
   /** Random seed for reproducibility */
   seed: number;
   /** Number of NPCs in the simulation */
@@ -84,6 +86,7 @@ Options:
   --hours <n>       Hours per day (default: 24, use lower for quick tests)
   --seed <n>        Random seed for reproducibility (default: current timestamp)
   --npcs <n>        Number of NPCs (default: 10)
+  --output <dir>    Output directory for JSON artifacts (default: ./training-data-output)
   --help, -h        Show this help message
 
 Examples:
@@ -97,9 +100,9 @@ Examples:
   bun run packages/engine/examples/generate-training-data.ts --causal --days 3 --seed 12345
 
 Output:
-  ./training-data-output/state.json         - Game state snapshot
-  ./training-data-output/ground-truth.json  - Causal simulation truth (if --causal)
-  ./training-data-output/trajectories/      - Agent decision trajectories
+  <outputDir>/state.json         - Game state snapshot
+  <outputDir>/ground-truth.json  - Causal simulation truth (if --causal)
+  <outputDir>/trajectories/      - Agent decision trajectories
 `);
   process.exit(0);
 }
@@ -115,6 +118,7 @@ function parseArgs(): TrainingDataConfig {
     useCausalSimulation: args.includes('--causal'),
     simulationDays: parseInt(getArgValue(args, '--days') ?? '1', 10),
     hoursPerDay: parseInt(getArgValue(args, '--hours') ?? '24', 10),
+    outputDir: getArgValue(args, '--output') ?? './training-data-output',
     seed: parseInt(getArgValue(args, '--seed') ?? String(Date.now()), 10),
     numNPCs: parseInt(getArgValue(args, '--npcs') ?? '10', 10),
     outcome: true,
@@ -193,6 +197,7 @@ function buildCausalEventContext(
 
 async function main() {
   const config = parseArgs();
+  const outputDir = config.outputDir.replace(/\/$/, '');
 
   console.log('🚀 Starting RL Data Generation Pipeline...');
   console.log('===========================================');
@@ -203,6 +208,7 @@ async function main() {
   console.log(`   Hours/Day: ${config.hoursPerDay}`);
   console.log(`   Seed: ${config.seed}`);
   console.log(`   NPCs: ${config.numNPCs}`);
+  console.log(`   Output: ${outputDir}`);
   console.log('===========================================');
 
   // Detect available provider
@@ -213,8 +219,8 @@ async function main() {
   console.log(`✅ Model: ${modelConfig.model}`);
 
   // 1. Initialize JSON DB Mode (Bypass Postgres)
-  await initializeSimulationMode('./training-data-output');
-  console.log('✅ Storage Bridge: JSON Mode Initialized');
+  await initializeSimulationMode(outputDir);
+  console.log(`✅ Storage Bridge: JSON Mode Initialized (${outputDir})`);
 
   // 2. Setup the LLM Client
   const llmClient = BabylonLLMClient.forGameTick();
@@ -419,7 +425,7 @@ async function main() {
 
   // 9. Save causal simulation ground truth if enabled
   if (config.useCausalSimulation && groundTruth) {
-    const groundTruthPath = './training-data-output/ground-truth.json';
+    const groundTruthPath = `${outputDir}/ground-truth.json`;
     await Bun.write(
       groundTruthPath,
       JSON.stringify(
@@ -493,7 +499,7 @@ async function main() {
 
   console.log('\n===========================================');
   console.log('✅ GENERATION COMPLETE');
-  console.log('Data saved to: ./training-data-output/state.json');
+  console.log(`Data saved to: ${outputDir}/state.json`);
   console.log("Review this JSON to ensure 'reasoning' fields are populated.");
 
   process.exit(0);

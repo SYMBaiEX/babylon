@@ -95,7 +95,7 @@ packages/training/
 | Script | Purpose | Usage |
 |--------|---------|-------|
 | `run_training.py` | Full pipeline orchestrator | `python scripts/run_training.py --profile 12gb` |
-| `import_json_trajectories.py` | Import JSON to DB | `python scripts/import_json_trajectories.py` |
+| `import_json_trajectories.py` | Import JSON to DB | `python packages/training/python/scripts/import_json_trajectories.py` |
 | `train_local.py` | Local training (legacy) | `python scripts/train_local.py` |
 
 ### Configuration
@@ -293,4 +293,3 @@ Training rewards
 | How does training run? | `python/scripts/run_training.py` |
 | How are prompts built? | `python/src/training/babylon_env.py:_trajectory_to_messages` |
 | How is format validated? | `python/src/training/format_validator.py` |
-

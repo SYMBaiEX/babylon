@@ -25,7 +25,7 @@ set -e
 HOURS=${1:-24}
 PARALLEL=${2:-4}
 NPCS=${3:-20}
-OUTPUT_DIR=${4:-"./training-data-output"}
+OUTPUT_DIR=${4:-"../../training-data-output"}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_DIR="$(dirname "$SCRIPT_DIR")/../engine"
 
@@ -45,9 +45,9 @@ echo "  Engine directory:     $ENGINE_DIR"
 echo ""
 
 # Check for required API keys
-if [ -z "$GROQ_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
-    echo "ERROR: Neither GROQ_API_KEY nor OPENAI_API_KEY is set"
-    echo "Please set one of these environment variables"
+if [ -z "$GROQ_API_KEY" ] && [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+    echo "ERROR: No LLM API key found"
+    echo "Please set one of these environment variables: GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
     exit 1
 fi
 
@@ -68,6 +68,7 @@ fi
 # Create output directories
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR/logs"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 echo "Starting $PARALLEL parallel workers..."
 echo ""
@@ -165,9 +166,7 @@ if [ "$FAILED" -gt 0 ]; then
 fi
 
 echo "Next steps:"
-echo "  1. Merge trajectories:   python scripts/merge_trajectories.py $OUTPUT_DIR"
-echo "  2. Validate data:        python scripts/import_json_trajectories.py --dry-run"
-echo "  3. Import to database:   python scripts/import_json_trajectories.py"
+echo "  1. Merge trajectories:   python python/scripts/merge_trajectories.py \"$OUTPUT_DIR\" --output \"$OUTPUT_DIR/merged\""
+echo "  2. Validate data:        python python/scripts/import_json_trajectories.py --source \"$OUTPUT_DIR/merged\" --dry-run --verbose"
+echo "  3. Import to database:   python python/scripts/import_json_trajectories.py --source \"$OUTPUT_DIR/merged\""
 echo ""
-
-

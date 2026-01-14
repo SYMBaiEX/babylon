@@ -336,10 +336,10 @@ weights = get_reward_weights("skill_focused")
 Use the `--causal` flag to include price context:
 
 ```bash
-bun run scripts/generate-training-data.ts \
+bun run packages/engine/examples/generate-training-data.ts \
   --causal \
   --hours 24 \
-  --output ./training-data
+  --output ./training-data-output
 ```
 
 This generates `ground-truth.json` with price history.
@@ -349,8 +349,8 @@ This generates `ground-truth.json` with price history.
 The import script merges price data into trajectory metadata:
 
 ```bash
-python scripts/import_json_trajectories.py \
-  --source ./training-data \
+python packages/training/python/scripts/import_json_trajectories.py \
+  --source ./training-data-output \
   --inject-ground-truth
 ```
 
@@ -428,4 +428,3 @@ reward = enhanced_composite_reward(
 - [Reward System](./reward-system.md) - Basic reward components
 - [Archetype Rubrics](./rubrics.md) - Per-archetype scoring
 - [Data Generation](../operations/data-generation.md) - Generating causal trajectories
-
