@@ -23,6 +23,7 @@ import {
   eq,
   inArray,
   markets,
+  npcTrades,
   sql,
   users,
 } from '@babylon/db';
@@ -85,9 +86,18 @@ export const GET = withErrorHandling(
     const { agentId } = await params;
 
     const { searchParams } = new URL(req.url);
-    const { limit } = QuerySchema.parse({
+    const parsed = QuerySchema.safeParse({
       limit: searchParams.get('limit'),
     });
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid query parameters' },
+        { status: 400 }
+      );
+    }
+
+    const { limit } = parsed.data;
 
     // Check if this is an NPC from static registry
     const npcActor = StaticDataRegistry.getActor(agentId);
@@ -137,28 +147,50 @@ export const GET = withErrorHandling(
     }
 
     // Fetch recent trades
-    const trades = await db
-      .select({
-        id: agentTrades.id,
-        marketType: agentTrades.marketType,
-        marketId: agentTrades.marketId,
-        ticker: agentTrades.ticker,
-        action: agentTrades.action,
-        side: agentTrades.side,
-        amount: agentTrades.amount,
-        pnl: agentTrades.pnl,
-        executedAt: agentTrades.executedAt,
-      })
-      .from(agentTrades)
-      .where(eq(agentTrades.agentUserId, agentId))
-      .orderBy(desc(agentTrades.executedAt))
-      .limit(limit);
+    const trades = isNpc
+      ? await db
+          .select({
+            id: npcTrades.id,
+            marketType: npcTrades.marketType,
+            marketId: npcTrades.marketId,
+            ticker: npcTrades.ticker,
+            action: npcTrades.action,
+            side: npcTrades.side,
+            amount: npcTrades.amount,
+            pnl: sql<number | null>`null`,
+            executedAt: npcTrades.executedAt,
+          })
+          .from(npcTrades)
+          .where(eq(npcTrades.npcActorId, agentId))
+          .orderBy(desc(npcTrades.executedAt))
+          .limit(limit)
+      : await db
+          .select({
+            id: agentTrades.id,
+            marketType: agentTrades.marketType,
+            marketId: agentTrades.marketId,
+            ticker: agentTrades.ticker,
+            action: agentTrades.action,
+            side: agentTrades.side,
+            amount: agentTrades.amount,
+            pnl: agentTrades.pnl,
+            executedAt: agentTrades.executedAt,
+          })
+          .from(agentTrades)
+          .where(eq(agentTrades.agentUserId, agentId))
+          .orderBy(desc(agentTrades.executedAt))
+          .limit(limit);
 
     // Get total trade count
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(agentTrades)
-      .where(eq(agentTrades.agentUserId, agentId));
+    const [countResult] = isNpc
+      ? await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(npcTrades)
+          .where(eq(npcTrades.npcActorId, agentId))
+      : await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(agentTrades)
+          .where(eq(agentTrades.agentUserId, agentId));
 
     const totalTrades = countResult?.count ?? 0;
 
