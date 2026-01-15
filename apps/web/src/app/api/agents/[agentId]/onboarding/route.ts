@@ -14,7 +14,7 @@
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
 import { db, messages as messagesTable } from '@babylon/db';
-import { generateSnowflakeId, GROQ_MODELS, logger } from '@babylon/shared';
+import { GROQ_MODELS, generateSnowflakeId, logger } from '@babylon/shared';
 import {
   composePromptFromState,
   type Memory,
@@ -219,7 +219,7 @@ export const POST = withErrorHandling(
           chatId: dmChatId,
           senderId: agentId,
           content: welcomeMessage,
-          type: 'user',
+          type: 'system',
           createdAt: messageTime,
         })
         .onConflictDoNothing(); // Ignore if DM chat doesn't exist yet
