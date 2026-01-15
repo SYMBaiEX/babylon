@@ -15,7 +15,7 @@ import {
   useState,
 } from 'react';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
-import { type ChatMessage, useChatMessages } from '@/hooks/useChatMessages';
+import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -77,7 +77,6 @@ interface UseTeamChatReturn {
   typingUsers: TypingUser[];
   thinkingAgents: ThinkingAgent[];
   sendError: string | null;
-  sendSuccess: boolean;
   mentionedAgentIds: string[];
   setMentionedAgentIds: (ids: string[]) => void;
 
@@ -105,7 +104,6 @@ export function useTeamChat(): UseTeamChatReturn {
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [sendSuccess] = useState(false); // Kept for interface compatibility, not used with optimistic updates
   const [mentionedAgentIds, setMentionedAgentIds] = useState<string[]>([]);
 
   // Typing indicator state
@@ -120,10 +118,10 @@ export function useTeamChat(): UseTeamChatReturn {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
-  const wasNearBottomRef = useRef(true); // Track if user was near bottom before new messages
-  const prevMessageCountRef = useRef(0); // Track previous message count for change detection
+  const wasNearBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
 
-  // SSE for real-time messages - connect once we have the chat ID
+  // SSE for real-time messages
   const {
     messages: realtimeMessages,
     isLoading: isMessagesLoading,
@@ -133,14 +131,17 @@ export function useTeamChat(): UseTeamChatReturn {
     addMessage,
   } = useChatMessages(teamChat?.chatId ?? null);
 
-  // Scroll to bottom helper - uses direct scrollTop for reliability
+  // Helper to find scroll container from messagesEndRef
+  const getScrollContainer = useCallback((): HTMLElement | null => {
+    return messagesEndRef.current?.closest(
+      '[class*="overflow"]'
+    ) as HTMLElement | null;
+  }, []);
+
+  // Scroll to bottom helper
   const scrollToBottom = useCallback(
     (behavior: 'instant' | 'smooth' = 'instant') => {
-      const endRef = messagesEndRef.current;
-      if (!endRef) return;
-
-      // Find the scroll container (parent with overflow)
-      const container = endRef.closest('[class*="overflow"]') as HTMLElement;
+      const container = getScrollContainer();
       if (container) {
         if (behavior === 'instant') {
           container.scrollTop = container.scrollHeight;
@@ -151,43 +152,39 @@ export function useTeamChat(): UseTeamChatReturn {
           });
         }
       } else {
-        // Fallback to scrollIntoView
-        endRef.scrollIntoView({ behavior });
+        messagesEndRef.current?.scrollIntoView({ behavior });
       }
     },
-    []
+    [getScrollContainer]
   );
 
-  // Initial scroll: Wait for scrollHeight to stabilize before scrolling
+  // Initial scroll: Wait for scrollHeight to stabilize
   const hasInitialScrolledRef = useRef(false);
   useEffect(() => {
-    // Only run when we have messages and haven't scrolled yet
-    if (realtimeMessages.length === 0 || hasInitialScrolledRef.current) return;
-    if (isMessagesLoading) return; // Wait for loading to complete
+    if (
+      realtimeMessages.length === 0 ||
+      hasInitialScrolledRef.current ||
+      isMessagesLoading
+    ) {
+      return;
+    }
 
     hasInitialScrolledRef.current = true;
-
-    // Poll until scrollHeight stabilizes (content fully rendered)
-    const endRef = messagesEndRef.current;
-    if (!endRef) return;
-
-    const container = endRef.closest('[class*="overflow"]') as HTMLElement;
+    const container = getScrollContainer();
     if (!container) {
       scrollToBottom('instant');
       return;
     }
 
+    // Poll until scrollHeight stabilizes (content fully rendered)
     let lastHeight = 0;
     let stableFrames = 0;
     let frameId: number;
 
     const pollUntilStable = () => {
       const currentHeight = container.scrollHeight;
-
       if (currentHeight === lastHeight && currentHeight > 0) {
-        stableFrames++;
-        // Wait for 5 stable frames (~80ms) to ensure rendering is complete
-        if (stableFrames >= 5) {
+        if (++stableFrames >= 5) {
           container.scrollTop = currentHeight;
           return;
         }
@@ -195,20 +192,20 @@ export function useTeamChat(): UseTeamChatReturn {
         stableFrames = 0;
         lastHeight = currentHeight;
       }
-
       frameId = requestAnimationFrame(pollUntilStable);
     };
 
-    // Start polling after a short delay to let React commit
-    const timeoutId = setTimeout(() => {
-      pollUntilStable();
-    }, 50);
-
+    const timeoutId = setTimeout(pollUntilStable, 50);
     return () => {
       clearTimeout(timeoutId);
       if (frameId) cancelAnimationFrame(frameId);
     };
-  }, [realtimeMessages.length, isMessagesLoading, scrollToBottom]);
+  }, [
+    realtimeMessages.length,
+    isMessagesLoading,
+    scrollToBottom,
+    getScrollContainer,
+  ]);
 
   // Reset scroll tracking when chat changes
   const chatId = teamChat?.chatId;
@@ -235,41 +232,24 @@ export function useTeamChat(): UseTeamChatReturn {
   }, [realtimeMessages.length, scrollToBottom]);
 
   // Maintain scroll position when messages are replaced (optimistic → confirmed)
-  // This runs synchronously before paint to prevent visible jump
+  // Runs synchronously before paint to prevent visible jump
   const prevMessageIdsRef = useRef<string>('');
   useLayoutEffect(() => {
-    // Skip if we're not near bottom - no need to maintain position
-    if (!wasNearBottomRef.current) return;
+    if (!wasNearBottomRef.current || realtimeMessages.length === 0) return;
 
-    // Skip initial render
-    if (realtimeMessages.length === 0) return;
-
-    // Check if message IDs changed (detects replacements, not just additions)
     const currentIds = realtimeMessages.map((m) => m.id).join(',');
     if (currentIds === prevMessageIdsRef.current) return;
 
     const prevIds = prevMessageIdsRef.current;
     prevMessageIdsRef.current = currentIds;
-
-    // Skip if this is the first time we're setting IDs
     if (prevIds === '') return;
 
-    // If count is the same but IDs changed, a replacement happened
-    // Synchronously scroll to maintain bottom position
-    const prevCount = prevIds.split(',').length;
-    const currentCount = realtimeMessages.length;
-
-    if (currentCount === prevCount) {
-      // This is a replacement, not an addition - scroll synchronously
-      const endRef = messagesEndRef.current;
-      if (endRef) {
-        const container = endRef.closest('[class*="overflow"]') as HTMLElement;
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
-      }
+    // If count unchanged but IDs changed → replacement happened
+    if (prevIds.split(',').length === realtimeMessages.length) {
+      const container = getScrollContainer();
+      if (container) container.scrollTop = container.scrollHeight;
     }
-  }, [realtimeMessages]);
+  }, [realtimeMessages, getScrollContainer]);
 
   // Track scroll position to determine if user is near bottom
   // This is called from the scroll container in TeamChatView
@@ -525,33 +505,31 @@ export function useTeamChat(): UseTeamChatReturn {
   const sendMessage = useCallback(async () => {
     if (!teamChat || !messageInput.trim() || sending) return;
 
+    // Stop typing indicator
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      sendTypingIndicator(false);
+    }
+
     const content = messageInput.trim();
     const mentionedIds = [...mentionedAgentIds];
 
-    // Create optimistic message with temporary ID
-    // stableKey is used for React keying to prevent flash on confirmation
+    // Create optimistic message (stableKey prevents flash on confirmation)
     const optimisticId = `pending-${Date.now()}`;
-    const optimisticMessage: ChatMessage = {
+    addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,
       content,
       senderId: user?.id || '',
       type: 'user',
       createdAt: new Date().toISOString(),
-      stableKey: optimisticId, // Preserved when real message replaces this
-    };
+      stableKey: optimisticId,
+    });
 
-    // Optimistically add message immediately (instant feedback)
-    addMessage(optimisticMessage);
-
-    // Clear input immediately for responsive feel
     setMessageInput('');
     setMentionedAgentIds([]);
     setSending(true);
     setSendError(null);
-
-    // Note: Scroll to bottom is handled automatically by the useEffect
-    // when message count increases (from adding optimistic message)
 
     try {
       const token = await getAccessToken();
@@ -560,7 +538,6 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
-      // Use dedicated team chat message endpoint for @mention handling
       const response = await fetch('/api/agents/team-chat/message', {
         method: 'POST',
         headers: {
@@ -569,7 +546,6 @@ export function useTeamChat(): UseTeamChatReturn {
         },
         body: JSON.stringify({
           content,
-          // Include mentioned agent IDs for priority response handling
           mentionedAgentIds: mentionedIds.length > 0 ? mentionedIds : undefined,
         }),
       });
@@ -577,13 +553,7 @@ export function useTeamChat(): UseTeamChatReturn {
       if (!response.ok) {
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
-        // Note: optimistic message stays visible but error is shown
-        return;
       }
-
-      // Message sent successfully - the real message will arrive via SSE
-      // and useChatMessages will deduplicate based on content/timestamp
-      // No success banner needed - the message appearing is confirmation enough
     } catch (err) {
       setSendError(
         err instanceof Error ? err.message : 'Failed to send message'
@@ -599,16 +569,8 @@ export function useTeamChat(): UseTeamChatReturn {
     user?.id,
     getAccessToken,
     addMessage,
+    sendTypingIndicator,
   ]);
-
-  // Send message and stop typing indicator
-  const sendMessageWithTypingStop = useCallback(async () => {
-    if (isTypingRef.current) {
-      isTypingRef.current = false;
-      sendTypingIndicator(false);
-    }
-    await sendMessage();
-  }, [sendMessage, sendTypingIndicator]);
 
   return {
     teamChat,
@@ -625,13 +587,12 @@ export function useTeamChat(): UseTeamChatReturn {
     typingUsers,
     thinkingAgents,
     sendError,
-    sendSuccess,
     mentionedAgentIds,
     setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
-    sendMessage: sendMessageWithTypingStop,
+    sendMessage,
     refresh: fetchTeamChat,
     handleScroll,
   };

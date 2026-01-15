@@ -94,7 +94,6 @@ interface TeamChatViewProps {
   messageInput: string;
   sending: boolean;
   sendError: string | null;
-  sendSuccess: boolean;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onMessageChange: (value: string) => void;
@@ -129,7 +128,6 @@ export function TeamChatView({
   messageInput,
   sending,
   sendError,
-  sendSuccess,
   topSentinelRef,
   messagesEndRef,
   onMessageChange,
@@ -236,11 +234,7 @@ export function TeamChatView({
 
         {/* Feedback Messages */}
         {authenticated && (
-          <FeedbackMessages
-            error={sendError}
-            warning={null}
-            success={sendSuccess}
-          />
+          <FeedbackMessages error={sendError} warning={null} success={false} />
         )}
 
         {/* Input Separator */}

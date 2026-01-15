@@ -37,7 +37,6 @@ export default function TeamChatPage() {
     typingUsers,
     thinkingAgents,
     sendError,
-    sendSuccess,
     setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
@@ -225,7 +224,6 @@ export default function TeamChatPage() {
             messageInput={messageInput}
             sending={sending}
             sendError={sendError}
-            sendSuccess={sendSuccess}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}
