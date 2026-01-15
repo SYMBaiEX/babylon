@@ -6,65 +6,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import type { AgentOrderingStrategy } from '@babylon/agents';
-
-// Replicate the orderAgentIds function from route.ts
-function orderAgentIds(
-  agentIds: string[],
-  teamAgents: Array<{
-    id: string;
-    displayName: string | null;
-    createdAt: Date | null;
-  }>,
-  strategy: AgentOrderingStrategy
-): string[] {
-  const agentMap = new Map(teamAgents.map((a) => [a.id, a]));
-
-  switch (strategy) {
-    case 'random':
-      return shuffleArray([...agentIds]);
-
-    case 'created_asc':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const timeA = agentA?.createdAt?.getTime() ?? 0;
-        const timeB = agentB?.createdAt?.getTime() ?? 0;
-        return timeA - timeB;
-      });
-
-    case 'created_desc':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const timeA = agentA?.createdAt?.getTime() ?? 0;
-        const timeB = agentB?.createdAt?.getTime() ?? 0;
-        return timeB - timeA;
-      });
-
-    case 'alphabetical':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const nameA = agentA?.displayName ?? '';
-        const nameB = agentB?.displayName ?? '';
-        return nameA.localeCompare(nameB);
-      });
-
-    default:
-      return agentIds;
-  }
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = array[i];
-    array[i] = array[j] as T;
-    array[j] = temp as T;
-  }
-  return array;
-}
+import {
+  type AgentOrderingStrategy,
+  orderAgentIds,
+  shuffleArray,
+} from '@babylon/agents';
 
 describe('orderAgentIds', () => {
   const baseDate = new Date('2025-01-01T00:00:00.000Z');
@@ -214,7 +160,7 @@ describe('orderAgentIds', () => {
       // With 3 elements, there are 6 possible orders
       // After 20 tries, we should see more than 1 order (very high probability)
       // This is a probabilistic test, but 20 tries with 3 elements should almost always work
-      expect(orders.size).toBeGreaterThanOrEqual(1);
+      expect(orders.size).toBeGreaterThan(1);
     });
   });
 

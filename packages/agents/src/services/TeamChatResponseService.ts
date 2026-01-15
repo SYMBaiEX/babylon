@@ -27,6 +27,7 @@ import {
 import { executeDirectMessage } from '../autonomous/DirectExecutors';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
+import type { AgentOrderingStrategy } from '../shared/agent-ordering';
 import { logger } from '../shared/logger';
 
 // =============================================================================
@@ -99,11 +100,9 @@ export function detectMessageComplexity(content: string): MessageComplexity {
     'gn',
   ];
 
-  // Check for complex indicators
-  const hasComplexKeyword = complexKeywords.some(
-    (keyword) =>
-      normalizedContent.includes(keyword) ||
-      words.some((w) => w === keyword.replace(' ', ''))
+  // Check for complex indicators (normalizedContent.includes handles multi-word keywords)
+  const hasComplexKeyword = complexKeywords.some((keyword) =>
+    normalizedContent.includes(keyword)
   );
 
   // Long messages are likely complex
@@ -163,15 +162,13 @@ const ADAPTIVE_TIMING = {
   },
 } as const;
 
-/**
- * Agent ordering strategies for untagged messages.
- * Controls which agents respond when no specific agents are mentioned.
- */
-export type AgentOrderingStrategy =
-  | 'random'
-  | 'created_asc'
-  | 'created_desc'
-  | 'alphabetical';
+// Re-export ordering utilities from shared module
+export {
+  type AgentOrderingStrategy,
+  type OrderableAgent,
+  orderAgentIds,
+  shuffleArray,
+} from '../shared/agent-ordering';
 
 /**
  * Configuration for untagged message behavior.

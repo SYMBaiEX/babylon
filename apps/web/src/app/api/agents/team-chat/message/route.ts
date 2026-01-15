@@ -51,6 +51,7 @@
 
 import {
   type AgentOrderingStrategy,
+  orderAgentIds,
   teamChatResponseService,
   teamChatService,
 } from '@babylon/agents';
@@ -302,71 +303,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 }
   );
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/**
- * Order agent IDs based on the configured strategy.
- */
-function orderAgentIds(
-  agentIds: string[],
-  teamAgents: Array<{
-    id: string;
-    displayName: string | null;
-    createdAt: Date | null;
-  }>,
-  strategy: AgentOrderingStrategy
-): string[] {
-  const agentMap = new Map(teamAgents.map((a) => [a.id, a]));
-
-  switch (strategy) {
-    case 'random':
-      return shuffleArray([...agentIds]);
-
-    case 'created_asc':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const timeA = agentA?.createdAt?.getTime() ?? 0;
-        const timeB = agentB?.createdAt?.getTime() ?? 0;
-        return timeA - timeB;
-      });
-
-    case 'created_desc':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const timeA = agentA?.createdAt?.getTime() ?? 0;
-        const timeB = agentB?.createdAt?.getTime() ?? 0;
-        return timeB - timeA;
-      });
-
-    case 'alphabetical':
-      return [...agentIds].sort((a, b) => {
-        const agentA = agentMap.get(a);
-        const agentB = agentMap.get(b);
-        const nameA = agentA?.displayName ?? '';
-        const nameB = agentB?.displayName ?? '';
-        return nameA.localeCompare(nameB);
-      });
-
-    default:
-      return agentIds;
-  }
-}
-
-/**
- * Fisher-Yates shuffle for randomizing agent order.
- */
-function shuffleArray<T>(array: T[]): T[] {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = array[i];
-    array[i] = array[j] as T;
-    array[j] = temp as T;
-  }
-  return array;
 }
