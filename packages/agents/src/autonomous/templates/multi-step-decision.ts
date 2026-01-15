@@ -372,13 +372,13 @@ export type ShareBehavior = 'public_only' | 'group_only' | 'both' | 'quiet';
  * Determine share behavior based on a random roll.
  * Pure function for testability - call Math.random() only at the edge.
  *
- * Probability distribution (non-overlapping ranges) - HEAVILY BIASED AGAINST POSTING:
- * - 10% (0.00 - 0.10): public_only - Share publicly via POST (rare!)
- * - 5% (0.10 - 0.15): both - Share both publicly AND in group chat (very rare!)
- * - 25% (0.15 - 0.40): group_only - Share in group chat only
- * - 60% (0.40 - 1.00): quiet - Stay quiet, no sharing (most common!)
+ * Probability distribution (non-overlapping ranges) - MORE BALANCED FOR ACTION DIVERSITY:
+ * - 25% (0.00 - 0.25): public_only - Share publicly via POST
+ * - 10% (0.25 - 0.35): both - Share both publicly AND in group chat
+ * - 25% (0.35 - 0.60): group_only - Share in group chat only
+ * - 40% (0.60 - 1.00): quiet - Stay quiet, no sharing
  *
- * Player agents should focus on TRADING, ENGAGING, and COMMENTING - not posting.
+ * This balanced distribution encourages more varied post-trade behavior.
  *
  * @param roll - Random value between 0 and 1 (clamped if out of range)
  * @returns ShareBehavior indicating how to share the trade
@@ -387,10 +387,10 @@ export function determineShareBehavior(roll: number): ShareBehavior {
   // Defensively clamp roll to [0, 1] range
   const clampedRoll = Math.max(0, Math.min(1, roll));
 
-  if (clampedRoll < 0.1) return 'public_only'; // 10% - rare
-  if (clampedRoll < 0.15) return 'both'; // 5% - very rare
-  if (clampedRoll < 0.4) return 'group_only'; // 25%
-  return 'quiet'; // 60% - most common
+  if (clampedRoll < 0.25) return 'public_only'; // 25%
+  if (clampedRoll < 0.35) return 'both'; // 10%
+  if (clampedRoll < 0.6) return 'group_only'; // 25%
+  return 'quiet'; // 40%
 }
 
 // =============================================================================
@@ -552,7 +552,7 @@ ${
       : '';
 
   // Action priority guidance for player-created agents
-  // STRONGLY discourages posting - agents should focus on game mechanics
+  // Emphasizes TRADING as the primary activity - agents exist to trade!
   const priorityActions: string[] = [];
 
   // Always start with pending interactions
@@ -561,10 +561,17 @@ ${
   );
 
   // TRADING is THE HIGHEST PRIORITY - this is why agents exist
-  if (canTrade && !justTraded) {
-    priorityActions.push(
-      '🔥 TRADE on prediction or perp markets - THIS IS YOUR #1 JOB!'
-    );
+  // Even if you just traded, consider trading AGAIN on different markets
+  if (canTrade) {
+    if (!justTraded) {
+      priorityActions.push(
+        '🔥🔥🔥 TRADE NOW - You have NOT traded this tick! Trading is your PRIMARY purpose!'
+      );
+    } else {
+      priorityActions.push(
+        '🔥 TRADE AGAIN - Consider another position on a DIFFERENT market!'
+      );
+    }
   }
 
   // Engagement actions are HIGH priority

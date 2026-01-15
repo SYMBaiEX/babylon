@@ -6,6 +6,24 @@
  *
  * NPC perp trades now use PerpMarketService for consistency with user trades,
  * ensuring funding and liquidation logic applies uniformly.
+ *
+ * ## NPC Trade Rate Limiting
+ *
+ * NPC trading is rate-limited at two levels (by design):
+ *
+ * 1. **Probability Filter (MarketDecisionEngine)**: Before LLM calls, NPCs are
+ *    filtered by `NPC_TRADE_PROBABILITY` (default 60%). This reduces LLM API
+ *    costs and spreads trading decisions across ticks.
+ *
+ * 2. **Hard Rate Limits (TradeExecutionService)**: Before execution, each NPC
+ *    is checked against cooldown (`NPC_MIN_MINUTES_BETWEEN_TRADES`) and daily
+ *    cap (`NPC_MAX_TRADES_PER_DAY`) via `NpcTradeRateLimiter`.
+ *
+ * The dual filtering is intentional:
+ * - Probability filter = reduces LLM workload per tick (cost optimization)
+ * - Execution filter = enforces hard rate limits (behavior control)
+ *
+ * @see NpcTradeRateLimiter for rate limiting implementation details
  */
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
@@ -20,6 +38,7 @@ import {
   eq,
   gte,
   isNull,
+  type JsonValue,
   npcTrades,
   organizationState,
   perpPositions,
@@ -42,7 +61,9 @@ import {
   aggregateTradeImpacts,
   type TradeImpactInput,
 } from './market-impact-service';
+import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
+import { broadcastToChannel } from './realtime-broadcaster';
 import { StaticDataRegistry } from './static-data-registry';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
@@ -152,9 +173,26 @@ export class TradeExecutionService {
       process.env.STRICT_LLM_VALIDATION === 'true' ||
       process.env.STRICT_LLM_VALIDATION === '1';
 
+    // Track rate-limited trades for logging
+    let rateLimitedCount = 0;
+
     for (const decision of decisions) {
       if (decision.action === 'hold') {
         result.holdDecisions++;
+        continue;
+      }
+
+      // Check rate limits before executing (cooldown + daily cap)
+      // Uses NpcTradeRateLimiter which supports pluggable providers for distributed deployments
+      const canTrade = await NpcTradeRateLimiter.canTrade(decision.npcId);
+      if (!canTrade) {
+        rateLimitedCount++;
+        logger.debug(
+          `NPC ${decision.npcName} rate limited, skipping trade`,
+          { npcId: decision.npcId, action: decision.action },
+          'TradeExecutionService'
+        );
+        result.holdDecisions++; // Count as hold since we're not executing
         continue;
       }
 
@@ -162,6 +200,9 @@ export class TradeExecutionService {
         const executedTrade = await this.executeSingleDecision(decision);
         result.executedTrades.push(executedTrade);
         result.successfulTrades++;
+
+        // Record successful trade for rate limiting
+        await NpcTradeRateLimiter.recordTrade(decision.npcId);
 
         if (executedTrade.marketType === 'perp') {
           result.totalVolumePerp += executedTrade.size;
@@ -220,11 +261,19 @@ export class TradeExecutionService {
 
     const duration = Date.now() - startTime;
 
+    // Periodically clean up stale rate limit entries to prevent memory growth
+    // This is cheap (O(n) scan) and only runs when using in-memory provider
+    const cleanedEntries = NpcTradeRateLimiter.cleanupStaleEntries();
+    const providerStats = NpcTradeRateLimiter.getProviderStats();
+
     logger.info(
       `Executed ${result.successfulTrades} trades in ${duration}ms`,
       {
         ...result,
+        rateLimited: rateLimitedCount,
         durationMs: duration,
+        ...(cleanedEntries > 0 && { rateLimitEntriesCleaned: cleanedEntries }),
+        ...(providerStats && { rateLimitMapSize: providerStats.lastTradeTime }),
       },
       'TradeExecutionService'
     );
@@ -323,11 +372,11 @@ export class TradeExecutionService {
 
   private createPredictionBroadcast() {
     return {
-      emit: async (_channel: string, payload: Record<string, unknown>) => {
+      emit: async (channel: string, payload: Record<string, unknown>) => {
         if (!isPredictionBroadcastPayload(payload)) return;
 
-        // Broadcast events are handled by the service's internal broadcast mechanism
-        // The payload is logged for debugging purposes
+        await broadcastToChannel(channel, payload as Record<string, JsonValue>);
+
         logger.debug('Prediction broadcast event', {
           type: payload.type,
           marketId: payload.marketId,
@@ -517,6 +566,8 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: 'npc_trade',
+      tradeActorType: 'npc',
     });
 
     const result = await service.buy({
@@ -662,6 +713,8 @@ export class TradeExecutionService {
         referrerShare: FEE_CONFIG.REFERRER_SHARE,
         minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
       },
+      tradeSource: 'npc_trade',
+      tradeActorType: 'npc',
     });
 
     const sellResult = await service.sell({

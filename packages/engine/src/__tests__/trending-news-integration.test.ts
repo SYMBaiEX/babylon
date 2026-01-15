@@ -99,7 +99,8 @@ describe('Trending Topics & News Integration', () => {
     const mockImpl: MockLLMClient = {
       getProvider: () => 'openai',
       generateJSON: mock(async (prompt: string) => {
-        if (prompt.includes('TRENDING TOPICS')) {
+        // The trending topics prompt contains "TRENDING REQUIREMENTS" not "TRENDING TOPICS"
+        if (prompt.includes('TRENDING REQUIREMENTS')) {
           return {
             trends: [
               {

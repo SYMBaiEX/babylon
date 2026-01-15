@@ -86,6 +86,9 @@ export class PredictionMarketService {
 
     this.assertMarketActiveForBuy(market);
 
+    const tradeSource = this.deps.tradeSource ?? 'user_trade';
+    const tradeActorType = this.deps.tradeActorType ?? 'user';
+
     // Calculate shares with fees (fee rate from deps)
     const calc = PredictionPricing.calculateBuyWithFees(
       market.yesShares,
@@ -151,7 +154,7 @@ export class PredictionMarketService {
       noShares: calc.newNoShares,
       liquidity: newLiquidity,
       eventType: 'trade',
-      source: 'user_trade',
+      source: tradeSource,
     });
 
     await this.emitTrade({
@@ -163,14 +166,14 @@ export class PredictionMarketService {
       noShares: calc.newNoShares,
       liquidity: newLiquidity,
       trade: {
-        actorType: 'user',
+        actorType: tradeActorType,
         actorId: userId,
         action: 'buy',
         side,
         shares: calc.sharesBought,
         amount,
         price: calc.avgPrice,
-        source: 'user_trade',
+        source: tradeSource,
         timestamp: this.now().toISOString(),
       },
     });
@@ -214,6 +217,9 @@ export class PredictionMarketService {
     const market = await this.ensureMarket(marketId);
 
     this.assertMarketActiveForSell(market);
+
+    const tradeSource = this.deps.tradeSource ?? 'user_trade';
+    const tradeActorType = this.deps.tradeActorType ?? 'user';
 
     const yesPos = await this.db.getPosition(userId, marketId, 'yes');
     const noPos = await this.db.getPosition(userId, marketId, 'no');
@@ -311,7 +317,7 @@ export class PredictionMarketService {
       noShares: calc.newNoShares,
       liquidity: newLiquidity,
       eventType: 'trade',
-      source: 'user_trade',
+      source: tradeSource,
     });
 
     await this.emitTrade({
@@ -323,14 +329,14 @@ export class PredictionMarketService {
       noShares: calc.newNoShares,
       liquidity: newLiquidity,
       trade: {
-        actorType: 'user',
+        actorType: tradeActorType,
         actorId: userId,
         action: 'sell',
         side,
         shares,
         amount: netProceeds,
         price: calc.avgPrice,
-        source: 'user_trade',
+        source: tradeSource,
         timestamp: this.now().toISOString(),
       },
     });

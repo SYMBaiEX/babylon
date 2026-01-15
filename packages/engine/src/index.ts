@@ -39,7 +39,10 @@ export {
 } from './config/fees';
 // NPC Activity Configuration
 export {
+  getMaxTradesPerDay,
+  getMinMinutesBetweenTrades,
   getPreset,
+  getTradingProbability,
   logCurrentConfig,
   NPC_ACTIVITY_CONFIG,
   NPC_ACTIVITY_PRESETS,
@@ -50,6 +53,7 @@ export {
   NPC_POSTING_CONFIG,
   NPC_SOCIAL_ACTIONS_CONFIG,
   NPC_TICK_CONFIG,
+  NPC_TRADING_CONFIG,
   type NPCActivityConfig,
   type NPCActivityPresetName,
 } from './config/npc-activity';

@@ -15,6 +15,7 @@ import {
   and,
   db,
   eq,
+  inArray,
   organizationState,
   type PriceModifier,
   type StructuredEventData,
@@ -23,6 +24,7 @@ import {
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
 import { parseModifiersSafe, validatePriceModifier } from './jsonb-validators';
+import { PriceUpdateService } from './price-update-service';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -106,6 +108,10 @@ export async function applyEventToMarkets(
   event: StructuredEventData
 ): Promise<number> {
   let modifiersApplied = 0;
+  const multiplierByOrgId = new Map<
+    string,
+    { multiplier: number; tickers: Set<string> }
+  >();
 
   for (const impact of event.marketImpacts) {
     try {
@@ -166,6 +172,19 @@ export async function applyEventToMarkets(
       await addPriceModifier(impact.stockTicker, modifier);
       modifiersApplied++;
 
+      const orgId =
+        resolveTickerToOrgId(impact.stockTicker) ?? impact.stockTicker;
+      const existing = multiplierByOrgId.get(orgId);
+      if (existing) {
+        existing.multiplier *= effect;
+        existing.tickers.add(impact.stockTicker);
+      } else {
+        multiplierByOrgId.set(orgId, {
+          multiplier: effect,
+          tickers: new Set([impact.stockTicker]),
+        });
+      }
+
       logger.info(
         `Applied price modifier to ${impact.stockTicker}`,
         {
@@ -182,6 +201,89 @@ export async function applyEventToMarkets(
         { error: error instanceof Error ? error.message : String(error) },
         'EventMarketPipeline'
       );
+    }
+  }
+
+  // Apply immediate price impacts so narrative events visibly move markets.
+  // This keeps the "market modifiers" behavior but removes the user-facing
+  // impression that narrative has no effect.
+  if (multiplierByOrgId.size > 0) {
+    const orgIds = [...multiplierByOrgId.keys()];
+    const states = await db
+      .select({
+        id: organizationState.id,
+        currentPrice: organizationState.currentPrice,
+        basePrice: organizationState.basePrice,
+      })
+      .from(organizationState)
+      .where(inArray(organizationState.id, orgIds));
+
+    const stateByOrgId = new Map(states.map((s) => [s.id, s]));
+
+    const updates = orgIds
+      .map((orgId) => {
+        const entry = multiplierByOrgId.get(orgId);
+        if (!entry) return null;
+
+        // Clamp combined multiplier to avoid extreme compounding from multiple impacts.
+        const combinedMultiplier = Math.max(
+          MIN_PRICE_MULTIPLIER,
+          Math.min(MAX_PRICE_MULTIPLIER, entry.multiplier)
+        );
+
+        const state = stateByOrgId.get(orgId);
+        const currentPrice = Number(state?.currentPrice ?? state?.basePrice);
+        if (!Number.isFinite(currentPrice) || currentPrice <= 0) return null;
+
+        const newPrice = currentPrice * combinedMultiplier;
+        if (!Number.isFinite(newPrice) || newPrice <= 0) return null;
+
+        const canonicalTicker =
+          StaticDataRegistry.getOrganization(orgId)?.ticker;
+
+        return {
+          organizationId: orgId,
+          newPrice,
+          source: 'event' as const,
+          reason: `Narrative event (${event.type}) market impact`,
+          metadata: {
+            arcId: event.arcId,
+            ticker:
+              typeof canonicalTicker === 'string' && canonicalTicker.length > 0
+                ? canonicalTicker
+                : null,
+            tickers: [...entry.tickers],
+          },
+        };
+      })
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+
+    if (updates.length > 0) {
+      try {
+        const applied = await PriceUpdateService.applyUpdates(updates);
+        logger.info(
+          'Applied narrative price updates',
+          {
+            arcId: event.arcId,
+            eventType: event.type,
+            count: applied.length,
+            sample: applied.slice(0, 3).map((u) => ({
+              organizationId: u.organizationId,
+              oldPrice: Number(u.oldPrice.toFixed(4)),
+              newPrice: Number(u.newPrice.toFixed(4)),
+              changePercent: Number(u.changePercent.toFixed(4)),
+            })),
+          },
+          'EventMarketPipeline'
+        );
+      } catch (error) {
+        // Price application is best-effort; modifiers are persisted regardless.
+        logger.warn(
+          'Failed to apply narrative price updates',
+          { error: error instanceof Error ? error.message : String(error) },
+          'EventMarketPipeline'
+        );
+      }
     }
   }
 

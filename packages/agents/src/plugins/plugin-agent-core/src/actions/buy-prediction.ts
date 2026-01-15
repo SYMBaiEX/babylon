@@ -1,11 +1,21 @@
 /**
  * Buy Prediction Action
- * Buy shares in a prediction market via direct DB operations
- * (Same pattern as AutonomousTradingService)
+ * Buy shares in a prediction market via core PredictionMarketService
  */
 
-import { and, asUser, db, eq, gte, markets, positions, sql } from '@babylon/db';
-import { FEE_CONFIG, PredictionPricing, WalletService } from '@babylon/engine';
+import type { JsonValue } from '@babylon/api';
+import { broadcastToChannel } from '@babylon/api';
+import {
+  PredictionDbAdapter,
+  PredictionMarketService,
+} from '@babylon/core/markets/prediction';
+import { asUser } from '@babylon/db';
+import {
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
+  WalletService,
+} from '@babylon/engine';
 import type {
   Action,
   ActionResult,
@@ -16,7 +26,6 @@ import type {
 } from '@elizaos/core';
 import { AgentPnLService } from '../../../../services/AgentPnLService';
 import { logger } from '../../../../shared/logger';
-import { generateSnowflakeId } from '../../../../shared/snowflake';
 
 const agentPnLService = new AgentPnLService();
 
@@ -114,27 +123,6 @@ export const buyPredictionAction: Action = {
     }
 
     try {
-      // Get market
-      const [market] = await db
-        .select()
-        .from(markets)
-        .where(
-          and(
-            eq(markets.id, marketId),
-            eq(markets.resolved, false),
-            gte(markets.endDate, new Date())
-          )
-        )
-        .limit(1);
-
-      if (!market) {
-        return {
-          success: false,
-          text: `Market not found or resolved. Call CHECK_PREDICTIONS first to get valid marketId.`,
-          error: 'Market not found',
-        };
-      }
-
       // Check balance
       const balance = await WalletService.getBalance(agentUserId);
       if (balance.balance < amount) {
@@ -146,98 +134,74 @@ export const buyPredictionAction: Action = {
         };
       }
 
-      // Calculate shares and pricing
       const isBuyYes = side === 'YES';
-      const calculation = PredictionPricing.calculateBuyWithFees(
-        Number(market.yesShares),
-        Number(market.noShares),
-        isBuyYes ? 'yes' : 'no',
-        amount,
-        FEE_CONFIG.TRADING_FEE_RATE
-      );
+      const sideLabel = isBuyYes ? 'yes' : 'no';
 
-      // Execute trade in transaction
       const result = await asUser({ userId: agentUserId }, async (txDb) => {
-        // Debit balance
-        await WalletService.debit(
-          agentUserId,
+        const service = new PredictionMarketService({
+          db: new PredictionDbAdapter(txDb),
+          wallet: {
+            debit: ({ userId, amount, reason, description, relatedId }) =>
+              WalletService.debit(
+                userId,
+                amount,
+                reason,
+                description ?? '',
+                relatedId,
+                txDb
+              ),
+            credit: ({ userId, amount, reason, description, relatedId }) =>
+              WalletService.credit(
+                userId,
+                amount,
+                reason,
+                description ?? '',
+                relatedId,
+                txDb
+              ),
+            recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+              await WalletService.recordPnL(userId, pnl, reason, relatedId);
+            },
+            getBalance: (uid: string) => WalletService.getBalance(uid),
+          },
+          broadcast: {
+            emit: (channel, payload) =>
+              broadcastToChannel(channel, payload as Record<string, JsonValue>),
+          },
+          cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
+          fees: {
+            tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+            platformShare: FEE_CONFIG.PLATFORM_SHARE,
+            referrerShare: FEE_CONFIG.REFERRER_SHARE,
+            minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+          },
+          feeProcessor: {
+            processTradingFee: ({
+              userId,
+              amount,
+              type,
+              relatedId,
+              positionId,
+            }) =>
+              FeeService.processTradingFee(
+                userId,
+                type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+                amount,
+                positionId,
+                relatedId
+              ),
+          },
+        });
+
+        const market = await service.ensureMarketExists({ marketId });
+        const buy = await service.buy({
+          userId: agentUserId,
+          marketId,
+          side: sideLabel,
           amount,
-          'pred_buy',
-          `Bought ${calculation.sharesBought.toFixed(2)} ${side} shares: ${market.question.substring(0, 50)}...`,
-          market.id
-        );
+        });
 
-        // Update market shares
-        const nextLiquidity = Number(market.liquidity) + calculation.netAmount;
-        await txDb
-          .update(markets)
-          .set({
-            yesShares: String(calculation.newYesShares),
-            noShares: String(calculation.newNoShares),
-            liquidity: String(nextLiquidity),
-            updatedAt: new Date(),
-          })
-          .where(eq(markets.id, market.id));
-
-        // Check for existing position
-        const [existingPosition] = await txDb
-          .select()
-          .from(positions)
-          .where(
-            and(
-              eq(positions.userId, agentUserId),
-              eq(positions.marketId, market.id),
-              eq(positions.side, isBuyYes)
-            )
-          )
-          .limit(1);
-
-        let position;
-        if (existingPosition) {
-          const existingShares = Number(existingPosition.shares);
-          const existingAvgPrice = Number(existingPosition.avgPrice);
-          const newTotalShares = existingShares + calculation.sharesBought;
-          const nextAvgPrice =
-            newTotalShares > 0
-              ? (existingShares * existingAvgPrice +
-                  calculation.sharesBought * calculation.avgPrice) /
-                newTotalShares
-              : existingAvgPrice;
-
-          // Update existing position
-          const [updated] = await txDb
-            .update(positions)
-            .set({
-              shares: String(newTotalShares),
-              avgPrice: String(nextAvgPrice),
-              amount: sql`${positions.amount} + ${amount}`,
-              status: 'active',
-              updatedAt: new Date(),
-            })
-            .where(eq(positions.id, existingPosition.id))
-            .returning();
-          position = updated;
-        } else {
-          // Create new position
-          const [inserted] = await txDb
-            .insert(positions)
-            .values({
-              id: await generateSnowflakeId(),
-              userId: agentUserId,
-              marketId: market.id,
-              side: isBuyYes,
-              shares: String(calculation.sharesBought),
-              avgPrice: String(calculation.avgPrice),
-              amount: String(amount),
-              status: 'active',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .returning();
-          position = inserted;
-        }
-
-        return { position, calculation };
+        return { market, buy };
       });
 
       // Record trade for UI/performance tracking
@@ -249,7 +213,7 @@ export const buyPredictionAction: Action = {
         action: 'open',
         side: side.toLowerCase() as 'yes' | 'no',
         amount,
-        price: result.calculation.avgPrice,
+        price: result.buy.avgPrice,
         reasoning: (state?.data?.thought as string) || 'Chat-initiated trade',
       });
 
@@ -257,27 +221,27 @@ export const buyPredictionAction: Action = {
         agentUserId,
         marketId,
         side,
-        shares: result.calculation.sharesBought,
-        avgPrice: result.calculation.avgPrice,
+        shares: result.buy.shares,
+        avgPrice: result.buy.avgPrice,
         cost: amount,
       });
 
       return {
         success: true,
-        text: `Bought ${result.calculation.sharesBought.toFixed(2)} ${side} shares at $${result.calculation.avgPrice.toFixed(4)}.`,
+        text: `Bought ${result.buy.shares.toFixed(2)} ${side} shares at $${result.buy.avgPrice.toFixed(4)}.`,
         data: {
           marketId,
-          marketQuestion: market.question,
+          marketQuestion: result.market.question,
           side,
-          shares: result.calculation.sharesBought,
-          avgPrice: result.calculation.avgPrice,
+          shares: result.buy.shares,
+          avgPrice: result.buy.avgPrice,
           cost: amount,
         },
         values: {
           marketId,
           side,
-          shares: result.calculation.sharesBought,
-          avgPrice: result.calculation.avgPrice,
+          shares: result.buy.shares,
+          avgPrice: result.buy.avgPrice,
           cost: amount,
         },
       };

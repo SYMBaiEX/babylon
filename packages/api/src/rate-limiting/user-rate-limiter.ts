@@ -161,6 +161,18 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'public_nft_image_anonymous',
   }, // 10 fetches per minute for anonymous bucket
 
+  // External agent endpoints
+  EXTERNAL_AGENT_DISCOVER: {
+    maxRequests: 60,
+    windowMs: 60000,
+    actionType: 'external_agent_discover',
+  }, // 60 discovery requests per minute (default, can be overridden by agent's discoveryRateLimit)
+  EXTERNAL_AGENT_REGISTER: {
+    maxRequests: 5,
+    windowMs: 3600000,
+    actionType: 'external_agent_register',
+  }, // 5 registrations per hour per user
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

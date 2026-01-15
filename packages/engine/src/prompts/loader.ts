@@ -128,6 +128,14 @@ export function renderPrompt(
       'relatedStories',
       'relatedQuestions',
       'connectedActors',
+
+      // Article generation vars (optional - worldContext may not always be available)
+      'worldContext',
+      'previousArticles',
+      'connectedNarratives',
+      'editorialPosition',
+      'previousStances',
+      'recentContext',
     ],
   } = options;
 

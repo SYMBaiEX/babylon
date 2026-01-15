@@ -166,4 +166,6 @@ export interface PredictionServiceDeps {
   clock?: ClockPort;
   fees: FeeConfig;
   feeProcessor?: FeeProcessor;
+  tradeSource?: PredictionPriceSnapshotRecord['source'];
+  tradeActorType?: 'user' | 'npc';
 }
