@@ -174,6 +174,74 @@ babylon train pipeline -a trader              # Full pipeline
 babylon train run -a all                      # All archetypes
 ```
 
+## Benchmarking
+
+Evaluate trained models against fixed scenarios and baselines.
+
+### Quick Start
+
+```bash
+# Run full benchmark suite (all 4 scenarios)
+bun run benchmark:suite
+
+# Quick mode (7-day scenarios instead of 22-day)
+bun run benchmark:quick
+
+# Specific scenario
+bun run benchmark:suite -- --scenario bear-market
+
+# With trained model
+bun run benchmark:suite -- --model ./trained_models/step_100
+```
+
+### Fixed Scenarios
+
+| Scenario | Description | Tests |
+|----------|-------------|-------|
+| `bull-market` | 22-day steady uptrend | Basic competence, trend following |
+| `bear-market` | 40% crash at day 10, recovery | Capital protection, risk management |
+| `scandal-unfolds` | Hidden scandal revealed through leaks | Information processing, early warning detection |
+| `pump-and-dump` | Coordinated market manipulation | Skepticism, avoiding FOMO |
+
+### CLI Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--scenario <id>` | Run specific scenario | all |
+| `--model <path>` | Path to trained model | momentum strategy |
+| `--baseline <type>` | Baseline strategy: `random`, `momentum` | `random` |
+| `--archetype <type>` | Archetype to test | `trader` |
+| `--quick` | Quick mode (shorter scenarios) | `false` |
+| `--output <dir>` | Output directory for reports | auto-generated |
+| `--json` | Output JSON only (no HTML) | `false` |
+
+### Output Reports
+
+The benchmark suite generates:
+
+1. **HTML Report** - Stakeholder-friendly visualization with charts
+2. **JSON Report** - Machine-readable data for dashboards
+3. **Text Summary** - Terminal-friendly output
+
+Reports are saved to `benchmark-results/<timestamp>/`.
+
+### Regenerate Scenarios
+
+If you need to regenerate the fixed benchmark scenarios:
+
+```bash
+bun run benchmark:generate-scenarios
+```
+
+### CI Integration
+
+Benchmarks run automatically via GitHub Actions:
+- After training workflow completes
+- Nightly at midnight UTC
+- Manual dispatch from Actions tab
+
+---
+
 ## Python Training
 
 ### Local Training
@@ -309,6 +377,8 @@ The `scripts/` directory contains standalone utilities for training operations:
 
 | Script | Description |
 |--------|-------------|
+| `run-benchmark-suite.ts` | **Advanced benchmark suite** - compare models across scenarios |
+| `generate-benchmark-scenarios.ts` | Regenerate fixed benchmark scenario files |
 | `train-and-test.ts` | Full pipeline: train model + game test |
 | `run-full-pipeline.ts` | Complete training workflow orchestration |
 | `run-baseline-comparison.ts` | Head-to-head benchmark: random vs trained |
