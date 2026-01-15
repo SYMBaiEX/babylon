@@ -18,9 +18,9 @@ import {
 } from '../NewsArticlePacingEngine';
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
+import { worldFactsService } from '../world-facts-service';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { articleRateLimiter } from './article-rate-limiter';
-import { characterMappingService } from './character-mapping-service';
 import {
   getArcPlan,
   getPhaseForDay,
@@ -548,6 +548,21 @@ export async function generateArticlesForArcEvent(
   // Get actors for article context
   const actorsList = StaticDataRegistry.getTopActors(20);
 
+  // Get world facts context for article generation with graceful fallback
+  let worldFactsContext = '';
+  try {
+    worldFactsContext = await worldFactsService.generatePromptContext();
+  } catch (error) {
+    logger.warn(
+      'Failed to fetch world facts context for arc event articles - proceeding without',
+      {
+        arcEventId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'EventGeneration'
+    );
+  }
+
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);
 
@@ -618,18 +633,12 @@ export async function generateArticlesForArcEvent(
           initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
           initialMood: a.initialMood || 0,
         })),
-        [] // Events are included in context via question
+        [], // Events are included in context via question
+        worldFactsContext // World facts context for current game state
       );
 
-      // Transform content to replace real names with parody names
-      // Run all transformations concurrently to reduce latency
-      const [transformedSummary, transformedContent, transformedTitle] =
-        await Promise.all([
-          characterMappingService.transformText(article.summary || ''),
-          characterMappingService.transformText(article.content || ''),
-          characterMappingService.transformText(article.title || 'Untitled'),
-        ]);
-
+      // Note: ArticleGenerator already applies character mapping internally,
+      // so we use the article content directly without additional transformation.
       const articleTimestamp = article.publishedAt || timestamp;
 
       // TOCTOU re-check: Verify rate limit immediately before DB insert
@@ -657,9 +666,9 @@ export async function generateArticlesForArcEvent(
       await db.insert(posts).values({
         id: articleId,
         type: 'article',
-        content: transformedSummary.transformedText,
-        fullContent: transformedContent.transformedText,
-        articleTitle: transformedTitle.transformedText,
+        content: article.summary || '',
+        fullContent: article.content || '',
+        articleTitle: article.title || 'Untitled',
         byline: article.byline || undefined,
         biasScore: article.biasScore || undefined,
         sentiment: article.sentiment || undefined,
@@ -676,8 +685,8 @@ export async function generateArticlesForArcEvent(
       // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
       if (process.env.FAL_KEY) {
         void generateArticleImageWithRetry({
-          title: transformedTitle.transformedText,
-          summary: transformedSummary.transformedText,
+          title: article.title || 'Untitled',
+          summary: article.summary || '',
           category: article.category,
         })
           .then((imageUrl) => {
@@ -731,7 +740,7 @@ export async function generateArticlesForArcEvent(
           eventStatus,
           org: org.name,
           articleId,
-          title: transformedTitle.transformedText.slice(0, 50),
+          title: (article.title || 'Untitled').slice(0, 50),
         },
         'EventGeneration'
       );
