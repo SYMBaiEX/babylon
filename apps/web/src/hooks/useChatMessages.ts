@@ -281,16 +281,18 @@ export function useChatMessages(chatId: string | null) {
                 // Replace the optimistic message with the real one
                 // Preserve the stableKey to prevent React remount flash
                 const optimisticMsg = prev[pendingMatchIndex];
-                const newMessages = [...prev];
-                newMessages[pendingMatchIndex] = {
-                  ...newMessage,
-                  stableKey: optimisticMsg.stableKey || optimisticMsg.id,
-                };
-                return newMessages.sort(
-                  (a, b) =>
-                    new Date(a.createdAt).getTime() -
-                    new Date(b.createdAt).getTime()
-                );
+                if (optimisticMsg) {
+                  const newMessages = [...prev];
+                  newMessages[pendingMatchIndex] = {
+                    ...newMessage,
+                    stableKey: optimisticMsg.stableKey || optimisticMsg.id,
+                  };
+                  return newMessages.sort(
+                    (a, b) =>
+                      new Date(a.createdAt).getTime() -
+                      new Date(b.createdAt).getTime()
+                  );
+                }
               }
 
               return [...prev, newMessage].sort(
@@ -397,10 +399,12 @@ export function useChatMessages(chatId: string | null) {
                     // Replace optimistic message with real one
                     // Preserve stableKey to prevent React remount flash
                     const optimisticMsg = updatedMessages[pendingMatchIndex];
-                    updatedMessages[pendingMatchIndex] = {
-                      ...msg,
-                      stableKey: optimisticMsg.stableKey || optimisticMsg.id,
-                    };
+                    if (optimisticMsg) {
+                      updatedMessages[pendingMatchIndex] = {
+                        ...msg,
+                        stableKey: optimisticMsg.stableKey || optimisticMsg.id,
+                      };
+                    }
                   } else {
                     // Add as new message
                     updatedMessages.push(msg);
