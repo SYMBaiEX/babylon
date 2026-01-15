@@ -33,7 +33,6 @@ import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 
 // Import services
-import { autonomousGroupChatService } from './AutonomousGroupChatService';
 import { autonomousPlanningCoordinator } from './AutonomousPlanningCoordinator';
 import { multiStepExecutor } from './MultiStepExecutor';
 import { topicDiversityService } from './TopicDiversityService';
@@ -247,16 +246,6 @@ export class AutonomousCoordinator {
       result.method = 'multi_step';
       result.success = multiStepResult.success;
       result.duration = multiStepResult.duration;
-
-      // Handle group chats separately (not yet in multi-step)
-      if (config?.autonomousGroupChats) {
-        const groupMessages =
-          await autonomousGroupChatService.participateInGroupChats(
-            agentUserId,
-            runtime
-          );
-        result.actionsExecuted.groupMessages += groupMessages;
-      }
 
       logger.info(
         `Autonomous tick completed for agent ${agentUserId}`,
