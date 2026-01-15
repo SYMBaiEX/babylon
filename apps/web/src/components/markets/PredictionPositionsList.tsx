@@ -3,7 +3,7 @@
 import type { UserPredictionPosition } from '@babylon/shared';
 import { cn, formatCurrency, logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { Bot, CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import type {
@@ -176,21 +176,30 @@ export function PredictionPositionsList({
         return (
           <div key={position.id} className="rounded bg-muted/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span
-                className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
-                  position.side === 'YES'
-                    ? 'bg-green-600/20 text-green-600'
-                    : 'bg-red-600/20 text-red-600'
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
+                    position.side === 'YES'
+                      ? 'bg-green-600/20 text-green-600'
+                      : 'bg-red-600/20 text-red-600'
+                  )}
+                >
+                  {position.side === 'YES' ? (
+                    <CheckCircle size={12} />
+                  ) : (
+                    <XCircle size={12} />
+                  )}
+                  {position.side}
+                </span>
+                {/* Agent position badge */}
+                {position.isAgentPosition && (
+                  <span className="flex items-center gap-1 rounded bg-purple-600/20 px-2 py-1 font-medium text-purple-500 text-xs">
+                    <Bot size={12} />
+                    {position.agentName || 'Agent'}
+                  </span>
                 )}
-              >
-                {position.side === 'YES' ? (
-                  <CheckCircle size={12} />
-                ) : (
-                  <XCircle size={12} />
-                )}
-                {position.side}
-              </span>
+              </div>
 
               <div className="text-right">
                 <div
