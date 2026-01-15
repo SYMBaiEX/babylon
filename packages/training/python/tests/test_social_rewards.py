@@ -95,6 +95,20 @@ class TestInterpolateScore:
         # When min_val is 0, values below should still work
         score = _interpolate_score(0, 1, 5, 10)
         assert score == 0.0
+    
+    def test_equal_good_and_excellent_thresholds(self):
+        """Should handle excellent_val == good_val without division by zero"""
+        score = _interpolate_score(10, 3, 10, 10)  # good == excellent
+        assert score == 1.0  # At or above good should return 1.0
+        score_below = _interpolate_score(5, 3, 10, 10)
+        assert score_below == 0.6  # Below good should return 0.6
+    
+    def test_equal_min_and_good_thresholds(self):
+        """Should handle good_val == min_val without division by zero"""
+        score = _interpolate_score(5, 5, 5, 10)  # min == good
+        assert score == 0.6  # At or above min should return 0.6
+        score_below = _interpolate_score(2, 5, 5, 10)
+        assert score_below == 0.0  # Below min with equal thresholds
 
 
 # =============================================================================

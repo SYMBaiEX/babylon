@@ -931,8 +931,8 @@ You receive market updates and must analyze, reason, and then act."""
                 self.enhanced_reward_metrics["social_narrative"].append(social_result.narrative_alignment_score)
                 self.enhanced_reward_metrics["social_total"].append(social_result.total_score)
             
-            if not has_enhanced_context:
-                # Fallback: standard archetype composite reward
+            if regime is None:
+                # Fallback: standard archetype composite reward (no market regime data)
                 base_score = archetype_composite_reward(
                     inputs=reward_inputs,
                     archetype=archetype_norm,

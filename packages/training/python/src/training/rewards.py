@@ -1799,7 +1799,16 @@ SOCIAL_EXCELLENT_NETWORK = 15     # 15+ unique connections
 SOCIAL_GOOD_NETWORK = 8           # 8+ unique connections
 SOCIAL_MIN_NETWORK = 3            # Minimum for base score
 
-# Archetype-specific weight profiles for social rewards
+# Archetype-specific weight profiles for social rewards.
+# NOTE: These are initial estimates based on archetype design goals. Weights should be
+# refined based on training results and behavioral analysis. All profiles sum to 1.0.
+#
+# Design rationale:
+# - Social Butterfly: Network (40%) - building connections is primary goal
+# - Information Trader: Narrative (40%) - acting on ground truth events is key
+# - Scammer/Liar: Spread (40%) - successful deception requires information spread
+# - Goody Two-Shoes: Balanced - helpful in all dimensions
+# - Ass-Kisser: Network (40%) + Engagement (35%) - reputation through interaction
 SOCIAL_REWARD_WEIGHTS: Dict[str, Dict[str, float]] = {
     "social-butterfly": {"engagement": 0.30, "spread": 0.20, "network": 0.40, "narrative": 0.10},
     "information-trader": {"engagement": 0.15, "spread": 0.25, "network": 0.20, "narrative": 0.40},
@@ -1815,9 +1824,21 @@ def _interpolate_score(value: int, min_val: int, good_val: int, excellent_val: i
     """
     Interpolate a score in [0, 1] based on value thresholds.
     
+    Args:
+        value: The metric value to score
+        min_val: Minimum threshold for base score (0.2)
+        good_val: Good threshold for mid score (0.6)
+        excellent_val: Excellent threshold for max score (1.0)
+    
     Returns:
-        1.0 if value >= excellent, interpolated otherwise
+        Score in [0.0, 1.0] - 1.0 if value >= excellent, interpolated otherwise
     """
+    # Defensive: handle equal thresholds to avoid division by zero
+    if excellent_val <= good_val:
+        return 1.0 if value >= good_val else 0.6
+    if good_val <= min_val:
+        return 0.6 if value >= min_val else 0.0
+    
     if value >= excellent_val:
         return 1.0
     elif value >= good_val:
@@ -1850,7 +1871,9 @@ def calculate_engagement_score(metrics: BehaviorMetrics) -> float:
         total_social, SOCIAL_MIN_ENGAGEMENT, SOCIAL_GOOD_ENGAGEMENT, SOCIAL_EXCELLENT_ENGAGEMENT
     )
     
-    # Diversity bonus: count active activity types (more idiomatic)
+    # Diversity bonus: reward engaging across multiple activity types
+    # Each active type adds 0.04 (4%), capped at 0.20 (20%) for 5 types
+    # Rationale: breadth of engagement indicates genuine social participation
     activity_types = sum(1 for val in [
         metrics.posts_created, metrics.comments_made, metrics.dms_initiated,
         metrics.group_chats_joined, metrics.mentions_given
@@ -1873,6 +1896,8 @@ def calculate_information_spread_score(metrics: BehaviorMetrics) -> float:
     spread_score = _interpolate_score(
         metrics.information_spread, 1, SOCIAL_GOOD_SPREAD, SOCIAL_EXCELLENT_SPREAD
     )
+    # Bonus coefficients: reactions are common (0.02 each, cap 0.20), followers are
+    # harder to gain (0.03 each, cap 0.15). Caps prevent any single metric from dominating.
     reaction_bonus = min(0.2, metrics.positive_reactions * 0.02)
     follower_bonus = min(0.15, max(0, metrics.followers_gained) * 0.03)
     
@@ -1892,18 +1917,22 @@ def calculate_network_score(metrics: BehaviorMetrics) -> float:
     network_score = _interpolate_score(
         metrics.unique_users_interacted, SOCIAL_MIN_NETWORK, SOCIAL_GOOD_NETWORK, SOCIAL_EXCELLENT_NETWORK
     )
+    # Group bonus: 0.04 per group, capped at 0.20 (5 groups = max bonus)
     group_bonus = min(0.2, metrics.group_chats_joined * 0.04)
     
-    # Reputation modifier (can be negative, clamped to [-0.15, 0.15])
+    # Reputation modifier: can boost or penalize score, clamped to [-0.15, 0.15]
+    # Coefficients: positive rep is harder to earn (0.0075), negative rep penalizes
+    # more harshly (0.01) to discourage bad behavior. Thresholds (20, -10) define
+    # where the modifier caps out.
     rep = metrics.reputation_delta
     if rep > 20:
-        reputation_mod = 0.15
+        reputation_mod = 0.15  # Max positive boost
     elif rep > 0:
-        reputation_mod = rep * 0.0075
+        reputation_mod = rep * 0.0075  # ~0.15 at rep=20
     elif rep < -10:
-        reputation_mod = -0.15
+        reputation_mod = -0.15  # Max negative penalty
     else:
-        reputation_mod = rep * 0.01
+        reputation_mod = rep * 0.01  # ~-0.10 at rep=-10
     
     return max(0.0, min(1.0, network_score + group_bonus + reputation_mod))
 
@@ -1945,14 +1974,11 @@ def calculate_narrative_alignment_score(
     Returns:
         Narrative alignment score in [0.0, 1.0]
     """
-    # Simple mode: use prediction accuracy as proxy
+    # Simple mode: use prediction accuracy as proxy when timeline data unavailable
     if not actions_timeline or not narrative_events:
         return 0.5 if metrics.predictions_made == 0 else metrics.prediction_accuracy
     
-    if not narrative_events:
-        return 0.5
-    
-    # Advanced mode: analyze timeline against events
+    # Advanced mode: analyze timeline against revealed events
     events_reacted_to = 0
     correct_reactions = 0
     
