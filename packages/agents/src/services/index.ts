@@ -24,5 +24,12 @@ export {
   setServiceContainer,
 } from './interfaces';
 export * from './npc-bootstrap.service';
-export * from './TeamChatResponseService';
+export {
+  type AgentOrderingStrategy,
+  detectMessageComplexity,
+  type MessageComplexity,
+  TeamChatResponseService,
+  teamChatResponseService,
+  type UntaggedResponseConfig,
+} from './TeamChatResponseService';
 export * from './TeamChatService';
