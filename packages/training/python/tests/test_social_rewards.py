@@ -92,9 +92,13 @@ class TestInterpolateScore:
     
     def test_handles_zero_min(self):
         """Should handle min_val of 0 without division by zero"""
-        # When min_val is 0, values below should still work
-        score = _interpolate_score(0, 1, 5, 10)
-        assert score == 0.0
+        # When min_val is 0, value at min should return 0.2 (the base score at min threshold)
+        score_at_min = _interpolate_score(0, 0, 5, 10)
+        assert score_at_min == 0.2  # At min threshold
+        
+        # Value above min but below good should interpolate correctly
+        score_above_min = _interpolate_score(2, 0, 5, 10)
+        assert 0.2 < score_above_min < 0.6  # Between min and good scores
     
     def test_equal_good_and_excellent_thresholds(self):
         """Should handle excellent_val == good_val without division by zero"""
@@ -434,7 +438,8 @@ class TestNetworkScore:
         score = calculate_network_score(metrics)
         # -5 * 0.01 = -0.05 penalty
         base_score = calculate_network_score(BehaviorMetrics(unique_users_interacted=10))
-        assert score == base_score - 0.05
+        # Use approximate comparison to avoid floating-point precision issues
+        assert abs(score - (base_score - 0.05)) < 1e-9
 
 
 # =============================================================================

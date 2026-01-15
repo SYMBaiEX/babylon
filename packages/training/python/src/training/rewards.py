@@ -2068,6 +2068,26 @@ SOCIAL_COMPOSITE_WEIGHTS: Dict[str, Dict[str, float]] = {
 }
 
 
+def _validate_social_weights() -> None:
+    """Validate that social weight dictionaries sum to 1.0 (called at module load)."""
+    TOLERANCE = 1e-9
+    for name, weights_dict in [
+        ("SOCIAL_REWARD_WEIGHTS", SOCIAL_REWARD_WEIGHTS),
+        ("SOCIAL_COMPOSITE_WEIGHTS", SOCIAL_COMPOSITE_WEIGHTS),
+    ]:
+        for archetype, weights in weights_dict.items():
+            total = sum(weights.values())
+            if abs(total - 1.0) > TOLERANCE:
+                raise ValueError(
+                    f"{name}['{archetype}'] weights sum to {total}, expected 1.0. "
+                    f"Weights: {weights}"
+                )
+
+
+# Validate social weights at module load (similar to _validate_archetype_weights)
+_validate_social_weights()
+
+
 def social_only_composite_reward(
     inputs: TrajectoryRewardInputs,
     archetype: str,

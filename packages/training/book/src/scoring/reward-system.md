@@ -272,16 +272,15 @@ logger.info(f"  Components: pnl={pnl:.3f}, fmt={fmt:.3f}, rsn={rsn:.3f}")
 
 ## Social Rewards
 
-For non-trading archetypes (Social Butterfly, Ass-Kisser, Goody Two-Shoes), financial performance is not the primary goal. These archetypes use **social reward scoring**:
+For non-trading archetypes (Social Butterfly, Ass-Kisser, Goody Two-Shoes), financial performance is not the primary goal. These archetypes use **social reward scoring** via `SOCIAL_COMPOSITE_WEIGHTS` in `rewards.py`:
 
 ```python
-# Social archetypes weight social components heavily
-weights = {
-    "social": 0.55,    # From calculate_social_reward()
-    "format": 0.20,
-    "reasoning": 0.15,
-    "pnl": 0.10,       # Minimal PnL weight
-}
+# Social Butterfly (most social-focused)
+"social-butterfly": {"social": 0.55, "format": 0.20, "reasoning": 0.15, "pnl": 0.10}
+
+# Ass-Kisser and Goody Two-Shoes (slightly more balanced)
+"ass-kisser":       {"social": 0.50, "format": 0.25, "reasoning": 0.15, "pnl": 0.10}
+"goody-twoshoes":   {"social": 0.50, "format": 0.25, "reasoning": 0.15, "pnl": 0.10}
 ```
 
 This allows a Social Butterfly with zero P&L but strong network building to score higher than a passive trader.
