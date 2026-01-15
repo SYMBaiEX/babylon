@@ -7,6 +7,12 @@ data/**/*.parquet
 data/**/scored_*.json
 !data/**/.gitkeep
 
+# Keep benchmark scenarios (they are deterministic and should be committed)
+!data/benchmarks/
+!data/benchmarks/scenarios/
+!data/benchmarks/scenarios/*.json
+!data/benchmarks/scenarios/README.md
+
 # E2E test output
 training-data/e2e-test-results.json
 
