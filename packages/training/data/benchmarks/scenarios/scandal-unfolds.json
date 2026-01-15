@@ -19,7 +19,7 @@
   "snapshot": {
     "id": "scenario-scandal-unfolds-v1",
     "version": "1.0.0",
-    "createdAt": 1768458205017,
+    "createdAt": 1768460080621,
     "duration": 1900800,
     "tickInterval": 3600,
     "initialState": {

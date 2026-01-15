@@ -134,31 +134,38 @@ Examples:
 }
 
 // ============================================================================
-// Mock Runtime (for agent-driven benchmarks)
+// Mock Runtime Factory
 // ============================================================================
 
-function createMockRuntime(modelPath?: string): IAgentRuntime {
-  const runtime = {
-    character: {
-      settings: {
-        model: modelPath || 'gpt-4-turbo',
-      },
-    },
-  } as unknown as IAgentRuntime;
+/**
+ * Creates a mock IAgentRuntime for benchmark simulations.
+ * 
+ * This factory provides a minimal runtime interface that the benchmark
+ * runner needs. For production, this should be replaced with a proper
+ * runtime factory from @elizaos/core.
+ * 
+ * @param modelPath - Optional path to a trained model checkpoint
+ * @returns A mock runtime suitable for benchmarking
+ */
+function createBenchmarkRuntime(modelPath?: string): IAgentRuntime {
+  const settings: Record<string, string> = {
+    model: modelPath || 'gpt-4-turbo',
+  };
 
   if (modelPath) {
-    // If a model path is provided, we would load the model here
-    // For now, we just set it in settings
     logger.info('Model path provided - using trained model', { modelPath });
-    (
-      runtime.character as { settings: Record<string, string> }
-    ).settings.GROQ_LARGE_MODEL = modelPath;
-    (
-      runtime.character as { settings: Record<string, string> }
-    ).settings.GROQ_SMALL_MODEL = modelPath;
+    settings.GROQ_LARGE_MODEL = modelPath;
+    settings.GROQ_SMALL_MODEL = modelPath;
   }
 
-  return runtime;
+  // Minimal mock runtime - extend as needed for actual model inference
+  const runtime: Partial<IAgentRuntime> = {
+    character: {
+      settings,
+    } as IAgentRuntime['character'],
+  };
+
+  return runtime as IAgentRuntime;
 }
 
 // ============================================================================
@@ -190,7 +197,7 @@ async function runScenarioBenchmark(
   mkdirSync(dbPath, { recursive: true });
   initializeJsonMode(dbPath);
 
-  const mockRuntime = createMockRuntime(options.model);
+  const mockRuntime = createBenchmarkRuntime(options.model);
   const fitCalculator = new ArchetypeFitCalculator();
 
   // Save the snapshot temporarily for BenchmarkRunner to load
@@ -385,5 +392,9 @@ async function main() {
 
 main().catch((error) => {
   console.error('❌ Benchmark suite failed:', error);
+  logger.error('Benchmark suite failed', {
+    error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  });
   process.exit(1);
 });

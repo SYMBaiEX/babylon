@@ -149,8 +149,13 @@ function classifyAction(actionType: string): ActionCategory {
 }
 
 function calculateActionDistribution(
-  actions: AgentAction[]
+  actions: AgentAction[] | undefined | null
 ): ActionDistribution {
+  // Handle undefined/null actions defensively
+  if (!actions || !Array.isArray(actions)) {
+    return { trade: 0, post: 0, research: 0, social: 0, other: 0 };
+  }
+
   const counts = { trade: 0, post: 0, research: 0, social: 0, other: 0 };
 
   for (const action of actions) {
@@ -266,7 +271,7 @@ function extractTradingBehavior(
     longShortRatio,
     pnlVariance,
     winRate,
-    avgHoldTime: 0, // Would need position tracking to calculate
+    avgHoldTime: 0, // TODO(benchmark): Implement position tracking to calculate hold time
     marketDiversification: marketsTraded.size,
   };
 }

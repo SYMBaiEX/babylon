@@ -97,6 +97,7 @@ export type {
   FixedBenchmarkScenario,
   ScenarioExpectedBehavior,
   ScenarioId,
+  ScenarioLoaderOptions,
   ScenarioMetadata,
   ScenarioSuccessCriteria,
 } from './ScenarioLoader';

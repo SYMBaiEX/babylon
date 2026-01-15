@@ -21,6 +21,16 @@ import type {
 import type { SimulationResult } from './SimulationEngine';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Minimum P&L difference (in dollars) required to declare a winner.
+ * Values within this threshold result in a "tie".
+ */
+const WINNER_THRESHOLD_DOLLARS = 50;
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -223,9 +233,9 @@ function createScenarioResult(
   const fitScoreDelta = challengerFit.fitScore - baselineFit.fitScore;
 
   let winner: 'baseline' | 'challenger' | 'tie';
-  if (pnlDelta > 50) {
+  if (pnlDelta > WINNER_THRESHOLD_DOLLARS) {
     winner = 'challenger';
-  } else if (pnlDelta < -50) {
+  } else if (pnlDelta < -WINNER_THRESHOLD_DOLLARS) {
     winner = 'baseline';
   } else {
     winner = 'tie';

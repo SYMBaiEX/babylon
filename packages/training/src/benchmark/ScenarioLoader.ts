@@ -294,15 +294,30 @@ function validateScenario(scenario: FixedBenchmarkScenario): string[] {
 // Loader
 // ============================================================================
 
+export interface ScenarioLoaderOptions {
+  /** Custom directory for scenario files */
+  scenarioDir?: string;
+  /** Enable caching of loaded scenarios (default: true) */
+  enableCache?: boolean;
+}
+
 export class ScenarioLoader {
   private readonly scenarioDir: string;
+  private readonly enableCache: boolean;
   private scenarioCache: Map<string, FixedBenchmarkScenario> = new Map();
 
-  constructor(scenarioDir?: string) {
-    this.scenarioDir =
-      scenarioDir ||
-      // Use import.meta.dir to get path relative to this file, not cwd
-      path.resolve(import.meta.dir, '../../data/benchmarks/scenarios');
+  constructor(options?: ScenarioLoaderOptions | string) {
+    // Support legacy string argument for backwards compatibility
+    if (typeof options === 'string') {
+      this.scenarioDir = options;
+      this.enableCache = true;
+    } else {
+      this.scenarioDir =
+        options?.scenarioDir ||
+        // Use import.meta.dir to get path relative to this file, not cwd
+        path.resolve(import.meta.dir, '../../data/benchmarks/scenarios');
+      this.enableCache = options?.enableCache ?? true;
+    }
   }
 
   /**
@@ -340,15 +355,18 @@ export class ScenarioLoader {
    * Load a specific scenario by ID
    */
   async loadScenario(scenarioId: ScenarioId): Promise<FixedBenchmarkScenario> {
-    // Check cache
-    const cached = this.scenarioCache.get(scenarioId);
-    if (cached) {
-      return cached;
+    // Check cache if enabled
+    if (this.enableCache) {
+      const cached = this.scenarioCache.get(scenarioId);
+      if (cached) {
+        logger.debug('Returning cached scenario', { scenarioId });
+        return cached;
+      }
     }
 
     const filePath = path.join(this.scenarioDir, `${scenarioId}.json`);
 
-    logger.debug('Loading scenario', { scenarioId, filePath });
+    logger.debug('Loading scenario from disk', { scenarioId, filePath });
 
     const content = await fs.readFile(filePath, 'utf-8');
     const scenario = JSON.parse(content) as FixedBenchmarkScenario;
@@ -359,14 +377,17 @@ export class ScenarioLoader {
       throw new ScenarioValidationError(scenarioId, issues);
     }
 
-    // Cache
-    this.scenarioCache.set(scenarioId, scenario);
+    // Cache if enabled
+    if (this.enableCache) {
+      this.scenarioCache.set(scenarioId, scenario);
+    }
 
     logger.info('Scenario loaded', {
       scenarioId,
       name: scenario.name,
       ticks: scenario.snapshot.ticks.length,
       causal: scenario.useCausalSimulation,
+      cached: this.enableCache,
     });
 
     return scenario;

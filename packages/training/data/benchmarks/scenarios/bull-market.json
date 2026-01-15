@@ -19,7 +19,7 @@
   "snapshot": {
     "id": "scenario-bull-market-v1",
     "version": "1.0.0",
-    "createdAt": 1768458204985,
+    "createdAt": 1768460080589,
     "duration": 1900800,
     "tickInterval": 3600,
     "initialState": {
