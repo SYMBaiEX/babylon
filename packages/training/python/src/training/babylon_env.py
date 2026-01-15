@@ -180,6 +180,12 @@ class BabylonRLAIFEnv(BaseEnv):
             "regime_counts": {"bull": 0, "bear": 0, "sideways": 0},
             "alphas": [],
             "volatilities": [],
+            # Social reward metrics (BAB-71)
+            "social_engagement": [],
+            "social_spread": [],
+            "social_network": [],
+            "social_narrative": [],
+            "social_total": [],
         }
 
         # Evaluation suite for tracking progress
@@ -435,12 +441,25 @@ class BabylonRLAIFEnv(BaseEnv):
 
             if m["volatilities"]:
                 wandb_metrics["train/market_volatility_mean"] = sum(m["volatilities"]) / len(m["volatilities"])
+            
+            # Social reward metrics (BAB-71)
+            if m["social_total"]:
+                wandb_metrics["train/social_reward_mean"] = sum(m["social_total"]) / len(m["social_total"])
+                wandb_metrics["train/social_engagement_mean"] = sum(m["social_engagement"]) / len(m["social_engagement"])
+                wandb_metrics["train/social_spread_mean"] = sum(m["social_spread"]) / len(m["social_spread"])
+                wandb_metrics["train/social_network_mean"] = sum(m["social_network"]) / len(m["social_network"])
+                wandb_metrics["train/social_narrative_mean"] = sum(m["social_narrative"]) / len(m["social_narrative"])
 
             # Reset for next logging interval
             self.enhanced_reward_metrics = {
                 "regime_counts": {"bull": 0, "bear": 0, "sideways": 0},
                 "alphas": [],
                 "volatilities": [],
+                "social_engagement": [],
+                "social_spread": [],
+                "social_network": [],
+                "social_narrative": [],
+                "social_total": [],
             }
 
         self.judgement_samples = []  # Clear after logging
@@ -897,7 +916,22 @@ You receive market updates and must analyze, reason, and then act."""
                 self.enhanced_reward_metrics["regime_counts"][regime.overall] += 1
                 self.enhanced_reward_metrics["alphas"].append(counterfactual.alpha)
                 self.enhanced_reward_metrics["volatilities"].append(regime.volatility)
-            else:
+            
+            # Calculate and track social reward (BAB-71)
+            # This is done separately to provide visibility into social scoring
+            if behavior_metrics is not None:
+                from .rewards import calculate_social_reward
+                social_result = calculate_social_reward(
+                    metrics=behavior_metrics,
+                    archetype=archetype_norm,
+                )
+                self.enhanced_reward_metrics["social_engagement"].append(social_result.engagement_score)
+                self.enhanced_reward_metrics["social_spread"].append(social_result.information_spread_score)
+                self.enhanced_reward_metrics["social_network"].append(social_result.network_score)
+                self.enhanced_reward_metrics["social_narrative"].append(social_result.narrative_alignment_score)
+                self.enhanced_reward_metrics["social_total"].append(social_result.total_score)
+            
+            if not has_enhanced_context:
                 # Fallback: standard archetype composite reward
                 base_score = archetype_composite_reward(
                     inputs=reward_inputs,

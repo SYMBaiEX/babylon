@@ -1752,3 +1752,479 @@ def enhanced_composite_reward(
     )
     
     return max(-1.0, min(1.0, composite))
+
+
+# =============================================================================
+# Social & Narrative Rewards (BAB-71)
+# =============================================================================
+# These functions provide PnL-independent reward signals for social archetypes
+# like "Social Butterfly" and "Information Trader".
+
+@dataclass
+class SocialRewardResult:
+    """
+    Breakdown of social reward components for logging and analysis.
+    
+    Attributes:
+        engagement_score: Score from social interactions (DMs, posts, comments)
+        information_spread_score: Score from content that gets reactions/shares
+        narrative_alignment_score: Score from actions aligned with ground truth
+        network_score: Score from building connections
+        total_score: Combined social reward
+    """
+    engagement_score: float = 0.0
+    information_spread_score: float = 0.0
+    narrative_alignment_score: float = 0.0
+    network_score: float = 0.0
+    total_score: float = 0.0
+    
+    def to_dict(self) -> Dict:
+        """Serialize for logging."""
+        return {
+            "engagement_score": self.engagement_score,
+            "information_spread_score": self.information_spread_score,
+            "narrative_alignment_score": self.narrative_alignment_score,
+            "network_score": self.network_score,
+            "total_score": self.total_score,
+        }
+
+
+# Thresholds for social reward scoring
+SOCIAL_EXCELLENT_SPREAD = 15  # Content spread to 15+ users
+SOCIAL_GOOD_SPREAD = 5        # Content spread to 5+ users
+SOCIAL_EXCELLENT_ENGAGEMENT = 20  # 20+ social actions
+SOCIAL_GOOD_ENGAGEMENT = 10       # 10+ social actions
+SOCIAL_EXCELLENT_NETWORK = 15     # 15+ unique connections
+SOCIAL_GOOD_NETWORK = 8           # 8+ unique connections
+
+
+def calculate_engagement_score(metrics: BehaviorMetrics) -> float:
+    """
+    Calculate engagement score based on social activity volume and quality.
+    
+    Rewards agents for:
+    - Posting content
+    - Commenting on others' content
+    - Initiating DM conversations
+    - Responding to group chats
+    
+    Args:
+        metrics: Behavior metrics containing social activity counts
+    
+    Returns:
+        Engagement score in [0.0, 1.0]
+    """
+    # Count total social actions
+    total_social = (
+        metrics.posts_created
+        + metrics.comments_made
+        + metrics.dms_initiated
+        + metrics.group_chats_joined
+        + metrics.mentions_given
+    )
+    
+    # Base score from action volume
+    if total_social >= SOCIAL_EXCELLENT_ENGAGEMENT:
+        volume_score = 1.0
+    elif total_social >= SOCIAL_GOOD_ENGAGEMENT:
+        volume_score = 0.7 + (total_social - SOCIAL_GOOD_ENGAGEMENT) / (SOCIAL_EXCELLENT_ENGAGEMENT - SOCIAL_GOOD_ENGAGEMENT) * 0.3
+    elif total_social >= 3:
+        volume_score = 0.3 + (total_social - 3) / (SOCIAL_GOOD_ENGAGEMENT - 3) * 0.4
+    else:
+        volume_score = total_social * 0.1
+    
+    # Diversity bonus: reward varied activity (not just one type)
+    activity_types = sum([
+        1 if metrics.posts_created > 0 else 0,
+        1 if metrics.comments_made > 0 else 0,
+        1 if metrics.dms_initiated > 0 else 0,
+        1 if metrics.group_chats_joined > 0 else 0,
+        1 if metrics.mentions_given > 0 else 0,
+    ])
+    diversity_bonus = min(0.2, activity_types * 0.04)
+    
+    return min(1.0, volume_score + diversity_bonus)
+
+
+def calculate_information_spread_score(metrics: BehaviorMetrics) -> float:
+    """
+    Calculate score based on how well content spread through the network.
+    
+    This rewards agents whose posts/content generate engagement:
+    - Reactions (likes, shares)
+    - Information reaching multiple users
+    - Content that sparks discussion
+    
+    Args:
+        metrics: Behavior metrics containing influence data
+    
+    Returns:
+        Information spread score in [0.0, 1.0]
+    """
+    # Primary signal: direct spread metric
+    spread = metrics.information_spread
+    
+    # Secondary signal: positive reactions as proxy for engaging content
+    reactions = metrics.positive_reactions
+    
+    # Tertiary signal: follower gains indicate influential content
+    followers = metrics.followers_gained
+    
+    # Score information spread
+    if spread >= SOCIAL_EXCELLENT_SPREAD:
+        spread_score = 1.0
+    elif spread >= SOCIAL_GOOD_SPREAD:
+        spread_score = 0.6 + (spread - SOCIAL_GOOD_SPREAD) / (SOCIAL_EXCELLENT_SPREAD - SOCIAL_GOOD_SPREAD) * 0.4
+    elif spread > 0:
+        spread_score = 0.2 + (spread / SOCIAL_GOOD_SPREAD) * 0.4
+    else:
+        spread_score = 0.0
+    
+    # Bonus for reactions (capped at 0.2)
+    reaction_bonus = min(0.2, reactions * 0.02)
+    
+    # Bonus for follower gains (capped at 0.15)
+    follower_bonus = min(0.15, max(0, followers) * 0.03)
+    
+    return min(1.0, spread_score + reaction_bonus + follower_bonus)
+
+
+def calculate_network_score(metrics: BehaviorMetrics) -> float:
+    """
+    Calculate score based on network building and connections.
+    
+    Rewards agents for:
+    - Building a wide network of connections
+    - Participating in group activities
+    - Maintaining positive reputation
+    
+    Args:
+        metrics: Behavior metrics containing social connection data
+    
+    Returns:
+        Network score in [0.0, 1.0]
+    """
+    connections = metrics.unique_users_interacted
+    groups = metrics.group_chats_joined
+    reputation = metrics.reputation_delta
+    
+    # Score network breadth
+    if connections >= SOCIAL_EXCELLENT_NETWORK:
+        network_score = 1.0
+    elif connections >= SOCIAL_GOOD_NETWORK:
+        network_score = 0.6 + (connections - SOCIAL_GOOD_NETWORK) / (SOCIAL_EXCELLENT_NETWORK - SOCIAL_GOOD_NETWORK) * 0.4
+    elif connections >= 3:
+        network_score = 0.2 + (connections - 3) / (SOCIAL_GOOD_NETWORK - 3) * 0.4
+    else:
+        network_score = connections * 0.07
+    
+    # Bonus for group participation (capped at 0.2)
+    group_bonus = min(0.2, groups * 0.04)
+    
+    # Reputation modifier (can be negative)
+    if reputation > 20:
+        reputation_mod = 0.15
+    elif reputation > 0:
+        reputation_mod = reputation * 0.0075
+    elif reputation < -10:
+        reputation_mod = -0.15
+    else:
+        reputation_mod = reputation * 0.01
+    
+    return max(0.0, min(1.0, network_score + group_bonus + reputation_mod))
+
+
+@dataclass
+class NarrativeEvent:
+    """
+    A ground truth event that agents should react to.
+    
+    Attributes:
+        tick: When the event occurred
+        event_type: Type of causal event
+        affected_tickers: Markets affected by this event
+        direction: Expected market direction ("up", "down", "volatile")
+        revealed: Whether the event was publicly revealed
+    """
+    tick: int = 0
+    event_type: str = ""
+    affected_tickers: List[str] = field(default_factory=list)
+    direction: str = ""
+    revealed: bool = False
+
+
+def calculate_narrative_alignment_score(
+    metrics: BehaviorMetrics,
+    actions_timeline: Optional[List[Dict]] = None,
+    narrative_events: Optional[List[NarrativeEvent]] = None,
+) -> float:
+    """
+    Calculate how well agent's actions aligned with ground truth narrative.
+    
+    This rewards agents who:
+    - React appropriately to revealed causal events
+    - Share accurate information about events
+    - Don't spread misinformation
+    - Time their actions to narrative developments
+    
+    For simpler evaluation (without timeline), uses prediction accuracy
+    as a proxy for narrative alignment.
+    
+    Args:
+        metrics: Behavior metrics containing prediction data
+        actions_timeline: Optional list of agent actions with timestamps
+        narrative_events: Optional list of ground truth events
+    
+    Returns:
+        Narrative alignment score in [0.0, 1.0]
+    """
+    # If no detailed timeline, use prediction accuracy as proxy
+    if not actions_timeline or not narrative_events:
+        # Use prediction accuracy as simple proxy
+        if metrics.predictions_made == 0:
+            return 0.5  # Neutral if no predictions
+        return metrics.prediction_accuracy
+    
+    # Advanced scoring with timeline analysis
+    alignment_score = 0.0
+    total_events = len(narrative_events)
+    
+    if total_events == 0:
+        return 0.5  # Neutral if no events
+    
+    events_reacted_to = 0
+    correct_reactions = 0
+    
+    for event in narrative_events:
+        if not event.revealed:
+            continue  # Skip unrevealed events
+        
+        # Check if agent took action after this event
+        post_event_actions = [
+            a for a in actions_timeline
+            if a.get("tick", 0) > event.tick
+            and a.get("tick", 0) <= event.tick + 5  # Within 5 ticks
+        ]
+        
+        if not post_event_actions:
+            continue
+        
+        events_reacted_to += 1
+        
+        # Check if action direction matches event direction
+        for action in post_event_actions:
+            action_type = action.get("action_type", "").lower()
+            ticker = action.get("ticker", "")
+            
+            if ticker not in event.affected_tickers:
+                continue
+            
+            # Determine if action aligns with narrative
+            is_buy = "buy" in action_type or "long" in action_type
+            is_sell = "sell" in action_type or "short" in action_type
+            
+            if event.direction == "up" and is_buy:
+                correct_reactions += 1
+                break
+            elif event.direction == "down" and is_sell:
+                correct_reactions += 1
+                break
+    
+    # Calculate alignment ratio
+    if events_reacted_to > 0:
+        alignment_score = correct_reactions / events_reacted_to
+    else:
+        alignment_score = 0.5  # Neutral if no reactions
+    
+    return alignment_score
+
+
+def calculate_social_reward(
+    metrics: BehaviorMetrics,
+    archetype: str,
+    actions_timeline: Optional[List[Dict]] = None,
+    narrative_events: Optional[List[NarrativeEvent]] = None,
+) -> SocialRewardResult:
+    """
+    Calculate comprehensive social reward for non-trading archetypes.
+    
+    This provides a PnL-independent reward signal based on:
+    1. Engagement: Volume and diversity of social activity
+    2. Information Spread: Content that reaches and engages others
+    3. Network: Building connections and maintaining reputation
+    4. Narrative Alignment: Actions that align with ground truth
+    
+    Different archetypes weight these components differently:
+    - Social Butterfly: Emphasizes network and engagement
+    - Information Trader: Emphasizes narrative alignment and spread
+    - Scammer/Liar: Emphasizes spread (for misinformation)
+    - Others: Balanced weights
+    
+    Args:
+        metrics: Behavior metrics from trajectory
+        archetype: Agent archetype for weight selection
+        actions_timeline: Optional action timeline for narrative analysis
+        narrative_events: Optional ground truth events
+    
+    Returns:
+        SocialRewardResult with component breakdown
+    """
+    archetype_norm = normalize_archetype(archetype)
+    
+    # Calculate component scores
+    engagement = calculate_engagement_score(metrics)
+    spread = calculate_information_spread_score(metrics)
+    network = calculate_network_score(metrics)
+    narrative = calculate_narrative_alignment_score(
+        metrics, actions_timeline, narrative_events
+    )
+    
+    # Archetype-specific weights
+    if archetype_norm == "social-butterfly":
+        weights = {
+            "engagement": 0.30,
+            "spread": 0.20,
+            "network": 0.40,
+            "narrative": 0.10,
+        }
+    elif archetype_norm == "information-trader":
+        weights = {
+            "engagement": 0.15,
+            "spread": 0.25,
+            "network": 0.20,
+            "narrative": 0.40,
+        }
+    elif archetype_norm in ("scammer", "liar"):
+        weights = {
+            "engagement": 0.20,
+            "spread": 0.40,
+            "network": 0.25,
+            "narrative": 0.15,
+        }
+    elif archetype_norm == "goody-twoshoes":
+        weights = {
+            "engagement": 0.25,
+            "spread": 0.20,
+            "network": 0.30,
+            "narrative": 0.25,
+        }
+    elif archetype_norm == "ass-kisser":
+        weights = {
+            "engagement": 0.35,
+            "spread": 0.15,
+            "network": 0.40,
+            "narrative": 0.10,
+        }
+    else:
+        # Default balanced weights
+        weights = {
+            "engagement": 0.25,
+            "spread": 0.25,
+            "network": 0.25,
+            "narrative": 0.25,
+        }
+    
+    # Compute weighted total
+    total = (
+        engagement * weights["engagement"]
+        + spread * weights["spread"]
+        + network * weights["network"]
+        + narrative * weights["narrative"]
+    )
+    
+    return SocialRewardResult(
+        engagement_score=engagement,
+        information_spread_score=spread,
+        narrative_alignment_score=narrative,
+        network_score=network,
+        total_score=total,
+    )
+
+
+def social_only_composite_reward(
+    inputs: TrajectoryRewardInputs,
+    archetype: str,
+    behavior_metrics: Optional[BehaviorMetrics] = None,
+    actions_timeline: Optional[List[Dict]] = None,
+    narrative_events: Optional[List[NarrativeEvent]] = None,
+) -> float:
+    """
+    Composite reward optimized for social archetypes (minimal PnL weight).
+    
+    This is designed for archetypes like Social Butterfly where trading
+    performance is largely irrelevant. The reward is primarily based on:
+    - Social engagement and network building
+    - Information spread and influence
+    - Format and reasoning quality
+    
+    PnL only matters for bankruptcy prevention (hard penalty).
+    
+    Args:
+        inputs: Standard trajectory reward inputs
+        archetype: Agent archetype
+        behavior_metrics: Behavior metrics for social scoring
+        actions_timeline: Optional action timeline
+        narrative_events: Optional ground truth events
+    
+    Returns:
+        Composite reward in [-1.0, 1.0]
+    """
+    archetype_norm = normalize_archetype(archetype)
+    
+    # Hard bankruptcy penalty (even social butterflies shouldn't go broke)
+    if inputs.end_balance <= 0:
+        return -0.5  # Less severe than trader bankruptcy
+    
+    # Calculate social reward
+    social_result = SocialRewardResult()
+    if behavior_metrics is not None:
+        social_result = calculate_social_reward(
+            metrics=behavior_metrics,
+            archetype=archetype_norm,
+            actions_timeline=actions_timeline,
+            narrative_events=narrative_events,
+        )
+    
+    # Format and reasoning scores
+    format_score = inputs.format_score
+    reasoning_score = inputs.reasoning_score
+    
+    # Minimal PnL component (just for slight profit incentive)
+    pnl_score = 0.0
+    if inputs.final_pnl > 0:
+        pnl_score = min(0.5, inputs.final_pnl / inputs.starting_balance * 5)
+    elif inputs.final_pnl < -inputs.starting_balance * 0.5:
+        pnl_score = -0.3  # Moderate penalty for heavy losses
+    
+    # Social archetype weights
+    if archetype_norm == "social-butterfly":
+        weights = {
+            "social": 0.55,
+            "format": 0.20,
+            "reasoning": 0.15,
+            "pnl": 0.10,
+        }
+    elif archetype_norm in ("ass-kisser", "goody-twoshoes"):
+        weights = {
+            "social": 0.50,
+            "format": 0.25,
+            "reasoning": 0.15,
+            "pnl": 0.10,
+        }
+    else:
+        # Default for other social-ish archetypes
+        weights = {
+            "social": 0.40,
+            "format": 0.25,
+            "reasoning": 0.20,
+            "pnl": 0.15,
+        }
+    
+    composite = (
+        social_result.total_score * weights["social"]
+        + format_score * weights["format"]
+        + reasoning_score * weights["reasoning"]
+        + pnl_score * weights["pnl"]
+    )
+    
+    return max(-1.0, min(1.0, composite))
