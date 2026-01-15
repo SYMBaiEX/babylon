@@ -35,12 +35,14 @@ export default function TeamChatPage() {
     messageInput,
     handleInputChange,
     typingUsers,
+    thinkingAgents,
     sendError,
     sendSuccess,
     setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
     sendMessage,
+    handleScroll,
   } = useTeamChat();
 
   // Mobile member drawer state
@@ -238,7 +240,9 @@ export default function TeamChatPage() {
             }
             onMentionsChange={setMentionedAgentIds}
             typingUsers={typingUsers}
+            thinkingAgents={thinkingAgents}
             onShowMembers={() => setShowMemberDrawer(true)}
+            onScroll={handleScroll}
           />
         </div>
       </div>

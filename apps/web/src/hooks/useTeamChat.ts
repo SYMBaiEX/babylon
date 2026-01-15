@@ -6,7 +6,14 @@
  */
 
 import { usePrivy } from '@privy-io/react-auth';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 import { type ChatMessage, useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
@@ -16,6 +23,14 @@ import { useAuthStore } from '@/stores/authStore';
 interface TypingUser {
   userId: string;
   displayName: string;
+  expiresAt: number;
+}
+
+/** Thinking agent info - for complex queries that take longer */
+interface ThinkingAgent {
+  agentId: string;
+  agentName: string;
+  thinkingLabel: string | null;
   expiresAt: number;
 }
 
@@ -58,8 +73,9 @@ interface UseTeamChatReturn {
   setMessageInput: (value: string) => void;
   handleInputChange: (value: string) => void;
 
-  // Typing indicators
+  // Typing and thinking indicators
   typingUsers: TypingUser[];
+  thinkingAgents: ThinkingAgent[];
   sendError: string | null;
   sendSuccess: boolean;
   mentionedAgentIds: string[];
@@ -68,10 +84,12 @@ interface UseTeamChatReturn {
   // Refs
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
   // Actions
   sendMessage: () => Promise<void>;
   refresh: () => Promise<void>;
+  handleScroll: (container: HTMLDivElement) => void;
 }
 
 export function useTeamChat(): UseTeamChatReturn {
@@ -87,7 +105,7 @@ export function useTeamChat(): UseTeamChatReturn {
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendSuccess] = useState(false); // Kept for interface compatibility, not used with optimistic updates
   const [mentionedAgentIds, setMentionedAgentIds] = useState<string[]>([]);
 
   // Typing indicator state
@@ -95,22 +113,177 @@ export function useTeamChat(): UseTeamChatReturn {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
 
+  // Thinking indicator state (for complex queries)
+  const [thinkingAgents, setThinkingAgents] = useState<ThinkingAgent[]>([]);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const wasNearBottomRef = useRef(true); // Track if user was near bottom before new messages
+  const prevMessageCountRef = useRef(0); // Track previous message count for change detection
 
   // SSE for real-time messages - connect once we have the chat ID
   const {
     messages: realtimeMessages,
+    isLoading: isMessagesLoading,
     isConnected: sseConnected,
     isLoadingMore,
     hasMore,
     addMessage,
   } = useChatMessages(teamChat?.chatId ?? null);
 
-  // Handle typing indicator SSE events
-  const handleTypingEvent = useCallback(
+  // Scroll to bottom helper - uses direct scrollTop for reliability
+  const scrollToBottom = useCallback(
+    (behavior: 'instant' | 'smooth' = 'instant') => {
+      const endRef = messagesEndRef.current;
+      if (!endRef) return;
+
+      // Find the scroll container (parent with overflow)
+      const container = endRef.closest('[class*="overflow"]') as HTMLElement;
+      if (container) {
+        if (behavior === 'instant') {
+          container.scrollTop = container.scrollHeight;
+        } else {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth',
+          });
+        }
+      } else {
+        // Fallback to scrollIntoView
+        endRef.scrollIntoView({ behavior });
+      }
+    },
+    []
+  );
+
+  // Initial scroll: Wait for scrollHeight to stabilize before scrolling
+  const hasInitialScrolledRef = useRef(false);
+  useEffect(() => {
+    // Only run when we have messages and haven't scrolled yet
+    if (realtimeMessages.length === 0 || hasInitialScrolledRef.current) return;
+    if (isMessagesLoading) return; // Wait for loading to complete
+
+    hasInitialScrolledRef.current = true;
+
+    // Poll until scrollHeight stabilizes (content fully rendered)
+    const endRef = messagesEndRef.current;
+    if (!endRef) return;
+
+    const container = endRef.closest('[class*="overflow"]') as HTMLElement;
+    if (!container) {
+      scrollToBottom('instant');
+      return;
+    }
+
+    let lastHeight = 0;
+    let stableFrames = 0;
+    let frameId: number;
+
+    const pollUntilStable = () => {
+      const currentHeight = container.scrollHeight;
+
+      if (currentHeight === lastHeight && currentHeight > 0) {
+        stableFrames++;
+        // Wait for 5 stable frames (~80ms) to ensure rendering is complete
+        if (stableFrames >= 5) {
+          container.scrollTop = currentHeight;
+          return;
+        }
+      } else {
+        stableFrames = 0;
+        lastHeight = currentHeight;
+      }
+
+      frameId = requestAnimationFrame(pollUntilStable);
+    };
+
+    // Start polling after a short delay to let React commit
+    const timeoutId = setTimeout(() => {
+      pollUntilStable();
+    }, 50);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [realtimeMessages.length, isMessagesLoading, scrollToBottom]);
+
+  // Reset scroll tracking when chat changes
+  const chatId = teamChat?.chatId;
+  useEffect(() => {
+    hasInitialScrolledRef.current = false;
+    prevMessageCountRef.current = 0;
+    wasNearBottomRef.current = true;
+  }, [chatId]);
+
+  // Auto-scroll when NEW messages arrive (count increases), if user was near bottom
+  useEffect(() => {
+    const messageCount = realtimeMessages.length;
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = messageCount;
+
+    // Skip initial load (handled by separate effect)
+    if (prevCount === 0) return;
+
+    // Only scroll if count INCREASED (not replacements) and user was near bottom
+    if (messageCount > prevCount && wasNearBottomRef.current) {
+      // Small delay to let DOM update
+      setTimeout(() => scrollToBottom('instant'), 20);
+    }
+  }, [realtimeMessages.length, scrollToBottom]);
+
+  // Maintain scroll position when messages are replaced (optimistic → confirmed)
+  // This runs synchronously before paint to prevent visible jump
+  const prevMessageIdsRef = useRef<string>('');
+  useLayoutEffect(() => {
+    // Skip if we're not near bottom - no need to maintain position
+    if (!wasNearBottomRef.current) return;
+
+    // Skip initial render
+    if (realtimeMessages.length === 0) return;
+
+    // Check if message IDs changed (detects replacements, not just additions)
+    const currentIds = realtimeMessages.map((m) => m.id).join(',');
+    if (currentIds === prevMessageIdsRef.current) return;
+
+    const prevIds = prevMessageIdsRef.current;
+    prevMessageIdsRef.current = currentIds;
+
+    // Skip if this is the first time we're setting IDs
+    if (prevIds === '') return;
+
+    // If count is the same but IDs changed, a replacement happened
+    // Synchronously scroll to maintain bottom position
+    const prevCount = prevIds.split(',').length;
+    const currentCount = realtimeMessages.length;
+
+    if (currentCount === prevCount) {
+      // This is a replacement, not an addition - scroll synchronously
+      const endRef = messagesEndRef.current;
+      if (endRef) {
+        const container = endRef.closest('[class*="overflow"]') as HTMLElement;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+        }
+      }
+    }
+  }, [realtimeMessages]);
+
+  // Track scroll position to determine if user is near bottom
+  // This is called from the scroll container in TeamChatView
+  const handleScroll = useCallback((container: HTMLDivElement) => {
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    // Consider "near bottom" if within 150px of the bottom
+    wasNearBottomRef.current = distanceFromBottom < 150;
+  }, []);
+
+  // Handle typing and thinking indicator SSE events
+  const handleIndicatorEvent = useCallback(
     (data: Record<string, unknown>) => {
+      // Handle typing indicator (user or agent is typing)
       if (data.type === 'typing_indicator') {
         const userId = data.userId as string;
         const displayName = data.displayName as string;
@@ -136,26 +309,52 @@ export function useTeamChat(): UseTeamChatReturn {
           }
         });
       }
+
+      // Handle thinking indicator (agent is processing complex query)
+      if (data.type === 'thinking_indicator') {
+        const agentId = data.agentId as string;
+        const agentName = data.agentName as string;
+        const isThinking = data.isThinking as boolean;
+        const thinkingLabel = (data.thinkingLabel as string) ?? null;
+
+        setThinkingAgents((prev) => {
+          if (isThinking) {
+            // Add or update thinking agent (expires after 60 seconds - longer for complex queries)
+            const expiresAt = Date.now() + 60000;
+            const existing = prev.find((a) => a.agentId === agentId);
+            if (existing) {
+              return prev.map((a) =>
+                a.agentId === agentId ? { ...a, thinkingLabel, expiresAt } : a
+              );
+            }
+            return [...prev, { agentId, agentName, thinkingLabel, expiresAt }];
+          } else {
+            // Remove thinking agent
+            return prev.filter((a) => a.agentId !== agentId);
+          }
+        });
+      }
     },
     [user?.id]
   );
 
-  // Subscribe to typing events on the same chat channel.
+  // Subscribe to typing/thinking events on the chat channel.
   // Memoized to prevent re-subscription on every render - useSSEChannel uses
   // the channel identity to determine when to reconnect. Without memoization,
   // a new string would be created each render, causing unnecessary re-subscriptions.
-  const typingChannel = useMemo(
+  const indicatorChannel = useMemo(
     () => (teamChat?.chatId ? (`chat:${teamChat.chatId}` as const) : null),
     [teamChat?.chatId]
   );
-  useSSEChannel(typingChannel, handleTypingEvent);
+  useSSEChannel(indicatorChannel, handleIndicatorEvent);
 
-  // Clean up expired typing indicators.
-  // 2s interval is sufficient since expiry is 5s - no need for 1s precision.
+  // Clean up expired typing and thinking indicators.
+  // 2s interval is sufficient since typing expiry is 5s - no need for 1s precision.
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
       setTypingUsers((prev) => prev.filter((u) => u.expiresAt > now));
+      setThinkingAgents((prev) => prev.filter((a) => a.expiresAt > now));
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -322,13 +521,37 @@ export function useTeamChat(): UseTeamChatReturn {
       }
     : null;
 
-  // Send message
+  // Send message with optimistic update (iMessage-style)
   const sendMessage = useCallback(async () => {
     if (!teamChat || !messageInput.trim() || sending) return;
 
+    const content = messageInput.trim();
+    const mentionedIds = [...mentionedAgentIds];
+
+    // Create optimistic message with temporary ID
+    // stableKey is used for React keying to prevent flash on confirmation
+    const optimisticId = `pending-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: optimisticId,
+      chatId: teamChat.chatId,
+      content,
+      senderId: user?.id || '',
+      type: 'user',
+      createdAt: new Date().toISOString(),
+      stableKey: optimisticId, // Preserved when real message replaces this
+    };
+
+    // Optimistically add message immediately (instant feedback)
+    addMessage(optimisticMessage);
+
+    // Clear input immediately for responsive feel
+    setMessageInput('');
+    setMentionedAgentIds([]);
     setSending(true);
     setSendError(null);
-    setSendSuccess(false);
+
+    // Note: Scroll to bottom is handled automatically by the useEffect
+    // when message count increases (from adding optimistic message)
 
     try {
       const token = await getAccessToken();
@@ -345,45 +568,22 @@ export function useTeamChat(): UseTeamChatReturn {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          content: messageInput.trim(),
+          content,
           // Include mentioned agent IDs for priority response handling
-          mentionedAgentIds:
-            mentionedAgentIds.length > 0 ? mentionedAgentIds : undefined,
+          mentionedAgentIds: mentionedIds.length > 0 ? mentionedIds : undefined,
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
+        // Note: optimistic message stays visible but error is shown
         return;
       }
 
-      const data = await response.json();
-
-      // Add message to realtime messages
-      if (data.message) {
-        const newMessage: ChatMessage = {
-          id: data.message.id,
-          chatId: teamChat.chatId,
-          content: data.message.content,
-          senderId: data.message.senderId,
-          type: data.message.type,
-          createdAt: data.message.createdAt,
-        };
-        addMessage(newMessage);
-      }
-
-      setMessageInput('');
-      setMentionedAgentIds([]);
-      setSendSuccess(true);
-
-      // Scroll to bottom
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-
-      // Clear success after 2 seconds
-      setTimeout(() => setSendSuccess(false), 2000);
+      // Message sent successfully - the real message will arrive via SSE
+      // and useChatMessages will deduplicate based on content/timestamp
+      // No success banner needed - the message appearing is confirmation enough
     } catch (err) {
       setSendError(
         err instanceof Error ? err.message : 'Failed to send message'
@@ -396,6 +596,7 @@ export function useTeamChat(): UseTeamChatReturn {
     messageInput,
     sending,
     mentionedAgentIds,
+    user?.id,
     getAccessToken,
     addMessage,
   ]);
@@ -422,13 +623,16 @@ export function useTeamChat(): UseTeamChatReturn {
     setMessageInput,
     handleInputChange,
     typingUsers,
+    thinkingAgents,
     sendError,
     sendSuccess,
     mentionedAgentIds,
     setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
+    messagesContainerRef,
     sendMessage: sendMessageWithTypingStop,
     refresh: fetchTeamChat,
+    handleScroll,
   };
 }

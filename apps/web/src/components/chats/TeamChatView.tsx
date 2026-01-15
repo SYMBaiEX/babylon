@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle, Radio, Users } from 'lucide-react';
+import { Brain, MessageCircle, Radio, Users } from 'lucide-react';
 import React from 'react';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
@@ -15,7 +15,14 @@ interface TypingUserInfo {
   displayName: string;
 }
 
-/** Typing indicator component */
+/** Thinking agent info - for complex queries */
+interface ThinkingAgentInfo {
+  agentId: string;
+  agentName: string;
+  thinkingLabel: string | null;
+}
+
+/** Typing indicator component - shows bouncing dots for users typing */
 function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
   const first = typingUsers[0];
   const second = typingUsers[1];
@@ -47,6 +54,35 @@ function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
   );
 }
 
+/**
+ * Thinking indicator component - shows pulsing brain icon for agents processing complex queries.
+ * Distinct from typing indicator to show that more substantial work is happening.
+ */
+function ThinkingIndicator({
+  thinkingAgents,
+}: {
+  thinkingAgents: ThinkingAgentInfo[];
+}) {
+  if (thinkingAgents.length === 0) return null;
+
+  return (
+    <div className="space-y-1 px-4 py-2">
+      {thinkingAgents.map((agent) => (
+        <div
+          key={agent.agentId}
+          className="flex items-center gap-2 text-blue-500 text-sm"
+        >
+          <Brain className="h-4 w-4 animate-pulse" />
+          <span className="font-medium">{agent.agentName}</span>
+          <span className="text-muted-foreground">
+            {agent.thinkingLabel ?? 'Thinking...'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface TeamChatViewProps {
   chatDetails: ChatDetails | null;
   currentUserId: string | undefined;
@@ -69,8 +105,12 @@ interface TeamChatViewProps {
   onMentionsChange?: (mentionedAgentIds: string[]) => void;
   /** Users currently typing */
   typingUsers?: TypingUserInfo[];
+  /** Agents currently thinking (processing complex queries) */
+  thinkingAgents?: ThinkingAgentInfo[];
   /** Callback to open member list drawer (mobile only) */
   onShowMembers?: () => void;
+  /** Callback when messages container is scrolled (for auto-scroll tracking) */
+  onScroll?: (container: HTMLDivElement) => void;
 }
 
 /**
@@ -97,7 +137,9 @@ export function TeamChatView({
   agents,
   onMentionsChange,
   typingUsers = [],
+  thinkingAgents = [],
   onShowMembers,
+  onScroll,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -162,7 +204,10 @@ export function TeamChatView({
       </div>
 
       {/* Messages - Scrollable */}
-      <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
+      <div
+        className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
+        onScroll={(e) => onScroll?.(e.currentTarget)}
+      >
         <MessageList
           messages={chatDetails.messages || []}
           participants={chatDetails.participants || []}
@@ -179,7 +224,12 @@ export function TeamChatView({
 
       {/* Footer - Fixed */}
       <div className="shrink-0">
-        {/* Typing Indicator */}
+        {/* Thinking Indicator - shown when agents are processing complex queries */}
+        {thinkingAgents.length > 0 && (
+          <ThinkingIndicator thinkingAgents={thinkingAgents} />
+        )}
+
+        {/* Typing Indicator - shown when users/agents are typing simple responses */}
         {typingUsers.length > 0 && (
           <TypingIndicator typingUsers={typingUsers} />
         )}

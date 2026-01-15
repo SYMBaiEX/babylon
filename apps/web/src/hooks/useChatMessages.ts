@@ -23,6 +23,11 @@ export interface ChatMessage {
   createdAt: string;
   /** Whether this is a game chat message */
   isGameChat?: boolean;
+  /**
+   * Stable key for React rendering. Used to prevent flash when optimistic
+   * messages are replaced with real ones. If not set, falls back to id.
+   */
+  stableKey?: string;
 }
 
 /**
@@ -254,10 +259,40 @@ export function useChatMessages(chatId: string | null) {
           if (newMessage.chatId === chatId) {
             setIsLoading(false);
             setMessages((prev) => {
-              // Avoid duplicates
+              // Avoid exact duplicates by ID
               if (prev.some((msg) => msg.id === newMessage.id)) {
                 return prev;
               }
+
+              // Check if this is a real message replacing a pending optimistic message
+              // Match by sender + content + close timestamp (within 30 seconds)
+              const pendingMatchIndex = prev.findIndex(
+                (msg) =>
+                  msg.id.startsWith('pending-') &&
+                  msg.senderId === newMessage.senderId &&
+                  msg.content === newMessage.content &&
+                  Math.abs(
+                    new Date(msg.createdAt).getTime() -
+                      new Date(newMessage.createdAt).getTime()
+                  ) < 30000 // Within 30 seconds
+              );
+
+              if (pendingMatchIndex !== -1) {
+                // Replace the optimistic message with the real one
+                // Preserve the stableKey to prevent React remount flash
+                const optimisticMsg = prev[pendingMatchIndex];
+                const newMessages = [...prev];
+                newMessages[pendingMatchIndex] = {
+                  ...newMessage,
+                  stableKey: optimisticMsg.stableKey || optimisticMsg.id,
+                };
+                return newMessages.sort(
+                  (a, b) =>
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime()
+                );
+              }
+
               return [...prev, newMessage].sort(
                 (a, b) =>
                   new Date(a.createdAt).getTime() -
@@ -295,68 +330,131 @@ export function useChatMessages(chatId: string | null) {
     }
   }, [chatId, loadMessages]);
 
-  // Polling fallback: Refresh chat every 15 seconds
-  // Ensures new messages appear even if SSE fails in multi-instance serverless
+  // Polling fallback - runs less frequently since SSE is the primary mechanism
+  // This is a safety net for edge cases where SSE might miss messages
+  const POLLING_INTERVAL_MS = 15000; // 15 seconds - less aggressive since SSE works
   useEffect(() => {
-    if (!chatId || !hasLoadedRef.current.has(chatId)) return;
+    if (!chatId) return;
 
-    const interval = setInterval(async () => {
-      // Fetch new messages without blocking - bypass the hasLoadedRef check
-      // by fetching directly instead of calling loadMessages
-      logger.debug(
-        `Polling for new messages in chat ${chatId}`,
-        { chatId },
-        'useChatMessages'
-      );
+    // Start polling after a short delay to let initial load complete
+    const startPolling = setTimeout(() => {
+      const interval = setInterval(async () => {
+        logger.debug(
+          `Polling for new messages in chat ${chatId}`,
+          { chatId },
+          'useChatMessages'
+        );
 
-      const response = await fetch(
-        `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.messages) {
-          const formattedMessages: ChatMessage[] = data.messages.map(
-            (msg: {
-              id: string;
-              content: string;
-              senderId: string;
-              createdAt: string | Date;
-            }) => ({
-              id: msg.id,
-              content: msg.content,
-              chatId: chatId,
-              senderId: msg.senderId,
-              createdAt:
-                typeof msg.createdAt === 'string'
-                  ? msg.createdAt
-                  : msg.createdAt.toISOString(),
-            })
+        try {
+          const response = await fetch(
+            `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
           );
-          // Merge with existing messages, avoiding duplicates
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const newMessages = formattedMessages.filter(
-              (m) => !existingIds.has(m.id)
-            );
-            if (newMessages.length > 0) {
-              logger.debug(
-                `Polling found ${newMessages.length} new messages`,
-                { chatId, count: newMessages.length },
-                'useChatMessages'
+          if (response.ok) {
+            const data = await response.json();
+            if (data.messages) {
+              const formattedMessages: ChatMessage[] = data.messages.map(
+                (msg: {
+                  id: string;
+                  content: string;
+                  senderId: string;
+                  createdAt: string | Date;
+                }) => ({
+                  id: msg.id,
+                  content: msg.content,
+                  chatId: chatId,
+                  senderId: msg.senderId,
+                  createdAt:
+                    typeof msg.createdAt === 'string'
+                      ? msg.createdAt
+                      : msg.createdAt.toISOString(),
+                })
               );
-              return [...prev, ...newMessages].sort(
-                (a, b) =>
-                  new Date(a.createdAt).getTime() -
-                  new Date(b.createdAt).getTime()
-              );
-            }
-            return prev;
-          });
-        }
-      }
-    }, 15000); // 15 seconds (more frequent for chat)
+              // Merge with existing messages, handling duplicates and optimistic messages
+              setMessages((prev) => {
+                const existingIds = new Set(prev.map((m) => m.id));
+                const updatedMessages = [...prev];
+                let addedCount = 0;
 
-    return () => clearInterval(interval);
+                for (const msg of formattedMessages) {
+                  // Skip exact ID matches
+                  if (existingIds.has(msg.id)) {
+                    continue;
+                  }
+
+                  // Check if this replaces an optimistic message
+                  const pendingMatchIndex = updatedMessages.findIndex(
+                    (m) =>
+                      m.id.startsWith('pending-') &&
+                      m.senderId === msg.senderId &&
+                      m.content === msg.content &&
+                      Math.abs(
+                        new Date(m.createdAt).getTime() -
+                          new Date(msg.createdAt).getTime()
+                      ) < 30000
+                  );
+
+                  if (pendingMatchIndex !== -1) {
+                    // Replace optimistic message with real one
+                    // Preserve stableKey to prevent React remount flash
+                    const optimisticMsg = updatedMessages[pendingMatchIndex];
+                    updatedMessages[pendingMatchIndex] = {
+                      ...msg,
+                      stableKey: optimisticMsg.stableKey || optimisticMsg.id,
+                    };
+                  } else {
+                    // Add as new message
+                    updatedMessages.push(msg);
+                    addedCount++;
+                  }
+                }
+
+                if (addedCount > 0) {
+                  logger.info(
+                    `Polling found ${addedCount} new messages`,
+                    { chatId, count: addedCount },
+                    'useChatMessages'
+                  );
+                }
+
+                if (addedCount > 0 || updatedMessages !== prev) {
+                  return updatedMessages.sort(
+                    (a, b) =>
+                      new Date(a.createdAt).getTime() -
+                      new Date(b.createdAt).getTime()
+                  );
+                }
+                return prev;
+              });
+              // Mark as loaded so other logic can proceed
+              hasLoadedRef.current.add(chatId);
+            }
+          }
+        } catch (error) {
+          logger.warn(
+            'Polling failed',
+            { chatId, error: String(error) },
+            'useChatMessages'
+          );
+        }
+      }, POLLING_INTERVAL_MS); // Fallback polling - SSE is primary
+
+      // Store interval ID for cleanup
+      (
+        window as unknown as {
+          __chatPollInterval?: ReturnType<typeof setInterval>;
+        }
+      ).__chatPollInterval = interval;
+    }, 1000); // Wait 1 second before starting polling
+
+    return () => {
+      clearTimeout(startPolling);
+      const interval = (
+        window as unknown as {
+          __chatPollInterval?: ReturnType<typeof setInterval>;
+        }
+      ).__chatPollInterval;
+      if (interval) clearInterval(interval);
+    };
   }, [chatId]);
 
   // Mark as loaded when connected
@@ -369,9 +467,39 @@ export function useChatMessages(chatId: string | null) {
 
   const addMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
+      // Check for exact ID match (normal dedup)
       if (prev.some((msg) => msg.id === message.id)) {
         return prev;
       }
+
+      // Check if this is a real message replacing a pending optimistic message
+      // Match by sender + content + close timestamp (within 30 seconds)
+      const pendingMatch = prev.find(
+        (msg) =>
+          msg.id.startsWith('pending-') &&
+          msg.senderId === message.senderId &&
+          msg.content === message.content &&
+          Math.abs(
+            new Date(msg.createdAt).getTime() -
+              new Date(message.createdAt).getTime()
+          ) < 30000
+      );
+
+      if (pendingMatch) {
+        // Replace pending message with real message
+        // Preserve stableKey to prevent React remount flash
+        const replacementMsg = {
+          ...message,
+          stableKey: pendingMatch.stableKey || pendingMatch.id,
+        };
+        return prev
+          .map((msg) => (msg.id === pendingMatch.id ? replacementMsg : msg))
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+      }
+
       return [...prev, message].sort(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
