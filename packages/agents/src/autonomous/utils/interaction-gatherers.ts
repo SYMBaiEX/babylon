@@ -146,7 +146,7 @@ export async function gatherPendingCommentReplies(
       authorName:
         comment.post.authorId === agentUserId
           ? 'You'
-          : postAuthor?.displayName || postAuthor?.username || 'User',
+          : formatUserName(postAuthor?.displayName, postAuthor?.username),
       isYourPost: isOnAgentPost,
     };
 
@@ -156,7 +156,7 @@ export async function gatherPendingCommentReplies(
     interactions.push({
       id: comment.id,
       postId: comment.postId,
-      author: comment.author?.displayName || comment.author?.username || 'User',
+      author: formatUserName(comment.author?.displayName, comment.author?.username),
       content: comment.content,
       post,
       thread,
@@ -257,7 +257,7 @@ export async function gatherPendingChatMessages(
 
   const getUserName = (senderId: string): string => {
     const user = senderUserMap.get(senderId);
-    return user?.displayName || user?.username || 'User';
+    return formatUserName(user?.displayName, user?.username);
   };
 
   // Process each chat
@@ -325,6 +325,17 @@ ${contextMessages.map((m) => `${m.speaker}: ${m.content}`).join('\n')}`;
 // Helper Functions
 // =============================================================================
 
+/** Format user name with both displayName and username when available */
+function formatUserName(
+  displayName: string | null | undefined,
+  username: string | null | undefined
+): string {
+  if (displayName && username) {
+    return `${displayName} (@${username})`;
+  }
+  return displayName || username || 'User';
+}
+
 /** Check if agent participated in ancestor comment chain */
 function hasAgentInAncestors(
   comment: { parentCommentId: string | null; authorId: string },
@@ -376,7 +387,7 @@ function buildThreadFromBottom(
     authorName:
       c.authorId === agentUserId
         ? 'You'
-        : c.author?.displayName || c.author?.username || 'User',
+        : formatUserName(c.author?.displayName, c.author?.username),
     content: c.content,
     isYou: c.authorId === agentUserId,
     depth: i,
