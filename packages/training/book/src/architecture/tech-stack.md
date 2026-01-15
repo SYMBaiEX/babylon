@@ -59,8 +59,13 @@ packages/training/src/
 │   ├── ArchetypeConfigService.ts
 │   └── index.ts                 # Exports
 ├── benchmark/
-│   └── BenchmarkDataGenerator.ts  # Synthetic data
-└── index.ts                     # Public exports
+│   ├── BenchmarkDataGenerator.ts  # Synthetic data generation
+│   ├── BenchmarkRunner.ts         # Run model against scenarios
+│   ├── ScenarioLoader.ts          # Load fixed scenarios
+│   ├── ArchetypeFitCalculator.ts  # Archetype alignment scoring
+│   ├── StakeholderReport.ts       # Generate HTML/JSON/text reports
+│   └── SimulationEngine.ts        # Run simulations
+└── index.ts                       # Public exports
 ```
 
 ## Python Stack

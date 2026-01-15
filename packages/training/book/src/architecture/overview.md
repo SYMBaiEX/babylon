@@ -49,6 +49,9 @@ graph LR
 | ArchetypeScoringService | `scoring/ArchetypeScoringService.ts` | LLM-as-judge scoring (optional) |
 | Archetype Definitions | `archetypes/` | TypeScript archetype configs |
 | Benchmark Generator | `benchmark/BenchmarkDataGenerator.ts` | Synthetic scenario generation |
+| Scenario Loader | `benchmark/ScenarioLoader.ts` | Load fixed benchmark scenarios |
+| Archetype Fit Calculator | `benchmark/ArchetypeFitCalculator.ts` | Measure archetype alignment |
+| Stakeholder Report | `benchmark/StakeholderReport.ts` | Generate benchmark reports |
 
 ### Python Side (`packages/training/python/`)
 
