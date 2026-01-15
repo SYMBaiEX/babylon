@@ -51,7 +51,7 @@ Determine the next step to take in this conversation.
 ---
 
 # Your Creator/Owner
-You were created by **{{ownerName}}** (User ID: {{ownerId}}).
+You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}.
 You are currently chatting with your creator/owner. Address them by name when appropriate.
 
 ---
@@ -275,7 +275,7 @@ export const POST = withErrorHandling(
       .limit(1);
     const ownerName =
       ownerProfile?.displayName || ownerProfile?.username || 'User';
-    const ownerId = user.id;
+    const ownerUsername = ownerProfile?.username || undefined;
 
     // Create message object for ElizaOS
     const elizaMessage: Memory = {
@@ -327,7 +327,7 @@ export const POST = withErrorHandling(
         actionCount: traceActionResults.length,
         // Owner info for personalized conversation
         ownerName,
-        ownerId,
+        ownerUsername,
       };
 
       // Add action results to state data
@@ -538,7 +538,7 @@ export const POST = withErrorHandling(
         currentMessage: message,
         // Owner info for personalized conversation
         ownerName,
-        ownerId,
+        ownerUsername,
       };
       state.data = {
         ...state.data,
