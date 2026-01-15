@@ -22,6 +22,8 @@ import { useAuthStore } from '@/stores/authStore';
 // Constants for scroll behavior
 const SCROLL_NEAR_BOTTOM_THRESHOLD = 150;
 const SCROLL_STABLE_FRAMES_REQUIRED = 5;
+// Maximum retries for scroll height stabilization (~2 seconds max)
+const MAX_SCROLL_STABLE_RETRIES = 20;
 
 /** Typing user info */
 interface TypingUser {
@@ -184,9 +186,16 @@ export function useTeamChat(): UseTeamChatReturn {
     // Poll until scrollHeight stabilizes (content fully rendered)
     let lastHeight = 0;
     let stableFrames = 0;
+    let retryCount = 0;
     let frameId: number;
 
     const pollUntilStable = () => {
+      // Safety: abort after max retries to prevent infinite loops
+      if (++retryCount > MAX_SCROLL_STABLE_RETRIES) {
+        container.scrollTop = container.scrollHeight;
+        return;
+      }
+
       const currentHeight = container.scrollHeight;
       if (currentHeight === lastHeight && currentHeight > 0) {
         if (++stableFrames >= SCROLL_STABLE_FRAMES_REQUIRED) {
@@ -275,9 +284,17 @@ export function useTeamChat(): UseTeamChatReturn {
     (data: Record<string, unknown>) => {
       // Handle typing indicator (user or agent is typing)
       if (data.type === 'typing_indicator') {
-        const userId = data.userId as string;
-        const displayName = data.displayName as string;
-        const isTyping = data.isTyping as boolean;
+        // Validate required fields before processing
+        if (
+          typeof data.userId !== 'string' ||
+          typeof data.displayName !== 'string' ||
+          typeof data.isTyping !== 'boolean'
+        ) {
+          return;
+        }
+        const userId = data.userId;
+        const displayName = data.displayName;
+        const isTyping = data.isTyping;
 
         // Don't show our own typing
         if (userId === user?.id) return;

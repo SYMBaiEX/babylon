@@ -219,8 +219,8 @@ export async function GET(request: NextRequest) {
           return lastIds.get(k) || cursorId || '$';
         });
 
-        // Debug: log every 3rd iteration what IDs we're using
-        if (loopCount % 3 === 0) {
+        // Debug: log every 15th iteration what IDs we're using (~15 seconds with 1s block)
+        if (loopCount % 15 === 0) {
           logger.debug(
             'SSE streamRead parameters',
             { loopCount, streamKeys, ids, redisStatus: redis.status },

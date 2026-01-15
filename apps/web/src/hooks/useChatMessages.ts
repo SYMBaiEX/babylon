@@ -51,6 +51,13 @@ function sortByTime(messages: ChatMessage[]): ChatMessage[] {
   );
 }
 
+/**
+ * Time window (ms) for matching optimistic messages to confirmed messages.
+ * If a confirmed message arrives within this window of an optimistic message
+ * with matching content and sender, they are considered the same message.
+ */
+const OPTIMISTIC_MATCH_WINDOW_MS = 30000;
+
 /** Check if a message is a pending optimistic message matching the new message */
 function isMatchingOptimistic(
   pending: ChatMessage,
@@ -63,7 +70,7 @@ function isMatchingOptimistic(
     Math.abs(
       new Date(pending.createdAt).getTime() -
         new Date(incoming.createdAt).getTime()
-    ) < 30000
+    ) < OPTIMISTIC_MATCH_WINDOW_MS
   );
 }
 

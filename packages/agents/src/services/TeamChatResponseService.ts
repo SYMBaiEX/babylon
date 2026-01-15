@@ -35,6 +35,17 @@ import { logger } from '../shared/logger';
 // =============================================================================
 
 /**
+ * Thresholds for message complexity detection.
+ * These can be tuned to adjust sensitivity of complexity classification.
+ */
+const COMPLEXITY_THRESHOLDS = {
+  /** Messages with more than this many words are considered complex */
+  LONG_MESSAGE_WORD_COUNT: 50,
+  /** Messages with fewer than this many words may qualify as quick */
+  SHORT_MESSAGE_WORD_COUNT: 15,
+} as const;
+
+/**
  * Message complexity levels for adaptive timing
  */
 export type MessageComplexity = 'quick' | 'normal' | 'complex';
@@ -106,7 +117,10 @@ export function detectMessageComplexity(content: string): MessageComplexity {
   );
 
   // Long messages are likely complex
-  if (wordCount > 50 || hasComplexKeyword) {
+  if (
+    wordCount > COMPLEXITY_THRESHOLDS.LONG_MESSAGE_WORD_COUNT ||
+    hasComplexKeyword
+  ) {
     return 'complex';
   }
 
@@ -120,7 +134,7 @@ export function detectMessageComplexity(content: string): MessageComplexity {
 
   // Short messages with question marks and no complex keywords
   const hasQuestionMark = content.includes('?');
-  const isShort = wordCount <= 15;
+  const isShort = wordCount <= COMPLEXITY_THRESHOLDS.SHORT_MESSAGE_WORD_COUNT;
 
   if (hasQuickKeyword || (isShort && hasQuestionMark && !hasComplexKeyword)) {
     return 'quick';

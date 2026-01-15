@@ -70,23 +70,24 @@ export function orderAgentIds(
       });
 
     default:
-      return agentIds;
+      return [...agentIds];
   }
 }
 
 /**
  * Fisher-Yates shuffle for randomizing array order.
- * Creates a shallow copy and shuffles in place.
+ * Creates a shallow copy and shuffles it, leaving the original unchanged.
  *
- * @param array - Array to shuffle (will be mutated)
- * @returns The shuffled array (same reference as input)
+ * @param array - Array to shuffle (not mutated)
+ * @returns A new shuffled array
  */
 export function shuffleArray<T>(array: T[]): T[] {
-  for (let i = array.length - 1; i > 0; i--) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    const temp = array[i];
-    array[i] = array[j] as T;
-    array[j] = temp as T;
+    const temp = copy[i];
+    copy[i] = copy[j] as T;
+    copy[j] = temp as T;
   }
-  return array;
+  return copy;
 }

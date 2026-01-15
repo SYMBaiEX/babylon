@@ -75,7 +75,12 @@ import { z } from 'zod';
  * Configuration for how agents respond when no specific agent is @mentioned.
  *
  * This can be modified by developers to tune the behavior.
- * In the future, this could be moved to environment variables or a config file.
+ *
+ * TODO(BAB-XXX): Consider moving to environment variables or a config service
+ * for runtime tuning without code changes. This would allow:
+ * - A/B testing different maxAgents values
+ * - Per-team customization of ordering strategy
+ * - Dynamic adjustment based on team size
  */
 const UNTAGGED_RESPONSE_CONFIG = {
   /**
