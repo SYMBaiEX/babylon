@@ -515,29 +515,30 @@ function scoreActivityLevel(
   config: ArchetypeConfig,
   durationDays: number
 ): number {
-  const actionsPerDay = result.actions.length / durationDays;
+  // Activity is normalized per day, making this scoring consistent across
+  // different scenario durations (e.g., 7-day quick mode vs 22-day full scenarios).
+  // The ratio actionsPerDay / expectedActionsPerDay is what matters, not absolute counts.
+  const actionsPerDay = result.actions.length / (durationDays || 1);
 
-  // Expected activity based on archetype
-  // Degen and scammer should be very active
-  // Researcher and trader should be moderate
-  // Social butterfly should have high social activity
-
+  // Expected activity levels per archetype (tunable parameters).
+  // These values represent target actions/day for ideal archetype fit.
+  // Adjust based on observed agent behavior in production if needed.
   let expectedActionsPerDay: number;
   switch (config.id) {
     case 'degen':
-      expectedActionsPerDay = 10;
+      expectedActionsPerDay = 10; // Very active trader
       break;
     case 'scammer':
-      expectedActionsPerDay = 8;
+      expectedActionsPerDay = 8; // High posting/engagement
       break;
     case 'social-butterfly':
-      expectedActionsPerDay = 6;
+      expectedActionsPerDay = 6; // Moderate-high social activity
       break;
     case 'trader':
-      expectedActionsPerDay = 4;
+      expectedActionsPerDay = 4; // Measured, strategic
       break;
     case 'researcher':
-      expectedActionsPerDay = 3;
+      expectedActionsPerDay = 3; // Low activity, high quality
       break;
     default:
       expectedActionsPerDay = 5;

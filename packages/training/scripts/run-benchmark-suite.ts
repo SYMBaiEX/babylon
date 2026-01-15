@@ -146,11 +146,11 @@ Examples:
 
 /**
  * Creates a mock IAgentRuntime for benchmark simulations.
- * 
+ *
  * This factory provides a minimal runtime interface that the benchmark
  * runner needs. For production, this should be replaced with a proper
  * runtime factory from @elizaos/core.
- * 
+ *
  * @param modelPath - Optional path to a trained model checkpoint
  * @returns A mock runtime suitable for benchmarking
  */
@@ -181,7 +181,7 @@ function createBenchmarkRuntime(modelPath?: string): IAgentRuntime {
 
 /**
  * Truncates a scenario to QUICK_MODE_DURATION_DAYS for faster benchmarking.
- * 
+ *
  * This creates a shallow copy with truncated ticks and adjusted duration,
  * while preserving all other scenario properties.
  */
@@ -189,7 +189,7 @@ function truncateScenarioForQuickMode(
   scenario: FixedBenchmarkScenario
 ): FixedBenchmarkScenario {
   const originalDays = scenario.durationDays;
-  
+
   // If scenario is already shorter than quick mode duration, return as-is
   if (originalDays <= QUICK_MODE_DURATION_DAYS) {
     return scenario;
@@ -198,7 +198,7 @@ function truncateScenarioForQuickMode(
   // Calculate how many ticks to keep
   const ticksPerDay = scenario.snapshot.ticks.length / originalDays;
   const quickModeTicks = Math.floor(ticksPerDay * QUICK_MODE_DURATION_DAYS);
-  
+
   // Calculate new duration in seconds
   const tickIntervalSeconds = scenario.snapshot.tickInterval;
   const newDurationSeconds = quickModeTicks * tickIntervalSeconds;
@@ -317,7 +317,8 @@ async function runScenarioBenchmark(
     logger.info(`Scenario complete: ${scenario.name}`, {
       baselinePnl: baselineResult.metrics.totalPnl,
       challengerPnl: challengerResult.metrics.totalPnl,
-      alpha: challengerResult.metrics.totalPnl - baselineResult.metrics.totalPnl,
+      alpha:
+        challengerResult.metrics.totalPnl - baselineResult.metrics.totalPnl,
       baselineFit: baselineFit.fitScore,
       challengerFit: challengerFit.fitScore,
     });
@@ -379,13 +380,19 @@ async function main() {
   // Apply quick mode: truncate scenarios to QUICK_MODE_DURATION_DAYS
   if (options.quick) {
     const originalDuration = scenarios[0]?.durationDays || 22;
-    scenarios = scenarios.map((scenario) => truncateScenarioForQuickMode(scenario));
-    console.log(`⚡ Quick mode: Running ${QUICK_MODE_DURATION_DAYS}-day scenarios (vs full ${originalDuration} days)`);
+    scenarios = scenarios.map((scenario) =>
+      truncateScenarioForQuickMode(scenario)
+    );
+    console.log(
+      `⚡ Quick mode: Running ${QUICK_MODE_DURATION_DAYS}-day scenarios (vs full ${originalDuration} days)`
+    );
   }
 
   console.log(`📋 Running ${scenarios.length} scenario(s):`);
   for (const s of scenarios) {
-    console.log(`   • ${s.name} (${s.id}) - ${s.durationDays} days, ${s.snapshot.ticks.length} ticks`);
+    console.log(
+      `   • ${s.name} (${s.id}) - ${s.durationDays} days, ${s.snapshot.ticks.length} ticks`
+    );
   }
   console.log('');
 
@@ -428,7 +435,9 @@ async function main() {
       );
     } catch (error) {
       console.error(`   ❌ Scenario failed: ${scenario.name}`);
-      console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `   Error: ${error instanceof Error ? error.message : String(error)}`
+      );
       logger.error('Scenario benchmark failed', {
         scenario: scenario.name,
         error: error instanceof Error ? error.message : String(error),

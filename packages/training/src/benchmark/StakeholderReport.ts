@@ -273,7 +273,7 @@ function calculateOverallVerdict(
   const scenariosLost = scenarios.filter((s) => s.winner === 'baseline').length;
   const scenariosTied = scenarios.filter((s) => s.winner === 'tie').length;
   const totalAlpha = scenarios.reduce((sum, s) => sum + s.alphaGenerated, 0);
-  
+
   // Guard against division by zero if scenarios is empty
   const scenarioCount = scenarios.length || 1;
   const avgPnlImprovement =
@@ -419,6 +419,11 @@ export class StakeholderReportGenerator {
 
   /**
    * Generate HTML report
+   * 
+   * Note: Report content is interpolated directly into HTML. Currently this is safe
+   * because all data comes from internal JSON files with no user input. If user-provided
+   * data is ever added to reports, consider using a sanitization library (e.g., DOMPurify)
+   * or a template engine with auto-escaping (e.g., Handlebars).
    */
   static async generateHtml(
     report: FullBenchmarkReport,
@@ -738,7 +743,7 @@ export class StakeholderReportGenerator {
 
   /**
    * Save all report formats
-   * 
+   *
    * @param report - The benchmark report to save
    * @param outputDir - Directory to write report files
    * @param printToConsole - Whether to print text summary to console (default: true for CLI usage)

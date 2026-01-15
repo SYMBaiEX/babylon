@@ -336,7 +336,7 @@ export class ScenarioLoader {
       if (!file.endsWith('.json')) continue;
 
       const scenarioId = file.replace('.json', '');
-      
+
       // Validate scenario ID before loading to avoid confusing errors
       if (!isValidScenarioId(scenarioId)) {
         logger.warn('Skipping unknown scenario file', { file });
