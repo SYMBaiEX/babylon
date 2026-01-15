@@ -1127,7 +1127,8 @@ export class MultiStepExecutor {
       return {
         actionType: Actions.GROUP_MESSAGE,
         success: false,
-        summary: 'Cannot use GROUP_MESSAGE on a DM chat - use DM or REPLY_CHAT instead',
+        summary:
+          'Cannot use GROUP_MESSAGE on a DM chat - use DM or REPLY_CHAT instead',
         error: 'Chat is not a group chat',
         parameters,
         timestamp: Date.now(),
