@@ -257,7 +257,7 @@ Each social archetype weights these differently:
 | Ass-Kisser | 35% | 15% | **40%** | 10% |
 | Goody Two-Shoes | 25% | 20% | 30% | 25% |
 
-A Social Butterfly with 25+ unique connections and high reputation can outscore a passive trader with zero P&L.
+A Social Butterfly with 15+ unique connections and positive reputation can outscore a passive trader with zero P&L.
 
 See [Enhanced Rewards - Social & Narrative](../scoring/enhanced-rewards.md#social--narrative-rewards) for implementation details.
 

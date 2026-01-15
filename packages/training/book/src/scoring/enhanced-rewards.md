@@ -470,7 +470,7 @@ reward = social_only_composite_reward(
 
 ### Key Insight
 
-A Social Butterfly with no trading but 25+ unique connections, 6+ group chats, and high reputation can **outscore** a passive trader who just holds their balance. This enables training agents specialized in community building rather than trading.
+A Social Butterfly with no trading but 15+ unique connections, 5+ group chats, and positive reputation can **outscore** a passive trader who just holds their balance. This enables training agents specialized in community building rather than trading.
 
 ### W&B Metrics
 

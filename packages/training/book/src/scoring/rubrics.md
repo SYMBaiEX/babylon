@@ -146,7 +146,7 @@ Social Butterfly uses the social reward system with:
 - Information Spread: 20%
 - Narrative Alignment: 10%
 
-A Social Butterfly can score 0.6+ with zero trading by building 25+ connections.
+A Social Butterfly can achieve excellent network scores (1.0) with 15+ unique connections.
 ```
 
 ## Priority Metrics
