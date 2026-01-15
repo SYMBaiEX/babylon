@@ -208,12 +208,12 @@ export function useTeamChat(): UseTeamChatReturn {
   ]);
 
   // Reset scroll tracking when chat changes
-  const chatId = teamChat?.chatId;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally reset refs when chatId changes
   useEffect(() => {
     hasInitialScrolledRef.current = false;
     prevMessageCountRef.current = 0;
     wasNearBottomRef.current = true;
-  }, [chatId]);
+  }, [teamChat?.chatId]);
 
   // Auto-scroll when NEW messages arrive (count increases), if user was near bottom
   useEffect(() => {
