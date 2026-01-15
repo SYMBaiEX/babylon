@@ -135,11 +135,13 @@ export class MultiStepExecutor {
     } else {
       if (config?.autonomousTrading) enabledFeatures.push(Features.TRADING);
       if (config?.autonomousPosting) enabledFeatures.push(Features.POSTING);
-      if (config?.autonomousCommenting) enabledFeatures.push(Features.COMMENTING);
+      if (config?.autonomousCommenting)
+        enabledFeatures.push(Features.COMMENTING);
       // User-controlled agents can also engage if they can comment
       if (config?.autonomousCommenting) enabledFeatures.push(Features.ENGAGING);
       if (config?.autonomousDMs) enabledFeatures.push(Features.DMS);
-      if (config?.autonomousGroupChats) enabledFeatures.push(Features.GROUP_CHATS);
+      if (config?.autonomousGroupChats)
+        enabledFeatures.push(Features.GROUP_CHATS);
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
@@ -1098,6 +1100,35 @@ export class MultiStepExecutor {
         success: false,
         summary: 'Missing required parameters (chatId, content)',
         error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Validate that the chat is actually a group chat
+    const [chat] = await db
+      .select({ isGroup: chats.isGroup })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return {
+        actionType: Actions.GROUP_MESSAGE,
+        success: false,
+        summary: 'Chat not found',
+        error: 'Invalid chatId',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    if (!chat.isGroup) {
+      return {
+        actionType: Actions.GROUP_MESSAGE,
+        success: false,
+        summary: 'Cannot use GROUP_MESSAGE on a DM chat - use DM or REPLY_CHAT instead',
+        error: 'Chat is not a group chat',
         parameters,
         timestamp: Date.now(),
       };
