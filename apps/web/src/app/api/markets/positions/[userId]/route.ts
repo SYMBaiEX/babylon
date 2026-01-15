@@ -309,8 +309,8 @@ export const GET = withErrorHandling(
           openedAt: p.openedAt.toISOString(),
           // Agent position metadata
           isAgentPosition: p.isAgentPosition,
-          agentId: p.agentId,
-          agentName: p.agentName,
+          agentId: p.agentId ?? null,
+          agentName: p.agentName ?? null,
         })),
         stats: perpStats,
       },
@@ -377,8 +377,8 @@ export const GET = withErrorHandling(
               resolution: market.resolution,
               // Agent position metadata
               isAgentPosition: p.isAgentPosition,
-              agentId: p.agentId,
-              agentName: p.agentName,
+              agentId: p.agentId ?? null,
+              agentName: p.agentName ?? null,
             };
           })
           // Filter out null positions and positions with effectively zero shares

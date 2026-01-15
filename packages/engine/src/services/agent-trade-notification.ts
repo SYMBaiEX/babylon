@@ -153,7 +153,14 @@ export async function notifyOwnerOfAgentTrade(
       'Failed to send trade notification',
       {
         agentUserId,
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+              }
+            : error,
       },
       'AgentTradeNotification'
     );

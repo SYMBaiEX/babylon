@@ -225,8 +225,8 @@ export const GET = withErrorHandling(
         : null,
       action: trade.action as 'open' | 'close',
       side: trade.side,
-      amount: trade.amount,
-      pnl: trade.pnl,
+      amount: Number(trade.amount),
+      pnl: trade.pnl !== null ? Number(trade.pnl) : null,
       executedAt: trade.executedAt.toISOString(),
     }));
 
