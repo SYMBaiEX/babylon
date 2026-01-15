@@ -571,27 +571,27 @@ export class MultiStepExecutor {
     agentUserId: string,
     parameters: Record<string, unknown>
   ): Promise<ActionTraceResult> {
-        const marketType = parameters.marketType as 'prediction' | 'perp';
-        const marketId = parameters.marketId as string;
+    const marketType = parameters.marketType as 'prediction' | 'perp';
+    const marketId = parameters.marketId as string;
     const side = parameters.side as string;
-        const amount = Number(parameters.amount || 100);
-        const reasoning = parameters.reasoning as string | undefined;
+    const amount = Number(parameters.amount || 100);
+    const reasoning = parameters.reasoning as string | undefined;
 
-        if (!marketId || !side) {
-          return {
+    if (!marketId || !side) {
+      return {
         actionType: Actions.TRADE,
-            success: false,
-            summary: 'Missing required parameters (marketId, side)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameters (marketId, side)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        const tradeResult = await executeDirectTrade({
-          agentUserId,
-          marketType: marketType || 'prediction',
-          marketId,
+    const tradeResult = await executeDirectTrade({
+      agentUserId,
+      marketType: marketType || 'prediction',
+      marketId,
       side: side as
         | 'buy_yes'
         | 'buy_no'
@@ -600,28 +600,28 @@ export class MultiStepExecutor {
         | 'open_long'
         | 'open_short'
         | 'close_position',
-          amount,
-          reasoning,
-        });
+      amount,
+      reasoning,
+    });
 
-        return {
+    return {
       actionType: Actions.TRADE,
-          success: tradeResult.success,
-          summary: tradeResult.success
-            ? `Traded ${side} $${amount} on ${tradeResult.marketId || tradeResult.ticker}`
-            : `Trade failed: ${tradeResult.error}`,
-          result: {
-            success: tradeResult.success,
-            marketId: tradeResult.marketId,
-            ticker: tradeResult.ticker,
-            side: tradeResult.side,
-            shares: tradeResult.shares,
-            error: tradeResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: tradeResult.success,
+      summary: tradeResult.success
+        ? `Traded ${side} $${amount} on ${tradeResult.marketId || tradeResult.ticker}`
+        : `Trade failed: ${tradeResult.error}`,
+      result: {
+        success: tradeResult.success,
+        marketId: tradeResult.marketId,
+        ticker: tradeResult.ticker,
+        side: tradeResult.side,
+        shares: tradeResult.shares,
+        error: tradeResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executePost(
     agentUserId: string,
@@ -629,234 +629,234 @@ export class MultiStepExecutor {
     isNpc: boolean,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
-        // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
-        if (!isNpc && Math.random() > 0.1) {
-          logger.info(
-            `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
-            undefined,
-            'MultiStepExecutor'
-          );
-          return {
+    // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
+    if (!isNpc && Math.random() > 0.1) {
+      logger.info(
+        `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
+        undefined,
+        'MultiStepExecutor'
+      );
+      return {
         actionType: Actions.POST,
-            success: false,
+        success: false,
         summary: 'Post rate limited - focus on trading and engagement instead',
-            error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        const content = parameters.content as string;
+    const content = parameters.content as string;
 
-        if (!content) {
-          return {
+    if (!content) {
+      return {
         actionType: Actions.POST,
-            success: false,
-            summary: 'Missing content parameter',
-            error: 'No content provided',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing content parameter',
+        error: 'No content provided',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
     const postResult = await executeDirectPost({ agentUserId, content });
 
-        if (postResult.success && logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'post',
-            level: 'info',
-            message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              postId: postResult.postId ?? null,
-              contentLength: content.length,
-            },
-          });
-        }
+    if (postResult.success && logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'post',
+        level: 'info',
+        message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          postId: postResult.postId ?? null,
+          contentLength: content.length,
+        },
+      });
+    }
 
-        return {
+    return {
       actionType: Actions.POST,
-          success: postResult.success,
-          summary: postResult.success
-            ? `Created post ${postResult.postId}`
-            : `Post failed: ${postResult.error}`,
-          result: {
-            success: postResult.success,
-            postId: postResult.postId,
-            error: postResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: postResult.success,
+      summary: postResult.success
+        ? `Created post ${postResult.postId}`
+        : `Post failed: ${postResult.error}`,
+      result: {
+        success: postResult.success,
+        postId: postResult.postId,
+        error: postResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeComment(
     agentUserId: string,
     parameters: Record<string, unknown>,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
-        const postId = parameters.postId as string;
-        const content = parameters.content as string;
+    const postId = parameters.postId as string;
+    const content = parameters.content as string;
     const parentCommentId = parameters.parentCommentId as string | undefined;
 
-        if (!postId || !content) {
-          return {
+    if (!postId || !content) {
+      return {
         actionType: Actions.COMMENT,
-            success: false,
-            summary: 'Missing required parameters (postId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameters (postId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        const commentResult = await executeDirectComment({
-          agentUserId,
+    const commentResult = await executeDirectComment({
+      agentUserId,
+      postId,
+      content,
+      parentCommentId,
+    });
+
+    if (commentResult.success && logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'comment',
+        level: 'info',
+        message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          commentId: commentResult.commentId ?? null,
           postId,
-          content,
-          parentCommentId,
-        });
+          parentCommentId: parentCommentId ?? null,
+          contentLength: content.length,
+        },
+      });
+    }
 
-        if (commentResult.success && logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'comment',
-            level: 'info',
-            message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              commentId: commentResult.commentId ?? null,
-              postId,
-              parentCommentId: parentCommentId ?? null,
-              contentLength: content.length,
-            },
-          });
-        }
-
-        return {
+    return {
       actionType: Actions.COMMENT,
-          success: commentResult.success,
-          summary: commentResult.success
-            ? `Created comment ${commentResult.commentId}`
-            : `Comment failed: ${commentResult.error}`,
-          result: {
-            success: commentResult.success,
-            commentId: commentResult.commentId,
-            error: commentResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: commentResult.success,
+      summary: commentResult.success
+        ? `Created comment ${commentResult.commentId}`
+        : `Comment failed: ${commentResult.error}`,
+      result: {
+        success: commentResult.success,
+        commentId: commentResult.commentId,
+        error: commentResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeLike(
     agentUserId: string,
     parameters: Record<string, unknown>
   ): Promise<ActionTraceResult> {
-        const postId = parameters.postId as string;
+    const postId = parameters.postId as string;
 
-        if (!postId) {
-          return {
+    if (!postId) {
+      return {
         actionType: Actions.LIKE,
-            success: false,
-            summary: 'Missing required parameter (postId)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameter (postId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
     const likeResult = await executeDirectLike({ agentUserId, postId });
 
-        await agentService.createLog(agentUserId, {
-          type: 'like',
-          level: likeResult.success ? 'info' : 'warn',
-          message: likeResult.success
-            ? `Liked post ${postId}`
-            : `Like failed: ${likeResult.error}`,
-          metadata: {
-            postId,
-            success: likeResult.success,
-            liked: likeResult.liked ?? false,
-            error: likeResult.error ?? null,
-          },
-        });
+    await agentService.createLog(agentUserId, {
+      type: 'like',
+      level: likeResult.success ? 'info' : 'warn',
+      message: likeResult.success
+        ? `Liked post ${postId}`
+        : `Like failed: ${likeResult.error}`,
+      metadata: {
+        postId,
+        success: likeResult.success,
+        liked: likeResult.liked ?? false,
+        error: likeResult.error ?? null,
+      },
+    });
 
-        return {
+    return {
       actionType: Actions.LIKE,
-          success: likeResult.success,
-          summary: likeResult.success
-            ? `Liked post ${postId}`
-            : `Like failed: ${likeResult.error}`,
-          result: {
-            success: likeResult.success,
-            liked: likeResult.liked,
-            error: likeResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: likeResult.success,
+      summary: likeResult.success
+        ? `Liked post ${postId}`
+        : `Like failed: ${likeResult.error}`,
+      result: {
+        success: likeResult.success,
+        liked: likeResult.liked,
+        error: likeResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeRepost(
     agentUserId: string,
     parameters: Record<string, unknown>
   ): Promise<ActionTraceResult> {
-        const postId = parameters.postId as string;
-        const comment = parameters.comment as string | undefined;
+    const postId = parameters.postId as string;
+    const comment = parameters.comment as string | undefined;
 
-        if (!postId) {
-          return {
+    if (!postId) {
+      return {
         actionType: Actions.REPOST,
-            success: false,
-            summary: 'Missing required parameter (postId)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameter (postId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        const repostResult = await executeDirectRepost({
-          agentUserId,
-          postId,
-          comment,
-        });
+    const repostResult = await executeDirectRepost({
+      agentUserId,
+      postId,
+      comment,
+    });
 
-        await agentService.createLog(agentUserId, {
-          type: 'repost',
-          level: repostResult.success ? 'info' : 'warn',
-          message: repostResult.success
-            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
-            : `Repost failed: ${repostResult.error}`,
-          metadata: {
-            postId,
-            success: repostResult.success,
-            repostId: repostResult.repostId ?? null,
-            quotePostId: repostResult.quotePostId ?? null,
-            hasComment: !!comment,
-            error: repostResult.error ?? null,
-          },
-        });
+    await agentService.createLog(agentUserId, {
+      type: 'repost',
+      level: repostResult.success ? 'info' : 'warn',
+      message: repostResult.success
+        ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+        : `Repost failed: ${repostResult.error}`,
+      metadata: {
+        postId,
+        success: repostResult.success,
+        repostId: repostResult.repostId ?? null,
+        quotePostId: repostResult.quotePostId ?? null,
+        hasComment: !!comment,
+        error: repostResult.error ?? null,
+      },
+    });
 
-        return {
+    return {
       actionType: Actions.REPOST,
-          success: repostResult.success,
-          summary: repostResult.success
-            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
-            : `Repost failed: ${repostResult.error}`,
-          result: {
-            success: repostResult.success,
-            repostId: repostResult.repostId,
-            quotePostId: repostResult.quotePostId,
-            error: repostResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: repostResult.success,
+      summary: repostResult.success
+        ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+        : `Repost failed: ${repostResult.error}`,
+      result: {
+        success: repostResult.success,
+        repostId: repostResult.repostId,
+        quotePostId: repostResult.quotePostId,
+        error: repostResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeReplyComment(
     agentUserId: string,
@@ -879,7 +879,7 @@ export class MultiStepExecutor {
     }
 
     const commentResult = await executeDirectComment({
-          agentUserId,
+      agentUserId,
       postId,
       content,
       parentCommentId: commentId,
@@ -905,7 +905,7 @@ export class MultiStepExecutor {
       });
     }
 
-        return {
+    return {
       actionType: Actions.REPLY_COMMENT,
       success: commentResult.success,
       summary: commentResult.success
@@ -916,10 +916,10 @@ export class MultiStepExecutor {
         commentId: commentResult.commentId,
         error: commentResult.error,
       },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeReplyChat(
     agentUserId: string,
@@ -1018,90 +1018,90 @@ export class MultiStepExecutor {
     parameters: Record<string, unknown>,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
-        const recipientId = parameters.recipientId as string;
-        const content = parameters.content as string;
+    const recipientId = parameters.recipientId as string;
+    const content = parameters.content as string;
 
-        if (!recipientId || !content) {
-          return {
+    if (!recipientId || !content) {
+      return {
         actionType: Actions.DM,
-            success: false,
-            summary: 'Missing required parameters (recipientId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameters (recipientId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        if (recipientId === agentUserId) {
-          return {
+    if (recipientId === agentUserId) {
+      return {
         actionType: Actions.DM,
-            success: false,
-            summary: 'Cannot DM yourself',
-            error: 'Cannot DM yourself',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Cannot DM yourself',
+        error: 'Cannot DM yourself',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
-        const messageResult = await executeDirectMessage({
-          agentUserId,
+    const messageResult = await executeDirectMessage({
+      agentUserId,
+      recipientId,
+      content,
+    });
+
+    if (logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'dm',
+        level: messageResult.success ? 'info' : 'warn',
+        message: messageResult.success
+          ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          messageId: messageResult.messageId ?? null,
           recipientId,
-          content,
-        });
+          contentLength: content.length,
+          error: messageResult.error ?? null,
+        },
+      });
+    }
 
-        if (logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'dm',
-            level: messageResult.success ? 'info' : 'warn',
-            message: messageResult.success
-              ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-              : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              messageId: messageResult.messageId ?? null,
-              recipientId,
-              contentLength: content.length,
-              error: messageResult.error ?? null,
-            },
-          });
-        }
-
-        return {
+    return {
       actionType: Actions.DM,
-          success: messageResult.success,
-          summary: messageResult.success
-            ? `Sent message ${messageResult.messageId} to ${recipientId}`
-            : `Message failed: ${messageResult.error}`,
-          result: {
-            success: messageResult.success,
-            messageId: messageResult.messageId,
-            error: messageResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: messageResult.success,
+      summary: messageResult.success
+        ? `Sent message ${messageResult.messageId} to ${recipientId}`
+        : `Message failed: ${messageResult.error}`,
+      result: {
+        success: messageResult.success,
+        messageId: messageResult.messageId,
+        error: messageResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   private async executeGroupMessage(
     agentUserId: string,
     parameters: Record<string, unknown>,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
-        const chatId = parameters.chatId as string;
-        const content = parameters.content as string;
+    const chatId = parameters.chatId as string;
+    const content = parameters.content as string;
 
-        if (!chatId || !content) {
-          return {
+    if (!chatId || !content) {
+      return {
         actionType: Actions.GROUP_MESSAGE,
-            success: false,
-            summary: 'Missing required parameters (chatId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+        success: false,
+        summary: 'Missing required parameters (chatId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
 
     // Validate that the chat is actually a group chat
     const [chat] = await db
@@ -1133,44 +1133,44 @@ export class MultiStepExecutor {
       };
     }
 
-        const groupMessageResult = await executeDirectMessage({
-          agentUserId,
-          chatId,
-          content,
-        });
+    const groupMessageResult = await executeDirectMessage({
+      agentUserId,
+      chatId,
+      content,
+    });
 
-        await agentService.createLog(agentUserId, {
-          type: 'chat',
-          level: groupMessageResult.success ? 'info' : 'warn',
-          message: groupMessageResult.success
-            ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-            : `Failed to send group message: ${groupMessageResult.error}`,
-          prompt: logContext?.prompt ?? undefined,
-          completion: logContext?.completion ?? undefined,
-          thinking: logContext?.thought ?? undefined,
-          metadata: {
-            messageId: groupMessageResult.messageId ?? null,
-            chatId,
-            contentLength: content.length,
-            error: groupMessageResult.error ?? null,
-          },
-        });
+    await agentService.createLog(agentUserId, {
+      type: 'chat',
+      level: groupMessageResult.success ? 'info' : 'warn',
+      message: groupMessageResult.success
+        ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+        : `Failed to send group message: ${groupMessageResult.error}`,
+      prompt: logContext?.prompt ?? undefined,
+      completion: logContext?.completion ?? undefined,
+      thinking: logContext?.thought ?? undefined,
+      metadata: {
+        messageId: groupMessageResult.messageId ?? null,
+        chatId,
+        contentLength: content.length,
+        error: groupMessageResult.error ?? null,
+      },
+    });
 
-        return {
+    return {
       actionType: Actions.GROUP_MESSAGE,
-          success: groupMessageResult.success,
-          summary: groupMessageResult.success
-            ? `Sent message to group chat ${chatId}`
-            : `Group message failed: ${groupMessageResult.error}`,
-          result: {
-            success: groupMessageResult.success,
-            messageId: groupMessageResult.messageId,
-            error: groupMessageResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
+      success: groupMessageResult.success,
+      summary: groupMessageResult.success
+        ? `Sent message to group chat ${chatId}`
+        : `Group message failed: ${groupMessageResult.error}`,
+      result: {
+        success: groupMessageResult.success,
+        messageId: groupMessageResult.messageId,
+        error: groupMessageResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
 
   // ===========================================================================
   // Result Aggregation
