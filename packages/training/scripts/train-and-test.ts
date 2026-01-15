@@ -209,7 +209,7 @@ async function checkPrerequisites(config: PipelineConfig): Promise<{
   }
 
   // Check if training directory exists
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = join(import.meta.dir, '../python');
   checks.trainingDir = existsSync(trainingDir);
   console.log(
     checks.trainingDir
@@ -281,7 +281,7 @@ async function installDependencies(): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = join(import.meta.dir, '../python');
 
   console.log('Installing Python dependencies...');
 
@@ -324,7 +324,7 @@ async function trainModel(config: PipelineConfig): Promise<{
     };
   }
 
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = join(import.meta.dir, '../python');
   const backend = process.platform === 'darwin' ? 'mlx' : 'cuda';
 
   console.log(`Training model with ${backend} backend...`);
@@ -373,7 +373,7 @@ async function testAdapter(config: PipelineConfig): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = join(import.meta.dir, '../python');
 
   // Find adapter path
   let adapterPath = config.adapterPath;
@@ -486,7 +486,7 @@ async function importToOllama(config: PipelineConfig): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = join(import.meta.dir, '../python');
 
   // Find adapter path
   let adapterPath = config.adapterPath;
