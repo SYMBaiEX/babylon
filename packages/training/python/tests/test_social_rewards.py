@@ -4,6 +4,14 @@ Unit tests for Social Reward Functions (BAB-71)
 Tests the social reward calculation functions that enable
 non-trading archetypes like "Social Butterfly" to achieve
 high scores without trading.
+
+Coverage includes:
+- Happy path tests
+- Boundary conditions (exact thresholds)
+- Edge cases (zeros, negatives, large values)
+- Error handling (invalid inputs)
+- Weight validation (sums to 1.0)
+- All archetypes
 """
 
 import pytest
@@ -18,8 +26,80 @@ from src.training.rewards import (
     calculate_social_reward,
     social_only_composite_reward,
     TrajectoryRewardInputs,
+    # Import constants and helpers for boundary testing
+    SOCIAL_EXCELLENT_SPREAD,
+    SOCIAL_GOOD_SPREAD,
+    SOCIAL_EXCELLENT_ENGAGEMENT,
+    SOCIAL_GOOD_ENGAGEMENT,
+    SOCIAL_MIN_ENGAGEMENT,
+    SOCIAL_EXCELLENT_NETWORK,
+    SOCIAL_GOOD_NETWORK,
+    SOCIAL_MIN_NETWORK,
+    SOCIAL_REWARD_WEIGHTS,
+    SOCIAL_COMPOSITE_WEIGHTS,
+    _interpolate_score,
 )
 
+
+# =============================================================================
+# Helper Function Tests
+# =============================================================================
+
+class TestInterpolateScore:
+    """Tests for _interpolate_score() helper - the core scoring logic"""
+    
+    def test_at_excellent_threshold(self):
+        """Value at excellent threshold should score 1.0"""
+        score = _interpolate_score(20, 3, 10, 20)
+        assert score == 1.0
+    
+    def test_above_excellent_threshold(self):
+        """Value above excellent threshold should still score 1.0 (capped)"""
+        score = _interpolate_score(100, 3, 10, 20)
+        assert score == 1.0
+    
+    def test_at_good_threshold(self):
+        """Value at good threshold should score 0.6"""
+        score = _interpolate_score(10, 3, 10, 20)
+        assert score == 0.6
+    
+    def test_at_min_threshold(self):
+        """Value at min threshold should score 0.2"""
+        score = _interpolate_score(3, 3, 10, 20)
+        assert score == 0.2
+    
+    def test_zero_value(self):
+        """Zero value should score 0.0"""
+        score = _interpolate_score(0, 3, 10, 20)
+        assert score == 0.0
+    
+    def test_between_good_and_excellent(self):
+        """Value between good and excellent should interpolate linearly"""
+        # Midpoint between 10 and 20 is 15, should be midpoint between 0.6 and 1.0 = 0.8
+        score = _interpolate_score(15, 3, 10, 20)
+        assert 0.75 <= score <= 0.85
+    
+    def test_between_min_and_good(self):
+        """Value between min and good should interpolate linearly"""
+        # Midpoint between 3 and 10 is 6.5
+        score = _interpolate_score(6, 3, 10, 20)
+        assert 0.35 <= score <= 0.45
+    
+    def test_below_min(self):
+        """Value below min should scale proportionally"""
+        score = _interpolate_score(1, 3, 10, 20)
+        assert 0.0 < score < 0.2
+    
+    def test_handles_zero_min(self):
+        """Should handle min_val of 0 without division by zero"""
+        # When min_val is 0, values below should still work
+        score = _interpolate_score(0, 1, 5, 10)
+        assert score == 0.0
+
+
+# =============================================================================
+# Engagement Score Tests
+# =============================================================================
 
 class TestEngagementScore:
     """Tests for calculate_engagement_score()"""
@@ -74,6 +154,54 @@ class TestEngagementScore:
         assert diverse_score > single_score, \
             f"Diverse activity ({diverse_score}) should beat single type ({single_score})"
 
+    # Boundary condition tests
+    def test_exactly_at_excellent_threshold(self):
+        """Engagement exactly at SOCIAL_EXCELLENT_ENGAGEMENT"""
+        metrics = BehaviorMetrics(posts_created=SOCIAL_EXCELLENT_ENGAGEMENT)
+        score = calculate_engagement_score(metrics)
+        # Should hit 1.0 volume + diversity bonus (1 type = 0.04)
+        assert score >= 1.0, f"At excellent threshold should score >= 1.0, got {score}"
+    
+    def test_exactly_at_good_threshold(self):
+        """Engagement exactly at SOCIAL_GOOD_ENGAGEMENT"""
+        metrics = BehaviorMetrics(posts_created=SOCIAL_GOOD_ENGAGEMENT)
+        score = calculate_engagement_score(metrics)
+        # Volume score 0.6 + diversity bonus 0.04 = 0.64
+        assert 0.6 <= score <= 0.7, f"At good threshold should score ~0.64, got {score}"
+    
+    def test_exactly_at_min_threshold(self):
+        """Engagement exactly at SOCIAL_MIN_ENGAGEMENT"""
+        metrics = BehaviorMetrics(posts_created=SOCIAL_MIN_ENGAGEMENT)
+        score = calculate_engagement_score(metrics)
+        # Volume score 0.2 + diversity bonus 0.04 = 0.24
+        assert 0.2 <= score <= 0.3, f"At min threshold should score ~0.24, got {score}"
+    
+    def test_max_diversity_bonus(self):
+        """All 5 activity types should give max diversity bonus (0.20)"""
+        metrics = BehaviorMetrics(
+            posts_created=1,
+            comments_made=1,
+            dms_initiated=1,
+            group_chats_joined=1,
+            mentions_given=1,
+        )
+        score = calculate_engagement_score(metrics)
+        # Total = 5 actions, all types active
+        # Volume + 0.20 diversity = should be higher than 4 actions of same type
+        single_type = BehaviorMetrics(posts_created=5)
+        single_score = calculate_engagement_score(single_type)
+        assert score > single_score
+    
+    def test_very_large_engagement(self):
+        """Very large engagement values should still score 1.0 (capped)"""
+        metrics = BehaviorMetrics(posts_created=1000)
+        score = calculate_engagement_score(metrics)
+        assert score == 1.0, f"Very large engagement should cap at 1.0, got {score}"
+
+
+# =============================================================================
+# Information Spread Score Tests
+# =============================================================================
 
 class TestInformationSpreadScore:
     """Tests for calculate_information_spread_score()"""
@@ -119,6 +247,64 @@ class TestInformationSpreadScore:
         assert calculate_information_spread_score(with_reactions) > \
                calculate_information_spread_score(no_reactions)
 
+    # Boundary tests
+    def test_exactly_at_excellent_spread(self):
+        """Spread exactly at SOCIAL_EXCELLENT_SPREAD"""
+        metrics = BehaviorMetrics(information_spread=SOCIAL_EXCELLENT_SPREAD)
+        score = calculate_information_spread_score(metrics)
+        assert score == 1.0, f"At excellent spread should score 1.0, got {score}"
+    
+    def test_exactly_at_good_spread(self):
+        """Spread exactly at SOCIAL_GOOD_SPREAD"""
+        metrics = BehaviorMetrics(information_spread=SOCIAL_GOOD_SPREAD)
+        score = calculate_information_spread_score(metrics)
+        assert score == 0.6, f"At good spread should score 0.6, got {score}"
+    
+    def test_follower_bonus_caps_at_015(self):
+        """Follower bonus should cap at 0.15"""
+        # Very high followers to test cap
+        metrics = BehaviorMetrics(
+            information_spread=0,
+            followers_gained=100,
+        )
+        score = calculate_information_spread_score(metrics)
+        # With spread=0 and followers_gained=100, bonus = min(0.15, 100*0.03) = 0.15
+        assert score <= 0.35, f"Follower bonus should be capped, got {score}"
+    
+    def test_reaction_bonus_caps_at_020(self):
+        """Reaction bonus should cap at 0.20"""
+        metrics = BehaviorMetrics(
+            information_spread=0,
+            positive_reactions=100,
+        )
+        score = calculate_information_spread_score(metrics)
+        # With spread=0 and reactions=100, bonus = min(0.2, 100*0.02) = 0.2
+        assert score <= 0.2, f"Reaction bonus should be capped, got {score}"
+    
+    def test_negative_followers_handled(self):
+        """Negative follower gains should not break scoring"""
+        metrics = BehaviorMetrics(
+            information_spread=5,
+            followers_gained=-10,  # Lost followers
+        )
+        score = calculate_information_spread_score(metrics)
+        # Should handle gracefully, bonus = min(0.15, max(0, -10)*0.03) = 0
+        assert 0.0 <= score <= 1.0, f"Should handle negative followers, got {score}"
+    
+    def test_all_bonuses_stack(self):
+        """All bonuses should stack up to cap of 1.0"""
+        metrics = BehaviorMetrics(
+            information_spread=SOCIAL_EXCELLENT_SPREAD,  # 1.0
+            positive_reactions=20,  # +0.2 (capped)
+            followers_gained=10,    # +0.15 (capped)
+        )
+        score = calculate_information_spread_score(metrics)
+        assert score == 1.0, f"Bonuses should stack to 1.0 cap, got {score}"
+
+
+# =============================================================================
+# Network Score Tests
+# =============================================================================
 
 class TestNetworkScore:
     """Tests for calculate_network_score()"""
@@ -166,6 +352,80 @@ class TestNetworkScore:
         
         assert calculate_network_score(good_rep) > calculate_network_score(bad_rep)
 
+    # Boundary tests
+    def test_exactly_at_excellent_network(self):
+        """Connections exactly at SOCIAL_EXCELLENT_NETWORK"""
+        metrics = BehaviorMetrics(unique_users_interacted=SOCIAL_EXCELLENT_NETWORK)
+        score = calculate_network_score(metrics)
+        assert score == 1.0, f"At excellent network should score 1.0, got {score}"
+    
+    def test_exactly_at_good_network(self):
+        """Connections exactly at SOCIAL_GOOD_NETWORK"""
+        metrics = BehaviorMetrics(unique_users_interacted=SOCIAL_GOOD_NETWORK)
+        score = calculate_network_score(metrics)
+        assert score == 0.6, f"At good network should score 0.6, got {score}"
+    
+    def test_exactly_at_min_network(self):
+        """Connections exactly at SOCIAL_MIN_NETWORK"""
+        metrics = BehaviorMetrics(unique_users_interacted=SOCIAL_MIN_NETWORK)
+        score = calculate_network_score(metrics)
+        assert score == 0.2, f"At min network should score 0.2, got {score}"
+    
+    def test_reputation_cap_positive(self):
+        """Positive reputation bonus caps at 0.15"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=SOCIAL_EXCELLENT_NETWORK,
+            reputation_delta=100,  # Very high
+        )
+        score = calculate_network_score(metrics)
+        # 1.0 base + 0.15 cap = capped at 1.0
+        assert score == 1.0
+    
+    def test_reputation_cap_negative(self):
+        """Negative reputation penalty caps at -0.15"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=SOCIAL_EXCELLENT_NETWORK,
+            reputation_delta=-100,  # Very negative
+        )
+        score = calculate_network_score(metrics)
+        # 1.0 base - 0.15 penalty = 0.85
+        assert score == 0.85, f"Reputation penalty should cap, got {score}"
+    
+    def test_group_bonus_caps(self):
+        """Group participation bonus caps at 0.20"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=0,
+            group_chats_joined=50,  # Very high
+        )
+        score = calculate_network_score(metrics)
+        # 0 network + 0.20 group cap = 0.20
+        assert score == 0.2, f"Group bonus should cap at 0.20, got {score}"
+    
+    def test_score_floor_at_zero(self):
+        """Score should never go below 0.0"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=0,
+            group_chats_joined=0,
+            reputation_delta=-100,  # Very negative
+        )
+        score = calculate_network_score(metrics)
+        assert score == 0.0, f"Score should floor at 0.0, got {score}"
+    
+    def test_reputation_in_mild_negative_range(self):
+        """Mild negative reputation (> -10) uses proportional penalty"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=10,
+            reputation_delta=-5,  # Mild negative
+        )
+        score = calculate_network_score(metrics)
+        # -5 * 0.01 = -0.05 penalty
+        base_score = calculate_network_score(BehaviorMetrics(unique_users_interacted=10))
+        assert score == base_score - 0.05
+
+
+# =============================================================================
+# Narrative Alignment Score Tests
+# =============================================================================
 
 class TestNarrativeAlignmentScore:
     """Tests for calculate_narrative_alignment_score()"""
@@ -228,6 +488,202 @@ class TestNarrativeAlignmentScore:
         score = calculate_narrative_alignment_score(metrics, actions, events)
         assert score == 0.0, f"Wrong reaction should score 0.0, got {score}"
 
+    # Edge cases
+    def test_unrevealed_events_ignored(self):
+        """Unrevealed events should not affect scoring"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(
+                tick=10,
+                event_type="insider",
+                affected_tickers=["AAPL"],
+                direction="up",
+                revealed=False,  # Not revealed
+            ),
+        ]
+        
+        actions = [
+            {"tick": 12, "action_type": "sell", "ticker": "AAPL"},  # "Wrong" but event not revealed
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 0.5, f"Unrevealed events should return neutral, got {score}"
+    
+    def test_action_on_wrong_ticker(self):
+        """Action on different ticker should not count"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(
+                tick=10,
+                event_type="earnings",
+                affected_tickers=["AAPL"],
+                direction="up",
+                revealed=True,
+            ),
+        ]
+        
+        actions = [
+            {"tick": 12, "action_type": "buy", "ticker": "GOOG"},  # Wrong ticker
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        # Action was taken but on wrong ticker, so no correct reaction
+        assert score == 0.0, f"Wrong ticker should score 0.0, got {score}"
+    
+    def test_action_too_late(self):
+        """Action more than 5 ticks after event should not count"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(
+                tick=10,
+                event_type="earnings",
+                affected_tickers=["AAPL"],
+                direction="up",
+                revealed=True,
+            ),
+        ]
+        
+        actions = [
+            {"tick": 20, "action_type": "buy", "ticker": "AAPL"},  # Too late (10 ticks)
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 0.5, f"Late action should not count, got {score}"
+    
+    def test_action_before_event(self):
+        """Action before event should not count as reaction"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(
+                tick=10,
+                event_type="earnings",
+                affected_tickers=["AAPL"],
+                direction="up",
+                revealed=True,
+            ),
+        ]
+        
+        actions = [
+            {"tick": 8, "action_type": "buy", "ticker": "AAPL"},  # Before event
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 0.5, f"Action before event should not count, got {score}"
+    
+    def test_multiple_events_partial_alignment(self):
+        """Score should reflect proportion of correct reactions"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(tick=10, event_type="good", affected_tickers=["AAPL"], direction="up", revealed=True),
+            NarrativeEvent(tick=20, event_type="bad", affected_tickers=["GOOG"], direction="down", revealed=True),
+        ]
+        
+        actions = [
+            {"tick": 12, "action_type": "buy", "ticker": "AAPL"},   # Correct
+            {"tick": 22, "action_type": "buy", "ticker": "GOOG"},   # Wrong (should sell)
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 0.5, f"Half right should score 0.5, got {score}"
+    
+    def test_long_action_type(self):
+        """'long' in action_type should count as buy"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(tick=10, event_type="good", affected_tickers=["BTC"], direction="up", revealed=True),
+        ]
+        
+        actions = [
+            {"tick": 12, "action_type": "open_long", "ticker": "BTC"},
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 1.0, f"'long' should count as buy, got {score}"
+    
+    def test_short_action_type(self):
+        """'short' in action_type should count as sell"""
+        metrics = BehaviorMetrics()
+        
+        events = [
+            NarrativeEvent(tick=10, event_type="bad", affected_tickers=["BTC"], direction="down", revealed=True),
+        ]
+        
+        actions = [
+            {"tick": 12, "action_type": "open_short", "ticker": "BTC"},
+        ]
+        
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        assert score == 1.0, f"'short' should count as sell, got {score}"
+    
+    def test_empty_events_list(self):
+        """Empty events list should return neutral"""
+        metrics = BehaviorMetrics()
+        score = calculate_narrative_alignment_score(metrics, [{"tick": 1}], [])
+        assert score == 0.5, f"Empty events should return 0.5, got {score}"
+    
+    def test_empty_actions_list(self):
+        """Empty actions list should return neutral (no reactions)"""
+        metrics = BehaviorMetrics()
+        events = [NarrativeEvent(tick=10, event_type="x", affected_tickers=["A"], direction="up", revealed=True)]
+        score = calculate_narrative_alignment_score(metrics, [], events)
+        assert score == 0.5, f"Empty actions should return 0.5, got {score}"
+    
+    def test_missing_tick_in_action(self):
+        """Action missing tick field should be handled"""
+        metrics = BehaviorMetrics()
+        events = [NarrativeEvent(tick=10, event_type="x", affected_tickers=["A"], direction="up", revealed=True)]
+        actions = [{"action_type": "buy", "ticker": "A"}]  # No tick
+        score = calculate_narrative_alignment_score(metrics, actions, events)
+        # get("tick", 0) defaults to 0, which is before event
+        assert score == 0.5
+
+
+# =============================================================================
+# Social Reward Weight Validation
+# =============================================================================
+
+class TestSocialRewardWeights:
+    """Verify weight configurations are valid"""
+    
+    def test_all_social_weights_sum_to_one(self):
+        """All archetype weight profiles should sum to 1.0"""
+        for archetype, weights in SOCIAL_REWARD_WEIGHTS.items():
+            total = sum(weights.values())
+            assert abs(total - 1.0) < 1e-9, f"Weights for {archetype} sum to {total}, expected 1.0"
+    
+    def test_all_composite_weights_sum_to_one(self):
+        """All composite weight profiles should sum to 1.0"""
+        for archetype, weights in SOCIAL_COMPOSITE_WEIGHTS.items():
+            total = sum(weights.values())
+            assert abs(total - 1.0) < 1e-9, f"Composite weights for {archetype} sum to {total}, expected 1.0"
+    
+    def test_all_weights_non_negative(self):
+        """All weights should be non-negative"""
+        for archetype, weights in SOCIAL_REWARD_WEIGHTS.items():
+            for key, value in weights.items():
+                assert value >= 0, f"Weight {key} for {archetype} is negative: {value}"
+    
+    def test_required_weight_keys_present(self):
+        """All weight dicts should have required keys"""
+        required_social = {"engagement", "spread", "network", "narrative"}
+        required_composite = {"social", "format", "reasoning", "pnl"}
+        
+        for archetype, weights in SOCIAL_REWARD_WEIGHTS.items():
+            assert set(weights.keys()) == required_social, f"Missing keys in {archetype}"
+        
+        for archetype, weights in SOCIAL_COMPOSITE_WEIGHTS.items():
+            assert set(weights.keys()) == required_composite, f"Missing keys in {archetype}"
+
+
+# =============================================================================
+# Calculate Social Reward Tests
+# =============================================================================
 
 class TestCalculateSocialReward:
     """Tests for calculate_social_reward()"""
@@ -294,6 +750,88 @@ class TestCalculateSocialReward:
         # All components should contribute equally (25% each)
         assert 0.3 <= result.total_score <= 0.7
 
+    # Additional archetype tests
+    def test_liar_weights(self):
+        """Liar should use same weights as scammer (spread-focused)"""
+        metrics = BehaviorMetrics(information_spread=15)
+        
+        scammer_result = calculate_social_reward(metrics, "scammer")
+        liar_result = calculate_social_reward(metrics, "liar")
+        
+        assert scammer_result.total_score == liar_result.total_score
+    
+    def test_goody_twoshoes_weights(self):
+        """Goody Two-Shoes should have balanced weights"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=10,
+            posts_created=5,
+            information_spread=5,
+            prediction_accuracy=0.6,
+            predictions_made=5,
+        )
+        
+        result = calculate_social_reward(metrics, "goody-twoshoes")
+        assert 0.3 <= result.total_score <= 0.7
+    
+    def test_ass_kisser_weights(self):
+        """Ass-Kisser should weight engagement and network highly"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=15,
+            posts_created=10,
+            comments_made=10,
+        )
+        
+        result = calculate_social_reward(metrics, "ass-kisser")
+        # 35% engagement + 40% network = 75% from these two
+        assert result.total_score > 0.5
+    
+    def test_archetype_normalization(self):
+        """Archetype names should be normalized (case, underscores)"""
+        metrics = BehaviorMetrics(unique_users_interacted=10)
+        
+        # Test various formats
+        r1 = calculate_social_reward(metrics, "social-butterfly")
+        r2 = calculate_social_reward(metrics, "Social-Butterfly")
+        r3 = calculate_social_reward(metrics, "SOCIAL_BUTTERFLY")
+        r4 = calculate_social_reward(metrics, "social_butterfly")
+        
+        assert r1.total_score == r2.total_score == r3.total_score == r4.total_score
+    
+    def test_result_to_dict(self):
+        """SocialRewardResult.to_dict() should return all components"""
+        metrics = BehaviorMetrics(
+            unique_users_interacted=10,
+            posts_created=5,
+            information_spread=5,
+        )
+        
+        result = calculate_social_reward(metrics, "social-butterfly")
+        result_dict = result.to_dict()
+        
+        assert "engagement_score" in result_dict
+        assert "information_spread_score" in result_dict
+        assert "narrative_alignment_score" in result_dict
+        assert "network_score" in result_dict
+        assert "total_score" in result_dict
+        
+        # Verify values match
+        assert result_dict["total_score"] == result.total_score
+    
+    def test_all_zero_metrics(self):
+        """All zero metrics should still return valid result"""
+        metrics = BehaviorMetrics()
+        result = calculate_social_reward(metrics, "social-butterfly")
+        
+        assert result.engagement_score >= 0.0
+        assert result.network_score >= 0.0
+        assert result.information_spread_score >= 0.0
+        assert result.narrative_alignment_score == 0.5  # Neutral with no predictions
+        assert 0.0 <= result.total_score <= 1.0
+
+
+# =============================================================================
+# Social Only Composite Reward Tests
+# =============================================================================
 
 class TestSocialOnlyCompositeReward:
     """Tests for social_only_composite_reward()"""
@@ -395,6 +933,159 @@ class TestSocialOnlyCompositeReward:
         
         assert social_reward > trader_reward, \
             f"Social butterfly ({social_reward}) should beat poor trader ({trader_reward})"
+
+    # Edge cases
+    def test_negative_end_balance(self):
+        """Negative end balance should trigger bankruptcy penalty"""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=-15000,
+            starting_balance=10000,
+            end_balance=-5000,
+            format_score=1.0,
+            reasoning_score=1.0,
+        )
+        
+        reward = social_only_composite_reward(
+            inputs=inputs,
+            archetype="social-butterfly",
+            behavior_metrics=BehaviorMetrics(unique_users_interacted=100),
+        )
+        
+        assert reward == -0.5, f"Negative balance should return -0.5, got {reward}"
+    
+    def test_zero_starting_balance(self):
+        """Zero starting balance should not cause division by zero"""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=0,
+            starting_balance=0,
+            end_balance=100,  # Not bankrupt
+            format_score=0.5,
+            reasoning_score=0.5,
+        )
+        
+        reward = social_only_composite_reward(
+            inputs=inputs,
+            archetype="social-butterfly",
+            behavior_metrics=BehaviorMetrics(),
+        )
+        
+        # Should not raise, should return valid score
+        assert -1.0 <= reward <= 1.0
+    
+    def test_no_behavior_metrics(self):
+        """Should handle None behavior_metrics gracefully"""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=100,
+            starting_balance=10000,
+            end_balance=10100,
+            format_score=0.8,
+            reasoning_score=0.7,
+        )
+        
+        reward = social_only_composite_reward(
+            inputs=inputs,
+            archetype="social-butterfly",
+            behavior_metrics=None,
+        )
+        
+        # Should use empty SocialRewardResult
+        assert -1.0 <= reward <= 1.0
+    
+    def test_large_profit_pnl_bonus(self):
+        """Large profit should give PnL bonus (but social still dominates)"""
+        inputs_profit = TrajectoryRewardInputs(
+            final_pnl=1000,
+            starting_balance=10000,
+            end_balance=11000,
+            format_score=0.5,
+            reasoning_score=0.5,
+        )
+        
+        inputs_break_even = TrajectoryRewardInputs(
+            final_pnl=0,
+            starting_balance=10000,
+            end_balance=10000,
+            format_score=0.5,
+            reasoning_score=0.5,
+        )
+        
+        metrics = BehaviorMetrics(unique_users_interacted=10)
+        
+        profit_reward = social_only_composite_reward(inputs_profit, "social-butterfly", metrics)
+        even_reward = social_only_composite_reward(inputs_break_even, "social-butterfly", metrics)
+        
+        # Profit should give slight bonus
+        assert profit_reward > even_reward
+    
+    def test_heavy_loss_penalty(self):
+        """Heavy loss (>50% of starting) should give penalty"""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=-6000,  # >50% loss
+            starting_balance=10000,
+            end_balance=4000,
+            format_score=0.8,
+            reasoning_score=0.8,
+        )
+        
+        metrics = BehaviorMetrics(unique_users_interacted=10)
+        
+        reward = social_only_composite_reward(inputs, "social-butterfly", metrics)
+        
+        # Should have -0.3 penalty on PnL component
+        break_even = social_only_composite_reward(
+            TrajectoryRewardInputs(final_pnl=0, starting_balance=10000, end_balance=10000, format_score=0.8, reasoning_score=0.8),
+            "social-butterfly", metrics
+        )
+        
+        assert reward < break_even
+    
+    def test_all_weights_archetypes(self):
+        """All archetypes with composite weights should work"""
+        inputs = TrajectoryRewardInputs(
+            final_pnl=0,
+            starting_balance=10000,
+            end_balance=10000,
+            format_score=0.5,
+            reasoning_score=0.5,
+        )
+        metrics = BehaviorMetrics(unique_users_interacted=10)
+        
+        for archetype in ["social-butterfly", "ass-kisser", "goody-twoshoes", "unknown"]:
+            reward = social_only_composite_reward(inputs, archetype, metrics)
+            assert -1.0 <= reward <= 1.0, f"Invalid reward for {archetype}: {reward}"
+    
+    def test_reward_clamped_to_bounds(self):
+        """Reward should always be in [-1.0, 1.0]"""
+        # Best case: everything perfect
+        best_inputs = TrajectoryRewardInputs(
+            final_pnl=5000,
+            starting_balance=10000,
+            end_balance=15000,
+            format_score=1.0,
+            reasoning_score=1.0,
+        )
+        best_metrics = BehaviorMetrics(
+            unique_users_interacted=50,
+            posts_created=50,
+            information_spread=50,
+            reputation_delta=100,
+        )
+        
+        best_reward = social_only_composite_reward(best_inputs, "social-butterfly", best_metrics)
+        assert best_reward <= 1.0, f"Best case should cap at 1.0, got {best_reward}"
+        
+        # Worst case (non-bankrupt): everything bad
+        worst_inputs = TrajectoryRewardInputs(
+            final_pnl=-4000,
+            starting_balance=10000,
+            end_balance=6000,  # Not bankrupt but bad
+            format_score=0.0,
+            reasoning_score=0.0,
+        )
+        worst_metrics = BehaviorMetrics()
+        
+        worst_reward = social_only_composite_reward(worst_inputs, "social-butterfly", worst_metrics)
+        assert worst_reward >= -1.0, f"Worst case should floor at -1.0, got {worst_reward}"
 
 
 class TestIntegrationNonTraderCanWin:
