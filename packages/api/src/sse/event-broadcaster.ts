@@ -217,3 +217,33 @@ export async function broadcastTypingIndicator(
     timestamp: Date.now(),
   });
 }
+
+/**
+ * Broadcast thinking indicator to a chat room.
+ *
+ * Distinct from typing indicator - shows that an agent is processing/analyzing
+ * a complex query. Used for longer-running operations where the user should
+ * see visual feedback that work is happening.
+ *
+ * @param chatId - The chat ID to broadcast to
+ * @param agentId - The agent user ID
+ * @param agentName - Display name of the agent
+ * @param isThinking - Whether the agent is currently thinking
+ * @param thinkingLabel - Optional label describing what the agent is doing (e.g., "Analyzing market data...")
+ */
+export async function broadcastThinkingIndicator(
+  chatId: string,
+  agentId: string,
+  agentName: string,
+  isThinking: boolean,
+  thinkingLabel?: string
+): Promise<void> {
+  await broadcastToChannel(`chat:${chatId}`, {
+    type: 'thinking_indicator',
+    agentId,
+    agentName,
+    isThinking,
+    thinkingLabel: thinkingLabel ?? null,
+    timestamp: Date.now(),
+  });
+}

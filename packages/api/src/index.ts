@@ -196,6 +196,7 @@ export { drainOutboxBatch, enqueueOutbox } from './realtime/outbox';
 // Redis
 export {
   closeRedis,
+  ensureRedisReady,
   getRedis,
   getRedisClient,
   isRedisAvailable,
@@ -214,6 +215,7 @@ export {
   type AgentActivityEvent,
   broadcastAgentActivity,
   broadcastChatMessage,
+  broadcastThinkingIndicator,
   broadcastToChannel,
   broadcastTypingIndicator,
   type CommentActivityData,
