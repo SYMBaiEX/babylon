@@ -73,7 +73,11 @@ export const GET = withErrorHandling(
     if (!rateLimit.allowed) {
       const retryAfterSeconds = rateLimit.retryAfter || 60;
       return NextResponse.json(
-        { success: false, error: 'Too many requests', retryAfter: retryAfterSeconds },
+        {
+          success: false,
+          error: 'Too many requests',
+          retryAfter: retryAfterSeconds,
+        },
         { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
       );
     }
@@ -117,6 +121,16 @@ export const GET = withErrorHandling(
       }
 
       isValidAgent = user.isAgent ?? false;
+      if (!isValidAgent) {
+        return NextResponse.json({
+          success: true,
+          agentId,
+          agentName: null,
+          isAgent: false,
+          trades: [],
+          totalTrades: 0,
+        } satisfies RecentTradesResponse);
+      }
       agentName = user.displayName;
     } else {
       agentName = npcActor.name;
