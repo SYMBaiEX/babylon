@@ -1,4 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'drizzle-kit';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Determine if we're in local development mode
 const isLocalDev =
@@ -18,9 +22,8 @@ const databaseUrl = isLocalDev
     LOCAL_DATABASE_URL);
 
 export default defineConfig({
-  // Use relative paths (drizzle-kit has issues with absolute paths)
-  schema: './src/schema/index.ts',
-  out: './drizzle/migrations',
+  schema: path.join(__dirname, 'src/schema/index.ts'),
+  out: path.join(__dirname, 'drizzle/migrations'),
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,
