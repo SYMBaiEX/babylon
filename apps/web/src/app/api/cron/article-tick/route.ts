@@ -494,6 +494,7 @@ export async function POST(_req: NextRequest) {
 
     return NextResponse.json({
       success,
+      skipped: false,
       articlesCreated,
       errorCount,
       duration,
