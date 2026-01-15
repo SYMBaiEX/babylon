@@ -20,7 +20,7 @@ export interface AgentTradeDetails {
   /** Trade action: 'open', 'close' */
   action: 'open' | 'close';
   /** Trade side: 'yes', 'no', 'long', 'short' */
-  side: string;
+  side: 'yes' | 'no' | 'long' | 'short';
   /** Amount in dollars */
   amount: number;
   /** Entry/exit price */
@@ -50,7 +50,8 @@ function formatTradeMessage(
     reasoning,
   } = details;
 
-  const marketDisplay = marketType === 'perp' ? ticker : marketId;
+  const marketDisplay =
+    (marketType === 'perp' ? ticker : marketId) ?? 'unknown market';
   const sideDisplay = side.toUpperCase();
   const actionEmoji = action === 'open' ? '📈' : '📉';
   const actionText = action === 'open' ? 'opened' : 'closed';

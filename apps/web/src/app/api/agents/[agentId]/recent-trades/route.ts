@@ -11,6 +11,12 @@
  */
 
 import {
+  checkRateLimitAsync,
+  getClientIp,
+  RATE_LIMIT_CONFIGS,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   agentTrades,
   db,
   desc,
@@ -51,125 +57,148 @@ interface RecentTradesResponse {
   totalTrades: number;
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> }
-) {
-  const { agentId } = await params;
+export const GET = withErrorHandling(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ agentId: string }> }
+  ) => {
+    // IP-based rate limiting for public endpoint
+    const clientIp = getClientIp(req.headers);
+    const rateLimitKey = clientIp ? `ip:${clientIp}` : 'ip:anonymous';
+    const rateLimitConfig = clientIp
+      ? RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH
+      : RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH_ANONYMOUS;
 
-  const { searchParams } = new URL(req.url);
-  const { limit } = QuerySchema.parse({
-    limit: searchParams.get('limit'),
-  });
-
-  // Check if this is an NPC from static registry
-  const npcActor = StaticDataRegistry.getActor(agentId);
-  const isNpc = !!npcActor;
-
-  // For users/agents, verify it's actually an agent
-  let agentName: string | null = null;
-  let isValidAgent = isNpc;
-
-  if (!isNpc) {
-    const [user] = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-        isAgent: users.isAgent,
-      })
-      .from(users)
-      .where(eq(users.id, agentId))
-      .limit(1);
-
-    if (!user) {
+    const rateLimit = await checkRateLimitAsync(rateLimitKey, rateLimitConfig);
+    if (!rateLimit.allowed) {
+      const retryAfterSeconds = rateLimit.retryAfter || 60;
       return NextResponse.json(
-        { success: false, error: 'Agent not found' },
-        { status: 404 }
+        { success: false, error: 'Too many requests', retryAfter: retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
       );
     }
 
-    isValidAgent = user.isAgent ?? false;
-    agentName = user.displayName;
-  } else {
-    agentName = npcActor.name;
-  }
+    const { agentId } = await params;
 
-  // Fetch recent trades
-  const trades = await db
-    .select({
-      id: agentTrades.id,
-      marketType: agentTrades.marketType,
-      marketId: agentTrades.marketId,
-      ticker: agentTrades.ticker,
-      action: agentTrades.action,
-      side: agentTrades.side,
-      amount: agentTrades.amount,
-      pnl: agentTrades.pnl,
-      executedAt: agentTrades.executedAt,
-    })
-    .from(agentTrades)
-    .where(eq(agentTrades.agentUserId, agentId))
-    .orderBy(desc(agentTrades.executedAt))
-    .limit(limit);
+    const { searchParams } = new URL(req.url);
+    const { limit } = QuerySchema.parse({
+      limit: searchParams.get('limit'),
+    });
 
-  // Get total trade count
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(agentTrades)
-    .where(eq(agentTrades.agentUserId, agentId));
+    // Check if this is an NPC from static registry
+    const npcActor = StaticDataRegistry.getActor(agentId);
+    const isNpc = !!npcActor;
 
-  const totalTrades = countResult?.count ?? 0;
+    // For users/agents, verify it's actually an agent
+    let agentName: string | null = null;
+    let isValidAgent = isNpc;
 
-  // Fetch market questions for prediction trades
-  const marketIds = [
-    ...new Set(
-      trades
-        .filter((t) => t.marketType === 'prediction' && t.marketId)
-        .map((t) => t.marketId!)
-    ),
-  ];
+    if (!isNpc) {
+      const [user] = await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          isAgent: users.isAgent,
+        })
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
 
-  const marketQuestions = new Map<string, string>();
-  if (marketIds.length > 0) {
-    const marketsData = await db
-      .select({ id: markets.id, question: markets.question })
-      .from(markets)
-      .where(inArray(markets.id, marketIds));
+      // Return empty response for non-existent agents to prevent enumeration
+      if (!user) {
+        return NextResponse.json({
+          success: true,
+          agentId,
+          agentName: null,
+          isAgent: false,
+          trades: [],
+          totalTrades: 0,
+        } satisfies RecentTradesResponse);
+      }
 
-    for (const m of marketsData) {
-      marketQuestions.set(m.id, m.question);
+      isValidAgent = user.isAgent ?? false;
+      agentName = user.displayName;
+    } else {
+      agentName = npcActor.name;
     }
+
+    // Fetch recent trades
+    const trades = await db
+      .select({
+        id: agentTrades.id,
+        marketType: agentTrades.marketType,
+        marketId: agentTrades.marketId,
+        ticker: agentTrades.ticker,
+        action: agentTrades.action,
+        side: agentTrades.side,
+        amount: agentTrades.amount,
+        pnl: agentTrades.pnl,
+        executedAt: agentTrades.executedAt,
+      })
+      .from(agentTrades)
+      .where(eq(agentTrades.agentUserId, agentId))
+      .orderBy(desc(agentTrades.executedAt))
+      .limit(limit);
+
+    // Get total trade count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(agentTrades)
+      .where(eq(agentTrades.agentUserId, agentId));
+
+    const totalTrades = countResult?.count ?? 0;
+
+    // Fetch market questions for prediction trades
+    const marketIds = [
+      ...new Set(
+        trades
+          .filter((t) => t.marketType === 'prediction' && t.marketId)
+          .map((t) => t.marketId!)
+      ),
+    ];
+
+    const marketQuestions = new Map<string, string>();
+    if (marketIds.length > 0) {
+      const marketsData = await db
+        .select({ id: markets.id, question: markets.question })
+        .from(markets)
+        .where(inArray(markets.id, marketIds));
+
+      for (const m of marketsData) {
+        marketQuestions.set(m.id, m.question);
+      }
+    }
+
+    // Format response
+    const recentTrades: RecentTrade[] = trades.map((trade) => ({
+      id: trade.id,
+      marketType: trade.marketType as 'prediction' | 'perp',
+      ticker: trade.ticker,
+      marketQuestion: trade.marketId
+        ? (marketQuestions.get(trade.marketId) ?? null)
+        : null,
+      action: trade.action as 'open' | 'close',
+      side: trade.side,
+      amount: trade.amount,
+      pnl: trade.pnl,
+      executedAt: trade.executedAt.toISOString(),
+    }));
+
+    logger.debug(
+      'Fetched recent trades for agent',
+      { agentId, tradeCount: recentTrades.length },
+      'GET /api/agents/[agentId]/recent-trades'
+    );
+
+    const response: RecentTradesResponse = {
+      success: true,
+      agentId,
+      agentName,
+      isAgent: isValidAgent,
+      trades: recentTrades,
+      totalTrades,
+    };
+
+    return NextResponse.json(response);
   }
-
-  // Format response
-  const recentTrades: RecentTrade[] = trades.map((trade) => ({
-    id: trade.id,
-    marketType: trade.marketType as 'prediction' | 'perp',
-    ticker: trade.ticker,
-    marketQuestion: trade.marketId
-      ? (marketQuestions.get(trade.marketId) ?? null)
-      : null,
-    action: trade.action as 'open' | 'close',
-    side: trade.side,
-    amount: trade.amount,
-    pnl: trade.pnl,
-    executedAt: trade.executedAt.toISOString(),
-  }));
-
-  logger.debug(
-    'Fetched recent trades for agent',
-    { agentId, tradeCount: recentTrades.length },
-    'GET /api/agents/[agentId]/recent-trades'
-  );
-
-  const response: RecentTradesResponse = {
-    success: true,
-    agentId,
-    agentName,
-    isAgent: isValidAgent,
-    trades: recentTrades,
-    totalTrades,
-  };
-
-  return NextResponse.json(response);
-}
+);

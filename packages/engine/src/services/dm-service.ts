@@ -102,7 +102,12 @@ export async function getOrCreateDMChat(
     return chatId;
   } catch (error) {
     // Handle race condition - if chat was created by another process
-    if (error instanceof Error && error.message.includes('duplicate key')) {
+    // Use Postgres error code 23505 (unique_violation) for reliable detection
+    const isUniqueViolation =
+      error instanceof Error &&
+      'code' in error &&
+      (error as Error & { code?: string }).code === '23505';
+    if (isUniqueViolation) {
       logger.warn(
         'Race condition detected, retrying chat lookup',
         { userA, userB },
