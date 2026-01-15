@@ -45,6 +45,13 @@ import {
 import { logger } from '../src/utils/logger';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** Duration in days for quick mode (vs full 22-day scenarios) */
+const QUICK_MODE_DURATION_DAYS = 7;
+
+// ============================================================================
 // CLI Parsing
 // ============================================================================
 
@@ -166,6 +173,67 @@ function createBenchmarkRuntime(modelPath?: string): IAgentRuntime {
   };
 
   return runtime as IAgentRuntime;
+}
+
+// ============================================================================
+// Quick Mode Scenario Truncation
+// ============================================================================
+
+/**
+ * Truncates a scenario to QUICK_MODE_DURATION_DAYS for faster benchmarking.
+ * 
+ * This creates a shallow copy with truncated ticks and adjusted duration,
+ * while preserving all other scenario properties.
+ */
+function truncateScenarioForQuickMode(
+  scenario: FixedBenchmarkScenario
+): FixedBenchmarkScenario {
+  const originalDays = scenario.durationDays;
+  
+  // If scenario is already shorter than quick mode duration, return as-is
+  if (originalDays <= QUICK_MODE_DURATION_DAYS) {
+    return scenario;
+  }
+
+  // Calculate how many ticks to keep
+  const ticksPerDay = scenario.snapshot.ticks.length / originalDays;
+  const quickModeTicks = Math.floor(ticksPerDay * QUICK_MODE_DURATION_DAYS);
+  
+  // Calculate new duration in seconds
+  const tickIntervalSeconds = scenario.snapshot.tickInterval;
+  const newDurationSeconds = quickModeTicks * tickIntervalSeconds;
+
+  logger.debug('Truncating scenario for quick mode', {
+    scenarioId: scenario.id,
+    originalDays,
+    quickDays: QUICK_MODE_DURATION_DAYS,
+    originalTicks: scenario.snapshot.ticks.length,
+    quickTicks: quickModeTicks,
+  });
+
+  // Create truncated scenario (shallow copy with modified snapshot)
+  return {
+    ...scenario,
+    durationDays: QUICK_MODE_DURATION_DAYS,
+    snapshot: {
+      ...scenario.snapshot,
+      duration: newDurationSeconds,
+      ticks: scenario.snapshot.ticks.slice(0, quickModeTicks),
+      // Truncate ground truth price history to match
+      groundTruth: {
+        ...scenario.snapshot.groundTruth,
+        priceHistory: Object.fromEntries(
+          Object.entries(scenario.snapshot.groundTruth.priceHistory).map(
+            ([ticker, prices]) => [ticker, prices.slice(0, quickModeTicks)]
+          )
+        ),
+        // Keep only causal events within the truncated time range
+        causalEvents: scenario.snapshot.groundTruth.causalEvents?.filter(
+          (event) => event.tick < quickModeTicks
+        ),
+      },
+    },
+  };
 }
 
 // ============================================================================
@@ -299,9 +367,16 @@ async function main() {
     scenarios = await scenarioLoader.loadAllScenarios();
   }
 
+  // Apply quick mode: truncate scenarios to QUICK_MODE_DURATION_DAYS
+  if (options.quick) {
+    const originalDuration = scenarios[0]?.durationDays || 22;
+    scenarios = scenarios.map((scenario) => truncateScenarioForQuickMode(scenario));
+    console.log(`⚡ Quick mode: Running ${QUICK_MODE_DURATION_DAYS}-day scenarios (vs full ${originalDuration} days)`);
+  }
+
   console.log(`📋 Running ${scenarios.length} scenario(s):`);
   for (const s of scenarios) {
-    console.log(`   • ${s.name} (${s.id})`);
+    console.log(`   • ${s.name} (${s.id}) - ${s.durationDays} days, ${s.snapshot.ticks.length} ticks`);
   }
   console.log('');
 
