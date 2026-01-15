@@ -270,6 +270,24 @@ logger.info(f"  Std:  {np.std(scores):.3f}")
 logger.info(f"  Components: pnl={pnl:.3f}, fmt={fmt:.3f}, rsn={rsn:.3f}")
 ```
 
+## Social Rewards
+
+For non-trading archetypes (Social Butterfly, Ass-Kisser, Goody Two-Shoes), financial performance is not the primary goal. These archetypes use **social reward scoring**:
+
+```python
+# Social archetypes weight social components heavily
+weights = {
+    "social": 0.55,    # From calculate_social_reward()
+    "format": 0.20,
+    "reasoning": 0.15,
+    "pnl": 0.10,       # Minimal PnL weight
+}
+```
+
+This allows a Social Butterfly with zero P&L but strong network building to score higher than a passive trader.
+
+See [Enhanced Rewards - Social & Narrative](./enhanced-rewards.md#social--narrative-rewards) for details.
+
 ## Enhanced Rewards
 
 For more sophisticated reward calculation that accounts for market conditions, see [Enhanced Rewards](./enhanced-rewards.md):
@@ -277,4 +295,5 @@ For more sophisticated reward calculation that accounts for market conditions, s
 - **Market Regime Detection** - Classify bull/bear/sideways conditions
 - **Counterfactual Alpha** - Measure skill vs luck
 - **Temporal Credit** - Attribute delayed outcomes to decisions
+- **Social & Narrative Rewards** - PnL-independent scoring for social archetypes
 - **Configurable Weights** - YAML-based weight profiles
