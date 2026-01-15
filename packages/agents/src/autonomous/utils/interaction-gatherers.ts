@@ -408,10 +408,10 @@ function formatThreadForPrompt(
     const isLast = idx === thread.length - 1;
     const replyIndicator = isLast ? ' [REPLY TO THIS]' : '';
     const depthLabel = idx === 0 ? 'Comment' : `Reply (depth ${msg.depth})`;
-    return `- ${depthLabel} by @${msg.authorName}: "${msg.content}"${replyIndicator}`;
+    return `- ${depthLabel} by ${msg.authorName}: "${msg.content}"${replyIndicator}`;
   });
 
-  return `POST by @${postAuthorLabel}:
+  return `POST by ${postAuthorLabel}:
 "${post.content}"
 
 THREAD:
