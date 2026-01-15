@@ -8,8 +8,8 @@
 
 import {
   broadcastAgentActivity,
-  broadcastToChannel,
   broadcastChatMessage,
+  broadcastToChannel,
   type CommentActivityData,
   type JsonValue,
   type MessageActivityData,

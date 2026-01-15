@@ -18,6 +18,7 @@ import {
 } from '../NewsArticlePacingEngine';
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
+import { worldFactsService } from '../world-facts-service';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { articleRateLimiter } from './article-rate-limiter';
 import { characterMappingService } from './character-mapping-service';
@@ -27,7 +28,6 @@ import {
   getSignalDirection,
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
-import { worldFactsService } from '../world-facts-service';
 
 /**
  * Singleton pacing engine for arc event coverage tracking.
