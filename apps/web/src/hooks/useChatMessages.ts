@@ -46,7 +46,7 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
 
 /** Sort messages by createdAt timestamp */
 function sortByTime(messages: ChatMessage[]): ChatMessage[] {
-  return messages.sort(
+  return [...messages].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 }
@@ -65,6 +65,34 @@ function isMatchingOptimistic(
         new Date(incoming.createdAt).getTime()
     ) < 30000
   );
+}
+
+/**
+ * Adds a confirmed message to the list, replacing any matching optimistic message.
+ * Preserves the stableKey from the optimistic message to prevent React remount.
+ */
+function replaceOptimisticMessage(
+  messages: ChatMessage[],
+  confirmed: ChatMessage
+): ChatMessage[] {
+  // Skip exact duplicates
+  if (messages.some((msg) => msg.id === confirmed.id)) {
+    return messages;
+  }
+
+  // Replace optimistic message if found
+  const pending = messages.find((msg) => isMatchingOptimistic(msg, confirmed));
+  if (pending) {
+    return sortByTime(
+      messages.map((msg) =>
+        msg.id === pending.id
+          ? { ...confirmed, stableKey: pending.stableKey || pending.id }
+          : msg
+      )
+    );
+  }
+
+  return sortByTime([...messages, confirmed]);
 }
 
 /** Polling interval - less aggressive since SSE is primary */
@@ -217,26 +245,7 @@ export function useChatMessages(chatId: string | null) {
       };
 
       setIsLoading(false);
-      setMessages((prev) => {
-        // Skip exact duplicates
-        if (prev.some((msg) => msg.id === newMessage.id)) return prev;
-
-        // Replace optimistic message if found
-        const pending = prev.find((msg) =>
-          isMatchingOptimistic(msg, newMessage)
-        );
-        if (pending) {
-          return sortByTime(
-            prev.map((msg) =>
-              msg.id === pending.id
-                ? { ...newMessage, stableKey: pending.stableKey || pending.id }
-                : msg
-            )
-          );
-        }
-
-        return sortByTime([...prev, newMessage]);
-      });
+      setMessages((prev) => replaceOptimisticMessage(prev, newMessage));
     },
     [chatId]
   );
@@ -335,24 +344,11 @@ export function useChatMessages(chatId: string | null) {
   }, [isConnected, chatId]);
 
   const addMessage = useCallback((message: ChatMessage) => {
-    setMessages((prev) => {
-      // Skip exact duplicates
-      if (prev.some((msg) => msg.id === message.id)) return prev;
+    setMessages((prev) => replaceOptimisticMessage(prev, message));
+  }, []);
 
-      // Replace optimistic message if found
-      const pending = prev.find((msg) => isMatchingOptimistic(msg, message));
-      if (pending) {
-        return sortByTime(
-          prev.map((msg) =>
-            msg.id === pending.id
-              ? { ...message, stableKey: pending.stableKey || pending.id }
-              : msg
-          )
-        );
-      }
-
-      return sortByTime([...prev, message]);
-    });
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
   }, []);
 
   const clearMessages = useCallback(() => {
@@ -374,6 +370,7 @@ export function useChatMessages(chatId: string | null) {
     hasMore,
     loadMore,
     addMessage,
+    removeMessage,
     clearMessages,
     reloadMessages,
     isConnected,

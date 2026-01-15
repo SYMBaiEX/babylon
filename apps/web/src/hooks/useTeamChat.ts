@@ -19,6 +19,10 @@ import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
 
+// Constants for scroll behavior
+const SCROLL_NEAR_BOTTOM_THRESHOLD = 150;
+const SCROLL_STABLE_FRAMES_REQUIRED = 5;
+
 /** Typing user info */
 interface TypingUser {
   userId: string;
@@ -129,6 +133,7 @@ export function useTeamChat(): UseTeamChatReturn {
     isLoadingMore,
     hasMore,
     addMessage,
+    removeMessage,
   } = useChatMessages(teamChat?.chatId ?? null);
 
   // Helper to find scroll container from messagesEndRef
@@ -184,7 +189,7 @@ export function useTeamChat(): UseTeamChatReturn {
     const pollUntilStable = () => {
       const currentHeight = container.scrollHeight;
       if (currentHeight === lastHeight && currentHeight > 0) {
-        if (++stableFrames >= 5) {
+        if (++stableFrames >= SCROLL_STABLE_FRAMES_REQUIRED) {
           container.scrollTop = currentHeight;
           return;
         }
@@ -225,10 +230,14 @@ export function useTeamChat(): UseTeamChatReturn {
     if (prevCount === 0) return;
 
     // Only scroll if count INCREASED (not replacements) and user was near bottom
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (messageCount > prevCount && wasNearBottomRef.current) {
       // Small delay to let DOM update
-      setTimeout(() => scrollToBottom('instant'), 20);
+      timeoutId = setTimeout(() => scrollToBottom('instant'), 20);
     }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [realtimeMessages.length, scrollToBottom]);
 
   // Maintain scroll position when messages are replaced (optimistic → confirmed)
@@ -257,7 +266,8 @@ export function useTeamChat(): UseTeamChatReturn {
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     // Consider "near bottom" if within 150px of the bottom
-    wasNearBottomRef.current = distanceFromBottom < 150;
+    wasNearBottomRef.current =
+      distanceFromBottom < SCROLL_NEAR_BOTTOM_THRESHOLD;
   }, []);
 
   // Handle typing and thinking indicator SSE events
@@ -292,10 +302,19 @@ export function useTeamChat(): UseTeamChatReturn {
 
       // Handle thinking indicator (agent is processing complex query)
       if (data.type === 'thinking_indicator') {
-        const agentId = data.agentId as string;
-        const agentName = data.agentName as string;
-        const isThinking = data.isThinking as boolean;
-        const thinkingLabel = (data.thinkingLabel as string) ?? null;
+        // Validate required fields before processing
+        if (
+          typeof data.agentId !== 'string' ||
+          typeof data.agentName !== 'string' ||
+          typeof data.isThinking !== 'boolean'
+        ) {
+          return;
+        }
+        const agentId = data.agentId;
+        const agentName = data.agentName;
+        const isThinking = data.isThinking;
+        const thinkingLabel =
+          typeof data.thinkingLabel === 'string' ? data.thinkingLabel : null;
 
         setThinkingAgents((prev) => {
           if (isThinking) {
@@ -503,7 +522,8 @@ export function useTeamChat(): UseTeamChatReturn {
 
   // Send message with optimistic update (iMessage-style)
   const sendMessage = useCallback(async () => {
-    if (!teamChat || !messageInput.trim() || sending) return;
+    // Guard: require valid user, teamChat, content, and not already sending
+    if (!teamChat || !messageInput.trim() || sending || !user?.id) return;
 
     // Stop typing indicator
     if (isTypingRef.current) {
@@ -515,12 +535,13 @@ export function useTeamChat(): UseTeamChatReturn {
     const mentionedIds = [...mentionedAgentIds];
 
     // Create optimistic message (stableKey prevents flash on confirmation)
-    const optimisticId = `pending-${Date.now()}`;
+    // Use crypto.randomUUID() to avoid ID collisions on rapid sends
+    const optimisticId = `pending-${crypto.randomUUID()}`;
     addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,
       content,
-      senderId: user?.id || '',
+      senderId: user.id,
       type: 'user',
       createdAt: new Date().toISOString(),
       stableKey: optimisticId,
@@ -534,6 +555,8 @@ export function useTeamChat(): UseTeamChatReturn {
     try {
       const token = await getAccessToken();
       if (!token) {
+        // Rollback optimistic message on auth failure
+        removeMessage(optimisticId);
         setSendError('Not authenticated');
         return;
       }
@@ -551,10 +574,14 @@ export function useTeamChat(): UseTeamChatReturn {
       });
 
       if (!response.ok) {
+        // Rollback optimistic message on server error
+        removeMessage(optimisticId);
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
       }
     } catch (err) {
+      // Rollback optimistic message on network error
+      removeMessage(optimisticId);
       setSendError(
         err instanceof Error ? err.message : 'Failed to send message'
       );
@@ -569,6 +596,7 @@ export function useTeamChat(): UseTeamChatReturn {
     user?.id,
     getAccessToken,
     addMessage,
+    removeMessage,
     sendTypingIndicator,
   ]);
 

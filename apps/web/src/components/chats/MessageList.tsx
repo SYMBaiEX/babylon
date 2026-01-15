@@ -101,7 +101,7 @@ export function MessageList({
       {messages.map((msg) => {
         const messageType = getMessageType(msg);
         // Use stableKey if available to prevent flash when optimistic messages are confirmed
-        const key = (msg as { stableKey?: string }).stableKey || msg.id;
+        const key = msg.stableKey || msg.id;
 
         switch (messageType) {
           case MessageTypeEnum.SYSTEM:
