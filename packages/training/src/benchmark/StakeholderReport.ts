@@ -164,7 +164,12 @@ function createAgentSummary(
   baselinePnl: number,
   startingBalance: number = 10000
 ): AgentBenchmarkSummary {
-  const criteriaEval = evaluateCriteria(result, archetype, criteria, baselinePnl);
+  const criteriaEval = evaluateCriteria(
+    result,
+    archetype,
+    criteria,
+    baselinePnl
+  );
 
   return {
     agentId: result.agentId,
