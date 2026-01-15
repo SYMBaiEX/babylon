@@ -156,7 +156,10 @@ export async function gatherPendingCommentReplies(
     interactions.push({
       id: comment.id,
       postId: comment.postId,
-      author: formatUserName(comment.author?.displayName, comment.author?.username),
+      author: formatUserName(
+        comment.author?.displayName,
+        comment.author?.username
+      ),
       content: comment.content,
       post,
       thread,
