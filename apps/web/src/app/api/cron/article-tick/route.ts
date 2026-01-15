@@ -45,7 +45,7 @@ import {
   secureRandom,
   worldFactsService,
 } from '@babylon/engine';
-import { logger } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -55,6 +55,21 @@ interface GameState {
   isRunning: boolean;
   isContinuous: boolean;
   currentDay: number | null;
+}
+
+/** Valid values for Actor.initialLuck field */
+const VALID_INITIAL_LUCK = ['low', 'medium', 'high'] as const;
+type InitialLuck = (typeof VALID_INITIAL_LUCK)[number];
+
+/**
+ * Type guard to validate initialLuck values at runtime.
+ * Ensures the string value is one of the allowed union members.
+ */
+function isValidInitialLuck(value: unknown): value is InitialLuck {
+  return (
+    typeof value === 'string' &&
+    VALID_INITIAL_LUCK.includes(value as InitialLuck)
+  );
 }
 
 /**
@@ -74,7 +89,8 @@ function mapStaticActorsToActors(actorsList: StaticActor[]) {
     postStyle: a.postStyle,
     postExample: a.postExample, // Keep as string[] to match Actor interface
     role: a.role,
-    initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
+    // Validate initialLuck at runtime - use validated value or default to 'medium'
+    initialLuck: isValidInitialLuck(a.initialLuck) ? a.initialLuck : 'medium',
     initialMood: a.initialMood,
   }));
 }
@@ -91,6 +107,36 @@ function mapStaticOrgToOrganization(org: StaticOrganization) {
     canBeInvolved: org.canBeInvolved,
   };
 }
+
+/**
+ * Create a standardized question object for ArticleGenerator.
+ * Centralizes question construction to ensure consistency between
+ * event articles and baseline articles.
+ *
+ * @param id - Question identifier (event questionId or synthetic baseline ID)
+ * @param text - Question/topic text for the article
+ */
+function createQuestionForArticle(id: string, text: string) {
+  return {
+    id,
+    text,
+    scenario: 1, // Default - article-tick articles don't have scenario context
+    outcome: false,
+    rank: 1, // Default - article-tick articles don't have ranking context
+    createdDate: new Date().toISOString().split('T')[0]!,
+    resolutionDate: '',
+    status: 'active' as const,
+  };
+}
+
+/**
+ * Result type for article generation helpers.
+ * Distinguishes between success, skip (rate limit), and error for accurate metrics.
+ */
+type ArticleGenerationResult =
+  | { status: 'success'; id: string }
+  | { status: 'skipped'; reason: string }
+  | { status: 'error'; error: string };
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max
@@ -129,6 +175,10 @@ async function persistArticle(
   gameState: GameState
 ): Promise<PersistArticleResult> {
   // Validate required fields before doing any work
+  // Early validation provides clear errors instead of downstream DB failures
+  if (!article.id?.trim()) {
+    throw new Error('Missing article id');
+  }
   if (!article.title?.trim()) {
     throw new Error('Missing article title');
   }
@@ -213,7 +263,8 @@ async function persistArticle(
         }
       })
       .catch((err) => {
-        logger.debug(
+        // Use warn level to help monitor FAL service health
+        logger.warn(
           'Image generation failed (non-blocking)',
           {
             postId,
@@ -446,38 +497,29 @@ export async function POST(_req: NextRequest) {
           const orgIndex = Math.floor(secureRandom() * newsOrgs.length);
           const org = newsOrgs[orgIndex]!;
 
-          try {
-            const article = await generateEventArticle(
-              event,
-              org,
-              actorsList,
-              worldFactsContext,
-              gameState,
-              llmClient
-            );
+          const result = await generateEventArticle(
+            event,
+            org,
+            actorsList,
+            worldFactsContext,
+            gameState,
+            llmClient
+          );
 
-            if (article) {
-              articlesCreated++;
-              // Mark this event as covered for future duplicate detection
-              markEventAsCovered(eventId, org.id, article.id);
-              logger.info(
-                `Article created by ${org.name}`,
-                { eventId: event.questionId, articleId: article.id },
-                'ArticleTick'
-              );
-            }
-          } catch (error) {
-            errorCount++;
-            logger.error(
-              'Failed to generate event article',
-              {
-                eventId: event.questionId,
-                orgId: org.id,
-                error: error instanceof Error ? error.message : String(error),
-              },
+          if (result.status === 'success') {
+            articlesCreated++;
+            // Mark this event as covered for future duplicate detection
+            markEventAsCovered(eventId, org.id, result.id);
+            logger.info(
+              `Article created by ${org.name}`,
+              { eventId: event.questionId, articleId: result.id },
               'ArticleTick'
             );
+          } else if (result.status === 'error') {
+            // Count actual errors for accurate metrics
+            errorCount++;
           }
+          // 'skipped' status is not an error, just means rate limit hit
         } else {
           logger.debug(
             'Event already covered - skipping',
@@ -493,34 +535,26 @@ export async function POST(_req: NextRequest) {
       const orgIndex = Math.floor(secureRandom() * newsOrgs.length);
       const org = newsOrgs[orgIndex]!;
 
-      try {
-        const article = await generateBaselineArticle(
-          org,
-          actorsList,
-          worldFactsContext,
-          gameState,
-          llmClient
-        );
+      const result = await generateBaselineArticle(
+        org,
+        actorsList,
+        worldFactsContext,
+        gameState,
+        llmClient
+      );
 
-        if (article) {
-          articlesCreated++;
-          logger.info(
-            `Baseline article created by ${org.name}`,
-            { articleId: article.id },
-            'ArticleTick'
-          );
-        }
-      } catch (error) {
-        errorCount++;
-        logger.error(
-          'Failed to generate baseline article',
-          {
-            orgId: org.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
+      if (result.status === 'success') {
+        articlesCreated++;
+        logger.info(
+          `Baseline article created by ${org.name}`,
+          { articleId: result.id },
           'ArticleTick'
         );
+      } else if (result.status === 'error') {
+        // Count actual errors for accurate metrics
+        errorCount++;
       }
+      // 'skipped' status is not an error, just means rate limit hit
     }
 
     const duration = Date.now() - startTime;
@@ -538,6 +572,9 @@ export async function POST(_req: NextRequest) {
       errorCount,
     });
 
+    // Note: skipped: false indicates the tick ran to completion (vs early-exit scenarios
+    // like rate limit reached, no game, game paused). This provides consistent response
+    // shape for monitoring and test assertions.
     return NextResponse.json({
       success,
       skipped: false,
@@ -552,7 +589,8 @@ export async function POST(_req: NextRequest) {
 }
 
 /**
- * Generate an article about a specific event using ArticleGenerator
+ * Generate an article about a specific event using ArticleGenerator.
+ * Returns structured result for accurate metrics tracking.
  */
 async function generateEventArticle(
   event: { questionId: string; text?: string },
@@ -561,7 +599,7 @@ async function generateEventArticle(
   worldFactsContext: string,
   gameState: GameState,
   llmClient: BabylonLLMClient
-): Promise<{ id: string } | null> {
+): Promise<ArticleGenerationResult> {
   // P0: Pre-check rate limit BEFORE expensive LLM calls to avoid wasting resources
   const { allowed } = await articleRateLimiter.canGenerateArticle();
   if (!allowed) {
@@ -570,7 +608,7 @@ async function generateEventArticle(
       { eventId: event.questionId, orgId: org.id },
       'ArticleTick'
     );
-    return null;
+    return { status: 'skipped', reason: 'rate_limit' };
   }
 
   // Create ArticleGenerator instance
@@ -580,17 +618,11 @@ async function generateEventArticle(
   const organization = mapStaticOrgToOrganization(org);
   const actors = mapStaticActorsToActors(actorsList);
 
-  // Create question object for ArticleGenerator
-  const question = {
-    id: event.questionId,
-    text: event.text || `Market activity for ${event.questionId}`,
-    scenario: 1,
-    outcome: false,
-    rank: 1,
-    createdDate: new Date().toISOString().split('T')[0]!,
-    resolutionDate: '',
-    status: 'active' as const,
-  };
+  // Create standardized question object using factory helper
+  const question = createQuestionForArticle(
+    event.questionId,
+    event.text || `Market activity for ${event.questionId}`
+  );
 
   try {
     // Generate article using ArticleGenerator (handles character mapping internally)
@@ -607,28 +639,30 @@ async function generateEventArticle(
     // Persist the article (includes TOCTOU re-check for race conditions)
     const result = await persistArticle(article, gameState);
 
-    // Handle rate-limited result (not an error, just return null)
+    // Handle rate-limited result (not an error, just skipped)
     if (!result.success) {
-      return null;
+      return { status: 'skipped', reason: 'rate_limit_at_persist' };
     }
 
-    return { id: result.postId };
+    return { status: 'success', id: result.postId };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
       'ArticleGenerator failed for event article',
       {
         eventId: event.questionId,
         orgId: org.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       },
       'ArticleTick'
     );
-    return null;
+    return { status: 'error', error: errorMessage };
   }
 }
 
 /**
- * Generate a baseline article (not tied to a specific event) using ArticleGenerator
+ * Generate a baseline article (not tied to a specific event) using ArticleGenerator.
+ * Returns structured result for accurate metrics tracking.
  */
 async function generateBaselineArticle(
   org: StaticOrganization,
@@ -636,7 +670,7 @@ async function generateBaselineArticle(
   worldFactsContext: string,
   gameState: GameState,
   llmClient: BabylonLLMClient
-): Promise<{ id: string } | null> {
+): Promise<ArticleGenerationResult> {
   // Pick a random actor to focus on
   const actorIndex = Math.floor(
     secureRandom() * Math.min(10, actorsList.length)
@@ -655,7 +689,7 @@ async function generateBaselineArticle(
       { topic, orgId: org.id },
       'ArticleTick'
     );
-    return null;
+    return { status: 'skipped', reason: 'rate_limit' };
   }
 
   // Create ArticleGenerator instance
@@ -666,16 +700,11 @@ async function generateBaselineArticle(
   const actors = mapStaticActorsToActors(actorsList);
 
   // Create synthetic question for baseline article (topic-based)
-  const question = {
-    id: `baseline-${Date.now()}`,
-    text: topic,
-    scenario: 1,
-    outcome: false,
-    rank: 1,
-    createdDate: new Date().toISOString().split('T')[0]!,
-    resolutionDate: '',
-    status: 'active' as const,
-  };
+  // Use snowflake ID to prevent collisions if multiple baselines generated simultaneously.
+  // The "baseline-" prefix distinguishes synthetic IDs from real question IDs (which are
+  // numeric snowflakes) to avoid conflicts in logging, analytics, and caching systems.
+  const questionId = await generateSnowflakeId();
+  const question = createQuestionForArticle(`baseline-${questionId}`, topic);
 
   try {
     // Generate article using ArticleGenerator (handles character mapping internally)
@@ -692,22 +721,23 @@ async function generateBaselineArticle(
     // Persist the article (includes TOCTOU re-check for race conditions)
     const result = await persistArticle(article, gameState);
 
-    // Handle rate-limited result (not an error, just return null)
+    // Handle rate-limited result (not an error, just skipped)
     if (!result.success) {
-      return null;
+      return { status: 'skipped', reason: 'rate_limit_at_persist' };
     }
 
-    return { id: result.postId };
+    return { status: 'success', id: result.postId };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
       'ArticleGenerator failed for baseline article',
       {
         topic,
         orgId: org.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       },
       'ArticleTick'
     );
-    return null;
+    return { status: 'error', error: errorMessage };
   }
 }

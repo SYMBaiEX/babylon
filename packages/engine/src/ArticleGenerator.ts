@@ -710,10 +710,13 @@ BIAS INSTRUCTIONS:
     }
 
     // Build world context section - includes game state and recent happenings
+    // Double newline provides visual separation in the prompt
     const worldContextSection = worldContext
-      ? `WORLD CONTEXT:\n${worldContext}\n`
+      ? `WORLD CONTEXT:\n${worldContext}\n\n`
       : '';
 
+    // Empty string when no events - worldContext already provides recent happenings,
+    // so omitting "No recent context" avoids redundant/confusing prompt text
     const recentContext =
       recentEvents.length > 0
         ? `RECENT EVENTS:\n${recentEvents.map((e) => `- ${e.description}`).join('\n')}`
