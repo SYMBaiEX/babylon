@@ -79,8 +79,7 @@ function evaluateCriteria(
   result: SimulationResult,
   archetype: string,
   criteria: ScenarioSuccessCriteria,
-  baselinePnl: number,
-  _startingBalance: number = 10000
+  baselinePnl: number
 ): { passed: boolean; details: string } {
   const pnl = result.metrics.totalPnl;
   const tradeCount = result.actions.filter((a) =>
@@ -165,13 +164,7 @@ function createAgentSummary(
   baselinePnl: number,
   startingBalance: number = 10000
 ): AgentBenchmarkSummary {
-  const criteriaEval = evaluateCriteria(
-    result,
-    archetype,
-    criteria,
-    baselinePnl,
-    startingBalance
-  );
+  const criteriaEval = evaluateCriteria(result, archetype, criteria, baselinePnl);
 
   return {
     agentId: result.agentId,
