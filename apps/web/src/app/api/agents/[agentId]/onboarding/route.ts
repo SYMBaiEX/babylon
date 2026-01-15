@@ -13,7 +13,7 @@
 
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db, messages as messagesTable } from '@babylon/db';
+import { chats, db, eq, messages as messagesTable } from '@babylon/db';
 import { GROQ_MODELS, generateSnowflakeId, logger } from '@babylon/shared';
 import {
   composePromptFromState,
@@ -211,24 +211,39 @@ export const POST = withErrorHandling(
     const dmChatId = `dm-${sortedIds.join('-')}`;
 
     try {
-      const dmMessageId = await generateSnowflakeId();
-      await db
-        .insert(messagesTable)
-        .values({
-          id: dmMessageId,
-          chatId: dmChatId,
-          senderId: agentId,
-          content: welcomeMessage,
-          type: 'system',
-          createdAt: messageTime,
-        })
-        .onConflictDoNothing(); // Ignore if DM chat doesn't exist yet
+      // Verify the DM chat exists before inserting to prevent orphaned records
+      const existingChat = await db
+        .select({ id: chats.id })
+        .from(chats)
+        .where(eq(chats.id, dmChatId))
+        .limit(1);
 
-      logger.info(
-        `Onboarding message also posted to DM chat`,
-        { dmChatId, dmMessageId },
-        'AgentOnboarding'
-      );
+      if (existingChat.length === 0) {
+        logger.debug(
+          `Skipping DM message - chat does not exist yet`,
+          { dmChatId },
+          'AgentOnboarding'
+        );
+      } else {
+        const dmMessageId = await generateSnowflakeId();
+        await db
+          .insert(messagesTable)
+          .values({
+            id: dmMessageId,
+            chatId: dmChatId,
+            senderId: agentId,
+            content: welcomeMessage,
+            type: 'system',
+            createdAt: messageTime,
+          })
+          .onConflictDoNothing(); // Ignore insert conflicts (e.g., duplicate DM message ID)
+
+        logger.info(
+          `Onboarding message also posted to DM chat`,
+          { dmChatId, dmMessageId },
+          'AgentOnboarding'
+        );
+      }
     } catch (error) {
       // Don't fail the whole request if DM message fails
       logger.warn(
