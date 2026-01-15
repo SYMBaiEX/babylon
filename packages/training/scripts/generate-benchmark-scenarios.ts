@@ -17,7 +17,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import {
-  SeededRandom,
   type BenchmarkGameSnapshot,
   type CausalEventType,
   type GameState,
@@ -25,6 +24,7 @@ import {
   type HiddenNarrativeFact,
   type PerpetualMarket,
   type PredictionMarket,
+  SeededRandom,
   type SimulatedAgent,
   type Tick,
   type TickEvent,
