@@ -165,13 +165,21 @@ export async function GET(request: NextRequest) {
               break;
             }
           }
-        } catch {
-          // Stream might not exist yet, which is fine - we'll use '$' as fallback
-          logger.debug(
-            'Could not get stream info (stream may not exist yet)',
-            { streamKey },
-            'SSE'
-          );
+        } catch (err) {
+          // Distinguish stream-not-found (expected) from other errors (unexpected)
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const isStreamNotFound =
+            errMsg.includes('no such key') ||
+            errMsg.includes('ERR no such key');
+          if (isStreamNotFound) {
+            logger.debug('Stream does not exist yet', { streamKey }, 'SSE');
+          } else {
+            logger.warn(
+              'Unexpected error getting stream info',
+              { streamKey, error: errMsg },
+              'SSE'
+            );
+          }
         }
       }
 
@@ -250,9 +258,9 @@ export async function GET(request: NextRequest) {
 
         // No messages received (timeout), loop continues for heartbeat
         if (!messages || messages.length === 0) {
-          // Log every 6 iterations (~30 seconds) to confirm loop is running
-          if (loopCount % 6 === 0) {
-            logger.info(
+          // Log every 30 iterations (~30 seconds) at debug level to reduce noise
+          if (loopCount % 30 === 0) {
+            logger.debug(
               'SSE loop still running - no messages',
               {
                 connectionId,

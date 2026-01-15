@@ -216,18 +216,25 @@ export async function ensureRedisReady(): Promise<RedisInstance | null> {
     // Wait for connection to complete
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
+        client.off('ready', onReady);
+        client.off('error', onError);
         reject(new Error('Redis connection timeout'));
       }, 5000);
 
-      client.once('ready', () => {
+      const onReady = () => {
         clearTimeout(timeout);
+        client.off('error', onError);
         resolve();
-      });
+      };
 
-      client.once('error', (err) => {
+      const onError = (err: Error) => {
         clearTimeout(timeout);
+        client.off('ready', onReady);
         reject(err);
-      });
+      };
+
+      client.once('ready', onReady);
+      client.once('error', onError);
     });
     return client;
   }
@@ -239,8 +246,17 @@ export async function ensureRedisReady(): Promise<RedisInstance | null> {
       { status },
       'Redis'
     );
-    await client.connect();
-    return client;
+    try {
+      await client.connect();
+      return client;
+    } catch (err) {
+      logger.error(
+        'Redis reconnection failed',
+        { error: err instanceof Error ? err.message : String(err) },
+        'Redis'
+      );
+      return null;
+    }
   }
 
   return client;

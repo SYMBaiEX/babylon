@@ -73,7 +73,7 @@ export async function streamAdd(
 
   // Log successful stream writes for debugging
   if (result) {
-    logger.info('streamAdd succeeded', { stream, messageId: result }, 'Redis');
+    logger.debug('streamAdd succeeded', { stream, messageId: result }, 'Redis');
   } else {
     logger.warn('streamAdd returned null', { stream }, 'Redis');
   }
@@ -150,20 +150,10 @@ export async function streamRead(
 
   const streamArgs = [...streams, ...ids] as string[];
 
-  // Check client status right before XREAD
-  const preReadStatus = client.status;
-  if (preReadStatus !== 'ready') {
-    logger.warn(
-      'streamRead: client not ready before XREAD',
-      { status: preReadStatus, streams },
-      'Redis'
-    );
-  }
-
   // Build XREAD command with optional BLOCK and COUNT
   // XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]
   // Log before XREAD for debugging SSE issues
-  logger.info(
+  logger.debug(
     'XREAD starting',
     {
       streams,
@@ -194,7 +184,7 @@ export async function streamRead(
   }
 
   // Log XREAD completion
-  logger.info(
+  logger.debug(
     'XREAD completed',
     {
       streams,
