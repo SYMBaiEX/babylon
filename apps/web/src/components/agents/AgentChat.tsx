@@ -1,6 +1,7 @@
 'use client';
 
 import { logger } from '@babylon/shared';
+import { Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ChatViewHeader } from '@/components/chats/ChatViewHeader';
@@ -401,6 +402,19 @@ export function AgentChat({
           onManageGroup={() => {}}
           onLeaveChat={() => {}}
         />
+
+        {/* Agent Balance Banner */}
+        {agent.virtualBalance !== undefined && (
+          <div className="flex items-center justify-between border-border border-b bg-muted/30 px-4 py-2">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Wallet className="h-4 w-4" />
+              <span>Agent Balance</span>
+            </div>
+            <span className="font-medium font-mono text-sm">
+              ${agent.virtualBalance.toLocaleString()}
+            </span>
+          </div>
+        )}
 
         {/* Header Separator */}
         <div className="px-4">
