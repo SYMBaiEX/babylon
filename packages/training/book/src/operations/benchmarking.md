@@ -71,14 +71,19 @@ Machine-readable data for dashboards:
 
 ```json
 {
+  "generatedAt": "2026-01-15T10:00:00.000Z",
   "modelVersion": "step_100",
-  "baselineType": "random",
+  "baselineDescription": "random strategy",
   "scenarios": [...],
   "summary": {
     "scenariosWon": 3,
     "scenariosLost": 1,
+    "scenariosTied": 0,
     "totalAlpha": 1250.50,
-    "overallVerdict": "deploy"
+    "avgPnlImprovement": 12.5,
+    "avgFitScoreImprovement": 0.05,
+    "overallVerdict": "deploy",
+    "verdictExplanation": "Model won 3/4 scenarios..."
   },
   "recommendations": [...]
 }
@@ -182,10 +187,10 @@ Benchmarks run automatically via GitHub Actions:
 # .github/workflows/benchmark-suite.yml
 on:
   workflow_run:
-    workflows: ["Training"]
+    workflows: ["RL Training"]
     types: [completed]
   schedule:
-    - cron: '0 0 * * *'  # Nightly
+    - cron: '0 3 * * *'  # 3 AM UTC daily
   workflow_dispatch:  # Manual trigger
 ```
 
