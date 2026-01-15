@@ -110,10 +110,26 @@ mock.module('@babylon/engine', () => ({
   },
   ArticleGenerator: class {
     generateArticleForQuestion = async () => ({
+      // Complete Article interface with all required fields
+      id: `mock-article-${Date.now()}`,
       title: 'Test Article',
       summary: 'Test summary',
-      content: 'Test content',
+      content: 'Test content that is long enough to pass validation. '.repeat(
+        20
+      ),
+      authorOrgId: 'org-1',
+      authorOrgName: 'Test News',
       byline: 'Test Author',
+      bylineActorId: 'actor-1',
+      biasScore: 0,
+      sentiment: 'neutral' as const,
+      slant: 'Neutral coverage',
+      relatedEventId: 'event-1',
+      relatedActorIds: [],
+      relatedOrgIds: ['org-1'],
+      category: 'news',
+      tags: ['test', 'article'],
+      publishedAt: new Date(),
     });
   },
   BabylonLLMClient: {
@@ -125,18 +141,33 @@ mock.module('@babylon/engine', () => ({
       }),
     }),
   },
-  characterMappingService: {
-    transformText: async (text: string) => ({ transformedText: text }),
-  },
   generateArticleImageWithRetry: async () => null,
   getActiveEventsForPosting: async () => ({ activeEvents: [] }),
   hasEventBeenCovered: () => false,
   markEventAsCovered: () => {},
   StaticDataRegistry: {
     getOrganizationsByType: () => [
-      { id: 'org-1', name: 'Test News', description: 'A news org' },
+      {
+        id: 'org-1',
+        name: 'Test News',
+        description: 'A news org',
+        type: 'media',
+        canBeInvolved: true,
+      },
     ],
-    getTopActors: () => [],
+    getTopActors: () => [
+      {
+        id: 'actor-1',
+        name: 'Test Actor',
+        description: 'A test actor',
+        domain: ['tech'],
+        affiliations: [],
+        postExample: [],
+        initialLuck: 'medium',
+        initialMood: 0,
+        isTest: true,
+      },
+    ],
   },
   secureRandom: () => Math.random(),
   worldFactsService: {

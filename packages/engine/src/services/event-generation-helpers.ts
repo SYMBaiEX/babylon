@@ -549,8 +549,20 @@ export async function generateArticlesForArcEvent(
   // Get actors for article context
   const actorsList = StaticDataRegistry.getTopActors(20);
 
-  // Get world facts context for article generation
-  const worldFactsContext = await worldFactsService.generatePromptContext();
+  // Get world facts context for article generation with graceful fallback
+  let worldFactsContext = '';
+  try {
+    worldFactsContext = await worldFactsService.generatePromptContext();
+  } catch (error) {
+    logger.warn(
+      'Failed to fetch world facts context for arc event articles - proceeding without',
+      {
+        arcEventId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'EventGeneration'
+    );
+  }
 
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);

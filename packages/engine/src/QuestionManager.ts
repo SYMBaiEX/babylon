@@ -559,8 +559,20 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       visibility: 'public',
     };
 
-    // Get world facts context for article generation
-    const worldFactsContext = await worldFactsService.generatePromptContext();
+    // Get world facts context for article generation with graceful fallback
+    let worldFactsContext = '';
+    try {
+      worldFactsContext = await worldFactsService.generatePromptContext();
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch world facts context for proof content - proceeding without',
+        {
+          questionId: question.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'QuestionManager'
+      );
+    }
 
     const article = await articleGenerator.generateArticleForQuestion(
       question,

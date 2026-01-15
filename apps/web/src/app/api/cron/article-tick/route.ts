@@ -57,6 +57,41 @@ interface GameState {
   currentDay: number | null;
 }
 
+/**
+ * Map StaticActor[] to Actor[] interface expected by ArticleGenerator.
+ * Extracted to module-scope helper to avoid duplication between
+ * generateEventArticle and generateBaselineArticle.
+ */
+function mapStaticActorsToActors(actorsList: StaticActor[]) {
+  return actorsList.map((a) => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    domain: a.domain,
+    personality: a.personality,
+    tier: a.tier ?? undefined,
+    affiliations: a.affiliations,
+    postStyle: a.postStyle,
+    postExample: a.postExample, // Keep as string[] to match Actor interface
+    role: a.role,
+    initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
+    initialMood: a.initialMood,
+  }));
+}
+
+/**
+ * Map StaticOrganization to Organization interface expected by ArticleGenerator.
+ */
+function mapStaticOrgToOrganization(org: StaticOrganization) {
+  return {
+    id: org.id,
+    name: org.name,
+    description: org.description,
+    type: org.type,
+    canBeInvolved: org.canBeInvolved,
+  };
+}
+
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
@@ -373,7 +408,18 @@ export async function POST(_req: NextRequest) {
 
     // Get active events for article generation
     const activeEventsData = await getActiveEventsForPosting();
-    const worldFactsContext = await worldFactsService.generatePromptContext();
+
+    // Get world facts context with graceful fallback if service fails
+    let worldFactsContext = '';
+    try {
+      worldFactsContext = await worldFactsService.generatePromptContext();
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch world facts context - proceeding without',
+        { error: error instanceof Error ? error.message : String(error) },
+        'ArticleTick'
+      );
+    }
 
     // Create LLM client for article generation
     const llmClient = BabylonLLMClient.forGameTick();
@@ -516,35 +562,23 @@ async function generateEventArticle(
   gameState: GameState,
   llmClient: BabylonLLMClient
 ): Promise<{ id: string } | null> {
+  // P0: Pre-check rate limit BEFORE expensive LLM calls to avoid wasting resources
+  const { allowed } = await articleRateLimiter.canGenerateArticle();
+  if (!allowed) {
+    logger.info(
+      'Event article skipped - rate limit reached before LLM call',
+      { eventId: event.questionId, orgId: org.id },
+      'ArticleTick'
+    );
+    return null;
+  }
+
   // Create ArticleGenerator instance
   const articleGen = new ArticleGenerator(llmClient);
 
-  // Map org to Organization interface expected by ArticleGenerator
-  // StaticOrganization already has all required fields
-  const organization = {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    type: org.type,
-    canBeInvolved: org.canBeInvolved,
-  };
-
-  // Map actors to Actor interface expected by ArticleGenerator
-  // StaticActor has compatible structure, just need to handle optional fields
-  const actors = actorsList.map((a) => ({
-    id: a.id,
-    name: a.name,
-    description: a.description,
-    domain: a.domain,
-    personality: a.personality,
-    tier: a.tier ?? undefined,
-    affiliations: a.affiliations,
-    postStyle: a.postStyle,
-    postExample: a.postExample, // Keep as string[] to match Actor interface
-    role: a.role,
-    initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
-    initialMood: a.initialMood,
-  }));
+  // Use helper functions to map static data to expected interfaces
+  const organization = mapStaticOrgToOrganization(org);
+  const actors = mapStaticActorsToActors(actorsList);
 
   // Create question object for ArticleGenerator
   const question = {
@@ -570,7 +604,7 @@ async function generateEventArticle(
       worldFactsContext // World facts context for current game state
     );
 
-    // Persist the article
+    // Persist the article (includes TOCTOU re-check for race conditions)
     const result = await persistArticle(article, gameState);
 
     // Handle rate-limited result (not an error, just return null)
@@ -613,35 +647,23 @@ async function generateBaselineArticle(
     ? `${actor.name} and recent developments`
     : 'AI industry trends and market movements';
 
+  // P0: Pre-check rate limit BEFORE expensive LLM calls to avoid wasting resources
+  const { allowed } = await articleRateLimiter.canGenerateArticle();
+  if (!allowed) {
+    logger.info(
+      'Baseline article skipped - rate limit reached before LLM call',
+      { topic, orgId: org.id },
+      'ArticleTick'
+    );
+    return null;
+  }
+
   // Create ArticleGenerator instance
   const articleGen = new ArticleGenerator(llmClient);
 
-  // Map org to Organization interface expected by ArticleGenerator
-  // StaticOrganization already has all required fields
-  const organization = {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    type: org.type,
-    canBeInvolved: org.canBeInvolved,
-  };
-
-  // Map actors to Actor interface expected by ArticleGenerator
-  // StaticActor has compatible structure, just need to handle optional fields
-  const actors = actorsList.map((a) => ({
-    id: a.id,
-    name: a.name,
-    description: a.description,
-    domain: a.domain,
-    personality: a.personality,
-    tier: a.tier ?? undefined,
-    affiliations: a.affiliations,
-    postStyle: a.postStyle,
-    postExample: a.postExample, // Keep as string[] to match Actor interface
-    role: a.role,
-    initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
-    initialMood: a.initialMood,
-  }));
+  // Use helper functions to map static data to expected interfaces
+  const organization = mapStaticOrgToOrganization(org);
+  const actors = mapStaticActorsToActors(actorsList);
 
   // Create synthetic question for baseline article (topic-based)
   const question = {
@@ -667,7 +689,7 @@ async function generateBaselineArticle(
       worldFactsContext // World facts context for current game state
     );
 
-    // Persist the article
+    // Persist the article (includes TOCTOU re-check for race conditions)
     const result = await persistArticle(article, gameState);
 
     // Handle rate-limited result (not an error, just return null)
