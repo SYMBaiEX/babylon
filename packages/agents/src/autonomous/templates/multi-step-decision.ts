@@ -316,7 +316,6 @@ export interface AgentOwnPostContext {
 }
 
 export interface CreatorInfo {
-  id: string;
   name: string;
   username?: string;
 }
