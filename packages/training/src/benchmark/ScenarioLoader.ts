@@ -444,7 +444,7 @@ export class ScenarioLoader {
       const filePath = path.join(this.scenarioDir, file);
 
       const content = await fs.readFile(filePath, 'utf-8');
-      
+
       // Wrap JSON.parse in try-catch to continue validation of other files
       let scenario: FixedBenchmarkScenario;
       try {
