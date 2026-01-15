@@ -215,20 +215,39 @@ export const GET = withErrorHandling(
       }
     }
 
+    // Valid values for runtime validation
+    const validMarketTypes = ['prediction', 'perp'] as const;
+    const validActions = ['open', 'close'] as const;
+
     // Format response
-    const recentTrades: RecentTrade[] = trades.map((trade) => ({
-      id: trade.id,
-      marketType: trade.marketType as 'prediction' | 'perp',
-      ticker: trade.ticker,
-      marketQuestion: trade.marketId
-        ? (marketQuestions.get(trade.marketId) ?? null)
-        : null,
-      action: trade.action as 'open' | 'close',
-      side: trade.side,
-      amount: Number(trade.amount),
-      pnl: trade.pnl !== null ? Number(trade.pnl) : null,
-      executedAt: trade.executedAt.toISOString(),
-    }));
+    const recentTrades: RecentTrade[] = trades.map((trade) => {
+      // Runtime validation with defaults
+      const marketType = validMarketTypes.includes(
+        trade.marketType as (typeof validMarketTypes)[number]
+      )
+        ? (trade.marketType as 'prediction' | 'perp')
+        : 'prediction';
+
+      const action = validActions.includes(
+        trade.action as (typeof validActions)[number]
+      )
+        ? (trade.action as 'open' | 'close')
+        : 'open';
+
+      return {
+        id: trade.id,
+        marketType,
+        ticker: trade.ticker,
+        marketQuestion: trade.marketId
+          ? (marketQuestions.get(trade.marketId) ?? null)
+          : null,
+        action,
+        side: trade.side,
+        amount: Number(trade.amount),
+        pnl: trade.pnl !== null ? Number(trade.pnl) : null,
+        executedAt: trade.executedAt.toISOString(),
+      };
+    });
 
     logger.debug(
       'Fetched recent trades for agent',

@@ -112,13 +112,15 @@ export const GET = withErrorHandling(
     const authUser = await optionalAuth(request).catch(() => null);
 
     // Get user's agents to include their positions
-    const userAgents = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-      })
-      .from(users)
-      .where(eq(users.managedBy, userId));
+    const userAgents = await asPublic(async () => {
+      return await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+        })
+        .from(users)
+        .where(eq(users.managedBy, userId));
+    });
 
     const agentIds = userAgents.map((a) => a.id);
     const agentMap = new Map(userAgents.map((a) => [a.id, a.displayName]));
