@@ -182,16 +182,16 @@ Evaluate trained models against fixed scenarios and baselines.
 
 ```bash
 # Run full benchmark suite (all 4 scenarios)
-bun run benchmark:suite
+bun run benchmark
 
 # Quick mode (7-day scenarios instead of 22-day)
 bun run benchmark:quick
 
 # Specific scenario
-bun run benchmark:suite -- --scenario bear-market
+bun run benchmark -- --scenario bear-market
 
 # With trained model
-bun run benchmark:suite -- --model ./trained_models/step_100
+bun run benchmark -- --model ./trained_models/step_100
 ```
 
 ### Fixed Scenarios
@@ -230,7 +230,7 @@ Reports are saved to `benchmark-results/<timestamp>/`.
 If you need to regenerate the fixed benchmark scenarios:
 
 ```bash
-bun run benchmark:generate-scenarios
+bun run benchmark:scenarios
 ```
 
 ### CI Integration

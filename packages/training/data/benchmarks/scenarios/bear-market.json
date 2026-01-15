@@ -19,7 +19,7 @@
   "snapshot": {
     "id": "scenario-bear-market-v1",
     "version": "1.0.0",
-    "createdAt": 1768455073163,
+    "createdAt": 1768458205003,
     "duration": 1900800,
     "tickInterval": 3600,
     "initialState": {
