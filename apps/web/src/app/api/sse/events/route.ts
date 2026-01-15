@@ -169,10 +169,13 @@ export async function GET(request: NextRequest) {
           // Distinguish stream-not-found (expected) from other errors (unexpected)
           const errMsg = err instanceof Error ? err.message : String(err);
           const isStreamNotFound =
-            errMsg.includes('no such key') ||
-            errMsg.includes('ERR no such key');
+            errMsg.includes('no such key') || errMsg.includes('ERR no such key');
           if (isStreamNotFound) {
-            logger.debug('Stream does not exist yet', { streamKey }, 'SSE');
+            logger.debug(
+              'Stream does not exist yet',
+              { streamKey },
+              'SSE'
+            );
           } else {
             logger.warn(
               'Unexpected error getting stream info',
