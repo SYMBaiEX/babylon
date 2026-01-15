@@ -27,6 +27,7 @@ import {
   getSignalDirection,
 } from './narrative-state-service';
 import { StaticDataRegistry } from './static-data-registry';
+import { worldFactsService } from '../world-facts-service';
 
 /**
  * Singleton pacing engine for arc event coverage tracking.
@@ -548,6 +549,9 @@ export async function generateArticlesForArcEvent(
   // Get actors for article context
   const actorsList = StaticDataRegistry.getTopActors(20);
 
+  // Get world facts context for article generation
+  const worldFactsContext = await worldFactsService.generatePromptContext();
+
   // Initialize article generator
   const articleGen = new ArticleGenerator(llmClient);
 
@@ -618,7 +622,8 @@ export async function generateArticlesForArcEvent(
           initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
           initialMood: a.initialMood || 0,
         })),
-        [] // Events are included in context via question
+        [], // Events are included in context via question
+        worldFactsContext // World facts context for current game state
       );
 
       // Transform content to replace real names with parody names

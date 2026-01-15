@@ -36,6 +36,9 @@ Style: {{orgStyle}}
 Editorial position: {{editorialPosition}}
 Previous stances: {{previousStances}}
 
+=== CURRENT WORLD STATE ===
+{{worldContext}}
+
 === EVENT TO COVER ===
 {{eventDescription}}
 Type: {{eventType}}

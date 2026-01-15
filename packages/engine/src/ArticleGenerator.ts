@@ -121,6 +121,7 @@ interface ArticleGenerationContext {
   opposingActors: string[]; // Actors the org opposes
   insiderInfo?: string; // Insider information to include
   recentEvents: WorldEvent[]; // Context from recent events
+  worldContext?: string; // World facts context (game state, recent happenings)
 }
 
 /**
@@ -168,6 +169,7 @@ export class ArticleGenerator {
    * @param stage - Article stage (breaking/commentary/resolution)
    * @param actors - All game actors
    * @param recentEvents - Recent events for context
+   * @param worldContext - World facts context (game state, recent happenings)
    * @returns Article with stage-appropriate content
    *
    * @description
@@ -179,7 +181,8 @@ export class ArticleGenerator {
     organization: Organization,
     stage: ArticleStage,
     actors: Actor[],
-    recentEvents: WorldEvent[] = []
+    recentEvents: WorldEvent[] = [],
+    worldContext?: string
   ): Promise<Article> {
     // Strict validation - fail fast on bad inputs
     if (!question || !question.id || !question.text) {
@@ -205,7 +208,8 @@ export class ArticleGenerator {
       organization,
       stage,
       actors,
-      recentEvents
+      recentEvents,
+      worldContext
     );
 
     const article = await this.generateArticle(context);
@@ -238,7 +242,8 @@ export class ArticleGenerator {
     org: Organization,
     stage: ArticleStage,
     actors: Actor[],
-    recentEvents: WorldEvent[]
+    recentEvents: WorldEvent[],
+    worldContext?: string
   ): ArticleGenerationContext {
     // Find journalist from this org
     const journalist = actors.find((a) => a.affiliations?.includes(org.id));
@@ -272,6 +277,7 @@ export class ArticleGenerator {
       recentEvents: recentEvents
         .filter((e) => e.relatedQuestion === questionIdNumber)
         .slice(0, 3),
+      worldContext,
     };
   }
 
@@ -668,6 +674,7 @@ export class ArticleGenerator {
       alignedActors,
       opposingActors,
       recentEvents,
+      worldContext,
     } = context;
 
     let biasInstructions = '';
@@ -702,10 +709,15 @@ BIAS INSTRUCTIONS:
 `;
     }
 
+    // Build world context section - includes game state and recent happenings
+    const worldContextSection = worldContext
+      ? `WORLD CONTEXT:\n${worldContext}\n`
+      : '';
+
     const recentContext =
       recentEvents.length > 0
-        ? `RECENT CONTEXT (for background):\n${recentEvents.map((e) => `- ${e.description}`).join('\n')}`
-        : 'No recent context available.';
+        ? `RECENT EVENTS:\n${recentEvents.map((e) => `- ${e.description}`).join('\n')}`
+        : '';
 
     const relatedQuestionContext = event.relatedQuestion
       ? `Related to Prediction Market Question #${event.relatedQuestion}`
@@ -718,6 +730,7 @@ BIAS INSTRUCTIONS:
       eventDescription: event.description,
       eventType: event.type,
       relatedQuestionContext,
+      worldContext: worldContextSection,
       recentContext,
       biasInstructions,
     });
