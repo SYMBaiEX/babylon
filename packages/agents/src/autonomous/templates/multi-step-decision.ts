@@ -487,12 +487,12 @@ ${NPC_POST_QUALITY_RULES}
 
   // Determine enabled features for conditional sections
   // Use context.enabledFeatures directly - MultiStepExecutor already supplies filtered features
-  const canTrade = context.enabledFeatures.includes('trading');
-  const canComment = context.enabledFeatures.includes('commenting');
-  const canRespondDMs = context.enabledFeatures.includes('DMs');
-  const canEngage = context.enabledFeatures.includes('engaging');
-  const canPost = context.enabledFeatures.includes('posting');
-  const canGroupChat = context.enabledFeatures.includes('groupChats');
+  const canTrade = context.enabledFeatures.includes(Features.TRADING);
+  const canComment = context.enabledFeatures.includes(Features.COMMENTING);
+  const canRespondDMs = context.enabledFeatures.includes(Features.DMS);
+  const canEngage = context.enabledFeatures.includes(Features.ENGAGING);
+  const canPost = context.enabledFeatures.includes(Features.POSTING);
+  const canGroupChat = context.enabledFeatures.includes(Features.GROUP_CHATS);
 
   // Check if already posted this tick (for prompt messaging, not feature filtering)
   const hasPostedThisTick = traceActionResults.some(
@@ -766,7 +766,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', (canRespondDMs || canGroupChat) ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs || canGroupChat ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
