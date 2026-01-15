@@ -551,11 +551,11 @@ ${chatLines.join('\n\n')}`);
       );
       const agentLastMessage = agentMessages[0]; // Already sorted by desc createdAt
 
-      // If agent's last message ID is greater than user's last message ID,
-      // the agent has already responded (Snowflake IDs are monotonically increasing)
+      // If agent's last message was sent after the latest message from others,
+      // the agent has already responded
       if (
         agentLastMessage &&
-        BigInt(agentLastMessage.id) > BigInt(latestFromOther.id)
+        agentLastMessage.createdAt > latestFromOther.createdAt
       ) {
         logger.info(
           `Agent already responded to message in chat ${chat.id} - skipping`,

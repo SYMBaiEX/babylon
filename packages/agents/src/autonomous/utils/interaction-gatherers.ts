@@ -280,14 +280,14 @@ export async function gatherPendingChatMessages(
     const latestFromOther = messagesFromOthers[0];
     if (!latestFromOther) continue;
 
-    // Check if agent already responded
+    // Check if agent already responded (compare timestamps, not IDs which may be text-based)
     const agentMessages = chatMessages.filter(
       (m) => m.senderId === agentUserId
     );
     const agentLastMessage = agentMessages[0];
     if (
       agentLastMessage &&
-      BigInt(agentLastMessage.id) > BigInt(latestFromOther.id)
+      agentLastMessage.createdAt > latestFromOther.createdAt
     ) {
       continue;
     }
