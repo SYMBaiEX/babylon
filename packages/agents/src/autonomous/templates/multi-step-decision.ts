@@ -209,8 +209,8 @@ export const ACTION_DEFINITIONS: Record<ActionName, ActionDefinition> = {
   },
   [Actions.REPLY_CHAT]: {
     name: Actions.REPLY_CHAT,
-    description: 'Reply to a pending chat message',
-    requiredFeature: Features.DMS,
+    description: 'Reply to a pending chat message (DM or group)',
+    requiredFeature: null, // Validated at execution time based on chat type
     parameters: ['chatId', 'content'],
     parameterSchema: `{
   "chatId": "exact_chat_id_from_pending_chats",
@@ -731,7 +731,7 @@ ${canComment ? "- ✅ **COMMENT**: Reply to someone's post from the feed above (
 ${canEngage ? '- ✅ **LIKE**: Show appreciation for a post you find interesting' : ''}
 ${canEngage ? "- ✅ **REPOST**: Share someone else's post with your take" : ''}
 ${canComment ? '- 🔥 **REPLY_COMMENT**: Reply to a pending comment (use commentId + postId from Pending Interactions)' : ''}
-${canRespondDMs ? '- 🔥 **REPLY_CHAT**: Reply to a pending DM/group message (use chatId from Pending Interactions)' : ''}
+${canRespondDMs || canGroupChat ? '- 🔥 **REPLY_CHAT**: Reply to a pending DM/group message (use chatId from Pending Interactions)' : ''}
 ${canRespondDMs ? '- **DM**: Start a NEW conversation with someone (use their userId from Recent Posts)' : ''}
 ${canGroupChat ? '- **GROUP_MESSAGE**: Share something with your group chat' : ''}
 ${canPost && !isNpc ? '- ⚠️ **POST**: DISCOURAGED - only use if you truly have nothing else to do' : ''}
@@ -766,7 +766,7 @@ Examples:
 # Output Format (JSON only, no markdown)
 {
   "thought": "Brief reasoning for this decision",
-  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', canRespondDMs ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
+  "action": "${[canTrade ? 'TRADE' : '', canPost ? 'POST' : '', canComment ? 'COMMENT' : '', canComment ? 'REPLY_COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', (canRespondDMs || canGroupChat) ? 'REPLY_CHAT' : '', canRespondDMs ? 'DM' : '', canGroupChat ? 'GROUP_MESSAGE' : '', 'FINISH'].filter(Boolean).join(' | ')}",
   "parameters": { /* action-specific, see below */ },
   "isFinish": false
 }
@@ -1015,12 +1015,19 @@ function formatActionSchemas(enabledFeatures: string[]): string {
   const availableActions = getAvailableActions(enabledFeatures);
 
   for (const action of availableActions) {
-    if (action.name === Actions.FINISH || action.name === Actions.WAIT) {
-      // Special handling for FINISH/WAIT
-      schemas.push(`FINISH (empty action):
+    if (action.name === Actions.FINISH) {
+      // FINISH - end the tick
+      schemas.push(`FINISH (end this tick):
 {
-  "action": "",
+  "action": "FINISH",
   "isFinish": true
+}`);
+    } else if (action.name === Actions.WAIT) {
+      // WAIT - skip action this iteration but continue tick
+      schemas.push(`WAIT (skip this iteration):
+{
+  "action": "WAIT",
+  "isFinish": false
 }`);
     } else if (action.name === Actions.TRADE) {
       // Special handling for TRADE with multiple variants

@@ -8,7 +8,7 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import { actorState, db, eq, users } from '@babylon/db';
+import { actorState, chats, db, eq, users } from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -31,6 +31,7 @@ import {
   type ActionTraceResult,
   type AgentTickContext,
   buildMultiStepDecisionPrompt,
+  Features,
   getRequiredFeature,
   type MultiStepDecision,
 } from './templates/multi-step-decision';
@@ -124,21 +125,21 @@ export class MultiStepExecutor {
     const enabledFeatures: string[] = [];
     if (isNpc) {
       enabledFeatures.push(
-        'trading',
-        'posting',
-        'commenting',
-        'engaging',
-        'DMs',
-        'groupChats'
+        Features.TRADING,
+        Features.POSTING,
+        Features.COMMENTING,
+        Features.ENGAGING,
+        Features.DMS,
+        Features.GROUP_CHATS
       );
     } else {
-      if (config?.autonomousTrading) enabledFeatures.push('trading');
-      if (config?.autonomousPosting) enabledFeatures.push('posting');
-      if (config?.autonomousCommenting) enabledFeatures.push('commenting');
+      if (config?.autonomousTrading) enabledFeatures.push(Features.TRADING);
+      if (config?.autonomousPosting) enabledFeatures.push(Features.POSTING);
+      if (config?.autonomousCommenting) enabledFeatures.push(Features.COMMENTING);
       // User-controlled agents can also engage if they can comment
-      if (config?.autonomousCommenting) enabledFeatures.push('engaging');
-      if (config?.autonomousDMs) enabledFeatures.push('DMs');
-      if (config?.autonomousGroupChats) enabledFeatures.push('groupChats');
+      if (config?.autonomousCommenting) enabledFeatures.push(Features.ENGAGING);
+      if (config?.autonomousDMs) enabledFeatures.push(Features.DMS);
+      if (config?.autonomousGroupChats) enabledFeatures.push(Features.GROUP_CHATS);
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
@@ -170,10 +171,10 @@ export class MultiStepExecutor {
       // Compute per-iteration effectiveFeatures based on current trace
       // This enforces one-POST-per-tick: if we've already posted, remove 'posting'
       const hasPostedThisTick = trace.some(
-        (r) => r.actionType === 'POST' && r.success
+        (r) => r.actionType === Actions.POST && r.success
       );
       const effectiveFeatures = hasPostedThisTick
-        ? enabledFeatures.filter((f) => f !== 'posting')
+        ? enabledFeatures.filter((f) => f !== Features.POSTING)
         : enabledFeatures;
 
       // Gather fresh context (state refreshes after each action)
@@ -333,11 +334,11 @@ export class MultiStepExecutor {
     }
 
     // Only fetch data for enabled features (saves DB queries and tokens)
-    const canTrade = enabledFeatures.includes('trading');
-    const canComment = enabledFeatures.includes('commenting');
-    const canRespondDMs = enabledFeatures.includes('DMs');
-    const canGroupChat = enabledFeatures.includes('groupChats');
-    const canPost = enabledFeatures.includes('posting');
+    const canTrade = enabledFeatures.includes(Features.TRADING);
+    const canComment = enabledFeatures.includes(Features.COMMENTING);
+    const canRespondDMs = enabledFeatures.includes(Features.DMS);
+    const canGroupChat = enabledFeatures.includes(Features.GROUP_CHATS);
+    const canPost = enabledFeatures.includes(Features.POSTING);
 
     // Gather context in parallel using utility functions
     const [
@@ -521,7 +522,13 @@ export class MultiStepExecutor {
         return this.executeReplyComment(agentUserId, parameters, logContext);
 
       case Actions.REPLY_CHAT:
-        return this.executeReplyChat(agentUserId, parameters, logContext);
+        // Special validation: REPLY_CHAT needs either DMs or groupChats based on chat type
+        return this.executeReplyChat(
+          agentUserId,
+          parameters,
+          enabledFeatures,
+          logContext
+        );
 
       case Actions.DM:
         return this.executeDM(agentUserId, parameters, logContext);
@@ -917,6 +924,7 @@ export class MultiStepExecutor {
   private async executeReplyChat(
     agentUserId: string,
     parameters: Record<string, unknown>,
+    enabledFeatures: string[],
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
     const chatId = parameters.chatId as string;
@@ -928,6 +936,37 @@ export class MultiStepExecutor {
         success: false,
         summary: 'Missing required parameters (chatId, content)',
         error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Look up the chat to determine if it's a group chat or DM
+    const [chat] = await db
+      .select({ isGroup: chats.isGroup })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return {
+        actionType: Actions.REPLY_CHAT,
+        success: false,
+        summary: 'Chat not found',
+        error: 'Invalid chatId',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Validate feature based on chat type
+    const requiredFeature = chat.isGroup ? Features.GROUP_CHATS : Features.DMS;
+    if (!enabledFeatures.includes(requiredFeature)) {
+      return {
+        actionType: Actions.REPLY_CHAT,
+        success: false,
+        summary: `Cannot reply: ${requiredFeature} feature is not enabled`,
+        error: `Feature "${requiredFeature}" is disabled`,
         parameters,
         timestamp: Date.now(),
       };
