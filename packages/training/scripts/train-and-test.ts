@@ -130,7 +130,10 @@ async function runCommand(
 
     let timeoutId: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('Command timed out')), timeout);
+      timeoutId = setTimeout(
+        () => reject(new Error('Command timed out')),
+        timeout
+      );
     });
 
     const [exitCode, stdout, stderr] = await Promise.race([
@@ -219,7 +222,7 @@ async function checkPrerequisites(config: PipelineConfig): Promise<{
   console.log(
     checks.trainingDir
       ? `  ✓ Training directory exists`
-      : `  ✗ Training directory not found: ${trainingDir}`
+      : `  ✗ Training directory not found: ${TRAINING_DIR}`
   );
 
   // Check for MLX (macOS) or CUDA

@@ -419,7 +419,7 @@ export class StakeholderReportGenerator {
 
   /**
    * Generate HTML report
-   * 
+   *
    * Note: Report content is interpolated directly into HTML. Currently this is safe
    * because all data comes from internal JSON files with no user input. If user-provided
    * data is ever added to reports, consider using a sanitization library (e.g., DOMPurify)
