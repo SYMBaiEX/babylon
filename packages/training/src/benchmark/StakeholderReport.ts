@@ -30,6 +30,14 @@ import type { SimulationResult } from './SimulationEngine';
  */
 const WINNER_THRESHOLD_DOLLARS = 50;
 
+// Verdict determination thresholds (extracted for maintainability)
+/** Minimum scenarios won to recommend deployment */
+const DEPLOY_MIN_SCENARIOS_WON = 3;
+/** Minimum scenarios lost to flag as regression */
+const REGRESSION_MIN_SCENARIOS_LOST = 3;
+/** Alpha threshold below which model is flagged as regression */
+const REGRESSION_ALPHA_THRESHOLD = -500;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -286,10 +294,13 @@ function calculateOverallVerdict(
   let overallVerdict: 'deploy' | 'keep_training' | 'regression';
   let verdictExplanation: string;
 
-  if (scenariosWon >= 3 && totalAlpha > 0) {
+  if (scenariosWon >= DEPLOY_MIN_SCENARIOS_WON && totalAlpha > 0) {
     overallVerdict = 'deploy';
     verdictExplanation = `Model won ${scenariosWon}/${scenarios.length} scenarios with $${totalAlpha.toFixed(2)} total alpha. Ready for deployment.`;
-  } else if (scenariosLost >= 3 || totalAlpha < -500) {
+  } else if (
+    scenariosLost >= REGRESSION_MIN_SCENARIOS_LOST ||
+    totalAlpha < REGRESSION_ALPHA_THRESHOLD
+  ) {
     overallVerdict = 'regression';
     verdictExplanation = `Model lost ${scenariosLost}/${scenarios.length} scenarios with $${totalAlpha.toFixed(2)} total alpha. Training regressed - investigate.`;
   } else {

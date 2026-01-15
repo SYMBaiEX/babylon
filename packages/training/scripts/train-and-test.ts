@@ -149,7 +149,8 @@ async function runCommand(
     const output = stdout + stderr;
     return { success: exitCode === 0, output, exitCode };
   } catch (error) {
-    // Note: timeout not cleared on error path - acceptable since timeout already fired
+    // Note: timeout not cleared on error path - if timeout fired it's a no-op;
+    // if another error occurred, the orphaned timer is harmless (rejected promise is ignored)
     return {
       success: false,
       output: error instanceof Error ? error.message : String(error),

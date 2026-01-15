@@ -405,6 +405,9 @@ async function main() {
     challengerFit: ArchetypeFitScore;
     archetype: string;
   }> = [];
+  
+  // Track failed scenarios for summary
+  const failures: Array<{ scenario: string; error: string }> = [];
 
   for (const scenario of scenarios) {
     console.log(`\n🎯 Running: ${scenario.name}`);
@@ -434,15 +437,23 @@ async function main() {
         `   🎯 Alpha: $${(result.challengerResult.metrics.totalPnl - result.baselineResult.metrics.totalPnl).toFixed(2)}`
       );
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`   ❌ Scenario failed: ${scenario.name}`);
-      console.error(
-        `   Error: ${error instanceof Error ? error.message : String(error)}`
-      );
+      console.error(`   Error: ${errorMessage}`);
       logger.error('Scenario benchmark failed', {
         scenario: scenario.name,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
-      // Continue to next scenario - don't abort entire suite
+      // Track failure and continue to next scenario
+      failures.push({ scenario: scenario.name, error: errorMessage });
+    }
+  }
+  
+  // Report any failures
+  if (failures.length > 0) {
+    console.warn(`\n⚠️ ${failures.length} scenario(s) failed:`);
+    for (const f of failures) {
+      console.warn(`   • ${f.scenario}: ${f.error}`);
     }
   }
 

@@ -11,12 +11,12 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: 'Specific scenario to run (leave empty for all)'
+        description: 'Specific scenario to run'
         required: false
-        default: ''
+        default: 'all'
         type: choice
         options:
-          - ''
+          - 'all'
           - 'bull-market'
           - 'bear-market'
           - 'scandal-unfolds'
@@ -77,9 +77,10 @@ jobs:
         run: |
           ARGS=""
           
-          # Add scenario if specified (quote to handle edge cases)
-          if [ -n "${{ github.event.inputs.scenario }}" ]; then
-            ARGS="$ARGS --scenario '${{ github.event.inputs.scenario }}'"
+          # Add scenario if specified (skip if 'all' to run full suite)
+          SCENARIO="${{ github.event.inputs.scenario }}"
+          if [ -n "$SCENARIO" ] && [ "$SCENARIO" != "all" ]; then
+            ARGS="$ARGS --scenario '$SCENARIO'"
           fi
           
           # Add baseline (quote to handle edge cases)

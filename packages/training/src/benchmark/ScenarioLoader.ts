@@ -66,11 +66,15 @@ export interface ScenarioMetadata {
   causalEventCount: number;
 }
 
-export type ScenarioId =
-  | 'bull-market'
-  | 'bear-market'
-  | 'scandal-unfolds'
-  | 'pump-and-dump';
+// Centralized scenario ID list - single source of truth
+const SCENARIO_IDS = [
+  'bull-market',
+  'bear-market',
+  'scandal-unfolds',
+  'pump-and-dump',
+] as const;
+
+export type ScenarioId = (typeof SCENARIO_IDS)[number];
 
 // ============================================================================
 // Validation
@@ -170,6 +174,9 @@ function validateGroundTruth(
     typeof groundTruth.priceHistory !== 'object'
   ) {
     issues.push('groundTruth.priceHistory must be an object');
+  } else if (!snapshot.initialState) {
+    // Early return if initialState is missing (already flagged in validateSnapshot)
+    return;
   } else {
     // Validate price history exists for all perpetual markets
     for (const perp of snapshot.initialState.perpetualMarkets) {
@@ -409,15 +416,8 @@ export class ScenarioLoader {
    * Load all scenarios
    */
   async loadAllScenarios(): Promise<FixedBenchmarkScenario[]> {
-    const scenarioIds: ScenarioId[] = [
-      'bull-market',
-      'bear-market',
-      'scandal-unfolds',
-      'pump-and-dump',
-    ];
-
     const scenarios: FixedBenchmarkScenario[] = [];
-    for (const id of scenarioIds) {
+    for (const id of SCENARIO_IDS) {
       const scenario = await this.loadScenario(id);
       scenarios.push(scenario);
     }
@@ -444,7 +444,18 @@ export class ScenarioLoader {
       const filePath = path.join(this.scenarioDir, file);
 
       const content = await fs.readFile(filePath, 'utf-8');
-      const scenario = JSON.parse(content) as FixedBenchmarkScenario;
+      
+      // Wrap JSON.parse in try-catch to continue validation of other files
+      let scenario: FixedBenchmarkScenario;
+      try {
+        scenario = JSON.parse(content) as FixedBenchmarkScenario;
+      } catch (parseError) {
+        valid = false;
+        errors[scenarioId] = [
+          `Invalid JSON in ${filePath}: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+        ];
+        continue;
+      }
 
       const issues = validateScenario(scenario);
       if (issues.length > 0) {
@@ -519,10 +530,5 @@ export async function getScenarioSnapshot(
 }
 
 export function isValidScenarioId(id: string): id is ScenarioId {
-  return [
-    'bull-market',
-    'bear-market',
-    'scandal-unfolds',
-    'pump-and-dump',
-  ].includes(id);
+  return SCENARIO_IDS.includes(id as ScenarioId);
 }
