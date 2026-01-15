@@ -237,7 +237,7 @@ bun run benchmark:scenarios
 
 Benchmarks run automatically via GitHub Actions:
 - After training workflow completes
-- Nightly at midnight UTC
+- Nightly at 3 AM UTC
 - Manual dispatch from Actions tab
 
 ---

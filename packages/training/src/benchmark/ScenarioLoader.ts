@@ -269,21 +269,26 @@ function validateScenario(scenario: FixedBenchmarkScenario): string[] {
     issues.push(...snapshotIssues);
   }
 
-  // Validate consistency
+  // Validate consistency for causal scenarios
   if (scenario.useCausalSimulation) {
-    if (
-      !scenario.snapshot.groundTruth.causalEvents ||
-      scenario.snapshot.groundTruth.causalEvents.length === 0
-    ) {
-      issues.push('Scenario marked as causal but has no causal events');
-    }
-    if (
-      !scenario.snapshot.groundTruth.hiddenNarrativeFacts ||
-      scenario.snapshot.groundTruth.hiddenNarrativeFacts.length === 0
-    ) {
-      issues.push(
-        'Scenario marked as causal but has no hidden narrative facts'
-      );
+    // Guard against undefined groundTruth before accessing nested properties
+    if (!scenario.snapshot?.groundTruth) {
+      issues.push('Scenario marked as causal but missing groundTruth');
+    } else {
+      if (
+        !scenario.snapshot.groundTruth.causalEvents ||
+        scenario.snapshot.groundTruth.causalEvents.length === 0
+      ) {
+        issues.push('Scenario marked as causal but has no causal events');
+      }
+      if (
+        !scenario.snapshot.groundTruth.hiddenNarrativeFacts ||
+        scenario.snapshot.groundTruth.hiddenNarrativeFacts.length === 0
+      ) {
+        issues.push(
+          'Scenario marked as causal but has no hidden narrative facts'
+        );
+      }
     }
   }
 
@@ -331,7 +336,14 @@ export class ScenarioLoader {
       if (!file.endsWith('.json')) continue;
 
       const scenarioId = file.replace('.json', '');
-      const scenario = await this.loadScenario(scenarioId as ScenarioId);
+      
+      // Validate scenario ID before loading to avoid confusing errors
+      if (!isValidScenarioId(scenarioId)) {
+        logger.warn('Skipping unknown scenario file', { file });
+        continue;
+      }
+
+      const scenario = await this.loadScenario(scenarioId);
 
       scenarios.push({
         id: scenario.id,

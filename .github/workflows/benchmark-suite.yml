@@ -77,18 +77,18 @@ jobs:
         run: |
           ARGS=""
           
-          # Add scenario if specified
+          # Add scenario if specified (quote to handle edge cases)
           if [ -n "${{ github.event.inputs.scenario }}" ]; then
-            ARGS="$ARGS --scenario ${{ github.event.inputs.scenario }}"
+            ARGS="$ARGS --scenario '${{ github.event.inputs.scenario }}'"
           fi
           
-          # Add baseline
+          # Add baseline (quote to handle edge cases)
           BASELINE="${{ github.event.inputs.baseline || 'random' }}"
-          ARGS="$ARGS --baseline $BASELINE"
+          ARGS="$ARGS --baseline '$BASELINE'"
           
-          # Add archetype
+          # Add archetype (quote to handle edge cases)
           ARCHETYPE="${{ github.event.inputs.archetype || 'trader' }}"
-          ARGS="$ARGS --archetype $ARCHETYPE"
+          ARGS="$ARGS --archetype '$ARCHETYPE'"
           
           # Add quick flag if specified
           if [ "${{ github.event.inputs.quick }}" = "true" ]; then
@@ -97,13 +97,13 @@ jobs:
           
           # Set output directory
           OUTPUT_DIR="benchmark-results/ci-${{ github.run_id }}"
-          ARGS="$ARGS --output $OUTPUT_DIR"
+          ARGS="$ARGS --output '$OUTPUT_DIR'"
           
           echo "Running: bun run packages/training/scripts/run-benchmark-suite.ts $ARGS"
-          bun run packages/training/scripts/run-benchmark-suite.ts $ARGS
+          eval bun run packages/training/scripts/run-benchmark-suite.ts "$ARGS"
           
           # Export output directory for artifact upload
-          echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+          echo "output_dir=$OUTPUT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
@@ -114,7 +114,8 @@ jobs:
           retention-days: 30
 
       - name: Post summary to PR
-        if: github.event_name == 'pull_request'
+        # Only runs when triggered by workflow_run from a PR
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -124,13 +125,21 @@ jobs:
             const outputDir = '${{ steps.benchmark.outputs.output_dir }}';
             const reportPath = path.join(outputDir, 'report.txt');
             
+            // Get PR number from workflow_run event
+            const prs = context.payload.workflow_run?.pull_requests || [];
+            if (prs.length === 0) {
+              console.log('No associated PR found for workflow_run');
+              return;
+            }
+            const prNumber = prs[0].number;
+            
             if (fs.existsSync(reportPath)) {
               const report = fs.readFileSync(reportPath, 'utf8');
               
-              github.rest.issues.createComment({
+              await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 body: `## 📊 Benchmark Results\n\n\`\`\`\n${report}\n\`\`\``
               });
             }
@@ -169,8 +178,8 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             
-            // Create an issue or comment about the failure
+            // TODO: Implement real notification - create issue, post to Slack/Discord, etc.
+            // For now, just log the failure context
             console.log('Benchmark failed - would notify team here');
-            
-            // Could also send to Slack, Discord, etc.
-
+            console.log(`Run ID: ${context.runId}`);
+            console.log(`Ref: ${context.ref}`);

@@ -23,7 +23,7 @@
 
 import { initializeJsonMode } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
-import { mkdirSync } from 'fs';
+import { mkdirSync, unlinkSync } from 'fs';
 import * as path from 'path';
 import { parseArgs } from 'util';
 import {
@@ -273,60 +273,69 @@ async function runScenarioBenchmark(
   const snapshotJson = JSON.stringify(scenario.snapshot);
   await Bun.write(tempSnapshotPath, snapshotJson);
 
-  // Run baseline
-  logger.info(`Running baseline (${options.baseline})...`);
-  const baselineResult = await BenchmarkRunner.runSingle({
-    benchmarkPath: tempSnapshotPath,
-    agentRuntime: mockRuntime,
-    agentUserId: 'baseline-agent',
-    saveTrajectory: false,
-    outputDir: path.join(scenarioOutputDir, 'baseline'),
-    forceStrategy: options.baseline,
-  });
+  try {
+    // Run baseline
+    logger.info(`Running baseline (${options.baseline})...`);
+    const baselineResult = await BenchmarkRunner.runSingle({
+      benchmarkPath: tempSnapshotPath,
+      agentRuntime: mockRuntime,
+      agentUserId: 'baseline-agent',
+      saveTrajectory: false,
+      outputDir: path.join(scenarioOutputDir, 'baseline'),
+      forceStrategy: options.baseline,
+    });
 
-  // Run challenger
-  logger.info('Running challenger...');
-  const challengerStrategy = options.model
-    ? undefined // Use agent-driven if model provided
-    : 'momentum'; // Use momentum as "smart" proxy otherwise
+    // Run challenger
+    logger.info('Running challenger...');
+    const challengerStrategy = options.model
+      ? undefined // Use agent-driven if model provided
+      : 'momentum'; // Use momentum as "smart" proxy otherwise
 
-  const challengerResult = await BenchmarkRunner.runSingle({
-    benchmarkPath: tempSnapshotPath,
-    agentRuntime: mockRuntime,
-    agentUserId: 'challenger-agent',
-    saveTrajectory: true,
-    outputDir: path.join(scenarioOutputDir, 'challenger'),
-    forceStrategy: challengerStrategy,
-    forceModel: options.model,
-  });
+    const challengerResult = await BenchmarkRunner.runSingle({
+      benchmarkPath: tempSnapshotPath,
+      agentRuntime: mockRuntime,
+      agentUserId: 'challenger-agent',
+      saveTrajectory: true,
+      outputDir: path.join(scenarioOutputDir, 'challenger'),
+      forceStrategy: challengerStrategy,
+      forceModel: options.model,
+    });
 
-  // Calculate archetype fit
-  const baselineFit = fitCalculator.calculate(
-    baselineResult,
-    options.archetype,
-    scenario.durationDays
-  );
+    // Calculate archetype fit
+    const baselineFit = fitCalculator.calculate(
+      baselineResult,
+      options.archetype,
+      scenario.durationDays
+    );
 
-  const challengerFit = fitCalculator.calculate(
-    challengerResult,
-    options.archetype,
-    scenario.durationDays
-  );
+    const challengerFit = fitCalculator.calculate(
+      challengerResult,
+      options.archetype,
+      scenario.durationDays
+    );
 
-  logger.info(`Scenario complete: ${scenario.name}`, {
-    baselinePnl: baselineResult.metrics.totalPnl,
-    challengerPnl: challengerResult.metrics.totalPnl,
-    alpha: challengerResult.metrics.totalPnl - baselineResult.metrics.totalPnl,
-    baselineFit: baselineFit.fitScore,
-    challengerFit: challengerFit.fitScore,
-  });
+    logger.info(`Scenario complete: ${scenario.name}`, {
+      baselinePnl: baselineResult.metrics.totalPnl,
+      challengerPnl: challengerResult.metrics.totalPnl,
+      alpha: challengerResult.metrics.totalPnl - baselineResult.metrics.totalPnl,
+      baselineFit: baselineFit.fitScore,
+      challengerFit: challengerFit.fitScore,
+    });
 
-  return {
-    baselineResult,
-    challengerResult,
-    baselineFit,
-    challengerFit,
-  };
+    return {
+      baselineResult,
+      challengerResult,
+      baselineFit,
+      challengerFit,
+    };
+  } finally {
+    // Clean up temp snapshot file
+    try {
+      unlinkSync(tempSnapshotPath);
+    } catch {
+      // Ignore cleanup errors - file may not exist
+    }
+  }
 }
 
 // ============================================================================
@@ -394,28 +403,38 @@ async function main() {
     console.log(`\n🎯 Running: ${scenario.name}`);
     console.log('─'.repeat(60));
 
-    const result = await runScenarioBenchmark(
-      scenario,
-      options,
-      options.output
-    );
+    try {
+      const result = await runScenarioBenchmark(
+        scenario,
+        options,
+        options.output
+      );
 
-    results.push({
-      scenario,
-      ...result,
-      archetype: options.archetype,
-    });
+      results.push({
+        scenario,
+        ...result,
+        archetype: options.archetype,
+      });
 
-    console.log(`   ✅ Complete`);
-    console.log(
-      `   📈 Baseline P&L: $${result.baselineResult.metrics.totalPnl.toFixed(2)}`
-    );
-    console.log(
-      `   📈 Challenger P&L: $${result.challengerResult.metrics.totalPnl.toFixed(2)}`
-    );
-    console.log(
-      `   🎯 Alpha: $${(result.challengerResult.metrics.totalPnl - result.baselineResult.metrics.totalPnl).toFixed(2)}`
-    );
+      console.log(`   ✅ Complete`);
+      console.log(
+        `   📈 Baseline P&L: $${result.baselineResult.metrics.totalPnl.toFixed(2)}`
+      );
+      console.log(
+        `   📈 Challenger P&L: $${result.challengerResult.metrics.totalPnl.toFixed(2)}`
+      );
+      console.log(
+        `   🎯 Alpha: $${(result.challengerResult.metrics.totalPnl - result.baselineResult.metrics.totalPnl).toFixed(2)}`
+      );
+    } catch (error) {
+      console.error(`   ❌ Scenario failed: ${scenario.name}`);
+      console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error('Scenario benchmark failed', {
+        scenario: scenario.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue to next scenario - don't abort entire suite
+    }
   }
 
   // Generate report

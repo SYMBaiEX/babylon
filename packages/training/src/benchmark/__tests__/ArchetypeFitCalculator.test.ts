@@ -454,16 +454,30 @@ describe('ArchetypeFitCalculator - Edge Cases', () => {
     expect(fitScore.metrics.actionDistribution.trade).toBe(0);
   });
 
-  test('handles zero duration gracefully', () => {
+  test('handles near-zero duration gracefully', () => {
     const result = createMockSimulationResult({
       actions: [createAction('buy_prediction')],
     });
 
     const calculator = new ArchetypeFitCalculator();
-    // Duration 0 should not cause division by zero
+    // Near-zero duration should not cause division by zero
     const fitScore = calculator.calculate(result, 'trader', 0.001);
 
     expect(Number.isFinite(fitScore.fitScore)).toBe(true);
+  });
+
+  test('handles actual zero duration gracefully', () => {
+    const result = createMockSimulationResult({
+      actions: [createAction('buy_prediction')],
+    });
+
+    const calculator = new ArchetypeFitCalculator();
+    // Actual zero duration - should handle without throwing or returning NaN
+    const fitScore = calculator.calculate(result, 'trader', 0);
+
+    expect(Number.isFinite(fitScore.fitScore)).toBe(true);
+    expect(fitScore.fitScore).toBeGreaterThanOrEqual(0);
+    expect(fitScore.fitScore).toBeLessThanOrEqual(1);
   });
 
   test('handles unknown action types', () => {

@@ -101,6 +101,12 @@ function evaluateCriteria(
   switch (archetype) {
     case 'trader': {
       // Trader should limit losses relative to baseline
+      // Note: baselineLoss and traderLoss are negative (or zero) when there's a loss.
+      // Dividing two negatives yields a positive ratio representing how much of
+      // the baseline's loss the trader experienced.
+      // Example: baseline lost -$100, trader lost -$50 → ratio = 0.5 (50% of baseline loss)
+      // Pass condition: ratio <= 1 + traderMinPnlRatio
+      // If traderMinPnlRatio = -0.5, trader must lose ≤50% of baseline loss to pass.
       const baselineLoss = baselinePnl < 0 ? baselinePnl : 0;
       const traderLoss = pnl < 0 ? pnl : 0;
 
@@ -267,12 +273,15 @@ function calculateOverallVerdict(
   const scenariosLost = scenarios.filter((s) => s.winner === 'baseline').length;
   const scenariosTied = scenarios.filter((s) => s.winner === 'tie').length;
   const totalAlpha = scenarios.reduce((sum, s) => sum + s.alphaGenerated, 0);
+  
+  // Guard against division by zero if scenarios is empty
+  const scenarioCount = scenarios.length || 1;
   const avgPnlImprovement =
     scenarios.reduce((sum, s) => sum + s.improvement.pnlDeltaPercent, 0) /
-    scenarios.length;
+    scenarioCount;
   const avgFitScoreImprovement =
     scenarios.reduce((sum, s) => sum + s.improvement.fitScoreDelta, 0) /
-    scenarios.length;
+    scenarioCount;
 
   let overallVerdict: 'deploy' | 'keep_training' | 'regression';
   let verdictExplanation: string;
@@ -729,10 +738,15 @@ export class StakeholderReportGenerator {
 
   /**
    * Save all report formats
+   * 
+   * @param report - The benchmark report to save
+   * @param outputDir - Directory to write report files
+   * @param printToConsole - Whether to print text summary to console (default: true for CLI usage)
    */
   static async saveAllFormats(
     report: FullBenchmarkReport,
-    outputDir: string
+    outputDir: string,
+    printToConsole: boolean = true
   ): Promise<{ html: string; json: string; text: string }> {
     await fs.mkdir(outputDir, { recursive: true });
 
@@ -746,8 +760,10 @@ export class StakeholderReportGenerator {
     const textContent = this.generateTextSummary(report);
     await fs.writeFile(textPath, textContent);
 
-    // Also print to console
-    console.log(textContent);
+    // Print to console if requested (default for CLI usage)
+    if (printToConsole) {
+      console.log(textContent);
+    }
 
     return { html: htmlPath, json: jsonPath, text: textPath };
   }
