@@ -24,6 +24,7 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { StaticDataRegistry } from './services/static-data-registry';
+import { isSimulationMode } from './storage-bridge';
 import type { Actor, ActorRelationship, Organization } from './types/shared';
 
 export interface RelationshipChange {
@@ -57,6 +58,16 @@ export class RelationshipEvolutionEngine {
     actors: Actor[],
     organizations: Organization[]
   ): Promise<number> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      logger.debug(
+        'Skipping initial relationships in simulation mode',
+        undefined,
+        'RelationshipEvolutionEngine'
+      );
+      return 0;
+    }
+
     logger.info(
       'Generating initial NPC relationships...',
       undefined,
@@ -262,6 +273,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
   async trackInteraction(
     interaction: Omit<Interaction, 'timestamp'>
   ): Promise<void> {
+    // In simulation mode, interactions are not persisted to DB
+    if (isSimulationMode()) {
+      return;
+    }
+
     // Sort IDs to ensure consistency
     const sorted = [interaction.actor1Id, interaction.actor2Id].sort();
     const id1 = sorted[0]!;
@@ -283,6 +299,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
    * This is the KEY method - uses LLM to generate natural text descriptions
    */
   async analyzeAndUpdateRelationships(): Promise<number> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return 0;
+    }
+
     if (!this.llm) {
       logger.warn(
         'No LLM client available, skipping relationship analysis',
@@ -510,6 +531,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
    * Just the text descriptions, nothing else
    */
   async getRelationshipContextForActor(actorId: string): Promise<string> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return '';
+    }
+
     // Get relationships for this actor
     const relationships = await db
       .select()
@@ -563,6 +589,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
   static async getActorRelationships(
     actorId: string
   ): Promise<ActorRelationship[]> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return [];
+    }
+
     const relationships = await db
       .select()
       .from(actorRelationships)
@@ -596,6 +627,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
     actor1Id: string,
     actor2Id: string
   ): Promise<ActorRelationship | null> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return null;
+    }
+
     const [relationship] = await db
       .select()
       .from(actorRelationships)
