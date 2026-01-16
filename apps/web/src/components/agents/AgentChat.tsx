@@ -405,13 +405,16 @@ export function AgentChat({
 
         {/* Agent Balance Banner */}
         {agent.virtualBalance !== undefined && (
-          <div className="flex items-center justify-between border-border border-b bg-muted/30 px-4 py-2">
+          <div
+            className="flex items-center justify-between border-border border-b bg-muted/30 px-4 py-2"
+            aria-label={`Agent balance: $${agent.virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          >
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Wallet className="h-4 w-4" />
+              <Wallet className="h-4 w-4" aria-hidden="true" />
               <span>Agent Balance</span>
             </div>
             <span className="font-medium font-mono text-sm">
-              ${agent.virtualBalance.toLocaleString()}
+              ${agent.virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         )}
