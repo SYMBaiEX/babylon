@@ -28,7 +28,7 @@ from src.training.rubric_loader import get_available_archetypes
 
 
 def is_database_available() -> bool:
-    """Check if database is available for testing."""
+    """Check if database is available for testing with required schema."""
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         return False
@@ -36,9 +36,38 @@ def is_database_available() -> bool:
     try:
         import psycopg2
         conn = psycopg2.connect(database_url)
+        cur = conn.cursor()
+        # Check if trajectories table exists (required for integration tests)
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'trajectories'
+            )
+        """)
+        table_exists = cur.fetchone()[0]
+        cur.close()
         conn.close()
-        return True
-    except Exception:
+        
+        if not table_exists:
+            print("\n" + "=" * 80)
+            print("⚠️  DATABASE SCHEMA NOT FOUND ⚠️")
+            print("=" * 80)
+            print("The 'trajectories' table does not exist in the test database.")
+            print("Integration tests will be SKIPPED.")
+            print("")
+            print("To fix this, run database migrations before tests:")
+            print("  1. Ensure docker compose is running: docker compose -f docker-compose.test.yml up -d")
+            print("  2. Run migrations: pnpm db:migrate (or equivalent)")
+            print("=" * 80 + "\n")
+        
+        return table_exists
+    except Exception as e:
+        print("\n" + "=" * 80)
+        print("⚠️  DATABASE CONNECTION FAILED ⚠️")
+        print("=" * 80)
+        print(f"Error: {e}")
+        print("Integration tests will be SKIPPED.")
+        print("=" * 80 + "\n")
         return False
 
 

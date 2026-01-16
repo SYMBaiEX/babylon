@@ -84,11 +84,16 @@ mock.module('@babylon/db', () => ({
   asc: () => ({}),
 }));
 
-mock.module('@babylon/agents', () => ({
-  agentWalletService: {
-    createAgentEmbeddedWallet: createWalletMock,
-  },
-}));
+// Mock @babylon/agents - spread real module to preserve initializeAgentA2AClient
+mock.module('@babylon/agents', () => {
+  const actual = require('@babylon/agents');
+  return {
+    ...actual,
+    agentWalletService: {
+      createAgentEmbeddedWallet: createWalletMock,
+    },
+  };
+});
 
 mock.module('@a2a-js/sdk/client', () => ({
   A2AClient: MockA2AClient,

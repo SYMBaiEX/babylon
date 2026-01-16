@@ -19,11 +19,18 @@ import {
 import { logger } from '@babylon/shared';
 
 /**
- * Timing-safe comparison for API keys to prevent timing attacks
+ * Timing-safe comparison for API keys to prevent timing attacks.
+ *
+ * Uses SHA-256 hashing to produce fixed-length digests before comparison,
+ * preventing length leakage via early returns. This ensures constant-time
+ * comparison regardless of input lengths.
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  // Hash both inputs to fixed-length 32-byte SHA-256 digests
+  // This prevents length leakage and ensures constant-time comparison
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
 }
 
 // Re-export cache utilities from @babylon/api
