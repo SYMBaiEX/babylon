@@ -6,13 +6,15 @@
  *
  * @description
  * Generates an initial onboarding message from the agent to introduce
- * itself and its capabilities to the user.
+ * itself and its capabilities to the user. Posts message to both:
+ * 1. agentMessages table (for agent chat history)
+ * 2. DM messages table (for regular chat UI)
  */
 
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db } from '@babylon/db';
-import { GROQ_MODELS, logger } from '@babylon/shared';
+import { chats, db, eq, messages as messagesTable } from '@babylon/db';
+import { GROQ_MODELS, generateSnowflakeId, logger } from '@babylon/shared';
 import {
   composePromptFromState,
   type Memory,
@@ -202,6 +204,54 @@ export const POST = withErrorHandling(
         createdAt: messageTime,
       },
     });
+
+    // Also post to the DM chat so it shows in the regular chat UI
+    // DM chat ID format: dm-{sortedId1}-{sortedId2}
+    const sortedIds = [user.id, agentId].sort();
+    const dmChatId = `dm-${sortedIds.join('-')}`;
+
+    try {
+      // Verify the DM chat exists before inserting to prevent orphaned records
+      const existingChat = await db
+        .select({ id: chats.id })
+        .from(chats)
+        .where(eq(chats.id, dmChatId))
+        .limit(1);
+
+      if (existingChat.length === 0) {
+        logger.debug(
+          `Skipping DM message - chat does not exist yet`,
+          { dmChatId },
+          'AgentOnboarding'
+        );
+      } else {
+        const dmMessageId = await generateSnowflakeId();
+        await db
+          .insert(messagesTable)
+          .values({
+            id: dmMessageId,
+            chatId: dmChatId,
+            senderId: agentId,
+            content: welcomeMessage,
+            type: 'system',
+            createdAt: messageTime,
+          })
+          .onConflictDoNothing(); // Ignore insert conflicts (e.g., duplicate DM message ID)
+
+        logger.info(
+          `Onboarding message also posted to DM chat`,
+          { dmChatId, dmMessageId },
+          'AgentOnboarding'
+        );
+      }
+    } catch (error) {
+      // Don't fail the whole request if DM message fails
+      logger.warn(
+        `Failed to post onboarding message to DM chat`,
+        { dmChatId, error: error instanceof Error ? error.message : 'Unknown' },
+        'AgentOnboarding'
+      );
+    }
 
     logger.info(
       `Onboarding message generated for agent ${agentId}`,

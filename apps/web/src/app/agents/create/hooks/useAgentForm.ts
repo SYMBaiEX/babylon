@@ -261,7 +261,7 @@ export function useAgentForm(): UseAgentFormResult {
         );
       }
 
-      toast.success(`Regenerated ${field}!`);
+      toast.success(`Enhanced ${field}!`);
       setGeneratingField(null);
     },
     [agentData, profileData, getAccessToken, updateAgentField]
