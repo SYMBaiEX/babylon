@@ -100,10 +100,12 @@ export function MessageList({
       {/* Messages */}
       {messages.map((msg) => {
         const messageType = getMessageType(msg);
+        // Use stableKey if available to prevent flash when optimistic messages are confirmed
+        const key = msg.stableKey || msg.id;
 
         switch (messageType) {
           case MessageTypeEnum.SYSTEM:
-            return <SystemMessage key={msg.id} message={msg} />;
+            return <SystemMessage key={key} message={msg} />;
 
           case MessageTypeEnum.USER:
           default: {
@@ -114,7 +116,7 @@ export function MessageList({
 
             return (
               <MessageBubble
-                key={msg.id}
+                key={key}
                 message={msg}
                 sender={sender}
                 isCurrentUser={isCurrentUser}

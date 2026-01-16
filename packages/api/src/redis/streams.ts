@@ -5,8 +5,9 @@
  * Works with any Redis server via the standard Redis protocol.
  */
 
+import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types';
-import { getRedisClient } from './client';
+import { getRedisClient, type RedisInstance } from './client';
 
 /**
  * Convert a payload object into Redis stream field/value pairs (stringified).
@@ -32,7 +33,25 @@ export async function streamAdd(
   opts?: { maxlen?: number }
 ): Promise<string | null> {
   const client = getRedisClient();
-  if (!client) return null;
+  if (!client) {
+    logger.warn(
+      'streamAdd skipped - Redis client not available',
+      { stream },
+      'Redis'
+    );
+    return null;
+  }
+
+  // Check if client is connected
+  const status = client.status;
+  if (status !== 'ready') {
+    logger.warn(
+      'streamAdd called with non-ready client',
+      { status, stream },
+      'Redis'
+    );
+    // Still attempt - ioredis will queue the command
+  }
 
   const entry = encodeStreamPayload(payload);
 
@@ -50,7 +69,16 @@ export async function streamAdd(
     args.push(key, String(value));
   });
 
-  return await client.xadd(...(args as [string, string]));
+  const result = await client.xadd(...(args as [string, string]));
+
+  // Log successful stream writes for debugging
+  if (result) {
+    logger.debug('streamAdd succeeded', { stream, messageId: result }, 'Redis');
+  } else {
+    logger.warn('streamAdd returned null', { stream }, 'Redis');
+  }
+
+  return result;
 }
 
 export interface StreamMessage<T = Record<string, unknown>> {
@@ -88,21 +116,55 @@ const extractPayload = (fields: unknown[]): Record<string, unknown> | null => {
  *
  * @param {string[]} streams - Stream names to read from
  * @param {string[]} ids - Starting IDs for each stream
- * @param {{ count?: number; block?: number }} opts - Options (count for limiting results, block for blocking read in ms)
+ * @param {{ count?: number; block?: number; client?: RedisInstance }} opts - Options (count for limiting results, block for blocking read in ms, client for explicit Redis client)
  * @returns {Promise<StreamMessage[]>} Array of stream messages
  */
 export async function streamRead(
   streams: string[],
   ids: string[],
-  opts?: { count?: number; block?: number }
+  opts?: { count?: number; block?: number; client?: RedisInstance }
 ): Promise<StreamMessage[]> {
-  const client = getRedisClient();
-  if (!client || streams.length === 0 || ids.length === 0) return [];
+  // Use provided client or fall back to getRedisClient()
+  const client = opts?.client ?? getRedisClient();
+  if (!client || streams.length === 0 || ids.length === 0) {
+    if (!client) {
+      logger.warn(
+        'streamRead skipped - Redis client not available',
+        { streams, idsCount: ids.length },
+        'Redis'
+      );
+    }
+    return [];
+  }
+
+  // Check if client is connected
+  const status = client.status;
+  if (status !== 'ready') {
+    logger.warn(
+      'streamRead called with non-ready client',
+      { status, streams },
+      'Redis'
+    );
+    // Still attempt the read - ioredis will queue the command
+  }
 
   const streamArgs = [...streams, ...ids] as string[];
 
   // Build XREAD command with optional BLOCK and COUNT
   // XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]
+  // Log before XREAD for debugging SSE issues
+  logger.debug(
+    'XREAD starting',
+    {
+      streams,
+      ids,
+      block: opts?.block,
+      count: opts?.count,
+      clientStatus: client.status,
+    },
+    'Redis'
+  );
+
   let res: unknown;
   if (opts?.block !== undefined && opts?.count !== undefined) {
     res = await client.xread(
@@ -119,6 +181,30 @@ export async function streamRead(
     res = await client.xread('COUNT', opts.count, 'STREAMS', ...streamArgs);
   } else {
     res = await client.xread('STREAMS', ...streamArgs);
+  }
+
+  // Log XREAD completion
+  logger.debug(
+    'XREAD completed',
+    {
+      streams,
+      hasResult: res !== null && res !== undefined,
+      resultType: typeof res,
+    },
+    'Redis'
+  );
+
+  // Log XREAD result for debugging
+  if (res !== null && res !== undefined) {
+    logger.debug(
+      'XREAD returned data',
+      {
+        streams,
+        hasResult: Array.isArray(res),
+        resultLength: Array.isArray(res) ? res.length : 0,
+      },
+      'Redis'
+    );
   }
 
   const parsed: StreamMessage[] = [];
@@ -138,5 +224,15 @@ export async function streamRead(
       }
     }
   }
+
+  // Log when messages are found for debugging
+  if (parsed.length > 0) {
+    logger.debug(
+      'streamRead found messages',
+      { count: parsed.length, streams },
+      'Redis'
+    );
+  }
+
   return parsed;
 }

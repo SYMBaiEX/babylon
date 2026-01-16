@@ -6,6 +6,7 @@
 
 export {
   closeRedis,
+  ensureRedisReady,
   getRedis,
   getRedisClient,
   isRedisAvailable,

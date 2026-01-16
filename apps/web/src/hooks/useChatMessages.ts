@@ -9,21 +9,101 @@ import { useSSEChannel } from './useSSE';
  * Represents a chat message in the system.
  */
 export interface ChatMessage {
-  /** Unique message identifier */
   id: string;
-  /** Message content/text */
   content: string;
-  /** ID of the chat this message belongs to */
   chatId: string;
-  /** ID of the user who sent the message */
   senderId: string;
-  /** Message type: 'user' for regular messages, 'system' for system notifications */
   type?: MessageType;
-  /** ISO timestamp when the message was created */
   createdAt: string;
-  /** Whether this is a game chat message */
   isGameChat?: boolean;
+  /** Stable key for React rendering - prevents flash when optimistic messages are replaced */
+  stableKey?: string;
 }
+
+/** Raw message from API (createdAt may be string or Date) */
+interface RawApiMessage {
+  id: string;
+  content: string;
+  senderId: string;
+  type?: MessageType;
+  createdAt: string | Date;
+}
+
+/** Format raw API message to ChatMessage */
+function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
+  return {
+    id: msg.id,
+    content: msg.content,
+    chatId,
+    senderId: msg.senderId,
+    type: msg.type,
+    createdAt:
+      typeof msg.createdAt === 'string'
+        ? msg.createdAt
+        : msg.createdAt.toISOString(),
+  };
+}
+
+/** Sort messages by createdAt timestamp */
+function sortByTime(messages: ChatMessage[]): ChatMessage[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}
+
+/**
+ * Time window (ms) for matching optimistic messages to confirmed messages.
+ * If a confirmed message arrives within this window of an optimistic message
+ * with matching content and sender, they are considered the same message.
+ */
+const OPTIMISTIC_MATCH_WINDOW_MS = 30000;
+
+/** Check if a message is a pending optimistic message matching the new message */
+function isMatchingOptimistic(
+  pending: ChatMessage,
+  incoming: ChatMessage
+): boolean {
+  return (
+    pending.id.startsWith('pending-') &&
+    pending.senderId === incoming.senderId &&
+    pending.content === incoming.content &&
+    Math.abs(
+      new Date(pending.createdAt).getTime() -
+        new Date(incoming.createdAt).getTime()
+    ) < OPTIMISTIC_MATCH_WINDOW_MS
+  );
+}
+
+/**
+ * Adds a confirmed message to the list, replacing any matching optimistic message.
+ * Preserves the stableKey from the optimistic message to prevent React remount.
+ */
+function replaceOptimisticMessage(
+  messages: ChatMessage[],
+  confirmed: ChatMessage
+): ChatMessage[] {
+  // Skip exact duplicates
+  if (messages.some((msg) => msg.id === confirmed.id)) {
+    return messages;
+  }
+
+  // Replace optimistic message if found
+  const pending = messages.find((msg) => isMatchingOptimistic(msg, confirmed));
+  if (pending) {
+    return sortByTime(
+      messages.map((msg) =>
+        msg.id === pending.id
+          ? { ...confirmed, stableKey: pending.stableKey || pending.id }
+          : msg
+      )
+    );
+  }
+
+  return sortByTime([...messages, confirmed]);
+}
+
+/** Polling interval - less aggressive since SSE is primary */
+const POLLING_INTERVAL_MS = 15000;
 
 /**
  * Hook for managing chat messages with real-time SSE updates.
@@ -74,73 +154,36 @@ export function useChatMessages(chatId: string | null) {
 
   // Load existing messages from API (initial load)
   const loadMessages = useCallback(async (chatId: string) => {
-    // Skip if already loaded
     if (hasLoadedRef.current.has(chatId)) {
-      logger.debug(
-        `Skipping reload for ${chatId} - already loaded`,
-        { chatId },
-        'useChatMessages'
-      );
       setIsLoading(false);
       return;
     }
 
-    logger.debug(
-      `Loading initial messages for chat ${chatId}`,
-      { chatId },
-      'useChatMessages'
-    );
     setIsLoading(true);
     const response = await fetch(
       `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
-    );
-    logger.debug(
-      `Response status: ${response.status}`,
-      { chatId, status: response.status },
-      'useChatMessages'
     );
 
     if (response.ok) {
       const data = await response.json();
       if (data.messages) {
-        const formattedMessages: ChatMessage[] = data.messages.map(
-          (msg: {
-            id: string;
-            content: string;
-            senderId: string;
-            type?: MessageType;
-            createdAt: string | Date;
-          }) => ({
-            id: msg.id,
-            content: msg.content,
-            chatId: chatId,
-            senderId: msg.senderId,
-            type: msg.type,
-            createdAt:
-              typeof msg.createdAt === 'string'
-                ? msg.createdAt
-                : msg.createdAt.toISOString(),
-          })
+        const formatted = (data.messages as RawApiMessage[]).map((msg) =>
+          formatMessage(msg, chatId)
         );
-        setMessages(formattedMessages);
-        setHasMore(data.pagination?.hasMore || false);
-        setNextCursor(data.pagination?.nextCursor || null);
+        setMessages(formatted);
+        setHasMore(data.pagination?.hasMore ?? false);
+        setNextCursor(data.pagination?.nextCursor ?? null);
         hasLoadedRef.current.add(chatId);
         logger.debug(
-          `Loaded ${formattedMessages.length} messages for chat ${chatId}`,
-          {
-            chatId,
-            count: formattedMessages.length,
-            hasMore: data.pagination?.hasMore,
-          },
+          `Loaded ${formatted.length} messages`,
+          { chatId, count: formatted.length },
           'useChatMessages'
         );
       }
     } else {
-      const errorData = await response.json().catch(() => null);
       logger.error(
         'Failed to load messages',
-        { chatId, errorData, status: response.status },
+        { chatId, status: response.status },
         'useChatMessages'
       );
     }
@@ -149,124 +192,67 @@ export function useChatMessages(chatId: string | null) {
 
   // Load more older messages (pagination)
   const loadMore = useCallback(async () => {
-    if (!chatId || !nextCursor || isLoadingMore || !hasMore) {
-      logger.debug(
-        'Skip loadMore',
-        { chatId, nextCursor, isLoadingMore, hasMore },
-        'useChatMessages'
-      );
-      return;
-    }
+    if (!chatId || !nextCursor || isLoadingMore || !hasMore) return;
 
-    logger.debug(
-      `Loading more messages with cursor: ${nextCursor}`,
-      { chatId, cursor: nextCursor },
-      'useChatMessages'
-    );
     setIsLoadingMore(true);
-
     const response = await fetch(
       `/api/chats/${chatId}?cursor=${nextCursor}&limit=${CHAT_PAGE_SIZE}`
     );
 
     if (response.ok) {
       const data = await response.json();
-
-      if (data.messages && data.messages.length > 0) {
-        const formattedMessages: ChatMessage[] = data.messages.map(
-          (msg: {
-            id: string;
-            content: string;
-            senderId: string;
-            type?: MessageType;
-            createdAt: string | Date;
-          }) => ({
-            id: msg.id,
-            content: msg.content,
-            chatId: chatId,
-            senderId: msg.senderId,
-            type: msg.type,
-            createdAt:
-              typeof msg.createdAt === 'string'
-                ? msg.createdAt
-                : msg.createdAt.toISOString(),
-          })
+      if (data.messages?.length > 0) {
+        const formatted = (data.messages as RawApiMessage[]).map((msg) =>
+          formatMessage(msg, chatId)
         );
-
-        // Prepend older messages to the beginning
-        setMessages((prev) => [...formattedMessages, ...prev]);
-        setHasMore(data.pagination?.hasMore || false);
-        setNextCursor(data.pagination?.nextCursor || null);
-
-        logger.debug(
-          `Loaded ${formattedMessages.length} more messages`,
-          {
-            chatId,
-            count: formattedMessages.length,
-            hasMore: data.pagination?.hasMore,
-          },
-          'useChatMessages'
-        );
+        setMessages((prev) => [...formatted, ...prev]);
+        setHasMore(data.pagination?.hasMore ?? false);
+        setNextCursor(data.pagination?.nextCursor ?? null);
       }
     } else {
       logger.error(
         'Failed to load more messages',
-        { chatId, status: response.status, statusText: response.statusText },
+        { chatId, status: response.status },
         'useChatMessages'
       );
     }
-
     setIsLoadingMore(false);
   }, [chatId, nextCursor, isLoadingMore, hasMore]);
 
   // Handle SSE updates for this chat
   const handleChatUpdate = useCallback(
     (data: Record<string, unknown>) => {
-      if (data.type === 'new_message' && data.message) {
-        const messageData = data.message as Record<string, unknown>;
+      if (data.type !== 'new_message' || !data.message) return;
 
-        // Type guard for ChatMessage
-        if (
-          typeof messageData.id === 'string' &&
-          typeof messageData.content === 'string' &&
-          typeof messageData.chatId === 'string' &&
-          typeof messageData.senderId === 'string' &&
-          typeof messageData.createdAt === 'string'
-        ) {
-          const newMessage: ChatMessage = {
-            id: messageData.id,
-            content: messageData.content,
-            chatId: messageData.chatId,
-            senderId: messageData.senderId,
-            type:
-              messageData.type === MessageTypeEnum.USER ||
-              messageData.type === MessageTypeEnum.SYSTEM
-                ? (messageData.type as MessageType)
-                : undefined,
-            createdAt: messageData.createdAt,
-            isGameChat:
-              typeof messageData.isGameChat === 'boolean'
-                ? messageData.isGameChat
-                : undefined,
-          };
-
-          // Only add message if it's for the current chat
-          if (newMessage.chatId === chatId) {
-            setIsLoading(false);
-            setMessages((prev) => {
-              // Avoid duplicates
-              if (prev.some((msg) => msg.id === newMessage.id)) {
-                return prev;
-              }
-              return [...prev, newMessage].sort(
-                (a, b) =>
-                  new Date(a.createdAt).getTime() -
-                  new Date(b.createdAt).getTime()
-              );
-            });
-          }
-        }
+      const m = data.message as Record<string, unknown>;
+      // Type guard for required fields
+      if (
+        typeof m.id !== 'string' ||
+        typeof m.content !== 'string' ||
+        typeof m.chatId !== 'string' ||
+        typeof m.senderId !== 'string' ||
+        typeof m.createdAt !== 'string' ||
+        m.chatId !== chatId
+      ) {
+        return;
       }
+
+      const newMessage: ChatMessage = {
+        id: m.id,
+        content: m.content,
+        chatId: m.chatId,
+        senderId: m.senderId,
+        type:
+          m.type === MessageTypeEnum.USER || m.type === MessageTypeEnum.SYSTEM
+            ? (m.type as MessageType)
+            : undefined,
+        createdAt: m.createdAt,
+        isGameChat:
+          typeof m.isGameChat === 'boolean' ? m.isGameChat : undefined,
+      };
+
+      setIsLoading(false);
+      setMessages((prev) => replaceOptimisticMessage(prev, newMessage));
     },
     [chatId]
   );
@@ -295,88 +281,81 @@ export function useChatMessages(chatId: string | null) {
     }
   }, [chatId, loadMessages]);
 
-  // Polling fallback: Refresh chat every 15 seconds
-  // Ensures new messages appear even if SSE fails in multi-instance serverless
+  // Polling fallback for SSE edge cases
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    if (!chatId || !hasLoadedRef.current.has(chatId)) return;
+    if (!chatId) return;
 
-    const interval = setInterval(async () => {
-      // Fetch new messages without blocking - bypass the hasLoadedRef check
-      // by fetching directly instead of calling loadMessages
-      logger.debug(
-        `Polling for new messages in chat ${chatId}`,
-        { chatId },
-        'useChatMessages'
-      );
-
-      const response = await fetch(
-        `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.messages) {
-          const formattedMessages: ChatMessage[] = data.messages.map(
-            (msg: {
-              id: string;
-              content: string;
-              senderId: string;
-              createdAt: string | Date;
-            }) => ({
-              id: msg.id,
-              content: msg.content,
-              chatId: chatId,
-              senderId: msg.senderId,
-              createdAt:
-                typeof msg.createdAt === 'string'
-                  ? msg.createdAt
-                  : msg.createdAt.toISOString(),
-            })
+    // Start polling after brief delay for initial load
+    const startTimeout = setTimeout(() => {
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const response = await fetch(
+            `/api/chats/${chatId}?limit=${CHAT_PAGE_SIZE}`
           );
-          // Merge with existing messages, avoiding duplicates
+          if (!response.ok) return;
+
+          const data = await response.json();
+          if (!data.messages) return;
+
+          const formatted = (data.messages as RawApiMessage[]).map((msg) =>
+            formatMessage(msg, chatId)
+          );
+
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const newMessages = formattedMessages.filter(
-              (m) => !existingIds.has(m.id)
-            );
-            if (newMessages.length > 0) {
-              logger.debug(
-                `Polling found ${newMessages.length} new messages`,
-                { chatId, count: newMessages.length },
-                'useChatMessages'
-              );
-              return [...prev, ...newMessages].sort(
-                (a, b) =>
-                  new Date(a.createdAt).getTime() -
-                  new Date(b.createdAt).getTime()
-              );
-            }
-            return prev;
-          });
-        }
-      }
-    }, 15000); // 15 seconds (more frequent for chat)
+            const updated = [...prev];
+            let changed = false;
 
-    return () => clearInterval(interval);
+            for (const msg of formatted) {
+              if (existingIds.has(msg.id)) continue;
+
+              const pending = updated.find((m) => isMatchingOptimistic(m, msg));
+              if (pending) {
+                const idx = updated.indexOf(pending);
+                updated[idx] = {
+                  ...msg,
+                  stableKey: pending.stableKey || pending.id,
+                };
+                changed = true;
+              } else {
+                updated.push(msg);
+                changed = true;
+              }
+            }
+
+            return changed ? sortByTime(updated) : prev;
+          });
+
+          hasLoadedRef.current.add(chatId);
+        } catch (error) {
+          logger.warn(
+            'Polling failed',
+            { chatId, error: String(error) },
+            'useChatMessages'
+          );
+        }
+      }, POLLING_INTERVAL_MS);
+    }, 1000);
+
+    return () => {
+      clearTimeout(startTimeout);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
   }, [chatId]);
 
-  // Mark as loaded when connected
+  // SSE connected means we're ready
   useEffect(() => {
-    if (isConnected && chatId) {
-      // Initial loading done - we're ready to receive messages
-      setIsLoading(false);
-    }
+    if (isConnected && chatId) setIsLoading(false);
   }, [isConnected, chatId]);
 
   const addMessage = useCallback((message: ChatMessage) => {
-    setMessages((prev) => {
-      if (prev.some((msg) => msg.id === message.id)) {
-        return prev;
-      }
-      return [...prev, message].sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-    });
+    setMessages((prev) => replaceOptimisticMessage(prev, message));
+  }, []);
+
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
   }, []);
 
   const clearMessages = useCallback(() => {
@@ -398,6 +377,7 @@ export function useChatMessages(chatId: string | null) {
     hasMore,
     loadMore,
     addMessage,
+    removeMessage,
     clearMessages,
     reloadMessages,
     isConnected,
