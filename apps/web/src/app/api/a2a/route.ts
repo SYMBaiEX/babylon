@@ -168,7 +168,15 @@ export async function POST(request: NextRequest) {
   const { error, authResult } = await checkApiKey(request);
   if (error) return error;
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: Invalid JSON' }, id: null },
+      { status: 400 }
+    );
+  }
 
   logger.info('Official A2A request', {
     method: body.method,
@@ -182,7 +190,6 @@ export async function POST(request: NextRequest) {
   // 1. Update BabylonAgentExecutor.execute() to accept optional userId parameter
   // 2. Propagate userId to downstream service calls (trading, social, etc.)
   // 3. Add feature flag ENABLE_USER_SCOPED_A2A_EXECUTION for gradual rollout
-  // See: https://github.com/BabylonSocial/babylon/issues/xxx (TODO: create issue)
 
   // Use the JSON-RPC transport handler
   const response = await jsonRpcHandler.handle(body);

@@ -44,9 +44,21 @@ interface CachedKeyInfo {
  * IMPORTANT: When revoking keys, call invalidateCachedKey() or
  * invalidateCachedKeysForUser() to immediately invalidate cached entries.
  * Otherwise revoked keys remain valid until TTL expires (5 min).
+ *
+ * Call invalidation from:
+ * - DELETE /api/user/api-keys/[id] endpoint (single key revocation)
+ * - User account deletion handlers (all user keys)
+ * - Admin key revocation endpoints
  */
 const apiKeyCache = new Map<string, CachedKeyInfo>();
 
+/**
+ * Evict least recently used entries when cache is full.
+ *
+ * Note: This is called before insertion, so concurrent requests could
+ * temporarily exceed MAX_CACHE_SIZE. This is acceptable for an in-memory
+ * cache - the slight overage is bounded and self-correcting on next eviction.
+ */
 function evictLeastRecentlyUsed(): void {
   if (apiKeyCache.size >= MAX_CACHE_SIZE) {
     const entriesToDelete = Math.floor(MAX_CACHE_SIZE * 0.1);
