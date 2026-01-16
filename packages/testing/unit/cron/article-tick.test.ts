@@ -145,19 +145,8 @@ mock.module('@babylon/engine', () => ({
 }));
 
 // Mock @babylon/shared
-// Mock @babylon/shared - spread real module to preserve exports like formatCurrency, generateSnowflakeId
-mock.module('@babylon/shared', () => {
-  const actual = require('@babylon/shared');
-  return {
-    ...actual,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-    },
-  };
-});
+// Note: @babylon/shared is NOT mocked - let real logger run to avoid
+// polluting module cache and breaking other tests that use formatCurrency, etc.
 
 // Import the route handler after mocks are set up
 import { GET, POST } from '@/app/api/cron/article-tick/route';

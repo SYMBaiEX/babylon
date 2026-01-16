@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import { initializeAgentA2AClient } from '@babylon/agents';
 
 // Tests use mocked db module
 const describeTests = describe;
@@ -84,20 +83,20 @@ mock.module('@babylon/db', () => ({
   asc: () => ({}),
 }));
 
-// Mock @babylon/agents - spread real module to preserve initializeAgentA2AClient
-mock.module('@babylon/agents', () => {
-  const actual = require('@babylon/agents');
-  return {
-    ...actual,
-    agentWalletService: {
-      createAgentEmbeddedWallet: createWalletMock,
-    },
-  };
-});
+// Mock the internal AgentWalletService module (not the whole @babylon/agents package)
+// This allows initializeAgentA2AClient to work while mocking agentWalletService
+mock.module('@babylon/agents/identity/AgentWalletService', () => ({
+  agentWalletService: {
+    createAgentEmbeddedWallet: createWalletMock,
+  },
+}));
 
 mock.module('@a2a-js/sdk/client', () => ({
   A2AClient: MockA2AClient,
 }));
+
+// Dynamic import AFTER mocks are set up
+const { initializeAgentA2AClient } = await import('@babylon/agents');
 
 describeTests('initializeAgentA2AClient wallet provisioning', () => {
   beforeEach(() => {

@@ -230,14 +230,8 @@ mock.module('@babylon/db', () => ({
   TrainedModel: {},
 }));
 
-// Mock @babylon/shared - spread real module to preserve exports like formatCurrency, generateSnowflakeId
-mock.module('@babylon/shared', () => {
-  const actual = require('@babylon/shared');
-  return {
-    ...actual,
-    logger: mockLogger,
-  };
-});
+// Note: @babylon/shared is NOT mocked - let real logger run to avoid
+// polluting module cache and breaking other tests that use formatCurrency, etc.
 
 // Mock the training package logger
 // AutomationPipeline imports from '../utils/logger' relative to its location

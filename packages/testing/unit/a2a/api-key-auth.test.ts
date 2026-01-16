@@ -5,13 +5,6 @@
  */
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import {
-  A2A_API_KEY_HEADER,
-  clearApiKeyCache,
-  isLocalHost,
-  validateApiKey,
-  validateApiKeyAsync,
-} from '@babylon/a2a';
 
 // Track validateUserApiKey calls for cache testing
 let validateUserApiKeyCallCount = 0;
@@ -27,14 +20,24 @@ const mockValidateUserApiKey = mock(async (apiKey: string) => {
   return null;
 });
 
-// Mock @babylon/api to intercept validateUserApiKey calls
-mock.module('@babylon/api', () => {
-  const actual = require('@babylon/api');
-  return {
-    ...actual,
-    validateUserApiKey: mockValidateUserApiKey,
-  };
-});
+// Mock @babylon/api BEFORE importing @babylon/a2a (which re-exports from @babylon/api)
+mock.module('@babylon/api', () => ({
+  // Provide mock implementations for everything @babylon/a2a needs
+  validateUserApiKey: mockValidateUserApiKey,
+  clearApiKeyCache: () => {},
+  getApiKeyCacheStats: () => ({ size: 0, hits: 0, misses: 0 }),
+  invalidateCachedKey: () => {},
+  invalidateCachedKeysForUser: () => {},
+}));
+
+// Dynamic import AFTER mock is set up
+const {
+  A2A_API_KEY_HEADER,
+  clearApiKeyCache,
+  isLocalHost,
+  validateApiKey,
+  validateApiKeyAsync,
+} = await import('@babylon/a2a');
 
 // Helper to create mock requests
 const mockRequest = (apiKey: string | null, host?: string) => ({
@@ -237,11 +240,11 @@ describe('A2A API Key Authentication', () => {
       expect(result.error).toContain('X-Babylon-Api-Key header is required');
     });
 
-    it('should use cache for repeated user key validation', async () => {
+    it('should call validateUserApiKey for each request with user key', async () => {
       const request1 = mockRequest('valid-user-key-456', 'api.babylon.game');
       const request2 = mockRequest('valid-user-key-456', 'api.babylon.game');
 
-      // First call - should hit the database (via mock)
+      // First call
       const result1 = await validateApiKeyAsync(request1, {
         serverApiKey: 'different-server-key',
         allowLocalhost: false,
@@ -250,9 +253,9 @@ describe('A2A API Key Authentication', () => {
 
       expect(result1.authenticated).toBe(true);
       expect(result1.userId).toBe('user-456');
-      const callsAfterFirst = validateUserApiKeyCallCount;
+      expect(mockValidateUserApiKey).toHaveBeenCalledTimes(1);
 
-      // Second call with same key - should hit cache
+      // Second call - validates integration still works
       const result2 = await validateApiKeyAsync(request2, {
         serverApiKey: 'different-server-key',
         allowLocalhost: false,
@@ -261,11 +264,8 @@ describe('A2A API Key Authentication', () => {
 
       expect(result2.authenticated).toBe(true);
       expect(result2.userId).toBe('user-456');
-
-      // validateUserApiKey should only be called once due to caching
-      // Note: The actual caching happens inside @babylon/api's validateUserApiKey
-      // This test verifies the integration works correctly
-      expect(validateUserApiKeyCallCount).toBe(callsAfterFirst);
+      // Mock is called for each request (real caching is in @babylon/api)
+      expect(mockValidateUserApiKey).toHaveBeenCalledTimes(2);
     });
   });
 
