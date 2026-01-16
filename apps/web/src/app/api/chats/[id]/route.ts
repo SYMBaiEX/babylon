@@ -79,6 +79,7 @@ import {
   logger,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 
 /**
  * GET /api/chats/[id]
@@ -106,7 +107,7 @@ export const GET = withErrorHandling(
     const validatedQuery = ChatQuerySchema.parse(query);
 
     // Parse pagination parameters
-    const limit = limitParam ? Number.parseInt(limitParam, 10) : 50;
+    const limit = limitParam ? Number.parseInt(limitParam, 10) : CHAT_PAGE_SIZE;
     const effectiveLimit = Math.min(Math.max(limit, 1), 100); // Between 1 and 100
 
     // Check for debug mode (localhost access to game chats)
