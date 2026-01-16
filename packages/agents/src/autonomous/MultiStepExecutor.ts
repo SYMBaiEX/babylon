@@ -8,32 +8,7 @@
  * This eliminates double LLM calls and makes execution faster.
  */
 
-import {
-  actorState,
-  and,
-  chatParticipants,
-  chats,
-  comments,
-  count,
-  db,
-  desc,
-  eq,
-  getDbInstance,
-  getRawDrizzle,
-  gte,
-  inArray,
-  isNull,
-  lte,
-  markets,
-  ne,
-  perpPositions,
-  positions,
-  posts,
-  reactions,
-  shares,
-  sql,
-  users,
-} from '@babylon/db';
+import { actorState, chats, db, eq, users } from '@babylon/db';
 import { StaticDataRegistry, WalletService } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -41,7 +16,6 @@ import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context
 import { agentService } from '../services/AgentService';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { autonomousBatchResponseService } from './AutonomousBatchResponseService';
 import {
   executeDirectComment,
   executeDirectLike,
@@ -53,17 +27,26 @@ import {
 import { topicDiversityService } from './TopicDiversityService';
 
 import {
+  Actions,
   type ActionTraceResult,
-  type AgentOwnPostContext,
   type AgentTickContext,
   buildMultiStepDecisionPrompt,
+  Features,
+  getRequiredFeature,
   type MultiStepDecision,
-  type PerpMarketContext,
-  type PerpPositionContext,
-  type PostContext,
-  type PredictionMarketContext,
-  type PredictionPositionContext,
 } from './templates/multi-step-decision';
+
+// Import utilities
+import {
+  gatherPendingChatMessages,
+  gatherPendingCommentReplies,
+  getAgentGroupChats,
+  getAgentOwnPosts,
+  getAgentPositions,
+  getPerpMarkets,
+  getPredictionMarkets,
+  getRecentPosts,
+} from './utils';
 
 // =============================================================================
 // Types
@@ -142,21 +125,23 @@ export class MultiStepExecutor {
     const enabledFeatures: string[] = [];
     if (isNpc) {
       enabledFeatures.push(
-        'trading',
-        'posting',
-        'commenting',
-        'engaging',
-        'DMs',
-        'groupChats'
+        Features.TRADING,
+        Features.POSTING,
+        Features.COMMENTING,
+        Features.ENGAGING,
+        Features.DMS,
+        Features.GROUP_CHATS
       );
     } else {
-      if (config?.autonomousTrading) enabledFeatures.push('trading');
-      if (config?.autonomousPosting) enabledFeatures.push('posting');
-      if (config?.autonomousCommenting) enabledFeatures.push('commenting');
+      if (config?.autonomousTrading) enabledFeatures.push(Features.TRADING);
+      if (config?.autonomousPosting) enabledFeatures.push(Features.POSTING);
+      if (config?.autonomousCommenting)
+        enabledFeatures.push(Features.COMMENTING);
       // User-controlled agents can also engage if they can comment
-      if (config?.autonomousCommenting) enabledFeatures.push('engaging');
-      if (config?.autonomousDMs) enabledFeatures.push('DMs');
-      if (config?.autonomousGroupChats) enabledFeatures.push('groupChats');
+      if (config?.autonomousCommenting) enabledFeatures.push(Features.ENGAGING);
+      if (config?.autonomousDMs) enabledFeatures.push(Features.DMS);
+      if (config?.autonomousGroupChats)
+        enabledFeatures.push(Features.GROUP_CHATS);
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)
@@ -188,10 +173,10 @@ export class MultiStepExecutor {
       // Compute per-iteration effectiveFeatures based on current trace
       // This enforces one-POST-per-tick: if we've already posted, remove 'posting'
       const hasPostedThisTick = trace.some(
-        (r) => r.actionType === 'POST' && r.success
+        (r) => r.actionType === Actions.POST && r.success
       );
       const effectiveFeatures = hasPostedThisTick
-        ? enabledFeatures.filter((f) => f !== 'posting')
+        ? enabledFeatures.filter((f) => f !== Features.POSTING)
         : enabledFeatures;
 
       // Gather fresh context (state refreshes after each action)
@@ -290,8 +275,7 @@ export class MultiStepExecutor {
 
   /**
    * Gather current context for decision making
-   * Includes FULL market data so LLM can make specific decisions
-   * Now includes topic diversity guidance
+   * Uses utility functions for individual data fetching
    */
   private async gatherContext(
     agentUserId: string,
@@ -301,6 +285,7 @@ export class MultiStepExecutor {
     // Get balance and PnL
     let balance = 0;
     let pnl = 0;
+    let creator: { name: string; username?: string } | undefined;
 
     if (isNpc) {
       const [actor] = await db
@@ -310,7 +295,6 @@ export class MultiStepExecutor {
         .limit(1);
 
       if (!actor) {
-        // Missing actorState record is a data issue that should be fixed at bootstrap
         throw new Error(
           `NPC ${agentUserId} has no actorState record. Run NPC bootstrap to create it.`
         );
@@ -322,44 +306,71 @@ export class MultiStepExecutor {
       const walletBalance = await WalletService.getBalance(agentUserId);
       balance = walletBalance.balance;
       pnl = walletBalance.lifetimePnL;
+
+      // Fetch creator info for user-controlled agents
+      const [agentUser] = await db
+        .select({ managedBy: users.managedBy })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+
+      if (agentUser?.managedBy) {
+        const [creatorUser] = await db
+          .select({
+            displayName: users.displayName,
+            username: users.username,
+          })
+          .from(users)
+          .where(eq(users.id, agentUser.managedBy))
+          .limit(1);
+
+        if (creatorUser) {
+          creator = {
+            name: creatorUser.displayName || creatorUser.username || 'Unknown',
+            username: creatorUser.username || undefined,
+          };
+        }
+      }
     }
 
     // Only fetch data for enabled features (saves DB queries and tokens)
-    const canTrade = enabledFeatures.includes('trading');
-    const canComment = enabledFeatures.includes('commenting');
-    const canRespondDMs = enabledFeatures.includes('DMs');
-    const canGroupChat = enabledFeatures.includes('groupChats');
-    const canPost = enabledFeatures.includes('posting');
+    const canTrade = enabledFeatures.includes(Features.TRADING);
+    const canComment = enabledFeatures.includes(Features.COMMENTING);
+    const canRespondDMs = enabledFeatures.includes(Features.DMS);
+    const canGroupChat = enabledFeatures.includes(Features.GROUP_CHATS);
+    const canPost = enabledFeatures.includes(Features.POSTING);
 
-    // Gather context in parallel - all these queries are independent
+    // Gather context in parallel using utility functions
     const [
       predictionMarkets,
       perpMarkets,
       agentPositions,
       recentPosts,
-      pendingInteractions,
+      pendingCommentRepliesRaw,
+      pendingChatMessagesRaw,
       agentGroupChats,
       agentOwnPosts,
     ] = await Promise.all([
-      // Get prediction markets (only if trading enabled)
-      canTrade ? this.getPredictionMarkets() : Promise.resolve([]),
-      // Get perp markets (only if trading enabled)
-      canTrade ? this.getPerpMarkets() : Promise.resolve([]),
-      // Get agent's positions (always needed for context, even if not trading)
-      this.getAgentPositions(agentUserId),
-      // Get recent posts to engage with (if commenting OR DMs enabled - need posts to discover users for DMs)
+      canTrade ? getPredictionMarkets() : Promise.resolve([]),
+      canTrade ? getPerpMarkets() : Promise.resolve([]),
+      getAgentPositions(agentUserId),
       canComment || canRespondDMs
-        ? this.getRecentPosts(agentUserId)
+        ? getRecentPosts(agentUserId)
         : Promise.resolve([]),
-      // Get pending interactions (only if DMs enabled)
-      canRespondDMs
-        ? autonomousBatchResponseService.gatherPendingInteractions(agentUserId)
+      canComment
+        ? gatherPendingCommentReplies(agentUserId)
         : Promise.resolve([]),
-      // Get agent's group chats (only if group chats enabled)
-      canGroupChat ? this.getAgentGroupChats(agentUserId) : Promise.resolve([]),
-      // Get agent's own recent posts (for posting frequency awareness)
-      canPost ? this.getAgentOwnPosts(agentUserId) : Promise.resolve([]),
+      canRespondDMs || canGroupChat
+        ? gatherPendingChatMessages(agentUserId)
+        : Promise.resolve([]),
+      canGroupChat ? getAgentGroupChats(agentUserId) : Promise.resolve([]),
+      canPost ? getAgentOwnPosts(agentUserId) : Promise.resolve([]),
     ]);
+
+    // Filter chat messages based on DMs vs group chats feature
+    const pendingChatMessages = pendingChatMessagesRaw.filter((m) =>
+      m.isGroupChat ? canGroupChat : canRespondDMs
+    );
 
     // Get topic diversity guidance for this agent
     const diversityInstructions =
@@ -371,538 +382,25 @@ export class MultiStepExecutor {
       pnl,
       openPositions:
         agentPositions.predictions.length + agentPositions.perps.length,
-      pendingInteractions: pendingInteractions.length,
-      pendingInteractionDetails: pendingInteractions.slice(0, 5).map((i) => ({
-        type: i.type as 'comment_reply' | 'dm' | 'mention',
-        author: i.author,
-        content: i.content,
-        postId: i.postId,
-      })),
+      pendingCommentReplies: pendingCommentRepliesRaw.slice(0, 3),
+      pendingChatMessages: pendingChatMessages.slice(0, 3),
       enabledFeatures,
       predictionMarkets,
       perpMarkets,
       recentPosts,
       agentPositions,
-      // Group chats for sharing
       groupChats: agentGroupChats,
-      // Topic diversity
       diversityInstructions,
       assignedMarketId: assignment?.marketId,
-      // NPC's actual character data for personalized guidance
       personality: assignment?.personality,
       postStyle: assignment?.postStyle,
-      // Agent's own recent posts for self-awareness
       agentOwnPosts,
+      creator,
     };
   }
 
   /**
-   * Get active prediction markets with pricing
-   */
-  private async getPredictionMarkets(): Promise<PredictionMarketContext[]> {
-    const activeMarkets = await db
-      .select()
-      .from(markets)
-      .where(and(eq(markets.resolved, false), gte(markets.endDate, new Date())))
-      .orderBy(desc(markets.createdAt))
-      .limit(8);
-
-    return activeMarkets.map((m) => {
-      const yesShares = Number(m.yesShares || 1);
-      const noShares = Number(m.noShares || 1);
-      const total = yesShares + noShares;
-
-      return {
-        id: m.id,
-        question: m.question,
-        yesPrice: yesShares / total,
-        noPrice: noShares / total,
-        volume: total,
-        endDate: m.endDate?.toISOString().split('T')[0] ?? 'Unknown',
-      };
-    });
-  }
-
-  /**
-   * Get perp markets with current prices
-   */
-  private async getPerpMarkets(): Promise<PerpMarketContext[]> {
-    const orgStates = await getDbInstance().getOrganizationsByPrice();
-
-    return orgStates
-      .slice(0, 8)
-      .map((state) => {
-        const staticOrg = StaticDataRegistry.getOrganization(state.id);
-        if (!staticOrg || staticOrg.type !== 'company') return null;
-
-        const currentPrice =
-          state.currentPrice ?? staticOrg.initialPrice ?? 100;
-        const initialPrice = staticOrg.initialPrice ?? 100;
-        const changePercent =
-          ((currentPrice - initialPrice) / initialPrice) * 100;
-
-        return {
-          ticker: staticOrg.ticker,
-          name: staticOrg.name,
-          currentPrice,
-          initialPrice,
-          changePercent,
-        };
-      })
-      .filter((m): m is PerpMarketContext => m !== null);
-  }
-
-  /**
-   * Get agent's group chats for potential sharing
-   */
-  private async getAgentGroupChats(
-    agentUserId: string
-  ): Promise<{ id: string; name: string; memberCount: number }[]> {
-    try {
-      // Use DB-side aggregate count instead of loading all participant rows
-      // First, get chats where the agent is a participant and the chat is a group
-      // Then count all participants in those chats
-      const rawDb = getRawDrizzle();
-      const agentParticipation = rawDb
-        .select({ chatId: chatParticipants.chatId })
-        .from(chatParticipants)
-        .where(eq(chatParticipants.userId, agentUserId))
-        .as('agent_participation');
-
-      const groupChatsWithCount = await rawDb
-        .select({
-          id: chats.id,
-          name: chats.name,
-          memberCount: count(chatParticipants.id),
-        })
-        .from(chats)
-        .innerJoin(agentParticipation, eq(chats.id, agentParticipation.chatId))
-        .innerJoin(chatParticipants, eq(chats.id, chatParticipants.chatId))
-        .where(eq(chats.isGroup, true))
-        .groupBy(chats.id, chats.name)
-        .limit(5);
-
-      return groupChatsWithCount.map((chat) => ({
-        id: chat.id,
-        name: chat.name ?? 'Group Chat',
-        memberCount: chat.memberCount,
-      }));
-    } catch (error) {
-      // Log the error before returning empty fallback
-      logger.warn(
-        'Failed to fetch agent group chats',
-        {
-          agentUserId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'MultiStepExecutor'
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Get agent's own recent posts for self-awareness
-   * Shows what the agent has posted recently with engagement metrics
-   */
-  private async getAgentOwnPosts(
-    agentUserId: string
-  ): Promise<AgentOwnPostContext[]> {
-    try {
-      // Use posts.timestamp for ordering to leverage Post_authorId_timestamp_idx index
-      const recentOwnPosts = await db
-        .select({
-          id: posts.id,
-          content: posts.content,
-          timestamp: posts.timestamp,
-        })
-        .from(posts)
-        .where(and(eq(posts.authorId, agentUserId), isNull(posts.deletedAt)))
-        .orderBy(desc(posts.timestamp))
-        .limit(5);
-
-      if (recentOwnPosts.length === 0) {
-        return [];
-      }
-
-      // Get engagement counts for these posts
-      const postIds = recentOwnPosts.map((p) => p.id);
-      const [likeCounts, commentCounts] = await Promise.all([
-        db
-          .select({
-            postId: reactions.postId,
-            count: sql<number>`count(*)`,
-          })
-          .from(reactions)
-          .where(
-            and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
-          )
-          .groupBy(reactions.postId),
-        db
-          .select({
-            postId: comments.postId,
-            count: sql<number>`count(*)`,
-          })
-          .from(comments)
-          .where(
-            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
-          )
-          .groupBy(comments.postId),
-      ]);
-
-      const likeCountMap = new Map<string, number>();
-      const commentCountMap = new Map<string, number>();
-      for (const row of likeCounts) {
-        if (row.postId) likeCountMap.set(row.postId, Number(row.count));
-      }
-      for (const row of commentCounts) {
-        if (row.postId) commentCountMap.set(row.postId, Number(row.count));
-      }
-
-      return recentOwnPosts.map((p) => ({
-        content: p.content,
-        timeAgo: getTimeAgo(p.timestamp),
-        likeCount: likeCountMap.get(p.id) ?? 0,
-        commentCount: commentCountMap.get(p.id) ?? 0,
-      }));
-    } catch (error) {
-      logger.warn(
-        'Failed to fetch agent own posts',
-        {
-          agentUserId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'MultiStepExecutor'
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Get agent's current positions with full context including time held and price movement
-   */
-  private async getAgentPositions(agentUserId: string): Promise<{
-    predictions: PredictionPositionContext[];
-    perps: PerpPositionContext[];
-  }> {
-    const now = Date.now();
-
-    // Prediction positions - fetch more fields
-    const predPositions = await db
-      .select({
-        marketId: positions.marketId,
-        side: positions.side,
-        shares: positions.shares,
-        avgPrice: positions.avgPrice,
-        createdAt: positions.createdAt,
-      })
-      .from(positions)
-      .where(
-        and(eq(positions.userId, agentUserId), eq(positions.status, 'active'))
-      )
-      .limit(10);
-
-    // Get market data for positions (question + current prices)
-    const marketIds = predPositions
-      .map((p) => p.marketId)
-      .filter(Boolean) as string[];
-    const marketData = new Map<
-      string,
-      { question: string; yesPrice: number; noPrice: number }
-    >();
-    if (marketIds.length > 0) {
-      const marketsData = await db
-        .select({
-          id: markets.id,
-          question: markets.question,
-          yesShares: markets.yesShares,
-          noShares: markets.noShares,
-        })
-        .from(markets)
-        .where(inArray(markets.id, marketIds));
-      for (const m of marketsData) {
-        const yesShares = Number(m.yesShares || 1);
-        const noShares = Number(m.noShares || 1);
-        const total = yesShares + noShares;
-        marketData.set(m.id, {
-          question: m.question,
-          yesPrice: yesShares / total,
-          noPrice: noShares / total,
-        });
-      }
-    }
-
-    const predictions: PredictionPositionContext[] = predPositions
-      .filter((p) => p.marketId)
-      .map((p) => {
-        const market = marketData.get(p.marketId as string);
-        const avgPrice = Number(p.avgPrice || 0.5);
-        const isYes = p.side === true;
-        const currentPrice = market
-          ? isYes
-            ? market.yesPrice
-            : market.noPrice
-          : avgPrice;
-        const pnlPercent =
-          avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
-        const timeHeldMs = p.createdAt
-          ? now - new Date(p.createdAt).getTime()
-          : 0;
-
-        return {
-          marketId: p.marketId as string,
-          question: market?.question ?? 'Unknown',
-          side: isYes ? 'YES' : 'NO',
-          shares: Number(p.shares || 0),
-          avgPrice,
-          currentPrice,
-          pnlPercent,
-          timeHeld: formatTimeHeld(timeHeldMs),
-          timeHeldMs,
-        };
-      });
-
-    // Perp positions - fetch more fields including entry price and opened time
-    const perpPositionsList = await db
-      .select({
-        ticker: perpPositions.ticker,
-        side: perpPositions.side,
-        size: perpPositions.size,
-        entryPrice: perpPositions.entryPrice,
-        currentPrice: perpPositions.currentPrice,
-        unrealizedPnL: perpPositions.unrealizedPnL,
-        unrealizedPnLPercent: perpPositions.unrealizedPnLPercent,
-        openedAt: perpPositions.openedAt,
-      })
-      .from(perpPositions)
-      .where(
-        and(
-          eq(perpPositions.userId, agentUserId),
-          isNull(perpPositions.closedAt)
-        )
-      )
-      .limit(10);
-
-    const perps: PerpPositionContext[] = perpPositionsList.map((p) => {
-      const entryPrice = Number(p.entryPrice || 100);
-      const currentPrice = Number(p.currentPrice || entryPrice);
-      const timeHeldMs = p.openedAt ? now - new Date(p.openedAt).getTime() : 0;
-
-      // Calculate P&L percent based on side
-      let pnlPercent = Number(p.unrealizedPnLPercent || 0);
-      if (pnlPercent === 0 && entryPrice > 0) {
-        const priceChange = currentPrice - entryPrice;
-        const isLong = p.side === 'long';
-        pnlPercent = (priceChange / entryPrice) * 100 * (isLong ? 1 : -1);
-      }
-
-      return {
-        ticker: p.ticker,
-        side: p.side,
-        size: Number(p.size || 0),
-        pnl: Number(p.unrealizedPnL || 0),
-        pnlPercent,
-        entryPrice,
-        currentPrice,
-        timeHeld: formatTimeHeld(timeHeldMs),
-        timeHeldMs,
-      };
-    });
-
-    return { predictions, perps };
-  }
-
-  /**
-   * Get recent posts to potentially engage with
-   * Includes agent's existing comments so the LLM knows what it already said
-   */
-  private async getRecentPosts(agentUserId: string): Promise<PostContext[]> {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const now = new Date();
-
-    const recentPostsRaw = await db
-      .select({
-        id: posts.id,
-        content: posts.content,
-        authorId: posts.authorId,
-        createdAt: posts.createdAt,
-      })
-      .from(posts)
-      .where(
-        and(
-          ne(posts.authorId, agentUserId),
-          isNull(posts.deletedAt),
-          gte(posts.timestamp, oneDayAgo),
-          lte(posts.timestamp, now)
-        )
-      )
-      .orderBy(desc(posts.createdAt))
-      .limit(8);
-
-    // Get author names
-    const authorIds = [...new Set(recentPostsRaw.map((p) => p.authorId))];
-    const authorNames = new Map<string, string>();
-
-    for (const authorId of authorIds) {
-      // Check static registry first
-      const actor = StaticDataRegistry.getActor(authorId);
-      if (actor) {
-        authorNames.set(authorId, actor.name);
-        continue;
-      }
-      const org = StaticDataRegistry.getOrganization(authorId);
-      if (org) {
-        authorNames.set(authorId, org.name);
-        continue;
-      }
-    }
-
-    // Fetch remaining from DB
-    const missingIds = authorIds.filter((id) => !authorNames.has(id));
-    if (missingIds.length > 0) {
-      const dbUsers = await db
-        .select({
-          id: users.id,
-          displayName: users.displayName,
-          username: users.username,
-        })
-        .from(users)
-        .where(inArray(users.id, missingIds));
-      for (const u of dbUsers) {
-        authorNames.set(u.id, u.displayName || u.username || 'User');
-      }
-    }
-
-    // Fetch agent's existing engagement on these posts
-    const postIds = recentPostsRaw.map((p) => p.id);
-    const agentComments = new Map<string, string>();
-    const agentLikes = new Set<string>();
-    const agentReposts = new Set<string>();
-    const postLikeCounts = new Map<string, number>();
-    const postRepostCounts = new Map<string, number>();
-    const postCommentCounts = new Map<string, number>();
-
-    if (postIds.length > 0) {
-      // Fetch agent's existing comments (top-level only)
-      const existingComments = await db
-        .select({
-          postId: comments.postId,
-          content: comments.content,
-        })
-        .from(comments)
-        .where(
-          and(
-            inArray(comments.postId, postIds),
-            eq(comments.authorId, agentUserId),
-            isNull(comments.parentCommentId), // Top-level comments only
-            isNull(comments.deletedAt)
-          )
-        );
-
-      for (const comment of existingComments) {
-        if (comment.postId) {
-          agentComments.set(comment.postId, comment.content);
-        }
-      }
-
-      // Execute all engagement queries in parallel to reduce latency
-      const [
-        existingLikes,
-        existingReposts,
-        likeCounts,
-        repostCounts,
-        commentCounts,
-      ] = await Promise.all([
-        // Fetch agent's existing likes
-        db
-          .select({ postId: reactions.postId })
-          .from(reactions)
-          .where(
-            and(
-              inArray(reactions.postId, postIds),
-              eq(reactions.userId, agentUserId),
-              eq(reactions.type, 'like')
-            )
-          ),
-        // Fetch agent's existing reposts
-        db
-          .select({ postId: shares.postId })
-          .from(shares)
-          .where(
-            and(inArray(shares.postId, postIds), eq(shares.userId, agentUserId))
-          ),
-        // Get like counts for each post
-        db
-          .select({
-            postId: reactions.postId,
-            count: sql<number>`count(*)`,
-          })
-          .from(reactions)
-          .where(
-            and(inArray(reactions.postId, postIds), eq(reactions.type, 'like'))
-          )
-          .groupBy(reactions.postId),
-        // Get repost counts for each post
-        db
-          .select({
-            postId: shares.postId,
-            count: sql<number>`count(*)`,
-          })
-          .from(shares)
-          .where(inArray(shares.postId, postIds))
-          .groupBy(shares.postId),
-        // Get comment counts for each post
-        db
-          .select({
-            postId: comments.postId,
-            count: sql<number>`count(*)`,
-          })
-          .from(comments)
-          .where(
-            and(inArray(comments.postId, postIds), isNull(comments.deletedAt))
-          )
-          .groupBy(comments.postId),
-      ]);
-
-      for (const like of existingLikes) {
-        if (like.postId) agentLikes.add(like.postId);
-      }
-
-      for (const repost of existingReposts) {
-        agentReposts.add(repost.postId);
-      }
-
-      for (const row of likeCounts) {
-        if (row.postId) postLikeCounts.set(row.postId, Number(row.count));
-      }
-
-      for (const row of repostCounts) {
-        postRepostCounts.set(row.postId, Number(row.count));
-      }
-
-      for (const row of commentCounts) {
-        if (row.postId) postCommentCounts.set(row.postId, Number(row.count));
-      }
-    }
-
-    return recentPostsRaw.map((p) => ({
-      id: p.id,
-      authorId: p.authorId,
-      authorName: authorNames.get(p.authorId) || 'User',
-      content: p.content,
-      commentCount: postCommentCounts.get(p.id) ?? 0,
-      likeCount: postLikeCounts.get(p.id) ?? 0,
-      repostCount: postRepostCounts.get(p.id) ?? 0,
-      timeAgo: getTimeAgo(p.createdAt),
-      agentComment: agentComments.get(p.id),
-      agentLiked: agentLikes.has(p.id),
-      agentReposted: agentReposts.has(p.id),
-    }));
-  }
-
-  /**
    * Get LLM decision with retry logic
-   * Returns both parsed decision and raw response for logging
    */
   private async getDecision(
     prompt: string,
@@ -912,7 +410,6 @@ export class MultiStepExecutor {
   ): Promise<{ decision: MultiStepDecision; rawResponse: string } | null> {
     const maxRetries = 3;
 
-    // Use agent's system prompt + JSON instruction
     const system = systemPrompt
       ? `${systemPrompt}\n\nIMPORTANT: Output valid JSON only. No markdown, no explanations.`
       : 'You are a decision-making agent. Output valid JSON only. No markdown, no explanations.';
@@ -928,7 +425,6 @@ export class MultiStepExecutor {
         purpose: 'action',
       });
 
-      // Parse JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         logger.warn(
@@ -942,7 +438,6 @@ export class MultiStepExecutor {
       try {
         const parsed = JSON.parse(jsonMatch[0]) as MultiStepDecision;
 
-        // Validate required fields
         if (typeof parsed.isFinish !== 'boolean') {
           parsed.isFinish = false;
         }
@@ -971,14 +466,13 @@ export class MultiStepExecutor {
 
   /**
    * Execute a single action using DIRECT executors (no LLM calls)
-   * Enforces enabledFeatures - will reject actions the agent hasn't enabled
    */
   private async executeAction(
     agentUserId: string,
     action: string,
     parameters: Record<string, unknown>,
     enabledFeatures: string[],
-    runtime: IAgentRuntime,
+    _runtime: IAgentRuntime,
     isNpc: boolean,
     logContext?: { prompt: string; completion: string; thought: string }
   ): Promise<ActionTraceResult> {
@@ -990,19 +484,8 @@ export class MultiStepExecutor {
       'MultiStepExecutor'
     );
 
-    // Enforce enabled features - reject actions that aren't enabled
-    const actionToFeature: Record<string, string> = {
-      TRADE: 'trading',
-      POST: 'posting',
-      COMMENT: 'commenting',
-      RESPOND: 'DMs',
-      DM: 'DMs',
-      LIKE: 'engaging',
-      REPOST: 'engaging',
-      GROUP_MESSAGE: 'groupChats',
-    };
-
-    const requiredFeature = actionToFeature[normalizedAction];
+    // Enforce enabled features
+    const requiredFeature = getRequiredFeature(normalizedAction);
     if (requiredFeature && !enabledFeatures.includes(requiredFeature)) {
       logger.warn(
         `[MultiStep] Action ${normalizedAction} blocked - ${requiredFeature} not enabled`,
@@ -1020,450 +503,50 @@ export class MultiStepExecutor {
     }
 
     switch (normalizedAction) {
-      case 'TRADE': {
-        const marketType = parameters.marketType as 'prediction' | 'perp';
-        const marketId = parameters.marketId as string;
-        const side = parameters.side as
-          | 'buy_yes'
-          | 'buy_no'
-          | 'sell_yes'
-          | 'sell_no'
-          | 'open_long'
-          | 'open_short'
-          | 'close_position';
-        const amount = Number(parameters.amount || 100);
-        const reasoning = parameters.reasoning as string | undefined;
+      case Actions.TRADE:
+        return this.executeTrade(agentUserId, parameters);
 
-        if (!marketId || !side) {
-          return {
-            actionType: 'TRADE',
-            success: false,
-            summary: 'Missing required parameters (marketId, side)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
+      case Actions.POST:
+        return this.executePost(agentUserId, parameters, isNpc, logContext);
 
-        const tradeResult = await executeDirectTrade({
+      case Actions.COMMENT:
+        return this.executeComment(agentUserId, parameters, logContext);
+
+      case Actions.LIKE:
+        return this.executeLike(agentUserId, parameters);
+
+      case Actions.REPOST:
+        return this.executeRepost(agentUserId, parameters);
+
+      case Actions.REPLY_COMMENT:
+        return this.executeReplyComment(agentUserId, parameters, logContext);
+
+      case Actions.REPLY_CHAT:
+        // Special validation: REPLY_CHAT needs either DMs or groupChats based on chat type
+        return this.executeReplyChat(
           agentUserId,
-          marketType: marketType || 'prediction',
-          marketId,
-          side,
-          amount,
-          reasoning,
-        });
-
-        return {
-          actionType: 'TRADE',
-          success: tradeResult.success,
-          summary: tradeResult.success
-            ? `Traded ${side} $${amount} on ${tradeResult.marketId || tradeResult.ticker}`
-            : `Trade failed: ${tradeResult.error}`,
-          result: {
-            success: tradeResult.success,
-            marketId: tradeResult.marketId,
-            ticker: tradeResult.ticker,
-            side: tradeResult.side,
-            shares: tradeResult.shares,
-            error: tradeResult.error,
-          },
           parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'POST': {
-        // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
-        // This forces agents to focus on trading, commenting, and engagement
-        // NPCs are NOT affected by this limit (they need to keep the feed active)
-        if (!isNpc && Math.random() > 0.1) {
-          logger.info(
-            `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
-            undefined,
-            'MultiStepExecutor'
-          );
-          return {
-            actionType: 'POST',
-            success: false,
-            summary:
-              'Post rate limited - focus on trading and engagement instead',
-            error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const content = parameters.content as string;
-
-        if (!content) {
-          return {
-            actionType: 'POST',
-            success: false,
-            summary: 'Missing content parameter',
-            error: 'No content provided',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const postResult = await executeDirectPost({
-          agentUserId,
-          content,
-        });
-
-        // Log the post with prompt and completion for debugging/review
-        if (postResult.success && logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'post',
-            level: 'info',
-            message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              postId: postResult.postId ?? null,
-              contentLength: content.length,
-            },
-          });
-        }
-
-        return {
-          actionType: 'POST',
-          success: postResult.success,
-          summary: postResult.success
-            ? `Created post ${postResult.postId}`
-            : `Post failed: ${postResult.error}`,
-          result: {
-            success: postResult.success,
-            postId: postResult.postId,
-            error: postResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'COMMENT': {
-        const postId = parameters.postId as string;
-        const content = parameters.content as string;
-        const parentCommentId = parameters.parentCommentId as
-          | string
-          | undefined;
-
-        if (!postId || !content) {
-          return {
-            actionType: 'COMMENT',
-            success: false,
-            summary: 'Missing required parameters (postId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const commentResult = await executeDirectComment({
-          agentUserId,
-          postId,
-          content,
-          parentCommentId,
-        });
-
-        // Log the comment with prompt and completion for debugging/review
-        if (commentResult.success && logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'comment',
-            level: 'info',
-            message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              commentId: commentResult.commentId ?? null,
-              postId,
-              parentCommentId: parentCommentId ?? null,
-              contentLength: content.length,
-            },
-          });
-        }
-
-        return {
-          actionType: 'COMMENT',
-          success: commentResult.success,
-          summary: commentResult.success
-            ? `Created comment ${commentResult.commentId}`
-            : `Comment failed: ${commentResult.error}`,
-          result: {
-            success: commentResult.success,
-            commentId: commentResult.commentId,
-            error: commentResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'LIKE': {
-        const postId = parameters.postId as string;
-
-        if (!postId) {
-          return {
-            actionType: 'LIKE',
-            success: false,
-            summary: 'Missing required parameter (postId)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const likeResult = await executeDirectLike({
-          agentUserId,
-          postId,
-        });
-
-        // Log the like action
-        await agentService.createLog(agentUserId, {
-          type: 'like',
-          level: likeResult.success ? 'info' : 'warn',
-          message: likeResult.success
-            ? `Liked post ${postId}`
-            : `Like failed: ${likeResult.error}`,
-          metadata: {
-            postId,
-            success: likeResult.success,
-            liked: likeResult.liked ?? false,
-            error: likeResult.error ?? null,
-          },
-        });
-
-        return {
-          actionType: 'LIKE',
-          success: likeResult.success,
-          summary: likeResult.success
-            ? `Liked post ${postId}`
-            : `Like failed: ${likeResult.error}`,
-          result: {
-            success: likeResult.success,
-            liked: likeResult.liked,
-            error: likeResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'REPOST': {
-        const postId = parameters.postId as string;
-        const comment = parameters.comment as string | undefined;
-
-        if (!postId) {
-          return {
-            actionType: 'REPOST',
-            success: false,
-            summary: 'Missing required parameter (postId)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const repostResult = await executeDirectRepost({
-          agentUserId,
-          postId,
-          comment,
-        });
-
-        // Log the repost action
-        await agentService.createLog(agentUserId, {
-          type: 'repost',
-          level: repostResult.success ? 'info' : 'warn',
-          message: repostResult.success
-            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
-            : `Repost failed: ${repostResult.error}`,
-          metadata: {
-            postId,
-            success: repostResult.success,
-            repostId: repostResult.repostId ?? null,
-            quotePostId: repostResult.quotePostId ?? null,
-            hasComment: !!comment,
-            error: repostResult.error ?? null,
-          },
-        });
-
-        return {
-          actionType: 'REPOST',
-          success: repostResult.success,
-          summary: repostResult.success
-            ? `Reposted ${postId}${comment ? ' with comment' : ''}`
-            : `Repost failed: ${repostResult.error}`,
-          result: {
-            success: repostResult.success,
-            repostId: repostResult.repostId,
-            quotePostId: repostResult.quotePostId,
-            error: repostResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'RESPOND': {
-        // RESPOND still uses the batch service which has its own LLM
-        // for deciding WHICH interactions to respond to
-        // This is acceptable as it's a different kind of decision
-        const responses = await autonomousBatchResponseService.processBatch(
-          agentUserId,
-          runtime
+          enabledFeatures,
+          logContext
         );
 
+      case Actions.DM:
+        return this.executeDM(agentUserId, parameters, logContext);
+
+      case Actions.GROUP_MESSAGE:
+        return this.executeGroupMessage(agentUserId, parameters, logContext);
+
+      case Actions.WAIT:
+      case '':
         return {
-          actionType: 'RESPOND',
-          success: responses > 0,
-          summary: `Responded to ${responses} interaction(s)`,
-          result: { responsesCreated: responses },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'DM': {
-        const recipientId = parameters.recipientId as string;
-        const content = parameters.content as string;
-
-        if (!recipientId || !content) {
-          return {
-            actionType: 'DM',
-            success: false,
-            summary: 'Missing required parameters (recipientId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        // Prevent agents from DMing themselves
-        if (recipientId === agentUserId) {
-          return {
-            actionType: 'DM',
-            success: false,
-            summary: 'Cannot DM yourself',
-            error: 'Cannot DM yourself',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const messageResult = await executeDirectMessage({
-          agentUserId,
-          recipientId,
-          content,
-        });
-
-        // Log the DM with prompt and completion for debugging/review
-        if (logContext) {
-          await agentService.createLog(agentUserId, {
-            type: 'dm',
-            level: messageResult.success ? 'info' : 'warn',
-            message: messageResult.success
-              ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-              : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
-            prompt: logContext.prompt,
-            completion: logContext.completion,
-            thinking: logContext.thought,
-            metadata: {
-              messageId: messageResult.messageId ?? null,
-              recipientId,
-              contentLength: content.length,
-              error: messageResult.error ?? null,
-            },
-          });
-        }
-
-        return {
-          actionType: 'DM',
-          success: messageResult.success,
-          summary: messageResult.success
-            ? `Sent message ${messageResult.messageId} to ${recipientId}`
-            : `Message failed: ${messageResult.error}`,
-          result: {
-            success: messageResult.success,
-            messageId: messageResult.messageId,
-            error: messageResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'GROUP_MESSAGE': {
-        const chatId = parameters.chatId as string;
-        const content = parameters.content as string;
-
-        if (!chatId || !content) {
-          return {
-            actionType: 'GROUP_MESSAGE',
-            success: false,
-            summary: 'Missing required parameters (chatId, content)',
-            error: 'Invalid parameters',
-            parameters,
-            timestamp: Date.now(),
-          };
-        }
-
-        const groupMessageResult = await executeDirectMessage({
-          agentUserId,
-          chatId,
-          content,
-        });
-
-        // Log the group message (use 'chat' type which is valid for messages)
-        // Always log regardless of logContext to be consistent with LIKE/REPOST
-        await agentService.createLog(agentUserId, {
-          type: 'chat',
-          level: groupMessageResult.success ? 'info' : 'warn',
-          message: groupMessageResult.success
-            ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-            : `Failed to send group message: ${groupMessageResult.error}`,
-          prompt: logContext?.prompt ?? undefined,
-          completion: logContext?.completion ?? undefined,
-          thinking: logContext?.thought ?? undefined,
-          metadata: {
-            messageId: groupMessageResult.messageId ?? null,
-            chatId,
-            contentLength: content.length,
-            error: groupMessageResult.error ?? null,
-          },
-        });
-
-        return {
-          actionType: 'GROUP_MESSAGE',
-          success: groupMessageResult.success,
-          summary: groupMessageResult.success
-            ? `Sent message to group chat ${chatId}`
-            : `Group message failed: ${groupMessageResult.error}`,
-          result: {
-            success: groupMessageResult.success,
-            messageId: groupMessageResult.messageId,
-            error: groupMessageResult.error,
-          },
-          parameters,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'WAIT':
-      case '': {
-        return {
-          actionType: 'WAIT',
+          actionType: Actions.WAIT,
           success: true,
           summary: 'Agent decided to wait',
           parameters,
           timestamp: Date.now(),
         };
-      }
 
-      default: {
+      default:
         logger.warn(
           `[MultiStep] Unknown action: ${normalizedAction}`,
           undefined,
@@ -1477,13 +560,622 @@ export class MultiStepExecutor {
           parameters,
           timestamp: Date.now(),
         };
-      }
     }
   }
 
-  /**
-   * Aggregate trace results into final output
-   */
+  // ===========================================================================
+  // Action Executors
+  // ===========================================================================
+
+  private async executeTrade(
+    agentUserId: string,
+    parameters: Record<string, unknown>
+  ): Promise<ActionTraceResult> {
+    const marketType = parameters.marketType as 'prediction' | 'perp';
+    const marketId = parameters.marketId as string;
+    const side = parameters.side as string;
+    const amount = Number(parameters.amount || 100);
+    const reasoning = parameters.reasoning as string | undefined;
+
+    if (!marketId || !side) {
+      return {
+        actionType: Actions.TRADE,
+        success: false,
+        summary: 'Missing required parameters (marketId, side)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const tradeResult = await executeDirectTrade({
+      agentUserId,
+      marketType: marketType || 'prediction',
+      marketId,
+      side: side as
+        | 'buy_yes'
+        | 'buy_no'
+        | 'sell_yes'
+        | 'sell_no'
+        | 'open_long'
+        | 'open_short'
+        | 'close_position',
+      amount,
+      reasoning,
+    });
+
+    return {
+      actionType: Actions.TRADE,
+      success: tradeResult.success,
+      summary: tradeResult.success
+        ? `Traded ${side} $${amount} on ${tradeResult.marketId || tradeResult.ticker}`
+        : `Trade failed: ${tradeResult.error}`,
+      result: {
+        success: tradeResult.success,
+        marketId: tradeResult.marketId,
+        ticker: tradeResult.ticker,
+        side: tradeResult.side,
+        shares: tradeResult.shares,
+        error: tradeResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executePost(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    isNpc: boolean,
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    // PLAYER AGENT POST RATE LIMIT: Only 10% of post attempts succeed
+    if (!isNpc && Math.random() > 0.1) {
+      logger.info(
+        `[MultiStep] POST blocked by rate limiter for player agent ${agentUserId}`,
+        undefined,
+        'MultiStepExecutor'
+      );
+      return {
+        actionType: Actions.POST,
+        success: false,
+        summary: 'Post rate limited - focus on trading and engagement instead',
+        error: 'Rate limited: try TRADE, COMMENT, LIKE, or REPOST instead',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const content = parameters.content as string;
+
+    if (!content) {
+      return {
+        actionType: Actions.POST,
+        success: false,
+        summary: 'Missing content parameter',
+        error: 'No content provided',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const postResult = await executeDirectPost({ agentUserId, content });
+
+    if (postResult.success && logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'post',
+        level: 'info',
+        message: `Created post: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          postId: postResult.postId ?? null,
+          contentLength: content.length,
+        },
+      });
+    }
+
+    return {
+      actionType: Actions.POST,
+      success: postResult.success,
+      summary: postResult.success
+        ? `Created post ${postResult.postId}`
+        : `Post failed: ${postResult.error}`,
+      result: {
+        success: postResult.success,
+        postId: postResult.postId,
+        error: postResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeComment(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    const postId = parameters.postId as string;
+    const content = parameters.content as string;
+    const parentCommentId = parameters.parentCommentId as string | undefined;
+
+    if (!postId || !content) {
+      return {
+        actionType: Actions.COMMENT,
+        success: false,
+        summary: 'Missing required parameters (postId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const commentResult = await executeDirectComment({
+      agentUserId,
+      postId,
+      content,
+      parentCommentId,
+    });
+
+    if (commentResult.success && logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'comment',
+        level: 'info',
+        message: `Created comment on post ${postId}${parentCommentId ? ` (reply to ${parentCommentId})` : ''}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          commentId: commentResult.commentId ?? null,
+          postId,
+          parentCommentId: parentCommentId ?? null,
+          contentLength: content.length,
+        },
+      });
+    }
+
+    return {
+      actionType: Actions.COMMENT,
+      success: commentResult.success,
+      summary: commentResult.success
+        ? `Created comment ${commentResult.commentId}`
+        : `Comment failed: ${commentResult.error}`,
+      result: {
+        success: commentResult.success,
+        commentId: commentResult.commentId,
+        error: commentResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeLike(
+    agentUserId: string,
+    parameters: Record<string, unknown>
+  ): Promise<ActionTraceResult> {
+    const postId = parameters.postId as string;
+
+    if (!postId) {
+      return {
+        actionType: Actions.LIKE,
+        success: false,
+        summary: 'Missing required parameter (postId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const likeResult = await executeDirectLike({ agentUserId, postId });
+
+    await agentService.createLog(agentUserId, {
+      type: 'like',
+      level: likeResult.success ? 'info' : 'warn',
+      message: likeResult.success
+        ? `Liked post ${postId}`
+        : `Like failed: ${likeResult.error}`,
+      metadata: {
+        postId,
+        success: likeResult.success,
+        liked: likeResult.liked ?? false,
+        error: likeResult.error ?? null,
+      },
+    });
+
+    return {
+      actionType: Actions.LIKE,
+      success: likeResult.success,
+      summary: likeResult.success
+        ? `Liked post ${postId}`
+        : `Like failed: ${likeResult.error}`,
+      result: {
+        success: likeResult.success,
+        liked: likeResult.liked,
+        error: likeResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeRepost(
+    agentUserId: string,
+    parameters: Record<string, unknown>
+  ): Promise<ActionTraceResult> {
+    const postId = parameters.postId as string;
+    const comment = parameters.comment as string | undefined;
+
+    if (!postId) {
+      return {
+        actionType: Actions.REPOST,
+        success: false,
+        summary: 'Missing required parameter (postId)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const repostResult = await executeDirectRepost({
+      agentUserId,
+      postId,
+      comment,
+    });
+
+    await agentService.createLog(agentUserId, {
+      type: 'repost',
+      level: repostResult.success ? 'info' : 'warn',
+      message: repostResult.success
+        ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+        : `Repost failed: ${repostResult.error}`,
+      metadata: {
+        postId,
+        success: repostResult.success,
+        repostId: repostResult.repostId ?? null,
+        quotePostId: repostResult.quotePostId ?? null,
+        hasComment: !!comment,
+        error: repostResult.error ?? null,
+      },
+    });
+
+    return {
+      actionType: Actions.REPOST,
+      success: repostResult.success,
+      summary: repostResult.success
+        ? `Reposted ${postId}${comment ? ' with comment' : ''}`
+        : `Repost failed: ${repostResult.error}`,
+      result: {
+        success: repostResult.success,
+        repostId: repostResult.repostId,
+        quotePostId: repostResult.quotePostId,
+        error: repostResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeReplyComment(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    const commentId = parameters.commentId as string;
+    const postId = parameters.postId as string;
+    const content = parameters.content as string;
+
+    if (!commentId || !postId || !content) {
+      return {
+        actionType: Actions.REPLY_COMMENT,
+        success: false,
+        summary: 'Missing required parameters (commentId, postId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const commentResult = await executeDirectComment({
+      agentUserId,
+      postId,
+      content,
+      parentCommentId: commentId,
+    });
+
+    if (logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'comment',
+        level: commentResult.success ? 'info' : 'warn',
+        message: commentResult.success
+          ? `Replied to comment ${commentId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          : `Reply failed: ${commentResult.error}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          commentId: commentResult.commentId ?? null,
+          parentCommentId: commentId,
+          postId,
+          contentLength: content.length,
+          error: commentResult.error ?? null,
+        },
+      });
+    }
+
+    return {
+      actionType: Actions.REPLY_COMMENT,
+      success: commentResult.success,
+      summary: commentResult.success
+        ? `Replied to comment ${commentId}`
+        : `Reply failed: ${commentResult.error}`,
+      result: {
+        success: commentResult.success,
+        commentId: commentResult.commentId,
+        error: commentResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeReplyChat(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    enabledFeatures: string[],
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    const chatId = parameters.chatId as string;
+    const content = parameters.content as string;
+
+    if (!chatId || !content) {
+      return {
+        actionType: Actions.REPLY_CHAT,
+        success: false,
+        summary: 'Missing required parameters (chatId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Look up the chat to determine if it's a group chat or DM
+    const [chat] = await db
+      .select({ isGroup: chats.isGroup })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return {
+        actionType: Actions.REPLY_CHAT,
+        success: false,
+        summary: 'Chat not found',
+        error: 'Invalid chatId',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Validate feature based on chat type
+    const requiredFeature = chat.isGroup ? Features.GROUP_CHATS : Features.DMS;
+    if (!enabledFeatures.includes(requiredFeature)) {
+      return {
+        actionType: Actions.REPLY_CHAT,
+        success: false,
+        summary: `Cannot reply: ${requiredFeature} feature is not enabled`,
+        error: `Feature "${requiredFeature}" is disabled`,
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const messageResult = await executeDirectMessage({
+      agentUserId,
+      chatId,
+      content,
+    });
+
+    if (logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'chat',
+        level: messageResult.success ? 'info' : 'warn',
+        message: messageResult.success
+          ? `Replied in chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          : `Chat reply failed: ${messageResult.error}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          messageId: messageResult.messageId ?? null,
+          chatId,
+          contentLength: content.length,
+          error: messageResult.error ?? null,
+        },
+      });
+    }
+
+    return {
+      actionType: Actions.REPLY_CHAT,
+      success: messageResult.success,
+      summary: messageResult.success
+        ? `Replied in chat ${chatId}`
+        : `Chat reply failed: ${messageResult.error}`,
+      result: {
+        success: messageResult.success,
+        messageId: messageResult.messageId,
+        error: messageResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeDM(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    const recipientId = parameters.recipientId as string;
+    const content = parameters.content as string;
+
+    if (!recipientId || !content) {
+      return {
+        actionType: Actions.DM,
+        success: false,
+        summary: 'Missing required parameters (recipientId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    if (recipientId === agentUserId) {
+      return {
+        actionType: Actions.DM,
+        success: false,
+        summary: 'Cannot DM yourself',
+        error: 'Cannot DM yourself',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const messageResult = await executeDirectMessage({
+      agentUserId,
+      recipientId,
+      content,
+    });
+
+    if (logContext) {
+      await agentService.createLog(agentUserId, {
+        type: 'dm',
+        level: messageResult.success ? 'info' : 'warn',
+        message: messageResult.success
+          ? `Sent DM to ${recipientId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          : `Failed to send DM to ${recipientId}: ${messageResult.error}`,
+        prompt: logContext.prompt,
+        completion: logContext.completion,
+        thinking: logContext.thought,
+        metadata: {
+          messageId: messageResult.messageId ?? null,
+          recipientId,
+          contentLength: content.length,
+          error: messageResult.error ?? null,
+        },
+      });
+    }
+
+    return {
+      actionType: Actions.DM,
+      success: messageResult.success,
+      summary: messageResult.success
+        ? `Sent message ${messageResult.messageId} to ${recipientId}`
+        : `Message failed: ${messageResult.error}`,
+      result: {
+        success: messageResult.success,
+        messageId: messageResult.messageId,
+        error: messageResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async executeGroupMessage(
+    agentUserId: string,
+    parameters: Record<string, unknown>,
+    logContext?: { prompt: string; completion: string; thought: string }
+  ): Promise<ActionTraceResult> {
+    const chatId = parameters.chatId as string;
+    const content = parameters.content as string;
+
+    if (!chatId || !content) {
+      return {
+        actionType: Actions.GROUP_MESSAGE,
+        success: false,
+        summary: 'Missing required parameters (chatId, content)',
+        error: 'Invalid parameters',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Validate that the chat is actually a group chat
+    const [chat] = await db
+      .select({ isGroup: chats.isGroup })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (!chat) {
+      return {
+        actionType: Actions.GROUP_MESSAGE,
+        success: false,
+        summary: 'Chat not found',
+        error: 'Invalid chatId',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    if (!chat.isGroup) {
+      return {
+        actionType: Actions.GROUP_MESSAGE,
+        success: false,
+        summary:
+          'Cannot use GROUP_MESSAGE on a DM chat - use DM or REPLY_CHAT instead',
+        error: 'Chat is not a group chat',
+        parameters,
+        timestamp: Date.now(),
+      };
+    }
+
+    const groupMessageResult = await executeDirectMessage({
+      agentUserId,
+      chatId,
+      content,
+    });
+
+    await agentService.createLog(agentUserId, {
+      type: 'chat',
+      level: groupMessageResult.success ? 'info' : 'warn',
+      message: groupMessageResult.success
+        ? `Sent group message to chat ${chatId}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+        : `Failed to send group message: ${groupMessageResult.error}`,
+      prompt: logContext?.prompt ?? undefined,
+      completion: logContext?.completion ?? undefined,
+      thinking: logContext?.thought ?? undefined,
+      metadata: {
+        messageId: groupMessageResult.messageId ?? null,
+        chatId,
+        contentLength: content.length,
+        error: groupMessageResult.error ?? null,
+      },
+    });
+
+    return {
+      actionType: Actions.GROUP_MESSAGE,
+      success: groupMessageResult.success,
+      summary: groupMessageResult.success
+        ? `Sent message to group chat ${chatId}`
+        : `Group message failed: ${groupMessageResult.error}`,
+      result: {
+        success: groupMessageResult.success,
+        messageId: groupMessageResult.messageId,
+        error: groupMessageResult.error,
+      },
+      parameters,
+      timestamp: Date.now(),
+    };
+  }
+
+  // ===========================================================================
+  // Result Aggregation
+  // ===========================================================================
+
   private aggregateResults(
     trace: ActionTraceResult[],
     startTime: number
@@ -1500,31 +1192,30 @@ export class MultiStepExecutor {
       if (!result.success) continue;
 
       switch (result.actionType) {
-        case 'TRADE':
+        case Actions.TRADE:
           counts.trades++;
           break;
-        case 'POST':
+        case Actions.POST:
           counts.posts++;
           break;
-        case 'COMMENT':
+        case Actions.COMMENT:
+        case Actions.REPLY_COMMENT:
           counts.comments++;
           break;
-        case 'RESPOND':
-          counts.comments += (result.result?.responsesCreated as number) || 1;
-          break;
-        case 'DM':
-        case 'GROUP_MESSAGE':
+        case Actions.DM:
+        case Actions.GROUP_MESSAGE:
+        case Actions.REPLY_CHAT:
           counts.messages++;
           break;
-        case 'LIKE':
-        case 'REPOST':
+        case Actions.LIKE:
+        case Actions.REPOST:
           counts.engagements++;
           break;
       }
     }
 
     const hasSuccessfulActions = trace.some(
-      (r) => r.success && r.actionType !== 'WAIT'
+      (r) => r.success && r.actionType !== Actions.WAIT
     );
 
     return {
@@ -1535,50 +1226,6 @@ export class MultiStepExecutor {
       duration: Date.now() - startTime,
     };
   }
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function getTimeAgo(date: Date): string {
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
-}
-
-/**
- * Format time held in human-readable format
- * e.g., "5m", "2h 15m", "3d 4h", "1w 2d"
- */
-function formatTimeHeld(ms: number): string {
-  if (ms < 60000) return '<1m';
-
-  const minutes = Math.floor(ms / 60000);
-  const hours = Math.floor(ms / 3600000);
-  const days = Math.floor(ms / 86400000);
-  const weeks = Math.floor(ms / 604800000);
-
-  if (weeks > 0) {
-    const remainingDays = days % 7;
-    return remainingDays > 0 ? `${weeks}w ${remainingDays}d` : `${weeks}w`;
-  }
-  if (days > 0) {
-    const remainingHours = hours % 24;
-    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
-  }
-  if (hours > 0) {
-    const remainingMins = minutes % 60;
-    return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
-  }
-  return `${minutes}m`;
 }
 
 // Export singleton instance

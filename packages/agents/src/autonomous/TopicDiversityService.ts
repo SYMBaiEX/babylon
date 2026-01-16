@@ -727,7 +727,8 @@ Use your unique ${primaryDomain} perspective. Don't just repeat what others say.
 - TRADE on prediction markets or perps
 - POST about events, markets, your thesis, anything
 - COMMENT on someone else's post from the feed - engage!
-- RESPOND to pending DMs or mentions
+- REPLY_COMMENT to pending comment replies on your posts/threads
+- REPLY_CHAT to pending DMs or group messages
 - React to news, rumors, price movements
 - Dunk on a bad take or amplify a good one
 

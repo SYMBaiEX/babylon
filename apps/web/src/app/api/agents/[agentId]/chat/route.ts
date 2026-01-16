@@ -12,7 +12,7 @@
 
 import { agentRuntimeManager, agentService } from '@babylon/agents';
 import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db, eq, userAgentConfigs } from '@babylon/db';
+import { db, eq, userAgentConfigs, users } from '@babylon/db';
 import { checkUserInput, GROQ_MODELS, logger } from '@babylon/shared';
 import {
   type ActionResult,
@@ -50,12 +50,18 @@ Determine the next step to take in this conversation.
 
 ---
 
+# Your Creator/Owner
+You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}.
+You are currently chatting with your creator/owner. Address them by name when appropriate.
+
+---
+
 # Conversation History
 {{recentMessages}}
 
 ---
 
-# Current User Message
+# Current Message from {{ownerName}}
 {{currentMessage}}
 
 ---
@@ -163,7 +169,7 @@ YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `You are responding to a user after completing actions. Generate a helpful response.
+const multiStepSummaryTemplate = `You are responding to your creator/owner after completing actions. Generate a helpful response.
 
 # Your Character
 {{system}}
@@ -172,7 +178,10 @@ const multiStepSummaryTemplate = `You are responding to a user after completing 
 Personality: {{personality}}
 {{/if}}
 
-# User's Message
+# Your Creator/Owner
+You were created by **{{ownerName}}**. You are chatting with them now.
+
+# {{ownerName}}'s Message
 {{currentMessage}}
 
 # Actions You Completed
@@ -258,6 +267,16 @@ export const POST = withErrorHandling(
     // Get runtime
     const runtime = await agentRuntimeManager.getRuntime(agentId);
 
+    // Fetch owner info for personalized conversation
+    const [ownerProfile] = await db
+      .select({ displayName: users.displayName, username: users.username })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    const ownerName =
+      ownerProfile?.displayName || ownerProfile?.username || 'User';
+    const ownerUsername = ownerProfile?.username || undefined;
+
     // Create message object for ElizaOS
     const elizaMessage: Memory = {
       id: uuidv4() as `${string}-${string}-${string}-${string}-${string}`,
@@ -306,6 +325,9 @@ export const POST = withErrorHandling(
         iterationCount: iteration,
         maxIterations: MAX_ITERATIONS,
         actionCount: traceActionResults.length,
+        // Owner info for personalized conversation
+        ownerName,
+        ownerUsername,
       };
 
       // Add action results to state data
@@ -514,6 +536,9 @@ export const POST = withErrorHandling(
         personality: agentConfig?.personality ?? '',
         tradingStrategy: agentConfig?.tradingStrategy ?? '',
         currentMessage: message,
+        // Owner info for personalized conversation
+        ownerName,
+        ownerUsername,
       };
       state.data = {
         ...state.data,
