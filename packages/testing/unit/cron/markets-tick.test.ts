@@ -185,7 +185,11 @@ mock.module('@babylon/db', () => ({
   and: (): SqlCondition => ({}),
   desc: (): SqlCondition => ({}),
   max: (col: unknown) => ({ _aggregation: 'max', column: col }),
-  generateSnowflakeId: async () => `mock-${Date.now()}`,
+  // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
+  generateSnowflakeId: async () => {
+    const { generateSnowflakeId } = await import('@babylon/shared');
+    return generateSnowflakeId();
+  },
 }));
 
 // Mock @babylon/api - uses mutable state for auth/lock results

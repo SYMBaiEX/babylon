@@ -77,7 +77,11 @@ mock.module('@babylon/db', () => ({
   and: (): SqlCondition => ({}),
   isNull: (): SqlCondition => ({}),
   sql: (): SqlCondition => ({}),
-  generateSnowflakeId: async () => `mock-${Date.now()}`,
+  // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
+  generateSnowflakeId: async () => {
+    const { generateSnowflakeId } = await import('@babylon/shared');
+    return generateSnowflakeId();
+  },
 }));
 
 // Mock @babylon/api - uses mutable state for auth and game cache
