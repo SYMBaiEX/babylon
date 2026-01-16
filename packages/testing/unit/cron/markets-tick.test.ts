@@ -185,7 +185,11 @@ mock.module('@babylon/db', () => ({
   and: (): SqlCondition => ({}),
   desc: (): SqlCondition => ({}),
   max: (col: unknown) => ({ _aggregation: 'max', column: col }),
-  generateSnowflakeId: async () => `mock-${Date.now()}`,
+  // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
+  generateSnowflakeId: async () => {
+    const { generateSnowflakeId } = await import('@babylon/shared');
+    return generateSnowflakeId();
+  },
 }));
 
 // Mock @babylon/api - uses mutable state for auth/lock results
@@ -282,15 +286,8 @@ mock.module('@babylon/engine', () => ({
   },
 }));
 
-// Mock @babylon/shared
-mock.module('@babylon/shared', () => ({
-  logger: {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-  },
-}));
+// Note: @babylon/shared is NOT mocked - let real logger run to avoid
+// polluting module cache and breaking other tests that use formatCurrency, etc.
 
 // Import the route handler after mocks are set up
 import { GET, POST } from '@/app/api/cron/markets-tick/route';

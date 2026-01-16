@@ -78,11 +78,12 @@ import {
   JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
 import {
+  type AuthResult,
   BabylonAgentExecutor,
   babylonAgentCard,
   ExtendedTaskStore,
-  getRequiredApiKey,
-  validateApiKey,
+  getServerApiKey,
+  validateApiKeyAsync,
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -104,70 +105,91 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Validates API key from request headers.
+ * Supports both server API key and per-user API keys.
  *
  * @param request - Next.js request object
- * @returns NextResponse with error if authentication fails, null if valid
+ * @returns Object with error response if auth fails, or auth result if valid
  */
-function checkApiKey(request: NextRequest): NextResponse | null {
-  const authResult = validateApiKey(
+async function checkApiKey(request: NextRequest): Promise<{
+  error?: NextResponse;
+  authResult?: AuthResult;
+}> {
+  const authResult = await validateApiKeyAsync(
     {
       headers: {
         get: (name: string) => request.headers.get(name),
       },
       host: request.headers.get('host') ?? undefined,
     },
-    { requiredApiKey: getRequiredApiKey() }
+    {
+      serverApiKey: getServerApiKey(),
+      allowUserApiKeys: true,
+      // Only allow localhost bypass in non-production to prevent Host header spoofing
+      allowLocalhost: process.env.NODE_ENV !== 'production',
+    }
   );
 
   if (!authResult.authenticated) {
-    return NextResponse.json(
-      { error: authResult.error },
-      {
-        status: authResult.statusCode || 401,
-        headers:
-          authResult.statusCode === 401
-            ? {
-                'WWW-Authenticate':
-                  'ApiKey realm="Babylon", header="X-Babylon-Api-Key"',
-              }
-            : undefined,
-      }
-    );
+    return {
+      error: NextResponse.json(
+        { error: authResult.error },
+        {
+          status: authResult.statusCode || 401,
+          headers:
+            authResult.statusCode === 401
+              ? {
+                  'WWW-Authenticate':
+                    'ApiKey realm="Babylon", header="X-Babylon-Api-Key"',
+                }
+              : undefined,
+        }
+      ),
+    };
   }
 
-  return null;
+  return { authResult };
 }
 
 /**
  * POST /api/a2a
  *
- * Handles A2A protocol JSON-RPC 2.0 requests.
- * Supports methods: message/send, message/stream, tasks/get, tasks/cancel, tasks/list
- *
- * @param request - Next.js request containing JSON-RPC payload
- * @returns JSON-RPC response with result or error
- */
-/**
- * POST /api/a2a
- *
  * Handles JSON-RPC 2.0 A2A protocol requests. Processes agent-to-agent communication
- * tasks including message sending, task execution, and agent discovery. Validates
- * API key authentication and routes requests to the appropriate executor.
+ * tasks including message sending, task execution, and agent discovery.
+ *
+ * Supports authentication via:
+ * - Server API key (BABYLON_A2A_API_KEY)
+ * - Per-user API keys (from userApiKeys table)
  *
  * @param request - Next.js request containing JSON-RPC 2.0 A2A protocol message
  * @returns JSON-RPC 2.0 response with result or error
  * @throws {401} Invalid or missing API key
  */
 export async function POST(request: NextRequest) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const { error, authResult } = await checkApiKey(request);
+  if (error) return error;
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: Invalid JSON' }, id: null },
+      { status: 400 }
+    );
+  }
 
   logger.info('Official A2A request', {
     method: body.method,
     taskId: body.params?.message?.taskId,
+    authMethod: authResult?.authMethod,
+    userId: authResult?.userId,
   });
+
+  // User-scoped execution: When authenticated via user API key, authResult.userId
+  // contains the user ID. To enable user-specific operations:
+  // 1. Update BabylonAgentExecutor.execute() to accept optional userId parameter
+  // 2. Propagate userId to downstream service calls (trading, social, etc.)
+  // 3. Add feature flag ENABLE_USER_SCOPED_A2A_EXECUTION for gradual rollout
 
   // Use the JSON-RPC transport handler
   const response = await jsonRpcHandler.handle(body);
@@ -182,24 +204,20 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/a2a
  *
- * Returns the Babylon agent card for A2A protocol discovery.
- *
- * @param request - Next.js request object
- * @returns Agent card JSON with service information
- */
-/**
- * GET /api/a2a
- *
  * Returns the Babylon agent card (capabilities, endpoints, metadata) for A2A protocol discovery.
  * Provides agent information for external agents to discover and interact with this agent.
+ *
+ * Supports authentication via:
+ * - Server API key (BABYLON_A2A_API_KEY)
+ * - Per-user API keys (from userApiKeys table)
  *
  * @param request - Next.js request (API key required in X-Babylon-Api-Key header)
  * @returns Agent card JSON with capabilities and metadata
  * @throws {401} Invalid or missing API key
  */
 export async function GET(request: NextRequest) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const { error } = await checkApiKey(request);
+  if (error) return error;
 
   return NextResponse.json(babylonAgentCard, {
     headers: {
