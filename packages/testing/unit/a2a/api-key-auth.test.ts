@@ -6,10 +6,8 @@
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-// Track validateUserApiKey calls for cache testing
-let validateUserApiKeyCallCount = 0;
+// Mock validateUserApiKey for testing
 const mockValidateUserApiKey = mock(async (apiKey: string) => {
-  validateUserApiKeyCallCount++;
   // Simulate valid user keys
   if (apiKey === 'valid-user-key-123') {
     return { userId: 'user-123' };
@@ -156,8 +154,7 @@ describe('A2A API Key Authentication', () => {
 
   describe('validateApiKeyAsync', () => {
     beforeEach(() => {
-      // Reset mock call count and clear cache before each test
-      validateUserApiKeyCallCount = 0;
+      // Reset mock and clear cache before each test
       mockValidateUserApiKey.mockClear();
       clearApiKeyCache();
     });
