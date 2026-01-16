@@ -43,8 +43,10 @@ export async function getOrCreateDMChat(
     .where(
       and(
         eq(chatParticipants.userId, userA),
+        eq(chatParticipants.isActive, true),
         eq(chats.isGroup, false),
-        eq(otherParticipants.userId, userB)
+        eq(otherParticipants.userId, userB),
+        eq(otherParticipants.isActive, true)
       )
     )
     .limit(1);
