@@ -47,7 +47,7 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
 }
 
 function sortByTime(messages: ChatMessage[]): ChatMessage[] {
-  return messages.sort(
+  return [...messages].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 }

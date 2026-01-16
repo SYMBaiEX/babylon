@@ -70,6 +70,8 @@ export function orderAgentIds(
       });
 
     default:
+      // Exhaustive check - all valid strategies handled above
+      // Return copy for immutability
       return [...agentIds];
   }
 }
