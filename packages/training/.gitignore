@@ -7,6 +7,12 @@ data/**/*.parquet
 data/**/scored_*.json
 !data/**/.gitkeep
 
+# Benchmark scenario data files (large, generated - exclude from git)
+data/benchmarks/scenarios/*.json
+
+# Keep the README for benchmark scenarios
+!data/benchmarks/scenarios/README.md
+
 # E2E test output
 training-data/e2e-test-results.json
 

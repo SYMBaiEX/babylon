@@ -51,6 +51,11 @@ packages/training/
 | File | Purpose |
 |------|---------|
 | `benchmark/BenchmarkDataGenerator.ts` | Synthetic scenario generation |
+| `benchmark/BenchmarkRunner.ts` | Run model against benchmark scenarios |
+| `benchmark/ScenarioLoader.ts` | Load and validate fixed scenarios |
+| `benchmark/ArchetypeFitCalculator.ts` | Calculate archetype alignment scores |
+| `benchmark/StakeholderReport.ts` | Generate HTML/JSON/text reports |
+| `benchmark/SimulationEngine.ts` | Run agent simulations |
 | `benchmark/types.ts` | Benchmark types |
 
 ### Utilities
@@ -109,6 +114,8 @@ packages/training/
 
 | Script | Purpose |
 |--------|---------|
+| `run-benchmark-suite.ts` | **Advanced benchmark suite** - compare models across fixed scenarios |
+| `generate-benchmark-scenarios.ts` | Regenerate fixed benchmark scenario files |
 | `train-and-test.ts` | Train + evaluate |
 | `run-full-pipeline.ts` | Complete workflow |
 | `run-baseline-comparison.ts` | Model comparison |
@@ -283,6 +290,9 @@ Training rewards
 | Training args | `python/scripts/run_training.py` |
 | Trajectory types | `src/training/types.ts` |
 | Scoring logic | `python/src/training/babylon_env.py:_score_with_judge` |
+| Fixed scenarios | `data/benchmarks/scenarios/*.json` |
+| Archetype fit scoring | `src/benchmark/ArchetypeFitCalculator.ts` |
+| Benchmark reports | `src/benchmark/StakeholderReport.ts` |
 
 ### "How does X work?"
 
@@ -293,3 +303,6 @@ Training rewards
 | How does training run? | `python/scripts/run_training.py` |
 | How are prompts built? | `python/src/training/babylon_env.py:_trajectory_to_messages` |
 | How is format validated? | `python/src/training/format_validator.py` |
+| How does benchmarking work? | `scripts/run-benchmark-suite.ts` |
+| How are scenarios loaded? | `src/benchmark/ScenarioLoader.ts` |
+| How is archetype fit calculated? | `src/benchmark/ArchetypeFitCalculator.ts` |

@@ -38,6 +38,7 @@
 - [Cloud Training](./operations/cloud-training.md)
 - [Data Generation](./operations/data-generation.md)
 - [Data Management](./operations/data-management.md)
+- [Benchmarking](./operations/benchmarking.md)
 - [Weights & Biases](./operations/wandb.md)
 
 ---

@@ -25,6 +25,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseArgs } from 'util';
 
+// Path to Python training directory - computed once to avoid duplication
+const TRAINING_DIR = join(import.meta.dir, '../python');
+
 // Configuration
 interface PipelineConfig {
   skipTraining: boolean;
@@ -125,8 +128,12 @@ async function runCommand(
       env: { ...process.env, ...env },
     });
 
+    let timeoutId: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Command timed out')), timeout);
+      timeoutId = setTimeout(
+        () => reject(new Error('Command timed out')),
+        timeout
+      );
     });
 
     const [exitCode, stdout, stderr] = await Promise.race([
@@ -137,10 +144,13 @@ async function runCommand(
       ]),
       timeoutPromise,
     ]);
+    clearTimeout(timeoutId!);
 
     const output = stdout + stderr;
     return { success: exitCode === 0, output, exitCode };
   } catch (error) {
+    // Note: timeout not cleared on error path - if timeout fired it's a no-op;
+    // if another error occurred, the orphaned timer is harmless (rejected promise is ignored)
     return {
       success: false,
       output: error instanceof Error ? error.message : String(error),
@@ -209,12 +219,11 @@ async function checkPrerequisites(config: PipelineConfig): Promise<{
   }
 
   // Check if training directory exists
-  const trainingDir = join(process.cwd(), 'packages/training/python');
-  checks.trainingDir = existsSync(trainingDir);
+  checks.trainingDir = existsSync(TRAINING_DIR);
   console.log(
     checks.trainingDir
       ? `  ✓ Training directory exists`
-      : `  ✗ Training directory not found: ${trainingDir}`
+      : `  ✗ Training directory not found: ${TRAINING_DIR}`
   );
 
   // Check for MLX (macOS) or CUDA
@@ -281,7 +290,7 @@ async function installDependencies(): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = TRAINING_DIR;
 
   console.log('Installing Python dependencies...');
 
@@ -324,7 +333,7 @@ async function trainModel(config: PipelineConfig): Promise<{
     };
   }
 
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = TRAINING_DIR;
   const backend = process.platform === 'darwin' ? 'mlx' : 'cuda';
 
   console.log(`Training model with ${backend} backend...`);
@@ -373,7 +382,7 @@ async function testAdapter(config: PipelineConfig): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = TRAINING_DIR;
 
   // Find adapter path
   let adapterPath = config.adapterPath;
@@ -486,7 +495,7 @@ async function importToOllama(config: PipelineConfig): Promise<{
   message: string;
   details?: Record<string, unknown>;
 }> {
-  const trainingDir = join(process.cwd(), 'packages/training/python');
+  const trainingDir = TRAINING_DIR;
 
   // Find adapter path
   let adapterPath = config.adapterPath;
