@@ -270,12 +270,14 @@ export async function validateUserApiKey(
     expiresAt: keyRecord.expiresAt,
     cachedAt: now,
     lastAccessedAt: now,
-    lastDbUpdateAt: now, // Prevent immediate DB update on fresh cache entry
+    lastDbUpdateAt: 0, // Allow first DB update to proceed
   };
   apiKeyCache.set(keyHash, newCacheEntry);
 
-  // Don't call scheduleLastUsedUpdate here - lastDbUpdateAt is already set to now,
-  // so the throttle will skip the DB update. Next access will trigger it after 1 min.
+  // Record first use in DB (async, non-blocking)
+  // This ensures single-use keys get their lastUsedAt recorded
+  scheduleLastUsedUpdate(keyRecord.id, newCacheEntry);
+
   return { userId: keyRecord.userId };
 }
 
