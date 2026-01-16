@@ -64,6 +64,8 @@ export function useChatPage() {
   } | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const emptyChatPollAttemptsRef = useRef(0);
+  // Track pending initial scroll - cleared when we successfully scroll to bottom
+  const pendingInitialScrollRef = useRef<string | null>(null);
 
   // Debug mode
   const isDebugMode =
@@ -480,7 +482,10 @@ export function useChatPage() {
     lastMessageIdRef.current = null;
     setIsAtBottom(true);
     if (selectedChatId) {
+      pendingInitialScrollRef.current = selectedChatId;
       loadChatDetails(selectedChatId);
+    } else {
+      pendingInitialScrollRef.current = null;
     }
   }, [selectedChatId, loadChatDetails]);
 
@@ -494,7 +499,7 @@ export function useChatPage() {
     }
   }, [realtimeMessages]);
 
-  // Handle new messages and auto-scroll
+  // Handle new messages - scroll smoothly for incoming messages
   useEffect(() => {
     if (loadingChat) return;
 
@@ -506,16 +511,59 @@ export function useChatPage() {
     const wasEmpty = lastMessageIdRef.current === null;
     lastMessageIdRef.current = lastId;
 
-    if (wasEmpty) {
-      setIsAtBottom(true);
-      scrollToBottom('auto');
-      return;
-    }
-
-    if (isNewMessage && isAtBottom) {
+    // For new messages (not initial load), scroll smoothly if at bottom
+    if (!wasEmpty && isNewMessage && isAtBottom) {
       scrollToBottom('smooth');
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
+
+  // Handle initial scroll using ResizeObserver for reliable timing
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    // Only run when chatDetails matches selectedChatId (avoid stale data)
+    if (!container || !selectedChatId || chatDetails?.chat?.id !== selectedChatId) return;
+
+    // If no pending scroll, nothing to do
+    if (pendingInitialScrollRef.current !== selectedChatId) return;
+
+    const scrollToBottom = () => {
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      if (maxScroll > 0) {
+        container.scrollTo({ top: maxScroll, behavior: 'auto' });
+      }
+    };
+
+    // Try immediate scroll (don't clear flag yet - content may still be loading)
+    scrollToBottom();
+
+    // Observe for content changes (images loading, layout shifts, etc.)
+    const resizeObserver = new ResizeObserver(() => {
+      if (pendingInitialScrollRef.current !== selectedChatId) return;
+      
+      // Content changed - scroll again
+      scrollToBottom();
+    });
+
+    const contentWrapper = container.firstElementChild;
+    if (contentWrapper) {
+      resizeObserver.observe(contentWrapper);
+    }
+
+    // Clear pending flag after delay - content should be stable by then
+    const timeoutId = setTimeout(() => {
+      if (pendingInitialScrollRef.current === selectedChatId) {
+        // Final scroll attempt
+        scrollToBottom();
+        pendingInitialScrollRef.current = null;
+        setIsAtBottom(true);
+      }
+    }, 300);
+
+    return () => {
+      resizeObserver.disconnect();
+      clearTimeout(timeoutId);
+    };
+  }, [selectedChatId, chatDetails]);
 
   // Load older messages when scrolling up (near top)
   useEffect(() => {
@@ -528,6 +576,10 @@ export function useChatPage() {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
+
+        // Don't load more during initial scroll - wait until scrolled to bottom
+        if (pendingInitialScrollRef.current === selectedChatId) return;
+
         // Check if user is near the top (scrollTop close to 0)
         const nearTop = container.scrollTop <= 200;
         if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
@@ -543,7 +595,7 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [selectedChatId, hasMore, isLoadingMore, loadMore]);
+  }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
 
   // Maintain scroll position after loading older messages
   useEffect(() => {

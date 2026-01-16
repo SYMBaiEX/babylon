@@ -281,6 +281,8 @@ export function useChatMessages(chatId: string | null) {
 
     if (previousChatId !== chatId) {
       if (chatId) {
+        // Always force reload when switching chats to ensure hasMore is correct
+        hasLoadedRef.current.delete(chatId);
         setMessages([]);
         setHasMore(false);
         setNextCursor(null);
