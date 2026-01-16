@@ -60,7 +60,7 @@ export const DELETE = withErrorHandling(
 
     // Immediately invalidate cached key to prevent continued use
     const revokedKey = deleted[0];
-    if (revokedKey.keyHash) {
+    if (revokedKey?.keyHash) {
       invalidateCachedKey(revokedKey.keyHash);
     }
 
