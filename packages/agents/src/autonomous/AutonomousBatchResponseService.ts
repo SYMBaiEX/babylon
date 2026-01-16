@@ -201,7 +201,7 @@ ${chatLines.join('\n\n')}`);
       author: reply.author,
       content: reply.content,
       context: reply.formattedContext,
-      timestamp: reply.timestamp,
+      timestamp: new Date(reply.timestamp),
     }));
   }
 
@@ -218,7 +218,7 @@ ${chatLines.join('\n\n')}`);
       author: msg.author,
       content: msg.content,
       context: msg.formattedContext,
-      timestamp: msg.timestamp,
+      timestamp: new Date(msg.timestamp),
     }));
   }
 
