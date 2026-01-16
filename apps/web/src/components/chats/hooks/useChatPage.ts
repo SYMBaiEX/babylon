@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useAuthStore } from '@/stores/authStore';
 import type { Chat, ChatDetails, ChatFilter } from '../types';
 
@@ -418,23 +417,9 @@ export function useChatPage() {
     }
   }, []);
 
-  // Pull-to-refresh
-  const { pullDistance, containerRef: setPullToRefreshRef } = usePullToRefresh({
-    onRefresh: async () => {
-      if (!selectedChatId) return;
-      await loadChatDetails(selectedChatId).catch((error: Error) => {
-        console.error('Error refreshing chat details:', error);
-      });
-    },
-  });
-
-  const setRefs = useCallback(
-    (node: HTMLDivElement | null) => {
-      chatContainerRef.current = node;
-      setPullToRefreshRef(node);
-    },
-    [setPullToRefreshRef]
-  );
+  const setRefs = useCallback((node: HTMLDivElement | null) => {
+    chatContainerRef.current = node;
+  }, []);
 
   // Filter chats
   const filteredByType =
@@ -676,7 +661,6 @@ export function useChatPage() {
     messagesEndRef,
     topSentinelRef,
     setRefs,
-    pullDistance,
 
     // Actions
     sendMessage,

@@ -18,7 +18,6 @@ interface ChatViewProps {
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
-  pullDistance: number;
   messageInput: string;
   sending: boolean;
   sendError: string | null;
@@ -43,7 +42,6 @@ export function ChatView({
   loading,
   isLoadingMore,
   hasMore,
-  pullDistance,
   messageInput,
   sending,
   sendError,
@@ -116,7 +114,6 @@ export function ChatView({
             loading={loading}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
-            pullDistance={pullDistance}
             authenticated={authenticated}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}

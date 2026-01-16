@@ -170,7 +170,6 @@ export function TeamChatView({
           loading={loading}
           isLoadingMore={isLoadingMore}
           hasMore={hasMore}
-          pullDistance={0}
           authenticated={authenticated}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}

@@ -421,7 +421,6 @@ export function AgentChat({
             loading={loading}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
-            pullDistance={0}
             authenticated={!!user}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}

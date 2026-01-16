@@ -102,7 +102,6 @@ export default function ChatsPage() {
     messagesEndRef,
     topSentinelRef,
     setRefs,
-    pullDistance,
 
     // Actions
     sendMessage,
@@ -220,7 +219,6 @@ export default function ChatsPage() {
                 loading={loadingChat}
                 isLoadingMore={isLoadingMore}
                 hasMore={hasMore}
-                pullDistance={pullDistance}
                 messageInput={messageInput}
                 sending={sending}
                 sendError={sendError}
