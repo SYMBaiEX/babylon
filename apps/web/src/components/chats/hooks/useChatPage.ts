@@ -409,11 +409,11 @@ export function useChatPage() {
     [getAccessToken, user]
   );
 
-  // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
+  // Scroll to newest messages
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatContainerRef.current;
     if (container) {
-      container.scrollTo({ top: 0, behavior });
+      container.scrollTo({ top: container.scrollHeight, behavior });
     }
   }, []);
 
@@ -517,7 +517,7 @@ export function useChatPage() {
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
 
-  // Load older messages when scrolling up
+  // Load older messages when scrolling up (near top)
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -528,8 +528,8 @@ export function useChatPage() {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        const maxScrollTop = container.scrollHeight - container.clientHeight;
-        const nearTop = container.scrollTop >= maxScrollTop - 200;
+        // Check if user is near the top (scrollTop close to 0)
+        const nearTop = container.scrollTop <= 200;
         if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
           pendingScrollAdjustRef.current = {
             previousHeight: container.scrollHeight,
@@ -565,7 +565,8 @@ export function useChatPage() {
 
     const handleScroll = () => {
       const threshold = 50;
-      const atBottom = container.scrollTop <= threshold;
+      const maxScrollTop = container.scrollHeight - container.clientHeight;
+      const atBottom = container.scrollTop >= maxScrollTop - threshold;
       setIsAtBottom(atBottom);
     };
 
