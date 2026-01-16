@@ -1,7 +1,7 @@
 'use client';
 
 import { calculateUnrealizedPnL, cn, formatCurrency } from '@babylon/shared';
-import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Bot, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -210,6 +210,13 @@ export function PerpPositionsList({
                   <span className="font-bold text-foreground">
                     ${position.ticker}
                   </span>
+                  {/* Agent position badge */}
+                  {position.isAgentPosition && (
+                    <span className="flex items-center gap-1 rounded bg-purple-600/20 px-2 py-1 font-medium text-purple-500 text-xs">
+                      <Bot size={12} />
+                      {position.agentName || 'Agent'}
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-right">

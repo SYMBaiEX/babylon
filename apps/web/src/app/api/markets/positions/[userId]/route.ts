@@ -77,7 +77,7 @@
 
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import { PredictionPricing } from '@babylon/core/markets/prediction';
-import { asPublic, asUser } from '@babylon/db';
+import { asPublic, asUser, db, eq, users } from '@babylon/db';
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import {
   logger,
@@ -111,8 +111,22 @@ export const GET = withErrorHandling(
     // Optional auth - positions are public for leaderboard but RLS still applies
     const authUser = await optionalAuth(request).catch(() => null);
 
+    // Get user's agents to include their positions
+    const userAgents = await asPublic(async () => {
+      return await db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+        })
+        .from(users)
+        .where(eq(users.managedBy, userId));
+    });
+
+    const agentIds = userAgents.map((a) => a.id);
+    const agentMap = new Map(userAgents.map((a) => [a.id, a.displayName]));
+
     // Get perpetual positions from database (respecting RLS if viewer is the same user)
-    const perpPositions =
+    const userPerpPositions =
       authUser && authUser.userId
         ? await asUser(authUser, async (db) => {
             return await db.perpPosition.findMany({
@@ -131,8 +145,37 @@ export const GET = withErrorHandling(
             });
           });
 
+    // Get agent perp positions if user has agents
+    const agentPerpPositions =
+      agentIds.length > 0
+        ? await asPublic(async (db) => {
+            return await db.perpPosition.findMany({
+              where: {
+                userId: { in: agentIds },
+                closedAt: null,
+              },
+            });
+          })
+        : [];
+
+    // Combine user and agent positions
+    const perpPositions = [
+      ...userPerpPositions.map((p) => ({
+        ...p,
+        isAgentPosition: false,
+        agentId: null as string | null,
+        agentName: null as string | null,
+      })),
+      ...agentPerpPositions.map((p) => ({
+        ...p,
+        isAgentPosition: true,
+        agentId: p.userId,
+        agentName: agentMap.get(p.userId) ?? null,
+      })),
+    ];
+
     // Get prediction market positions with RLS
-    const predictionPositionsRaw =
+    const userPredictionPositionsRaw =
       authUser && authUser.userId
         ? await asUser(authUser, async (db) => {
             return await db.position.findMany({
@@ -148,6 +191,34 @@ export const GET = withErrorHandling(
               },
             });
           });
+
+    // Get agent prediction positions if user has agents
+    const agentPredictionPositionsRaw =
+      agentIds.length > 0
+        ? await asPublic(async (db) => {
+            return await db.position.findMany({
+              where: {
+                userId: { in: agentIds },
+              },
+            });
+          })
+        : [];
+
+    // Combine user and agent prediction positions with agent metadata
+    const predictionPositionsRaw = [
+      ...userPredictionPositionsRaw.map((p) => ({
+        ...p,
+        isAgentPosition: false,
+        agentId: null as string | null,
+        agentName: null as string | null,
+      })),
+      ...agentPredictionPositionsRaw.map((p) => ({
+        ...p,
+        isAgentPosition: true,
+        agentId: p.userId,
+        agentName: agentMap.get(p.userId) ?? null,
+      })),
+    ];
 
     // Get markets for positions
     const marketIds = [
@@ -238,6 +309,10 @@ export const GET = withErrorHandling(
           liquidationPrice: Number(p.liquidationPrice),
           fundingPaid: Number(p.fundingPaid),
           openedAt: p.openedAt.toISOString(),
+          // Agent position metadata
+          isAgentPosition: p.isAgentPosition,
+          agentId: p.agentId ?? null,
+          agentName: p.agentName ?? null,
         })),
         stats: perpStats,
       },
@@ -302,6 +377,10 @@ export const GET = withErrorHandling(
               unrealizedPnL,
               resolved: market.resolved,
               resolution: market.resolution,
+              // Agent position metadata
+              isAgentPosition: p.isAgentPosition,
+              agentId: p.agentId ?? null,
+              agentName: p.agentName ?? null,
             };
           })
           // Filter out null positions and positions with effectively zero shares
