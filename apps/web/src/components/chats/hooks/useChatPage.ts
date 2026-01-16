@@ -521,7 +521,12 @@ export function useChatPage() {
   useEffect(() => {
     const container = chatContainerRef.current;
     // Only run when chatDetails matches selectedChatId (avoid stale data)
-    if (!container || !selectedChatId || chatDetails?.chat?.id !== selectedChatId) return;
+    if (
+      !container ||
+      !selectedChatId ||
+      chatDetails?.chat?.id !== selectedChatId
+    )
+      return;
 
     // If no pending scroll, nothing to do
     if (pendingInitialScrollRef.current !== selectedChatId) return;
@@ -539,7 +544,7 @@ export function useChatPage() {
     // Observe for content changes (images loading, layout shifts, etc.)
     const resizeObserver = new ResizeObserver(() => {
       if (pendingInitialScrollRef.current !== selectedChatId) return;
-      
+
       // Content changed - scroll again
       scrollToBottom();
     });
