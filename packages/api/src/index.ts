@@ -262,4 +262,10 @@ export {
   truncateToTokenLimit,
   truncateToTokenLimitSync,
   verifyApiKey,
+  // Cached user API key validation
+  clearApiKeyCache,
+  getApiKeyCacheStats,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
+  validateUserApiKey,
 } from './utils';

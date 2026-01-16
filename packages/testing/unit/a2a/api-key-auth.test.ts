@@ -52,18 +52,19 @@ describe('A2A API Key Authentication', () => {
     it('should allow localhost requests without API key when enabled', () => {
       const request = mockRequest(null, 'localhost:3000');
       const result = validateApiKey(request, {
-        requiredApiKey: 'test-key',
+        serverApiKey: 'test-key',
         allowLocalhost: true,
       });
 
       expect(result.authenticated).toBe(true);
+      expect(result.authMethod).toBe('localhost');
       expect(result.error).toBeUndefined();
     });
 
     it('should reject localhost when allowLocalhost is false', () => {
       const request = mockRequest(null, 'localhost:3000');
       const result = validateApiKey(request, {
-        requiredApiKey: 'test-key',
+        serverApiKey: 'test-key',
         allowLocalhost: false,
       });
 
@@ -71,21 +72,22 @@ describe('A2A API Key Authentication', () => {
       expect(result.statusCode).toBe(401);
     });
 
-    it('should authenticate valid API key', () => {
+    it('should authenticate valid server API key', () => {
       const request = mockRequest('valid-api-key', 'api.babylon.game');
       const result = validateApiKey(request, {
-        requiredApiKey: 'valid-api-key',
+        serverApiKey: 'valid-api-key',
         allowLocalhost: false,
       });
 
       expect(result.authenticated).toBe(true);
+      expect(result.authMethod).toBe('server-key');
       expect(result.error).toBeUndefined();
     });
 
     it('should reject invalid API key', () => {
       const request = mockRequest('wrong-key', 'api.babylon.game');
       const result = validateApiKey(request, {
-        requiredApiKey: 'correct-key',
+        serverApiKey: 'correct-key',
         allowLocalhost: false,
       });
 
@@ -97,7 +99,7 @@ describe('A2A API Key Authentication', () => {
     it('should reject missing API key on non-localhost', () => {
       const request = mockRequest(null, 'api.babylon.game');
       const result = validateApiKey(request, {
-        requiredApiKey: 'test-key',
+        serverApiKey: 'test-key',
         allowLocalhost: false,
       });
 
@@ -105,16 +107,17 @@ describe('A2A API Key Authentication', () => {
       expect(result.statusCode).toBe(401);
     });
 
-    it('should return 503 when API key is not configured', () => {
+    it('should reject when no server key configured and key provided', () => {
       const request = mockRequest('any-key', 'api.babylon.game');
       const result = validateApiKey(request, {
-        requiredApiKey: undefined,
+        serverApiKey: undefined,
         allowLocalhost: false,
       });
 
+      // Sync validateApiKey only checks server key, returns 401 for non-matching keys
+      // Use validateApiKeyAsync for user key validation
       expect(result.authenticated).toBe(false);
-      expect(result.statusCode).toBe(503);
-      expect(result.error).toContain('not configured');
+      expect(result.statusCode).toBe(401);
     });
   });
 

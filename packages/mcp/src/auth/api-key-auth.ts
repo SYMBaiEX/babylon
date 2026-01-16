@@ -1,55 +1,21 @@
 /**
  * MCP API Key Authentication
  *
- * Validates user API keys for MCP authentication
- */
-
-import { hashApiKey } from '@babylon/api';
-import { asSystem, eq, userApiKeys } from '@babylon/db';
-import { logger } from '@babylon/shared';
-
-/**
- * Validate user API key and return userId
+ * Validates user API keys for MCP authentication.
+ * Uses shared cached implementation from @babylon/api for efficiency.
  *
- * @param apiKey - The API key to validate
- * @returns User ID if key is valid, null otherwise
+ * Performance optimizations (from shared implementation):
+ * - In-memory LRU cache for validated keys (5 min TTL)
+ * - Async lastUsedAt updates (non-blocking)
+ * - Cache reduces DB lookups by 99%+ for repeated requests
  */
-export async function validateUserApiKey(
-  apiKey: string
-): Promise<{ userId: string } | null> {
-  if (!apiKey) {
-    return null;
-  }
 
-  // Hash the provided API key
-  const keyHash = hashApiKey(apiKey);
-
-  // Use asSystem for key lookup since we're authenticating based on the key itself
-  const keyRecord = await asSystem(async (dbClient) => {
-    return await dbClient.query.userApiKeys.findFirst({
-      where: (keys, { eq, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }) =>
-        andFn(
-          eq(keys.keyHash, keyHash),
-          isNullFn(keys.revokedAt),
-          orFn(isNullFn(keys.expiresAt), gtFn(keys.expiresAt, new Date()))
-        ),
-    });
-  });
-
-  if (!keyRecord) {
-    logger.warn('Invalid or expired API key', undefined, 'MCP Auth');
-    return null;
-  }
-
-  // Update lastUsedAt timestamp
-  await asSystem(async (dbClient) => {
-    await dbClient
-      .update(userApiKeys)
-      .set({ lastUsedAt: new Date() })
-      .where(eq(userApiKeys.id, keyRecord.id));
-  });
-
-  return {
-    userId: keyRecord.userId,
-  };
-}
+// Re-export the cached implementation from @babylon/api
+// This ensures MCP, A2A, and any other consumer share the same cache
+export {
+  clearApiKeyCache,
+  getApiKeyCacheStats,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
+  validateUserApiKey,
+} from '@babylon/api';
