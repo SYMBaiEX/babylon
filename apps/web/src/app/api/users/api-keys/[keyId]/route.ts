@@ -5,7 +5,12 @@
  * @access Authenticated (own keys only)
  */
 
-import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import {
+  authenticate,
+  invalidateCachedKey,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asUser, eq, userApiKeys } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -51,6 +56,12 @@ export const DELETE = withErrorHandling(
         { error: 'API key not found or already revoked' },
         { status: 404 }
       );
+    }
+
+    // Immediately invalidate cached key to prevent continued use
+    const revokedKey = deleted[0];
+    if (revokedKey.keyHash) {
+      invalidateCachedKey(revokedKey.keyHash);
     }
 
     logger.info(

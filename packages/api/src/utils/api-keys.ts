@@ -55,14 +55,18 @@ const apiKeyCache = new Map<string, CachedKeyInfo>();
 /**
  * Evict least recently used entries when cache is full.
  *
- * Note: This is called before insertion, so concurrent requests could
- * temporarily exceed MAX_CACHE_SIZE. This is acceptable for an in-memory
- * cache - the slight overage is bounded and self-correcting on next eviction.
+ * Performance: O(n log n) due to sorting. For a 1000-entry cache with 10%
+ * eviction, this is ~1000 comparisons - acceptable since eviction only occurs
+ * when cache is full. A doubly-linked list LRU would give O(1) eviction but
+ * adds complexity. Consider upgrading if profiling shows this as a bottleneck.
+ *
+ * Concurrency: Called before insertion, so concurrent requests could temporarily
+ * exceed MAX_CACHE_SIZE. This is acceptable - the overage is bounded and
+ * self-correcting on next eviction.
  */
 function evictLeastRecentlyUsed(): void {
   if (apiKeyCache.size >= MAX_CACHE_SIZE) {
     const entriesToDelete = Math.floor(MAX_CACHE_SIZE * 0.1);
-    // True LRU: evict by lastAccessedAt, not insertion time
     const entries = Array.from(apiKeyCache.entries())
       .sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt)
       .slice(0, entriesToDelete);
