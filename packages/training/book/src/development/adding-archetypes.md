@@ -301,6 +301,34 @@ elif archetype == "whale":
     return _calculate_whale_bonus(metrics)
 ```
 
+## Social Archetypes
+
+For archetypes where social interaction is primary (not trading), also add social reward weights:
+
+```python
+# In rewards.py - add to SOCIAL_REWARD_WEIGHTS
+"my-social-archetype": {
+    "engagement": 0.30,  # Posts, DMs, comments
+    "spread": 0.25,      # Reactions, shares
+    "network": 0.30,     # Connections, groups
+    "narrative": 0.15,   # Alignment with events
+}
+```
+
+And add composite weights:
+
+```python
+# In rewards.py - add to SOCIAL_COMPOSITE_WEIGHTS
+"my-social-archetype": {
+    "social": 0.50,      # Total social reward weight
+    "format": 0.25,
+    "reasoning": 0.15,
+    "pnl": 0.10,         # Minimal PnL weight
+}
+```
+
+See [Enhanced Rewards - Social & Narrative](../scoring/enhanced-rewards.md#social--narrative-rewards).
+
 ## Checklist
 
 - [ ] Rubric added to `config/rubrics.json`
@@ -311,4 +339,6 @@ elif archetype == "whale":
 - [ ] Bonus function registered in dispatcher
 - [ ] Unit tests pass (`make tier1`)
 - [ ] (Optional) TypeScript definition
+- [ ] (For social archetypes) `SOCIAL_REWARD_WEIGHTS` entry
+- [ ] (For social archetypes) `SOCIAL_COMPOSITE_WEIGHTS` entry
 

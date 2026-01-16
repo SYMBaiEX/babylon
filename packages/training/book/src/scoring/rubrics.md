@@ -137,6 +137,16 @@ HIGHER than one who made $20 with 3 conservative trades.
 ### Metrics to Deprioritize
 - Total P&L (not primary goal)
 - Win rate, Sharpe ratio (irrelevant)
+
+### Social Reward Weights
+
+Social Butterfly uses the social reward system with:
+- Network: 40% (highest priority)
+- Engagement: 30%
+- Information Spread: 20%
+- Narrative Alignment: 10%
+
+A Social Butterfly can achieve excellent network scores (1.0) with 15+ unique connections.
 ```
 
 ## Priority Metrics

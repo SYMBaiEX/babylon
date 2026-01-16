@@ -423,6 +423,65 @@ reward = enhanced_composite_reward(
 # reward > 0 (positive despite negative P&L due to outperformance)
 ```
 
+## Social & Narrative Rewards
+
+For non-trading archetypes like **Social Butterfly** and **Information Trader**, financial performance is not the primary success metric. The social reward system provides PnL-independent scoring based on:
+
+### Components
+
+| Component | Description | Key Metrics |
+|-----------|-------------|-------------|
+| **Engagement** | Volume and diversity of social activity | Posts, comments, DMs, group chats |
+| **Information Spread** | Content that reaches and engages others | Reactions, shares, spread count |
+| **Network** | Building connections and reputation | Unique users, follower gains, reputation |
+| **Narrative Alignment** | Actions aligned with ground truth events | Prediction accuracy, timing |
+
+### Archetype-Specific Weights
+
+Different archetypes weight these components differently:
+
+| Archetype | Engagement | Spread | Network | Narrative |
+|-----------|------------|--------|---------|-----------|
+| Social Butterfly | 30% | 20% | **40%** | 10% |
+| Information Trader | 15% | 25% | 20% | **40%** |
+| Scammer/Liar | 20% | **40%** | 25% | 15% |
+| Goody Two-Shoes | 25% | 20% | 30% | 25% |
+| Ass-Kisser | 35% | 15% | **40%** | 10% |
+
+### Usage
+
+```python
+from training.rewards import calculate_social_reward, social_only_composite_reward
+
+# Get component breakdown
+result = calculate_social_reward(metrics, "social-butterfly")
+print(result.engagement_score)      # 0.85
+print(result.network_score)         # 0.92
+print(result.total_score)           # 0.78
+
+# Use social-focused composite reward
+reward = social_only_composite_reward(
+    inputs=trajectory_inputs,
+    archetype="social-butterfly",
+    behavior_metrics=metrics,
+)
+# Social Butterfly with $0 PnL but great social metrics can score > 0.6
+```
+
+### Key Insight
+
+A Social Butterfly with no trading but 15+ unique connections, 5+ group chats, and positive reputation can **outscore** a passive trader who just holds their balance. This enables training agents specialized in community building rather than trading.
+
+### W&B Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `train/social_reward_mean` | Average total social reward |
+| `train/social_engagement_mean` | Average engagement score |
+| `train/social_spread_mean` | Average information spread score |
+| `train/social_network_mean` | Average network score |
+| `train/social_narrative_mean` | Average narrative alignment score |
+
 ## Next Steps
 
 - [Reward System](./reward-system.md) - Basic reward components
