@@ -33,6 +33,8 @@ def is_database_available() -> bool:
     if not database_url:
         return False
     
+    conn = None
+    cur = None
     try:
         import psycopg2
         conn = psycopg2.connect(database_url)
@@ -45,8 +47,6 @@ def is_database_available() -> bool:
             )
         """)
         table_exists = cur.fetchone()[0]
-        cur.close()
-        conn.close()
         
         if not table_exists:
             print("\n" + "=" * 80)
@@ -69,6 +69,12 @@ def is_database_available() -> bool:
         print("Integration tests will be SKIPPED.")
         print("=" * 80 + "\n")
         return False
+    finally:
+        # Always close cursor and connection to prevent resource leaks
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
 
 
 def skip_if_no_database():
