@@ -569,19 +569,19 @@ async function generateEventArticle(
     // Persist the article using shared persistence service (includes rate limit check)
     const result = await persistArticleFromGenerator(article, gameState);
 
-    // Handle rate-limited result (not an error, just skipped)
+    // Handle persistence failures - distinguish rate limiting from actual errors
     if (!result.success) {
-      return { status: 'skipped', reason: 'rate_limit_at_persist' };
-    }
-
-    // Validate articleId is present before returning success
-    if (!result.articleId) {
+      if (result.rateLimited) {
+        return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      }
+      // Actual persistence error (DB failure, validation, etc.)
       return {
         status: 'error',
-        error: 'Persistence succeeded but articleId is missing',
+        error: result.error || 'Unknown persistence error',
       };
     }
 
+    // With discriminated union, articleId is guaranteed present when success is true
     return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -659,19 +659,19 @@ async function generateBaselineArticle(
     // Persist the article using shared persistence service (includes rate limit check)
     const result = await persistArticleFromGenerator(article, gameState);
 
-    // Handle rate-limited result (not an error, just skipped)
+    // Handle persistence failures - distinguish rate limiting from actual errors
     if (!result.success) {
-      return { status: 'skipped', reason: 'rate_limit_at_persist' };
-    }
-
-    // Validate articleId is present before returning success
-    if (!result.articleId) {
+      if (result.rateLimited) {
+        return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      }
+      // Actual persistence error (DB failure, validation, etc.)
       return {
         status: 'error',
-        error: 'Persistence succeeded but articleId is missing',
+        error: result.error || 'Unknown persistence error',
       };
     }
 
+    // With discriminated union, articleId is guaranteed present when success is true
     return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
