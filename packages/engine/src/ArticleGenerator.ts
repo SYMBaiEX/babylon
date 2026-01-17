@@ -68,6 +68,7 @@ import { biasedArticle, renderPrompt, validateArticle } from './prompts';
 import { characterMappingService } from './services/character-mapping-service';
 import type { Actor, Organization, Question, WorldEvent } from './types/shared';
 import { shuffleArray } from './utils/randomization';
+import { stripHashtagsAndEmojis } from './utils/shared-utils';
 
 // Re-export Article for consumers that import from this file
 export type { Article } from '@babylon/shared';
@@ -556,12 +557,18 @@ export class ArticleGenerator {
       slantString = undefined;
     }
 
+    // Strip hashtags and emojis (defense-in-depth, prompt also instructs no hashtags/emojis)
+    const cleanTitle = stripHashtagsAndEmojis(title);
+    const cleanSummary = stripHashtagsAndEmojis(summary);
+    const cleanContent = stripHashtagsAndEmojis(content);
+
     // Apply character mapping to prevent real name leakage
-    const titleTransformed = await characterMappingService.transformText(title);
+    const titleTransformed =
+      await characterMappingService.transformText(cleanTitle);
     const summaryTransformed =
-      await characterMappingService.transformText(summary);
+      await characterMappingService.transformText(cleanSummary);
     const contentTransformed =
-      await characterMappingService.transformText(content);
+      await characterMappingService.transformText(cleanContent);
 
     if (
       titleTransformed.replacementCount > 0 ||

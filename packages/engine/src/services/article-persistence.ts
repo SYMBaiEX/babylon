@@ -19,6 +19,7 @@ import type { ArticlePersistInput } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { articleRateLimiter } from './article-rate-limiter';
+import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 
 /**
  * Options for persisting an article
@@ -187,6 +188,29 @@ export async function persistArticle(
           );
         });
     }
+
+    // Fire-and-forget tag generation and storage
+    void generateTagsFromPost(article.summary)
+      .then(async (generatedTags) => {
+        if (generatedTags.length > 0) {
+          await storeTagsForPost(articleId, generatedTags);
+          logger.debug(
+            'Article tags stored',
+            { articleId, tagCount: generatedTags.length },
+            'ArticlePersistence'
+          );
+        }
+      })
+      .catch((tagError) => {
+        logger.warn(
+          'Failed to generate/store article tags (non-blocking)',
+          {
+            articleId,
+            error: tagError instanceof Error ? tagError.message : String(tagError),
+          },
+          'ArticlePersistence'
+        );
+      });
 
     return { success: true, articleId };
   } catch (error) {

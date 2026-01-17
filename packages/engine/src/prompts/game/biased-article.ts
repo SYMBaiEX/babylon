@@ -1,5 +1,9 @@
 import { definePrompt } from '../define-prompt';
-import { ANTI_REPETITION_RULES, PARODY_NAME_RULES } from '../shared-sections';
+import {
+  ANTI_REPETITION_RULES,
+  NO_HASHTAGS_OR_EMOJIS,
+  PARODY_NAME_RULES,
+} from '../shared-sections';
 
 /**
  * Prompt for generating biased news articles about world events.
@@ -49,6 +53,8 @@ Type: {{eventType}}
 {{connectedNarratives}}
 
 ${PARODY_NAME_RULES}
+
+${NO_HASHTAGS_OR_EMOJIS}
 
 ${ANTI_REPETITION_RULES}
 
