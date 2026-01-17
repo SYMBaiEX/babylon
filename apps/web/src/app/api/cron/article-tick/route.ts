@@ -576,7 +576,10 @@ async function generateEventArticle(
 
     // Validate articleId is present before returning success
     if (!result.articleId) {
-      return { status: 'error', error: 'Persistence succeeded but articleId is missing' };
+      return {
+        status: 'error',
+        error: 'Persistence succeeded but articleId is missing',
+      };
     }
 
     return { status: 'success', id: result.articleId };
@@ -663,7 +666,10 @@ async function generateBaselineArticle(
 
     // Validate articleId is present before returning success
     if (!result.articleId) {
-      return { status: 'error', error: 'Persistence succeeded but articleId is missing' };
+      return {
+        status: 'error',
+        error: 'Persistence succeeded but articleId is missing',
+      };
     }
 
     return { status: 'success', id: result.articleId };
