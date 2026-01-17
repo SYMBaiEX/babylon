@@ -118,16 +118,16 @@ export async function persistArticle(
       content: article.summary,
       fullContent: article.content,
       articleTitle: article.title,
-      byline: article.byline || undefined,
-      biasScore: article.biasScore || undefined,
-      sentiment: article.sentiment || undefined,
-      slant: article.slant || undefined,
+      byline: article.byline ?? undefined,
+      biasScore: article.biasScore ?? undefined,
+      sentiment: article.sentiment ?? undefined,
+      slant: article.slant ?? undefined,
       category: article.category || 'news',
-      imageUrl: article.imageUrl || undefined,
+      imageUrl: article.imageUrl ?? undefined,
       authorId: article.authorOrgId,
       gameId: article.gameId,
       dayNumber: article.dayNumber,
-      timestamp: article.timestamp || now,
+      timestamp: article.timestamp ?? now,
       createdAt: now,
       relatedQuestion: article.relatedQuestion,
     });
@@ -206,7 +206,8 @@ export async function persistArticle(
           'Failed to generate/store article tags (non-blocking)',
           {
             articleId,
-            error: tagError instanceof Error ? tagError.message : String(tagError),
+            error:
+              tagError instanceof Error ? tagError.message : String(tagError),
           },
           'ArticlePersistence'
         );

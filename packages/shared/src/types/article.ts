@@ -81,7 +81,7 @@ export interface ArticlePersistInput {
   /** Bias score (-1 to +1) */
   biasScore?: number;
   /** Article sentiment */
-  sentiment?: string;
+  sentiment?: 'positive' | 'negative' | 'neutral';
   /** Editorial slant description */
   slant?: string;
   /** Article category */

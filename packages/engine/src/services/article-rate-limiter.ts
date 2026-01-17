@@ -289,10 +289,19 @@ function parseBreakingRateLimit(): number {
 
   const parsed = parseInt(envValue, 10);
 
-  if (Number.isNaN(parsed) || parsed <= 0) {
+  if (Number.isNaN(parsed)) {
     logger.warn(
-      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: "${envValue}". Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
+      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: "${envValue}" is not a number. Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
       { envValue, default: DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR },
+      'ArticleRateLimiter'
+    );
+    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
+  }
+
+  if (parsed <= 0) {
+    logger.warn(
+      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: ${parsed} must be > 0. Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
+      { envValue, parsed, default: DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR },
       'ArticleRateLimiter'
     );
     return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;

@@ -528,6 +528,8 @@ export async function generateArcPulseEventsIfNeeded(
  * @param llmClient - LLM client for article generation
  * @param timestamp - Timestamp for the articles
  * @param dayNumber - Current game day
+ * @param options - Optional settings for article generation
+ * @param options.skipRateLimit - If true, skip the internal articleRateLimiter check (used by breaking articles which have their own rate limiter)
  * @returns Number of articles created
  */
 export async function generateArticlesForArcEvent(
@@ -536,19 +538,31 @@ export async function generateArticlesForArcEvent(
   question: QuestionForEvent,
   llmClient: BabylonLLMClient,
   timestamp: Date,
-  dayNumber?: number
+  dayNumber?: number,
+  options?: { skipRateLimit?: boolean }
 ): Promise<number> {
-  // Check hourly article rate limit FIRST - this is the global throttle
-  const { allowed, currentCount, maxAllowed, remaining } =
-    await articleRateLimiter.canGenerateArticle();
+  const { skipRateLimit = false } = options ?? {};
 
-  if (!allowed) {
-    logger.info(
-      'Skipping arc event article generation - hourly rate limit reached',
-      { arcEventId, eventStatus, currentCount, maxAllowed },
-      'EventGeneration'
-    );
-    return 0;
+  // Check hourly article rate limit FIRST - this is the global throttle
+  // Skip this check if caller has already checked a separate rate limiter (e.g., breaking articles)
+  let remaining = 2; // Default max if skipping rate limit
+  if (!skipRateLimit) {
+    const rateLimitResult = await articleRateLimiter.canGenerateArticle();
+
+    if (!rateLimitResult.allowed) {
+      logger.info(
+        'Skipping arc event article generation - hourly rate limit reached',
+        {
+          arcEventId,
+          eventStatus,
+          currentCount: rateLimitResult.currentCount,
+          maxAllowed: rateLimitResult.maxAllowed,
+        },
+        'EventGeneration'
+      );
+      return 0;
+    }
+    remaining = rateLimitResult.remaining;
   }
 
   // Get news organizations that haven't reported on this event status
@@ -612,15 +626,18 @@ export async function generateArticlesForArcEvent(
 
   for (const orgData of orgsToPublish) {
     // Re-check rate limit before each article to prevent race conditions
-    const { allowed: stillAllowed } =
-      await articleRateLimiter.canGenerateArticle();
-    if (!stillAllowed) {
-      logger.info(
-        'Rate limit reached during arc event article generation - stopping',
-        { arcEventId, eventStatus, articlesGenerated: results.length },
-        'EventGeneration'
-      );
-      break;
+    // Skip this check if caller has already checked a separate rate limiter
+    if (!skipRateLimit) {
+      const { allowed: stillAllowed } =
+        await articleRateLimiter.canGenerateArticle();
+      if (!stillAllowed) {
+        logger.info(
+          'Rate limit reached during arc event article generation - stopping',
+          { arcEventId, eventStatus, articlesGenerated: results.length },
+          'EventGeneration'
+        );
+        break;
+      }
     }
 
     const org = {
@@ -678,6 +695,7 @@ export async function generateArticlesForArcEvent(
       const articleTimestamp = article.publishedAt || timestamp;
 
       // Use shared persistence service (includes rate limit check and image generation)
+      // Skip rate limit check in persistence if we're bypassing it (breaking articles have their own limiter)
       const persistResult = await persistArticle(
         {
           title: article.title || 'Untitled',
@@ -693,7 +711,7 @@ export async function generateArticlesForArcEvent(
           category: article.category,
           timestamp: articleTimestamp,
         },
-        { checkRateLimit: true }
+        { checkRateLimit: !skipRateLimit }
       );
 
       if (!persistResult.success) {
@@ -717,7 +735,16 @@ export async function generateArticlesForArcEvent(
         continue;
       }
 
-      const articleId = persistResult.articleId!;
+      // Defensive guard: verify articleId exists after successful persistence
+      if (!persistResult.articleId) {
+        results.push({
+          status: 'rejected',
+          reason: new Error('Missing articleId after successful persistence'),
+        });
+        continue;
+      }
+
+      const articleId = persistResult.articleId;
 
       // Record that this org has covered this event status
       arcEventPacer.recordArcEventCoverage(
@@ -832,13 +859,15 @@ export async function maybeGenerateBreakingArticle(
 
   // Reuse the existing arc event article generation logic
   // This handles org selection, article generation, and persistence
+  // Pass skipRateLimit=true since we've already checked breakingArticleRateLimiter
   return generateArticlesForArcEvent(
     eventId,
     'created', // Breaking articles are always fresh coverage
     question,
     llmClient,
     timestamp,
-    dayNumber
+    dayNumber,
+    { skipRateLimit: true }
   );
 }
 
