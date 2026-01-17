@@ -38,10 +38,12 @@ export interface ActivityPattern {
 
 /**
  * Hours each actor is active per day.
- * 8 hours = 1/3 of actors active at any time = ~47 actors from 140.
+ * 10 hours = ~42% of actors active at any time = ~59 actors from 140.
+ * Increased from 8 to provide more overlap between actor schedules,
+ * enabling better coverage and more diverse feed content.
  * Exported for use in UI/metrics if needed.
  */
-export const ACTIVE_HOURS_PER_DAY = 8;
+export const ACTIVE_HOURS_PER_DAY = 10;
 
 /**
  * Simple hash function to get a number from actor ID.

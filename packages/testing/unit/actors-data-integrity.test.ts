@@ -1,6 +1,11 @@
 /**
  * Data integrity tests for actor/organization TypeScript data
  * Ensures all required fields are present and no unused fields remain
+ *
+ * NOTE: This test file intentionally uses loadActorsData() to test raw data
+ * integrity of the source TypeScript files. StaticDataRegistry exposes a
+ * subset of fields for runtime use, but this test validates ALL fields exist
+ * in the source data.
  */
 
 import { beforeAll, describe, expect, it } from 'bun:test';
@@ -11,6 +16,8 @@ describe('Actors.json Data Integrity', () => {
   let actorsData: ActorsDatabase;
 
   beforeAll(async () => {
+    // Use loadActorsData to test raw data integrity (not StaticDataRegistry)
+    // This ensures all source data fields are validated
     actorsData = loadActorsData() as ActorsDatabase;
   });
 

@@ -48,6 +48,7 @@ import {
   type PostingContext,
   postingProbabilityService,
   processNPCSocialEngagements,
+  secureRandom,
   StaticDataRegistry,
   TradeExecutionService,
   updateMarketPricesFromTrades,
@@ -313,12 +314,53 @@ export async function POST(_req: NextRequest) {
       ),
     }));
 
-    // Weighted random selection
-    const selected = postingProbabilityService.weightedSample(
-      candidates,
-      NPCS_PER_TICK
+    // =======================================================================
+    // DIVERSITY GUARANTEE: Reserve 30% of batch for NPCs that haven't posted today
+    // This ensures broader coverage across all NPCs instead of same ones repeatedly
+    // =======================================================================
+    const today = now.toISOString().split('T')[0];
+    const neverPostedToday = activeNpcs.filter((npc) => {
+      const state = stateMap.get(npc.id);
+      const lastPost = state?.lastPostAt;
+      return !lastPost || lastPost.toISOString().split('T')[0] !== today;
+    });
+
+    // Reserve 30% of batch for diversity (NPCs that haven't posted today)
+    const diversitySlots = Math.max(1, Math.floor(NPCS_PER_TICK * 0.3));
+    const regularSlots = NPCS_PER_TICK - diversitySlots;
+
+    // Shuffle never-posted NPCs for fair selection among them
+    const shuffledNeverPosted = [...neverPostedToday].sort(
+      () => secureRandom() - 0.5
     );
-    const npcsThisTick = selected.map((s) => s.npc);
+    const diversitySelection = shuffledNeverPosted.slice(0, diversitySlots);
+
+    // Remaining slots go to weighted random (exclude diversity picks)
+    const diversityIds = new Set(diversitySelection.map((n) => n.id));
+    const remainingCandidates = candidates.filter(
+      (c) => !diversityIds.has(c.npc.id)
+    );
+    const regularSelection = postingProbabilityService.weightedSample(
+      remainingCandidates,
+      regularSlots
+    );
+
+    const npcsThisTick = [
+      ...diversitySelection,
+      ...regularSelection.map((s) => s.npc),
+    ];
+
+    // Log diversity stats
+    logger.info(
+      `Diversity guarantee: ${diversitySelection.length} diversity slots, ${regularSelection.length} regular slots`,
+      {
+        diversitySlots,
+        regularSlots,
+        neverPostedTodayCount: neverPostedToday.length,
+        diversityNpcs: diversitySelection.map((n) => n.name),
+      },
+      'NPCTick'
+    );
 
     logger.info(
       `NPC tick processing ${npcsThisTick.length} NPCs (random selection with spam prevention)`,
@@ -865,6 +907,33 @@ export async function POST(_req: NextRequest) {
 
     const duration = Date.now() - startTime;
 
+    // =======================================================================
+    // DIVERSITY MONITORING: Track unique NPC posting distribution
+    // =======================================================================
+    const npcsWhoPostedThisTick = results.filter(
+      (r) => r.actions && r.actions > 0 && r.status === 'success'
+    );
+    const uniquePostersThisTick = npcsWhoPostedThisTick.length;
+
+    // Count how many NPCs haven't posted today (diversity pool remaining)
+    const neverPostedTodayRemaining = neverPostedToday.length - diversitySlots;
+
+    // Log diversity metrics separately for easy monitoring
+    logger.info(
+      'NPC posting diversity metrics',
+      {
+        uniquePostersThisTick,
+        diversitySlotsUsed: diversitySlots,
+        regularSlotsUsed: regularSlots,
+        neverPostedTodayCount: neverPostedToday.length,
+        neverPostedTodayRemaining:
+          neverPostedTodayRemaining > 0 ? neverPostedTodayRemaining : 0,
+        totalActiveNpcs: activeNpcs.length,
+        totalNpcs: allNpcs.length,
+      },
+      'NPCTick'
+    );
+
     logger.info(
       `NPC tick completed in ${duration}ms`,
       {
@@ -881,6 +950,12 @@ export async function POST(_req: NextRequest) {
         discourseCreated,
         socialEngagement,
         errors,
+        diversityMetrics: {
+          uniquePostersThisTick,
+          diversitySlotsUsed: diversitySlots,
+          regularSlotsUsed: regularSlots,
+          neverPostedTodayCount: neverPostedToday.length,
+        },
       },
       'NPCTick'
     );
@@ -909,6 +984,13 @@ export async function POST(_req: NextRequest) {
       errorCount: errors,
       skippedLocked: skippedDueToLock,
       abortedDueToCircuitBreaker,
+      // Diversity metrics for monitoring NPC posting distribution
+      diversityMetrics: {
+        uniquePostersThisTick,
+        diversitySlotsUsed: diversitySlots,
+        regularSlotsUsed: regularSlots,
+        neverPostedTodayCount: neverPostedToday.length,
+      },
     });
 
     return NextResponse.json({
@@ -928,6 +1010,14 @@ export async function POST(_req: NextRequest) {
       socialEngagement,
       errors,
       abortedDueToCircuitBreaker,
+      // Diversity metrics for monitoring NPC posting distribution
+      diversityMetrics: {
+        uniquePostersThisTick,
+        diversitySlotsUsed: diversitySlots,
+        regularSlotsUsed: regularSlots,
+        neverPostedTodayCount: neverPostedToday.length,
+        totalActiveNpcs: activeNpcs.length,
+      },
       results,
     });
   } finally {

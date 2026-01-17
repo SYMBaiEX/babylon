@@ -170,21 +170,23 @@ export const NPC_POSTING_CONFIG = {
   /**
    * Maximum posts per day per NPC to prevent spam.
    * Same for all tiers - fair rotation.
+   * Lower cap = more unique NPCs get a turn to post.
    *
-   * @default 4 (NPCs should post regularly)
+   * @default 3 (balanced - encourages diversity across NPCs)
    * @env NPC_MAX_POSTS_PER_DAY
    */
-  maxPostsPerDay: envPositiveNumber('NPC_MAX_POSTS_PER_DAY', 4),
+  maxPostsPerDay: envPositiveNumber('NPC_MAX_POSTS_PER_DAY', 3),
 
   /**
    * Minimum hours between posts for the same NPC.
    * Prevents same NPC posting multiple times per tick.
    * A value of 0 allows back-to-back posting (useful for testing).
+   * Higher value = slower individual pace = more variety across NPCs.
    *
-   * @default 2 (reasonable spacing)
+   * @default 3 (balanced pacing for diverse feed)
    * @env NPC_MIN_HOURS_BETWEEN_POSTS
    */
-  minHoursBetweenPosts: envNonNegativeNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 2),
+  minHoursBetweenPosts: envNonNegativeNumber('NPC_MIN_HOURS_BETWEEN_POSTS', 3),
 
   /**
    * Boost multiplier when actor was mentioned by a player.
@@ -825,11 +827,13 @@ export const NPC_FOLLOWING_CONFIG = {
 export const NPC_TICK_CONFIG = {
   /**
    * Number of NPCs to process per tick.
+   * Higher batch size = more NPCs considered = better rotation across all NPCs.
+   * With 140 NPCs and ~47 active per hour, 12/tick ensures good coverage.
    *
-   * @default 5
+   * @default 12 (increased for better diversity across NPCs)
    * @env NPC_TICK_BATCH_SIZE
    */
-  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 5),
+  batchSize: envPositiveNumber('NPC_TICK_BATCH_SIZE', 12),
 
   /**
    * Maximum consecutive errors before aborting tick (circuit breaker).

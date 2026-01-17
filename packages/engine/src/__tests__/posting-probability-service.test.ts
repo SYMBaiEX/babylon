@@ -3,11 +3,14 @@
  *
  * Tests for simplified NPC posting probability calculation and weighted sampling.
  * Simplified: Equal base probability for all NPCs with spam prevention.
+ *
+ * NOTE: Tests use actual config values to stay in sync with npc-activity.ts
  */
 
 import { describe, expect, test } from 'bun:test';
 import type { ActorStateRow } from '@babylon/db';
 import { ACTOR_TIERS } from '@babylon/shared';
+import { NPC_POSTING_CONFIG } from '../config/npc-activity';
 import {
   calculatePostingProbability,
   type PostingActor,
@@ -15,6 +18,13 @@ import {
   postingProbabilityService,
   weightedRandomSample,
 } from '../services/posting-probability-service';
+
+// Extract config values for test assertions
+const BASE_PROBABILITY = NPC_POSTING_CONFIG.baseProbability;
+const MAX_POSTS_PER_DAY = NPC_POSTING_CONFIG.maxPostsPerDay;
+const MIN_HOURS_BETWEEN_POSTS = NPC_POSTING_CONFIG.minHoursBetweenPosts;
+const MENTION_BOOST = NPC_POSTING_CONFIG.mentionBoost;
+const AFFILIATION_BOOST = NPC_POSTING_CONFIG.affiliationBoost;
 
 /**
  * Create a minimal mock ActorStateRow for testing.
@@ -76,18 +86,18 @@ describe('Posting Probability Service - Base Probability', () => {
     const bProb = calculatePostingProbability(bActor, null, context);
     const cProb = calculatePostingProbability(cActor, null, context);
 
-    // Simplified: equal probability for all tiers (0.15 base)
-    expect(sProb).toBe(0.15);
-    expect(bProb).toBe(0.15);
-    expect(cProb).toBe(0.15);
+    // Simplified: equal probability for all tiers
+    expect(sProb).toBe(BASE_PROBABILITY);
+    expect(bProb).toBe(BASE_PROBABILITY);
+    expect(cProb).toBe(BASE_PROBABILITY);
   });
 
-  test('base probability is 0.15', () => {
+  test('base probability matches config', () => {
     const actor = createMockActor();
     const context = createMockContext();
     const prob = calculatePostingProbability(actor, null, context);
 
-    expect(prob).toBe(0.15);
+    expect(prob).toBe(BASE_PROBABILITY);
   });
 
   test('probability is capped at 1.0', () => {
@@ -110,12 +120,11 @@ describe('Posting Probability Service - Base Probability', () => {
 });
 
 describe('Posting Probability Service - Daily Cap', () => {
-  test('returns 0 when daily post cap (2) is reached', () => {
+  test('returns 0 when daily post cap is reached', () => {
     const actor = createMockActor();
-    // MAX_POSTS_PER_DAY is 2
     const state = createMockState({
       id: actor.id,
-      postsToday: 2,
+      postsToday: MAX_POSTS_PER_DAY,
       lastPostAt: new Date(),
     });
     const context = createMockContext();
@@ -130,8 +139,10 @@ describe('Posting Probability Service - Daily Cap', () => {
     const state = createMockState({
       id: actor.id,
       postsToday: 1,
-      // Set lastPostAt to 5 hours before context time to pass the recency check (MIN_HOURS_BETWEEN_POSTS is 4)
-      lastPostAt: new Date(contextTime.getTime() - 5 * 60 * 60 * 1000),
+      // Set lastPostAt to well before context time to pass the recency check
+      lastPostAt: new Date(
+        contextTime.getTime() - (MIN_HOURS_BETWEEN_POSTS + 2) * 60 * 60 * 1000
+      ),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -141,14 +152,16 @@ describe('Posting Probability Service - Daily Cap', () => {
 });
 
 describe('Posting Probability Service - Recency Check', () => {
-  test('returns 0 if posted within MIN_HOURS_BETWEEN_POSTS (4 hours)', () => {
+  test('returns 0 if posted within MIN_HOURS_BETWEEN_POSTS', () => {
     const actor = createMockActor();
     const contextTime = new Date('2026-01-05T14:00:00Z');
     const state = createMockState({
       id: actor.id,
       postsToday: 1,
-      // 2 hours before context.currentTime (less than 4 hour minimum)
-      lastPostAt: new Date(contextTime.getTime() - 2 * 60 * 60 * 1000),
+      // Posted less than MIN_HOURS_BETWEEN_POSTS ago
+      lastPostAt: new Date(
+        contextTime.getTime() - (MIN_HOURS_BETWEEN_POSTS - 1) * 60 * 60 * 1000
+      ),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -162,8 +175,10 @@ describe('Posting Probability Service - Recency Check', () => {
     const state = createMockState({
       id: actor.id,
       postsToday: 1,
-      // 5 hours before context.currentTime (more than 4 hour minimum)
-      lastPostAt: new Date(contextTime.getTime() - 5 * 60 * 60 * 1000),
+      // Posted more than MIN_HOURS_BETWEEN_POSTS ago
+      lastPostAt: new Date(
+        contextTime.getTime() - (MIN_HOURS_BETWEEN_POSTS + 1) * 60 * 60 * 1000
+      ),
     });
     const context = createMockContext({ currentTime: contextTime });
 
@@ -186,7 +201,7 @@ describe('Posting Probability Service - Recency Check', () => {
 });
 
 describe('Posting Probability Service - Mention Boost', () => {
-  test('mentioned actors get 1.5x probability boost', () => {
+  test('mentioned actors get probability boost', () => {
     const actor = createMockActor();
     const baseContext = createMockContext();
     const mentionedContext = createMockContext({
@@ -200,8 +215,8 @@ describe('Posting Probability Service - Mention Boost', () => {
       mentionedContext
     );
 
-    // Mention boost is 1.5x
-    expect(probMentioned).toBe(probBase * 1.5);
+    // Mention boost from config
+    expect(probMentioned).toBe(probBase * MENTION_BOOST);
   });
 
   test('non-mentioned actors do not get mention boost', () => {
@@ -211,12 +226,12 @@ describe('Posting Probability Service - Mention Boost', () => {
     });
 
     const prob = calculatePostingProbability(actor, null, context);
-    expect(prob).toBe(0.15); // Base probability only
+    expect(prob).toBe(BASE_PROBABILITY); // Base probability only
   });
 });
 
 describe('Posting Probability Service - Affiliation Boost', () => {
-  test('actors with affiliated events get 1.5x probability boost', () => {
+  test('actors with affiliated events get probability boost', () => {
     const actor = createMockActor();
     const baseContext = createMockContext();
     const eventContext = createMockContext({
@@ -228,8 +243,8 @@ describe('Posting Probability Service - Affiliation Boost', () => {
     const probBase = calculatePostingProbability(actor, null, baseContext);
     const probEvent = calculatePostingProbability(actor, null, eventContext);
 
-    // Affiliation boost is 1.5x
-    expect(probEvent).toBe(probBase * 1.5);
+    // Affiliation boost from config
+    expect(probEvent).toBe(probBase * AFFILIATION_BOOST);
   });
 
   test('combined mention and affiliation boosts stack', () => {
@@ -242,8 +257,9 @@ describe('Posting Probability Service - Affiliation Boost', () => {
     });
 
     const prob = calculatePostingProbability(actor, null, bothContext);
-    // 0.15 * 1.5 (mention) * 1.5 (affiliation) = 0.3375
-    expect(prob).toBeCloseTo(0.3375, 4);
+    // BASE_PROBABILITY * MENTION_BOOST * AFFILIATION_BOOST
+    const expectedProb = BASE_PROBABILITY * MENTION_BOOST * AFFILIATION_BOOST;
+    expect(prob).toBeCloseTo(expectedProb, 4);
   });
 });
 

@@ -17,11 +17,9 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
   });
 
   test('formats single memory correctly', () => {
-    // Use a fixed timestamp within the "just now" threshold to avoid timing flakiness
-    const fixedNow = new Date('2025-01-01T12:00:00.000Z');
-    const recentTimestamp = new Date(
-      fixedNow.getTime() - 30 * 1000
-    ).toISOString(); // 30 seconds ago
+    // Use a timestamp relative to now to avoid test flakiness over time
+    const now = new Date();
+    const recentTimestamp = new Date(now.getTime() - 30 * 1000).toISOString(); // 30 seconds ago
 
     const memory: NpcMemory = {
       id: 'mem-1',
@@ -31,17 +29,18 @@ describe('NPC Memory Service - Format Memories For Prompt', () => {
       sentiment: 0.5,
     };
 
-    // Use the formatted output with a fixed 'now' time
+    // Verify formatTimeAgo works correctly with fixed now
     const formattedTimeAgo = npcMemoryService.formatTimeAgo(
       recentTimestamp,
-      fixedNow
+      now
     );
     expect(formattedTimeAgo).toBe('just now');
 
+    // Verify formatMemoriesForPrompt includes the required components
     const formatted = npcMemoryService.formatMemoriesForPrompt([memory]);
     expect(formatted).toContain('## Recent Memories');
     expect(formatted).toContain('Posted about crypto news');
-    // Verify the formatted output includes the 'just now' time string
+    // Since we used a timestamp 30 seconds ago from current time, it should show "just now"
     expect(formatted).toContain('just now');
   });
 
