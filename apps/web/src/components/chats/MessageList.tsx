@@ -1,7 +1,6 @@
 'use client';
 
 import type { MessageType } from '@babylon/db';
-import { cn } from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -29,7 +28,6 @@ interface MessageListProps {
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
-  pullDistance: number;
   authenticated: boolean;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -42,7 +40,6 @@ export function MessageList({
   loading,
   isLoadingMore,
   hasMore,
-  pullDistance,
   authenticated,
   topSentinelRef,
   messagesEndRef,
@@ -67,21 +64,6 @@ export function MessageList({
       {/* Gradient overlay to hint more messages */}
       {hasMore && (
         <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-8 bg-gradient-to-b from-background via-background/90 to-transparent" />
-      )}
-
-      {/* Pull-to-refresh indicator */}
-      {pullDistance > 0 && (
-        <div
-          className="absolute top-0 right-0 left-0 flex items-center justify-center py-2 transition-opacity"
-          style={{ opacity: Math.min(pullDistance / 80, 1) }}
-        >
-          <Loader2
-            className={cn(
-              'h-6 w-6 text-primary',
-              pullDistance > 80 ? 'animate-spin' : ''
-            )}
-          />
-        </div>
       )}
 
       {/* Sentinel for infinite scroll */}

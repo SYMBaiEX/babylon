@@ -102,11 +102,11 @@ export function AgentChat({
   // Use pro mode based on agent's model tier
   const usePro = agent.modelTier === 'pro';
 
-  // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
+  // Scroll to newest messages
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = chatContainerRef.current;
     if (container) {
-      container.scrollTo({ top: 0, behavior });
+      container.scrollTo({ top: container.scrollHeight, behavior });
     }
   }, []);
 
@@ -257,7 +257,7 @@ export function AgentChat({
     lastMessageIdRef.current = lastId;
   }, [messages, loading]);
 
-  // Load older messages when scrolling up
+  // Load older messages when scrolling up (near top)
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -268,8 +268,8 @@ export function AgentChat({
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        const maxScrollTop = container.scrollHeight - container.clientHeight;
-        const nearTop = container.scrollTop >= maxScrollTop - 200;
+        // Check if user is near the top (scrollTop close to 0)
+        const nearTop = container.scrollTop <= 200;
         if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
           pendingScrollAdjustRef.current = {
             previousHeight: container.scrollHeight,
@@ -429,10 +429,10 @@ export function AgentChat({
         </div>
       </div>
 
-      {/* Messages - Scrollable, starts at bottom via flex-col-reverse */}
+      {/* Messages - Scrollable */}
       <div
         ref={chatContainerRef}
-        className="relative flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3"
+        className="relative min-h-0 flex-1 overflow-y-auto px-4 py-3"
       >
         <div className="flex flex-col space-y-4">
           <MessageList
@@ -442,7 +442,6 @@ export function AgentChat({
             loading={loading}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
-            pullDistance={0}
             authenticated={!!user}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}

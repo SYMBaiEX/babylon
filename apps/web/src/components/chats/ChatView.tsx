@@ -18,7 +18,6 @@ interface ChatViewProps {
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
-  pullDistance: number;
   messageInput: string;
   sending: boolean;
   sendError: string | null;
@@ -43,7 +42,6 @@ export function ChatView({
   loading,
   isLoadingMore,
   hasMore,
-  pullDistance,
   messageInput,
   sending,
   sendError,
@@ -103,10 +101,10 @@ export function ChatView({
         )}
       </div>
 
-      {/* Messages - Scrollable, starts at bottom via flex-col-reverse */}
+      {/* Messages - Scrollable */}
       <div
         ref={containerRef}
-        className="relative flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3"
+        className="relative min-h-0 flex-1 overflow-y-auto px-4 py-3"
       >
         <div className="flex flex-col space-y-4">
           <MessageList
@@ -116,7 +114,6 @@ export function ChatView({
             loading={loading}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
-            pullDistance={pullDistance}
             authenticated={authenticated}
             topSentinelRef={topSentinelRef}
             messagesEndRef={messagesEndRef}

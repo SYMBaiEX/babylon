@@ -266,6 +266,10 @@ export function useChatMessages(chatId: string | null) {
     const previousChatId = previousChatIdRef.current;
 
     if (previousChatId !== chatId) {
+      // Clear the "already loaded" flag so switching back to this chat will reload
+      if (previousChatId) {
+        hasLoadedRef.current.delete(previousChatId);
+      }
       if (chatId) {
         setMessages([]);
         setHasMore(false);

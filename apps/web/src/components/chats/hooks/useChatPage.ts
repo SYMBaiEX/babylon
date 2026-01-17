@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useAuthStore } from '@/stores/authStore';
 import type { Chat, ChatDetails, ChatFilter } from '../types';
 
@@ -65,6 +64,8 @@ export function useChatPage() {
   } | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const emptyChatPollAttemptsRef = useRef(0);
+  // Track pending initial scroll - cleared when we successfully scroll to bottom
+  const pendingInitialScrollRef = useRef<string | null>(null);
 
   // Debug mode
   const isDebugMode =
@@ -410,31 +411,17 @@ export function useChatPage() {
     [getAccessToken, user]
   );
 
-  // Scroll to newest messages (scrollTop = 0 due to flex-col-reverse)
+  // Scroll to newest messages
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatContainerRef.current;
     if (container) {
-      container.scrollTo({ top: 0, behavior });
+      container.scrollTo({ top: container.scrollHeight, behavior });
     }
   }, []);
 
-  // Pull-to-refresh
-  const { pullDistance, containerRef: setPullToRefreshRef } = usePullToRefresh({
-    onRefresh: async () => {
-      if (!selectedChatId) return;
-      await loadChatDetails(selectedChatId).catch((error: Error) => {
-        console.error('Error refreshing chat details:', error);
-      });
-    },
-  });
-
-  const setRefs = useCallback(
-    (node: HTMLDivElement | null) => {
-      chatContainerRef.current = node;
-      setPullToRefreshRef(node);
-    },
-    [setPullToRefreshRef]
-  );
+  const setRefs = useCallback((node: HTMLDivElement | null) => {
+    chatContainerRef.current = node;
+  }, []);
 
   // Filter chats
   const filteredByType =
@@ -495,7 +482,10 @@ export function useChatPage() {
     lastMessageIdRef.current = null;
     setIsAtBottom(true);
     if (selectedChatId) {
+      pendingInitialScrollRef.current = selectedChatId;
       loadChatDetails(selectedChatId);
+    } else {
+      pendingInitialScrollRef.current = null;
     }
   }, [selectedChatId, loadChatDetails]);
 
@@ -509,7 +499,7 @@ export function useChatPage() {
     }
   }, [realtimeMessages]);
 
-  // Handle new messages and auto-scroll
+  // Handle new messages - scroll smoothly for incoming messages
   useEffect(() => {
     if (loadingChat) return;
 
@@ -521,18 +511,74 @@ export function useChatPage() {
     const wasEmpty = lastMessageIdRef.current === null;
     lastMessageIdRef.current = lastId;
 
-    if (wasEmpty) {
-      setIsAtBottom(true);
-      scrollToBottom('auto');
-      return;
-    }
-
-    if (isNewMessage && isAtBottom) {
+    // For new messages (not initial load), scroll smoothly if at bottom
+    if (!wasEmpty && isNewMessage && isAtBottom) {
       scrollToBottom('smooth');
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
 
-  // Load older messages when scrolling up
+  // Handle initial scroll - keep scrolling to bottom until stable
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (
+      !container ||
+      !selectedChatId ||
+      chatDetails?.chat?.id !== selectedChatId
+    )
+      return;
+
+    if (pendingInitialScrollRef.current !== selectedChatId) return;
+
+    let rafId: number;
+    let lastScrollHeight = 0;
+    let stableCount = 0;
+    const MAX_STABLE = 5; // Need 5 consecutive stable frames
+    const MAX_TIME = 2000; // Give up after 2 seconds
+    const startTime = Date.now();
+
+    const tick = () => {
+      if (pendingInitialScrollRef.current !== selectedChatId) return;
+      if (Date.now() - startTime > MAX_TIME) {
+        // Timeout - clear flag and stop
+        pendingInitialScrollRef.current = null;
+        setIsAtBottom(true);
+        return;
+      }
+
+      const currentHeight = container.scrollHeight;
+      const maxScroll = currentHeight - container.clientHeight;
+
+      // Always scroll to bottom
+      if (maxScroll > 0) {
+        container.scrollTop = maxScroll;
+      }
+
+      // Check if height is stable
+      if (currentHeight === lastScrollHeight) {
+        stableCount++;
+        if (stableCount >= MAX_STABLE) {
+          // Height stable for 5 frames - we're done
+          pendingInitialScrollRef.current = null;
+          setIsAtBottom(true);
+          return;
+        }
+      } else {
+        stableCount = 0;
+        lastScrollHeight = currentHeight;
+      }
+
+      // Keep going
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [selectedChatId, chatDetails]);
+
+  // Load older messages when scrolling up (near top)
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -543,8 +589,12 @@ export function useChatPage() {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        const maxScrollTop = container.scrollHeight - container.clientHeight;
-        const nearTop = container.scrollTop >= maxScrollTop - 200;
+
+        // Don't load more during initial scroll - wait until scrolled to bottom
+        if (pendingInitialScrollRef.current === selectedChatId) return;
+
+        // Check if user is near the top (scrollTop close to 0)
+        const nearTop = container.scrollTop <= 200;
         if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
           pendingScrollAdjustRef.current = {
             previousHeight: container.scrollHeight,
@@ -558,7 +608,7 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [selectedChatId, hasMore, isLoadingMore, loadMore]);
+  }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
 
   // Maintain scroll position after loading older messages
   useEffect(() => {
@@ -580,7 +630,8 @@ export function useChatPage() {
 
     const handleScroll = () => {
       const threshold = 50;
-      const atBottom = container.scrollTop <= threshold;
+      const maxScrollTop = container.scrollHeight - container.clientHeight;
+      const atBottom = container.scrollTop >= maxScrollTop - threshold;
       setIsAtBottom(atBottom);
     };
 
@@ -676,7 +727,6 @@ export function useChatPage() {
     messagesEndRef,
     topSentinelRef,
     setRefs,
-    pullDistance,
 
     // Actions
     sendMessage,
