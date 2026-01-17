@@ -335,10 +335,9 @@ export class BreakingArticleRateLimiterService {
   /** Timestamps of breaking articles created within the current window */
   private breakingArticleTimestamps: number[] = [];
 
-  constructor(
-    config: { maxArticlesPerHour?: number; windowMs?: number } = {}
-  ) {
-    this.maxArticlesPerHour = config.maxArticlesPerHour ?? parseBreakingRateLimit();
+  constructor(config: { maxArticlesPerHour?: number; windowMs?: number } = {}) {
+    this.maxArticlesPerHour =
+      config.maxArticlesPerHour ?? parseBreakingRateLimit();
     this.windowMs = config.windowMs ?? 60 * 60 * 1000; // 1 hour
   }
 
@@ -462,4 +461,5 @@ export class BreakingArticleRateLimiterService {
  * **IMPORTANT**: After successfully persisting a breaking article,
  * call `breakingArticleRateLimiter.recordBreakingArticle()` to track it.
  */
-export const breakingArticleRateLimiter = new BreakingArticleRateLimiterService();
+export const breakingArticleRateLimiter =
+  new BreakingArticleRateLimiterService();
