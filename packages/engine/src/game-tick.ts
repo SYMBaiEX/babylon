@@ -2540,12 +2540,35 @@ const WORLD_FACTS_LOCK_DURATION_MS =
     : DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES) *
   60 *
   1000;
-// Renew lock at half the TTL (minimum 1 minute) to prevent expiry during long-running generation
-const MIN_LOCK_RENEWAL_INTERVAL_MS = 60 * 1000; // 1 minute minimum
-const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = Math.max(
-  MIN_LOCK_RENEWAL_INTERVAL_MS,
-  Math.floor(WORLD_FACTS_LOCK_DURATION_MS / 2)
+// Renew lock at half the TTL to prevent expiry during long-running generation
+// No minimum floor - allows short locks for testing while ensuring renewal before expiry
+const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = Math.min(
+  Math.floor(WORLD_FACTS_LOCK_DURATION_MS / 2),
+  WORLD_FACTS_LOCK_DURATION_MS - 1 // Ensure renewal is always before expiry
 );
+
+/**
+ * Generation Marker Constants
+ *
+ * These constants define the marker inserted after each successful world facts generation.
+ * The marker tracks when generation last ran, preventing re-triggers when 0 facts are produced.
+ *
+ * Exported for use in tests to maintain a single source of truth (DRY principle).
+ */
+export const GENERATION_MARKER = {
+  /** Category for system markers */
+  CATEGORY: 'system',
+  /** Key identifying generation run markers */
+  KEY: 'generation-marker',
+  /** Human-readable label */
+  LABEL: 'World Facts Generation Marker',
+  /** Source identifier matching other auto-generated facts */
+  SOURCE: 'auto-generated',
+  /** Markers are inactive (not shown in prompts) */
+  IS_ACTIVE: false,
+  /** Low priority to stay out of the way */
+  PRIORITY: -1,
+} as const;
 
 /**
  * Check if we should update world facts
@@ -2786,14 +2809,14 @@ export async function updateWorldFactsIfNeeded(): Promise<{
         markerId = await generateSnowflakeId();
         await db.insert(worldFacts).values({
           id: markerId,
-          category: 'system',
-          key: 'generation-marker',
-          label: 'World Facts Generation Marker',
+          category: GENERATION_MARKER.CATEGORY,
+          key: GENERATION_MARKER.KEY,
+          label: GENERATION_MARKER.LABEL,
           value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
-          source: 'auto-generated',
+          source: GENERATION_MARKER.SOURCE,
           lastUpdated: now,
-          isActive: false, // Marker, not shown in prompts
-          priority: -1,
+          isActive: GENERATION_MARKER.IS_ACTIVE,
+          priority: GENERATION_MARKER.PRIORITY,
           createdAt: now,
           updatedAt: now,
         });

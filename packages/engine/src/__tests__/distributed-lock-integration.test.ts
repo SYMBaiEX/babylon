@@ -286,55 +286,80 @@ describe('DistributedLockService - World Facts Scenario', () => {
     const LOCK_ID = 'world-facts-generation';
     const results: string[] = [];
 
+    // Retry configuration for acquiring lock
+    const RETRY_DELAY_MS = 15;
+    const MAX_RETRIES = 10;
+    const TIMEOUT_MS = 200;
+
+    const acquireWithRetry = async (processId: string): Promise<boolean> => {
+      const startTime = Date.now();
+      let hasRecordedBlocked = false;
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        if (Date.now() - startTime > TIMEOUT_MS) {
+          return false; // Timeout exceeded
+        }
+
+        const acquired = await DistributedLockService.acquireLock({
+          lockId: LOCK_ID,
+          durationMs: 100,
+          operation: 'test',
+          processId,
+        });
+
+        if (acquired) {
+          return true;
+        }
+
+        // Record 'blocked' only on first failed attempt
+        if (!hasRecordedBlocked) {
+          results.push(`${processId}-blocked`);
+          hasRecordedBlocked = true;
+        }
+
+        // Wait with small backoff before retry
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+
+      return false; // Max retries exceeded
+    };
+
     const process1 = async () => {
-      const acquired = await DistributedLockService.acquireLock({
-        lockId: LOCK_ID,
-        durationMs: 100,
-        operation: 'test',
-        processId: 'p1',
-      });
+      const acquired = await acquireWithRetry('p1');
       if (acquired) {
         results.push('p1-acquired');
         await new Promise((r) => setTimeout(r, 20));
         await DistributedLockService.releaseLock(LOCK_ID, 'p1');
         results.push('p1-released');
-      } else {
-        results.push('p1-blocked');
       }
     };
 
     const process2 = async () => {
-      const acquired = await DistributedLockService.acquireLock({
-        lockId: LOCK_ID,
-        durationMs: 100,
-        operation: 'test',
-        processId: 'p2',
-      });
+      const acquired = await acquireWithRetry('p2');
       if (acquired) {
         results.push('p2-acquired');
         await new Promise((r) => setTimeout(r, 20));
         await DistributedLockService.releaseLock(LOCK_ID, 'p2');
         results.push('p2-released');
-      } else {
-        results.push('p2-blocked');
       }
     };
 
     // Run concurrently
     await Promise.all([process1(), process2()]);
 
-    // Order-agnostic assertions: exactly one process should acquire, one should be blocked
+    // Both processes should eventually acquire and release the lock
     const acquiredCount = results.filter((r) => r.endsWith('-acquired')).length;
     const blockedCount = results.filter((r) => r.endsWith('-blocked')).length;
     const releasedCount = results.filter((r) => r.endsWith('-released')).length;
 
-    expect(acquiredCount).toBe(1);
-    expect(blockedCount).toBe(1);
-    expect(releasedCount).toBe(1);
+    expect(acquiredCount).toBe(2); // Both should acquire
+    expect(releasedCount).toBe(2); // Both should release
+    expect(blockedCount).toBeGreaterThanOrEqual(1); // At least one had to wait
 
-    // Verify exactly one of each process outcome
-    const p1Acquired = results.includes('p1-acquired');
-    const p2Acquired = results.includes('p2-acquired');
-    expect(p1Acquired !== p2Acquired).toBe(true); // XOR: exactly one acquired
+    // Verify both processes completed successfully
+    expect(results.includes('p1-acquired')).toBe(true);
+    expect(results.includes('p2-acquired')).toBe(true);
+    expect(results.includes('p1-released')).toBe(true);
+    expect(results.includes('p2-released')).toBe(true);
   });
 });
