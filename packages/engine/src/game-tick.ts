@@ -2540,8 +2540,12 @@ const WORLD_FACTS_LOCK_DURATION_MS =
     : DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES) *
   60 *
   1000;
-// Renew lock every 5 minutes to prevent expiry during long-running generation
-const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = 5 * 60 * 1000;
+// Renew lock at half the TTL (minimum 1 minute) to prevent expiry during long-running generation
+const MIN_LOCK_RENEWAL_INTERVAL_MS = 60 * 1000; // 1 minute minimum
+const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = Math.max(
+  MIN_LOCK_RENEWAL_INTERVAL_MS,
+  Math.floor(WORLD_FACTS_LOCK_DURATION_MS / 2)
+);
 
 /**
  * Check if we should update world facts
@@ -2667,36 +2671,52 @@ async function updateWorldFactsIfNeeded(): Promise<{
 
     const startTime = Date.now();
 
-    // Step 1: Fetch all RSS feeds
-    logger.info('Fetching RSS feeds...', undefined, 'GameTick');
-    const feedResult = await rssFeedService.fetchAllFeeds();
-    logger.info(
-      `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
-      feedResult,
-      'GameTick'
-    );
+    // Steps 1-3: RSS/parody pipeline - wrapped in try/catch so failures don't abort the whole tick
+    let feedResult = { fetched: 0, stored: 0, errors: 0 };
+    let parodies: Awaited<
+      ReturnType<ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']>
+    > = [];
+    let cleaned = 0;
 
-    // Step 2: Transform untransformed headlines into parodies
-    logger.info('Generating parody headlines...', undefined, 'GameTick');
-    const untransformedHeadlines =
-      await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
+    try {
+      // Step 1: Fetch all RSS feeds
+      logger.info('Fetching RSS feeds...', undefined, 'GameTick');
+      feedResult = await rssFeedService.fetchAllFeeds();
+      logger.info(
+        `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
+        feedResult,
+        'GameTick'
+      );
 
-    const generator = createParodyHeadlineGenerator();
-    const parodies = await generator.processHeadlines(untransformedHeadlines);
-    logger.info(
-      `Generated ${parodies.length} parody headlines`,
-      { count: parodies.length },
-      'GameTick'
-    );
+      // Step 2: Transform untransformed headlines into parodies
+      logger.info('Generating parody headlines...', undefined, 'GameTick');
+      const untransformedHeadlines =
+        await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
 
-    // Step 3: Clean up old headlines (older than 7 days)
-    logger.info('Cleaning up old headlines...', undefined, 'GameTick');
-    const cleaned = await rssFeedService.cleanupOldHeadlines();
-    logger.info(
-      `Cleaned up ${cleaned} old headlines`,
-      { count: cleaned },
-      'GameTick'
-    );
+      const generator = createParodyHeadlineGenerator();
+      parodies = await generator.processHeadlines(untransformedHeadlines);
+      logger.info(
+        `Generated ${parodies.length} parody headlines`,
+        { count: parodies.length },
+        'GameTick'
+      );
+
+      // Step 3: Clean up old headlines (older than 7 days)
+      logger.info('Cleaning up old headlines...', undefined, 'GameTick');
+      cleaned = await rssFeedService.cleanupOldHeadlines();
+      logger.info(
+        `Cleaned up ${cleaned} old headlines`,
+        { count: cleaned },
+        'GameTick'
+      );
+    } catch (error) {
+      logger.error(
+        'Error in RSS/parody pipeline, aborting world facts update',
+        { error },
+        'GameTick'
+      );
+      return { updated: false };
+    }
 
     // Step 4: Generate new world facts from game activity (events, markets, questions, actors)
     // This is critical for keeping the world narrative fresh and dynamic
