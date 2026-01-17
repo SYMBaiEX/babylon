@@ -2745,8 +2745,10 @@ async function updateWorldFactsIfNeeded(): Promise<{
       archived: 0,
       sources: { events: 0, markets: 0, questions: 0, actors: 0 },
     };
+    let factsGenerationSucceeded = false;
     try {
       factsResult = await worldFactsGenerator.generateNewWorldFacts();
+      factsGenerationSucceeded = true;
       logger.info(
         `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
         factsResult,
@@ -2758,33 +2760,36 @@ async function updateWorldFactsIfNeeded(): Promise<{
         { error },
         'GameTick'
       );
+      // Don't set factsGenerationSucceeded - marker will be skipped so retries aren't delayed
     }
 
     // Step 5: Insert last-run marker to prevent re-triggers when generation produces 0 facts
-    // This ensures the timestamp advances even if no facts are created (empty/failed runs)
-    let markerId: string | undefined;
-    try {
-      const now = new Date();
-      markerId = await generateSnowflakeId();
-      await db.insert(worldFacts).values({
-        id: markerId,
-        category: 'system',
-        key: 'generation-marker',
-        label: 'World Facts Generation Marker',
-        value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
-        source: 'auto-generated',
-        lastUpdated: now,
-        isActive: false, // Marker, not shown in prompts
-        priority: -1,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } catch (error) {
-      logger.error(
-        'Error inserting generation-marker world fact',
-        { error, markerId, factsGenerated: factsResult.generated },
-        'GameTick'
-      );
+    // Only insert marker on successful runs - failed runs should allow immediate retry
+    if (factsGenerationSucceeded) {
+      let markerId: string | undefined;
+      try {
+        const now = new Date();
+        markerId = await generateSnowflakeId();
+        await db.insert(worldFacts).values({
+          id: markerId,
+          category: 'system',
+          key: 'generation-marker',
+          label: 'World Facts Generation Marker',
+          value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
+          source: 'auto-generated',
+          lastUpdated: now,
+          isActive: false, // Marker, not shown in prompts
+          priority: -1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch (error) {
+        logger.error(
+          'Error inserting generation-marker world fact',
+          { error, markerId, factsGenerated: factsResult.generated },
+          'GameTick'
+        );
+      }
     }
 
     const duration = Date.now() - startTime;
