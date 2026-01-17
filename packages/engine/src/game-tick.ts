@@ -2727,21 +2727,30 @@ async function updateWorldFactsIfNeeded(): Promise<{
 
     // Step 5: Insert last-run marker to prevent re-triggers when generation produces 0 facts
     // This ensures the timestamp advances even if no facts are created (empty/failed runs)
-    const now = new Date();
-    const markerId = await generateSnowflakeId();
-    await db.insert(worldFacts).values({
-      id: markerId,
-      category: 'system',
-      key: 'generation-marker',
-      label: 'World Facts Generation Marker',
-      value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
-      source: 'auto-generated',
-      lastUpdated: now,
-      isActive: false, // Marker, not shown in prompts
-      priority: -1,
-      createdAt: now,
-      updatedAt: now,
-    });
+    let markerId: string | undefined;
+    try {
+      const now = new Date();
+      markerId = await generateSnowflakeId();
+      await db.insert(worldFacts).values({
+        id: markerId,
+        category: 'system',
+        key: 'generation-marker',
+        label: 'World Facts Generation Marker',
+        value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
+        source: 'auto-generated',
+        lastUpdated: now,
+        isActive: false, // Marker, not shown in prompts
+        priority: -1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      logger.error(
+        'Error inserting generation-marker world fact',
+        { error, markerId, factsGenerated: factsResult.generated },
+        'GameTick'
+      );
+    }
 
     const duration = Date.now() - startTime;
     logger.info(
