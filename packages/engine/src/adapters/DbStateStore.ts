@@ -186,18 +186,10 @@ export class DbStateStore implements GameStateStore {
           `Rate limited: Article creation blocked by rate limiter${result.error ? ` - ${result.error}` : ''}`
         );
       }
-      throw new Error(
-        result.error ||
-          `Failed to persist article${result.articleId ? ` (articleId: ${result.articleId})` : ''}`
-      );
+      throw new Error(result.error || 'Failed to persist article');
     }
 
-    if (!result.articleId) {
-      throw new Error(
-        'Article persistence succeeded but articleId is missing from result'
-      );
-    }
-
+    // With discriminated union, articleId is guaranteed to exist when success is true
     return result.articleId;
   }
 

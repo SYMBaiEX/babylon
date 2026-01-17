@@ -41,18 +41,36 @@ export interface PersistArticleOptions {
 }
 
 /**
- * Result of article persistence attempt
+ * Result of a successful article persistence
  */
-export interface PersistArticleResult {
-  /** Whether the article was successfully persisted */
-  success: boolean;
-  /** The article ID (snowflake) if successful */
-  articleId?: string;
+export interface PersistArticleSuccess {
+  /** Article was successfully persisted */
+  success: true;
+  /** The article ID (snowflake) - always present on success */
+  articleId: string;
+  rateLimited?: never;
+  error?: never;
+}
+
+/**
+ * Result of a failed article persistence
+ */
+export interface PersistArticleFailure {
+  /** Article was not persisted */
+  success: false;
+  /** Article ID is not available on failure */
+  articleId?: never;
   /** Whether the article was rejected due to rate limiting */
   rateLimited?: boolean;
   /** Error message if persistence failed */
   error?: string;
 }
+
+/**
+ * Result of article persistence attempt.
+ * Discriminated union that guarantees articleId is present when success is true.
+ */
+export type PersistArticleResult = PersistArticleSuccess | PersistArticleFailure;
 
 /**
  * Persist an article to the database.

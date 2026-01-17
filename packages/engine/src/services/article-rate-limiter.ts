@@ -370,7 +370,11 @@ export class BreakingArticleRateLimiterService {
     maxAllowed: number;
     remaining: number;
   }> {
-    const currentCount = this.getRecentArticleCount();
+    // Clean up expired timestamps on every check to prevent memory accumulation
+    // when canGenerateArticle() is called repeatedly without recording
+    this.cleanupExpiredTimestamps();
+
+    const currentCount = this.breakingArticleTimestamps.length;
     const remaining = Math.max(0, this.maxArticlesPerHour - currentCount);
 
     const result = {
@@ -393,6 +397,71 @@ export class BreakingArticleRateLimiterService {
     }
 
     return result;
+  }
+
+  /**
+   * Try to reserve a slot for a breaking article.
+   * This implements a reservation pattern to prevent race conditions.
+   *
+   * The slot is reserved by adding a timestamp immediately. If article
+   * generation fails, call `releaseSlot()` to free the reservation.
+   *
+   * @returns true if a slot was reserved, false if rate limit would be exceeded
+   */
+  tryReserveSlot(): boolean {
+    this.cleanupExpiredTimestamps();
+
+    if (this.breakingArticleTimestamps.length >= this.maxArticlesPerHour) {
+      logger.debug(
+        'Breaking article slot reservation failed - rate limit reached',
+        {
+          currentCount: this.breakingArticleTimestamps.length,
+          maxAllowed: this.maxArticlesPerHour,
+        },
+        'BreakingArticleRateLimiter'
+      );
+      return false;
+    }
+
+    // Reserve the slot by adding timestamp now
+    this.breakingArticleTimestamps.push(Date.now());
+
+    logger.debug(
+      'Breaking article slot reserved',
+      {
+        currentCount: this.breakingArticleTimestamps.length,
+        maxAllowed: this.maxArticlesPerHour,
+      },
+      'BreakingArticleRateLimiter'
+    );
+
+    return true;
+  }
+
+  /**
+   * Release a previously reserved slot.
+   * Call this if article generation fails after reserving a slot.
+   *
+   * @returns true if a slot was released, false if no slots to release
+   */
+  releaseSlot(): boolean {
+    if (this.breakingArticleTimestamps.length === 0) {
+      return false;
+    }
+
+    // Remove the most recent timestamp (the reservation)
+    this.breakingArticleTimestamps.pop();
+
+    logger.debug(
+      'Breaking article slot released',
+      {
+        currentCount: this.breakingArticleTimestamps.length,
+        maxAllowed: this.maxArticlesPerHour,
+      },
+      'BreakingArticleRateLimiter'
+    );
+
+    return true;
   }
 
   /**

@@ -518,8 +518,9 @@ export async function executeGameTick(
 
           // Save proof article (if any) and update question atomically.
           // NOTE: Proof articles are inserted inline (not via article-persistence service)
-          // because they must be atomic with the question update. Proof articles
-          // intentionally bypass rate limiting since they're essential for resolution.
+          // because they must be atomic with the question update within this database
+          // transaction. Proof articles intentionally bypass rate limiting since
+          // they're essential for resolution and must always be created.
           await db.transaction(async (tx) => {
             if (proofResult.proof?.type === 'article') {
               await tx.insert(posts).values({

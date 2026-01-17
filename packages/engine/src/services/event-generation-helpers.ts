@@ -838,11 +838,11 @@ export async function maybeGenerateBreakingArticle(
     return 0;
   }
 
-  // Check breaking rate limit (separate from regular articles)
-  const { allowed, currentCount, maxAllowed } =
-    await breakingArticleRateLimiter.canGenerateArticle();
-
-  if (!allowed) {
+  // Use reservation pattern to prevent race conditions:
+  // Reserve a slot before generation, release if it fails
+  if (!breakingArticleRateLimiter.tryReserveSlot()) {
+    const { currentCount, maxAllowed } =
+      await breakingArticleRateLimiter.canGenerateArticle();
     logger.debug(
       'Breaking article skipped - rate limit reached',
       { eventId, eventType, currentCount, maxAllowed },
@@ -857,27 +857,37 @@ export async function maybeGenerateBreakingArticle(
     'EventGeneration'
   );
 
-  // Reuse the existing arc event article generation logic
-  // This handles org selection, article generation, and persistence
-  // Pass skipRateLimit=true since we've already checked breakingArticleRateLimiter
-  const articlesCreated = await generateArticlesForArcEvent(
-    eventId,
-    'created', // Breaking articles are always fresh coverage
-    question,
-    llmClient,
-    timestamp,
-    dayNumber,
-    { skipRateLimit: true }
-  );
+  try {
+    // Reuse the existing arc event article generation logic
+    // This handles org selection, article generation, and persistence
+    // Pass skipRateLimit=true since we've already reserved a slot
+    const articlesCreated = await generateArticlesForArcEvent(
+      eventId,
+      'created', // Breaking articles are always fresh coverage
+      question,
+      llmClient,
+      timestamp,
+      dayNumber,
+      { skipRateLimit: true }
+    );
 
-  // Record each breaking article in the in-memory rate limiter
-  // This is necessary because the breaking rate limiter tracks articles separately
-  // from the database-backed regular article rate limiter
-  for (let i = 0; i < articlesCreated; i++) {
-    breakingArticleRateLimiter.recordBreakingArticle(timestamp.getTime());
+    // If we created more than 1 article, record the additional ones
+    // (first one was already recorded via tryReserveSlot)
+    for (let i = 1; i < articlesCreated; i++) {
+      breakingArticleRateLimiter.recordBreakingArticle(timestamp.getTime());
+    }
+
+    // If no articles were created, release the reserved slot
+    if (articlesCreated === 0) {
+      breakingArticleRateLimiter.releaseSlot();
+    }
+
+    return articlesCreated;
+  } catch (error) {
+    // Release the reserved slot on failure
+    breakingArticleRateLimiter.releaseSlot();
+    throw error;
   }
-
-  return articlesCreated;
 }
 
 /**
