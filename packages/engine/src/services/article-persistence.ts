@@ -15,8 +15,8 @@
  */
 
 import { db, eq, posts } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { ArticlePersistInput } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { articleRateLimiter } from './article-rate-limiter';
 
@@ -190,8 +190,7 @@ export async function persistArticle(
 
     return { success: true, articleId };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
       'Failed to persist article',
       {

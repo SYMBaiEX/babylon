@@ -387,7 +387,11 @@ export async function generateEvents(
       if (breakingArticles > 0) {
         logger.info(
           'Breaking article generated from world event',
-          { eventId, eventType: eventConfig.type, articlesCreated: breakingArticles },
+          {
+            eventId,
+            eventType: eventConfig.type,
+            articlesCreated: breakingArticles,
+          },
           'EventGeneration'
         );
       }
@@ -799,7 +803,11 @@ export async function maybeGenerateBreakingArticle(
   dayNumber?: number
 ): Promise<number> {
   // Only breaking-worthy events trigger articles
-  if (!BREAKING_EVENT_TYPES.includes(eventType as (typeof BREAKING_EVENT_TYPES)[number])) {
+  if (
+    !BREAKING_EVENT_TYPES.includes(
+      eventType as (typeof BREAKING_EVENT_TYPES)[number]
+    )
+  ) {
     return 0;
   }
 

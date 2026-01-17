@@ -17,7 +17,6 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
-import { persistArticle } from '../services/article-persistence';
 import type {
   ActiveMarket,
   ActiveQuestion,
@@ -32,6 +31,7 @@ import type {
   TradeInput,
   TradeResult,
 } from '../GameTick';
+import { persistArticle } from '../services/article-persistence';
 import { StaticDataRegistry } from '../services/static-data-registry';
 
 export class DbStateStore implements GameStateStore {
