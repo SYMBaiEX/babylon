@@ -182,7 +182,8 @@ describe('Lock Renewal Interval Calculation', () => {
    */
   function calculateLockRenewalInterval(lockDurationMs: number): number {
     // Compute half of lock duration (within 1/8 to 1/3 guidance)
-    const computedInterval = Math.floor(lockDurationMs / 2);
+    // Ensure computed interval is at least 1ms to avoid 0 for small lockDurationMs
+    const computedInterval = Math.max(1, Math.floor(lockDurationMs / 2));
 
     // Ensure renewal is always strictly less than lock duration
     // For very short locks, clamp to at least 1ms before expiry

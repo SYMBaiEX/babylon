@@ -545,8 +545,14 @@ describe('World Facts Update - Marker Persistence Integration', () => {
       expect(actualMarker!.value as string).toContain('Generation run at');
       expect(actualMarker!.value as string).toContain('facts created');
     } else {
-      // Bun mock isolation: verify mock structure directly using imported constants
-      // This proves the expected structure is correct when the mock is called
+      // FALLBACK FOR BUN TEST ISOLATION:
+      // When Bun's test isolation prevents insertedMarkers from capturing actual
+      // function calls, we exercise the mock (mockInsertValues) directly instead
+      // of verifying production behavior. This proves the expected marker structure
+      // matches GENERATION_MARKER constants when the mock is invoked, even though
+      // it doesn't validate the actual updateWorldFactsIfNeeded() insert path.
+      // We call mockInsertValues() directly and verify insertedMarkers contains
+      // the expected shape - this is explicitly NOT testing production code.
       const now = new Date();
       const testMarker = {
         id: 'test-snowflake-id',
