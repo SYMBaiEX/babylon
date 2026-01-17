@@ -517,10 +517,9 @@ export function useChatPage() {
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
 
-  // Handle initial scroll using ResizeObserver for reliable timing
+  // Handle initial scroll - keep scrolling to bottom until stable
   useEffect(() => {
     const container = chatContainerRef.current;
-    // Only run when chatDetails matches selectedChatId (avoid stale data)
     if (
       !container ||
       !selectedChatId ||
@@ -528,45 +527,54 @@ export function useChatPage() {
     )
       return;
 
-    // If no pending scroll, nothing to do
     if (pendingInitialScrollRef.current !== selectedChatId) return;
 
-    const scrollToBottom = () => {
-      const maxScroll = container.scrollHeight - container.clientHeight;
-      if (maxScroll > 0) {
-        container.scrollTo({ top: maxScroll, behavior: 'auto' });
-      }
-    };
+    let rafId: number;
+    let lastScrollHeight = 0;
+    let stableCount = 0;
+    const MAX_STABLE = 5; // Need 5 consecutive stable frames
+    const MAX_TIME = 2000; // Give up after 2 seconds
+    const startTime = Date.now();
 
-    // Try immediate scroll (don't clear flag yet - content may still be loading)
-    scrollToBottom();
-
-    // Observe for content changes (images loading, layout shifts, etc.)
-    const resizeObserver = new ResizeObserver(() => {
+    const tick = () => {
       if (pendingInitialScrollRef.current !== selectedChatId) return;
-
-      // Content changed - scroll again
-      scrollToBottom();
-    });
-
-    const contentWrapper = container.firstElementChild;
-    if (contentWrapper) {
-      resizeObserver.observe(contentWrapper);
-    }
-
-    // Clear pending flag after delay - content should be stable by then
-    const timeoutId = setTimeout(() => {
-      if (pendingInitialScrollRef.current === selectedChatId) {
-        // Final scroll attempt
-        scrollToBottom();
+      if (Date.now() - startTime > MAX_TIME) {
+        // Timeout - clear flag and stop
         pendingInitialScrollRef.current = null;
         setIsAtBottom(true);
+        return;
       }
-    }, 300);
+
+      const currentHeight = container.scrollHeight;
+      const maxScroll = currentHeight - container.clientHeight;
+
+      // Always scroll to bottom
+      if (maxScroll > 0) {
+        container.scrollTop = maxScroll;
+      }
+
+      // Check if height is stable
+      if (currentHeight === lastScrollHeight) {
+        stableCount++;
+        if (stableCount >= MAX_STABLE) {
+          // Height stable for 5 frames - we're done
+          pendingInitialScrollRef.current = null;
+          setIsAtBottom(true);
+          return;
+        }
+      } else {
+        stableCount = 0;
+        lastScrollHeight = currentHeight;
+      }
+
+      // Keep going
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
 
     return () => {
-      resizeObserver.disconnect();
-      clearTimeout(timeoutId);
+      cancelAnimationFrame(rafId);
     };
   }, [selectedChatId, chatDetails]);
 
