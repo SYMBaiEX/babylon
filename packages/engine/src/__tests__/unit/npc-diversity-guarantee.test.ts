@@ -35,10 +35,19 @@ describe('NPC Diversity Guarantee - Selection Logic', () => {
 
     // Simulate state map with some NPCs having posted today, some not
     const stateMap = new Map<string, Partial<ActorStateRow>>([
-      ['npc-1', createMockActorState('npc-1', new Date('2026-01-05T10:00:00Z'))], // Posted today
-      ['npc-2', createMockActorState('npc-2', new Date('2026-01-04T10:00:00Z'))], // Posted yesterday
+      [
+        'npc-1',
+        createMockActorState('npc-1', new Date('2026-01-05T10:00:00Z')),
+      ], // Posted today
+      [
+        'npc-2',
+        createMockActorState('npc-2', new Date('2026-01-04T10:00:00Z')),
+      ], // Posted yesterday
       ['npc-3', createMockActorState('npc-3', null)], // Never posted
-      ['npc-4', createMockActorState('npc-4', new Date('2026-01-05T08:00:00Z'))], // Posted today
+      [
+        'npc-4',
+        createMockActorState('npc-4', new Date('2026-01-05T08:00:00Z')),
+      ], // Posted today
     ]);
 
     const activeNpcs = [
@@ -52,14 +61,15 @@ describe('NPC Diversity Guarantee - Selection Logic', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return (
-        !lastPost || lastPost.toISOString().split('T')[0] !== todayStr
-      );
+      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
     });
 
     // NPC 2 (posted yesterday) and NPC 3 (never posted) should be in diversity pool
     expect(neverPostedToday.length).toBe(2);
-    expect(neverPostedToday.map((n) => n.id).sort()).toEqual(['npc-2', 'npc-3']);
+    expect(neverPostedToday.map((n) => n.id).sort()).toEqual([
+      'npc-2',
+      'npc-3',
+    ]);
   });
 
   test('diversity slots calculation is at least 1', () => {
@@ -67,7 +77,10 @@ describe('NPC Diversity Guarantee - Selection Logic', () => {
     const diversityRatio = 0.3;
 
     for (const batchSize of batchSizes) {
-      const diversitySlots = Math.max(1, Math.floor(batchSize * diversityRatio));
+      const diversitySlots = Math.max(
+        1,
+        Math.floor(batchSize * diversityRatio)
+      );
       expect(diversitySlots).toBeGreaterThanOrEqual(1);
     }
   });
@@ -98,8 +111,14 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const todayStr = today.toISOString().split('T')[0];
 
     const stateMap = new Map<string, Partial<ActorStateRow>>([
-      ['npc-1', createMockActorState('npc-1', new Date('2026-01-05T10:00:00Z'))],
-      ['npc-2', createMockActorState('npc-2', new Date('2026-01-05T11:00:00Z'))],
+      [
+        'npc-1',
+        createMockActorState('npc-1', new Date('2026-01-05T10:00:00Z')),
+      ],
+      [
+        'npc-2',
+        createMockActorState('npc-2', new Date('2026-01-05T11:00:00Z')),
+      ],
     ]);
 
     const activeNpcs = [
@@ -110,9 +129,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return (
-        !lastPost || lastPost.toISOString().split('T')[0] !== todayStr
-      );
+      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
     });
 
     // All NPCs posted today, diversity pool is empty
@@ -133,9 +150,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return (
-        !lastPost || lastPost.toISOString().split('T')[0] !== todayStr
-      );
+      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
     });
 
     // No state means all NPCs are in diversity pool
@@ -168,9 +183,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return (
-        !lastPost || lastPost.toISOString().split('T')[0] !== todayStr
-      );
+      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
     });
 
     // Only NPC 1 (posted yesterday) should be in diversity pool
