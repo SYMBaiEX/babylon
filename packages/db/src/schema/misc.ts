@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { desc, relations } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -9,7 +9,6 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { desc } from 'drizzle-orm';
 import type { JsonValue } from '../types';
 import { realtimeOutboxStatusEnum } from './enums';
 
@@ -197,7 +196,10 @@ export const worldFacts = pgTable(
     index('WorldFact_category_isActive_idx').on(table.category, table.isActive),
     index('WorldFact_priority_idx').on(table.priority),
     index('WorldFact_lastUpdated_idx').on(table.lastUpdated),
-    index('WorldFact_source_createdAt_idx').on(table.source, desc(table.createdAt)),
+    index('WorldFact_source_createdAt_idx').on(
+      table.source,
+      desc(table.createdAt)
+    ),
   ]
 );
 

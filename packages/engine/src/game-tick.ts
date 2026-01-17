@@ -2516,7 +2516,9 @@ async function forceTrendingCalculation(): Promise<boolean> {
 
 // World facts update interval (configurable, default 8 hours - runs ~3 times per game day)
 const DEFAULT_WORLD_FACTS_UPDATE_INTERVAL_HOURS = 8;
-const parsedIntervalHours = Number(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS);
+const parsedIntervalHours = Number(
+  process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS
+);
 const WORLD_FACTS_UPDATE_INTERVAL_MS =
   (Number.isFinite(parsedIntervalHours) && parsedIntervalHours > 0
     ? parsedIntervalHours
@@ -2529,7 +2531,9 @@ const WORLD_FACTS_UPDATE_INTERVAL_MS =
 // Default 30 minutes to handle slow LLM responses; configurable via env
 const WORLD_FACTS_LOCK_ID = 'world-facts-generation';
 const DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES = 30;
-const parsedLockDuration = Number(process.env.WORLD_FACTS_LOCK_DURATION_MINUTES);
+const parsedLockDuration = Number(
+  process.env.WORLD_FACTS_LOCK_DURATION_MINUTES
+);
 const WORLD_FACTS_LOCK_DURATION_MS =
   (Number.isFinite(parsedLockDuration) && parsedLockDuration > 0
     ? parsedLockDuration
@@ -2640,11 +2644,7 @@ async function updateWorldFactsIfNeeded(): Promise<{
           );
         }
       } catch (error) {
-        logger.warn(
-          'Error renewing world facts lock',
-          { error },
-          'GameTick'
-        );
+        logger.warn('Error renewing world facts lock', { error }, 'GameTick');
       }
     }, WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS);
   };
