@@ -17,6 +17,7 @@ import {
   worldEvents,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
+import { persistArticle } from '../services/article-persistence';
 import type {
   ActiveMarket,
   ActiveQuestion,
@@ -165,21 +166,25 @@ export class DbStateStore implements GameStateStore {
   }
 
   async createArticle(article: ArticleInput): Promise<string> {
-    const id = await generateSnowflakeId();
+    // Delegate to shared persistence service (bypasses rate limit for simulation use)
+    const result = await persistArticle(
+      {
+        title: article.title,
+        summary: article.summary,
+        content: article.content,
+        authorOrgId: article.authorOrgId,
+        gameId: 'continuous',
+        category: article.category,
+        timestamp: article.timestamp,
+      },
+      { checkRateLimit: false, generateImage: false }
+    );
 
-    await db.insert(posts).values({
-      id,
-      type: 'article',
-      articleTitle: article.title,
-      content: article.summary,
-      fullContent: article.content,
-      authorId: article.authorOrgId,
-      timestamp: article.timestamp,
-      category: article.category,
-      gameId: 'continuous',
-    });
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to persist article');
+    }
 
-    return id;
+    return result.articleId!;
   }
 
   /**

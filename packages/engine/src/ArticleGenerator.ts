@@ -57,61 +57,22 @@
  * ```
  */
 
-import { generateSnowflakeId, type JsonValue, logger } from '@babylon/shared';
+import {
+  type Article,
+  generateSnowflakeId,
+  type JsonValue,
+  logger,
+} from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
 import { biasedArticle, renderPrompt, validateArticle } from './prompts';
 import { characterMappingService } from './services/character-mapping-service';
 import type { Actor, Organization, Question, WorldEvent } from './types/shared';
 import { shuffleArray } from './utils/randomization';
 
-type ArticleStage = 'breaking' | 'commentary' | 'resolution';
+// Re-export Article for consumers that import from this file
+export type { Article } from '@babylon/shared';
 
-/**
- * Long-form news article with metadata
- *
- * @interface Article
- *
- * @property id - Unique snowflake ID
- * @property title - Article headline
- * @property summary - 2-3 sentence summary for listings
- * @property content - Full article body (800-1500 words)
- * @property authorOrgId - Publishing organization ID
- * @property authorOrgName - Publishing organization name
- * @property byline - Optional journalist byline
- * @property bylineActorId - Optional journalist actor ID
- * @property biasScore - Bias direction (-1 critical, 0 neutral, +1 protective)
- * @property sentiment - Overall article sentiment
- * @property slant - Description of editorial angle
- * @property imageUrl - Optional hero image
- * @property relatedEventId - Event this article covers
- * @property relatedQuestion - Optional prediction market question ID
- * @property relatedActorIds - Actors mentioned in article
- * @property relatedOrgIds - Organizations mentioned in article
- * @property category - Article category (e.g., 'tech', 'scandal', 'finance')
- * @property tags - SEO/filtering tags
- * @property publishedAt - Publication timestamp
- */
-export interface Article {
-  id: string;
-  title: string;
-  summary: string;
-  content: string;
-  authorOrgId: string;
-  authorOrgName: string;
-  byline?: string;
-  bylineActorId?: string;
-  biasScore?: number;
-  sentiment?: 'positive' | 'negative' | 'neutral';
-  slant?: string;
-  imageUrl?: string;
-  relatedEventId?: string;
-  relatedQuestion?: number;
-  relatedActorIds: string[];
-  relatedOrgIds: string[];
-  category?: string;
-  tags: string[];
-  publishedAt: Date;
-}
+type ArticleStage = 'breaking' | 'commentary' | 'resolution';
 
 interface ArticleGenerationContext {
   event: WorldEvent;

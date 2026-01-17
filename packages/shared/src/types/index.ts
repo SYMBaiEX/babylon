@@ -6,6 +6,8 @@
 
 // Agent types
 export * from './agents';
+// Article types (Article, ArticleItem, ArticlePersistInput, ArticlePreview)
+export * from './article';
 // Auth types
 export * from './auth';
 // Common types (JsonValue, etc.)

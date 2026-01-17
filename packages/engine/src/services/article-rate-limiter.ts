@@ -269,3 +269,51 @@ export function createArticleRateLimiter(
   }
   return new ArticleRateLimiterService(config);
 }
+
+/**
+ * Default breaking article rate limit per hour.
+ * Breaking articles are event-triggered (scandals, leaks, revelations)
+ * and have their own allocation separate from regular articles.
+ */
+const DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR = 1;
+
+/**
+ * Parse the BREAKING_RATE_LIMIT_PER_HOUR environment variable.
+ */
+function parseBreakingRateLimit(): number {
+  const envValue = process.env.BREAKING_RATE_LIMIT_PER_HOUR;
+
+  if (!envValue) {
+    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
+  }
+
+  const parsed = parseInt(envValue, 10);
+
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    logger.warn(
+      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: "${envValue}". Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
+      { envValue, default: DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR },
+      'ArticleRateLimiter'
+    );
+    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
+  }
+
+  return parsed;
+}
+
+/**
+ * Rate limiter for breaking articles (event-triggered).
+ *
+ * Breaking articles are generated when significant world events occur
+ * (scandals, leaks, revelations) and have their own rate limit separate
+ * from regular scheduled articles.
+ *
+ * This allows for up to 3 articles/hour total:
+ * - 2 regular articles via article-tick cron
+ * - 1 breaking article triggered by events
+ *
+ * Configure via BREAKING_RATE_LIMIT_PER_HOUR environment variable.
+ */
+export const breakingArticleRateLimiter = new ArticleRateLimiterService({
+  maxArticlesPerHour: parseBreakingRateLimit(),
+});
