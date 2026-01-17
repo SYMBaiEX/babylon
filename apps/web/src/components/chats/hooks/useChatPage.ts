@@ -608,7 +608,7 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
+  }, [selectedChatId, hasMore, isLoadingMore, loadMore]);
 
   // Maintain scroll position after loading older messages
   useEffect(() => {
