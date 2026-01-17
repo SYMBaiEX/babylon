@@ -574,7 +574,12 @@ async function generateEventArticle(
       return { status: 'skipped', reason: 'rate_limit_at_persist' };
     }
 
-    return { status: 'success', id: result.articleId! };
+    // Validate articleId is present before returning success
+    if (!result.articleId) {
+      return { status: 'error', error: 'Persistence succeeded but articleId is missing' };
+    }
+
+    return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
@@ -656,7 +661,12 @@ async function generateBaselineArticle(
       return { status: 'skipped', reason: 'rate_limit_at_persist' };
     }
 
-    return { status: 'success', id: result.articleId! };
+    // Validate articleId is present before returning success
+    if (!result.articleId) {
+      return { status: 'error', error: 'Persistence succeeded but articleId is missing' };
+    }
+
+    return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
