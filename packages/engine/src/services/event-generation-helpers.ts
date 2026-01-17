@@ -710,6 +710,7 @@ export async function generateArticlesForArcEvent(
           slant: article.slant,
           category: article.category,
           timestamp: articleTimestamp,
+          relatedQuestion: article.relatedQuestion,
         },
         { checkRateLimit: !skipRateLimit }
       );
