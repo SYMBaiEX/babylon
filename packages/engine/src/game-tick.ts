@@ -31,12 +31,12 @@ import {
   posts,
   postTags,
   questions as questionsSchema,
-  rssHeadlines,
   tags,
   tickTokenStats,
   trendingTags,
   widgetCaches,
   worldEvents,
+  worldFacts,
 } from '@babylon/db';
 import {
   calculatePriceFromHoldings,
@@ -84,6 +84,7 @@ import {
   TradeExecutionService,
   timeframeArcProcessor,
   WalletService,
+  worldFactsGenerator,
 } from './services';
 import { broadcastToChannel } from './services/realtime-broadcaster';
 import type { TradingExecutionResult } from './types/market-decisions';
@@ -146,6 +147,8 @@ export interface GameTickResult {
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    worldFactsGenerated: number;
+    worldFactsArchived: number;
   };
   relationshipsUpdated?: number;
   /** Number of markets with simulated price volatility applied */
@@ -2510,29 +2513,54 @@ async function forceTrendingCalculation(): Promise<boolean> {
   return true;
 }
 
-// World facts update interval (24 hours in milliseconds)
-const WORLD_FACTS_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// World facts update interval (8 hours in milliseconds - runs ~3 times per game day)
+const WORLD_FACTS_UPDATE_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 /**
  * Check if we should update world facts
- * Uses the most recent RSSHeadline's fetchedAt timestamp
+ * Uses the most recent auto-generated world fact's createdAt timestamp
+ * This ensures game tick and cron don't conflict - they track independently
  */
 async function shouldUpdateWorldFacts(): Promise<boolean> {
-  const [lastHeadline] = await db
-    .select({ fetchedAt: rssHeadlines.fetchedAt })
-    .from(rssHeadlines)
-    .orderBy(desc(rssHeadlines.fetchedAt))
+  // Check when world facts from game activity were last generated
+  // Using 'auto-generated' source to track game activity facts specifically
+  const [lastAutoFact] = await db
+    .select({ createdAt: worldFacts.createdAt })
+    .from(worldFacts)
+    .where(eq(worldFacts.source, 'auto-generated'))
+    .orderBy(desc(worldFacts.createdAt))
     .limit(1);
 
-  if (!lastHeadline || !lastHeadline.fetchedAt) {
-    return true; // Never updated before
+  if (!lastAutoFact || !lastAutoFact.createdAt) {
+    logger.info(
+      'No auto-generated world facts found, triggering initial generation',
+      undefined,
+      'GameTick'
+    );
+    return true; // Never generated before
   }
 
-  const timeSinceLastUpdate = Date.now() - lastHeadline.fetchedAt.getTime();
-  return timeSinceLastUpdate >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+  const timeSinceLastGeneration =
+    Date.now() - lastAutoFact.createdAt.getTime();
+  const shouldUpdate = timeSinceLastGeneration >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+
+  if (shouldUpdate) {
+    logger.info(
+      'World facts generation triggered',
+      {
+        hoursSinceLastGeneration: Math.round(
+          timeSinceLastGeneration / (60 * 60 * 1000)
+        ),
+        thresholdHours: WORLD_FACTS_UPDATE_INTERVAL_MS / (60 * 60 * 1000),
+      },
+      'GameTick'
+    );
+  }
+
+  return shouldUpdate;
 }
 
-/** Updates world facts if 24+ hours since last update. */
+/** Updates world facts if 8+ hours since last update. */
 async function updateWorldFactsIfNeeded(): Promise<{
   updated: boolean;
   stats?: {
@@ -2540,6 +2568,8 @@ async function updateWorldFactsIfNeeded(): Promise<{
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    worldFactsGenerated: number;
+    worldFactsArchived: number;
   };
 }> {
   const shouldUpdate = await shouldUpdateWorldFacts();
@@ -2588,6 +2618,33 @@ async function updateWorldFactsIfNeeded(): Promise<{
     'GameTick'
   );
 
+  // Step 4: Generate new world facts from game activity (events, markets, questions, actors)
+  // This is critical for keeping the world narrative fresh and dynamic
+  logger.info(
+    'Generating new world facts from game activity...',
+    undefined,
+    'GameTick'
+  );
+  let factsResult = {
+    generated: 0,
+    archived: 0,
+    sources: { events: 0, markets: 0, questions: 0, actors: 0 },
+  };
+  try {
+    factsResult = await worldFactsGenerator.generateNewWorldFacts();
+    logger.info(
+      `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
+      factsResult,
+      'GameTick'
+    );
+  } catch (error) {
+    logger.error(
+      'Error generating world facts from game activity',
+      { error },
+      'GameTick'
+    );
+  }
+
   const duration = Date.now() - startTime;
   logger.info(
     '✅ World facts update completed',
@@ -2597,6 +2654,8 @@ async function updateWorldFactsIfNeeded(): Promise<{
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
     },
     'GameTick'
   );
@@ -2608,6 +2667,8 @@ async function updateWorldFactsIfNeeded(): Promise<{
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
     },
   };
 }
