@@ -152,9 +152,10 @@ export class WorldFactsGeneratorService {
 
   /**
    * Generate facts from recent world events
+   * Uses 48-hour window to capture more activity across game day boundaries
    */
   private async generateFactsFromEvents(): Promise<string[]> {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
     const recentEvents = await db
       .select({
@@ -167,7 +168,7 @@ export class WorldFactsGeneratorService {
       .from(worldEvents)
       .where(
         and(
-          gte(worldEvents.timestamp, oneDayAgo),
+          gte(worldEvents.timestamp, twoDaysAgo),
           eq(worldEvents.visibility, 'public')
         )
       )
@@ -319,9 +320,10 @@ Return as XML:
 
   /**
    * Generate facts from recently resolved questions
+   * Uses 7-day window to capture more question resolutions
    */
   private async generateFactsFromQuestions(): Promise<string[]> {
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const recentlyResolved = await db
       .select({
@@ -334,7 +336,7 @@ Return as XML:
       .where(
         and(
           eq(questions.status, 'resolved'),
-          gte(questions.resolutionDate, threeDaysAgo)
+          gte(questions.resolutionDate, sevenDaysAgo)
         )
       )
       .orderBy(desc(questions.resolutionDate))
@@ -362,10 +364,11 @@ Return as XML:
 
   /**
    * Generate facts about actor activities and relationships
+   * Uses 48-hour window to capture more actor activity
    */
   private async generateFactsFromActorActivity(): Promise<string[]> {
     // Get recent posts from main actors
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
     // Get main actors
     const mainActors = StaticDataRegistry.getAllActors()
@@ -387,7 +390,7 @@ Return as XML:
       .from(posts)
       .where(
         and(
-          gte(posts.timestamp, oneDayAgo),
+          gte(posts.timestamp, twoDaysAgo),
           isNull(posts.deletedAt),
           inArray(posts.authorId, actorIds)
         )

@@ -31,12 +31,12 @@ import {
   posts,
   postTags,
   questions as questionsSchema,
-  rssHeadlines,
   tags,
   tickTokenStats,
   trendingTags,
   widgetCaches,
   worldEvents,
+  worldFacts,
 } from '@babylon/db';
 import {
   calculatePriceFromHoldings,
@@ -62,6 +62,7 @@ import {
   calculateTrendingTags,
   createArcState,
   createParodyHeadlineGenerator,
+  DistributedLockService,
   FollowingMechanics,
   generateArcPulseEventsIfNeeded,
   generateEvents,
@@ -84,6 +85,7 @@ import {
   TradeExecutionService,
   timeframeArcProcessor,
   WalletService,
+  worldFactsGenerator,
 } from './services';
 import { broadcastToChannel } from './services/realtime-broadcaster';
 import type { TradingExecutionResult } from './types/market-decisions';
@@ -146,6 +148,8 @@ export interface GameTickResult {
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    worldFactsGenerated: number;
+    worldFactsArchived: number;
   };
   relationshipsUpdated?: number;
   /** Number of markets with simulated price volatility applied */
@@ -2510,106 +2514,355 @@ async function forceTrendingCalculation(): Promise<boolean> {
   return true;
 }
 
-// World facts update interval (24 hours in milliseconds)
-const WORLD_FACTS_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// World facts update interval (configurable, default 8 hours - runs ~3 times per game day)
+const DEFAULT_WORLD_FACTS_UPDATE_INTERVAL_HOURS = 8;
+const parsedIntervalHours = Number(
+  process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS
+);
+const WORLD_FACTS_UPDATE_INTERVAL_MS =
+  (Number.isFinite(parsedIntervalHours) && parsedIntervalHours > 0
+    ? parsedIntervalHours
+    : DEFAULT_WORLD_FACTS_UPDATE_INTERVAL_HOURS) *
+  60 *
+  60 *
+  1000;
+
+// Lock configuration for world facts generation
+// Default 30 minutes to handle slow LLM responses; configurable via env
+const WORLD_FACTS_LOCK_ID = 'world-facts-generation';
+const DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES = 30;
+const parsedLockDuration = Number(
+  process.env.WORLD_FACTS_LOCK_DURATION_MINUTES
+);
+const WORLD_FACTS_LOCK_DURATION_MS =
+  (Number.isFinite(parsedLockDuration) && parsedLockDuration > 0
+    ? parsedLockDuration
+    : DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES) *
+  60 *
+  1000;
+// Renew lock at half the TTL to prevent expiry during long-running generation
+// No minimum floor - allows short locks for testing while ensuring renewal before expiry
+const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = Math.min(
+  Math.floor(WORLD_FACTS_LOCK_DURATION_MS / 2),
+  WORLD_FACTS_LOCK_DURATION_MS - 1 // Ensure renewal is always before expiry
+);
+
+/**
+ * Generation Marker Constants
+ *
+ * These constants define the marker inserted after each successful world facts generation.
+ * The marker tracks when generation last ran, preventing re-triggers when 0 facts are produced.
+ *
+ * Exported for use in tests to maintain a single source of truth (DRY principle).
+ */
+export const GENERATION_MARKER = {
+  /** Category for system markers */
+  CATEGORY: 'system',
+  /** Key identifying generation run markers */
+  KEY: 'generation-marker',
+  /** Human-readable label */
+  LABEL: 'World Facts Generation Marker',
+  /** Source identifier matching other auto-generated facts */
+  SOURCE: 'auto-generated',
+  /** Markers are inactive (not shown in prompts) */
+  IS_ACTIVE: false,
+  /** Low priority to stay out of the way */
+  PRIORITY: -1,
+} as const;
 
 /**
  * Check if we should update world facts
- * Uses the most recent RSSHeadline's fetchedAt timestamp
+ * Uses the most recent auto-generated world fact's createdAt timestamp
+ * This ensures game tick and cron don't conflict - they track independently
  */
 async function shouldUpdateWorldFacts(): Promise<boolean> {
-  const [lastHeadline] = await db
-    .select({ fetchedAt: rssHeadlines.fetchedAt })
-    .from(rssHeadlines)
-    .orderBy(desc(rssHeadlines.fetchedAt))
+  // Check when world facts from game activity were last generated
+  // Using 'auto-generated' source to track game activity facts specifically
+  const [lastAutoFact] = await db
+    .select({ createdAt: worldFacts.createdAt })
+    .from(worldFacts)
+    .where(eq(worldFacts.source, 'auto-generated'))
+    .orderBy(desc(worldFacts.createdAt))
     .limit(1);
 
-  if (!lastHeadline || !lastHeadline.fetchedAt) {
-    return true; // Never updated before
+  if (!lastAutoFact || !lastAutoFact.createdAt) {
+    logger.info(
+      'No auto-generated world facts found, triggering initial generation',
+      undefined,
+      'GameTick'
+    );
+    return true; // Never generated before
   }
 
-  const timeSinceLastUpdate = Date.now() - lastHeadline.fetchedAt.getTime();
-  return timeSinceLastUpdate >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+  const timeSinceLastGeneration = Date.now() - lastAutoFact.createdAt.getTime();
+  const shouldUpdate =
+    timeSinceLastGeneration >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+
+  if (shouldUpdate) {
+    logger.info(
+      'World facts generation triggered',
+      {
+        hoursSinceLastGeneration: Math.round(
+          timeSinceLastGeneration / (60 * 60 * 1000)
+        ),
+        thresholdHours: WORLD_FACTS_UPDATE_INTERVAL_MS / (60 * 60 * 1000),
+      },
+      'GameTick'
+    );
+  }
+
+  return shouldUpdate;
 }
 
-/** Updates world facts if 24+ hours since last update. */
-async function updateWorldFactsIfNeeded(): Promise<{
+/**
+ * Updates world facts if 8+ hours since last update.
+ * Uses distributed locking to prevent concurrent generation across multiple processes.
+ * Inserts a last-run marker to prevent re-triggers when generation produces no facts.
+ */
+export async function updateWorldFactsIfNeeded(): Promise<{
   updated: boolean;
   stats?: {
     feedsFetched: number;
     newHeadlines: number;
     parodiesGenerated: number;
     headlinesCleaned: number;
+    worldFactsGenerated: number;
+    worldFactsArchived: number;
   };
 }> {
+  // Check if update is needed BEFORE acquiring lock to reduce database usage
+  // This avoids lock acquire/release overhead on most ticks (updates only every ~8 hours)
   const shouldUpdate = await shouldUpdateWorldFacts();
-
   if (!shouldUpdate) {
     logger.debug('World facts update not needed yet', undefined, 'GameTick');
     return { updated: false };
   }
 
-  logger.info(
-    '🌍 Starting world facts update from game tick',
-    undefined,
-    'GameTick'
-  );
+  // Generate a unique process ID for this run
+  const processId = `game-tick-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  const startTime = Date.now();
+  // Acquire distributed lock to prevent concurrent generation
+  const lockAcquired = await DistributedLockService.acquireLock({
+    lockId: WORLD_FACTS_LOCK_ID,
+    durationMs: WORLD_FACTS_LOCK_DURATION_MS,
+    operation: 'world-facts-generation',
+    processId,
+  });
 
-  // Step 1: Fetch all RSS feeds
-  logger.info('Fetching RSS feeds...', undefined, 'GameTick');
-  const feedResult = await rssFeedService.fetchAllFeeds();
-  logger.info(
-    `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
-    feedResult,
-    'GameTick'
-  );
+  if (!lockAcquired) {
+    logger.debug(
+      'World facts generation lock held by another process, skipping',
+      {
+        processId,
+        lockId: WORLD_FACTS_LOCK_ID,
+        lockDurationMs: WORLD_FACTS_LOCK_DURATION_MS,
+      },
+      'GameTick'
+    );
+    return { updated: false };
+  }
 
-  // Step 2: Transform untransformed headlines into parodies
-  logger.info('Generating parody headlines...', undefined, 'GameTick');
-  const untransformedHeadlines =
-    await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
-
-  const generator = createParodyHeadlineGenerator();
-  const parodies = await generator.processHeadlines(untransformedHeadlines);
-  logger.info(
-    `Generated ${parodies.length} parody headlines`,
-    { count: parodies.length },
-    'GameTick'
-  );
-
-  // Step 3: Clean up old headlines (older than 7 days)
-  logger.info('Cleaning up old headlines...', undefined, 'GameTick');
-  const cleaned = await rssFeedService.cleanupOldHeadlines();
-  logger.info(
-    `Cleaned up ${cleaned} old headlines`,
-    { count: cleaned },
-    'GameTick'
-  );
-
-  const duration = Date.now() - startTime;
-  logger.info(
-    '✅ World facts update completed',
+  logger.debug(
+    'Acquired world facts generation lock',
     {
-      duration: `${duration}ms`,
-      feedsFetched: feedResult.fetched,
-      newHeadlines: feedResult.stored,
-      parodiesGenerated: parodies.length,
-      headlinesCleaned: cleaned,
+      processId,
+      lockId: WORLD_FACTS_LOCK_ID,
+      lockDurationMs: WORLD_FACTS_LOCK_DURATION_MS,
     },
     'GameTick'
   );
 
-  return {
-    updated: true,
-    stats: {
-      feedsFetched: feedResult.fetched,
-      newHeadlines: feedResult.stored,
-      parodiesGenerated: parodies.length,
-      headlinesCleaned: cleaned,
-    },
+  // Set up periodic lock renewal to prevent expiry during long-running generation
+  let lockRenewalInterval: ReturnType<typeof setInterval> | null = null;
+  const startLockRenewal = () => {
+    lockRenewalInterval = setInterval(async () => {
+      try {
+        const renewed = await DistributedLockService.acquireLock({
+          lockId: WORLD_FACTS_LOCK_ID,
+          durationMs: WORLD_FACTS_LOCK_DURATION_MS,
+          operation: 'world-facts-generation-renewal',
+          processId,
+        });
+        if (renewed) {
+          logger.debug('World facts lock renewed', undefined, 'GameTick');
+        } else {
+          logger.warn(
+            'Failed to renew world facts lock - another process may have acquired it',
+            undefined,
+            'GameTick'
+          );
+        }
+      } catch (error) {
+        logger.warn('Error renewing world facts lock', { error }, 'GameTick');
+      }
+    }, WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS);
   };
+
+  try {
+    startLockRenewal();
+
+    // Re-check after acquiring lock to handle race condition where another process
+    // completed the update between our initial check and lock acquisition
+    const stillNeedsUpdate = await shouldUpdateWorldFacts();
+    if (!stillNeedsUpdate) {
+      logger.debug(
+        'World facts update no longer needed (another process completed it)',
+        undefined,
+        'GameTick'
+      );
+      return { updated: false };
+    }
+
+    logger.info(
+      '🌍 Starting world facts update from game tick',
+      undefined,
+      'GameTick'
+    );
+
+    const startTime = Date.now();
+
+    // Steps 1-3: RSS/parody pipeline - wrapped in try/catch so failures don't abort the whole tick
+    let feedResult = { fetched: 0, stored: 0, errors: 0 };
+    let parodies: Awaited<
+      ReturnType<
+        ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']
+      >
+    > = [];
+    let cleaned = 0;
+
+    try {
+      // Step 1: Fetch all RSS feeds
+      logger.info('Fetching RSS feeds...', undefined, 'GameTick');
+      feedResult = await rssFeedService.fetchAllFeeds();
+      logger.info(
+        `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
+        feedResult,
+        'GameTick'
+      );
+
+      // Step 2: Transform untransformed headlines into parodies
+      logger.info('Generating parody headlines...', undefined, 'GameTick');
+      const untransformedHeadlines =
+        await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
+
+      const generator = createParodyHeadlineGenerator();
+      parodies = await generator.processHeadlines(untransformedHeadlines);
+      logger.info(
+        `Generated ${parodies.length} parody headlines`,
+        { count: parodies.length },
+        'GameTick'
+      );
+
+      // Step 3: Clean up old headlines (older than 7 days)
+      logger.info('Cleaning up old headlines...', undefined, 'GameTick');
+      cleaned = await rssFeedService.cleanupOldHeadlines();
+      logger.info(
+        `Cleaned up ${cleaned} old headlines`,
+        { count: cleaned },
+        'GameTick'
+      );
+    } catch (error) {
+      logger.error(
+        'Error in RSS/parody pipeline, aborting world facts update',
+        { error },
+        'GameTick'
+      );
+      return { updated: false };
+    }
+
+    // Step 4: Generate new world facts from game activity (events, markets, questions, actors)
+    // This is critical for keeping the world narrative fresh and dynamic
+    logger.info(
+      'Generating new world facts from game activity...',
+      undefined,
+      'GameTick'
+    );
+    let factsResult = {
+      generated: 0,
+      archived: 0,
+      sources: { events: 0, markets: 0, questions: 0, actors: 0 },
+    };
+    let factsGenerationSucceeded = false;
+    try {
+      factsResult = await worldFactsGenerator.generateNewWorldFacts();
+      factsGenerationSucceeded = true;
+      logger.info(
+        `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
+        factsResult,
+        'GameTick'
+      );
+    } catch (error) {
+      logger.error(
+        'Error generating world facts from game activity',
+        { error },
+        'GameTick'
+      );
+      // Don't set factsGenerationSucceeded - marker will be skipped so retries aren't delayed
+    }
+
+    // Step 5: Insert last-run marker to prevent re-triggers when generation produces 0 facts
+    // Only insert marker on successful runs - failed runs should allow immediate retry
+    if (factsGenerationSucceeded) {
+      let markerId: string | undefined;
+      try {
+        const now = new Date();
+        markerId = await generateSnowflakeId();
+        await db.insert(worldFacts).values({
+          id: markerId,
+          category: GENERATION_MARKER.CATEGORY,
+          key: GENERATION_MARKER.KEY,
+          label: GENERATION_MARKER.LABEL,
+          value: `Generation run at ${now.toISOString()} - ${factsResult.generated} facts created`,
+          source: GENERATION_MARKER.SOURCE,
+          lastUpdated: now,
+          isActive: GENERATION_MARKER.IS_ACTIVE,
+          priority: GENERATION_MARKER.PRIORITY,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch (error) {
+        logger.error(
+          'Error inserting generation-marker world fact',
+          { error, markerId, factsGenerated: factsResult.generated },
+          'GameTick'
+        );
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info(
+      '✅ World facts update completed',
+      {
+        duration: `${duration}ms`,
+        feedsFetched: feedResult.fetched,
+        newHeadlines: feedResult.stored,
+        parodiesGenerated: parodies.length,
+        headlinesCleaned: cleaned,
+        worldFactsGenerated: factsResult.generated,
+        worldFactsArchived: factsResult.archived,
+      },
+      'GameTick'
+    );
+
+    return {
+      updated: true,
+      stats: {
+        feedsFetched: feedResult.fetched,
+        newHeadlines: feedResult.stored,
+        parodiesGenerated: parodies.length,
+        headlinesCleaned: cleaned,
+        worldFactsGenerated: factsResult.generated,
+        worldFactsArchived: factsResult.archived,
+      },
+    };
+  } finally {
+    // Stop lock renewal
+    if (lockRenewalInterval) {
+      clearInterval(lockRenewalInterval);
+    }
+    // Always release lock, even on error
+    await DistributedLockService.releaseLock(WORLD_FACTS_LOCK_ID, processId);
+  }
 }
 
 // ============================================================================

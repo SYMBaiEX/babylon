@@ -8,7 +8,6 @@
  * Uses shared cached validation from @babylon/api for efficiency.
  */
 
-import crypto from 'crypto';
 import {
   clearApiKeyCache,
   getApiKeyCacheStats,
@@ -17,6 +16,7 @@ import {
   validateUserApiKey,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import crypto from 'crypto';
 
 /**
  * Timing-safe comparison for API keys to prevent timing attacks.
@@ -126,7 +126,11 @@ export function validateApiKey(
   const providedKey = request.headers.get(A2A_API_KEY_HEADER);
 
   // Timing-safe comparison to prevent timing attacks
-  if (serverApiKey && providedKey && timingSafeEqual(providedKey, serverApiKey)) {
+  if (
+    serverApiKey &&
+    providedKey &&
+    timingSafeEqual(providedKey, serverApiKey)
+  ) {
     return { authenticated: true, authMethod: 'server-key' };
   }
 
@@ -161,7 +165,11 @@ export async function validateApiKeyAsync(
   request: AuthRequest,
   config: ApiKeyAuthConfig = {}
 ): Promise<AuthResult> {
-  const { serverApiKey, allowLocalhost = true, allowUserApiKeys = true } = config;
+  const {
+    serverApiKey,
+    allowLocalhost = true,
+    allowUserApiKeys = true,
+  } = config;
 
   const host = request.host ?? request.headers.get('host');
 
