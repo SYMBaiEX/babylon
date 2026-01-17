@@ -514,7 +514,19 @@ export class BreakingArticleRateLimiterService {
   }
 
   /**
-   * Get the number of breaking articles that can still be generated this hour
+   * Get the number of breaking articles that can still be generated this hour.
+   *
+   * @remarks
+   * **Intentionally synchronous**: Unlike `ArticleRateLimiterService.getRemainingSlots()`
+   * which returns `Promise<number>`, this method is synchronous because the
+   * `BreakingArticleRateLimiterService` uses in-memory tracking instead of database
+   * queries. All methods in this class (`canGenerateArticle()`, `getRecentArticleCount()`,
+   * etc.) are synchronous by design for performance and simplicity.
+   *
+   * If you need a unified interface across both services, wrap the call:
+   * ```typescript
+   * const remaining = await Promise.resolve(breakingArticleRateLimiter.getRemainingSlots());
+   * ```
    */
   getRemainingSlots(): number {
     const { remaining } = this.canGenerateArticle();
