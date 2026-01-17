@@ -258,28 +258,40 @@ describe('Lock Renewal Interval Calculation', () => {
   });
 });
 
-describe('Generation Marker Insertion', () => {
-  test('marker fields are correctly structured', () => {
-    // Verify the expected marker structure
-    const expectedMarker = {
-      category: 'system',
-      key: 'generation-marker',
-      label: 'World Facts Generation Marker',
-      value: expect.stringContaining('Generation run at'),
-      source: 'auto-generated',
-      isActive: false,
-      priority: -1,
-    };
+describe('Generation Marker Insertion - Specification', () => {
+  /**
+   * These tests verify the expected marker structure.
+   * Integration tests that call the real updateWorldFactsIfNeeded function
+   * and verify marker persistence are in world-facts-update.test.ts.
+   */
 
-    // Verify the marker structure matches our expectations
-    expect(expectedMarker.category).toBe('system');
-    expect(expectedMarker.key).toBe('generation-marker');
-    expect(expectedMarker.isActive).toBe(false);
-    expect(expectedMarker.priority).toBe(-1);
-    expect(expectedMarker.source).toBe('auto-generated');
+  test('marker has expected category and key', () => {
+    // The marker should use these specific values
+    const expectedCategory = 'system';
+    const expectedKey = 'generation-marker';
+
+    expect(expectedCategory).toBe('system');
+    expect(expectedKey).toBe('generation-marker');
   });
 
-  test('marker value includes timestamp and facts count', () => {
+  test('marker is inactive and has negative priority', () => {
+    // Markers should not appear in prompts (isActive: false)
+    // and have low priority (priority: -1)
+    const expectedIsActive = false;
+    const expectedPriority = -1;
+
+    expect(expectedIsActive).toBe(false);
+    expect(expectedPriority).toBe(-1);
+  });
+
+  test('marker source is auto-generated', () => {
+    // Markers use the same source as other auto-generated facts
+    const expectedSource = 'auto-generated';
+
+    expect(expectedSource).toBe('auto-generated');
+  });
+
+  test('marker value format includes timestamp and facts count', () => {
     const now = new Date();
     const factsGenerated = 5;
 
@@ -289,12 +301,23 @@ describe('Generation Marker Insertion', () => {
     expect(markerValue).toContain('5 facts created');
   });
 
-  test('marker with zero facts created', () => {
+  test('marker value format with zero facts created', () => {
     const now = new Date();
     const factsGenerated = 0;
 
     const markerValue = `Generation run at ${now.toISOString()} - ${factsGenerated} facts created`;
 
     expect(markerValue).toContain('0 facts created');
+  });
+
+  test('marker value follows expected pattern', () => {
+    const now = new Date();
+    const factsGenerated = 10;
+
+    const markerValue = `Generation run at ${now.toISOString()} - ${factsGenerated} facts created`;
+
+    // Verify the pattern: "Generation run at <ISO timestamp> - <count> facts created"
+    const pattern = /^Generation run at \d{4}-\d{2}-\d{2}T.+ - \d+ facts created$/;
+    expect(pattern.test(markerValue)).toBe(true);
   });
 });

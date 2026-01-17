@@ -2596,7 +2596,7 @@ async function shouldUpdateWorldFacts(): Promise<boolean> {
  * Uses distributed locking to prevent concurrent generation across multiple processes.
  * Inserts a last-run marker to prevent re-triggers when generation produces no facts.
  */
-async function updateWorldFactsIfNeeded(): Promise<{
+export async function updateWorldFactsIfNeeded(): Promise<{
   updated: boolean;
   stats?: {
     feedsFetched: number;
@@ -2629,11 +2629,25 @@ async function updateWorldFactsIfNeeded(): Promise<{
   if (!lockAcquired) {
     logger.debug(
       'World facts generation lock held by another process, skipping',
-      undefined,
+      {
+        processId,
+        lockId: WORLD_FACTS_LOCK_ID,
+        lockDurationMs: WORLD_FACTS_LOCK_DURATION_MS,
+      },
       'GameTick'
     );
     return { updated: false };
   }
+
+  logger.debug(
+    'Acquired world facts generation lock',
+    {
+      processId,
+      lockId: WORLD_FACTS_LOCK_ID,
+      lockDurationMs: WORLD_FACTS_LOCK_DURATION_MS,
+    },
+    'GameTick'
+  );
 
   // Set up periodic lock renewal to prevent expiry during long-running generation
   let lockRenewalInterval: ReturnType<typeof setInterval> | null = null;

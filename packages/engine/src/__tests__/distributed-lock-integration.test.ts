@@ -323,9 +323,18 @@ describe('DistributedLockService - World Facts Scenario', () => {
     // Run concurrently
     await Promise.all([process1(), process2()]);
 
-    // One should have acquired, one should have been blocked
-    expect(results).toContain('p1-acquired');
-    // p2 should be blocked (since p1 acquired first in this synchronous test)
-    expect(results).toContain('p2-blocked');
+    // Order-agnostic assertions: exactly one process should acquire, one should be blocked
+    const acquiredCount = results.filter((r) => r.endsWith('-acquired')).length;
+    const blockedCount = results.filter((r) => r.endsWith('-blocked')).length;
+    const releasedCount = results.filter((r) => r.endsWith('-released')).length;
+
+    expect(acquiredCount).toBe(1);
+    expect(blockedCount).toBe(1);
+    expect(releasedCount).toBe(1);
+
+    // Verify exactly one of each process outcome
+    const p1Acquired = results.includes('p1-acquired');
+    const p2Acquired = results.includes('p2-acquired');
+    expect(p1Acquired !== p2Acquired).toBe(true); // XOR: exactly one acquired
   });
 });
