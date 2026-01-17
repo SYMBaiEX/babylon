@@ -2607,6 +2607,14 @@ async function updateWorldFactsIfNeeded(): Promise<{
     worldFactsArchived: number;
   };
 }> {
+  // Check if update is needed BEFORE acquiring lock to reduce database usage
+  // This avoids lock acquire/release overhead on most ticks (updates only every ~8 hours)
+  const shouldUpdate = await shouldUpdateWorldFacts();
+  if (!shouldUpdate) {
+    logger.debug('World facts update not needed yet', undefined, 'GameTick');
+    return { updated: false };
+  }
+
   // Generate a unique process ID for this run
   const processId = `game-tick-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -2656,10 +2664,15 @@ async function updateWorldFactsIfNeeded(): Promise<{
   try {
     startLockRenewal();
 
-    const shouldUpdate = await shouldUpdateWorldFacts();
-
-    if (!shouldUpdate) {
-      logger.debug('World facts update not needed yet', undefined, 'GameTick');
+    // Re-check after acquiring lock to handle race condition where another process
+    // completed the update between our initial check and lock acquisition
+    const stillNeedsUpdate = await shouldUpdateWorldFacts();
+    if (!stillNeedsUpdate) {
+      logger.debug(
+        'World facts update no longer needed (another process completed it)',
+        undefined,
+        'GameTick'
+      );
       return { updated: false };
     }
 
