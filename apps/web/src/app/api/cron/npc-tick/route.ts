@@ -329,10 +329,16 @@ export async function POST(_req: NextRequest) {
     const diversitySlots = Math.max(1, Math.floor(NPCS_PER_TICK * 0.3));
     const regularSlots = NPCS_PER_TICK - diversitySlots;
 
-    // Shuffle never-posted NPCs for fair selection among them
-    const shuffledNeverPosted = [...neverPostedToday].sort(
-      () => secureRandom() - 0.5
-    );
+    // Shuffle never-posted NPCs for fair selection among them using Fisher-Yates
+    const fisherYatesShuffle = <T>(arr: T[]): T[] => {
+      const shuffled = [...arr];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(secureRandom() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+    const shuffledNeverPosted = fisherYatesShuffle(neverPostedToday);
     const diversitySelection = shuffledNeverPosted.slice(0, diversitySlots);
 
     // Remaining slots go to weighted random (exclude diversity picks)
@@ -916,7 +922,9 @@ export async function POST(_req: NextRequest) {
     const uniquePostersThisTick = npcsWhoPostedThisTick.length;
 
     // Count how many NPCs haven't posted today (diversity pool remaining)
-    const neverPostedTodayRemaining = neverPostedToday.length - diversitySlots;
+    // Use actual selection length, not diversitySlots, since selection may be smaller
+    const neverPostedTodayRemaining =
+      neverPostedToday.length - diversitySelection.length;
 
     // Log diversity metrics separately for easy monitoring
     logger.info(
