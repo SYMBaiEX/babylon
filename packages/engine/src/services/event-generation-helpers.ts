@@ -376,21 +376,36 @@ export async function generateEvents(
     // Trigger breaking article for high-impact events (scandals, leaks, revelations)
     // This adds unpredictability to article timing - users can't predict when breaking news appears
     if (llmClient) {
-      const breakingArticles = await maybeGenerateBreakingArticle(
-        eventId,
-        eventConfig.type,
-        question,
-        llmClient,
-        timestamp,
-        safeDayNumber
-      );
-      if (breakingArticles > 0) {
-        logger.info(
-          'Breaking article generated from world event',
+      try {
+        const breakingArticles = await maybeGenerateBreakingArticle(
+          eventId,
+          eventConfig.type,
+          question,
+          llmClient,
+          timestamp,
+          safeDayNumber
+        );
+        if (breakingArticles > 0) {
+          logger.info(
+            'Breaking article generated from world event',
+            {
+              eventId,
+              eventType: eventConfig.type,
+              articlesCreated: breakingArticles,
+            },
+            'EventGeneration'
+          );
+        }
+      } catch (error) {
+        // Log the error but don't rethrow - the world event was already inserted,
+        // so we don't want article generation failures to abort the surrounding loop
+        logger.error(
+          'Failed to generate breaking article from world event',
           {
             eventId,
             eventType: eventConfig.type,
-            articlesCreated: breakingArticles,
+            safeDayNumber,
+            error: error instanceof Error ? error.message : String(error),
           },
           'EventGeneration'
         );
@@ -841,9 +856,10 @@ export async function maybeGenerateBreakingArticle(
 
   // Use reservation pattern to prevent race conditions:
   // Reserve a slot before generation, release if it fails
-  if (!breakingArticleRateLimiter.tryReserveSlot()) {
+  const reservationId = breakingArticleRateLimiter.tryReserveSlot();
+  if (reservationId === null) {
     const { currentCount, maxAllowed } =
-      await breakingArticleRateLimiter.canGenerateArticle();
+      breakingArticleRateLimiter.canGenerateArticle();
     logger.debug(
       'Breaking article skipped - rate limit reached',
       { eventId, eventType, currentCount, maxAllowed },
@@ -854,7 +870,7 @@ export async function maybeGenerateBreakingArticle(
 
   logger.info(
     'Triggering breaking article for world event',
-    { eventId, eventType, questionId: question.id },
+    { eventId, eventType, questionId: question.id, reservationId },
     'EventGeneration'
   );
 
@@ -880,13 +896,13 @@ export async function maybeGenerateBreakingArticle(
 
     // If no articles were created, release the reserved slot
     if (articlesCreated === 0) {
-      breakingArticleRateLimiter.releaseSlot();
+      breakingArticleRateLimiter.releaseSlot(reservationId);
     }
 
     return articlesCreated;
   } catch (error) {
     // Release the reserved slot on failure
-    breakingArticleRateLimiter.releaseSlot();
+    breakingArticleRateLimiter.releaseSlot(reservationId);
     throw error;
   }
 }

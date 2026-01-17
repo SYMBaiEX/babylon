@@ -350,26 +350,27 @@ describe('BreakingArticleRateLimiterService', () => {
   });
 
   describe('tryReserveSlot', () => {
-    test('reserves slot when under limit', () => {
+    test('reserves slot when under limit and returns reservationId', () => {
       const limiter = new BreakingArticleRateLimiterService({
         maxArticlesPerHour: 2,
       });
 
-      const reserved = limiter.tryReserveSlot();
+      const reservationId = limiter.tryReserveSlot();
 
-      expect(reserved).toBe(true);
+      expect(reservationId).not.toBeNull();
+      expect(typeof reservationId).toBe('string');
       expect(limiter.getRecentArticleCount()).toBe(1);
     });
 
-    test('fails to reserve when at limit', () => {
+    test('fails to reserve when at limit and returns null', () => {
       const limiter = new BreakingArticleRateLimiterService({
         maxArticlesPerHour: 1,
       });
       limiter.recordBreakingArticle();
 
-      const reserved = limiter.tryReserveSlot();
+      const reservationId = limiter.tryReserveSlot();
 
-      expect(reserved).toBe(false);
+      expect(reservationId).toBeNull();
       expect(limiter.getRecentArticleCount()).toBe(1); // Still just 1
     });
 
@@ -378,34 +379,52 @@ describe('BreakingArticleRateLimiterService', () => {
         maxArticlesPerHour: 3,
       });
 
-      expect(limiter.tryReserveSlot()).toBe(true);
-      expect(limiter.tryReserveSlot()).toBe(true);
-      expect(limiter.tryReserveSlot()).toBe(true);
-      expect(limiter.tryReserveSlot()).toBe(false); // 4th should fail
+      expect(limiter.tryReserveSlot()).not.toBeNull();
+      expect(limiter.tryReserveSlot()).not.toBeNull();
+      expect(limiter.tryReserveSlot()).not.toBeNull();
+      expect(limiter.tryReserveSlot()).toBeNull(); // 4th should fail
 
       expect(limiter.getRecentArticleCount()).toBe(3);
+    });
+
+    test('returns unique reservation IDs', () => {
+      const limiter = new BreakingArticleRateLimiterService({
+        maxArticlesPerHour: 3,
+      });
+
+      const id1 = limiter.tryReserveSlot();
+      const id2 = limiter.tryReserveSlot();
+      const id3 = limiter.tryReserveSlot();
+
+      expect(id1).not.toBeNull();
+      expect(id2).not.toBeNull();
+      expect(id3).not.toBeNull();
+      expect(id1).not.toBe(id2);
+      expect(id2).not.toBe(id3);
+      expect(id1).not.toBe(id3);
     });
   });
 
   describe('releaseSlot', () => {
-    test('releases a reserved slot', () => {
+    test('releases a reserved slot by reservationId', () => {
       const limiter = new BreakingArticleRateLimiterService({
         maxArticlesPerHour: 1,
       });
-      limiter.tryReserveSlot();
+      const reservationId = limiter.tryReserveSlot();
 
       expect(limiter.getRecentArticleCount()).toBe(1);
+      expect(reservationId).not.toBeNull();
 
-      const released = limiter.releaseSlot();
+      const released = limiter.releaseSlot(reservationId!);
 
       expect(released).toBe(true);
       expect(limiter.getRecentArticleCount()).toBe(0);
     });
 
-    test('returns false when no slots to release', () => {
+    test('returns false when reservationId not found', () => {
       const limiter = new BreakingArticleRateLimiterService();
 
-      const released = limiter.releaseSlot();
+      const released = limiter.releaseSlot('non-existent-id');
 
       expect(released).toBe(false);
     });
@@ -415,11 +434,39 @@ describe('BreakingArticleRateLimiterService', () => {
         maxArticlesPerHour: 1,
       });
 
-      limiter.tryReserveSlot();
-      expect(limiter.tryReserveSlot()).toBe(false); // At limit
+      const reservationId = limiter.tryReserveSlot();
+      expect(reservationId).not.toBeNull();
+      expect(limiter.tryReserveSlot()).toBeNull(); // At limit
 
-      limiter.releaseSlot();
-      expect(limiter.tryReserveSlot()).toBe(true); // Can reserve again
+      limiter.releaseSlot(reservationId!);
+      expect(limiter.tryReserveSlot()).not.toBeNull(); // Can reserve again
+    });
+
+    test('releases only the specified reservation', () => {
+      const limiter = new BreakingArticleRateLimiterService({
+        maxArticlesPerHour: 3,
+      });
+
+      const id1 = limiter.tryReserveSlot();
+      const id2 = limiter.tryReserveSlot();
+      const id3 = limiter.tryReserveSlot();
+
+      expect(limiter.getRecentArticleCount()).toBe(3);
+
+      // Release the middle one
+      const released = limiter.releaseSlot(id2!);
+      expect(released).toBe(true);
+      expect(limiter.getRecentArticleCount()).toBe(2);
+
+      // Releasing the same ID again should fail
+      const releasedAgain = limiter.releaseSlot(id2!);
+      expect(releasedAgain).toBe(false);
+      expect(limiter.getRecentArticleCount()).toBe(2);
+
+      // Other reservations still exist
+      expect(limiter.releaseSlot(id1!)).toBe(true);
+      expect(limiter.releaseSlot(id3!)).toBe(true);
+      expect(limiter.getRecentArticleCount()).toBe(0);
     });
   });
 
