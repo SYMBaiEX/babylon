@@ -2515,15 +2515,29 @@ async function forceTrendingCalculation(): Promise<boolean> {
 }
 
 // World facts update interval (configurable, default 8 hours - runs ~3 times per game day)
+const DEFAULT_WORLD_FACTS_UPDATE_INTERVAL_HOURS = 8;
+const parsedIntervalHours = Number(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS);
 const WORLD_FACTS_UPDATE_INTERVAL_MS =
-  parseInt(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS ?? '8', 10) *
+  (Number.isFinite(parsedIntervalHours) && parsedIntervalHours > 0
+    ? parsedIntervalHours
+    : DEFAULT_WORLD_FACTS_UPDATE_INTERVAL_HOURS) *
   60 *
   60 *
   1000;
 
 // Lock configuration for world facts generation
+// Default 30 minutes to handle slow LLM responses; configurable via env
 const WORLD_FACTS_LOCK_ID = 'world-facts-generation';
-const WORLD_FACTS_LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES = 30;
+const parsedLockDuration = Number(process.env.WORLD_FACTS_LOCK_DURATION_MINUTES);
+const WORLD_FACTS_LOCK_DURATION_MS =
+  (Number.isFinite(parsedLockDuration) && parsedLockDuration > 0
+    ? parsedLockDuration
+    : DEFAULT_WORLD_FACTS_LOCK_DURATION_MINUTES) *
+  60 *
+  1000;
+// Renew lock every 5 minutes to prevent expiry during long-running generation
+const WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * Check if we should update world facts
@@ -2605,7 +2619,39 @@ async function updateWorldFactsIfNeeded(): Promise<{
     return { updated: false };
   }
 
+  // Set up periodic lock renewal to prevent expiry during long-running generation
+  let lockRenewalInterval: ReturnType<typeof setInterval> | null = null;
+  const startLockRenewal = () => {
+    lockRenewalInterval = setInterval(async () => {
+      try {
+        const renewed = await DistributedLockService.acquireLock({
+          lockId: WORLD_FACTS_LOCK_ID,
+          durationMs: WORLD_FACTS_LOCK_DURATION_MS,
+          operation: 'world-facts-generation-renewal',
+          processId,
+        });
+        if (renewed) {
+          logger.debug('World facts lock renewed', undefined, 'GameTick');
+        } else {
+          logger.warn(
+            'Failed to renew world facts lock - another process may have acquired it',
+            undefined,
+            'GameTick'
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          'Error renewing world facts lock',
+          { error },
+          'GameTick'
+        );
+      }
+    }, WORLD_FACTS_LOCK_RENEWAL_INTERVAL_MS);
+  };
+
   try {
+    startLockRenewal();
+
     const shouldUpdate = await shouldUpdateWorldFacts();
 
     if (!shouldUpdate) {
@@ -2724,6 +2770,10 @@ async function updateWorldFactsIfNeeded(): Promise<{
       },
     };
   } finally {
+    // Stop lock renewal
+    if (lockRenewalInterval) {
+      clearInterval(lockRenewalInterval);
+    }
     // Always release lock, even on error
     await DistributedLockService.releaseLock(WORLD_FACTS_LOCK_ID, processId);
   }
