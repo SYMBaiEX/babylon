@@ -181,10 +181,24 @@ export class DbStateStore implements GameStateStore {
     );
 
     if (!result.success) {
-      throw new Error(result.error || 'Failed to persist article');
+      if (result.rateLimited) {
+        throw new Error(
+          `Rate limited: Article creation blocked by rate limiter${result.error ? ` - ${result.error}` : ''}`
+        );
+      }
+      throw new Error(
+        result.error ||
+          `Failed to persist article${result.articleId ? ` (articleId: ${result.articleId})` : ''}`
+      );
     }
 
-    return result.articleId!;
+    if (!result.articleId) {
+      throw new Error(
+        'Article persistence succeeded but articleId is missing from result'
+      );
+    }
+
+    return result.articleId;
   }
 
   /**

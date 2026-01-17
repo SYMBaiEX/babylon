@@ -111,8 +111,8 @@ export interface ArticleItem {
   authorOrgName: string;
   /** Optional journalist byline */
   byline?: string;
-  /** Article sentiment (for display styling) */
-  sentiment?: string;
+  /** Article sentiment (for display styling) - matches Article.sentiment type */
+  sentiment?: 'positive' | 'negative' | 'neutral';
   /** Article category (for filtering/display) */
   category?: string;
   /** Publication timestamp as ISO string */

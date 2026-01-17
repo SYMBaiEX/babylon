@@ -28,39 +28,60 @@ export interface ArticleRateLimitConfig {
 const DEFAULT_MAX_ARTICLES_PER_HOUR = 2;
 
 /**
- * Parse and validate the ARTICLE_RATE_LIMIT_PER_HOUR environment variable.
+ * Parse and validate a positive integer environment variable.
  * Returns the default value if the env var is missing, NaN, or <= 0.
  *
- * @returns A valid positive integer for max articles per hour
+ * @param envVarName - Name of the environment variable to parse
+ * @param defaultValue - Default value to use if parsing fails
+ * @param logContext - Context string for logging (e.g., 'ArticleRateLimiter')
+ * @returns A valid positive integer
  */
-function parseMaxArticlesPerHour(): number {
-  const envValue = process.env.ARTICLE_RATE_LIMIT_PER_HOUR;
+function parsePositiveIntEnvVar(
+  envVarName: string,
+  defaultValue: number,
+  logContext: string
+): number {
+  const envValue = process.env[envVarName];
 
   if (!envValue) {
-    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+    return defaultValue;
   }
 
   const parsed = parseInt(envValue, 10);
 
   if (Number.isNaN(parsed)) {
     logger.warn(
-      `Invalid ARTICLE_RATE_LIMIT_PER_HOUR value: "${envValue}" is not a number. Using default: ${DEFAULT_MAX_ARTICLES_PER_HOUR}`,
-      { envValue, default: DEFAULT_MAX_ARTICLES_PER_HOUR },
-      'ArticleRateLimiter'
+      `Invalid ${envVarName} value: "${envValue}" is not a number. Using default: ${defaultValue}`,
+      { envValue, default: defaultValue },
+      logContext
     );
-    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+    return defaultValue;
   }
 
   if (parsed <= 0) {
     logger.warn(
-      `Invalid ARTICLE_RATE_LIMIT_PER_HOUR value: ${parsed} must be > 0. Using default: ${DEFAULT_MAX_ARTICLES_PER_HOUR}`,
-      { envValue, parsed, default: DEFAULT_MAX_ARTICLES_PER_HOUR },
-      'ArticleRateLimiter'
+      `Invalid ${envVarName} value: ${parsed} must be > 0. Using default: ${defaultValue}`,
+      { envValue, parsed, default: defaultValue },
+      logContext
     );
-    return DEFAULT_MAX_ARTICLES_PER_HOUR;
+    return defaultValue;
   }
 
   return parsed;
+}
+
+/**
+ * Parse and validate the ARTICLE_RATE_LIMIT_PER_HOUR environment variable.
+ * Returns the default value if the env var is missing, NaN, or <= 0.
+ *
+ * @returns A valid positive integer for max articles per hour
+ */
+function parseMaxArticlesPerHour(): number {
+  return parsePositiveIntEnvVar(
+    'ARTICLE_RATE_LIMIT_PER_HOUR',
+    DEFAULT_MAX_ARTICLES_PER_HOUR,
+    'ArticleRateLimiter'
+  );
 }
 
 /**
@@ -281,33 +302,144 @@ const DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR = 1;
  * Parse the BREAKING_RATE_LIMIT_PER_HOUR environment variable.
  */
 function parseBreakingRateLimit(): number {
-  const envValue = process.env.BREAKING_RATE_LIMIT_PER_HOUR;
+  return parsePositiveIntEnvVar(
+    'BREAKING_RATE_LIMIT_PER_HOUR',
+    DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR,
+    'ArticleRateLimiter'
+  );
+}
 
-  if (!envValue) {
-    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
+/**
+ * Breaking Article Rate Limiter Service
+ *
+ * Tracks breaking articles separately from regular articles using in-memory timestamps.
+ * This is necessary because the posts table doesn't have a field to distinguish
+ * breaking articles from regular articles, so database queries would count all articles.
+ *
+ * Breaking articles are event-triggered (scandals, leaks, revelations) and have
+ * their own rate limit separate from regular scheduled articles.
+ *
+ * @remarks
+ * **In-Memory Tracking**: This service uses in-memory timestamp tracking because:
+ * 1. The posts table lacks an isBreaking/subtype field to filter by
+ * 2. Breaking articles are infrequent (default 1/hour)
+ * 3. Tracking is reset on server restart, which is acceptable:
+ *    - Breaking events are time-sensitive and don't span restarts
+ *    - Worst case: one extra breaking article after restart
+ *
+ * **Concurrency Note**: Same TOCTOU considerations as ArticleRateLimiterService apply.
+ */
+export class BreakingArticleRateLimiterService {
+  private readonly maxArticlesPerHour: number;
+  private readonly windowMs: number;
+  /** Timestamps of breaking articles created within the current window */
+  private breakingArticleTimestamps: number[] = [];
+
+  constructor(
+    config: { maxArticlesPerHour?: number; windowMs?: number } = {}
+  ) {
+    this.maxArticlesPerHour = config.maxArticlesPerHour ?? parseBreakingRateLimit();
+    this.windowMs = config.windowMs ?? 60 * 60 * 1000; // 1 hour
   }
 
-  const parsed = parseInt(envValue, 10);
-
-  if (Number.isNaN(parsed)) {
-    logger.warn(
-      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: "${envValue}" is not a number. Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
-      { envValue, default: DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR },
-      'ArticleRateLimiter'
+  /**
+   * Clean up expired timestamps outside the current window
+   */
+  private cleanupExpiredTimestamps(): void {
+    const windowStart = Date.now() - this.windowMs;
+    this.breakingArticleTimestamps = this.breakingArticleTimestamps.filter(
+      (ts) => ts > windowStart
     );
-    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
   }
 
-  if (parsed <= 0) {
-    logger.warn(
-      `Invalid BREAKING_RATE_LIMIT_PER_HOUR value: ${parsed} must be > 0. Using default: ${DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR}`,
-      { envValue, parsed, default: DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR },
-      'ArticleRateLimiter'
+  /**
+   * Get the count of breaking articles created in the current time window
+   */
+  getRecentArticleCount(): number {
+    this.cleanupExpiredTimestamps();
+    return this.breakingArticleTimestamps.length;
+  }
+
+  /**
+   * Check if more breaking articles can be generated
+   *
+   * @returns Object with allowed status and remaining slots
+   */
+  async canGenerateArticle(): Promise<{
+    allowed: boolean;
+    currentCount: number;
+    maxAllowed: number;
+    remaining: number;
+  }> {
+    const currentCount = this.getRecentArticleCount();
+    const remaining = Math.max(0, this.maxArticlesPerHour - currentCount);
+
+    const result = {
+      allowed: currentCount < this.maxArticlesPerHour,
+      currentCount,
+      maxAllowed: this.maxArticlesPerHour,
+      remaining,
+    };
+
+    if (!result.allowed) {
+      logger.debug(
+        'Breaking article generation blocked by rate limit',
+        {
+          currentCount,
+          maxAllowed: this.maxArticlesPerHour,
+          windowMinutes: Math.round(this.windowMs / 60000),
+        },
+        'BreakingArticleRateLimiter'
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Record that a breaking article was created.
+   * Must be called after successfully persisting a breaking article.
+   *
+   * @param timestamp - Optional timestamp of creation (defaults to now)
+   */
+  recordBreakingArticle(timestamp?: number): void {
+    this.breakingArticleTimestamps.push(timestamp ?? Date.now());
+    this.cleanupExpiredTimestamps();
+
+    logger.debug(
+      'Recorded breaking article creation',
+      {
+        currentCount: this.breakingArticleTimestamps.length,
+        maxAllowed: this.maxArticlesPerHour,
+      },
+      'BreakingArticleRateLimiter'
     );
-    return DEFAULT_BREAKING_RATE_LIMIT_PER_HOUR;
   }
 
-  return parsed;
+  /**
+   * Get the number of breaking articles that can still be generated this hour
+   */
+  async getRemainingSlots(): Promise<number> {
+    const { remaining } = await this.canGenerateArticle();
+    return remaining;
+  }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): { maxArticlesPerHour: number; windowMs: number } {
+    return {
+      maxArticlesPerHour: this.maxArticlesPerHour,
+      windowMs: this.windowMs,
+    };
+  }
+
+  /**
+   * Reset the in-memory tracking (for testing purposes)
+   */
+  reset(): void {
+    this.breakingArticleTimestamps = [];
+  }
 }
 
 /**
@@ -317,12 +449,17 @@ function parseBreakingRateLimit(): number {
  * (scandals, leaks, revelations) and have their own rate limit separate
  * from regular scheduled articles.
  *
+ * This uses in-memory tracking instead of database queries because
+ * the posts table doesn't have a field to distinguish breaking articles
+ * from regular articles.
+ *
  * This allows for up to 3 articles/hour total:
  * - 2 regular articles via article-tick cron
  * - 1 breaking article triggered by events
  *
  * Configure via BREAKING_RATE_LIMIT_PER_HOUR environment variable.
+ *
+ * **IMPORTANT**: After successfully persisting a breaking article,
+ * call `breakingArticleRateLimiter.recordBreakingArticle()` to track it.
  */
-export const breakingArticleRateLimiter = new ArticleRateLimiterService({
-  maxArticlesPerHour: parseBreakingRateLimit(),
-});
+export const breakingArticleRateLimiter = new BreakingArticleRateLimiterService();

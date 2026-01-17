@@ -860,7 +860,7 @@ export async function maybeGenerateBreakingArticle(
   // Reuse the existing arc event article generation logic
   // This handles org selection, article generation, and persistence
   // Pass skipRateLimit=true since we've already checked breakingArticleRateLimiter
-  return generateArticlesForArcEvent(
+  const articlesCreated = await generateArticlesForArcEvent(
     eventId,
     'created', // Breaking articles are always fresh coverage
     question,
@@ -869,6 +869,15 @@ export async function maybeGenerateBreakingArticle(
     dayNumber,
     { skipRateLimit: true }
   );
+
+  // Record each breaking article in the in-memory rate limiter
+  // This is necessary because the breaking rate limiter tracks articles separately
+  // from the database-backed regular article rate limiter
+  for (let i = 0; i < articlesCreated; i++) {
+    breakingArticleRateLimiter.recordBreakingArticle(timestamp.getTime());
+  }
+
+  return articlesCreated;
 }
 
 /**
