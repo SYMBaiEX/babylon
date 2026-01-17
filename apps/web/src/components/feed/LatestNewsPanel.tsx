@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@babylon/shared';
+import { type ArticleItem, logger } from '@babylon/shared';
 import { AlertCircle, Newspaper, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,23 +9,6 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
-
-/**
- * Article item structure for latest news panel.
- */
-interface ArticleItem {
-  id: string;
-  title: string;
-  summary: string;
-  authorOrgName: string;
-  byline?: string;
-  sentiment?: string;
-  category?: string;
-  publishedAt: string;
-  relatedQuestion?: number;
-  slant?: string;
-  biasScore?: number;
-}
 
 /**
  * Latest news panel component for displaying recent articles.

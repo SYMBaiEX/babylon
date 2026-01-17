@@ -2,10 +2,8 @@ import {
   and,
   db,
   desc,
-  eq,
   gte,
   inArray,
-  posts,
   type Question,
   worldEvents,
 } from '@babylon/db';
@@ -19,8 +17,11 @@ import {
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
 import { worldFactsService } from '../world-facts-service';
-import { generateArticleImageWithRetry } from './article-image-service';
-import { articleRateLimiter } from './article-rate-limiter';
+import { persistArticle } from './article-persistence';
+import {
+  articleRateLimiter,
+  breakingArticleRateLimiter,
+} from './article-rate-limiter';
 import {
   getArcPlan,
   getPhaseForDay,
@@ -148,6 +149,13 @@ const EVENT_TYPES: EventTypeConfig[] = [
 ];
 
 /**
+ * Event types that warrant breaking news coverage.
+ * These high-impact events trigger immediate article generation
+ * with their own rate limit separate from regular scheduled articles.
+ */
+const BREAKING_EVENT_TYPES = ['scandal', 'leak', 'revelation'] as const;
+
+/**
  * Select a random event type based on weights
  */
 function selectEventType(): EventTypeConfig {
@@ -247,12 +255,14 @@ function selectRelevantActors(maxActors: number = 2): string[] {
  * @param questions - Active questions to generate events for
  * @param timestamp - Timestamp for the generated events
  * @param currentDay - Current game day (optional, used for arc plan phase detection)
+ * @param llmClient - Optional LLM client for breaking article generation
  * @returns Number of events created
  */
 export async function generateEvents(
   questions: QuestionForEvent[],
   timestamp: Date,
-  currentDay?: number
+  currentDay?: number,
+  llmClient?: BabylonLLMClient
 ): Promise<number> {
   if (questions.length === 0) return 0;
 
@@ -336,8 +346,10 @@ export async function generateEvents(
       }
     }
 
+    const eventId = await generateSnowflakeId();
+
     await db.insert(worldEvents).values({
-      id: await generateSnowflakeId(),
+      id: eventId,
       eventType: eventConfig.type,
       description,
       actors,
@@ -360,6 +372,45 @@ export async function generateEvents(
       },
       'EventGeneration'
     );
+
+    // Trigger breaking article for high-impact events (scandals, leaks, revelations)
+    // This adds unpredictability to article timing - users can't predict when breaking news appears
+    if (llmClient) {
+      try {
+        const breakingArticles = await maybeGenerateBreakingArticle(
+          eventId,
+          eventConfig.type,
+          question,
+          llmClient,
+          timestamp,
+          safeDayNumber
+        );
+        if (breakingArticles > 0) {
+          logger.info(
+            'Breaking article generated from world event',
+            {
+              eventId,
+              eventType: eventConfig.type,
+              articlesCreated: breakingArticles,
+            },
+            'EventGeneration'
+          );
+        }
+      } catch (error) {
+        // Log the error but don't rethrow - the world event was already inserted,
+        // so we don't want article generation failures to abort the surrounding loop
+        logger.error(
+          'Failed to generate breaking article from world event',
+          {
+            eventId,
+            eventType: eventConfig.type,
+            safeDayNumber,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'EventGeneration'
+        );
+      }
+    }
   }
 
   return eventsCreated;
@@ -492,6 +543,8 @@ export async function generateArcPulseEventsIfNeeded(
  * @param llmClient - LLM client for article generation
  * @param timestamp - Timestamp for the articles
  * @param dayNumber - Current game day
+ * @param options - Optional settings for article generation
+ * @param options.skipRateLimit - If true, skip the internal articleRateLimiter check (used by breaking articles which have their own rate limiter)
  * @returns Number of articles created
  */
 export async function generateArticlesForArcEvent(
@@ -500,19 +553,31 @@ export async function generateArticlesForArcEvent(
   question: QuestionForEvent,
   llmClient: BabylonLLMClient,
   timestamp: Date,
-  dayNumber?: number
+  dayNumber?: number,
+  options?: { skipRateLimit?: boolean }
 ): Promise<number> {
-  // Check hourly article rate limit FIRST - this is the global throttle
-  const { allowed, currentCount, maxAllowed, remaining } =
-    await articleRateLimiter.canGenerateArticle();
+  const { skipRateLimit = false } = options ?? {};
 
-  if (!allowed) {
-    logger.info(
-      'Skipping arc event article generation - hourly rate limit reached',
-      { arcEventId, eventStatus, currentCount, maxAllowed },
-      'EventGeneration'
-    );
-    return 0;
+  // Check hourly article rate limit FIRST - this is the global throttle
+  // Skip this check if caller has already checked a separate rate limiter (e.g., breaking articles)
+  let remaining = 2; // Default max if skipping rate limit
+  if (!skipRateLimit) {
+    const rateLimitResult = await articleRateLimiter.canGenerateArticle();
+
+    if (!rateLimitResult.allowed) {
+      logger.info(
+        'Skipping arc event article generation - hourly rate limit reached',
+        {
+          arcEventId,
+          eventStatus,
+          currentCount: rateLimitResult.currentCount,
+          maxAllowed: rateLimitResult.maxAllowed,
+        },
+        'EventGeneration'
+      );
+      return 0;
+    }
+    remaining = rateLimitResult.remaining;
   }
 
   // Get news organizations that haven't reported on this event status
@@ -576,15 +641,18 @@ export async function generateArticlesForArcEvent(
 
   for (const orgData of orgsToPublish) {
     // Re-check rate limit before each article to prevent race conditions
-    const { allowed: stillAllowed } =
-      await articleRateLimiter.canGenerateArticle();
-    if (!stillAllowed) {
-      logger.info(
-        'Rate limit reached during arc event article generation - stopping',
-        { arcEventId, eventStatus, articlesGenerated: results.length },
-        'EventGeneration'
-      );
-      break;
+    // Skip this check if caller has already checked a separate rate limiter
+    if (!skipRateLimit) {
+      const { allowed: stillAllowed } =
+        await articleRateLimiter.canGenerateArticle();
+      if (!stillAllowed) {
+        logger.info(
+          'Rate limit reached during arc event article generation - stopping',
+          { arcEventId, eventStatus, articlesGenerated: results.length },
+          'EventGeneration'
+        );
+        break;
+      }
     }
 
     const org = {
@@ -641,89 +709,58 @@ export async function generateArticlesForArcEvent(
       // so we use the article content directly without additional transformation.
       const articleTimestamp = article.publishedAt || timestamp;
 
-      // TOCTOU re-check: Verify rate limit immediately before DB insert
-      // Another process may have created articles during LLM generation
-      const { allowed: finalCheckAllowed } =
-        await articleRateLimiter.canGenerateArticle();
-      if (!finalCheckAllowed) {
-        logger.info(
-          'Rate limit reached during arc event article persistence (TOCTOU re-check)',
-          { arcEventId, eventStatus, orgId: org.id },
-          'EventGeneration'
-        );
-        // Record as rejected but not an error - rate limiting worked correctly
-        results.push({
-          status: 'rejected',
-          reason: new Error('Rate limit exceeded during persistence'),
-        });
-        break; // Exit loop immediately - no point trying more orgs if rate limited
-      }
-
-      // Insert article first, then generate image asynchronously (fire-and-forget)
-      // This makes article creation non-blocking on image generation
-      const articleId = await generateSnowflakeId();
-
-      await db.insert(posts).values({
-        id: articleId,
-        type: 'article',
-        content: article.summary || '',
-        fullContent: article.content || '',
-        articleTitle: article.title || 'Untitled',
-        byline: article.byline || undefined,
-        biasScore: article.biasScore || undefined,
-        sentiment: article.sentiment || undefined,
-        slant: article.slant || undefined,
-        category: article.category || undefined,
-        imageUrl: undefined, // Will be updated asynchronously if FAL_KEY is set
-        authorId: article.authorOrgId,
-        gameId: 'continuous',
-        dayNumber: dayNumber,
-        timestamp: articleTimestamp,
-      });
-
-      // Fire-and-forget image generation - updates post asynchronously after insert
-      // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
-      if (process.env.FAL_KEY) {
-        void generateArticleImageWithRetry({
+      // Use shared persistence service (includes rate limit check and image generation)
+      // Skip rate limit check in persistence if we're bypassing it (breaking articles have their own limiter)
+      const persistResult = await persistArticle(
+        {
           title: article.title || 'Untitled',
           summary: article.summary || '',
+          content: article.content || '',
+          authorOrgId: article.authorOrgId,
+          gameId: 'continuous',
+          dayNumber: dayNumber,
+          byline: article.byline,
+          biasScore: article.biasScore,
+          sentiment: article.sentiment,
+          slant: article.slant,
           category: article.category,
-        })
-          .then((imageUrl) => {
-            if (imageUrl) {
-              // Update the post with the generated image URL
-              db.update(posts)
-                .set({ imageUrl })
-                .where(eq(posts.id, articleId))
-                .catch((err) => {
-                  logger.warn(
-                    'Failed to update article with image URL',
-                    {
-                      arcEventId,
-                      eventStatus,
-                      orgId: org.id,
-                      articleId,
-                      error: err instanceof Error ? err.message : String(err),
-                    },
-                    'EventGeneration'
-                  );
-                });
-            }
-          })
-          .catch((err) => {
-            logger.debug(
-              'Image generation failed (non-blocking)',
-              {
-                arcEventId,
-                eventStatus,
-                orgId: org.id,
-                articleId,
-                error: err instanceof Error ? err.message : String(err),
-              },
-              'EventGeneration'
-            );
+          timestamp: articleTimestamp,
+          relatedQuestion: article.relatedQuestion,
+        },
+        { checkRateLimit: !skipRateLimit }
+      );
+
+      if (!persistResult.success) {
+        if (persistResult.rateLimited) {
+          logger.info(
+            'Rate limit reached during arc event article persistence',
+            { arcEventId, eventStatus, orgId: org.id },
+            'EventGeneration'
+          );
+          results.push({
+            status: 'rejected',
+            reason: new Error('Rate limit exceeded during persistence'),
           });
+          break; // Exit loop immediately - no point trying more orgs if rate limited
+        }
+        // Other persistence error
+        results.push({
+          status: 'rejected',
+          reason: new Error(persistResult.error || 'Unknown persistence error'),
+        });
+        continue;
       }
+
+      // Defensive guard: verify articleId exists after successful persistence
+      if (!persistResult.articleId) {
+        results.push({
+          status: 'rejected',
+          reason: new Error('Missing articleId after successful persistence'),
+        });
+        continue;
+      }
+
+      const articleId = persistResult.articleId;
 
       // Record that this org has covered this event status
       arcEventPacer.recordArcEventCoverage(
@@ -783,6 +820,91 @@ export async function generateArticlesForArcEvent(
   );
 
   return articlesCreated;
+}
+
+/**
+ * Maybe generate a breaking article for a significant world event.
+ *
+ * Breaking articles are triggered by high-impact events (scandals, leaks, revelations)
+ * and use a separate rate limit from regular scheduled articles. This adds unpredictability
+ * to article timing - users can't predict when breaking news will appear.
+ *
+ * @param eventId - The world event ID that triggered this
+ * @param eventType - The type of world event (scandal, leak, revelation, etc.)
+ * @param question - Related question for context
+ * @param llmClient - LLM client for article generation
+ * @param timestamp - Timestamp for the article
+ * @param dayNumber - Current game day
+ * @returns Number of articles created (0 if skipped, 1+ if generated)
+ */
+export async function maybeGenerateBreakingArticle(
+  eventId: string,
+  eventType: string,
+  question: QuestionForEvent,
+  llmClient: BabylonLLMClient,
+  timestamp: Date,
+  dayNumber?: number
+): Promise<number> {
+  // Only breaking-worthy events trigger articles
+  if (
+    !BREAKING_EVENT_TYPES.includes(
+      eventType as (typeof BREAKING_EVENT_TYPES)[number]
+    )
+  ) {
+    return 0;
+  }
+
+  // Use reservation pattern to prevent race conditions:
+  // Reserve a slot before generation, release if it fails
+  const reservationId = breakingArticleRateLimiter.tryReserveSlot();
+  if (reservationId === null) {
+    const { currentCount, maxAllowed } =
+      breakingArticleRateLimiter.canGenerateArticle();
+    logger.debug(
+      'Breaking article skipped - rate limit reached',
+      { eventId, eventType, currentCount, maxAllowed },
+      'EventGeneration'
+    );
+    return 0;
+  }
+
+  logger.info(
+    'Triggering breaking article for world event',
+    { eventId, eventType, questionId: question.id, reservationId },
+    'EventGeneration'
+  );
+
+  try {
+    // Reuse the existing arc event article generation logic
+    // This handles org selection, article generation, and persistence
+    // Pass skipRateLimit=true since we've already reserved a slot
+    const articlesCreated = await generateArticlesForArcEvent(
+      eventId,
+      'created', // Breaking articles are always fresh coverage
+      question,
+      llmClient,
+      timestamp,
+      dayNumber,
+      { skipRateLimit: true }
+    );
+
+    // If we created more than 1 article, record the additional ones
+    // (first one was already recorded via tryReserveSlot)
+    for (let i = 1; i < articlesCreated; i++) {
+      breakingArticleRateLimiter.recordBreakingArticle(timestamp.getTime());
+    }
+
+    // If no articles were created, release the reserved slot
+    if (articlesCreated === 0) {
+      breakingArticleRateLimiter.releaseSlot(reservationId);
+    }
+
+    return articlesCreated;
+  } catch (error) {
+    // Release the reserved slot on failure
+    breakingArticleRateLimiter.releaseSlot(reservationId);
+    throw error;
+  }
 }
 
 /**

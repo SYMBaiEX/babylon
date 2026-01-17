@@ -29,16 +29,16 @@ import {
   relayCronToStaging,
   verifyCronAuth,
 } from '@babylon/api';
-import { db, eq, games, posts } from '@babylon/db';
+import { db, eq, games } from '@babylon/db';
 import {
   type Article,
   ArticleGenerator,
   articleRateLimiter,
   BabylonLLMClient,
-  generateArticleImageWithRetry,
   getActiveEventsForPosting,
   hasEventBeenCovered,
   markEventAsCovered,
+  persistArticle,
   type StaticActor,
   StaticDataRegistry,
   type StaticOrganization,
@@ -156,26 +156,18 @@ export const dynamic = 'force-dynamic';
 const MAX_ARTICLES_PER_TICK = 1;
 
 /**
- * Result type for persistArticle to handle rate-limiting gracefully
- */
-type PersistArticleResult =
-  | { success: true; postId: string }
-  | { success: false; rateLimited: true };
-
-/**
- * Persist an article to the database.
- * ArticleGenerator already handles character mapping, so we just persist.
+ * Helper to persist an article using the shared persistence service.
+ * Converts Article from ArticleGenerator to ArticlePersistInput format.
  *
  * @param article - The Article from ArticleGenerator (already has parody names)
  * @param gameState - Current game state for context
- * @returns Success with post ID, or rate-limited result (not an error)
+ * @returns Result from the persistence service
  */
-async function persistArticle(
+async function persistArticleFromGenerator(
   article: Article,
   gameState: GameState
-): Promise<PersistArticleResult> {
-  // Validate required fields before doing any work
-  // Early validation provides clear errors instead of downstream DB failures
+) {
+  // Validate required fields before calling persistence service
   if (!article.id?.trim()) {
     throw new Error('Missing article id');
   }
@@ -195,88 +187,26 @@ async function persistArticle(
     throw new Error('Missing gameState.id');
   }
 
-  // Re-check rate limit immediately before insert to prevent TOCTOU race condition
-  // Another process may have created articles between the initial check and now
-  const { allowed: stillAllowed } =
-    await articleRateLimiter.canGenerateArticle();
-  if (!stillAllowed) {
-    // Return rate-limited result instead of throwing - this is not an error condition
-    logger.info(
-      'Article skipped due to rate limit (TOCTOU re-check)',
-      { authorId: article.authorOrgId },
-      'ArticleTick'
-    );
-    return { success: false, rateLimited: true };
-  }
-
-  const postId = article.id; // Use the ID from ArticleGenerator
-  const now = new Date();
-
-  // Insert article first without image - image generation is fire-and-forget
-  // ArticleGenerator already applied character mapping to title/summary/content
-  await db.insert(posts).values({
-    id: postId,
-    type: 'article',
-    content: article.summary,
-    fullContent: article.content,
-    articleTitle: article.title,
-    byline: article.byline || undefined,
-    biasScore: article.biasScore || undefined,
-    sentiment: article.sentiment || undefined,
-    slant: article.slant || undefined,
-    category: article.category || 'news',
-    imageUrl: undefined, // Will be updated asynchronously if FAL_KEY is set
-    authorId: article.authorOrgId,
-    gameId: gameState.id,
-    dayNumber: gameState.currentDay ?? 1,
-    timestamp: article.publishedAt || now,
-    createdAt: now,
-  });
-
-  // Fire-and-forget image generation - updates post asynchronously after insert
-  // Use void to explicitly mark as intentionally unhandled (silences floating-promise lint)
-  if (process.env.FAL_KEY) {
-    void generateArticleImageWithRetry({
+  // Use the shared persistence service
+  return persistArticle(
+    {
+      id: article.id,
       title: article.title,
       summary: article.summary,
-      category: article.category || 'news',
-    })
-      .then(async (imageUrl) => {
-        if (imageUrl) {
-          // Update the post with the generated image URL
-          try {
-            await db
-              .update(posts)
-              .set({ imageUrl })
-              .where(eq(posts.id, postId));
-          } catch (err) {
-            logger.warn(
-              'Failed to update article with image URL',
-              {
-                postId,
-                authorId: article.authorOrgId,
-                error: err instanceof Error ? err.message : String(err),
-              },
-              'ArticleTick'
-            );
-          }
-        }
-      })
-      .catch((err) => {
-        // Use warn level to help monitor FAL service health
-        logger.warn(
-          'Image generation failed (non-blocking)',
-          {
-            postId,
-            authorId: article.authorOrgId,
-            error: err instanceof Error ? err.message : String(err),
-          },
-          'ArticleTick'
-        );
-      });
-  }
-
-  return { success: true, postId };
+      content: article.content,
+      authorOrgId: article.authorOrgId,
+      gameId: gameState.id,
+      dayNumber: gameState.currentDay ?? 1,
+      byline: article.byline,
+      biasScore: article.biasScore,
+      sentiment: article.sentiment,
+      slant: article.slant,
+      category: article.category,
+      relatedQuestion: article.relatedQuestion,
+      timestamp: article.publishedAt,
+    },
+    { checkRateLimit: true }
+  );
 }
 
 /**
@@ -636,15 +566,23 @@ async function generateEventArticle(
       worldFactsContext // World facts context for current game state
     );
 
-    // Persist the article (includes TOCTOU re-check for race conditions)
-    const result = await persistArticle(article, gameState);
+    // Persist the article using shared persistence service (includes rate limit check)
+    const result = await persistArticleFromGenerator(article, gameState);
 
-    // Handle rate-limited result (not an error, just skipped)
+    // Handle persistence failures - distinguish rate limiting from actual errors
     if (!result.success) {
-      return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      if (result.rateLimited) {
+        return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      }
+      // Actual persistence error (DB failure, validation, etc.)
+      return {
+        status: 'error',
+        error: result.error || 'Unknown persistence error',
+      };
     }
 
-    return { status: 'success', id: result.postId };
+    // With discriminated union, articleId is guaranteed present when success is true
+    return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
@@ -718,15 +656,23 @@ async function generateBaselineArticle(
       worldFactsContext // World facts context for current game state
     );
 
-    // Persist the article (includes TOCTOU re-check for race conditions)
-    const result = await persistArticle(article, gameState);
+    // Persist the article using shared persistence service (includes rate limit check)
+    const result = await persistArticleFromGenerator(article, gameState);
 
-    // Handle rate-limited result (not an error, just skipped)
+    // Handle persistence failures - distinguish rate limiting from actual errors
     if (!result.success) {
-      return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      if (result.rateLimited) {
+        return { status: 'skipped', reason: 'rate_limit_at_persist' };
+      }
+      // Actual persistence error (DB failure, validation, etc.)
+      return {
+        status: 'error',
+        error: result.error || 'Unknown persistence error',
+      };
     }
 
-    return { status: 'success', id: result.postId };
+    // With discriminated union, articleId is guaranteed present when success is true
+    return { status: 'success', id: result.articleId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(

@@ -41,7 +41,6 @@ import {
   isDegenSpeaker,
   stripHashtagsAndEmojis,
 } from '../utils/shared-utils';
-import { generateArticleImageWithRetry } from './article-image-service';
 import { characterMappingService } from './character-mapping-service';
 import { buildPositionsPromptContextByActorId } from './npc-positions-context-service';
 import {
@@ -130,8 +129,6 @@ import {
   logVoiceMetrics,
 } from './npc-character-config';
 import { StaticDataRegistry } from './static-data-registry';
-import type { GeneratedTag } from './tag-service';
-import { generateTagsFromPost, storeTagsForPost } from './tag-service';
 
 /**
  * NPC-to-NPC interaction cooldown tracking (in-memory for simplicity)
@@ -249,7 +246,6 @@ interface NPCContentContext {
 }
 
 const MAX_POST_TOKENS = 16384; // No practical limit
-const MAX_ARTICLE_TOKENS = 16384; // No practical limit
 
 /**
  * Pre-fetch all shared context ONCE before generating posts
@@ -1291,194 +1287,9 @@ ${worldFactsContext}
   return true;
 }
 
-/**
- * Generate a full news article from an organization
- */
-export async function generateOrgArticle(
-  llmClient: BabylonLLMClient,
-  org: OrganizationForPost,
-  question: QuestionForPost,
-  worldFactsContext: string,
-  timestamp: Date,
-  currentDay?: number
-): Promise<boolean> {
-  const orgName = org.name || 'Unknown Org';
-
-  const prompt = `You are ${orgName}, a news organization writing a comprehensive article.
-
-=== YOUR IDENTITY ===
-${org.description || 'A major news publication'}
-
-=== TOPIC ===
-"${question.text}"
-
-=== CRITICAL RULES ===
-- ABSOLUTELY NO HASHTAGS anywhere in the article (no #crypto, #AI, NOTHING with #)
-- NO EMOJIS
-- Use ONLY parody names (AIlon Musk, TeslAI, OpenAGI, etc.) - NEVER real names
-
-${worldFactsContext}
-
-=== REQUIRED OUTPUT ===
-- "title": a compelling headline (max 100 characters)
-- "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
-- "article": a FULL-LENGTH article body (800-1200 words, at least 4 paragraphs). Include:
-  * An engaging lead paragraph that hooks readers
-  * Background context and relevant details
-  * Analysis of implications and what this means
-  * Expert perspectives or insider viewpoints (you can fabricate realistic quotes)
-  * A conclusion with forward-looking analysis
-  
-  The article must read like a professional newsroom piece from a major publication - NOT bullet points, NOT a summary. Separate paragraphs with \\n\\n (two newlines).
-
-Return your response as XML in this exact format:
-<response>
-  <title>news headline here</title>
-  <summary>2-3 sentence summary here</summary>
-  <article>full article body here with \\n\\n between paragraphs</article>
-</response>`;
-
-  const response = await llmClient.generateJSON<
-    | { title: string; summary: string; article: string }
-    | { response: { title: string; summary: string; article: string } }
-  >(
-    prompt,
-    {
-      properties: {
-        title: { type: 'string' },
-        summary: { type: 'string' },
-        article: { type: 'string' },
-      },
-      required: ['title', 'summary', 'article'],
-    },
-    {
-      temperature: 0.7,
-      maxTokens: MAX_ARTICLE_TOKENS,
-      format: 'xml',
-      promptType: 'generate_org_article',
-    }
-  );
-
-  // Safely extract article data, guarding against string responses
-  let articleData: { title: string; summary: string; article: string };
-  if (typeof response === 'string') {
-    logger.warn(
-      'LLM returned raw string instead of article object',
-      { orgName: org.name, questionId: question.id },
-      'PostGeneration'
-    );
-    return false;
-  }
-  if (
-    typeof response === 'object' &&
-    response !== null &&
-    'response' in response &&
-    response.response
-  ) {
-    articleData = response.response as typeof articleData;
-  } else {
-    articleData = response as typeof articleData;
-  }
-
-  if (!articleData?.title || !articleData?.summary || !articleData?.article) {
-    logger.warn(
-      'Empty article generated',
-      { orgName: org.name, questionId: question.id },
-      'PostGeneration'
-    );
-    return false;
-  }
-
-  // Strip hashtags and emojis first (defense-in-depth)
-  const summary = stripHashtagsAndEmojis(articleData.summary.trim());
-  const articleTitle = stripHashtagsAndEmojis(articleData.title.trim());
-  const articleBody = stripHashtagsAndEmojis(articleData.article.trim());
-
-  // Content should be a full article (800-1200 words = ~4000-6000 chars)
-  // Minimum 500 chars to ensure it's not just a summary
-  if (articleBody.length < 500) {
-    logger.warn(
-      'Article body too short - rejecting',
-      { orgName: org.name, length: articleBody.length, minRequired: 500 },
-      'PostGeneration'
-    );
-    return false;
-  }
-
-  // Transform content to replace real names with parody names
-  const transformedSummary =
-    await characterMappingService.transformText(summary);
-  const transformedBody =
-    await characterMappingService.transformText(articleBody);
-  if (
-    transformedSummary.replacementCount > 0 ||
-    transformedBody.replacementCount > 0
-  ) {
-    logger.warn(
-      `Fixed ${transformedSummary.replacementCount + transformedBody.replacementCount} real name(s) in org article`,
-      {
-        org: org.name,
-        title: articleTitle,
-      },
-      'PostGeneration'
-    );
-  }
-
-  // Generate article cover image (non-blocking, with retry)
-  let imageUrl: string | null = null;
-  if (process.env.FAL_KEY) {
-    imageUrl = await generateArticleImageWithRetry({
-      title: articleTitle,
-      summary: transformedSummary.transformedText,
-      category: question.text.slice(0, 100), // Use question as category hint
-    });
-  }
-
-  const postId = await generateSnowflakeId();
-  await getDbInstance().createPostWithAllFields({
-    id: postId,
-    type: 'article',
-    content: transformedSummary.transformedText,
-    fullContent: transformedBody.transformedText,
-    articleTitle: articleTitle,
-    imageUrl: imageUrl || undefined,
-    authorId: org.id,
-    relatedQuestion: question.questionNumber,
-    gameId: 'continuous',
-    dayNumber: currentDay,
-    timestamp,
-  });
-
-  logger.debug(
-    'Created org article',
-    { org: org.name, timestamp, hasImage: Boolean(imageUrl) },
-    'PostGeneration'
-  );
-
-  // Generate and store tags asynchronously
-  void generateTagsFromPost(transformedSummary.transformedText)
-    .then((generatedTags: GeneratedTag[]) => {
-      if (generatedTags.length > 0) {
-        return storeTagsForPost(postId, generatedTags).then(() => {
-          logger.info(
-            'Tagged org article',
-            { postId, orgName: org.name, tagCount: generatedTags.length },
-            'PostGeneration'
-          );
-        });
-      }
-      return Promise.resolve();
-    })
-    .catch((tagError: Error) => {
-      logger.warn(
-        'Failed to tag org article',
-        { postId, orgName: org.name, error: tagError },
-        'PostGeneration'
-      );
-    });
-
-  return true;
-}
+// NOTE: generateOrgArticle was removed - articles are now event-driven only
+// via article-tick cron (rate-limited) and breaking articles from world events.
+// Use ArticleGenerator from @babylon/engine for article generation.
 
 /**
  * Represents a post that NPCs can reply to

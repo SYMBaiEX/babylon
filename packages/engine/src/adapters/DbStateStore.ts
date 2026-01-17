@@ -31,6 +31,7 @@ import type {
   TradeInput,
   TradeResult,
 } from '../GameTick';
+import { persistArticle } from '../services/article-persistence';
 import { StaticDataRegistry } from '../services/static-data-registry';
 
 export class DbStateStore implements GameStateStore {
@@ -165,21 +166,31 @@ export class DbStateStore implements GameStateStore {
   }
 
   async createArticle(article: ArticleInput): Promise<string> {
-    const id = await generateSnowflakeId();
+    // Delegate to shared persistence service (bypasses rate limit for simulation use)
+    const result = await persistArticle(
+      {
+        title: article.title,
+        summary: article.summary,
+        content: article.content,
+        authorOrgId: article.authorOrgId,
+        gameId: 'continuous',
+        category: article.category,
+        timestamp: article.timestamp,
+      },
+      { checkRateLimit: false, generateImage: false }
+    );
 
-    await db.insert(posts).values({
-      id,
-      type: 'article',
-      articleTitle: article.title,
-      content: article.summary,
-      fullContent: article.content,
-      authorId: article.authorOrgId,
-      timestamp: article.timestamp,
-      category: article.category,
-      gameId: 'continuous',
-    });
+    if (!result.success) {
+      if (result.rateLimited) {
+        throw new Error(
+          `Rate limited: Article creation blocked by rate limiter${result.error ? ` - ${result.error}` : ''}`
+        );
+      }
+      throw new Error(result.error || 'Failed to persist article');
+    }
 
-    return id;
+    // With discriminated union, articleId is guaranteed to exist when success is true
+    return result.articleId;
   }
 
   /**

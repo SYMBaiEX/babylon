@@ -70,6 +70,7 @@ export * from './timeframe-arc-processor'; // Time-based arc state machine
 // =============================================================================
 
 export * from './article-image-service';
+export * from './article-persistence';
 export * from './article-rate-limiter';
 export * from './event-generation-helpers';
 export * from './narrative-state-service';

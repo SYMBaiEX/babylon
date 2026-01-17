@@ -57,7 +57,6 @@ import {
 } from './npc-character-config';
 import {
   generateNPCPost,
-  generateOrgArticle,
   generateOrganicPost,
   generateOrgPost,
   generateRivalryPost,
@@ -76,18 +75,8 @@ const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
 const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
 const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
 
-// Article probability scales with active market count
-const ARTICLE_PROB = [0.05, 0.12, 0.18, 0.25, 0.3, 0.35];
-
-/** Get article probability based on active markets */
-function getArticleProb(marketCount: number): number {
-  // Clamp marketCount to valid index range [0, ARTICLE_PROB.length - 1]
-  const clampedIndex = Math.max(
-    0,
-    Math.min(marketCount, ARTICLE_PROB.length - 1)
-  );
-  return ARTICLE_PROB[clampedIndex] ?? 0.05;
-}
+// NOTE: Articles are now event-driven only via article-tick (rate-limited to 2/hour).
+// Lookahead service only generates short posts, never articles.
 
 /**
  * Check how far ahead content is generated
@@ -1023,56 +1012,27 @@ async function generateContentWindow(
       }
     }
 
-    // Article probability scales with active market count:
-    // - With 1 active market: 12% (effective baseline, since 0 markets = early return)
-    // - Scales up to 35% with 5+ active markets
-    const articleProb = getArticleProb(activeQuestions.length);
-    const shouldCreateArticle = secureRandom() < articleProb;
-    let success = false;
-
-    if (shouldCreateArticle) {
-      success = await generateOrgArticle(
-        llmClient,
-        org,
-        question,
-        enhancedWorldFacts,
-        postTimestamp,
-        postDayNumber
+    // Articles are event-driven only via article-tick (rate-limited to 2/hour).
+    // Orgs only create short posts in lookahead, never articles.
+    const success = await generateOrgPost(
+      llmClient,
+      org,
+      question,
+      enhancedWorldFacts,
+      postTimestamp,
+      postDayNumber
+    );
+    if (success) {
+      logger.debug(
+        'Created lookahead org post',
+        {
+          org: org.name,
+          timestamp: postTimestamp.toISOString(),
+          questionId: question.id,
+          diverseTopic: diverseTopic?.topic,
+        },
+        'LookaheadGeneration'
       );
-      if (success) {
-        logger.debug(
-          'Created lookahead org article',
-          {
-            org: org.name,
-            timestamp: postTimestamp.toISOString(),
-            questionId: question.id,
-            diverseTopic: diverseTopic?.topic,
-            eventKeywords: eventKeywords.slice(0, 3),
-          },
-          'LookaheadGeneration'
-        );
-      }
-    } else {
-      success = await generateOrgPost(
-        llmClient,
-        org,
-        question,
-        enhancedWorldFacts,
-        postTimestamp,
-        postDayNumber
-      );
-      if (success) {
-        logger.debug(
-          'Created lookahead org post',
-          {
-            org: org.name,
-            timestamp: postTimestamp.toISOString(),
-            questionId: question.id,
-            diverseTopic: diverseTopic?.topic,
-          },
-          'LookaheadGeneration'
-        );
-      }
     }
 
     // Rollback event tracking on generation failure

@@ -155,6 +155,15 @@ export function getTimeOfDayEnergy(hour: number): string {
 }
 
 /**
+ * No hashtags or emojis rule for professional content (articles, etc).
+ * Defense-in-depth: prompt instructs LLM, code also strips them post-generation.
+ */
+export const NO_HASHTAGS_OR_EMOJIS = `=== FORMATTING RULES ===
+- ABSOLUTELY NO HASHTAGS anywhere (no #crypto, #AI, #breaking, or ANY #tag)
+- NO EMOJIS - plain text only
+- Write like professional journalism, not social media`;
+
+/**
  * Parody name rules for game/world prompts.
  * Simpler version focusing on name consistency.
  */

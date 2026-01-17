@@ -517,6 +517,10 @@ export async function executeGameTick(
             : null;
 
           // Save proof article (if any) and update question atomically.
+          // NOTE: Proof articles are inserted inline (not via article-persistence service)
+          // because they must be atomic with the question update within this database
+          // transaction. Proof articles intentionally bypass rate limiting since
+          // they're essential for resolution and must always be created.
           await db.transaction(async (tx) => {
             if (proofResult.proof?.type === 'article') {
               await tx.insert(posts).values({
@@ -636,10 +640,12 @@ export async function executeGameTick(
     }
 
     // Generate world events based on active questions
+    // Pass llmClient to enable breaking article generation for high-impact events
     const eventsGenerated = await generateEvents(
       currentActiveQuestions.slice(0, 3),
       timestamp,
-      dayNumberForTimestamp(timestamp)
+      dayNumberForTimestamp(timestamp),
+      llmClient
     );
     const pulseEventsGenerated = await generateArcPulseEventsIfNeeded(
       currentActiveQuestions.slice(0, 3),
