@@ -2674,7 +2674,9 @@ async function updateWorldFactsIfNeeded(): Promise<{
     // Steps 1-3: RSS/parody pipeline - wrapped in try/catch so failures don't abort the whole tick
     let feedResult = { fetched: 0, stored: 0, errors: 0 };
     let parodies: Awaited<
-      ReturnType<ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']>
+      ReturnType<
+        ReturnType<typeof createParodyHeadlineGenerator>['processHeadlines']
+      >
     > = [];
     let cleaned = 0;
 
