@@ -249,25 +249,25 @@ export {
 // Server-side utilities (require Node.js crypto)
 export {
   budgetTokens,
+  // Cached user API key validation
+  clearApiKeyCache,
   // Token counter utilities (moved from @babylon/shared)
   countTokens,
   countTokensSync,
   generateApiKey,
   generateTestApiKey,
+  getApiKeyCacheStats,
   getClientIp,
   getHashedClientIp,
   getModelTokenLimit,
   getSafeContextLimit,
   hashApiKey,
   hashIpAddress,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
   MODEL_TOKEN_LIMITS,
   truncateToTokenLimit,
   truncateToTokenLimitSync,
-  verifyApiKey,
-  // Cached user API key validation
-  clearApiKeyCache,
-  getApiKeyCacheStats,
-  invalidateCachedKey,
-  invalidateCachedKeysForUser,
   validateUserApiKey,
+  verifyApiKey,
 } from './utils';

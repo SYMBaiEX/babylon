@@ -2540,9 +2540,9 @@ async function shouldUpdateWorldFacts(): Promise<boolean> {
     return true; // Never generated before
   }
 
-  const timeSinceLastGeneration =
-    Date.now() - lastAutoFact.createdAt.getTime();
-  const shouldUpdate = timeSinceLastGeneration >= WORLD_FACTS_UPDATE_INTERVAL_MS;
+  const timeSinceLastGeneration = Date.now() - lastAutoFact.createdAt.getTime();
+  const shouldUpdate =
+    timeSinceLastGeneration >= WORLD_FACTS_UPDATE_INTERVAL_MS;
 
   if (shouldUpdate) {
     logger.info(

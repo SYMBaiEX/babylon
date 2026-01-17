@@ -11,9 +11,9 @@
  * - 99%+ cache hit rate for repeated requests
  */
 
-import crypto from 'crypto';
 import { asSystem, eq, userApiKeys } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import crypto from 'crypto';
 
 // ============================================================================
 // Cache Configuration
@@ -93,7 +93,10 @@ function touchCacheEntry(cached: CachedKeyInfo): void {
 /**
  * Schedule async DB update for lastUsedAt (throttled to 1/min per key)
  */
-function scheduleLastUsedUpdate(keyId: string, cached: CachedKeyInfo | undefined): void {
+function scheduleLastUsedUpdate(
+  keyId: string,
+  cached: CachedKeyInfo | undefined
+): void {
   const now = Date.now();
 
   // Throttle: skip if updated within the last minute
@@ -113,7 +116,11 @@ function scheduleLastUsedUpdate(keyId: string, cached: CachedKeyInfo | undefined
       .set({ lastUsedAt: new Date() })
       .where(eq(userApiKeys.id, keyId));
   }).catch((err) => {
-    logger.warn('Failed to update lastUsedAt', { keyId, error: err }, 'ApiKeyAuth');
+    logger.warn(
+      'Failed to update lastUsedAt',
+      { keyId, error: err },
+      'ApiKeyAuth'
+    );
   });
 }
 
@@ -247,7 +254,10 @@ export async function validateUserApiKey(
   // Cache miss - query database
   const keyRecord = await asSystem(async (dbClient) => {
     return await dbClient.query.userApiKeys.findFirst({
-      where: (keys, { eq: eqFn, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }) =>
+      where: (
+        keys,
+        { eq: eqFn, and: andFn, isNull: isNullFn, or: orFn, gt: gtFn }
+      ) =>
         andFn(
           eqFn(keys.keyHash, keyHash),
           isNullFn(keys.revokedAt),

@@ -414,7 +414,11 @@ export function AgentChat({
               <span>Agent Balance</span>
             </div>
             <span className="font-medium font-mono text-sm">
-              ${agent.virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              $
+              {agent.virtualBalance.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </span>
           </div>
         )}
