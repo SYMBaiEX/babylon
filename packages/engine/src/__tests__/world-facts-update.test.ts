@@ -106,7 +106,10 @@ mock.module('@babylon/shared', () => ({
 // Mock DistributedLockService with call tracking
 const mockDistributedLockService = {
   acquireLock: mock(async (params: { lockId: string; processId: string }) => {
-    lockAcquireCalls.push({ lockId: params.lockId, processId: params.processId });
+    lockAcquireCalls.push({
+      lockId: params.lockId,
+      processId: params.processId,
+    });
     return lockAcquireReturnValue;
   }),
   releaseLock: mock(async (lockId: string, processId: string) => {
@@ -479,7 +482,7 @@ describe('World Facts Update - Marker Persistence Integration', () => {
    * through the following approach:
    * 1. Verify the function completes without throwing
    * 2. Verify the expected data structure matches what the code produces
-   * 
+   *
    * The actual marker insertion is tested by verifying:
    * - The insert mock captures data when called
    * - The marker structure follows the expected format

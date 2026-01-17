@@ -317,7 +317,8 @@ describe('Generation Marker Insertion - Specification', () => {
     const markerValue = `Generation run at ${now.toISOString()} - ${factsGenerated} facts created`;
 
     // Verify the pattern: "Generation run at <ISO timestamp> - <count> facts created"
-    const pattern = /^Generation run at \d{4}-\d{2}-\d{2}T.+ - \d+ facts created$/;
+    const pattern =
+      /^Generation run at \d{4}-\d{2}-\d{2}T.+ - \d+ facts created$/;
     expect(pattern.test(markerValue)).toBe(true);
   });
 });
