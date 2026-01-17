@@ -70,7 +70,9 @@ export interface PersistArticleFailure {
  * Result of article persistence attempt.
  * Discriminated union that guarantees articleId is present when success is true.
  */
-export type PersistArticleResult = PersistArticleSuccess | PersistArticleFailure;
+export type PersistArticleResult =
+  | PersistArticleSuccess
+  | PersistArticleFailure;
 
 /**
  * Persist an article to the database.
