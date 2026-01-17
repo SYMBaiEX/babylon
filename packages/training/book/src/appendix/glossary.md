@@ -99,6 +99,24 @@ Measures skill vs luck: `Alpha = Actual P&L - Expected P&L`
 
 Attribution of final P&L back to individual trading decisions. Decisions closer to the outcome receive more credit (exponential decay).
 
+### Social Reward
+
+PnL-independent scoring for non-trading archetypes (Social Butterfly, Ass-Kisser, etc.). Composed of:
+- **Engagement**: Volume/diversity of social actions (posts, DMs, comments)
+- **Spread**: How well content reaches others (reactions, shares)
+- **Network**: Connections built (unique users, groups, reputation)
+- **Narrative**: Alignment with ground truth events
+
+### Narrative Event
+
+A ground truth event in the simulation that agents can react to. Contains:
+- Tick when it occurred
+- Affected tickers/markets
+- Expected direction (up/down/volatile)
+- Whether publicly revealed
+
+Used to score how well agents align actions with real events.
+
 ### Rubric
 
 Detailed evaluation criteria for an archetype. Defines what makes excellent, good, average, and poor performance.

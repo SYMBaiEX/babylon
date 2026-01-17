@@ -58,6 +58,13 @@ export interface PredictionPosition {
   unrealizedPnL: number;
   resolved: boolean;
   resolution?: boolean | null;
+  // Agent position metadata (optional)
+  /** True if this position belongs to an agent */
+  isAgentPosition?: boolean;
+  /** Agent's user ID (only set if isAgentPosition=true) */
+  agentId?: string;
+  /** Agent's display name (only set if isAgentPosition=true) */
+  agentName?: string;
 }
 
 /**

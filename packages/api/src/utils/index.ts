@@ -6,9 +6,14 @@
  */
 
 export {
+  clearApiKeyCache,
   generateApiKey,
   generateTestApiKey,
+  getApiKeyCacheStats,
   hashApiKey,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
+  validateUserApiKey,
   verifyApiKey,
 } from './api-keys';
 export {

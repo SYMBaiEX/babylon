@@ -238,6 +238,29 @@ def archetype_composite_reward(inputs, archetype, behavior_metrics):
     return clamp(composite, -1.0, 1.0)
 ```
 
+## Social Archetypes
+
+Some archetypes (Social Butterfly, Ass-Kisser, Goody Two-Shoes) succeed through social interaction rather than trading. These use a **social reward system** with different scoring components:
+
+| Component | Description |
+|-----------|-------------|
+| **Engagement** | Volume of posts, DMs, comments, group activity |
+| **Information Spread** | Content that gets reactions/shares |
+| **Network** | Unique connections, group memberships, reputation |
+| **Narrative Alignment** | Actions aligned with ground truth events |
+
+Each social archetype weights these differently:
+
+| Archetype | Engagement | Spread | Network | Narrative |
+|-----------|------------|--------|---------|-----------|
+| Social Butterfly | 30% | 20% | **40%** | 10% |
+| Ass-Kisser | 35% | 15% | **40%** | 10% |
+| Goody Two-Shoes | 25% | 20% | 30% | 25% |
+
+A Social Butterfly with 15+ unique connections and positive reputation can outscore a passive trader with zero P&L.
+
+See [Enhanced Rewards - Social & Narrative](../scoring/enhanced-rewards.md#social--narrative-rewards) for implementation details.
+
 ## Adding a New Archetype
 
 See [Adding Archetypes](../development/adding-archetypes.md) for the step-by-step guide.
@@ -246,4 +269,5 @@ Key files to modify:
 1. `config/rubrics.json` - Add rubric and priority metrics
 2. `python/src/training/rewards.py` - Add weights and bonus function
 3. `src/archetypes/` - Add TypeScript definition
+4. (For social archetypes) Add to `SOCIAL_REWARD_WEIGHTS` in `rewards.py`
 

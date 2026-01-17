@@ -104,6 +104,10 @@ interface ApiPerpPositionPayload {
   openedAt: string;
   lastUpdated?: string;
   closedAt?: string | null;
+  // Agent position metadata
+  isAgentPosition?: boolean;
+  agentId?: string | null;
+  agentName?: string | null;
 }
 
 interface ApiPredictionPositionPayload {
@@ -120,6 +124,10 @@ interface ApiPredictionPositionPayload {
   currentProbability?: NumericLike;
   resolved?: boolean;
   resolution?: boolean | null;
+  // Agent position metadata
+  isAgentPosition?: boolean;
+  agentId?: string | null;
+  agentName?: string | null;
 }
 
 /**
@@ -143,6 +151,10 @@ function normalizePerpPosition(raw: ApiPerpPositionPayload): PerpPosition {
     openedAt: raw.openedAt,
     lastUpdated: raw.lastUpdated ?? raw.openedAt,
     closedAt: raw.closedAt ?? null,
+    // Agent position metadata
+    isAgentPosition: raw.isAgentPosition ?? false,
+    agentId: raw.agentId ?? undefined,
+    agentName: raw.agentName ?? undefined,
   };
 }
 
@@ -172,6 +184,10 @@ function normalizePredictionPosition(
     currentProbability: toNumber(raw.currentProbability, currentPrice),
     resolved: raw.resolved ?? false,
     resolution: raw.resolution ?? null,
+    // Agent position metadata
+    isAgentPosition: raw.isAgentPosition ?? false,
+    agentId: raw.agentId ?? undefined,
+    agentName: raw.agentName ?? undefined,
   };
 }
 

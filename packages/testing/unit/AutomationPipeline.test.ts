@@ -230,9 +230,8 @@ mock.module('@babylon/db', () => ({
   TrainedModel: {},
 }));
 
-mock.module('@babylon/shared', () => ({
-  logger: mockLogger,
-}));
+// Note: @babylon/shared is NOT mocked - let real logger run to avoid
+// polluting module cache and breaking other tests that use formatCurrency, etc.
 
 // Mock the training package logger
 // AutomationPipeline imports from '../utils/logger' relative to its location

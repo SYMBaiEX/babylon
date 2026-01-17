@@ -37,6 +37,14 @@ import { autonomousCommentingService } from './AutonomousCommentingService';
 import { autonomousDMService } from './AutonomousDMService';
 import { autonomousPostingService } from './AutonomousPostingService';
 import { autonomousTradingService } from './AutonomousTradingService';
+import type {
+  PendingChatMessage,
+  PendingCommentReply,
+} from './templates/multi-step-decision';
+import {
+  gatherPendingChatMessages,
+  gatherPendingCommentReplies,
+} from './utils';
 
 /**
  * Agent interface for planning
@@ -354,11 +362,11 @@ export class AutonomousPlanningCoordinator {
       );
     const perpPositionsCount = perpPositionCountResult?.count ?? 0;
 
-    // Get pending interactions
-    const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(
-        agentUserId
-      );
+    // Get pending interactions using new utilities
+    const [pendingCommentReplies, pendingChatMessages] = await Promise.all([
+      gatherPendingCommentReplies(agentUserId),
+      gatherPendingChatMessages(agentUserId),
+    ]);
 
     // Get recent actions (last 10)
     const recentLogs = await db
@@ -382,8 +390,23 @@ export class AutonomousPlanningCoordinator {
     // Detect social opportunities
     const socialOpportunities = await detectSocialOpportunities(
       agentUserId,
-      pendingInteractions
+      pendingCommentReplies,
+      pendingChatMessages
     );
+
+    // Combine pending interactions for context (convert to unified format)
+    const pendingForContext = [
+      ...pendingCommentReplies.slice(0, 5).map((p) => ({
+        type: 'comment_reply' as const,
+        content: p.content,
+        author: p.author,
+      })),
+      ...pendingChatMessages.slice(0, 5).map((p) => ({
+        type: p.isGroupChat ? ('group_message' as const) : ('dm' as const),
+        content: p.content,
+        author: p.author,
+      })),
+    ];
 
     return {
       goals: {
@@ -402,11 +425,7 @@ export class AutonomousPlanningCoordinator {
         pnl: Number(user?.lifetimePnL ?? 0),
         positions: positionsCount + perpPositionsCount,
       },
-      pending: pendingInteractions.slice(0, 10).map((p) => ({
-        type: p.type,
-        content: p.content,
-        author: p.author,
-      })),
+      pending: pendingForContext.slice(0, 10),
       opportunities: {
         trading: tradingOpportunities,
         social: socialOpportunities,
@@ -1011,7 +1030,8 @@ async function detectTradingOpportunities(
  */
 async function detectSocialOpportunities(
   agentUserId: string,
-  pendingInteractions: Array<{ type: string; content: string; author: string }>
+  pendingCommentReplies: PendingCommentReply[],
+  pendingChatMessages: PendingChatMessage[]
 ): Promise<
   Array<{
     type: string;
@@ -1025,25 +1045,48 @@ async function detectSocialOpportunities(
     engagementScore: number;
   }> = [];
 
-  // High-value interactions (direct questions, mentions)
-  for (const interaction of pendingInteractions) {
-    const content = interaction.content.toLowerCase();
+  // High-value comment reply interactions (direct questions, mentions)
+  for (const reply of pendingCommentReplies) {
+    const content = reply.content.toLowerCase();
     const isQuestion = content.includes('?');
     const isMention = content.includes('@') || content.includes(agentUserId);
     const isDirect = isQuestion || isMention;
 
     if (isDirect) {
       opportunities.push({
-        type: interaction.type,
-        description: `${interaction.author}: ${interaction.content.substring(0, 60)}...`,
+        type: 'comment_reply',
+        description: `${reply.author}: ${reply.content.substring(0, 60)}...`,
         engagementScore: 0.8,
       });
-    } else if (interaction.content.length > 50) {
+    } else if (reply.content.length > 50) {
       // Substantive comment
       opportunities.push({
-        type: interaction.type,
-        description: `${interaction.author}: ${interaction.content.substring(0, 60)}...`,
+        type: 'comment_reply',
+        description: `${reply.author}: ${reply.content.substring(0, 60)}...`,
         engagementScore: 0.5,
+      });
+    }
+  }
+
+  // High-value chat message interactions
+  for (const msg of pendingChatMessages) {
+    const content = msg.content.toLowerCase();
+    const isQuestion = content.includes('?');
+    const isMention = content.includes('@') || content.includes(agentUserId);
+    const isDirect = isQuestion || isMention;
+    const msgType = msg.isGroupChat ? 'group_message' : 'dm';
+
+    if (isDirect) {
+      opportunities.push({
+        type: msgType,
+        description: `${msg.author}: ${msg.content.substring(0, 60)}...`,
+        engagementScore: 0.9, // DMs and group mentions are high priority
+      });
+    } else if (msg.content.length > 50) {
+      opportunities.push({
+        type: msgType,
+        description: `${msg.author}: ${msg.content.substring(0, 60)}...`,
+        engagementScore: 0.6,
       });
     }
   }

@@ -55,12 +55,12 @@ const FieldWithAI = memo(function FieldWithAI({
           {isGenerating ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              Generating...
+              Enhancing...
             </>
           ) : (
             <>
               <Sparkles className="h-3 w-3" />
-              Regenerate
+              Enhance
             </>
           )}
         </button>
@@ -90,13 +90,13 @@ export const AgentConfigForm = memo(function AgentConfigForm({
   onRegenerate,
 }: AgentConfigFormProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <FieldWithAI
         id="system"
         label="System Prompt"
         value={agentData.system}
         placeholder="You are a trading agent focused on..."
-        rows={6}
+        rows={4}
         isGenerating={generatingField === 'system'}
         onRegenerate={() => onRegenerate('system')}
         onChange={(v) => onFieldChange('system', v)}
@@ -108,7 +108,7 @@ export const AgentConfigForm = memo(function AgentConfigForm({
         label="Personality"
         value={agentData.personality}
         placeholder="Analytical and methodical..."
-        rows={4}
+        rows={3}
         isGenerating={generatingField === 'personality'}
         onRegenerate={() => onRegenerate('personality')}
         onChange={(v) => onFieldChange('personality', v)}
@@ -120,7 +120,7 @@ export const AgentConfigForm = memo(function AgentConfigForm({
         label="Trading Strategy"
         value={agentData.tradingStrategy}
         placeholder="Focus on momentum indicators..."
-        rows={5}
+        rows={3}
         isGenerating={generatingField === 'tradingStrategy'}
         onRegenerate={() => onRegenerate('tradingStrategy')}
         onChange={(v) => onFieldChange('tradingStrategy', v)}

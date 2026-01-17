@@ -52,13 +52,25 @@ export {
 
 // Multi-step decision templates
 export {
+  ACTION_DEFINITIONS,
+  type ActionDefinition,
+  type ActionName,
+  Actions,
   type ActionTraceResult,
   type AgentTickContext,
   buildMultiStepDecisionPrompt,
   buildMultiStepSummaryPrompt,
+  type CreatorInfo,
+  type FeatureName,
+  Features,
+  getAvailableActions,
+  getRequiredFeature,
   type MultiStepDecision,
-  type PendingInteraction,
+  type PendingChatMessage,
+  type PendingCommentReply,
   type PerpMarketContext,
   type PostContext,
+  type PostInfo,
   type PredictionMarketContext,
+  type ThreadMessage,
 } from './templates/multi-step-decision';

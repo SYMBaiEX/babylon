@@ -153,6 +153,16 @@ export class FeedGenerator extends EventEmitter {
 
   /** Strips hashtags/emojis, normalizes whitespace, replaces real names with parody names. */
   private async postProcessContent(content: string): Promise<string> {
+    // Guard against undefined/null content from malformed LLM responses
+    if (!content || typeof content !== 'string') {
+      logger.warn(
+        'postProcessContent received invalid content, returning fallback',
+        { contentType: typeof content, content },
+        'FeedGenerator'
+      );
+      return 'No comment.';
+    }
+
     let processed = content;
 
     // 1. Strip hashtags (LLMs love to add them despite instructions)
@@ -2605,11 +2615,21 @@ ${voiceContext}
       return 'Interesting point.'; // Fallback
     }
 
-    // Handle XML structure
+    // Handle XML structure - response may be wrapped in 'response' key or be direct
     const response =
       'response' in rawResponse && rawResponse.response
         ? rawResponse.response
-        : (rawResponse as { post: string });
+        : (rawResponse as { post?: string });
+
+    // Guard against missing 'post' field in response
+    if (!response.post) {
+      logger.warn(
+        'LLM response missing post field',
+        { response },
+        'FeedGenerator'
+      );
+      return 'Interesting point.';
+    }
 
     return await this.postProcessContent(response.post);
   }

@@ -100,8 +100,10 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
+export * from './agent-trade-notification';
 export * from './character-mapping-service';
 export * from './distributed-lock-service';
+export * from './dm-service';
 export * from './earned-points-service';
 export * from './fee-service';
 export {

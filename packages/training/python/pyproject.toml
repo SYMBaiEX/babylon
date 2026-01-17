@@ -32,6 +32,11 @@ train-mmo = "scripts.train_mmo:main"
 check-windows = "scripts.check_windows:main"
 run-migrations = "scripts.run_migrations:main"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

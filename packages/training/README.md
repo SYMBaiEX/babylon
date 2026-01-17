@@ -98,6 +98,8 @@ python scripts/run_training.py --steps 100 --no-wandb
 | `train/aiJudgeReward` | Average AI Judge composite score |
 | `train/format_score` | Average format quality score |
 | `train/reasoning_score` | Average reasoning quality score |
+| `train/social_reward_mean` | Average social reward (for non-trading archetypes) |
+| `train/counterfactual_alpha_mean` | Skill signal (with causal scenarios) |
 
 ### Resume from Checkpoint
 

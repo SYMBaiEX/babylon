@@ -91,6 +91,30 @@ python scripts/run_training.py --profile 12gb
 | `train/reasoning_score` | Reasoning quality |
 | `train/behavior_bonus` | Archetype alignment |
 
+### Social Metrics
+
+For non-trading archetypes (Social Butterfly, Information Trader, etc.):
+
+| Metric | Description |
+|--------|-------------|
+| `train/social_reward_mean` | Combined social reward |
+| `train/social_engagement_mean` | Posts, comments, DMs activity |
+| `train/social_spread_mean` | Content reach and reactions |
+| `train/social_network_mean` | Connections and reputation |
+| `train/social_narrative_mean` | Alignment with ground truth |
+
+### Enhanced Reward Metrics
+
+When training with causal scenarios (price context available):
+
+| Metric | Description |
+|--------|-------------|
+| `train/regime_bull_pct` | % of trajectories in bull market |
+| `train/regime_bear_pct` | % of trajectories in bear market |
+| `train/regime_sideways_pct` | % of trajectories in sideways market |
+| `train/counterfactual_alpha_mean` | Skill signal (actual vs expected) |
+| `train/market_volatility_mean` | Average market volatility |
+
 ### GRPO-Specific
 
 | Metric | Description |

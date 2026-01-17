@@ -3,11 +3,15 @@
  *
  * Handles triggering agent responses when they are @mentioned in the Command Center.
  * Provides priority responses with natural timing delays.
+ * Supports adaptive timing based on message complexity.
  *
  * @packageDocumentation
  */
 
-import { broadcastTypingIndicator } from '@babylon/api';
+import {
+  broadcastThinkingIndicator,
+  broadcastTypingIndicator,
+} from '@babylon/api';
 import {
   and,
   db,
@@ -23,9 +27,204 @@ import {
 import { executeDirectMessage } from '../autonomous/DirectExecutors';
 import { callGroqDirect } from '../llm/direct-groq';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
+import type { AgentOrderingStrategy } from '../shared/agent-ordering';
 import { logger } from '../shared/logger';
 
-/** Configuration for team chat response timing */
+// =============================================================================
+// Message Complexity Detection
+// =============================================================================
+
+/**
+ * Thresholds for message complexity detection.
+ * These can be tuned to adjust sensitivity of complexity classification.
+ */
+const COMPLEXITY_THRESHOLDS = {
+  /** Messages with more than this many words are considered complex */
+  LONG_MESSAGE_WORD_COUNT: 50,
+  /** Messages with fewer than this many words may qualify as quick */
+  SHORT_MESSAGE_WORD_COUNT: 15,
+} as const;
+
+/**
+ * Message complexity levels for adaptive timing
+ */
+export type MessageComplexity = 'quick' | 'normal' | 'complex';
+
+/**
+ * Detect the complexity of a message to adjust response timing.
+ *
+ * Quick: Simple questions, greetings, yes/no queries (< 15 words, has question mark, no analysis keywords)
+ * Normal: Standard requests and conversations
+ * Complex: Analysis, research, comparisons, detailed explanations
+ */
+export function detectMessageComplexity(content: string): MessageComplexity {
+  const normalizedContent = content.toLowerCase().trim();
+  const words = normalizedContent.split(/\s+/).filter((w) => w.length > 0);
+  const wordCount = words.length;
+
+  // Analysis/research keywords that indicate complex queries
+  const complexKeywords = [
+    'analyze',
+    'analysis',
+    'compare',
+    'comparison',
+    'explain',
+    'explanation',
+    'research',
+    'investigate',
+    'deep dive',
+    'detailed',
+    'comprehensive',
+    'evaluate',
+    'assessment',
+    'strategy',
+    'strategic',
+    'forecast',
+    'predict',
+    'prediction',
+    'breakdown',
+    'break down',
+    'summarize',
+    'summary',
+  ];
+
+  // Quick response keywords - simple queries that need fast answers
+  const quickKeywords = [
+    'hi',
+    'hello',
+    'hey',
+    'thanks',
+    'thank you',
+    'yes',
+    'no',
+    'ok',
+    'okay',
+    'sure',
+    'got it',
+    'understood',
+    "what's up",
+    'sup',
+    'how are you',
+    'good morning',
+    'good night',
+    'gm',
+    'gn',
+  ];
+
+  // Check for complex indicators (normalizedContent.includes handles multi-word keywords)
+  const hasComplexKeyword = complexKeywords.some((keyword) =>
+    normalizedContent.includes(keyword)
+  );
+
+  // Long messages are likely complex
+  if (
+    wordCount > COMPLEXITY_THRESHOLDS.LONG_MESSAGE_WORD_COUNT ||
+    hasComplexKeyword
+  ) {
+    return 'complex';
+  }
+
+  // Check for quick indicators
+  const hasQuickKeyword = quickKeywords.some(
+    (keyword) =>
+      normalizedContent === keyword ||
+      normalizedContent.startsWith(keyword + ' ') ||
+      normalizedContent.startsWith(keyword + '!')
+  );
+
+  // Short messages with question marks and no complex keywords
+  const hasQuestionMark = content.includes('?');
+  const isShort = wordCount <= COMPLEXITY_THRESHOLDS.SHORT_MESSAGE_WORD_COUNT;
+
+  if (hasQuickKeyword || (isShort && hasQuestionMark && !hasComplexKeyword)) {
+    return 'quick';
+  }
+
+  return 'normal';
+}
+
+// =============================================================================
+// Configuration
+// =============================================================================
+
+/**
+ * Adaptive timing configuration based on message complexity.
+ * Quick messages get faster responses to feel snappy.
+ * Complex messages get longer delays to feel thoughtful.
+ */
+const ADAPTIVE_TIMING = {
+  quick: {
+    minDelay: 500,
+    maxDelay: 1500,
+    staggerDelay: 800,
+    maxTokens: 100,
+    useThinkingIndicator: false,
+  },
+  normal: {
+    minDelay: 1500,
+    maxDelay: 3000,
+    staggerDelay: 1200,
+    maxTokens: 200,
+    useThinkingIndicator: false,
+  },
+  complex: {
+    minDelay: 2000,
+    maxDelay: 4000,
+    staggerDelay: 1500,
+    maxTokens: 500,
+    useThinkingIndicator: true,
+  },
+} as const;
+
+// Re-export ordering utilities from shared module
+export {
+  type AgentOrderingStrategy,
+  type OrderableAgent,
+  orderAgentIds,
+  shuffleArray,
+} from '../shared/agent-ordering';
+
+/**
+ * Configuration for untagged message behavior.
+ * When users send messages without @mentioning specific agents,
+ * all agents in the team chat will respond.
+ */
+export interface UntaggedResponseConfig {
+  /**
+   * Maximum number of agents that will respond to an untagged message.
+   * Set to null/undefined for unlimited (all agents respond).
+   * Default: null (unlimited)
+   */
+  maxAgents: number | null;
+
+  /**
+   * Strategy for ordering/selecting which agents respond.
+   * 'random' - Randomize the order (default)
+   * 'created_asc' - Oldest agents first
+   * 'created_desc' - Newest agents first
+   * 'alphabetical' - Alphabetically by display name
+   */
+  orderingStrategy: AgentOrderingStrategy;
+
+  /**
+   * Stagger multiplier for untagged responses.
+   * Increases delay between agents to prevent overwhelming responses.
+   * Default: 1.5 (50% longer stagger than tagged responses)
+   */
+  staggerMultiplier: number;
+}
+
+/**
+ * Default configuration for untagged responses.
+ * Can be overridden by environment variables or runtime config.
+ */
+const DEFAULT_UNTAGGED_CONFIG: UntaggedResponseConfig = {
+  maxAgents: null, // Unlimited by default
+  orderingStrategy: 'random',
+  staggerMultiplier: 1.5,
+};
+
+/** Legacy timing config - kept for backward compatibility in A2A chains */
 const RESPONSE_TIMING = {
   /** Minimum delay before responding (ms) */
   MIN_DELAY: 2000,
@@ -52,11 +251,17 @@ interface TriggerResponseParams {
   mentionedAgentIds: string[];
   senderUserId: string;
   senderDisplayName: string;
+  /**
+   * Whether this is an untagged broadcast (all agents responding).
+   * Affects timing and staggering behavior.
+   */
+  isUntaggedBroadcast?: boolean;
 }
 
 /** Result of triggering responses */
 interface TriggerResponseResult {
   triggered: number;
+  complexity: MessageComplexity;
   responses: Array<{
     agentId: string;
     agentName: string;
@@ -228,7 +433,10 @@ export class TeamChatResponseService {
    * Trigger priority responses from mentioned agents
    *
    * Generates and sends responses from each mentioned agent with natural timing delays.
-   * Uses the agent's personality and context from recent messages.
+   * Uses adaptive timing based on message complexity:
+   * - Quick messages (greetings, simple questions): 500-1500ms delay
+   * - Normal messages: 1500-3000ms delay
+   * - Complex messages (analysis, research): 2000-4000ms delay with thinking indicator
    *
    * @param params - Response trigger parameters
    * @returns Result with triggered response details
@@ -242,6 +450,7 @@ export class TeamChatResponseService {
       mentionedAgentIds,
       senderUserId,
       senderDisplayName,
+      isUntaggedBroadcast = false,
     } = params;
 
     // Deduplicate and filter out empty/whitespace agent IDs
@@ -249,16 +458,29 @@ export class TeamChatResponseService {
       ...new Set(mentionedAgentIds.map((id) => id?.trim()).filter(Boolean)),
     ];
 
+    // Detect message complexity for adaptive timing
+    const complexity = detectMessageComplexity(messageContent);
+    const timingConfig = ADAPTIVE_TIMING[complexity];
+
     if (uniqueAgentIds.length === 0) {
-      return { triggered: 0, responses: [] };
+      return { triggered: 0, complexity, responses: [] };
     }
 
     // Human message starts a new conversation chain (resets loop prevention)
     this.startNewChain(chatId);
 
     logger.info(
-      `Triggering responses from ${uniqueAgentIds.length} mentioned agent(s)`,
-      { chatId, agentIds: uniqueAgentIds },
+      `Triggering responses from ${uniqueAgentIds.length} agent(s)`,
+      {
+        chatId,
+        agentIds: uniqueAgentIds,
+        complexity,
+        isUntaggedBroadcast,
+        timing: {
+          minDelay: timingConfig.minDelay,
+          maxDelay: timingConfig.maxDelay,
+        },
+      },
       'TeamChatResponseService'
     );
 
@@ -291,6 +513,7 @@ export class TeamChatResponseService {
 
     const result: TriggerResponseResult = {
       triggered: 0,
+      complexity,
       responses: [],
     };
 
@@ -317,6 +540,11 @@ export class TeamChatResponseService {
       }
     }
 
+    // Calculate stagger delay with multiplier for untagged broadcasts
+    const effectiveStaggerDelay = isUntaggedBroadcast
+      ? timingConfig.staggerDelay * DEFAULT_UNTAGGED_CONFIG.staggerMultiplier
+      : timingConfig.staggerDelay;
+
     // Process each mentioned agent with staggered timing
     for (let i = 0; i < uniqueAgentIds.length; i++) {
       const agentId = uniqueAgentIds[i];
@@ -326,15 +554,15 @@ export class TeamChatResponseService {
       const agent = agentInfoMap.get(agentId);
       const agentName = agent?.displayName || agent?.username || 'Agent';
 
-      // Calculate delay: base delay + stagger for each agent
+      // Calculate delay using adaptive timing: base delay + stagger for each agent
       const baseDelay =
-        RESPONSE_TIMING.MIN_DELAY +
-        Math.random() * (RESPONSE_TIMING.MAX_DELAY - RESPONSE_TIMING.MIN_DELAY);
-      const staggerDelay = i * RESPONSE_TIMING.STAGGER_DELAY;
+        timingConfig.minDelay +
+        Math.random() * (timingConfig.maxDelay - timingConfig.minDelay);
+      const staggerDelay = i * effectiveStaggerDelay;
       const totalDelay = baseDelay + staggerDelay;
 
       // Schedule the response (non-blocking for multiple agents)
-      // Pass pre-fetched agentName to avoid redundant query
+      // Pass pre-fetched agentName and complexity config to avoid redundant query
       this.scheduleAgentResponse({
         agentId,
         chatId,
@@ -343,13 +571,16 @@ export class TeamChatResponseService {
         conversationContext,
         delay: totalDelay,
         agentName,
+        complexity,
+        maxTokens: timingConfig.maxTokens,
+        useThinkingIndicator: timingConfig.useThinkingIndicator,
       })
         .then((responseResult) => {
           // Log completion (responses array already populated synchronously below)
           if (responseResult.success) {
             logger.info(
-              `Agent ${responseResult.agentName} responded to mention`,
-              { chatId, messageId: responseResult.messageId },
+              `Agent ${responseResult.agentName} responded`,
+              { chatId, messageId: responseResult.messageId, complexity },
               'TeamChatResponseService'
             );
           } else {
@@ -384,6 +615,9 @@ export class TeamChatResponseService {
    *
    * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
    * @param params.agentName - Pre-fetched agent name (optimization to avoid redundant query)
+   * @param params.complexity - Message complexity for adaptive response generation
+   * @param params.maxTokens - Max tokens for LLM response (based on complexity)
+   * @param params.useThinkingIndicator - Whether to show thinking indicator instead of typing
    */
   private async scheduleAgentResponse(params: {
     agentId: string;
@@ -394,6 +628,9 @@ export class TeamChatResponseService {
     delay: number;
     depth?: number;
     agentName?: string;
+    complexity?: MessageComplexity;
+    maxTokens?: number;
+    useThinkingIndicator?: boolean;
   }): Promise<{
     success: boolean;
     agentName: string;
@@ -409,6 +646,9 @@ export class TeamChatResponseService {
       delay,
       depth = 0,
       agentName: prefetchedAgentName,
+      complexity = 'normal',
+      maxTokens = 200,
+      useThinkingIndicator = false,
     } = params;
 
     // Check cooldown and chain-based loop prevention before waiting (fail fast)
@@ -479,22 +719,43 @@ export class TeamChatResponseService {
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
 
-    // Broadcast typing indicator before generating response
-    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-      (error: Error) => {
+    // Broadcast appropriate indicator before generating response
+    // Use thinking indicator for complex queries, typing indicator otherwise
+    if (useThinkingIndicator) {
+      const thinkingLabel = this.getThinkingLabel(messageContent);
+      broadcastThinkingIndicator(
+        chatId,
+        agentId,
+        agentName,
+        true,
+        thinkingLabel
+      ).catch((error: Error) => {
         logger.warn(
-          `Failed to broadcast typing indicator: ${error.message}`,
+          `Failed to broadcast thinking indicator: ${error.message}`,
           { chatId, agentId },
           'TeamChatResponseService'
         );
-      }
-    );
+      });
+    } else {
+      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
+    }
 
     try {
       // Generate response using LLM
       // Sanitize user content to prevent prompt injection
       const sanitizedContent = this.sanitizeForPrompt(messageContent);
       const sanitizedContext = this.sanitizeForPrompt(conversationContext);
+
+      // Adjust prompt based on complexity
+      const responseGuidance = this.getResponseGuidance(complexity);
 
       const prompt = `${systemPrompt}
 
@@ -507,9 +768,8 @@ ${sanitizedContext}
 ${senderDisplayName}'s message to you: "${sanitizedContent}"
 
 Task: Generate a helpful, direct response to ${senderDisplayName}'s message.
-- Address their request or question directly
+${responseGuidance}
 - Be authentic to your personality
-- Keep it concise (1-3 sentences)
 - You can @mention other team members if relevant
 
 Generate ONLY the response text:`;
@@ -520,10 +780,10 @@ Generate ONLY the response text:`;
       const responseContent = await callGroqDirect({
         prompt,
         system: systemPrompt,
-        modelSize: 'large',
+        modelSize: complexity === 'quick' ? 'small' : 'large',
         runtime,
-        temperature: 0.7,
-        maxTokens: 150,
+        temperature: complexity === 'quick' ? 0.6 : 0.7,
+        maxTokens,
         actionType: 'team_chat_response',
         purpose: 'response',
       });
@@ -596,16 +856,92 @@ Generate ONLY the response text:`;
             : 'Failed to generate response',
       };
     } finally {
-      // Stop typing indicator even if LLM generation or send fails
-      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-        (error: Error) => {
-          logger.warn(
-            `Failed to stop typing indicator: ${error.message}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        }
-      );
+      // Stop indicator even if LLM generation or send fails
+      if (useThinkingIndicator) {
+        broadcastThinkingIndicator(chatId, agentId, agentName, false).catch(
+          (error: Error) => {
+            logger.warn(
+              `Failed to stop thinking indicator: ${error.message}`,
+              { chatId, agentId },
+              'TeamChatResponseService'
+            );
+          }
+        );
+      } else {
+        broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+          (error: Error) => {
+            logger.warn(
+              `Failed to stop typing indicator: ${error.message}`,
+              { chatId, agentId },
+              'TeamChatResponseService'
+            );
+          }
+        );
+      }
+    }
+  }
+
+  /**
+   * Get a human-readable label for what the agent is thinking about.
+   * Used in the thinking indicator UI.
+   */
+  private getThinkingLabel(content: string): string {
+    const normalizedContent = content.toLowerCase();
+
+    if (
+      normalizedContent.includes('analyze') ||
+      normalizedContent.includes('analysis')
+    ) {
+      return 'Analyzing...';
+    }
+    if (
+      normalizedContent.includes('compare') ||
+      normalizedContent.includes('comparison')
+    ) {
+      return 'Comparing options...';
+    }
+    if (
+      normalizedContent.includes('research') ||
+      normalizedContent.includes('investigate')
+    ) {
+      return 'Researching...';
+    }
+    if (
+      normalizedContent.includes('market') ||
+      normalizedContent.includes('trade') ||
+      normalizedContent.includes('price')
+    ) {
+      return 'Analyzing market data...';
+    }
+    if (
+      normalizedContent.includes('strategy') ||
+      normalizedContent.includes('plan')
+    ) {
+      return 'Formulating strategy...';
+    }
+    if (
+      normalizedContent.includes('explain') ||
+      normalizedContent.includes('how')
+    ) {
+      return 'Preparing explanation...';
+    }
+
+    return 'Thinking...';
+  }
+
+  /**
+   * Get response guidance based on message complexity.
+   * Adjusts how verbose the agent should be.
+   */
+  private getResponseGuidance(complexity: MessageComplexity): string {
+    switch (complexity) {
+      case 'quick':
+        return '- Keep it very brief (1 sentence)\n- Be direct and to the point';
+      case 'complex':
+        return '- Provide a thorough response\n- Address all aspects of the question\n- Use 2-4 sentences as needed';
+      case 'normal':
+      default:
+        return '- Address their request or question directly\n- Keep it concise (1-3 sentences)';
     }
   }
 
@@ -781,7 +1117,6 @@ Generate ONLY the response text:`;
         // U+202A-U+202E: LTR/RTL embedding, override, isolate
         // U+2066-U+2069: isolate controls
         // U+200E, U+200F: LTR/RTL marks
-        // biome-ignore lint/suspicious/noMisleadingCharacterClass: Intentionally matching Unicode control characters for security sanitization
         .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, '')
         // Escape backticks to prevent code block injection
         .replace(/```/g, '` ` `')

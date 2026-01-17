@@ -45,6 +45,8 @@ export interface Message {
   senderId: string;
   type?: MessageType;
   createdAt: string;
+  /** Stable key for React rendering - prevents flash when optimistic messages are replaced */
+  stableKey?: string;
 }
 
 export interface ChatParticipant {
