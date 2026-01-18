@@ -210,8 +210,8 @@ describe('Actor Data Completeness - FIRST Principles', () => {
     const missing = actors.filter((a) => !a.postStyle);
 
     // Log missing actors for debugging if any
-    if (missing.length > 0) {
-      console.log(
+    if (missing.length > 0 && process.env.DEBUG_TESTS) {
+      console.debug(
         'Actors missing postStyle:',
         missing.map((a) => a.id)
       );
@@ -228,8 +228,8 @@ describe('Actor Data Completeness - FIRST Principles', () => {
       (a) => !Array.isArray(a.postExample) || a.postExample.length === 0
     );
 
-    if (missing.length > 0) {
-      console.log(
+    if (missing.length > 0 && process.env.DEBUG_TESTS) {
+      console.debug(
         'Actors missing postExample:',
         missing.map((a) => a.id)
       );

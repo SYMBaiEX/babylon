@@ -334,7 +334,9 @@ export async function POST(_req: NextRequest) {
       const shuffled = [...arr];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(secureRandom() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const temp = shuffled[i]!;
+        shuffled[i] = shuffled[j]!;
+        shuffled[j] = temp;
       }
       return shuffled;
     };
@@ -360,9 +362,10 @@ export async function POST(_req: NextRequest) {
     logger.info(
       `Diversity guarantee: ${diversitySelection.length} diversity slots, ${regularSelection.length} regular slots`,
       {
-        diversitySlots,
-        regularSlots,
+        diversitySlotsActual: diversitySelection.length,
+        regularSlotsActual: regularSelection.length,
         neverPostedTodayCount: neverPostedToday.length,
+        remainingCandidatesCount: remainingCandidates.length,
         diversityNpcs: diversitySelection.map((n) => n.name),
       },
       'NPCTick'
@@ -931,8 +934,8 @@ export async function POST(_req: NextRequest) {
       'NPC posting diversity metrics',
       {
         uniquePostersThisTick,
-        diversitySlotsUsed: diversitySlots,
-        regularSlotsUsed: regularSlots,
+        diversitySlotsUsed: diversitySelection.length,
+        regularSlotsUsed: regularSelection.length,
         neverPostedTodayCount: neverPostedToday.length,
         neverPostedTodayRemaining:
           neverPostedTodayRemaining > 0 ? neverPostedTodayRemaining : 0,
