@@ -290,46 +290,59 @@ export const GET = withErrorHandling(
         .where(inArray(users.id, allAuthorIds));
 
       const userAuthorsMap = new Map(authorsUsers.map((u) => [u.id, u]));
-      const actorAuthorsMap = new Map(
-        allAuthorIds
-          .map((id) => StaticDataRegistry.getActor(id))
-          .filter((a): a is NonNullable<typeof a> => a !== null)
-          .map((a) => [
-            a.id,
-            { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
-          ])
-      );
-      const orgAuthorsMap = new Map(
-        allAuthorIds
-          .map((id) => StaticDataRegistry.getOrganization(id))
-          .filter((o): o is NonNullable<typeof o> => o !== null)
-          .map((o) => [
-            o.id,
-            { id: o.id, name: o.name, imageUrl: o.imageUrl ?? null },
-          ])
-      );
+
+      // Helper function to get author info (same pattern as comment API)
+      // Check StaticDataRegistry first (for actors/orgs), then database
+      const getAuthorInfo = (
+        authorId: string
+      ): {
+        id: string;
+        displayName: string;
+        username: string | null;
+        profileImageUrl: string | null;
+      } | null => {
+        // Check if it's an actor (NPC/agent) - check FIRST like comment API
+        const actor = StaticDataRegistry.getActor(authorId);
+        if (actor) {
+          return {
+            id: actor.id,
+            displayName: actor.name,
+            username: null,
+            profileImageUrl:
+              actor.profileImageUrl || `/images/actors/${actor.id}.jpg`,
+          };
+        }
+        // Check if it's an organization
+        const org = StaticDataRegistry.getOrganization(authorId);
+        if (org) {
+          return {
+            id: org.id,
+            displayName: org.name,
+            username: null,
+            profileImageUrl:
+              org.imageUrl || `/images/organizations/${org.id}.jpg`,
+          };
+        }
+        // Fall back to database user lookup
+        const dbUser = userAuthorsMap.get(authorId);
+        if (dbUser) {
+          return {
+            id: dbUser.id,
+            displayName: dbUser.displayName ?? dbUser.username ?? authorId,
+            username: dbUser.username,
+            profileImageUrl: dbUser.profileImageUrl,
+          };
+        }
+        return null;
+      };
 
       // Format comments as replies
       const replies = userComments.map((comment) => {
         const post = postsMap.get(comment.postId);
-        const postAuthorUser = post ? userAuthorsMap.get(post.authorId) : null;
-        const postAuthorActor = post
-          ? actorAuthorsMap.get(post.authorId)
-          : null;
-        const postAuthorOrg = post ? orgAuthorsMap.get(post.authorId) : null;
 
         // Get parent comment if this is a reply to a comment
         const parentComment = comment.parentCommentId
           ? parentCommentsMap.get(comment.parentCommentId)
-          : null;
-        const parentCommentAuthorUser = parentComment
-          ? userAuthorsMap.get(parentComment.authorId)
-          : null;
-        const parentCommentAuthorActor = parentComment
-          ? actorAuthorsMap.get(parentComment.authorId)
-          : null;
-        const parentCommentAuthorOrg = parentComment
-          ? orgAuthorsMap.get(parentComment.authorId)
           : null;
 
         return {
@@ -349,29 +362,7 @@ export const GET = withErrorHandling(
                 content: parentComment.content,
                 authorId: parentComment.authorId,
                 createdAt: parentComment.createdAt.toISOString(),
-                author: parentCommentAuthorUser
-                  ? {
-                      id: parentCommentAuthorUser.id,
-                      displayName: parentCommentAuthorUser.displayName,
-                      username: parentCommentAuthorUser.username,
-                      profileImageUrl: parentCommentAuthorUser.profileImageUrl,
-                    }
-                  : parentCommentAuthorActor
-                    ? {
-                        id: parentCommentAuthorActor.id,
-                        displayName: parentCommentAuthorActor.name,
-                        username: null,
-                        profileImageUrl:
-                          parentCommentAuthorActor.profileImageUrl,
-                      }
-                    : parentCommentAuthorOrg
-                      ? {
-                          id: parentCommentAuthorOrg.id,
-                          displayName: parentCommentAuthorOrg.name,
-                          username: null,
-                          profileImageUrl: parentCommentAuthorOrg.imageUrl,
-                        }
-                      : null,
+                author: getAuthorInfo(parentComment.authorId),
               }
             : null,
           // Original post (always included for context)
@@ -381,28 +372,7 @@ export const GET = withErrorHandling(
                 content: post.content,
                 authorId: post.authorId,
                 timestamp: post.timestamp.toISOString(),
-                author: postAuthorUser
-                  ? {
-                      id: postAuthorUser.id,
-                      displayName: postAuthorUser.displayName,
-                      username: postAuthorUser.username,
-                      profileImageUrl: postAuthorUser.profileImageUrl,
-                    }
-                  : postAuthorActor
-                    ? {
-                        id: postAuthorActor.id,
-                        displayName: postAuthorActor.name,
-                        username: null,
-                        profileImageUrl: postAuthorActor.profileImageUrl,
-                      }
-                    : postAuthorOrg
-                      ? {
-                          id: postAuthorOrg.id,
-                          displayName: postAuthorOrg.name,
-                          username: null,
-                          profileImageUrl: postAuthorOrg.imageUrl,
-                        }
-                      : null,
+                author: getAuthorInfo(post.authorId),
               }
             : null,
         };
