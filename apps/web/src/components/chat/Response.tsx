@@ -135,6 +135,11 @@ export const Response = memo(
             '[&_a:not([href^="babylon://"])]:break-words',
             // Blockquote
             '[&_blockquote]:my-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:italic',
+            // Tables - contained with horizontal scroll
+            '[&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm',
+            '[&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold',
+            '[&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2',
+            '[&_.table-wrapper]:max-w-full [&_.table-wrapper]:overflow-x-auto',
             // Strong/Bold
             '[&_strong]:font-semibold',
             // Horizontal rule

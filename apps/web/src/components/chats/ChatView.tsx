@@ -104,7 +104,7 @@ export function ChatView({
       {/* Messages - Scrollable */}
       <div
         ref={containerRef}
-        className="relative min-h-0 flex-1 overflow-y-auto px-4 py-3"
+        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
       >
         <div className="flex flex-col space-y-4">
           <MessageList

@@ -196,7 +196,7 @@ export default function ChatsPage() {
           {/* Desktop (xl): always shown */}
           <div
             className={cn(
-              'h-full min-h-0 flex-1 bg-background',
+              'h-full min-h-0 min-w-0 flex-1 bg-background',
               selectedChatId ? 'block' : 'hidden xl:block'
             )}
           >
