@@ -533,6 +533,7 @@ export function useChatPage() {
     if (pendingInitialScrollRef.current !== selectedChatId) return;
 
     let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
     const IDLE_MS = 500; // Stop after 500ms of no DOM changes
     const MAX_TIME = 2000; // Hard timeout after 2 seconds
     const startTime = Date.now();
@@ -542,6 +543,8 @@ export function useChatPage() {
     };
 
     const finish = () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
       pendingInitialScrollRef.current = null;
       setIsAtBottom(true);
     };
@@ -550,7 +553,7 @@ export function useChatPage() {
     scrollToEnd();
 
     // Watch for DOM changes and scroll on each
-    const observer = new MutationObserver(() => {
+    observer = new MutationObserver(() => {
       if (pendingInitialScrollRef.current !== selectedChatId) return;
 
       // Check hard timeout
@@ -571,11 +574,10 @@ export function useChatPage() {
       }, IDLE_MS);
     });
 
+    // Only observe childList and subtree - attributes/characterData are unnecessary for scroll
     observer.observe(container, {
       childList: true,
       subtree: true,
-      attributes: true,
-      characterData: true,
     });
 
     // Start idle timer (will finish if no mutations happen)
@@ -585,7 +587,7 @@ export function useChatPage() {
     }, IDLE_MS);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       if (idleTimeout) clearTimeout(idleTimeout);
     };
   }, [selectedChatId, chatDetails]);
@@ -604,17 +606,11 @@ export function useChatPage() {
         if (!entry) return;
 
         // Don't load more during initial scroll - wait until scrolled to bottom
-        if (pendingInitialScrollRef.current === selectedChatId) {
-          console.log(
-            '[DEBUG infinite scroll] blocked - pending initial scroll'
-          );
-          return;
-        }
+        if (pendingInitialScrollRef.current === selectedChatId) return;
 
         // Check if user is near the top (scrollTop close to 0)
         const nearTop = container.scrollTop <= 200;
         if (entry.isIntersecting && nearTop && hasMore && !isLoadingMore) {
-          console.log('[DEBUG infinite scroll] LOADING MORE');
           pendingScrollAdjustRef.current = {
             previousHeight: container.scrollHeight,
             previousTop: container.scrollTop,

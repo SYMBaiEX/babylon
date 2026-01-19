@@ -275,6 +275,7 @@ export function AgentChat({
     if (pendingInitialScrollRef.current !== agent.id) return;
 
     let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
     const IDLE_MS = 500;
     const MAX_TIME = 2000;
     const startTime = Date.now();
@@ -284,12 +285,14 @@ export function AgentChat({
     };
 
     const finish = () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
       pendingInitialScrollRef.current = null;
     };
 
     scrollToEnd();
 
-    const observer = new MutationObserver(() => {
+    observer = new MutationObserver(() => {
       if (pendingInitialScrollRef.current !== agent.id) return;
       if (Date.now() - startTime > MAX_TIME) {
         scrollToEnd();
@@ -304,11 +307,10 @@ export function AgentChat({
       }, IDLE_MS);
     });
 
+    // Only observe childList and subtree - attributes/characterData are unnecessary for scroll
     observer.observe(container, {
       childList: true,
       subtree: true,
-      attributes: true,
-      characterData: true,
     });
 
     idleTimeout = setTimeout(() => {
@@ -317,7 +319,7 @@ export function AgentChat({
     }, IDLE_MS);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       if (idleTimeout) clearTimeout(idleTimeout);
     };
   }, [agent.id, loading, messages.length]);
