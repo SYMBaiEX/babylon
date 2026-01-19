@@ -626,7 +626,7 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-    // chatDetails needed to re-run when DOM is ready after chat loads
+    // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails needed to re-run effect when DOM is ready after chat loads
   }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
 
   // Maintain scroll position after loading older messages

@@ -319,6 +319,7 @@ export function AgentChat({
       observer.disconnect();
       if (idleTimeout) clearTimeout(idleTimeout);
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length needed to re-run effect when DOM is ready after messages load
   }, [agent.id, loading, messages.length]);
 
   // Load older messages when scrolling up (near top)
