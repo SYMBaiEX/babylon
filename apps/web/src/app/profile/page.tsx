@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getProfileUrl } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeft,
@@ -22,6 +22,10 @@ import { PostCard } from '@/components/posts/PostCard';
 import { FollowListModal } from '@/components/profile/FollowListModal';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
+import {
+  type ProfileReply,
+  ProfileReplyCard,
+} from '@/components/profile/ProfileReplyCard';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
 import { TradingProfile } from '@/components/profile/TradingProfile';
 import { Avatar } from '@/components/shared/Avatar';
@@ -30,7 +34,6 @@ import {
   FeedSkeleton,
   ProfileHeaderSkeleton,
 } from '@/components/shared/Skeleton';
-import { TaggedText } from '@/components/shared/TaggedText';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -135,23 +138,7 @@ export default function ProfilePage() {
       } | null;
     }>
   >([]);
-  const [replies, setReplies] = useState<
-    Array<{
-      id: string;
-      content: string;
-      createdAt: string;
-      likeCount: number;
-      replyCount: number;
-      postId: string;
-      post: {
-        author?: {
-          displayName?: string | null;
-          username?: string | null;
-        } | null;
-        content: string;
-      };
-    }>
-  >([]);
+  const [replies, setReplies] = useState<ProfileReply[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
   // Social visibility toggles
@@ -909,62 +896,16 @@ export default function ProfilePage() {
     }
 
     return (
-      <div className="divide-y divide-border">
+      <div>
         {filteredReplies.map((reply) => (
-          <div key={reply.id} className="px-4 py-4">
-            <div className="mb-2 whitespace-pre-wrap break-words text-foreground">
-              <TaggedText
-                text={reply.content}
-                onTagClick={(tag) => {
-                  if (tag.startsWith('@')) {
-                    // Handle @mentions - route to profile
-                    const username = tag.slice(1);
-                    router.push(getProfileUrl('', username));
-                  } else if (tag.startsWith('$')) {
-                    // Handle $cashtags - route to markets
-                    const symbol = tag.slice(1);
-                    router.push(
-                      `/markets?search=${encodeURIComponent(symbol)}`
-                    );
-                  }
-                }}
-              />
-            </div>
-            <div className="mb-2 text-muted-foreground text-sm">
-              Replying to{' '}
-              <a
-                href={`/post/${reply.postId}`}
-                className="text-primary hover:underline"
-              >
-                {reply.post.author?.displayName ||
-                  reply.post.author?.username ||
-                  'a post'}
-              </a>
-            </div>
-            <div className="mb-2 truncate text-muted-foreground text-xs">
-              <TaggedText
-                text={reply.post.content.substring(0, 100) + '...'}
-                onTagClick={(tag) => {
-                  if (tag.startsWith('@')) {
-                    // Handle @mentions - route to profile
-                    const username = tag.slice(1);
-                    router.push(getProfileUrl('', username));
-                  } else if (tag.startsWith('$')) {
-                    // Handle $cashtags - route to markets
-                    const symbol = tag.slice(1);
-                    router.push(
-                      `/markets?search=${encodeURIComponent(symbol)}`
-                    );
-                  }
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
-              <span>❤️ {reply.likeCount || 0}</span>
-              <span>💬 {reply.replyCount || 0}</span>
-            </div>
-          </div>
+          <ProfileReplyCard
+            key={reply.id}
+            reply={reply}
+            authorId={user?.id || ''}
+            authorName={formData.displayName || formData.username || ''}
+            authorUsername={formData.username || null}
+            authorProfileImageUrl={formData.profileImageUrl || null}
+          />
         ))}
       </div>
     );
