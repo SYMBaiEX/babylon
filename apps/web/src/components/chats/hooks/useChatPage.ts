@@ -591,6 +591,7 @@ export function useChatPage() {
   }, [selectedChatId, chatDetails]);
 
   // Load older messages when scrolling up (near top)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails needed to re-run effect when DOM is ready after chat loads
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -626,7 +627,6 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-    // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails needed to re-run effect when DOM is ready after chat loads
   }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
 
   // Maintain scroll position after loading older messages
