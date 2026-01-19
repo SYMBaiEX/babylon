@@ -65,7 +65,7 @@ export function MessageBubble({
       )}
       <div
         className={cn(
-          'flex w-full min-w-0 flex-col',
+          'flex min-w-0 max-w-[80%] flex-col',
           isCurrentUser ? 'items-end' : 'items-start'
         )}
       >
