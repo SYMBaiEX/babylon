@@ -545,7 +545,10 @@ export default function CommentPage({ params }: CommentPageProps) {
                   {/* Author info */}
                   <div className="mb-2 flex items-center gap-2">
                     <Link
-                      href={getProfileUrl(comment.authorId, comment.authorUsername)}
+                      href={getProfileUrl(
+                        comment.authorId,
+                        comment.authorUsername
+                      )}
                       className="font-semibold hover:underline"
                     >
                       {comment.authorName}
@@ -554,7 +557,10 @@ export default function CommentPage({ params }: CommentPageProps) {
                       <VerifiedBadge size="sm" className="-ml-1" />
                     )}
                     <Link
-                      href={getProfileUrl(comment.authorId, comment.authorUsername)}
+                      href={getProfileUrl(
+                        comment.authorId,
+                        comment.authorUsername
+                      )}
                       className="text-muted-foreground text-sm hover:underline"
                     >
                       @{comment.authorUsername || comment.authorName}
