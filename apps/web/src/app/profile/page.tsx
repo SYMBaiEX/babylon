@@ -1004,8 +1004,8 @@ export default function ProfilePage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Desktop: Content + Widget layout */}
-      <div className="hidden flex-1 overflow-hidden xl:flex">
+      {/* Main layout - responsive with optional sidebar on xl screens */}
+      <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header */}
@@ -1039,36 +1039,6 @@ export default function ProfilePage() {
         {/* Widget Sidebar */}
         <div className="hidden w-96 flex-shrink-0 flex-col overflow-y-auto bg-sidebar p-4 xl:flex">
           <ProfileWidget userId={user.id} />
-        </div>
-      </div>
-
-      {/* Mobile/Tablet: Full width content */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="flex-1">
-              <h1 className="font-bold text-xl">
-                {formData.displayName || formData.username || 'Profile'}
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {posts.length} posts
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 overflow-y-auto">
-          {renderProfileHeader()}
-          {renderTabs()}
-          <div className="px-4">{renderContent()}</div>
         </div>
       </div>
 
