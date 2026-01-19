@@ -65,7 +65,7 @@ export function MessageBubble({
       )}
       <div
         className={cn(
-          'flex max-w-[70%] flex-col',
+          'flex min-w-0 max-w-[80%] flex-col',
           isCurrentUser ? 'items-end' : 'items-start'
         )}
       >
@@ -98,7 +98,7 @@ export function MessageBubble({
         </div>
         <div
           className={cn(
-            'message-bubble break-words rounded-2xl px-4 py-3 text-sm',
+            'message-bubble max-w-full overflow-x-auto break-words rounded-2xl px-4 py-3 text-sm',
             isCurrentUser
               ? 'rounded-tr-sm bg-primary/20'
               : 'rounded-tl-sm bg-sidebar-accent/50'

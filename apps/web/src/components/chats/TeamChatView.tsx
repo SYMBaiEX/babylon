@@ -203,7 +203,7 @@ export function TeamChatView({
 
       {/* Messages - Scrollable */}
       <div
-        className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
+        className="relative min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-3"
         onScroll={(e) => onScroll?.(e.currentTarget)}
       >
         <MessageList

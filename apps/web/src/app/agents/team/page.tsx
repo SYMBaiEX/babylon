@@ -212,7 +212,7 @@ export default function TeamChatPage() {
         <Separator orientation="vertical" className="hidden lg:block" />
 
         {/* Chat Area */}
-        <div className="flex min-h-0 flex-1 flex-col bg-background">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <TeamChatView
             chatDetails={chatDetails}
             currentUserId={user?.id}
