@@ -595,15 +595,6 @@ export function useChatPage() {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
 
-    console.log('[DEBUG infinite scroll] setup', {
-      hasContainer: !!container,
-      hasSentinel: !!sentinel,
-      selectedChatId,
-      hasMore,
-      isLoadingMore,
-      pendingScroll: pendingInitialScrollRef.current,
-    });
-
     if (!container || !sentinel || !selectedChatId) return;
 
     const observer = new IntersectionObserver(
@@ -611,17 +602,11 @@ export function useChatPage() {
         const entry = entries[0];
         if (!entry) return;
 
-        console.log('[DEBUG infinite scroll] intersection', {
-          isIntersecting: entry.isIntersecting,
-          scrollTop: container.scrollTop,
-          hasMore,
-          isLoadingMore,
-          pendingScroll: pendingInitialScrollRef.current,
-        });
-
         // Don't load more during initial scroll - wait until scrolled to bottom
         if (pendingInitialScrollRef.current === selectedChatId) {
-          console.log('[DEBUG infinite scroll] blocked - pending initial scroll');
+          console.log(
+            '[DEBUG infinite scroll] blocked - pending initial scroll'
+          );
           return;
         }
 
