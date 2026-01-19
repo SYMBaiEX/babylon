@@ -1,9 +1,10 @@
 'use client';
 
 import type { CommentData } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
@@ -103,26 +104,38 @@ function OriginalPostCard({ post }: { post: PostData }) {
         onClick={() => router.push(`/post/${post.id}`)}
       >
         {/* Avatar */}
-        <div className="relative z-10 shrink-0">
+        <Link
+          href={getProfileUrl(post.authorId, post.authorUsername)}
+          className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Avatar
             id={post.authorId}
             name={post.authorName}
             size="sm"
             imageUrl={post.authorProfileImageUrl || undefined}
           />
-        </div>
+        </Link>
 
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
           <div className="mb-1 flex items-center gap-2">
-            <span className="truncate font-semibold text-sm">
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="truncate font-semibold text-sm hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               {post.authorName}
-            </span>
+            </Link>
             {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <span className="truncate text-muted-foreground text-xs">
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="truncate text-muted-foreground text-xs hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               @{post.authorUsername || post.authorName}
-            </span>
+            </Link>
             <span className="text-muted-foreground text-xs">·</span>
             <span className="text-muted-foreground text-xs">
               {formatDistanceToNow(new Date(post.createdAt), {
@@ -167,26 +180,38 @@ function ParentCommentCard({
         onClick={() => router.push(`/comment/${parent.id}`)}
       >
         {/* Avatar */}
-        <div className="relative z-10 shrink-0">
+        <Link
+          href={getProfileUrl(parent.authorId, parent.authorUsername)}
+          className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Avatar
             id={parent.authorId}
             name={parent.authorName}
             size="sm"
             imageUrl={parent.authorProfileImageUrl || undefined}
           />
-        </div>
+        </Link>
 
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
           <div className="mb-1 flex items-center gap-2">
-            <span className="truncate font-semibold text-sm">
+            <Link
+              href={getProfileUrl(parent.authorId, parent.authorUsername)}
+              className="truncate font-semibold text-sm hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               {parent.authorName}
-            </span>
+            </Link>
             {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <span className="truncate text-muted-foreground text-xs">
+            <Link
+              href={getProfileUrl(parent.authorId, parent.authorUsername)}
+              className="truncate text-muted-foreground text-xs hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               @{parent.authorUsername || parent.authorName}
-            </span>
+            </Link>
             <span className="text-muted-foreground text-xs">·</span>
             <span className="text-muted-foreground text-xs">
               {formatDistanceToNow(new Date(parent.createdAt), {
@@ -231,26 +256,38 @@ function ReplyCard({
   return (
     <div className="flex gap-3 border-border border-b py-4 last:border-b-0">
       {/* Avatar */}
-      <div className="shrink-0">
+      <Link
+        href={getProfileUrl(reply.authorId, reply.authorUsername)}
+        className="shrink-0 transition-opacity hover:opacity-80"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Avatar
           id={reply.authorId}
           name={reply.authorName}
           size="sm"
           imageUrl={reply.authorProfileImageUrl || undefined}
         />
-      </div>
+      </Link>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         {/* Header */}
         <div className="mb-1 flex items-center gap-2">
-          <span className="truncate font-semibold text-sm">
+          <Link
+            href={getProfileUrl(reply.authorId, reply.authorUsername)}
+            className="truncate font-semibold text-sm hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
             {reply.authorName}
-          </span>
+          </Link>
           {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-          <span className="truncate text-muted-foreground text-xs">
+          <Link
+            href={getProfileUrl(reply.authorId, reply.authorUsername)}
+            className="truncate text-muted-foreground text-xs hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
             @{reply.authorUsername || reply.authorName}
-          </span>
+          </Link>
           <span className="text-muted-foreground text-xs">·</span>
           <span className="text-muted-foreground text-xs">
             {formatDistanceToNow(new Date(reply.createdAt), {
@@ -491,26 +528,43 @@ export default function CommentPage({ params }: CommentPageProps) {
             >
               <div className="flex gap-3">
                 {/* Avatar */}
-                <div className="shrink-0">
+                <Link
+                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
+                  className="shrink-0 transition-opacity hover:opacity-80"
+                >
                   <Avatar
                     id={comment.authorId}
                     name={comment.authorName}
                     size="md"
                     imageUrl={comment.authorProfileImageUrl || undefined}
                   />
-                </div>
+                </Link>
 
                 {/* Content */}
                 <div className="min-w-0 flex-1">
                   {/* Author info */}
                   <div className="mb-2 flex items-center gap-2">
-                    <span className="font-semibold">{comment.authorName}</span>
+                    <Link
+                      href={getProfileUrl(
+                        comment.authorId,
+                        comment.authorUsername
+                      )}
+                      className="font-semibold hover:underline"
+                    >
+                      {comment.authorName}
+                    </Link>
                     {showVerifiedBadge && (
                       <VerifiedBadge size="sm" className="-ml-1" />
                     )}
-                    <span className="text-muted-foreground text-sm">
+                    <Link
+                      href={getProfileUrl(
+                        comment.authorId,
+                        comment.authorUsername
+                      )}
+                      className="text-muted-foreground text-sm hover:underline"
+                    >
                       @{comment.authorUsername || comment.authorName}
-                    </span>
+                    </Link>
                   </div>
 
                   {/* Comment content - larger for main comment */}
