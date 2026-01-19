@@ -257,6 +257,73 @@ export function AgentChat({
     lastMessageIdRef.current = lastId;
   }, [messages, loading]);
 
+  // Scroll to bottom on initial load using MutationObserver
+  const pendingInitialScrollRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (agent.id) {
+      pendingInitialScrollRef.current = agent.id;
+    }
+  }, [agent.id]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length needed to re-run effect when DOM is ready after messages load
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    const endMarker = messagesEndRef.current;
+
+    if (!container || !endMarker || loading) return;
+    if (pendingInitialScrollRef.current !== agent.id) return;
+
+    let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
+    const IDLE_MS = 500;
+    const MAX_TIME = 2000;
+    const startTime = Date.now();
+
+    const scrollToEnd = () => {
+      endMarker.scrollIntoView({ behavior: 'auto', block: 'end' });
+    };
+
+    const finish = () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
+      pendingInitialScrollRef.current = null;
+    };
+
+    scrollToEnd();
+
+    observer = new MutationObserver(() => {
+      if (pendingInitialScrollRef.current !== agent.id) return;
+      if (Date.now() - startTime > MAX_TIME) {
+        scrollToEnd();
+        finish();
+        return;
+      }
+      scrollToEnd();
+      if (idleTimeout) clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => {
+        scrollToEnd();
+        finish();
+      }, IDLE_MS);
+    });
+
+    // Only observe childList and subtree - attributes/characterData are unnecessary for scroll
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    idleTimeout = setTimeout(() => {
+      scrollToEnd();
+      finish();
+    }, IDLE_MS);
+
+    return () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
+    };
+  }, [agent.id, loading, messages.length]);
+
   // Load older messages when scrolling up (near top)
   useEffect(() => {
     const container = chatContainerRef.current;

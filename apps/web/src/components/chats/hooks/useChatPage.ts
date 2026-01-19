@@ -517,11 +517,14 @@ export function useChatPage() {
     }
   }, [chatDetails?.messages, isAtBottom, scrollToBottom, loadingChat]);
 
-  // Handle initial scroll - keep scrolling to bottom until stable
+  // Handle initial scroll - use MutationObserver to scroll on any DOM change
   useEffect(() => {
     const container = chatContainerRef.current;
+    const endMarker = messagesEndRef.current;
+
     if (
       !container ||
+      !endMarker ||
       !selectedChatId ||
       chatDetails?.chat?.id !== selectedChatId
     )
@@ -529,56 +532,68 @@ export function useChatPage() {
 
     if (pendingInitialScrollRef.current !== selectedChatId) return;
 
-    let rafId: number;
-    let lastScrollHeight = 0;
-    let stableCount = 0;
-    const MAX_STABLE = 5; // Need 5 consecutive stable frames
-    const MAX_TIME = 2000; // Give up after 2 seconds
+    let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
+    const IDLE_MS = 500; // Stop after 500ms of no DOM changes
+    const MAX_TIME = 2000; // Hard timeout after 2 seconds
     const startTime = Date.now();
 
-    const tick = () => {
+    const scrollToEnd = () => {
+      endMarker.scrollIntoView({ behavior: 'auto', block: 'end' });
+    };
+
+    const finish = () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
+      pendingInitialScrollRef.current = null;
+      setIsAtBottom(true);
+    };
+
+    // Scroll immediately
+    scrollToEnd();
+
+    // Watch for DOM changes and scroll on each
+    observer = new MutationObserver(() => {
       if (pendingInitialScrollRef.current !== selectedChatId) return;
+
+      // Check hard timeout
       if (Date.now() - startTime > MAX_TIME) {
-        // Timeout - clear flag and stop
-        pendingInitialScrollRef.current = null;
-        setIsAtBottom(true);
+        scrollToEnd();
+        finish();
         return;
       }
 
-      const currentHeight = container.scrollHeight;
-      const maxScroll = currentHeight - container.clientHeight;
+      // Scroll on mutation
+      scrollToEnd();
 
-      // Always scroll to bottom
-      if (maxScroll > 0) {
-        container.scrollTop = maxScroll;
-      }
+      // Reset idle timer - finish after no changes for IDLE_MS
+      if (idleTimeout) clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => {
+        scrollToEnd();
+        finish();
+      }, IDLE_MS);
+    });
 
-      // Check if height is stable
-      if (currentHeight === lastScrollHeight) {
-        stableCount++;
-        if (stableCount >= MAX_STABLE) {
-          // Height stable for 5 frames - we're done
-          pendingInitialScrollRef.current = null;
-          setIsAtBottom(true);
-          return;
-        }
-      } else {
-        stableCount = 0;
-        lastScrollHeight = currentHeight;
-      }
+    // Only observe childList and subtree - attributes/characterData are unnecessary for scroll
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+    });
 
-      // Keep going
-      rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
+    // Start idle timer (will finish if no mutations happen)
+    idleTimeout = setTimeout(() => {
+      scrollToEnd();
+      finish();
+    }, IDLE_MS);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
     };
   }, [selectedChatId, chatDetails]);
 
   // Load older messages when scrolling up (near top)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatDetails needed to re-run effect when DOM is ready after chat loads
   useEffect(() => {
     const container = chatContainerRef.current;
     const sentinel = topSentinelRef.current;
@@ -608,7 +623,7 @@ export function useChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [selectedChatId, hasMore, isLoadingMore, loadMore]);
+  }, [selectedChatId, hasMore, isLoadingMore, loadMore, chatDetails]);
 
   // Maintain scroll position after loading older messages
   useEffect(() => {
