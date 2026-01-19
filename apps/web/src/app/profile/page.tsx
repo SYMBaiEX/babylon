@@ -205,42 +205,31 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const controller = new AbortController();
-
     const loadContent = async () => {
       setLoadingPosts(true);
-      try {
-        const token = await getAccessToken();
-        const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(
-          `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
-          { headers, signal: controller.signal }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          const items = data?.data?.items ?? data?.items ?? [];
-          if (tab === 'posts') {
-            setPosts(items);
-          } else {
-            setReplies(items);
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Failed to fetch content:', error);
-        }
-      } finally {
-        setLoadingPosts(false);
+      const token = await getAccessToken();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
+
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
+        { headers }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const items = data?.data?.items ?? data?.items ?? [];
+        if (tab === 'posts') {
+          setPosts(items);
+        } else {
+          setReplies(items);
+        }
+      }
+      setLoadingPosts(false);
     };
 
     loadContent();
-
-    return () => controller.abort();
   }, [user?.id, tab, getAccessToken]);
 
   // Listen for profile updates (when user follows/unfollows someone)

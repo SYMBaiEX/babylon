@@ -299,6 +299,15 @@ export const GET = withErrorHandling(
             { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
           ])
       );
+      const orgAuthorsMap = new Map(
+        allAuthorIds
+          .map((id) => StaticDataRegistry.getOrganization(id))
+          .filter((o): o is NonNullable<typeof o> => o !== null)
+          .map((o) => [
+            o.id,
+            { id: o.id, name: o.name, imageUrl: o.imageUrl ?? null },
+          ])
+      );
 
       // Format comments as replies
       const replies = userComments.map((comment) => {
@@ -307,6 +316,7 @@ export const GET = withErrorHandling(
         const postAuthorActor = post
           ? actorAuthorsMap.get(post.authorId)
           : null;
+        const postAuthorOrg = post ? orgAuthorsMap.get(post.authorId) : null;
 
         // Get parent comment if this is a reply to a comment
         const parentComment = comment.parentCommentId
@@ -317,6 +327,9 @@ export const GET = withErrorHandling(
           : null;
         const parentCommentAuthorActor = parentComment
           ? actorAuthorsMap.get(parentComment.authorId)
+          : null;
+        const parentCommentAuthorOrg = parentComment
+          ? orgAuthorsMap.get(parentComment.authorId)
           : null;
 
         return {
@@ -351,7 +364,14 @@ export const GET = withErrorHandling(
                         profileImageUrl:
                           parentCommentAuthorActor.profileImageUrl,
                       }
-                    : null,
+                    : parentCommentAuthorOrg
+                      ? {
+                          id: parentCommentAuthorOrg.id,
+                          displayName: parentCommentAuthorOrg.name,
+                          username: null,
+                          profileImageUrl: parentCommentAuthorOrg.imageUrl,
+                        }
+                      : null,
               }
             : null,
           // Original post (always included for context)
@@ -375,7 +395,14 @@ export const GET = withErrorHandling(
                         username: null,
                         profileImageUrl: postAuthorActor.profileImageUrl,
                       }
-                    : null,
+                    : postAuthorOrg
+                      ? {
+                          id: postAuthorOrg.id,
+                          displayName: postAuthorOrg.name,
+                          username: null,
+                          profileImageUrl: postAuthorOrg.imageUrl,
+                        }
+                      : null,
               }
             : null,
         };
