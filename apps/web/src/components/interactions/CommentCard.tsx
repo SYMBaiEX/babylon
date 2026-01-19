@@ -4,6 +4,7 @@ import type { CommentCardProps, CommentData } from '@babylon/shared';
 import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MessageCircle, MoreVertical, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
@@ -116,7 +117,11 @@ export function CommentCard({
   return (
     <div className={cn('flex gap-3', className)}>
       {/* Avatar - Round */}
-      <div className="shrink-0">
+      <Link
+        href={getProfileUrl(comment.userId, comment.userUsername)}
+        className="shrink-0 transition-opacity hover:opacity-80"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Avatar
           id={comment.userId}
           name={comment.userName}
@@ -124,20 +129,28 @@ export function CommentCard({
           src={comment.userAvatar || undefined}
           imageUrl={comment.userAvatar || undefined}
         />
-      </div>
+      </Link>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         {/* Header: Username/handle on left, timestamp and actions on right */}
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate font-semibold text-sm">
+            <Link
+              href={getProfileUrl(comment.userId, comment.userUsername)}
+              className="truncate font-semibold text-sm hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               {comment.userName}
-            </span>
+            </Link>
             {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <span className="truncate text-muted-foreground text-xs">
+            <Link
+              href={getProfileUrl(comment.userId, comment.userUsername)}
+              className="truncate text-muted-foreground text-xs hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               @{comment.userUsername || comment.userName}
-            </span>
+            </Link>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Timestamp - Right aligned */}
