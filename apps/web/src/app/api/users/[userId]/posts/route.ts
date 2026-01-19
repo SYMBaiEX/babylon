@@ -169,6 +169,13 @@ export const GET = withErrorHandling(
 
       const commentIds = userComments.map((c) => c.id);
       const postIds = [...new Set(userComments.map((c) => c.postId))];
+      const parentCommentIds = [
+        ...new Set(
+          userComments
+            .map((c) => c.parentCommentId)
+            .filter((id): id is string => id !== null)
+        ),
+      ];
 
       // Fetch posts for these comments
       const postsData = await db
@@ -182,6 +189,30 @@ export const GET = withErrorHandling(
         .where(inArray(posts.id, postIds));
 
       const postsMap = new Map(postsData.map((p) => [p.id, p]));
+
+      // Fetch parent comments (for replies to comments)
+      let parentCommentsMap = new Map<
+        string,
+        {
+          id: string;
+          content: string;
+          authorId: string;
+          createdAt: Date;
+        }
+      >();
+      if (parentCommentIds.length > 0) {
+        const parentCommentsData = await db
+          .select({
+            id: comments.id,
+            content: comments.content,
+            authorId: comments.authorId,
+            createdAt: comments.createdAt,
+          })
+          .from(comments)
+          .where(inArray(comments.id, parentCommentIds));
+
+        parentCommentsMap = new Map(parentCommentsData.map((c) => [c.id, c]));
+      }
 
       // Fetch like counts for comments
       const likeCountsResult = await db
@@ -236,9 +267,19 @@ export const GET = withErrorHandling(
         );
       }
 
-      // Fetch author info for posts
-      const postAuthorIds = [...new Set(postsData.map((p) => p.authorId))];
-      const postAuthorsUsers = await db
+      // Fetch author info for posts and parent comments
+      const parentCommentAuthorIds = [
+        ...new Set(
+          Array.from(parentCommentsMap.values()).map((c) => c.authorId)
+        ),
+      ];
+      const allAuthorIds = [
+        ...new Set([
+          ...postsData.map((p) => p.authorId),
+          ...parentCommentAuthorIds,
+        ]),
+      ];
+      const authorsUsers = await db
         .select({
           id: users.id,
           displayName: users.displayName,
@@ -246,11 +287,11 @@ export const GET = withErrorHandling(
           profileImageUrl: users.profileImageUrl,
         })
         .from(users)
-        .where(inArray(users.id, postAuthorIds));
+        .where(inArray(users.id, allAuthorIds));
 
-      const userAuthorsMap = new Map(postAuthorsUsers.map((u) => [u.id, u]));
+      const userAuthorsMap = new Map(authorsUsers.map((u) => [u.id, u]));
       const actorAuthorsMap = new Map(
-        postAuthorIds
+        allAuthorIds
           .map((id) => StaticDataRegistry.getActor(id))
           .filter((a): a is NonNullable<typeof a> => a !== null)
           .map((a) => [
@@ -262,37 +303,77 @@ export const GET = withErrorHandling(
       // Format comments as replies
       const replies = userComments.map((comment) => {
         const post = postsMap.get(comment.postId);
-        const authorUser = post ? userAuthorsMap.get(post.authorId) : null;
-        const authorActor = post ? actorAuthorsMap.get(post.authorId) : null;
+        const postAuthorUser = post ? userAuthorsMap.get(post.authorId) : null;
+        const postAuthorActor = post
+          ? actorAuthorsMap.get(post.authorId)
+          : null;
+
+        // Get parent comment if this is a reply to a comment
+        const parentComment = comment.parentCommentId
+          ? parentCommentsMap.get(comment.parentCommentId)
+          : null;
+        const parentCommentAuthorUser = parentComment
+          ? userAuthorsMap.get(parentComment.authorId)
+          : null;
+        const parentCommentAuthorActor = parentComment
+          ? actorAuthorsMap.get(parentComment.authorId)
+          : null;
 
         return {
           id: comment.id,
           content: comment.content,
           postId: comment.postId,
+          parentCommentId: comment.parentCommentId,
           createdAt: comment.createdAt.toISOString(),
           updatedAt: comment.updatedAt.toISOString(),
           likeCount: likeCountsMap.get(comment.id) ?? 0,
           replyCount: replyCountsMap.get(comment.id) ?? 0,
           isLiked: userLikesSet.has(comment.id),
+          // Parent comment (if replying to a comment)
+          parentComment: parentComment
+            ? {
+                id: parentComment.id,
+                content: parentComment.content,
+                authorId: parentComment.authorId,
+                createdAt: parentComment.createdAt.toISOString(),
+                author: parentCommentAuthorUser
+                  ? {
+                      id: parentCommentAuthorUser.id,
+                      displayName: parentCommentAuthorUser.displayName,
+                      username: parentCommentAuthorUser.username,
+                      profileImageUrl: parentCommentAuthorUser.profileImageUrl,
+                    }
+                  : parentCommentAuthorActor
+                    ? {
+                        id: parentCommentAuthorActor.id,
+                        displayName: parentCommentAuthorActor.name,
+                        username: null,
+                        profileImageUrl:
+                          parentCommentAuthorActor.profileImageUrl,
+                      }
+                    : null,
+              }
+            : null,
+          // Original post (always included for context)
           post: post
             ? {
                 id: post.id,
                 content: post.content,
                 authorId: post.authorId,
                 timestamp: post.timestamp.toISOString(),
-                author: authorUser
+                author: postAuthorUser
                   ? {
-                      id: authorUser.id,
-                      displayName: authorUser.displayName,
-                      username: authorUser.username,
-                      profileImageUrl: authorUser.profileImageUrl,
+                      id: postAuthorUser.id,
+                      displayName: postAuthorUser.displayName,
+                      username: postAuthorUser.username,
+                      profileImageUrl: postAuthorUser.profileImageUrl,
                     }
-                  : authorActor
+                  : postAuthorActor
                     ? {
-                        id: authorActor.id,
-                        displayName: authorActor.name,
+                        id: postAuthorActor.id,
+                        displayName: postAuthorActor.name,
                         username: null,
-                        profileImageUrl: authorActor.profileImageUrl,
+                        profileImageUrl: postAuthorActor.profileImageUrl,
                       }
                     : null,
               }

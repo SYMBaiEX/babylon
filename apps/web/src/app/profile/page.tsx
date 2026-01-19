@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getProfileUrl } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeft,
@@ -22,6 +22,10 @@ import { PostCard } from '@/components/posts/PostCard';
 import { FollowListModal } from '@/components/profile/FollowListModal';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
+import {
+  type ProfileReply,
+  ProfileReplyCard,
+} from '@/components/profile/ProfileReplyCard';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
 import { TradingProfile } from '@/components/profile/TradingProfile';
 import { Avatar } from '@/components/shared/Avatar';
@@ -30,7 +34,6 @@ import {
   FeedSkeleton,
   ProfileHeaderSkeleton,
 } from '@/components/shared/Skeleton';
-import { TaggedText } from '@/components/shared/TaggedText';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -135,23 +138,7 @@ export default function ProfilePage() {
       } | null;
     }>
   >([]);
-  const [replies, setReplies] = useState<
-    Array<{
-      id: string;
-      content: string;
-      createdAt: string;
-      likeCount: number;
-      replyCount: number;
-      postId: string;
-      post: {
-        author?: {
-          displayName?: string | null;
-          username?: string | null;
-        } | null;
-        content: string;
-      };
-    }>
-  >([]);
+  const [replies, setReplies] = useState<ProfileReply[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
   // Social visibility toggles
@@ -218,31 +205,42 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user?.id) return;
 
+    const controller = new AbortController();
+
     const loadContent = async () => {
       setLoadingPosts(true);
-      const token = await getAccessToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
-        { headers }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const items = data?.data?.items ?? data?.items ?? [];
-        if (tab === 'posts') {
-          setPosts(items);
-        } else {
-          setReplies(items);
+      try {
+        const token = await getAccessToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
+
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
+          { headers, signal: controller.signal }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const items = data?.data?.items ?? data?.items ?? [];
+          if (tab === 'posts') {
+            setPosts(items);
+          } else {
+            setReplies(items);
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to fetch content:', error);
+        }
+      } finally {
+        setLoadingPosts(false);
       }
-      setLoadingPosts(false);
     };
 
     loadContent();
+
+    return () => controller.abort();
   }, [user?.id, tab, getAccessToken]);
 
   // Listen for profile updates (when user follows/unfollows someone)
@@ -909,62 +907,16 @@ export default function ProfilePage() {
     }
 
     return (
-      <div className="divide-y divide-border">
+      <div>
         {filteredReplies.map((reply) => (
-          <div key={reply.id} className="px-4 py-4">
-            <div className="mb-2 whitespace-pre-wrap break-words text-foreground">
-              <TaggedText
-                text={reply.content}
-                onTagClick={(tag) => {
-                  if (tag.startsWith('@')) {
-                    // Handle @mentions - route to profile
-                    const username = tag.slice(1);
-                    router.push(getProfileUrl('', username));
-                  } else if (tag.startsWith('$')) {
-                    // Handle $cashtags - route to markets
-                    const symbol = tag.slice(1);
-                    router.push(
-                      `/markets?search=${encodeURIComponent(symbol)}`
-                    );
-                  }
-                }}
-              />
-            </div>
-            <div className="mb-2 text-muted-foreground text-sm">
-              Replying to{' '}
-              <a
-                href={`/post/${reply.postId}`}
-                className="text-primary hover:underline"
-              >
-                {reply.post.author?.displayName ||
-                  reply.post.author?.username ||
-                  'a post'}
-              </a>
-            </div>
-            <div className="mb-2 truncate text-muted-foreground text-xs">
-              <TaggedText
-                text={reply.post.content.substring(0, 100) + '...'}
-                onTagClick={(tag) => {
-                  if (tag.startsWith('@')) {
-                    // Handle @mentions - route to profile
-                    const username = tag.slice(1);
-                    router.push(getProfileUrl('', username));
-                  } else if (tag.startsWith('$')) {
-                    // Handle $cashtags - route to markets
-                    const symbol = tag.slice(1);
-                    router.push(
-                      `/markets?search=${encodeURIComponent(symbol)}`
-                    );
-                  }
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
-              <span>❤️ {reply.likeCount || 0}</span>
-              <span>💬 {reply.replyCount || 0}</span>
-            </div>
-          </div>
+          <ProfileReplyCard
+            key={reply.id}
+            reply={reply}
+            authorId={user?.id || ''}
+            authorName={formData.displayName || formData.username || ''}
+            authorUsername={formData.username || null}
+            authorProfileImageUrl={formData.profileImageUrl || null}
+          />
         ))}
       </div>
     );
@@ -1004,8 +956,8 @@ export default function ProfilePage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Desktop: Content + Widget layout */}
-      <div className="hidden flex-1 overflow-hidden xl:flex">
+      {/* Main layout - responsive with optional sidebar on xl screens */}
+      <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header */}
@@ -1039,36 +991,6 @@ export default function ProfilePage() {
         {/* Widget Sidebar */}
         <div className="hidden w-96 flex-shrink-0 flex-col overflow-y-auto bg-sidebar p-4 xl:flex">
           <ProfileWidget userId={user.id} />
-        </div>
-      </div>
-
-      {/* Mobile/Tablet: Full width content */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="flex-1">
-              <h1 className="font-bold text-xl">
-                {formData.displayName || formData.username || 'Profile'}
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {posts.length} posts
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 overflow-y-auto">
-          {renderProfileHeader()}
-          {renderTabs()}
-          <div className="px-4">{renderContent()}</div>
         </div>
       </div>
 
