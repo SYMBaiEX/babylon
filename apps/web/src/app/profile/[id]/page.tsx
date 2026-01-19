@@ -521,27 +521,38 @@ export default function ActorProfilePage() {
     if (tab !== 'replies') return;
     if (!actorInfo?.id) return;
 
+    const controller = new AbortController();
+
     const loadReplies = async () => {
       setLoadingReplies(true);
-      const token = await getAccessToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      try {
+        const token = await getAccessToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
 
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(actorInfo.id)}/posts?type=replies`,
-        { headers }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const items = data?.data?.items ?? data?.items ?? [];
-        setReplies(items);
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(actorInfo.id)}/posts?type=replies`,
+          { headers, signal: controller.signal }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const items = data?.data?.items ?? data?.items ?? [];
+          setReplies(items);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to fetch replies:', error);
+        }
+      } finally {
+        setLoadingReplies(false);
       }
-      setLoadingReplies(false);
     };
 
     loadReplies();
+
+    return () => controller.abort();
   }, [tab, actorInfo?.id, getAccessToken]);
 
   // Get posts for this actor from all games
