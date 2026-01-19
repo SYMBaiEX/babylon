@@ -185,11 +185,68 @@ export async function POST(request: NextRequest) {
     userId: authResult?.userId,
   });
 
-  // User-scoped execution: When authenticated via user API key, authResult.userId
-  // contains the user ID. To enable user-specific operations:
-  // 1. Update BabylonAgentExecutor.execute() to accept optional userId parameter
-  // 2. Propagate userId to downstream service calls (trading, social, etc.)
-  // 3. Add feature flag ENABLE_USER_SCOPED_A2A_EXECUTION for gradual rollout
+  // SECURITY: User-scoped execution for user API keys
+  // When authenticated via per-user API key, enforce that ALL operations
+  // use the authenticated user's identity. This prevents impersonation attacks.
+  if (authResult?.userId && authResult.authMethod === 'user-key') {
+    const authenticatedUserId = authResult.userId;
+
+    // Override contextId in the message params
+    if (body.params?.message) {
+      body.params.message.contextId = authenticatedUserId;
+    }
+
+    // Set at params level for tasks/get and other methods
+    if (body.params) {
+      body.params.contextId = authenticatedUserId;
+    }
+
+    // SECURITY: Block userId override attempts in operation params
+    // Some operations accept params.userId - force it to authenticated user
+    // to prevent impersonation via "I want to act as user X" attacks
+    if (body.params?.message?.parts) {
+      for (const part of body.params.message.parts) {
+        if (part?.kind === 'data' && part.data?.params) {
+          // If userId is provided in operation params, it MUST match authenticated user
+          if (part.data.params.userId && part.data.params.userId !== authenticatedUserId) {
+            logger.warn('Blocked userId override attempt', {
+              providedUserId: part.data.params.userId,
+              authenticatedUserId,
+            });
+            return NextResponse.json(
+              {
+                jsonrpc: '2.0',
+                error: {
+                  code: -32001,
+                  message: 'Forbidden: Cannot perform operations as another user',
+                },
+                id: body.id ?? null,
+              },
+              { status: 403 }
+            );
+          }
+          // Force userId to authenticated user
+          part.data.params.userId = authenticatedUserId;
+        }
+      }
+    }
+  }
+
+  // SECURITY: Server API key and localhost bypass
+  // These auth methods allow arbitrary contextId, which enables acting as any user.
+  // This is intentional for admin/internal operations but should be monitored.
+  if (authResult?.authMethod === 'server-key' || authResult?.authMethod === 'localhost') {
+    const providedContextId = body.params?.message?.contextId || body.params?.contextId;
+    if (providedContextId) {
+      // Log server-key operations with user context for audit trail
+      logger.info('Server/localhost A2A operation with user context', {
+        authMethod: authResult.authMethod,
+        contextId: providedContextId,
+        method: body.method,
+        operation: body.params?.message?.parts?.[0]?.data?.operation,
+      });
+    }
+  }
 
   // Use the JSON-RPC transport handler
   const response = await jsonRpcHandler.handle(body);
