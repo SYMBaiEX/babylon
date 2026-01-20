@@ -189,11 +189,80 @@ export async function POST(request: NextRequest) {
     userId: authResult?.userId,
   });
 
-  // User-scoped execution: When authenticated via user API key, authResult.userId
-  // contains the user ID. To enable user-specific operations:
-  // 1. Update BabylonAgentExecutor.execute() to accept optional userId parameter
-  // 2. Propagate userId to downstream service calls (trading, social, etc.)
-  // 3. Add feature flag ENABLE_USER_SCOPED_A2A_EXECUTION for gradual rollout
+  // SECURITY: User-scoped execution for user API keys
+  // When authenticated via per-user API key, enforce that the ACTOR identity
+  // (contextId) is the authenticated user. This prevents impersonation attacks.
+  //
+  // NOTE: We do NOT enforce params.userId because many operations use it as
+  // the TARGET (e.g., blockUser targets params.userId, actor is contextId).
+  // The executor uses contextId as the actor for all write operations.
+  if (authResult?.authMethod === 'user-key') {
+    const authenticatedUserId = authResult.userId;
+
+    // Validate userId is present and non-empty
+    if (!authenticatedUserId || typeof authenticatedUserId !== 'string') {
+      logger.error('User API key authenticated but userId is missing', {
+        authMethod: authResult.authMethod,
+        hasUserId: !!authenticatedUserId,
+      });
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Authentication error: Invalid user identity',
+          },
+          id: body.id ?? null,
+        },
+        { status: 401 }
+      );
+    }
+
+    // Type guard: ensure params is a plain object
+    const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+      typeof val === 'object' && val !== null && !Array.isArray(val);
+
+    // Ensure params exists and is a plain object
+    if (!isPlainObject(body.params)) {
+      body.params = {};
+    }
+
+    // Validate and override contextId in message params
+    if (isPlainObject(body.params.message)) {
+      if (body.params.message.contextId && body.params.message.contextId !== authenticatedUserId) {
+        logger.warn('Overriding mismatched message contextId', {
+          providedContextId: body.params.message.contextId,
+          authenticatedUserId,
+        });
+      }
+      body.params.message.contextId = authenticatedUserId;
+    }
+
+    // Validate and override contextId at params level (for tasks/get and other methods)
+    if (body.params.contextId && body.params.contextId !== authenticatedUserId) {
+      logger.warn('Overriding mismatched params contextId', {
+        providedContextId: body.params.contextId,
+        authenticatedUserId,
+      });
+    }
+    body.params.contextId = authenticatedUserId;
+  }
+
+  // SECURITY: Server API key and localhost bypass
+  // These auth methods allow arbitrary contextId, which enables acting as any user.
+  // This is intentional for admin/internal operations but should be monitored.
+  if (authResult?.authMethod === 'server-key' || authResult?.authMethod === 'localhost') {
+    const providedContextId = body.params?.message?.contextId ?? body.params?.contextId;
+    if (providedContextId !== undefined && providedContextId !== null) {
+      // Log server-key operations with user context for audit trail
+      logger.info('Server/localhost A2A operation with user context', {
+        authMethod: authResult.authMethod,
+        contextId: providedContextId,
+        method: body.method,
+        operation: body.params?.message?.parts?.[0]?.data?.operation,
+      });
+    }
+  }
 
   // Use the JSON-RPC transport handler
   const response = await jsonRpcHandler.handle(body);
