@@ -227,14 +227,26 @@ export default function TeamChatPage() {
             messagesEndRef={messagesEndRef}
             onMessageChange={handleInputChange}
             onSendMessage={sendMessage}
-            agents={
-              teamChat?.agents.map((agent) => ({
+            agents={[
+              // Include current user so they can mention themselves
+              ...(user
+                ? [
+                    {
+                      id: user.id,
+                      username: user.username || null,
+                      displayName: user.displayName || user.username || 'You',
+                      profileImageUrl: user.profileImageUrl || null,
+                    },
+                  ]
+                : []),
+              // Include all agents
+              ...(teamChat?.agents.map((agent) => ({
                 id: agent.id,
                 username: agent.username,
                 displayName: agent.displayName,
                 profileImageUrl: agent.profileImageUrl,
-              })) || []
-            }
+              })) || []),
+            ]}
             typingUsers={typingUsers}
             thinkingAgents={thinkingAgents}
             onShowMembers={() => setShowMemberDrawer(true)}
