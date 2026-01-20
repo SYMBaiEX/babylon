@@ -1,0 +1,282 @@
+# Babylon RL Training - RunPod Production Image
+#
+# This Dockerfile creates a production-ready image for RunPod with:
+# - All Python dependencies pre-installed
+# - vLLM with CUDA support
+# - Flash Attention compiled
+# - Model weights pre-downloaded (optional)
+# - Bun for database migrations
+# - All GPU profiles included
+#
+# Build (basic):
+#   docker build -f Dockerfile.runpod -t babylon-training:runpod .
+#
+# Build (with model pre-download - recommended):
+#   docker build -f Dockerfile.runpod \
+#     --build-arg PRELOAD_MODEL=Qwen/Qwen3-30B-A3B \
+#     -t babylon-training:runpod-30b .
+#
+# Push to Docker Hub:
+#   docker tag babylon-training:runpod your-org/babylon-training:runpod
+#   docker push your-org/babylon-training:runpod
+#
+# Run on RunPod:
+#   1. Create pod with this image
+#   2. Set DATABASE_URL environment variable
+#   3. Run: python python/scripts/run_training.py --profile h100-4gpu
+#
+# ============================================================================
+
+# Use CUDA devel for flash-attn compilation
+FROM nvidia/cuda:12.1-devel-ubuntu22.04 AS builder
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3-pip \
+    git \
+    curl \
+    wget \
+    build-essential \
+    ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Set up Python
+RUN python3.11 -m pip install --upgrade pip setuptools wheel
+
+# Install PyTorch first (required for flash-attn build)
+RUN python3.11 -m pip install --no-cache-dir \
+    torch>=2.1.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Install flash-attention (compile from source)
+# This takes a while but is critical for 30B model performance
+RUN python3.11 -m pip install --no-cache-dir \
+    packaging \
+    ninja \
+    && MAX_JOBS=4 pip install flash-attn --no-build-isolation
+
+# ============================================================================
+# Production image
+# ============================================================================
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    git \
+    curl \
+    wget \
+    unzip \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Bun for database migrations
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
+
+# Create app directory
+WORKDIR /app
+
+# Copy flash-attn from builder
+COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+
+# Install Python dependencies
+COPY python/requirements.txt ./requirements.txt
+RUN python3.11 -m pip install --no-cache-dir --upgrade pip && \
+    python3.11 -m pip install --no-cache-dir -r requirements.txt
+
+# Install GPU training dependencies
+RUN python3.11 -m pip install --no-cache-dir \
+    torch>=2.1.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+RUN python3.11 -m pip install --no-cache-dir \
+    transformers>=4.36.0 \
+    peft>=0.8.0 \
+    accelerate>=1.12.0
+
+# Install vLLM (large package)
+RUN python3.11 -m pip install --no-cache-dir vllm>=0.4.0
+
+# Install atroposlib
+RUN python3.11 -m pip install --no-cache-dir atroposlib
+
+# Copy application code
+COPY python/ ./python/
+COPY Makefile ./Makefile
+COPY config/ ./config/
+
+# Install the training package in editable mode
+RUN cd python && python3.11 -m pip install -e .
+
+# Set Python path
+ENV PYTHONPATH=/app/python
+
+# Create directories for outputs
+RUN mkdir -p /app/trained_models /app/logs /app/data /app/rollout_dumps
+
+# Copy database package for migrations
+COPY ../db/ ./db/ 2>/dev/null || mkdir -p ./db
+
+# Create entrypoint script
+RUN cat > /app/entrypoint.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "============================================"
+echo "  Babylon Training - RunPod Container"
+echo "============================================"
+echo ""
+
+# Check GPU availability
+echo "Checking GPUs..."
+nvidia-smi --query-gpu=name,memory.total --format=csv
+echo ""
+
+# Verify installations
+echo "Verifying installations..."
+python3.11 -c "
+import torch
+print(f'PyTorch: {torch.__version__}')
+print(f'CUDA available: {torch.cuda.is_available()}')
+print(f'GPU count: {torch.cuda.device_count()}')
+"
+
+python3.11 -c "import vllm; print(f'vLLM: {vllm.__version__}')"
+
+# Try flash-attn
+python3.11 -c "
+try:
+    import flash_attn
+    print(f'Flash Attention: {flash_attn.__version__}')
+except ImportError:
+    print('Flash Attention: Not available (optional)')
+" 2>/dev/null || true
+
+echo ""
+
+# Check database connection if provided
+if [ -n "$DATABASE_URL" ]; then
+    echo "Testing database connection..."
+    python3.11 -c "
+import os
+import asyncio
+import asyncpg
+
+async def test():
+    pool = await asyncpg.create_pool(os.environ['DATABASE_URL'], min_size=1, max_size=1, statement_cache_size=0)
+    async with pool.acquire() as conn:
+        count = await conn.fetchval('SELECT COUNT(*) FROM trajectories WHERE \"isTrainingData\" = true')
+        print(f'✓ Database connected! Training trajectories: {count}')
+    await pool.close()
+
+asyncio.run(test())
+" || echo "⚠ Database connection failed. Check DATABASE_URL."
+    echo ""
+fi
+
+# Run the command
+exec "$@"
+EOF
+chmod +x /app/entrypoint.sh
+
+# Create validation script
+RUN cat > /app/validate.sh << 'EOF'
+#!/bin/bash
+# Quick validation script for RunPod setup
+set -e
+
+echo "Running validation checks..."
+
+# 1. GPU check
+echo "[1/5] Checking GPUs..."
+GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "  Found $GPU_COUNT GPU(s)"
+
+# 2. Python packages
+echo "[2/5] Checking Python packages..."
+python3.11 -c "import torch, vllm, atroposlib, asyncpg, psycopg2; print('  All packages OK')"
+
+# 3. Database connection
+echo "[3/5] Checking database..."
+if [ -z "$DATABASE_URL" ]; then
+    echo "  ⚠ DATABASE_URL not set"
+else
+    python3.11 -c "
+import os, asyncio, asyncpg
+async def test():
+    pool = await asyncpg.create_pool(os.environ['DATABASE_URL'], min_size=1, max_size=1, statement_cache_size=0, command_timeout=10)
+    async with pool.acquire() as conn:
+        count = await conn.fetchval('SELECT COUNT(*) FROM trajectories')
+        print(f'  ✓ {count} trajectories in database')
+    await pool.close()
+asyncio.run(test())
+" || echo "  ⚠ Database connection failed"
+fi
+
+# 4. Profiles
+echo "[4/5] Checking profiles..."
+ls -la /app/python/config/profiles/*.json | wc -l | xargs -I {} echo "  Found {} GPU profiles"
+
+# 5. Model loading test
+echo "[5/5] Testing model loading (tokenizer only)..."
+python3.11 -c "
+from transformers import AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B-Instruct', trust_remote_code=True)
+print('  ✓ Tokenizer loads OK')
+"
+
+echo ""
+echo "============================================"
+echo "  Validation Complete!"
+echo "============================================"
+echo ""
+echo "Next steps:"
+echo "  python3.11 python/scripts/run_training.py --profile h100-4gpu --steps 100"
+EOF
+chmod +x /app/validate.sh
+
+# Optional: Pre-download model weights
+# This significantly speeds up first run but increases image size
+ARG PRELOAD_MODEL=""
+RUN if [ -n "$PRELOAD_MODEL" ]; then \
+    echo "Pre-downloading model: $PRELOAD_MODEL" && \
+    python3.11 -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
+        print('Downloading tokenizer...'); \
+        AutoTokenizer.from_pretrained('$PRELOAD_MODEL', trust_remote_code=True); \
+        print('Downloading model (this takes a while)...'); \
+        AutoModelForCausalLM.from_pretrained('$PRELOAD_MODEL', trust_remote_code=True, torch_dtype='auto')" && \
+    echo "Model pre-downloaded successfully"; \
+    fi
+
+# Default environment variables
+ENV DATABASE_URL=""
+ENV WANDB_API_KEY=""
+ENV WANDB_PROJECT="babylon-training"
+ENV WANDB_MODE="offline"
+ENV CUDA_VISIBLE_DEVICES="0,1,2,3"
+ENV HF_HOME="/app/.cache/huggingface"
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
+    CMD python3.11 -c "import torch; assert torch.cuda.is_available()" || exit 1
+
+# Entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Default command
+CMD ["python3.11", "python/scripts/run_training.py", "--profile", "h100-4gpu", "--help"]
+

@@ -14,6 +14,7 @@
 
 .PHONY: all help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
         train-12gb train-16gb train-24gb train-l40 train-l40-2gpu train-l40-4gpu \
+        train-l40-8gpu train-a100-4gpu train-h100-4gpu \
         train-online bridge-server generate-data venv lint test clean
 
 # Default target
@@ -68,6 +69,9 @@ help:
 	@echo "  make train-l40      Train with L40 (48GB) profile"
 	@echo "  make train-l40-2gpu Train with 2x L40 (96GB) profile"
 	@echo "  make train-l40-4gpu Train with 4x L40 (192GB) for Qwen3 30B"
+	@echo "  make train-l40-8gpu Train with 8x L40 (384GB) - dedicated vLLM/training"
+	@echo "  make train-a100-4gpu Train with 4x A100-80GB - best value for 30B"
+	@echo "  make train-h100-4gpu Train with 4x H100-80GB - fastest for 30B"
 	@echo "  make train PROFILE=<name>  Train with custom profile"
 	@echo ""
 	@echo "$(GREEN)Online Training (Phase 3):$(RESET)"
@@ -78,12 +82,15 @@ help:
 	@echo "  make generate-data  Generate trajectories for offline training"
 	@echo ""
 	@echo "$(GREEN)Cloud & Production (Phase 4):$(RESET)"
-	@echo "  make docker-build   Build Docker image for cloud deployment"
-	@echo "  make train-cloud    Train with W&B logging enabled"
-	@echo "  make train-cloud-l40      Cloud training with 1x L40"
-	@echo "  make train-cloud-l40-2gpu Cloud training with 2x L40"
-	@echo "  make train-cloud-l40-4gpu Cloud training with 4x L40 (Qwen3 30B)"
-	@echo "  make train-cloud-online   Cloud online training with W&B"
+	@echo "  make docker-build           Build Docker image for cloud deployment"
+	@echo "  make docker-build-runpod    Build RunPod-optimized image (pre-baked deps)"
+	@echo "  make docker-build-runpod-30b Build with Qwen3-30B pre-downloaded"
+	@echo "  make docker-push-runpod     Push RunPod image to Docker Hub"
+	@echo "  make train-cloud            Train with W&B logging enabled"
+	@echo "  make train-cloud-l40        Cloud training with 1x L40"
+	@echo "  make train-cloud-l40-2gpu   Cloud training with 2x L40"
+	@echo "  make train-cloud-l40-4gpu   Cloud training with 4x L40 (Qwen3 30B)"
+	@echo "  make train-cloud-online     Cloud online training with W&B"
 	@echo ""
 	@echo "$(GREEN)A/B Testing & Evaluation:$(RESET)"
 	@echo "  make ab-test        Run A/B test (MODEL_A vs MODEL_B)"
@@ -96,7 +103,7 @@ help:
 	@echo "  make clean          Remove generated files"
 	@echo ""
 	@echo "$(YELLOW)Profiles available:$(RESET)"
-	@echo "  12gb, 16gb, 24gb, 48gb, cpu, l40, l40-2gpu, l40-4gpu"
+	@echo "  12gb, 16gb, 24gb, 48gb, cpu, l40, l40-2gpu, l40-4gpu, l40-8gpu, a100-4gpu, h100-4gpu"
 	@echo ""
 
 #---------------------------------------------------------------------------
@@ -212,6 +219,15 @@ train-l40-2gpu:
 train-l40-4gpu:
 	$(MAKE) train PROFILE=l40-4gpu
 
+train-l40-8gpu:
+	$(MAKE) train PROFILE=l40-8gpu
+
+train-a100-4gpu:
+	$(MAKE) train PROFILE=a100-4gpu
+
+train-h100-4gpu:
+	$(MAKE) train PROFILE=h100-4gpu
+
 #---------------------------------------------------------------------------
 # Phase 4: Cloud & Production
 #---------------------------------------------------------------------------
@@ -221,6 +237,33 @@ docker-build:
 	@echo "$(CYAN)Building Docker image for cloud deployment...$(RESET)"
 	docker build -t babylon-training:latest .
 	@echo "$(GREEN)✓ Docker image built: babylon-training:latest$(RESET)"
+
+# Build RunPod-optimized Docker image (pre-baked dependencies)
+docker-build-runpod:
+	@echo "$(CYAN)Building RunPod-optimized Docker image...$(RESET)"
+	@echo "This will take 15-30 minutes (compiling flash-attn)"
+	docker build -f Dockerfile.runpod -t babylon-training:runpod .
+	@echo "$(GREEN)✓ Docker image built: babylon-training:runpod$(RESET)"
+
+# Build RunPod image with model pre-downloaded (larger but faster startup)
+docker-build-runpod-30b:
+	@echo "$(CYAN)Building RunPod image with Qwen3-30B pre-downloaded...$(RESET)"
+	@echo "This will take 30-60 minutes and create a ~100GB image"
+	docker build -f Dockerfile.runpod \
+		--build-arg PRELOAD_MODEL=Qwen/Qwen3-30B-A3B \
+		-t babylon-training:runpod-30b .
+	@echo "$(GREEN)✓ Docker image built: babylon-training:runpod-30b$(RESET)"
+
+# Push RunPod image to Docker Hub
+docker-push-runpod:
+	@echo "$(CYAN)Pushing RunPod image to Docker Hub...$(RESET)"
+	@if [ -z "$(DOCKER_REPO)" ]; then \
+		echo "$(YELLOW)Set DOCKER_REPO to push: make docker-push-runpod DOCKER_REPO=your-org/babylon-training$(RESET)"; \
+		exit 1; \
+	fi
+	docker tag babylon-training:runpod $(DOCKER_REPO):runpod
+	docker push $(DOCKER_REPO):runpod
+	@echo "$(GREEN)✓ Pushed to $(DOCKER_REPO):runpod$(RESET)"
 
 # Production training with W&B logging (requires WANDB_API_KEY)
 train-cloud: db-up db-migrate

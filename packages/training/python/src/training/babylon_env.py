@@ -79,7 +79,7 @@ class BabylonEnvConfig(BaseEnvConfig):
 
     # Training window settings
     lookback_hours: int = Field(
-        default=72,
+        default=720,  # 30 days - increased from 72 for imported data
         description="Hours to look back for trajectories"
     )
     min_agents_per_window: int = Field(
@@ -93,6 +93,14 @@ class BabylonEnvConfig(BaseEnvConfig):
     max_steps_per_trajectory: int = Field(
         default=20,
         description="Maximum steps to include from each trajectory"
+    )
+    max_trajectories: int = Field(
+        default=1000,
+        description="Maximum trajectories to load from database (prevents OOM)"
+    )
+    trajectory_batch_size: int = Field(
+        default=100,
+        description="Number of trajectories to fetch per batch"
     )
 
     reward_weight_profile: str = Field(
@@ -252,11 +260,30 @@ class BabylonRLAIFEnv(BaseEnv):
         if not self.config.database_url:
             raise ValueError("DATABASE_URL not set in environment or config")
 
+        # Parse connection URL to detect pooler vs direct connection
+        db_url = self.config.database_url
+        is_supabase_pooler = "pooler.supabase.com" in db_url or ":6543" in db_url
+        
+        if is_supabase_pooler:
+            logger.warning(
+                "⚠️  Detected Supabase pooler connection (port 6543). "
+                "This may cause issues with asyncpg prepared statements. "
+                "Consider using direct connection (port 5432) for best reliability."
+            )
+        
+        # Create pool with settings optimized for connection poolers
+        # statement_cache_size=0 disables prepared statement caching which breaks
+        # with transaction poolers like Supabase's PgBouncer
         self.db_pool = await asyncpg.create_pool(
-            self.config.database_url,
-            min_size=2,
-            max_size=10,
-            command_timeout=60
+            db_url,
+            min_size=1,
+            max_size=5,
+            command_timeout=120,  # 2 minute timeout for large queries
+            statement_cache_size=0,  # Disable for pooler compatibility
+            # Additional settings for reliability
+            server_settings={
+                'application_name': 'babylon-training',
+            }
         )
         logger.info("Connected to PostgreSQL database")
 
@@ -283,9 +310,35 @@ class BabylonRLAIFEnv(BaseEnv):
         if not self.db_pool:
             raise RuntimeError("Database not connected")
 
+        logger.info(f"Loading trajectories (lookback={self.config.lookback_hours}h, "
+                    f"max={self.config.max_trajectories}, min_actions={self.config.min_actions_per_trajectory})")
+
         async with self.db_pool.acquire() as conn:
+            # First, check total available trajectories for diagnostics
+            try:
+                count_row = await conn.fetchrow("""
+                    SELECT COUNT(*) as total,
+                           COUNT(*) FILTER (WHERE "createdAt" > NOW() - $1::interval) as recent
+                    FROM trajectories
+                    WHERE "isTrainingData" = true
+                """, timedelta(hours=self.config.lookback_hours))
+                
+                total_count = count_row['total'] if count_row else 0
+                recent_count = count_row['recent'] if count_row else 0
+                logger.info(f"Database has {total_count} total trajectories, {recent_count} within lookback window")
+                
+                if recent_count == 0 and total_count > 0:
+                    logger.warning(
+                        f"⚠️  No trajectories within {self.config.lookback_hours}h lookback, "
+                        f"but {total_count} exist. Consider increasing --lookback-hours"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not get trajectory count: {e}")
+
             # Get trajectories with valid steps from recent windows
             # Includes archetype for archetype-aware scoring
+            # LIMIT prevents OOM on large datasets
+            # Note: LEFT JOIN on User is optional - we handle NULL agent_name
             rows = await conn.fetch("""
                 SELECT 
                     t."trajectoryId",
@@ -308,8 +361,13 @@ class BabylonRLAIFEnv(BaseEnv):
                     AND t."stepsJson"::text != 'null'
                     AND t."stepsJson"::text != '[]'
                     AND t."episodeLength" >= $2
-                ORDER BY t."windowId", t."scenarioId", t."createdAt"
-            """, timedelta(hours=self.config.lookback_hours), self.config.min_actions_per_trajectory)
+                ORDER BY t."createdAt" DESC
+                LIMIT $3
+            """, timedelta(hours=self.config.lookback_hours), 
+                self.config.min_actions_per_trajectory,
+                self.config.max_trajectories)
+            
+        logger.info(f"Fetched {len(rows)} trajectories from database")
 
         # Group trajectories by window/scenario
         groups: Dict[str, List[Dict]] = {}

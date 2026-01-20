@@ -79,7 +79,7 @@ class ServiceConfig:
     training_gpu: Optional[str] = None  # If None, falls back to auto-assignment
     
     # Timeouts
-    startup_timeout: int = 180  # 3 minutes for vLLM to load model
+    startup_timeout: int = 600  # 10 minutes for large models (30B needs ~6 min)
     health_check_interval: float = 2.0
     shutdown_timeout: int = 10
     

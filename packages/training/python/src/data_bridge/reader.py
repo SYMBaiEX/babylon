@@ -130,6 +130,13 @@ class PostgresTrajectoryReader:
                 "DATABASE_URL must be provided for PostgresTrajectoryReader")
         self.db_url = database_url
         self.conn = None
+        
+        # Detect Supabase pooler and warn
+        if "pooler.supabase.com" in database_url or ":6543" in database_url:
+            logger.warning(
+                "⚠️  Detected Supabase pooler connection. "
+                "Consider using direct connection (port 5432) for reliability."
+            )
 
     async def __aenter__(self):
         """Connect to the database upon entering the async context."""
@@ -137,7 +144,12 @@ class PostgresTrajectoryReader:
         if psycopg2 is None:
             raise ImportError(
                 "psycopg2 is not installed, cannot connect to database.")
-        self.conn = psycopg2.connect(self.db_url)
+        
+        # Set connection options for pooler compatibility
+        self.conn = psycopg2.connect(
+            self.db_url,
+            options='-c statement_timeout=120000'  # 2 minute timeout
+        )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
