@@ -13,7 +13,7 @@
 #   docker run --gpus all -v $(pwd)/trained_models:/app/trained_models babylon-training \
 #     --profile l40-4gpu --steps 10000
 
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
