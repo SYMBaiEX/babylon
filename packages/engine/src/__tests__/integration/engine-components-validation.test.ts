@@ -93,7 +93,7 @@ describe('Engine Components Validation', () => {
         initialMood: a.initialMood || 0,
       }));
 
-      const organizations = actorsData.organizations.filter(
+      const organizations = StaticDataRegistry.getAllOrganizations().filter(
         (o) => o.type === 'media'
       );
 

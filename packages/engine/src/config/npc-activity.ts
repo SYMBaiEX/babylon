@@ -828,7 +828,7 @@ export const NPC_TICK_CONFIG = {
   /**
    * Number of NPCs to process per tick.
    * Higher batch size = more NPCs considered = better rotation across all NPCs.
-   * With 140 NPCs and ~47 active per hour, 12/tick ensures good coverage.
+   * With 140 NPCs and ~59 active at any time, 12/tick ensures good coverage.
    *
    * @default 12 (increased for better diversity across NPCs)
    * @env NPC_TICK_BATCH_SIZE

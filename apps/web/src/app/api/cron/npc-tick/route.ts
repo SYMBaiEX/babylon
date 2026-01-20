@@ -290,7 +290,7 @@ export async function POST(_req: NextRequest) {
     const actorIds = allNpcs.map((a) => a.id);
     const stateMap = await postingProbabilityService.getStateMap(actorIds);
 
-    // Filter to NPCs in their active hours (simple ID-based rotation, ~1/3 active at any time)
+    // Filter to NPCs in their active hours (simple ID-based rotation)
     // Game day is used for daily rotation - different actors active on different game days
     // Days are 1-indexed (Day 1 is first day of game), default to 1 if not set
     const gameDay = gameState.currentDay ?? 1;
@@ -326,8 +326,7 @@ export async function POST(_req: NextRequest) {
     });
 
     // Reserve 30% of batch for diversity (NPCs that haven't posted today)
-    const diversitySlots = Math.max(1, Math.floor(NPCS_PER_TICK * 0.3));
-    const regularSlots = NPCS_PER_TICK - diversitySlots;
+    const diversitySlotsReserved = Math.max(1, Math.floor(NPCS_PER_TICK * 0.3));
 
     // Shuffle never-posted NPCs for fair selection among them using Fisher-Yates
     const fisherYatesShuffle = <T>(arr: T[]): T[] => {
@@ -341,13 +340,17 @@ export async function POST(_req: NextRequest) {
       return shuffled;
     };
     const shuffledNeverPosted = fisherYatesShuffle(neverPostedToday);
-    const diversitySelection = shuffledNeverPosted.slice(0, diversitySlots);
+    const diversitySelection = shuffledNeverPosted.slice(
+      0,
+      diversitySlotsReserved
+    );
 
     // Remaining slots go to weighted random (exclude diversity picks)
     const diversityIds = new Set(diversitySelection.map((n) => n.id));
     const remainingCandidates = candidates.filter(
       (c) => !diversityIds.has(c.npc.id)
     );
+    const regularSlots = NPCS_PER_TICK - diversitySelection.length;
     const regularSelection = postingProbabilityService.weightedSample(
       remainingCandidates,
       regularSlots
@@ -963,8 +966,8 @@ export async function POST(_req: NextRequest) {
         errors,
         diversityMetrics: {
           uniquePostersThisTick,
-          diversitySlotsUsed: diversitySlots,
-          regularSlotsUsed: regularSlots,
+          diversitySlotsUsed: diversitySelection.length,
+          regularSlotsUsed: regularSelection.length,
           neverPostedTodayCount: neverPostedToday.length,
         },
       },
@@ -998,8 +1001,8 @@ export async function POST(_req: NextRequest) {
       // Diversity metrics for monitoring NPC posting distribution
       diversityMetrics: {
         uniquePostersThisTick,
-        diversitySlotsUsed: diversitySlots,
-        regularSlotsUsed: regularSlots,
+        diversitySlotsUsed: diversitySelection.length,
+        regularSlotsUsed: regularSelection.length,
         neverPostedTodayCount: neverPostedToday.length,
       },
     });
@@ -1024,8 +1027,8 @@ export async function POST(_req: NextRequest) {
       // Diversity metrics for monitoring NPC posting distribution
       diversityMetrics: {
         uniquePostersThisTick,
-        diversitySlotsUsed: diversitySlots,
-        regularSlotsUsed: regularSlots,
+        diversitySlotsUsed: diversitySelection.length,
+        regularSlotsUsed: regularSelection.length,
         neverPostedTodayCount: neverPostedToday.length,
         totalActiveNpcs: activeNpcs.length,
       },
