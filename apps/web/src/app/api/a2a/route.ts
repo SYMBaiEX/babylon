@@ -186,89 +186,35 @@ export async function POST(request: NextRequest) {
   });
 
   // SECURITY: User-scoped execution for user API keys
-  // When authenticated via per-user API key, enforce that ALL operations
-  // use the authenticated user's identity. This prevents impersonation attacks.
+  // When authenticated via per-user API key, enforce that the ACTOR identity
+  // (contextId) is the authenticated user. This prevents impersonation attacks.
+  //
+  // NOTE: We do NOT enforce params.userId because many operations use it as
+  // the TARGET (e.g., blockUser targets params.userId, actor is contextId).
+  // The executor uses contextId as the actor for all write operations.
   if (authResult?.userId && authResult.authMethod === 'user-key') {
     const authenticatedUserId = authResult.userId;
 
-    // Override contextId in the message params
+    // Validate and override contextId in message params
     if (body.params?.message) {
+      if (body.params.message.contextId && body.params.message.contextId !== authenticatedUserId) {
+        logger.warn('Overriding mismatched message contextId', {
+          providedContextId: body.params.message.contextId,
+          authenticatedUserId,
+        });
+      }
       body.params.message.contextId = authenticatedUserId;
     }
 
-    // Set at params level for tasks/get and other methods
+    // Validate and override contextId at params level
     if (body.params) {
+      if (body.params.contextId && body.params.contextId !== authenticatedUserId) {
+        logger.warn('Overriding mismatched params contextId', {
+          providedContextId: body.params.contextId,
+          authenticatedUserId,
+        });
+      }
       body.params.contextId = authenticatedUserId;
-
-      // SECURITY: Block top-level userId override attempts
-      if (body.params.userId && body.params.userId !== authenticatedUserId) {
-        logger.warn('Blocked top-level userId override attempt', {
-          providedUserId: body.params.userId,
-          authenticatedUserId,
-        });
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            error: {
-              code: -32001,
-              message: 'Forbidden: Cannot perform operations as another user',
-            },
-            id: body.id ?? null,
-          },
-          { status: 403 }
-        );
-      }
-      // Force top-level userId to authenticated user
-      body.params.userId = authenticatedUserId;
-    }
-
-    // SECURITY: Block userId override attempts in operation params
-    // Some operations accept params.userId - force it to authenticated user
-    // to prevent impersonation via "I want to act as user X" attacks
-    if (body.params?.message?.parts) {
-      // Validate parts is an array before iterating
-      if (!Array.isArray(body.params.message.parts)) {
-        logger.warn('Invalid message parts format', {
-          partsType: typeof body.params.message.parts,
-          authenticatedUserId,
-        });
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            error: {
-              code: -32001,
-              message: 'Forbidden: Cannot perform operations as another user',
-            },
-            id: body.id ?? null,
-          },
-          { status: 403 }
-        );
-      }
-
-      for (const part of body.params.message.parts) {
-        if (part?.kind === 'data' && part.data?.params) {
-          // If userId is provided in operation params, it MUST match authenticated user
-          if (part.data.params.userId && part.data.params.userId !== authenticatedUserId) {
-            logger.warn('Blocked userId override attempt in message part', {
-              providedUserId: part.data.params.userId,
-              authenticatedUserId,
-            });
-            return NextResponse.json(
-              {
-                jsonrpc: '2.0',
-                error: {
-                  code: -32001,
-                  message: 'Forbidden: Cannot perform operations as another user',
-                },
-                id: body.id ?? null,
-              },
-              { status: 403 }
-            );
-          }
-          // Force userId to authenticated user
-          part.data.params.userId = authenticatedUserId;
-        }
-      }
     }
   }
 
