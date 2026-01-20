@@ -195,8 +195,13 @@ export async function POST(request: NextRequest) {
   if (authResult?.userId && authResult.authMethod === 'user-key') {
     const authenticatedUserId = authResult.userId;
 
+    // Ensure params exists so we can always set contextId
+    if (!body.params) {
+      body.params = {};
+    }
+
     // Validate and override contextId in message params
-    if (body.params?.message) {
+    if (body.params.message) {
       if (body.params.message.contextId && body.params.message.contextId !== authenticatedUserId) {
         logger.warn('Overriding mismatched message contextId', {
           providedContextId: body.params.message.contextId,
@@ -206,24 +211,22 @@ export async function POST(request: NextRequest) {
       body.params.message.contextId = authenticatedUserId;
     }
 
-    // Validate and override contextId at params level
-    if (body.params) {
-      if (body.params.contextId && body.params.contextId !== authenticatedUserId) {
-        logger.warn('Overriding mismatched params contextId', {
-          providedContextId: body.params.contextId,
-          authenticatedUserId,
-        });
-      }
-      body.params.contextId = authenticatedUserId;
+    // Validate and override contextId at params level (for tasks/get and other methods)
+    if (body.params.contextId && body.params.contextId !== authenticatedUserId) {
+      logger.warn('Overriding mismatched params contextId', {
+        providedContextId: body.params.contextId,
+        authenticatedUserId,
+      });
     }
+    body.params.contextId = authenticatedUserId;
   }
 
   // SECURITY: Server API key and localhost bypass
   // These auth methods allow arbitrary contextId, which enables acting as any user.
   // This is intentional for admin/internal operations but should be monitored.
   if (authResult?.authMethod === 'server-key' || authResult?.authMethod === 'localhost') {
-    const providedContextId = body.params?.message?.contextId || body.params?.contextId;
-    if (providedContextId) {
+    const providedContextId = body.params?.message?.contextId ?? body.params?.contextId;
+    if (providedContextId !== undefined && providedContextId !== null) {
       // Log server-key operations with user context for audit trail
       logger.info('Server/localhost A2A operation with user context', {
         authMethod: authResult.authMethod,
