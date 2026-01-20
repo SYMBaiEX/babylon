@@ -1,10 +1,11 @@
 'use client';
 
 import { MessageCircle } from 'lucide-react';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Separator } from '@/components/shared/Separator';
 import { ChatViewHeader } from './ChatViewHeader';
 import { FeedbackMessages } from './FeedbackMessages';
+import type { MentionableAgent } from './MentionAutocomplete';
 import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
 import { NftVerificationBanner } from './NftVerificationBanner';
@@ -57,6 +58,17 @@ export function ChatView({
   onMessageChange,
   onSendMessage,
 }: ChatViewProps) {
+  // Convert chat participants to mentionable members format
+  const mentionableMembers: MentionableAgent[] = useMemo(() => {
+    if (!chatDetails?.participants) return [];
+    return chatDetails.participants.map((p) => ({
+      id: p.id,
+      username: p.username || null,
+      displayName: p.displayName || null,
+      profileImageUrl: p.profileImageUrl || null,
+    }));
+  }, [chatDetails?.participants]);
+
   // Empty state when no chat selected
   if (!chatDetails) {
     return (
@@ -137,13 +149,14 @@ export function ChatView({
           <Separator />
         </div>
 
-        {/* Message Input */}
+        {/* Message Input with mention support */}
         <MessageInput
           value={messageInput}
           onChange={onMessageChange}
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
+          mentionableMembers={mentionableMembers}
         />
       </div>
     </div>

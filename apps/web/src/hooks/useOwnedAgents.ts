@@ -10,6 +10,7 @@ import { useAuth } from './useAuth';
 export interface OwnedAgentData {
   id: string;
   name: string;
+  username?: string;
   profileImageUrl?: string;
   virtualBalance: number;
   modelTier: 'free' | 'pro';
@@ -94,6 +95,7 @@ export function useOwnedAgents(): UseOwnedAgentsReturn {
         agentsMap.set(agent.id, {
           id: agent.id,
           name: agent.name || agent.username || 'Agent',
+          username: agent.username,
           profileImageUrl: agent.profileImageUrl,
           virtualBalance: Number(agent.virtualBalance ?? 0),
           modelTier: agent.modelTier === 'pro' ? 'pro' : 'free',

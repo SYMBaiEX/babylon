@@ -37,7 +37,6 @@ export default function TeamChatPage() {
     typingUsers,
     thinkingAgents,
     sendError,
-    setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
     sendMessage,
@@ -236,7 +235,6 @@ export default function TeamChatPage() {
                 profileImageUrl: agent.profileImageUrl,
               })) || []
             }
-            onMentionsChange={setMentionedAgentIds}
             typingUsers={typingUsers}
             thinkingAgents={thinkingAgents}
             onShowMembers={() => setShowMemberDrawer(true)}

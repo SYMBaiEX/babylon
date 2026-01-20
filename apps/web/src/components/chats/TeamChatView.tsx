@@ -5,8 +5,8 @@ import React from 'react';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
 import type { MentionableAgent } from './MentionAutocomplete';
+import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
-import { TeamChatMessageInput } from './TeamChatMessageInput';
 import type { ChatDetails } from './types';
 
 /** Typing user info */
@@ -100,8 +100,6 @@ interface TeamChatViewProps {
   onSendMessage: () => void;
   /** Agents available for @mention */
   agents: MentionableAgent[];
-  /** Callback when mentioned agents change */
-  onMentionsChange?: (mentionedAgentIds: string[]) => void;
   /** Users currently typing */
   typingUsers?: TypingUserInfo[];
   /** Agents currently thinking (processing complex queries) */
@@ -115,7 +113,7 @@ interface TeamChatViewProps {
 /**
  * Chat view component for Team Chat (Command Center)
  *
- * Similar to ChatView but uses TeamChatMessageInput with @mention support
+ * Similar to ChatView but with typing/thinking indicators and custom header
  */
 export function TeamChatView({
   chatDetails,
@@ -133,7 +131,6 @@ export function TeamChatView({
   onMessageChange,
   onSendMessage,
   agents,
-  onMentionsChange,
   typingUsers = [],
   thinkingAgents = [],
   onShowMembers,
@@ -242,14 +239,14 @@ export function TeamChatView({
         </div>
 
         {/* Message Input with @mention support */}
-        <TeamChatMessageInput
+        <MessageInput
           value={messageInput}
           onChange={onMessageChange}
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
-          agents={agents}
-          onMentionsChange={onMentionsChange}
+          placeholder="Message... @mention agents"
+          mentionableMembers={agents}
         />
       </div>
     </div>
