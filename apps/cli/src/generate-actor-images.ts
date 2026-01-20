@@ -70,10 +70,10 @@
 import {
   actorBanner,
   actorPortrait,
-  loadActorsData,
   organizationBanner,
   organizationLogo,
   renderPrompt,
+  StaticDataRegistry,
 } from '@babylon/engine';
 import { fal } from '@fal-ai/client';
 import { config } from 'dotenv';
@@ -586,9 +586,11 @@ async function main() {
     credentials: process.env.FAL_KEY,
   });
 
-  // Load actors database using the engine package loader
-  const parsedActors = loadActorsData();
-  const actorsDb = ActorsDatabaseSchema.parse(parsedActors);
+  // Load actors database using StaticDataRegistry (preferred over deprecated loadActorsData)
+  const actorsDb = ActorsDatabaseSchema.parse({
+    actors: StaticDataRegistry.getAllActors(),
+    organizations: StaticDataRegistry.getAllOrganizations(),
+  });
 
   // Paths are relative to the web app's public folder
   const webPublicDir = join(process.cwd(), '..', 'web', 'public');

@@ -3,7 +3,7 @@
  *
  * SIMPLIFIED: Hour-based rotation to spread actors across the day.
  * Each actor is assigned to a "shift" based on their ID hash.
- * Active for 8 hours, rotating through 24 hours.
+ * Active for 10 hours, rotating through 24 hours.
  * This ensures all 140+ actors get fair coverage without timezone complexity.
  *
  * Game day is used for daily rotation - different actors are active on different
@@ -38,10 +38,12 @@ export interface ActivityPattern {
 
 /**
  * Hours each actor is active per day.
- * 8 hours = 1/3 of actors active at any time = ~47 actors from 140.
+ * 10 hours = ~42% of actors active at any time = ~59 actors from 140.
+ * Increased from 8 to provide more overlap between actor schedules,
+ * enabling better coverage and more diverse feed content.
  * Exported for use in UI/metrics if needed.
  */
-export const ACTIVE_HOURS_PER_DAY = 8;
+export const ACTIVE_HOURS_PER_DAY = 10;
 
 /**
  * Simple hash function to get a number from actor ID.
@@ -83,7 +85,7 @@ function getActorActiveHours(actorId: string, gameDay = 1): number[] {
   // Different actors will be active on different game days
   const startHour = (hashActorId(actorId) + gameDay) % 24;
 
-  // Generate 8 consecutive hours (wrapping around midnight)
+  // Generate 10 consecutive hours (wrapping around midnight)
   const hours: number[] = [];
   for (let i = 0; i < ACTIVE_HOURS_PER_DAY; i++) {
     hours.push((startHour + i) % 24);
