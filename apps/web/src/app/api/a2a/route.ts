@@ -199,17 +199,57 @@ export async function POST(request: NextRequest) {
     // Set at params level for tasks/get and other methods
     if (body.params) {
       body.params.contextId = authenticatedUserId;
+
+      // SECURITY: Block top-level userId override attempts
+      if (body.params.userId && body.params.userId !== authenticatedUserId) {
+        logger.warn('Blocked top-level userId override attempt', {
+          providedUserId: body.params.userId,
+          authenticatedUserId,
+        });
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            error: {
+              code: -32001,
+              message: 'Forbidden: Cannot perform operations as another user',
+            },
+            id: body.id ?? null,
+          },
+          { status: 403 }
+        );
+      }
+      // Force top-level userId to authenticated user
+      body.params.userId = authenticatedUserId;
     }
 
     // SECURITY: Block userId override attempts in operation params
     // Some operations accept params.userId - force it to authenticated user
     // to prevent impersonation via "I want to act as user X" attacks
     if (body.params?.message?.parts) {
+      // Validate parts is an array before iterating
+      if (!Array.isArray(body.params.message.parts)) {
+        logger.warn('Invalid message parts format', {
+          partsType: typeof body.params.message.parts,
+          authenticatedUserId,
+        });
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            error: {
+              code: -32001,
+              message: 'Forbidden: Cannot perform operations as another user',
+            },
+            id: body.id ?? null,
+          },
+          { status: 403 }
+        );
+      }
+
       for (const part of body.params.message.parts) {
         if (part?.kind === 'data' && part.data?.params) {
           // If userId is provided in operation params, it MUST match authenticated user
           if (part.data.params.userId && part.data.params.userId !== authenticatedUserId) {
-            logger.warn('Blocked userId override attempt', {
+            logger.warn('Blocked userId override attempt in message part', {
               providedUserId: part.data.params.userId,
               authenticatedUserId,
             });
