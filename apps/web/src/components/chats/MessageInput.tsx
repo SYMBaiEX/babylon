@@ -2,13 +2,80 @@
 
 import { cn } from '@babylon/shared';
 import { Send } from 'lucide-react';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
+import {
+  MentionAutocomplete,
+  type MentionableAgent,
+  useMentionAutocomplete,
+} from './MentionAutocomplete';
 
 const MAX_TEXTAREA_HEIGHT = 160;
 
-interface MessageInputProps {
+/**
+ * Check if @ is at a valid mention position (start of word).
+ * Returns true if @ is at position 0 OR after whitespace.
+ * This prevents dropdown for emails like tcm390@nyu.edu.
+ */
+function isAtValidMentionPosition(text: string, atIndex: number): boolean {
+  if (atIndex === 0) return true;
+  const charBefore = text[atIndex - 1];
+  return /\s/.test(charBefore || '');
+}
+
+/**
+ * Renders text with @mentions highlighted as styled chips.
+ * Only highlights mentions that are in the validUsernames set.
+ */
+function HighlightedText({
+  text,
+  validUsernames,
+}: {
+  text: string;
+  validUsernames: Set<string>;
+}) {
+  const parts: React.ReactNode[] = [];
+  const mentionRegex = /(@[A-Za-z0-9_.-]+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const mention = match[0];
+    const handle = mention.slice(1).toLowerCase();
+
+    // Only highlight if it's a valid mention handle
+    if (validUsernames.has(handle)) {
+      parts.push(
+        <mark
+          key={`${match.index}-${mention}`}
+          className="rounded-sm bg-primary/20 text-primary"
+          style={{ padding: 0, margin: 0 }}
+        >
+          {mention}
+        </mark>
+      );
+    } else {
+      parts.push(mention);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+}
+
+export interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
@@ -16,8 +83,18 @@ interface MessageInputProps {
   authenticated: boolean;
   /** Additional disabled condition (e.g., insufficient points for agent chat) */
   disabled?: boolean;
+  /** Custom placeholder text */
+  placeholder?: string;
+  /** Mentionable members - when provided, enables @mention autocomplete */
+  mentionableMembers?: MentionableAgent[];
 }
 
+/**
+ * Chat message input with optional @mention autocomplete.
+ * When `mentionableMembers` is provided, enables mention dropdown
+ * that only opens at word boundaries (not for emails).
+ * Also highlights valid @mentions in the input with styled chips.
+ */
 export function MessageInput({
   value,
   onChange,
@@ -25,8 +102,40 @@ export function MessageInput({
   sending,
   authenticated,
   disabled = false,
+  placeholder,
+  mentionableMembers,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Mention support is enabled when mentionableMembers is provided and non-empty
+  const mentionsEnabled = mentionableMembers && mentionableMembers.length > 0;
+
+  const {
+    isOpen,
+    position,
+    selectedIndex,
+    mentionStartIndex,
+    filteredAgents,
+    openAutocomplete,
+    closeAutocomplete,
+    updateQuery,
+    handleKeyDown: autocompleteKeyDown,
+    getSelectedAgent,
+    setSelectedIndex,
+  } = useMentionAutocomplete(mentionableMembers || []);
+
+  // Set of valid mention handles for highlighting (lowercase)
+  const validMentionHandles = useMemo(() => {
+    if (!mentionableMembers) return new Set<string>();
+    const set = new Set<string>();
+    for (const member of mentionableMembers) {
+      if (member.username) {
+        set.add(member.username.toLowerCase());
+      }
+    }
+    return set;
+  }, [mentionableMembers]);
 
   // Resize textarea based on content
   const resizeTextarea = useCallback(() => {
@@ -38,19 +147,135 @@ export function MessageInput({
     }
   }, []);
 
-  // Resize textarea when value changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: value is intentionally included to trigger resize when content changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value triggers resize
   useEffect(() => {
     resizeTextarea();
   }, [value, resizeTextarea]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-    // Shift+Enter will insert a newline (default behavior)
-  };
+  // Handle selecting a member from autocomplete - inserts plain @username
+  const handleSelectMember = useCallback(
+    (member: MentionableAgent) => {
+      if (mentionStartIndex < 0) return;
+
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      // Use username, fallback to displayName or id
+      const mentionText =
+        member.username || member.displayName || `member-${member.id}`;
+      const displayText = `@${mentionText}`;
+
+      const beforeMention = value.slice(0, mentionStartIndex);
+      const afterQuery = value.slice(textarea.selectionStart);
+      const newValue = `${beforeMention}${displayText} ${afterQuery}`;
+
+      onChange(newValue);
+      closeAutocomplete();
+
+      // Set cursor after the mention
+      const newCursorPos = mentionStartIndex + displayText.length + 1;
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    },
+    [value, mentionStartIndex, onChange, closeAutocomplete]
+  );
+
+  // Handle text input changes (with mention detection)
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart;
+
+      onChange(newValue);
+
+      // Only process mentions if enabled
+      if (!mentionsEnabled) return;
+
+      const textBeforeCursor = newValue.slice(0, cursorPos);
+      const atIndex = textBeforeCursor.lastIndexOf('@');
+
+      if (atIndex >= 0) {
+        // Check if @ is at a valid position (start of word)
+        if (!isAtValidMentionPosition(newValue, atIndex)) {
+          if (isOpen) closeAutocomplete();
+          return;
+        }
+
+        const textAfterAt = textBeforeCursor.slice(atIndex + 1);
+        const hasSpace = /\s/.test(textAfterAt);
+
+        if (!hasSpace) {
+          const searchQuery = textAfterAt;
+
+          if (!isOpen) {
+            const textarea = textareaRef.current;
+            if (textarea) {
+              const containerRect =
+                containerRef.current?.getBoundingClientRect();
+              const bottom = containerRect
+                ? containerRect.height + 8
+                : textarea.getBoundingClientRect().height + 8;
+              openAutocomplete(atIndex, { bottom, left: 0 });
+            }
+          }
+
+          updateQuery(searchQuery);
+        } else if (isOpen) {
+          closeAutocomplete();
+        }
+      } else if (isOpen) {
+        closeAutocomplete();
+      }
+    },
+    [
+      onChange,
+      mentionsEnabled,
+      isOpen,
+      openAutocomplete,
+      closeAutocomplete,
+      updateQuery,
+    ]
+  );
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (mentionsEnabled) {
+        // Let autocomplete handle navigation first
+        const handled = autocompleteKeyDown(e);
+
+        if (handled) {
+          // If Enter/Tab was pressed and we have a selection, select the member
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            const member = getSelectedAgent();
+            if (member) {
+              handleSelectMember(member);
+            }
+          }
+          return;
+        }
+      }
+
+      // Normal Enter to send (when autocomplete is closed)
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+      // Shift+Enter will insert a newline (default behavior)
+    },
+    [
+      mentionsEnabled,
+      autocompleteKeyDown,
+      getSelectedAgent,
+      handleSelectMember,
+      onSend,
+    ]
+  );
+
+  // Determine placeholder text
+  const placeholderText = placeholder || 'Type a message...';
 
   if (!authenticated) {
     return (
@@ -66,25 +291,81 @@ export function MessageInput({
   }
 
   return (
-    <div className="bg-background px-4 py-3">
-      <div className="flex items-end gap-2 md:gap-3">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
-          disabled={sending || disabled}
-          rows={1}
-          className={cn(
-            'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
-            'message-input bg-sidebar-accent/50',
-            'text-foreground placeholder:text-muted-foreground',
-            'outline-none focus:ring-2 focus:ring-primary/50',
-            'disabled:cursor-not-allowed disabled:opacity-50'
-          )}
+    <div ref={containerRef} className="relative bg-background px-4 py-3">
+      {/* Mention autocomplete dropdown */}
+      {mentionsEnabled && (
+        <MentionAutocomplete
+          agents={filteredAgents}
+          isOpen={isOpen}
+          position={position}
+          selectedIndex={selectedIndex}
+          onSelect={handleSelectMember}
+          onIndexChange={setSelectedIndex}
+          onClose={closeAutocomplete}
         />
+      )}
+
+      <div className="flex items-end gap-2 md:gap-3">
+        {/* Textarea with optional highlight overlay */}
+        {mentionsEnabled ? (
+          <div className="relative min-h-[44px] flex-1">
+            {/* Highlight overlay - renders mentions with styling */}
+            <div
+              className={cn(
+                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm',
+                'text-foreground'
+              )}
+              aria-hidden="true"
+            >
+              <HighlightedText
+                text={value}
+                validUsernames={validMentionHandles}
+              />
+            </div>
+            {/* Actual textarea - text is transparent, caret visible */}
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              aria-label="Message input, use @ to mention members"
+              placeholder={placeholderText}
+              disabled={sending || disabled}
+              rows={1}
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              className={cn(
+                'relative z-10 max-h-40 min-h-[44px] w-full resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
+                'message-input bg-sidebar-accent/50',
+                'text-transparent caret-foreground placeholder:text-muted-foreground',
+                'outline-none focus:ring-2 focus:ring-primary/50',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            />
+          </div>
+        ) : (
+          /* Simple textarea without highlight overlay */
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholderText}
+            disabled={sending || disabled}
+            rows={1}
+            className={cn(
+              'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
+              'message-input bg-sidebar-accent/50',
+              'text-foreground placeholder:text-muted-foreground',
+              'outline-none focus:ring-2 focus:ring-primary/50',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          />
+        )}
         <button
+          type="button"
           onClick={onSend}
           disabled={!value.trim() || sending || disabled}
           className={cn(

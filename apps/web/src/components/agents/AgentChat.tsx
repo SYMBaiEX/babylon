@@ -5,6 +5,7 @@ import { Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ChatViewHeader } from '@/components/chats/ChatViewHeader';
+import type { MentionableAgent } from '@/components/chats/MentionAutocomplete';
 import { MessageInput } from '@/components/chats/MessageInput';
 import { MessageList } from '@/components/chats/MessageList';
 import type {
@@ -57,6 +58,7 @@ interface AgentChatProps {
   agent: {
     id: string;
     name: string;
+    username?: string;
     profileImageUrl?: string;
     virtualBalance?: number;
     modelTier: 'free' | 'pro';
@@ -140,7 +142,7 @@ export function AgentChat({
       {
         id: agent.id,
         displayName: agent.name,
-        username: undefined,
+        username: agent.username || undefined,
         profileImageUrl: agent.profileImageUrl || undefined,
       },
     ];
@@ -153,7 +155,17 @@ export function AgentChat({
       });
     }
     return list;
-  }, [agent.id, agent.name, agent.profileImageUrl, user]);
+  }, [agent.id, agent.name, agent.username, agent.profileImageUrl, user]);
+
+  // Create mentionable members for @mention autocomplete
+  const mentionableMembers: MentionableAgent[] = useMemo(() => {
+    return participants.map((p) => ({
+      id: p.id,
+      username: p.username || null,
+      displayName: p.displayName || null,
+      profileImageUrl: p.profileImageUrl || null,
+    }));
+  }, [participants]);
 
   // Convert agent messages to ChatMessage format for MessageList
   const chatMessages: ChatMessage[] = useMemo(() => {
@@ -540,7 +552,7 @@ export function AgentChat({
           <Separator />
         </div>
 
-        {/* Message Input - using shared component */}
+        {/* Message Input - with mention support */}
         <MessageInput
           value={input}
           onChange={setInput}
@@ -548,6 +560,7 @@ export function AgentChat({
           sending={sending}
           authenticated={!!user}
           disabled={insufficientPoints}
+          mentionableMembers={mentionableMembers}
         />
       </div>
     </div>

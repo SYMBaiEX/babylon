@@ -83,8 +83,6 @@ interface UseTeamChatReturn {
   typingUsers: TypingUser[];
   thinkingAgents: ThinkingAgent[];
   sendError: string | null;
-  mentionedAgentIds: string[];
-  setMentionedAgentIds: (ids: string[]) => void;
 
   // Refs
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -110,7 +108,6 @@ export function useTeamChat(): UseTeamChatReturn {
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [mentionedAgentIds, setMentionedAgentIds] = useState<string[]>([]);
 
   // Typing indicator state
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -549,7 +546,23 @@ export function useTeamChat(): UseTeamChatReturn {
     }
 
     const content = messageInput.trim();
-    const mentionedIds = [...mentionedAgentIds];
+
+    // Extract mentioned agent IDs from content by matching @username patterns
+    // Case-sensitive matching against agent usernames
+    const mentionRegex = /(?:^|[\s])@([A-Za-z0-9_.-]+)/g;
+    const extractedMentions: string[] = [];
+    let match;
+    while ((match = mentionRegex.exec(content)) !== null) {
+      const mentionedUsername = match[1];
+      const agent = teamChat.agents.find(
+        (a) => a.username === mentionedUsername
+      );
+      if (agent) {
+        extractedMentions.push(agent.id);
+      }
+    }
+    // Deduplicate
+    const mentionedIds = [...new Set(extractedMentions)];
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -565,7 +578,6 @@ export function useTeamChat(): UseTeamChatReturn {
     });
 
     setMessageInput('');
-    setMentionedAgentIds([]);
     setSending(true);
     setSendError(null);
 
@@ -609,7 +621,6 @@ export function useTeamChat(): UseTeamChatReturn {
     teamChat,
     messageInput,
     sending,
-    mentionedAgentIds,
     user?.id,
     getAccessToken,
     addMessage,
@@ -632,8 +643,6 @@ export function useTeamChat(): UseTeamChatReturn {
     typingUsers,
     thinkingAgents,
     sendError,
-    mentionedAgentIds,
-    setMentionedAgentIds,
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,

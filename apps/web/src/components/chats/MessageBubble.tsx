@@ -29,12 +29,15 @@ interface MessageBubbleProps {
   message: Message;
   sender: ChatParticipant | undefined;
   isCurrentUser: boolean;
+  /** Valid usernames for @mention formatting (case-sensitive) */
+  validMentions?: string[];
 }
 
 export function MessageBubble({
   message,
   sender,
   isCurrentUser,
+  validMentions,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -104,7 +107,7 @@ export function MessageBubble({
               : 'rounded-tl-sm bg-sidebar-accent/50'
           )}
         >
-          <Response className="text-foreground">
+          <Response className="text-foreground" validMentions={validMentions}>
             {getDisplayContent(message.content)}
           </Response>
         </div>

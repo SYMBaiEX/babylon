@@ -2,7 +2,7 @@
 
 import type { MessageType } from '@babylon/db';
 import { Loader2, MessageCircle } from 'lucide-react';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
@@ -44,6 +44,14 @@ export function MessageList({
   topSentinelRef,
   messagesEndRef,
 }: MessageListProps) {
+  // Extract usernames from participants for @mention formatting
+  // Only usernames that exist in the chat will be formatted as mentions
+  const validMentions = useMemo(() => {
+    return participants
+      .map((p) => p.username)
+      .filter((username): username is string => !!username);
+  }, [participants]);
+
   if (loading) {
     return (
       <>
@@ -102,6 +110,7 @@ export function MessageList({
                 message={msg}
                 sender={sender}
                 isCurrentUser={isCurrentUser}
+                validMentions={validMentions}
               />
             );
           }
