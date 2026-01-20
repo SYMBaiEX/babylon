@@ -543,11 +543,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('Post not found');
     }
 
-    // Use userId from params first (actual agent user ID), fall back to context
-    const userId =
-      typeof params.userId === 'string' && params.userId
-        ? params.userId
-        : context.contextId || context.taskId;
+    // Prefer request context identity when present (prevents params-based impersonation),
+    // then fall back to explicit params, then taskId.
+    const userIdFromContext = context.contextId;
+    const userIdFromParams =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
+    const userId = userIdFromContext || userIdFromParams || context.taskId;
 
     // Check if already liked
     const existingLike = await db.reaction.findFirst({
@@ -924,11 +925,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    // Try to get userId from params, then from x-agent-id header (via contextId), then taskId
-    const userId =
-      typeof params.userId === 'string' && params.userId
-        ? params.userId
-        : context.contextId || context.taskId;
+    // Prefer contextId when present (prevents params-based impersonation),
+    // then fall back to explicit params, then taskId.
+    const userIdFromContext = context.contextId;
+    const userIdFromParams =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
+    const userId = userIdFromContext || userIdFromParams || context.taskId;
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -960,10 +962,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId =
-      typeof params.userId === 'string' && params.userId
-        ? params.userId
-        : context.contextId || context.taskId;
+    const userIdFromContext = context.contextId;
+    const userIdFromParams =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
+    const userId = userIdFromContext || userIdFromParams || context.taskId;
 
     // Check if user exists first (for graceful handling)
     const userExists = await db.user.findUnique({
@@ -1092,10 +1094,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId =
-      typeof params.userId === 'string' && params.userId
-        ? params.userId
-        : context.contextId || context.taskId;
+    const userIdFromContext = context.contextId;
+    const userIdFromParams =
+      typeof params.userId === 'string' ? params.userId.trim() : '';
+    const userId = userIdFromContext || userIdFromParams || context.taskId;
 
     const [balance, positions] = await Promise.all([
       this.getBalance({ userId }, context),
