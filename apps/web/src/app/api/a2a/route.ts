@@ -192,8 +192,27 @@ export async function POST(request: NextRequest) {
   // NOTE: We do NOT enforce params.userId because many operations use it as
   // the TARGET (e.g., blockUser targets params.userId, actor is contextId).
   // The executor uses contextId as the actor for all write operations.
-  if (authResult?.userId && authResult.authMethod === 'user-key') {
+  if (authResult?.authMethod === 'user-key') {
     const authenticatedUserId = authResult.userId;
+
+    // Validate userId is present and non-empty
+    if (!authenticatedUserId || typeof authenticatedUserId !== 'string') {
+      logger.error('User API key authenticated but userId is missing', {
+        authMethod: authResult.authMethod,
+        hasUserId: !!authenticatedUserId,
+      });
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Authentication error: Invalid user identity',
+          },
+          id: body.id ?? null,
+        },
+        { status: 401 }
+      );
+    }
 
     // Type guard: ensure params is a plain object
     const isPlainObject = (val: unknown): val is Record<string, unknown> =>
