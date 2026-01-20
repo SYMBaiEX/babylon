@@ -1092,14 +1092,11 @@ export class BabylonAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
-    const userId =
-      typeof params.userId === 'string' && params.userId
-        ? params.userId
-        : context.contextId || context.taskId;
-
+    // Pass params through - getBalance and getPositions handle userId resolution
+    // from params.userId or context.contextId internally
     const [balance, positions] = await Promise.all([
-      this.getBalance({ userId }, context),
-      this.getPositions({ userId }, context),
+      this.getBalance(params, context),
+      this.getPositions(params, context),
     ]);
 
     return {
