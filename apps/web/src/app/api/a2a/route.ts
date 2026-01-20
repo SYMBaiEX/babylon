@@ -195,13 +195,17 @@ export async function POST(request: NextRequest) {
   if (authResult?.userId && authResult.authMethod === 'user-key') {
     const authenticatedUserId = authResult.userId;
 
-    // Ensure params exists so we can always set contextId
-    if (!body.params) {
+    // Type guard: ensure params is a plain object
+    const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+      typeof val === 'object' && val !== null && !Array.isArray(val);
+
+    // Ensure params exists and is a plain object
+    if (!isPlainObject(body.params)) {
       body.params = {};
     }
 
     // Validate and override contextId in message params
-    if (body.params.message) {
+    if (isPlainObject(body.params.message)) {
       if (body.params.message.contextId && body.params.message.contextId !== authenticatedUserId) {
         logger.warn('Overriding mismatched message contextId', {
           providedContextId: body.params.message.contextId,
