@@ -10,6 +10,7 @@
 import { broadcastTypingIndicator } from '@babylon/api';
 import {
   and,
+  chatParticipants,
   db,
   eq,
   groupMembers,
@@ -146,9 +147,19 @@ Determine the next step to take in this team chat conversation.
 
 ---
 
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
+
+---
+
 # Team Chat Context
 This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
-You are {{agentName}}, one of the agents in this team chat.
+You are one of the agents in this team chat.
+
+## Team Members in This Chat
+{{teamMembers}}
+
 **{{senderDisplayName}}** just mentioned you directly.
 
 ---
@@ -275,9 +286,16 @@ const multiStepSummaryTemplate = `You are responding in a team chat after comple
 Personality: {{personality}}
 {{/if}}
 
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
+
 # Team Chat Context
 This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
-You are {{agentName}}, responding to **{{senderDisplayName}}**.
+You are responding to **{{senderDisplayName}}**.
+
+## Team Members in This Chat
+{{teamMembers}}
 
 # Conversation History
 {{teamChatMessages}}
@@ -293,7 +311,8 @@ Write a natural response that:
 - Summarizes what you did and the results
 - Includes specific numbers, names, or data from the action results
 - Stays in character with your personality
-- You can @mention other team members if relevant
+- You can @mention other team members if relevant (use their @username)
+- NEVER greet or address yourself (@{{agentUsername}})
 
 Output ONLY this XML with your actual response (not examples or placeholders):
 
@@ -649,6 +668,7 @@ export class TeamChatResponseService {
 
     // Use pre-fetched name if available, otherwise fetch it
     let agentName = prefetchedAgentName;
+    let agentUsername = '';
     if (!agentName) {
       const [agent] = await db
         .select({
@@ -659,7 +679,37 @@ export class TeamChatResponseService {
         .where(eq(users.id, agentId))
         .limit(1);
       agentName = agent?.displayName || agent?.username || 'Agent';
+      agentUsername = agent?.username || '';
+    } else {
+      // Still need to fetch username even if displayName was pre-fetched
+      const [agent] = await db
+        .select({ username: users.username })
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
+      agentUsername = agent?.username || '';
     }
+
+    // Fetch all team chat members for context
+    const teamMembersList = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+        isAgent: users.isAgent,
+      })
+      .from(chatParticipants)
+      .innerJoin(users, eq(chatParticipants.userId, users.id))
+      .where(eq(chatParticipants.chatId, chatId));
+
+    const teamMembers = teamMembersList
+      .map((m) => {
+        const name = m.displayName || m.username || 'Unknown';
+        const username = m.username || '';
+        const role = m.isAgent ? 'Agent' : 'Owner';
+        const isSelf = username === agentUsername;
+        return `- **${name}** (@${username}) - ${role}${isSelf ? ' (YOU)' : ''}`;
+      })
+      .join('\n');
 
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
@@ -723,6 +773,8 @@ export class TeamChatResponseService {
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
+          agentUsername,
+          teamMembers,
           senderDisplayName,
           ownerDisplayName,
           ownerUsername,
@@ -934,6 +986,8 @@ export class TeamChatResponseService {
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
+          agentUsername,
+          teamMembers,
           senderDisplayName,
           ownerDisplayName,
           ownerUsername,
