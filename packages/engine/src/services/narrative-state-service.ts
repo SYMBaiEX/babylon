@@ -7,13 +7,11 @@
 
 import { db } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { type RngFunction } from '../utils/randomization';
 import type { QuestionArcPlan as ArcPlanType } from './question-arc-planner';
 
-/**
- * Random number generator function type.
- * Returns a number in [0, 1) range.
- */
-export type RngFunction = () => number;
+// Re-export RngFunction for consumers that were importing it from here
+export type { RngFunction } from '../utils/randomization';
 
 /**
  * Simulation context for reproducible training and testing.

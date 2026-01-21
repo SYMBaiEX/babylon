@@ -1,0 +1,241 @@
+/**
+ * Tests for NPC Persona Generator
+ */
+import { describe, expect, it } from 'bun:test';
+import { SeededRandom } from '../utils/entropy';
+import { NPCPersonaGenerator } from './npc-persona-generator';
+import type { Actor, Organization } from '../types';
+
+// Mock actors for testing
+const mockActors: Actor[] = [
+  {
+    id: 'alice',
+    name: 'Alice AI',
+    description: 'AI researcher at OpenAGI',
+    affiliations: ['openagi'],
+    domain: ['tech', 'ai'],
+    tier: 1,
+  },
+  {
+    id: 'bob',
+    name: 'Bob Builder',
+    description: 'Engineer at AItropic',
+    affiliations: ['aitropic'],
+    domain: ['tech', 'ai'],
+    tier: 1,
+  },
+  {
+    id: 'carol',
+    name: 'Carol Colleague',
+    description: 'Researcher at OpenAGI',
+    affiliations: ['openagi'],
+    domain: ['ai'],
+    tier: 2,
+  },
+  {
+    id: 'dave',
+    name: 'Dave Politician',
+    description: 'A politician',
+    role: 'politician',
+    domain: ['politics'],
+    tier: 2,
+  },
+  {
+    id: 'eve',
+    name: 'Eve Conspiracy',
+    personality: 'contrarian conspiracy theorist',
+    description: 'Spreads misinformation',
+    tier: 3,
+  },
+  {
+    id: 'frank',
+    name: 'Frank Finance',
+    description: 'Finance expert',
+    domain: ['finance'],
+    role: 'expert',
+    tier: 1,
+  },
+];
+
+// Mock organizations
+const mockOrganizations: Organization[] = [
+  { id: 'openagi', name: 'OpenAGI', sector: 'AI' },
+  { id: 'aitropic', name: 'AItropic', sector: 'AI' },
+  { id: 'deepmaind', name: 'DeepMaind', sector: 'AI' },
+];
+
+describe('NPCPersonaGenerator', () => {
+  describe('assignPersonas', () => {
+    it('generates deterministic personas with seeded RNG', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng1 = new SeededRandom(42);
+      const rng2 = new SeededRandom(42);
+
+      const personas1 = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng1.next()
+      );
+      const personas2 = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng2.next()
+      );
+
+      // Compare reliability scores (should be identical with same seed)
+      for (const [id, persona1] of personas1) {
+        const persona2 = personas2.get(id);
+        expect(persona2).toBeDefined();
+        expect(persona1.reliability).toBe(persona2!.reliability);
+        expect(persona1.willingToLie).toBe(persona2!.willingToLie);
+        expect(persona1.selfInterest).toBe(persona2!.selfInterest);
+      }
+    });
+
+    it('generates personas for all actors', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      expect(personas.size).toBe(mockActors.length);
+      for (const actor of mockActors) {
+        expect(personas.has(actor.id)).toBe(true);
+      }
+    });
+  });
+
+  describe('reliability assignment', () => {
+    it('assigns low reliability to politicians', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      const dave = personas.get('dave');
+      expect(dave).toBeDefined();
+      expect(dave!.reliability).toBeGreaterThanOrEqual(0.25);
+      expect(dave!.reliability).toBeLessThanOrEqual(0.4);
+      expect(dave!.willingToLie).toBe(true);
+    });
+
+    it('assigns very low reliability to conspiracy theorists', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      const eve = personas.get('eve');
+      expect(eve).toBeDefined();
+      expect(eve!.reliability).toBeGreaterThanOrEqual(0.15);
+      expect(eve!.reliability).toBeLessThanOrEqual(0.3);
+      expect(eve!.willingToLie).toBe(true);
+      expect(eve!.selfInterest).toBe('chaos');
+    });
+
+    it('assigns higher reliability to insiders', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      const alice = personas.get('alice');
+      expect(alice).toBeDefined();
+      expect(alice!.reliability).toBeGreaterThanOrEqual(0.7);
+      expect(alice!.insiderOrgs).toContain('openagi');
+    });
+  });
+
+  describe('relationship inference', () => {
+    it('identifies actors with shared affiliations as allies', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      // Alice and Carol both work at OpenAGI - should be allies
+      const alice = personas.get('alice');
+      const carol = personas.get('carol');
+
+      expect(alice).toBeDefined();
+      expect(carol).toBeDefined();
+      expect(alice!.favorsActors).toContain('carol');
+      expect(carol!.favorsActors).toContain('alice');
+    });
+
+    it('identifies actors from competing orgs as rivals', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      // Alice (OpenAGI) and Bob (AItropic) work at competitors - should be rivals
+      const alice = personas.get('alice');
+      const bob = personas.get('bob');
+
+      expect(alice).toBeDefined();
+      expect(bob).toBeDefined();
+      expect(alice!.opposesActors).toContain('bob');
+      expect(bob!.opposesActors).toContain('alice');
+    });
+
+    it('identifies competitor organizations', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      // Alice works at OpenAGI which competes with AItropic
+      const alice = personas.get('alice');
+      expect(alice).toBeDefined();
+      expect(alice!.opposesOrgs).toContain('aitropic');
+    });
+
+    it('returns empty arrays for actors without affiliations', () => {
+      const generator = new NPCPersonaGenerator();
+      const rng = new SeededRandom(42);
+
+      const personas = generator.assignPersonas(
+        mockActors,
+        mockOrganizations,
+        () => rng.next()
+      );
+
+      // Eve has no affiliations
+      const eve = personas.get('eve');
+      expect(eve).toBeDefined();
+      expect(eve!.favorsActors).toEqual([]);
+      expect(eve!.opposesActors).toEqual([]);
+      expect(eve!.favorsOrgs).toEqual([]);
+      expect(eve!.opposesOrgs).toEqual([]);
+    });
+  });
+});
