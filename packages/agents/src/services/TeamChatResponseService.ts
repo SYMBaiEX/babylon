@@ -1,7 +1,10 @@
 /**
  * Team Chat Response Service
  *
- * Handles triggering agent responses when they are @mentioned in the Command Center.
+ * Handles broadcasting messages to agents and letting them decide via LLM
+ * whether to respond. Uses queuing with max limit per agent to prevent
+ * concurrent processing issues.
+ *
  * Uses agent's configured model tier (free/pro) via runtime.useModel like AgentChat.
  *
  * @packageDocumentation
@@ -9,14 +12,10 @@
 
 import { broadcastTypingIndicator } from '@babylon/api';
 import {
-  and,
   chatParticipants,
   db,
   eq,
-  groupMembers,
-  inArray,
   userAgentConfigs,
-  userAgentTeamChats,
   users,
 } from '@babylon/db';
 import {
@@ -31,98 +30,42 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { executeDirectMessage } from '../autonomous/DirectExecutors';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
-import type { AgentOrderingStrategy } from '../shared/agent-ordering';
 import { logger } from '../shared/logger';
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
-// Re-export ordering utilities from shared module
-export {
-  type AgentOrderingStrategy,
-  type OrderableAgent,
-  orderAgentIds,
-  shuffleArray,
-} from '../shared/agent-ordering';
-
-/**
- * Configuration for untagged message behavior.
- * When users send messages without @mentioning specific agents,
- * all agents in the team chat will respond.
- */
-export interface UntaggedResponseConfig {
-  /**
-   * Maximum number of agents that will respond to an untagged message.
-   * Set to null/undefined for unlimited (all agents respond).
-   * Default: null (unlimited)
-   */
-  maxAgents: number | null;
-
-  /**
-   * Strategy for ordering/selecting which agents respond.
-   * 'random' - Randomize the order (default)
-   * 'created_asc' - Oldest agents first
-   * 'created_desc' - Newest agents first
-   * 'alphabetical' - Alphabetically by display name
-   */
-  orderingStrategy: AgentOrderingStrategy;
-}
-
-/** Configuration for agent-to-agent loop prevention */
-const LOOP_PREVENTION = {
-  /** Maximum depth of agent-to-agent mention chains */
-  MAX_CHAIN_DEPTH: 3,
-  /** Cooldown period per agent per chat (ms) - prevents same agent responding twice in this window */
-  AGENT_COOLDOWN_MS: 30000,
-  /** Cleanup interval for expired cooldowns (ms) */
-  CLEANUP_INTERVAL_MS: 60000,
-};
-
-/** Parameters for triggering agent responses */
-interface TriggerResponseParams {
+/** Parameters for broadcasting to agents */
+interface BroadcastParams {
   chatId: string;
-  messageContent: string;
-  mentionedAgentIds: string[];
-  senderUserId: string;
-  senderDisplayName: string;
-  senderUsername?: string;
-  /** Team chat owner info (for prompt context) */
+  senderId: string;
   ownerDisplayName: string;
   ownerUsername: string;
-  /**
-   * Whether this is an untagged broadcast (all agents responding).
-   * Affects timing and staggering behavior.
-   */
-  isUntaggedBroadcast?: boolean;
 }
-
-/** Result of triggering responses */
-interface TriggerResponseResult {
-  triggered: number;
-  responses: Array<{
-    agentId: string;
-    agentName: string;
-    success: boolean;
-    messageId?: string;
-    error?: string;
-  }>;
-}
-
-/** Size limits for in-memory maps to prevent unbounded growth */
-const MAP_LIMITS = {
-  MAX_COOLDOWN_ENTRIES: 10000,
-  MAX_CHAIN_ENTRIES: 1000,
-} as const;
-
-/** Maximum length for user content in prompts to prevent token overflow */
-const MAX_PROMPT_CONTENT_LENGTH = 2000;
 
 /** Maximum length for LLM-generated responses before storage */
 const MAX_RESPONSE_CONTENT_LENGTH = 4000;
 
 /** Maximum iterations for multi-step execution */
 const MAX_ITERATIONS = 6;
+
+/** Maximum messages to keep in queue per agent (keeps latest, drops oldest) */
+const MAX_QUEUE_SIZE = 2;
+
+/** Queued message for an agent to process */
+interface QueuedMessage {
+  chatId: string;
+  ownerDisplayName: string;
+  ownerUsername: string;
+  queuedAt: number;
+}
+
+/** Agent processing state */
+interface AgentProcessingState {
+  isProcessing: boolean;
+  queue: QueuedMessage[];
+}
 
 // =============================================================================
 // Multi-Step Decision Templates (adapted from AgentChat for team chat)
@@ -244,6 +187,7 @@ REMEMBER:
 - Step {{iterationCount}}/{{maxIterations}}, Actions this round: {{actionCount}}
 - Don't repeat actions you've already taken
 - Most conversations just need a friendly reply, not actions
+- ONLY speak for yourself - NEVER write responses for other agents
 
 # OUTPUT FORMAT
 <output>
@@ -287,6 +231,7 @@ Write a natural response based on the conversation and action results:
 - Stay in character with your personality
 - You can @mention other team members if relevant (use their @username)
 - NEVER greet or address yourself (@{{agentUsername}})
+- ONLY speak for yourself - NEVER write as another agent or include their hypothetical responses
 
 Output ONLY this XML with your actual response (not examples or placeholders):
 
@@ -295,338 +240,314 @@ Output ONLY this XML with your actual response (not examples or placeholders):
 <text>Your helpful response with specific details from the actions</text>
 </response>`;
 
+// =============================================================================
+// Should Respond Decision Template
+// =============================================================================
+
+const shouldRespondTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in a team chat. Decide if you should respond.
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+## Personality
+{{personality}}
+{{/if}}
+
+---
+
+# Team Chat Context
+This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
+
+## Team Members
+{{teamMembers}}
+
+---
+
+# Conversation History
+{{teamChatMessages}}
+
+---
+
+# Should You Respond?
+
+Answer these questions:
+1. **Was I directly @mentioned?** (someone said "@{{agentUsername}}")
+2. **Was I asked a question or given a task?**
+3. **Would my response add NEW value?** (not repeating what I or others said)
+4. **Has this been sufficiently addressed already?**
+
+## RESPOND (YES) if:
+- You are @mentioned and have something meaningful to say
+- Someone asked you specifically for help
+- You have unique information to contribute
+- The conversation needs your expertise
+
+## DON'T RESPOND (NO) if:
+- You already responded to this topic and have nothing new to add
+- Another agent already answered the question well
+- The conversation has naturally concluded
+- You're about to repeat yourself
+- No one is talking to you and you have nothing valuable to add
+
+**When in doubt, DON'T respond.** Quality over quantity.
+
+---
+
+# Output Format
+<decision>
+<should_respond>YES or NO</should_respond>
+<reason>One sentence explaining why</reason>
+</decision>`;
+
 /**
- * Service for handling agent responses in team chat
+ * Service for handling agent responses in team chat.
+ * 
+ * Uses LLM-based decision making: each agent first decides whether to respond
+ * (via shouldRespondTemplate), then generates a response if appropriate.
+ * 
+ * Messages are queued per agent with a max limit (MAX_QUEUE_SIZE).
+ * When queue is full, oldest messages are dropped to keep latest.
  */
 export class TeamChatResponseService {
   /**
-   * Tracks recent agent responses per chat to prevent loops.
-   * Key: `${chatId}:${agentId}`, Value: timestamp of last response
+   * Processing state per agent.
+   * Key: agentId, Value: { isProcessing, queue }
    */
-  private agentResponseCooldowns = new Map<string, number>();
+  private agentStates = new Map<string, AgentProcessingState>();
 
   /**
-   * Tracks active conversation chains to prevent loops across cooldown resets.
-   * Key: chatId, Value: { chainId, agentsSeen, startedAt }
-   * A chain is reset when a human sends a new message.
+   * Get or create processing state for an agent
    */
-  private activeChains = new Map<
-    string,
-    { chainId: string; agentsSeen: Set<string>; startedAt: number }
-  >();
-
-  /** Cleanup interval handle */
-  private cleanupIntervalHandle: ReturnType<typeof setInterval> | null = null;
-
-  constructor() {
-    // Start periodic cleanup (prevents latency spikes from on-trigger cleanup)
-    this.startPeriodicCleanup();
-  }
-
-  /**
-   * Stop the periodic cleanup (for graceful shutdown or tests)
-   */
-  public stopPeriodicCleanup(): void {
-    if (this.cleanupIntervalHandle) {
-      clearInterval(this.cleanupIntervalHandle);
-      this.cleanupIntervalHandle = null;
+  private getAgentState(agentId: string): AgentProcessingState {
+    let state = this.agentStates.get(agentId);
+    if (!state) {
+      state = { isProcessing: false, queue: [] };
+      this.agentStates.set(agentId, state);
     }
+    return state;
   }
 
   /**
-   * Start periodic cleanup of expired cooldowns and chains
+   * Add a message to an agent's queue and trigger processing.
+   * If queue is at max, drops oldest message.
    */
-  private startPeriodicCleanup(): void {
-    if (this.cleanupIntervalHandle) return;
-    this.cleanupIntervalHandle = setInterval(() => {
-      this.cleanupExpiredEntries();
-    }, LOOP_PREVENTION.CLEANUP_INTERVAL_MS);
-    // Avoid keeping the process alive solely due to this interval (best-effort for serverless)
-    this.cleanupIntervalHandle.unref?.();
-  }
+  private queueMessageForAgent(
+    agentId: string,
+    message: QueuedMessage
+  ): void {
+    const state = this.getAgentState(agentId);
 
-  /**
-   * Cleanup expired cooldowns and stale chains, enforce size limits
-   */
-  private cleanupExpiredEntries(): void {
-    const now = Date.now();
-    const cooldownCutoff = now - LOOP_PREVENTION.AGENT_COOLDOWN_MS;
-
-    // Clean expired cooldowns
-    for (const [key, timestamp] of this.agentResponseCooldowns) {
-      if (timestamp < cooldownCutoff) {
-        this.agentResponseCooldowns.delete(key);
-      }
-    }
-
-    // Enforce size limit on cooldowns (evict oldest entries)
-    if (this.agentResponseCooldowns.size > MAP_LIMITS.MAX_COOLDOWN_ENTRIES) {
-      const entries = [...this.agentResponseCooldowns.entries()];
-      entries.sort((a, b) => a[1] - b[1]); // Sort by timestamp (oldest first)
-      const toDelete = entries.slice(
-        0,
-        entries.length - MAP_LIMITS.MAX_COOLDOWN_ENTRIES
-      );
-      for (const [key] of toDelete) {
-        this.agentResponseCooldowns.delete(key);
-      }
-    }
-
-    // Clean stale chains (older than 5 minutes - conversation likely moved on)
-    const chainExpiry = 5 * 60 * 1000;
-    for (const [chatId, chain] of this.activeChains) {
-      if (now - chain.startedAt > chainExpiry) {
-        this.activeChains.delete(chatId);
-      }
-    }
-
-    // Enforce size limit on chains (evict oldest entries)
-    if (this.activeChains.size > MAP_LIMITS.MAX_CHAIN_ENTRIES) {
-      const entries = [...this.activeChains.entries()];
-      entries.sort((a, b) => a[1].startedAt - b[1].startedAt); // Sort by startedAt (oldest first)
-      const toDelete = entries.slice(
-        0,
-        entries.length - MAP_LIMITS.MAX_CHAIN_ENTRIES
-      );
-      for (const [key] of toDelete) {
-        this.activeChains.delete(key);
-      }
-    }
-  }
-
-  /**
-   * Check if an agent is on cooldown (recently responded) in a chat
-   */
-  private isAgentOnCooldown(chatId: string, agentId: string): boolean {
-    const key = `${chatId}:${agentId}`;
-    const lastResponse = this.agentResponseCooldowns.get(key);
-    if (!lastResponse) return false;
-    return Date.now() - lastResponse < LOOP_PREVENTION.AGENT_COOLDOWN_MS;
-  }
-
-  /**
-   * Check if an agent has already participated in the current conversation chain.
-   * This prevents loops even after cooldowns expire within the same chain.
-   */
-  private hasAgentRespondedInChain(chatId: string, agentId: string): boolean {
-    const chain = this.activeChains.get(chatId);
-    if (!chain) return false;
-    return chain.agentsSeen.has(agentId);
-  }
-
-  /**
-   * Start a new conversation chain (called when human sends a message)
-   */
-  private startNewChain(chatId: string): string {
-    const chainId = `${chatId}:${Date.now()}`;
-    this.activeChains.set(chatId, {
-      chainId,
-      agentsSeen: new Set(),
-      startedAt: Date.now(),
-    });
-    return chainId;
-  }
-
-  /**
-   * Mark an agent as having responded in a chat and current chain
-   */
-  private markAgentResponded(chatId: string, agentId: string): void {
-    const key = `${chatId}:${agentId}`;
-    this.agentResponseCooldowns.set(key, Date.now());
-
-    // Also mark in the active chain
-    const chain = this.activeChains.get(chatId);
-    if (chain) {
-      chain.agentsSeen.add(agentId);
-    }
-  }
-
-  /**
-   * Trigger priority responses from mentioned agents
-   *
-   * Generates and sends responses from each mentioned agent immediately (no delay).
-   * Each agent uses their configured model tier (free/pro) via runtime.useModel.
-   *
-   * @param params - Response trigger parameters
-   * @returns Result with triggered response details
-   */
-  async triggerMentionedAgentResponses(
-    params: TriggerResponseParams
-  ): Promise<TriggerResponseResult> {
-    const {
-      chatId,
-      messageContent,
-      mentionedAgentIds,
-      senderUserId: _senderUserId,
-      senderDisplayName,
-      senderUsername,
-      ownerDisplayName,
-      ownerUsername,
-    } = params;
-
-    // Deduplicate and filter out empty/whitespace agent IDs
-    const uniqueAgentIds = [
-      ...new Set(mentionedAgentIds.map((id) => id?.trim()).filter(Boolean)),
-    ];
-
-    if (uniqueAgentIds.length === 0) {
-      return { triggered: 0, responses: [] };
-    }
-
-    // Human message starts a new conversation chain (resets loop prevention)
-    this.startNewChain(chatId);
-
-    logger.info(
-      `Triggering responses from ${uniqueAgentIds.length} agent(s)`,
-      { chatId, agentIds: uniqueAgentIds },
+    logger.debug(
+      `[QUEUE] Adding message for agent ${agentId}`,
+      { isProcessing: state.isProcessing, queueLength: state.queue.length },
       'TeamChatResponseService'
     );
 
-    const result: TriggerResponseResult = {
-      triggered: 0,
-      responses: [],
-    };
+    // Add to queue
+    state.queue.push(message);
 
-    // Batch fetch all agent info upfront (performance optimization)
-    const agentInfoMap = new Map<
-      string,
-      { displayName: string | null; username: string | null }
-    >();
-    if (uniqueAgentIds.length > 0) {
-      const agentInfoRows = await db
+    // If over max, drop oldest (keep latest)
+    while (state.queue.length > MAX_QUEUE_SIZE) {
+      const dropped = state.queue.shift();
+      logger.debug(
+        `Queue full for agent ${agentId}, dropped oldest message`,
+        { droppedAt: dropped?.queuedAt },
+        'TeamChatResponseService'
+      );
+    }
+
+    // Start processing if not already
+    if (!state.isProcessing) {
+      logger.debug(
+        `[QUEUE] Starting processing for agent ${agentId}`,
+        { queueLength: state.queue.length },
+        'TeamChatResponseService'
+      );
+      this.processAgentQueue(agentId);
+    } else {
+      logger.debug(
+        `[QUEUE] Agent ${agentId} is already processing, message queued`,
+        { queueLength: state.queue.length },
+        'TeamChatResponseService'
+      );
+    }
+  }
+
+  /**
+   * Process an agent's message queue one at a time.
+   * After processing, checks for more messages.
+   */
+  private async processAgentQueue(agentId: string): Promise<void> {
+    const state = this.getAgentState(agentId);
+
+    // Already processing? This shouldn't happen but guard anyway
+    if (state.isProcessing) {
+      return;
+    }
+
+    // Nothing to process?
+    if (state.queue.length === 0) {
+      return;
+    }
+
+    state.isProcessing = true;
+
+    try {
+      // Take the LATEST message (most recent context)
+      // Clear the queue since we're processing the latest state
+      const latestMessage = state.queue[state.queue.length - 1];
+      state.queue = []; // Clear queue - we're processing latest
+
+      if (!latestMessage) {
+        return;
+      }
+
+      logger.debug(
+        `Processing queued message for agent ${agentId}`,
+        { chatId: latestMessage.chatId },
+      'TeamChatResponseService'
+    );
+
+      // Generate response
+      await this.generateAgentResponse({
+        agentId,
+        chatId: latestMessage.chatId,
+        ownerDisplayName: latestMessage.ownerDisplayName,
+        ownerUsername: latestMessage.ownerUsername,
+      });
+    } finally {
+      state.isProcessing = false;
+
+      // Check if more messages arrived while processing
+      if (state.queue.length > 0) {
+        logger.debug(
+          `[QUEUE] Agent ${agentId} finished, picking up ${state.queue.length} queued message(s)`,
+          {},
+          'TeamChatResponseService'
+        );
+        // Process next (async, don't await)
+        this.processAgentQueue(agentId).catch((err) => {
+          logger.error(
+            `Failed to process agent queue: ${err}`,
+            { agentId },
+            'TeamChatResponseService'
+          );
+        });
+      } else {
+        logger.debug(
+          `[QUEUE] Agent ${agentId} finished, no more messages in queue`,
+          {},
+          'TeamChatResponseService'
+        );
+      }
+    }
+  }
+
+  /**
+   * Notify all agents in a chat about a new message.
+   * Each agent will queue the message and decide whether to respond.
+   */
+  public async notifyAgentsOfMessage(params: {
+    chatId: string;
+    senderId: string;
+    ownerDisplayName: string;
+    ownerUsername: string;
+  }): Promise<void> {
+    const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
+
+    // Get all participants with isAgent flag in one query (no N+1)
+    const participants = await db
         .select({
           id: users.id,
           displayName: users.displayName,
           username: users.username,
-        })
-        .from(users)
-        .where(inArray(users.id, uniqueAgentIds));
+        isAgent: users.isAgent,
+      })
+      .from(chatParticipants)
+      .innerJoin(users, eq(chatParticipants.userId, users.id))
+      .where(eq(chatParticipants.chatId, chatId));
 
-      for (const row of agentInfoRows) {
-        agentInfoMap.set(row.id, {
-          displayName: row.displayName,
-          username: row.username,
-        });
+    // Queue message for each agent (except the sender)
+    for (const participant of participants) {
+      // Skip if sender is this participant
+      if (participant.id === senderId) {
+        continue;
       }
-    }
 
-    // Process each mentioned agent immediately (no delays)
-    for (const agentId of uniqueAgentIds) {
-      if (!agentId) continue;
+      // Skip if not an agent (the owner is also a participant)
+      if (!participant.isAgent) {
+        continue;
+      }
 
-      // Get agent info from batch (no per-agent DB query)
-      const agent = agentInfoMap.get(agentId);
-      const agentName = agent?.displayName || agent?.username || 'Agent';
+      logger.debug(
+        `Queueing message for agent ${participant.displayName || participant.id}`,
+        { chatId, senderId },
+        'TeamChatResponseService'
+      );
 
-      // Trigger the response immediately (non-blocking)
-      this.generateAgentResponse({
-        agentId,
+      this.queueMessageForAgent(participant.id, {
         chatId,
-        messageContent,
-        senderDisplayName,
-        senderUsername,
         ownerDisplayName,
         ownerUsername,
-        agentName,
-      })
-        .then((responseResult) => {
-          if (responseResult.success) {
-            logger.info(
-              `Agent ${responseResult.agentName} responded`,
-              { chatId, messageId: responseResult.messageId },
-              'TeamChatResponseService'
-            );
-          } else {
-            logger.warn(
-              `Agent response failed: ${responseResult.error}`,
-              { chatId, agentId },
-              'TeamChatResponseService'
-            );
-          }
-        })
-        .catch((error) => {
-          logger.error(
-            `Failed to generate agent response: ${error}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        });
-
-      result.responses.push({
-        agentId,
-        agentName,
-        success: true, // Scheduled successfully
+        queuedAt: Date.now(),
       });
-      result.triggered++;
     }
+  }
 
-    return result;
+  /**
+   * Broadcast a message to all agents in the chat.
+   * Each agent will decide via LLM (shouldAgentRespond) whether to reply.
+   *
+   * @param params - Broadcast parameters
+   */
+  async broadcastToAllAgents(params: BroadcastParams): Promise<void> {
+    const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
+
+            logger.info(
+      `Broadcasting message to all agents`,
+      { chatId, senderId },
+              'TeamChatResponseService'
+            );
+
+    // Just use the existing notifyAgentsOfMessage which already broadcasts to all
+    await this.notifyAgentsOfMessage({
+      chatId,
+      senderId,
+      ownerDisplayName,
+      ownerUsername,
+    });
   }
 
   /**
    * Generate an agent response using multi-step execution (like AgentChat)
    *
-   * Uses the agent's configured model tier (free/pro) via runtime.useModel.
-   * Supports multi-step action execution (check balance, trade, etc.) before responding.
+   * First calls shouldAgentRespond() to decide if the agent should respond.
+   * If yes, uses multi-step action execution before generating final response.
    * Uses TEAM_CHAT_MESSAGES provider for conversation context with proper names.
    *
-   * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
    * @param params.agentName - Pre-fetched agent name (optimization to avoid redundant query)
    */
   private async generateAgentResponse(params: {
     agentId: string;
     chatId: string;
-    messageContent: string;
-    senderDisplayName: string;
-    senderUsername?: string;
     ownerDisplayName: string;
     ownerUsername: string;
-    depth?: number;
     agentName?: string;
   }): Promise<{
     success: boolean;
     agentName: string;
     messageId?: string;
     error?: string;
+    skipped?: boolean;
   }> {
     const {
       agentId,
       chatId,
-      messageContent,
-      senderDisplayName,
-      senderUsername: _senderUsername,
       ownerDisplayName,
       ownerUsername,
-      depth = 0,
       agentName: prefetchedAgentName,
     } = params;
-
-    // Check cooldown and chain-based loop prevention (fail fast)
-    if (depth > 0 && this.isAgentOnCooldown(chatId, agentId)) {
-      logger.debug(
-        `Agent ${agentId} on cooldown (A2A chain), skipping response`,
-        { chatId, depth },
-        'TeamChatResponseService'
-      );
-      return {
-        success: false,
-        agentName: 'Agent',
-        error: 'Agent on cooldown',
-      };
-    }
-
-    if (depth > 0 && this.hasAgentRespondedInChain(chatId, agentId)) {
-      logger.debug(
-        `Agent ${agentId} already responded in this chain, skipping`,
-        { chatId, depth },
-        'TeamChatResponseService'
-      );
-      return {
-        success: false,
-        agentName: 'Agent',
-        error: 'Agent already responded in this chain',
-      };
-    }
 
     // Get agent config including model tier and trading strategy
     const [config] = await db
@@ -643,16 +564,16 @@ export class TeamChatResponseService {
     // Fetch agent name and username
     let agentName = prefetchedAgentName;
     let agentUsername = '';
-    
-    const [agent] = await db
-      .select({
-        displayName: users.displayName,
-        username: users.username,
-      })
-      .from(users)
-      .where(eq(users.id, agentId))
-      .limit(1);
-    
+
+      const [agent] = await db
+        .select({
+          displayName: users.displayName,
+          username: users.username,
+        })
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
+
     if (!agentName) {
       agentName = agent?.displayName || agent?.username || 'Agent';
     }
@@ -686,26 +607,58 @@ export class TeamChatResponseService {
     const modelType =
       modelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
 
-    // Broadcast typing indicator
-    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-      (error: Error) => {
-        logger.warn(
-          `Failed to broadcast typing indicator: ${error.message}`,
-          { chatId, agentId },
+    // First, decide if we should respond at all
+    const shouldRespond = await this.shouldAgentRespond({
+        agentId,
+      chatId,
+        agentName,
+      agentUsername,
+      systemPrompt,
+      personality,
+      teamMembers,
+      ownerDisplayName,
+      ownerUsername,
+    });
+
+    if (!shouldRespond.shouldRespond) {
+      logger.info(
+        `Agent ${agentName} decided not to respond: ${shouldRespond.reason}`,
+        { agentId, chatId },
           'TeamChatResponseService'
         );
-      }
+      return {
+        success: true,
+        agentName,
+        skipped: true,
+      };
+    }
+
+    logger.info(
+      `Agent ${agentName} will respond: ${shouldRespond.reason}`,
+      { agentId, chatId },
+      'TeamChatResponseService'
     );
+
+    // Broadcast typing indicator
+      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-      // Create ElizaOS Memory object
+      // Create ElizaOS Memory object (conversation context comes from TEAM_CHAT_MESSAGES provider)
       const elizaMessage: Memory = {
         id: uuidv4() as UUID,
-        entityId: senderDisplayName as UUID,
+        entityId: agentId as UUID,
         roomId: chatId as UUID,
-        content: { text: messageContent },
+        content: { text: '' },
         createdAt: Date.now(),
       };
 
@@ -767,7 +720,7 @@ export class TeamChatResponseService {
 
         for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
           const response = await runtime.useModel(modelType, {
-            prompt,
+        prompt,
             temperature: attempt > 1 ? 0.5 : 0.7,
           });
 
@@ -948,7 +901,7 @@ export class TeamChatResponseService {
         state.values = {
           ...state.values,
           agentId,
-          system: systemPrompt,
+        system: systemPrompt,
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
@@ -1041,27 +994,19 @@ export class TeamChatResponseService {
         };
       }
 
-      // Mark agent as having responded
-      this.markAgentResponded(chatId, agentId);
-
-      // Handle agent-to-agent mentions
-      if (depth < LOOP_PREVENTION.MAX_CHAIN_DEPTH) {
-        await this.handleAgentToAgentMentions({
-          respondingAgentId: agentId,
-          respondingAgentName: agentName,
+      // Notify other agents about this message (they can decide to respond)
+      this.notifyAgentsOfMessage({
           chatId,
-          responseContent: cleanContent,
-          ownerDisplayName,
-          ownerUsername,
-          depth: depth + 1,
-        });
-      } else {
-        logger.debug(
-          `Max chain depth reached (${depth}), not triggering agent-to-agent mentions`,
+        senderId: agentId,
+        ownerDisplayName,
+        ownerUsername,
+      }).catch((err) => {
+        logger.error(
+          `Failed to notify agents of message: ${err}`,
           { chatId, agentId },
           'TeamChatResponseService'
         );
-      }
+      });
 
       return {
         success: true,
@@ -1078,209 +1023,108 @@ export class TeamChatResponseService {
             : 'Failed to generate response',
       };
     } finally {
-      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-        (error: Error) => {
-          logger.warn(
-            `Failed to stop typing indicator: ${error.message}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        }
-      );
+        broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+          (error: Error) => {
+            logger.warn(
+              `Failed to stop typing indicator: ${error.message}`,
+              { chatId, agentId },
+              'TeamChatResponseService'
+            );
+          }
+        );
     }
   }
 
   /**
-   * Handle agent-to-agent @mentions
-   *
-   * When an agent mentions another agent in their response,
-   * trigger a follow-up response from the mentioned agent.
-   *
-   * @param params.depth - Current chain depth (used to prevent infinite loops)
+   * Decide if an agent should respond to the current conversation.
+   * Uses LLM to make the decision based on conversation context.
    */
-  private async handleAgentToAgentMentions(params: {
-    respondingAgentId: string;
-    respondingAgentName: string;
+  private async shouldAgentRespond(params: {
+    agentId: string;
     chatId: string;
-    responseContent: string;
+    agentName: string;
+    agentUsername: string;
+    systemPrompt: string;
+    personality: string;
+    teamMembers: string;
     ownerDisplayName: string;
     ownerUsername: string;
-    depth: number;
-  }): Promise<void> {
+  }): Promise<{ shouldRespond: boolean; reason: string }> {
     const {
-      respondingAgentId,
-      respondingAgentName,
+      agentId,
       chatId,
-      responseContent,
+      agentName,
+      agentUsername,
+      systemPrompt,
+      personality,
+      teamMembers,
       ownerDisplayName,
       ownerUsername,
-      depth,
     } = params;
 
-    const mentionedUsernames = this.extractMentionedUsernames(responseContent);
-    if (mentionedUsernames.length === 0) return;
+    try {
+      const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-    // Get team chat info to find other agents
-    const [chatWithGroup] = await db
-      .select({
-        groupId: userAgentTeamChats.groupId,
-        userId: userAgentTeamChats.userId,
-      })
-      .from(userAgentTeamChats)
-      .where(eq(userAgentTeamChats.chatId, chatId))
-      .limit(1);
+      // Create ElizaOS Memory object for provider context
+      const elizaMessage: Memory = {
+        id: uuidv4() as UUID,
+        entityId: agentId as UUID,
+        roomId: chatId as UUID,
+        content: { text: '' },
+        createdAt: Date.now(),
+      };
 
-    if (!chatWithGroup) {
-      return;
-    }
-
-    // Get all agents in the team chat (excluding the responding agent)
-    const teamAgents = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        displayName: users.displayName,
-      })
-      .from(users)
-      .innerJoin(groupMembers, eq(groupMembers.userId, users.id))
-      .where(
-        and(
-          eq(groupMembers.groupId, chatWithGroup.groupId),
-          eq(users.isAgent, true),
-          eq(groupMembers.isActive, true)
-        )
+      // Compose state with TEAM_CHAT_MESSAGES provider for conversation context
+      const state: State = await runtime.composeState(
+        elizaMessage,
+        ['TEAM_CHAT_MESSAGES'],
+        true
       );
 
-    // Find agents that were mentioned
-    const mentionedAgentIds: string[] = [];
-    for (const agent of teamAgents) {
-      if (agent.id === respondingAgentId) continue; // Don't self-trigger
+      // Get conversation from provider
+      const recentConversation =
+        (state.values?.teamChatMessages as string) || 'No recent messages.';
 
-      const username = agent.username?.toLowerCase();
-      const displayName = agent.displayName?.toLowerCase();
+      // Build prompt
+      const prompt = shouldRespondTemplate
+        .replace(/\{\{agentName\}\}/g, agentName)
+        .replace(/\{\{agentUsername\}\}/g, agentUsername)
+        .replace(/\{\{system\}\}/g, systemPrompt)
+        .replace(/\{\{personality\}\}/g, personality)
+        .replace(
+          /\{\{#if personality\}\}[\s\S]*?\{\{\/if\}\}/g,
+          personality ? `## Personality\n${personality}` : ''
+        )
+        .replace(/\{\{ownerDisplayName\}\}/g, ownerDisplayName)
+        .replace(/\{\{ownerUsername\}\}/g, ownerUsername)
+        .replace(/\{\{teamMembers\}\}/g, teamMembers)
+        .replace(/\{\{teamChatMessages\}\}/g, recentConversation);
 
-      if (
-        (username && mentionedUsernames.includes(username)) ||
-        (displayName && mentionedUsernames.includes(displayName))
-      ) {
-        mentionedAgentIds.push(agent.id);
-      }
-    }
-
-    if (mentionedAgentIds.length === 0) {
-      return;
-    }
-
-    logger.info(
-      `Agent ${respondingAgentName} mentioned ${mentionedAgentIds.length} other agent(s)`,
-      { chatId, mentionedAgentIds },
-      'TeamChatResponseService'
-    );
-
-    // Trigger responses from mentioned agents immediately
-    for (const mentionedAgentId of mentionedAgentIds) {
-      if (!mentionedAgentId) continue;
-
-      // Skip agents on cooldown
-      if (this.isAgentOnCooldown(chatId, mentionedAgentId)) {
-        logger.debug(
-          `Skipping agent ${mentionedAgentId} - on cooldown`,
-          { chatId, depth },
-          'TeamChatResponseService'
-        );
-        continue;
-      }
-
-      // Skip agents that already responded in this chain
-      if (this.hasAgentRespondedInChain(chatId, mentionedAgentId)) {
-        logger.debug(
-          `Skipping agent ${mentionedAgentId} - already in chain`,
-          { chatId, depth },
-          'TeamChatResponseService'
-        );
-        continue;
-      }
-
-      // Generate the response immediately with depth tracking
-      this.generateAgentResponse({
-        agentId: mentionedAgentId,
-        chatId,
-        messageContent: responseContent,
-        senderDisplayName: respondingAgentName,
-        ownerDisplayName,
-        ownerUsername,
-        depth,
-      }).catch((error) => {
-        logger.error(
-          `Failed to trigger agent-to-agent response: ${error}`,
-          { respondingAgentId, mentionedAgentId, depth },
-          'TeamChatResponseService'
-        );
+      // Use small model for quick decision (same for both tiers)
+      const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        prompt,
+        temperature: 0.3, // Low temperature for consistent decisions
       });
-    }
-  }
 
-  /**
-   * Sanitize user input for prompt injection prevention.
-   * Escapes potential prompt delimiters, limits length, and handles edge cases.
-   *
-   * Hardening includes:
-   * - Escape code block delimiters
-   * - Collapse long runs of newlines
-   * - Remove Unicode direction override characters (LTR/RTL overrides)
-   * - Collapse very long runs of repeated characters (tokenization attack prevention)
-   * - Truncate to max length
-   */
-  private sanitizeForPrompt(content: string): string {
-    return (
-      content
-        // Remove Unicode direction override characters (can confuse models or hide text)
-        // U+202A-U+202E: LTR/RTL embedding, override, isolate
-        // U+2066-U+2069: isolate controls
-        // U+200E, U+200F: LTR/RTL marks
-        .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, '')
-        // Escape backticks to prevent code block injection
-        .replace(/```/g, '` ` `')
-        // Collapse long runs of newlines
-        .replace(/\n{3,}/g, '\n\n')
-        // Collapse very long runs of repeated characters (>50 same char in a row)
-        // This prevents tokenization attacks and excessive token usage
-        .replace(/(.)\1{50,}/g, (_match, char) => char.repeat(10) + '...')
-        // Truncate to prevent token overflow
-        .slice(0, MAX_PROMPT_CONTENT_LENGTH)
-    );
-  }
+      // Parse decision
+      const shouldRespondMatch = response.match(
+        /<should_respond>\s*(YES|NO)\s*<\/should_respond>/i
+      );
+      const reasonMatch = response.match(/<reason>\s*([^<]+)\s*<\/reason>/i);
 
-  /**
-   * Extract @mentioned usernames from content.
-   *
-   * Uses a regex that requires @ to be at start of word (not in email addresses).
-   * Matches usernames with alphanumerics, underscores, hyphens, and dots.
-   * Trailing punctuation is stripped to handle "Hey @agent." at end of sentence.
-   *
-   * **Known Limitations:**
-   * - URLs like `https://twitter.com/@username` may match `@username`
-   * - Markdown links `[@mention](url)` may match `@mention`
-   * - These edge cases are acceptable for team chat where such patterns are rare
-   * - For stricter matching, consider negative lookbehind for `://` or `[`
-   *
-   * The current regex prioritizes simplicity and false positives over missing mentions.
-   */
-  private extractMentionedUsernames(content: string): string[] {
-    const mentions: string[] = [];
-    // Regex requires @ at word boundary (not after letters/numbers like in emails)
-    // Matches: @username, "@username", start@username won't match
-    // Known limitation: URLs like https://example.com/@user may still match
-    const regex = /(?:^|[\s(,])@([A-Za-z0-9_.-]+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(content)) !== null) {
-      if (match[1]) {
-        // Strip trailing punctuation that might be sentence-ending
-        const username = match[1].replace(/[.,!?;:)]+$/, '');
-        if (username) mentions.push(username.toLowerCase());
-      }
+      const shouldRespond = shouldRespondMatch?.[1]?.toUpperCase() === 'YES';
+      const reason = reasonMatch?.[1]?.trim() || 'No reason provided';
+
+      return { shouldRespond, reason };
+    } catch (error) {
+        logger.error(
+        `Failed to decide shouldAgentRespond: ${error}`,
+        { agentId, chatId },
+          'TeamChatResponseService'
+        );
+      // Default to not responding on error (fail safe)
+      return { shouldRespond: false, reason: 'Error making decision' };
     }
-    return mentions;
   }
 }
 

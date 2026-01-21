@@ -243,7 +243,10 @@ export const teamChatMessagesProvider: Provider = {
           return 'You';
         }
         const sender = senderInfoMap.get(senderId);
-        return formatUserName(sender?.displayName ?? null, sender?.username ?? null);
+        return formatUserName(
+          sender?.displayName ?? null,
+          sender?.username ?? null
+        );
       };
 
       // Format messages (oldest first for conversation flow)

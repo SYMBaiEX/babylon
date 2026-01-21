@@ -25,12 +25,7 @@ export {
 } from './interfaces';
 export * from './npc-bootstrap.service';
 export {
-  type AgentOrderingStrategy,
-  type OrderableAgent,
-  orderAgentIds,
-  shuffleArray,
   TeamChatResponseService,
   teamChatResponseService,
-  type UntaggedResponseConfig,
 } from './TeamChatResponseService';
 export * from './TeamChatService';
