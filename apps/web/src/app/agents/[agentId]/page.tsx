@@ -29,7 +29,6 @@
 
 'use client';
 
-import { cn } from '@babylon/shared';
 import {
   Activity,
   ArrowLeft,
@@ -44,6 +43,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { AgentPnLDisplay } from '@/components/agents/AgentPnLDisplay';
 import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -337,16 +337,11 @@ export default function AgentDetailPage() {
               <div className="mb-1 text-muted-foreground text-xs">
                 Lifetime P&L
               </div>
-              <div
-                className={cn(
-                  'font-semibold text-xl',
-                  parseFloat(agent.lifetimePnL) >= 0
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                )}
-              >
-                {parseFloat(agent.lifetimePnL).toFixed(2)} pts
-              </div>
+              <AgentPnLDisplay
+                agentId={agent.id}
+                realizedPnL={agent.lifetimePnL}
+                className="text-xl"
+              />
             </div>
           </div>
         </div>
@@ -404,7 +399,7 @@ export default function AgentDetailPage() {
             </TabsContent>
 
             <TabsContent value="performance">
-              <AgentPerformance agent={agent} agentId={agent.id} />
+              <AgentPerformance agent={agent} />
             </TabsContent>
 
             <TabsContent value="logs">

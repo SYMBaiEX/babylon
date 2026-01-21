@@ -13,9 +13,8 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { useMemo } from 'react';
 import { useAgent0Reputation } from '@/hooks/useAgent0Reputation';
-import { useUserPositions } from '@/hooks/useUserPositions';
+import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 
 /**
  * Displays agent trading performance metrics (PnL, trades, win rate).
@@ -31,63 +30,35 @@ interface AgentPerformanceProps {
     winRate: number;
     virtualBalance?: number;
   };
-  /** If provided, fetches and displays Agent0 network reputation */
-  agentId?: string;
 }
 
-export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
-  // Use shared hook for position fetching
+export function AgentPerformance({ agent }: AgentPerformanceProps) {
+  // Use shared hook for P&L calculation
   const {
-    predictionPositions: predictions,
-    perpPositions: perps,
+    realizedPnL,
+    unrealizedPnL,
+    totalPnL,
+    pointsInPositions,
+    isProfitable,
     loading: positionsLoading,
     error: positionsError,
-  } = useUserPositions(agent.id);
+    predictions,
+    perps,
+  } = useAgentTotalPnL(agent.id, agent.lifetimePnL);
 
-  // Calculate unrealized P&L and points in positions in a single pass
-  const { unrealizedPnL, pointsInPositions } = useMemo(() => {
-    let predictionPnL = 0;
-    let predictionValue = 0;
-
-    for (const pos of predictions) {
-      predictionPnL += pos.unrealizedPnL ?? 0;
-      predictionValue += pos.currentValue ?? pos.shares * pos.currentPrice;
-    }
-
-    let perpPnL = 0;
-    let perpValue = 0;
-
-    for (const pos of perps) {
-      perpPnL += pos.unrealizedPnL ?? 0;
-      const leverage = Number(pos.leverage);
-      if (Number.isFinite(leverage) && leverage > 0) {
-        perpValue += Math.abs(pos.size / leverage);
-      }
-    }
-
-    return {
-      unrealizedPnL: predictionPnL + perpPnL,
-      pointsInPositions: predictionValue + perpValue,
-    };
-  }, [predictions, perps]);
-
-  const realizedPnL = parseFloat(agent.lifetimePnL) || 0;
-  const totalPnL = realizedPnL + unrealizedPnL;
-  // Defer isProfitable determination until positions are loaded to avoid color flash
-  const isProfitable = positionsLoading ? realizedPnL >= 0 : totalPnL >= 0;
   const totalTrades = agent.totalTrades || 0;
   const profitableTrades = agent.profitableTrades || 0;
   const winRate = agent.winRate || 0;
   const availableBalance = agent.virtualBalance ?? 0;
   const totalPortfolio = availableBalance + pointsInPositions;
 
-  // Fetch Agent0 network reputation data if agentId is provided
+  // Fetch Agent0 network reputation data
   const {
     profile: agent0Profile,
     reputation: agent0Reputation,
     loading: agent0Loading,
     isAgent0Available,
-  } = useAgent0Reputation(agentId);
+  } = useAgent0Reputation(agent.id);
 
   const stats = [
     {
@@ -205,16 +176,16 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
           </div>
 
           <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
-            <span className="text-muted-foreground">Profitable Trades</span>
-            <span className="font-semibold text-green-600">
-              {profitableTrades}
+            <span className="text-muted-foreground">Open Positions</span>
+            <span className="font-semibold text-blue-600">
+              {positionsLoading ? '...' : predictions.length + perps.length}
             </span>
           </div>
 
           <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
-            <span className="text-muted-foreground">Losing Trades</span>
-            <span className="font-semibold text-red-600">
-              {totalTrades - profitableTrades}
+            <span className="text-muted-foreground">Profitable Trades</span>
+            <span className="font-semibold text-green-600">
+              {profitableTrades}
             </span>
           </div>
 
@@ -267,9 +238,8 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
                     isProfitable ? 'text-green-600' : 'text-red-600'
                   )}
                 >
-                  {positionsLoading
-                    ? '...'
-                    : `${isProfitable ? '+' : ''}${totalPnL.toFixed(2)} points`}
+                  {isProfitable ? '+' : ''}
+                  {totalPnL.toFixed(2)} points
                 </span>
               </div>
             </div>
@@ -296,7 +266,7 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
       </div>
 
       {/* Agent0 Network Reputation */}
-      {agentId && (
+      {agent.id.length > 0 && (
         <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-semibold text-lg">
