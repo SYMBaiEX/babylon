@@ -41,13 +41,13 @@ import {
 } from '@babylon/db';
 import { GROUP_CONFIG, generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_GROUP_DYNAMICS_CONFIG } from '../config/npc-activity';
-import {
-  pickRandom,
-  randomChance,
-  type RngFunction,
-} from '../utils/randomization';
 import { BabylonLLMClient } from '../llm/openai-client';
 import { generateWorldContext, validateNoRealNames } from '../prompts';
+import {
+  pickRandom,
+  type RngFunction,
+  randomChance,
+} from '../utils/randomization';
 import { MarketContextService } from './market-context-service';
 import { autoJoinEmptyUsersToNpcGroupChats } from './npc-group-chat-onboarding-service';
 import { NPCGroupDynamicsCalculations } from './npc-group-dynamics-calculations';
@@ -324,7 +324,9 @@ export class NPCGroupDynamicsService {
 
       for (const candidate of potentialMembers) {
         // Random chance to join
-        if (!randomChance(NPC_GROUP_DYNAMICS_CONFIG.joinGroupProbability, rng)) {
+        if (
+          !randomChance(NPC_GROUP_DYNAMICS_CONFIG.joinGroupProbability, rng)
+        ) {
           continue;
         }
 
@@ -473,7 +475,9 @@ export class NPCGroupDynamicsService {
 
       for (const membership of participantList) {
         // Random chance to leave
-        if (!randomChance(NPC_GROUP_DYNAMICS_CONFIG.leaveGroupProbability, rng)) {
+        if (
+          !randomChance(NPC_GROUP_DYNAMICS_CONFIG.leaveGroupProbability, rng)
+        ) {
           continue;
         }
 

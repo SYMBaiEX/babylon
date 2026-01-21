@@ -75,9 +75,9 @@ export {
 // Randomization utilities
 export {
   pickRandom,
+  type RngFunction,
   randomChance,
   randomInt,
-  type RngFunction,
   sampleRandom,
   shuffleArray,
 } from './randomization';

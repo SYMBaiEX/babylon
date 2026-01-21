@@ -13,8 +13,8 @@
 
 import { logger } from '@babylon/shared';
 import {
-  randomChance,
   type RngFunction,
+  randomChance,
   shuffleArray,
 } from '../utils/randomization';
 import { StaticDataRegistry } from './static-data-registry';

@@ -42,7 +42,7 @@
 import { logger } from '@babylon/shared';
 import { correlations } from '../data/organization-correlations';
 import type { Actor, Organization } from '../types';
-import { randomChance, type RngFunction } from '../utils/randomization';
+import { type RngFunction, randomChance } from '../utils/randomization';
 
 /**
  * NPC Persona Assignment

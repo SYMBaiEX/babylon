@@ -2,9 +2,9 @@
  * Tests for NPC Persona Generator
  */
 import { describe, expect, it } from 'bun:test';
+import type { Actor, Organization } from '../types';
 import { SeededRandom } from '../utils/entropy';
 import { NPCPersonaGenerator } from './npc-persona-generator';
-import type { Actor, Organization } from '../types';
 
 // Mock actors for testing
 const mockActors: Actor[] = [
