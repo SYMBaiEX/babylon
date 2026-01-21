@@ -6,9 +6,13 @@
  * - Tier 1 (Inner Circle): Exclusive, full alpha
  * - Tier 2 (Community): Medium engagement, partial alpha
  * - Tier 3 (Followers): Low barrier, public content
+ *
+ * Supports per-NPC tier customization via ActorTierOverrides.
  */
 
 import { type AlphaLevel, GROUP_CONFIG, type TierLevel } from '@babylon/shared';
+import { ALPHA_GROUP_CONFIG } from '../config/alpha-group-config';
+import { StaticDataRegistry } from './static-data-registry';
 
 // Re-export for convenience
 export type { AlphaLevel, TierLevel } from '@babylon/shared';
@@ -172,4 +176,157 @@ export function getTierMessageGuidance(tier: TierLevel | null): string {
     return TIER_MESSAGE_GUIDANCE[1]; // Legacy groups get full alpha
   }
   return TIER_MESSAGE_GUIDANCE[tier];
+}
+
+// =============================================================================
+// PER-NPC TIER CUSTOMIZATION
+// =============================================================================
+
+/**
+ * Get effective tier configuration for an NPC, applying any tierOverrides.
+ *
+ * NPC-specific overrides allow:
+ * - minEngagementScoreMultiplier: Scale the threshold (1.5 = 50% harder)
+ * - inviteProbabilityMultiplier: Scale invite probability (0.5 = half as likely)
+ *
+ * @param tier - The tier level to get config for
+ * @param npcId - Optional NPC ID to apply tier overrides
+ * @returns TierConfig with NPC-specific adjustments applied
+ */
+export function getEffectiveTierConfig(
+  tier: TierLevel,
+  npcId?: string
+): TierConfig {
+  const baseConfig = TIER_CONFIG[tier];
+
+  // If per-NPC customization is disabled or no NPC specified, use base config
+  if (!ALPHA_GROUP_CONFIG.perNpcCustomizationEnabled || !npcId) {
+    return baseConfig;
+  }
+
+  // Get actor data to check for tier overrides
+  const actor = StaticDataRegistry.getActor(npcId);
+  const overrides = actor?.tierOverrides;
+
+  // No overrides for this actor, use base config
+  if (!overrides) {
+    return baseConfig;
+  }
+
+  // Apply multipliers to create effective config
+  return {
+    ...baseConfig,
+    minEngagementScore: Math.round(
+      baseConfig.minEngagementScore *
+        (overrides.minEngagementScoreMultiplier ?? 1)
+    ),
+    inviteProbability:
+      baseConfig.inviteProbability *
+      (overrides.inviteProbabilityMultiplier ?? 1),
+  };
+}
+
+/**
+ * Determine which tier a user qualifies for based on engagement score,
+ * considering NPC-specific thresholds.
+ *
+ * @param score - User's engagement score (0-100)
+ * @param npcId - Optional NPC ID for tier-specific thresholds
+ * @returns Highest tier the user qualifies for, or null if none
+ */
+export function getTierForEngagementScoreWithNpc(
+  score: number,
+  npcId?: string
+): TierLevel | null {
+  for (const tier of ALL_TIERS) {
+    const config = getEffectiveTierConfig(tier, npcId);
+    if (score >= config.minEngagementScore) {
+      return tier;
+    }
+  }
+  return null;
+}
+
+/**
+ * Get the focus weights for an NPC's engagement calculation.
+ *
+ * Priority order:
+ * 1. Explicit focusWeights in tierOverrides
+ * 2. Domain-based defaults
+ * 3. Global default (50/50)
+ *
+ * @param npcId - NPC ID to get focus weights for
+ * @returns Focus weights for social and trading activity
+ */
+export function getNpcFocusWeights(npcId: string): {
+  social: number;
+  trading: number;
+} {
+  const actor = StaticDataRegistry.getActor(npcId);
+
+  // Check for explicit focus weights in tier overrides
+  if (actor?.tierOverrides?.focusWeights) {
+    return actor.tierOverrides.focusWeights;
+  }
+
+  // Use domain-based defaults
+  if (actor?.domain && actor.domain.length > 0) {
+    // Import would cause circular dependency, so we inline the logic
+    const tradingDomains = ['crypto', 'trading', 'finance', 'defi', 'markets'];
+    const socialDomains = ['media', 'politics', 'entertainment', 'culture'];
+    const techDomains = ['tech', 'ai', 'venture-capital', 'startups'];
+
+    const hasTradingFocus = actor.domain.some((d) =>
+      tradingDomains.includes(d.toLowerCase())
+    );
+    const hasSocialFocus = actor.domain.some((d) =>
+      socialDomains.includes(d.toLowerCase())
+    );
+    const hasTechFocus = actor.domain.some((d) =>
+      techDomains.includes(d.toLowerCase())
+    );
+
+    if (hasTradingFocus && !hasSocialFocus) {
+      return { social: 0.4, trading: 0.6 };
+    }
+    if (hasSocialFocus && !hasTradingFocus) {
+      return { social: 0.8, trading: 0.2 };
+    }
+    if (hasTechFocus) {
+      return { social: 0.6, trading: 0.4 };
+    }
+  }
+
+  // Default: balanced
+  return {
+    social: ALPHA_GROUP_CONFIG.defaultSocialWeight,
+    trading: ALPHA_GROUP_CONFIG.defaultTradingWeight,
+  };
+}
+
+/**
+ * Check if promotion requirements are met with NPC-specific thresholds.
+ *
+ * @param currentTier - User's current tier
+ * @param engagementScore - User's current engagement score
+ * @param daysInCurrentTier - Days since joining current tier
+ * @param npcId - Optional NPC ID for tier-specific thresholds
+ * @returns True if eligible for promotion
+ */
+export function isEligibleForPromotionWithNpc(
+  currentTier: TierLevel,
+  engagementScore: number,
+  daysInCurrentTier: number,
+  npcId?: string
+): boolean {
+  if (currentTier === 1) return false;
+
+  const targetTier = (currentTier - 1) as TierLevel;
+  const targetConfig = getEffectiveTierConfig(targetTier, npcId);
+  const currentConfig = getEffectiveTierConfig(currentTier, npcId);
+
+  return (
+    engagementScore >= targetConfig.minEngagementScore &&
+    daysInCurrentTier >= currentConfig.promotionWaitDays
+  );
 }

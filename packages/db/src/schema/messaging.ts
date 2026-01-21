@@ -232,6 +232,11 @@ export const groupMembers = pgTable(
     promotedAt: timestamp('promotedAt', { mode: 'date' }),
     demotedAt: timestamp('demotedAt', { mode: 'date' }),
     previousTier: integer('previousTier'),
+    // Grandfathering tracking (for threshold migration)
+    // Members marked as grandfathered retain their membership even if they
+    // no longer meet the current engagement thresholds (but cannot be promoted)
+    isGrandfathered: boolean('isGrandfathered').notNull().default(false),
+    grandfatheredAt: timestamp('grandfatheredAt', { mode: 'date' }),
   },
   (table) => [
     // Full unique constraint on (groupId, userId) required for onConflictDoUpdate upserts
@@ -251,11 +256,17 @@ export const groupMembers = pgTable(
       table.tier
     ),
     index('GroupMember_isActive_tier_idx').on(table.isActive, table.tier),
+    // Index for grandfathering queries
+    index('GroupMember_isGrandfathered_idx').on(table.isGrandfathered),
   ]
 );
 
 /**
  * GroupInvite - invite system
+ *
+ * Tracks invitations to groups with invite decay mechanism.
+ * Users who repeatedly decline invites have increasing cooldowns
+ * before they can be invited again (exponential backoff).
  */
 export const groupInvites = pgTable(
   'GroupInvite',
@@ -269,6 +280,14 @@ export const groupInvites = pgTable(
     message: text('message'),
     invitedAt: timestamp('invitedAt', { mode: 'date' }).notNull().defaultNow(),
     respondedAt: timestamp('respondedAt', { mode: 'date' }),
+    // Invite decay tracking (for users who repeatedly decline)
+    // declineCount: Number of times this user has declined invites from this group
+    // Cooldown formula: baseCooldownHours * 2^(declineCount-1), capped at maxCooldownHours
+    declineCount: integer('declineCount').notNull().default(0),
+    // When the user last declined an invite (used for decay reset calculation)
+    lastDeclinedAt: timestamp('lastDeclinedAt', { mode: 'date' }),
+    // When the user becomes eligible for the next invite (computed on decline)
+    nextEligibleAt: timestamp('nextEligibleAt', { mode: 'date' }),
   },
   (table) => [
     unique('GroupInvite_groupId_invitedUserId_key').on(
@@ -281,6 +300,14 @@ export const groupInvites = pgTable(
       table.status
     ),
     index('GroupInvite_status_idx').on(table.status),
+    // Index for invite decay queries
+    index('GroupInvite_invitedUserId_status_declineCount_idx').on(
+      table.invitedUserId,
+      table.status,
+      table.declineCount
+    ),
+    // Index for next eligible date filtering
+    index('GroupInvite_nextEligibleAt_idx').on(table.nextEligibleAt),
   ]
 );
 

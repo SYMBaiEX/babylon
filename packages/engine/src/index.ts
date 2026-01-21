@@ -23,6 +23,15 @@ export {
 } from './actors-loader';
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
+// Alpha Group Configuration
+export {
+  ALPHA_GROUP_CONFIG,
+  type AlphaGroupConfig,
+  calculateNextEligibleDate,
+  DOMAIN_FOCUS_WEIGHTS,
+  getFocusWeightsForDomains,
+  shouldResetDeclineCount,
+} from './config/alpha-group-config';
 // Content Pacing Configuration
 export {
   CONTENT_PACING,
