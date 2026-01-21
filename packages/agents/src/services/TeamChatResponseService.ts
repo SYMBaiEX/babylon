@@ -11,16 +11,20 @@ import { broadcastTypingIndicator } from '@babylon/api';
 import {
   and,
   db,
-  desc,
   eq,
   groupMembers,
   inArray,
-  messages,
   userAgentConfigs,
   userAgentTeamChats,
   users,
 } from '@babylon/db';
-import { ModelType } from '@elizaos/core';
+import {
+  composePromptFromState,
+  type Memory,
+  ModelType,
+  type UUID,
+} from '@elizaos/core';
+import { v4 as uuidv4 } from 'uuid';
 import { executeDirectMessage } from '../autonomous/DirectExecutors';
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import type { AgentOrderingStrategy } from '../shared/agent-ordering';
@@ -271,7 +275,7 @@ export class TeamChatResponseService {
       chatId,
       messageContent,
       mentionedAgentIds,
-      senderUserId,
+      senderUserId: _senderUserId,
       senderDisplayName,
     } = params;
 
@@ -292,33 +296,6 @@ export class TeamChatResponseService {
       { chatId, agentIds: uniqueAgentIds },
       'TeamChatResponseService'
     );
-
-    // Get recent conversation context
-    const recentMessages = await db
-      .select({
-        id: messages.id,
-        content: messages.content,
-        senderId: messages.senderId,
-        createdAt: messages.createdAt,
-      })
-      .from(messages)
-      .where(eq(messages.chatId, chatId))
-      .orderBy(desc(messages.createdAt))
-      .limit(10);
-
-    const conversationContext = recentMessages
-      .reverse()
-      .map((m) => {
-        const isSystem = m.senderId === 'system';
-        const isSender = m.senderId === senderUserId;
-        const label = isSystem
-          ? '[System]'
-          : isSender
-            ? senderDisplayName
-            : 'Agent';
-        return `${label}: ${m.content}`;
-      })
-      .join('\n');
 
     const result: TriggerResponseResult = {
       triggered: 0,
@@ -362,7 +339,6 @@ export class TeamChatResponseService {
         chatId,
         messageContent,
         senderDisplayName,
-        conversationContext,
         agentName,
       })
         .then((responseResult) => {
@@ -403,6 +379,7 @@ export class TeamChatResponseService {
    * Generate an agent response immediately using runtime.useModel
    *
    * Uses the agent's configured model tier (free/pro) just like AgentChat.
+   * Uses TEAM_CHAT_MESSAGES provider for conversation context with proper names.
    * No artificial delays - responds as fast as possible.
    *
    * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
@@ -413,7 +390,6 @@ export class TeamChatResponseService {
     chatId: string;
     messageContent: string;
     senderDisplayName: string;
-    conversationContext: string;
     depth?: number;
     agentName?: string;
   }): Promise<{
@@ -427,7 +403,6 @@ export class TeamChatResponseService {
       chatId,
       messageContent,
       senderDisplayName,
-      conversationContext,
       depth = 0,
       agentName: prefetchedAgentName,
     } = params;
@@ -509,26 +484,57 @@ export class TeamChatResponseService {
       // Get runtime for the agent
       const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-      // Sanitize user content to prevent prompt injection
-      const sanitizedContent = this.sanitizeForPrompt(messageContent);
-      const sanitizedContext = this.sanitizeForPrompt(conversationContext);
+      // Create ElizaOS Memory object with roomId = chatId for the provider
+      const elizaMessage: Memory = {
+        id: uuidv4() as UUID,
+        entityId: senderDisplayName as UUID, // Sender's identifier
+        roomId: chatId as UUID, // Provider uses this to fetch chat messages
+        content: { text: messageContent },
+        createdAt: Date.now(),
+      };
 
-      const prompt = `${systemPrompt}
+      // Compose state with TEAM_CHAT_MESSAGES provider
+      // This fetches conversation history with proper participant names
+      const state = await runtime.composeState(
+        elizaMessage,
+        ['TEAM_CHAT_MESSAGES'],
+        true // Strict filtering - only run specified providers
+      );
 
-${personality ? `Your personality: ${personality}\n` : ''}
-You are ${agentName} in a team Command Center chat. ${senderDisplayName} just mentioned you directly.
+      // Add custom values to state for the prompt template
+      state.values = {
+        ...state.values,
+        system: systemPrompt,
+        personality: personality || '',
+        agentName,
+        senderDisplayName,
+        currentMessage: this.sanitizeForPrompt(messageContent),
+      };
+
+      // Define the prompt template using {{teamChatMessages}} from provider
+      const promptTemplate = `{{system}}
+
+{{#if personality}}Your personality: {{personality}}
+
+{{/if}}You are {{agentName}} in a team Command Center chat. {{senderDisplayName}} just mentioned you directly.
 
 Recent conversation:
-${sanitizedContext}
+{{teamChatMessages}}
 
-${senderDisplayName}'s message to you: "${sanitizedContent}"
+{{senderDisplayName}}'s message to you: "{{currentMessage}}"
 
-Task: Generate a helpful, direct response to ${senderDisplayName}'s message.
+Task: Generate a helpful, direct response to {{senderDisplayName}}'s message.
 - Address their request or question directly
 - Be authentic to your personality
 - You can @mention other team members if relevant
 
 Generate ONLY the response text:`;
+
+      // Compose the final prompt from state and template
+      const prompt = composePromptFromState({
+        state,
+        template: promptTemplate,
+      });
 
       // Use runtime.useModel like AgentChat does
       const responseContent = await runtime.useModel(modelType, {
@@ -697,25 +703,6 @@ Generate ONLY the response text:`;
       'TeamChatResponseService'
     );
 
-    // Fetch conversation context ONCE before the loop (performance optimization)
-    const recentMessages = await db
-      .select({
-        content: messages.content,
-        senderId: messages.senderId,
-      })
-      .from(messages)
-      .where(eq(messages.chatId, chatId))
-      .orderBy(desc(messages.createdAt))
-      .limit(10);
-
-    const conversationContext = recentMessages
-      .reverse()
-      .map((m) => {
-        const isResponding = m.senderId === respondingAgentId;
-        return `${isResponding ? respondingAgentName : 'Agent'}: ${m.content}`;
-      })
-      .join('\n');
-
     // Trigger responses from mentioned agents immediately
     for (const mentionedAgentId of mentionedAgentIds) {
       if (!mentionedAgentId) continue;
@@ -746,7 +733,6 @@ Generate ONLY the response text:`;
         chatId,
         messageContent: responseContent,
         senderDisplayName: respondingAgentName,
-        conversationContext,
         depth,
       }).catch((error) => {
         logger.error(
