@@ -132,45 +132,48 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   return successResponse({
-    config: ALPHA_GROUP_CONFIG,
-    configWithMeta,
-    tierConfig: {
-      1: {
-        name: TIER_CONFIG[1].name,
-        minEngagementScore: TIER_CONFIG[1].minEngagementScore,
-        inviteProbability: TIER_CONFIG[1].inviteProbability,
-        maxMembers: TIER_CONFIG[1].maxMembers,
-        alphaLevel: TIER_CONFIG[1].alphaLevel,
-        promotionWaitDays: TIER_CONFIG[1].promotionWaitDays,
-        demotionInactiveDays: TIER_CONFIG[1].demotionInactiveDays,
+    success: true,
+    data: {
+      config: ALPHA_GROUP_CONFIG,
+      configWithMeta,
+      tierConfig: {
+        1: {
+          name: TIER_CONFIG[1].name,
+          minEngagementScore: TIER_CONFIG[1].minEngagementScore,
+          inviteProbability: TIER_CONFIG[1].inviteProbability,
+          maxMembers: TIER_CONFIG[1].maxMembers,
+          alphaLevel: TIER_CONFIG[1].alphaLevel,
+          promotionWaitDays: TIER_CONFIG[1].promotionWaitDays,
+          demotionInactiveDays: TIER_CONFIG[1].demotionInactiveDays,
+        },
+        2: {
+          name: TIER_CONFIG[2].name,
+          minEngagementScore: TIER_CONFIG[2].minEngagementScore,
+          inviteProbability: TIER_CONFIG[2].inviteProbability,
+          maxMembers: TIER_CONFIG[2].maxMembers,
+          alphaLevel: TIER_CONFIG[2].alphaLevel,
+          promotionWaitDays: TIER_CONFIG[2].promotionWaitDays,
+          demotionInactiveDays: TIER_CONFIG[2].demotionInactiveDays,
+        },
+        3: {
+          name: TIER_CONFIG[3].name,
+          minEngagementScore: TIER_CONFIG[3].minEngagementScore,
+          inviteProbability: TIER_CONFIG[3].inviteProbability,
+          maxMembers: TIER_CONFIG[3].maxMembers,
+          alphaLevel: TIER_CONFIG[3].alphaLevel,
+          promotionWaitDays: TIER_CONFIG[3].promotionWaitDays,
+          demotionInactiveDays: TIER_CONFIG[3].demotionInactiveDays,
+        },
       },
-      2: {
-        name: TIER_CONFIG[2].name,
-        minEngagementScore: TIER_CONFIG[2].minEngagementScore,
-        inviteProbability: TIER_CONFIG[2].inviteProbability,
-        maxMembers: TIER_CONFIG[2].maxMembers,
-        alphaLevel: TIER_CONFIG[2].alphaLevel,
-        promotionWaitDays: TIER_CONFIG[2].promotionWaitDays,
-        demotionInactiveDays: TIER_CONFIG[2].demotionInactiveDays,
+      domainFocusWeights: DOMAIN_FOCUS_WEIGHTS,
+      instructions: {
+        howToUpdate:
+          'Configuration is controlled via environment variables. Set the corresponding env var and restart the service.',
+        effectiveImmediately:
+          'Changes take effect on the next game tick after service restart.',
+        documentation:
+          'Configuration is managed via environment variables prefixed with ALPHA_.',
       },
-      3: {
-        name: TIER_CONFIG[3].name,
-        minEngagementScore: TIER_CONFIG[3].minEngagementScore,
-        inviteProbability: TIER_CONFIG[3].inviteProbability,
-        maxMembers: TIER_CONFIG[3].maxMembers,
-        alphaLevel: TIER_CONFIG[3].alphaLevel,
-        promotionWaitDays: TIER_CONFIG[3].promotionWaitDays,
-        demotionInactiveDays: TIER_CONFIG[3].demotionInactiveDays,
-      },
-    },
-    domainFocusWeights: DOMAIN_FOCUS_WEIGHTS,
-    instructions: {
-      howToUpdate:
-        'Configuration is controlled via environment variables. Set the corresponding env var and restart the service.',
-      effectiveImmediately:
-        'Changes take effect on the next game tick after service restart.',
-      documentation:
-        'See ALPHA_GROUP_THRESHOLD_PLAN.md for full documentation.',
     },
   });
 });
@@ -256,19 +259,22 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
   });
 
   return successResponse({
-    message:
-      'Preview only - configuration changes require environment variable updates',
-    changes,
-    envCommands,
-    instructions: [
-      '1. Set the environment variables on your deployment',
-      '2. Restart the service to apply changes',
-      '3. Changes take effect on the next game tick',
-    ],
-    auditLog: {
-      requestedBy: admin.userId,
-      requestedAt: new Date().toISOString(),
-      role: admin.role,
+    success: true,
+    data: {
+      message:
+        'Preview only - configuration changes require environment variable updates',
+      changes,
+      envCommands,
+      instructions: [
+        '1. Set the environment variables on your deployment',
+        '2. Restart the service to apply changes',
+        '3. Changes take effect on the next game tick',
+      ],
+      auditLog: {
+        requestedBy: admin.userId,
+        requestedAt: new Date().toISOString(),
+        role: admin.role,
+      },
     },
   });
 });

@@ -250,55 +250,59 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
 
   return successResponse({
-    overview: {
-      totalNpcs: globalAnalytics.totalNpcs,
-      totalGroups: globalAnalytics.totalGroups,
-      totalMembers: globalAnalytics.totalMembers,
-      totalCapacity: globalAnalytics.totalCapacity,
-      overallFillRate: globalAnalytics.fillRate,
+    success: true,
+    data: {
+      overview: {
+        totalNpcs: globalAnalytics.totalNpcs,
+        totalGroups: globalAnalytics.totalGroups,
+        totalMembers: globalAnalytics.totalMembers,
+        totalCapacity: globalAnalytics.totalCapacity,
+        overallFillRate: globalAnalytics.fillRate,
+      },
+      invites: {
+        total: inviteStats.totalInvites,
+        pending: pendingInvites,
+        accepted: acceptedInvites,
+        declined: declinedInvites,
+        acceptanceRate,
+        last24h: invitesLast24h,
+        lastWeek: invitesLastWeek,
+      },
+      joins: {
+        last24h: joinsLast24h,
+        lastWeek: joinsLastWeek,
+      },
+      tiers: tierCapacities,
+      tierBreakdown: globalAnalytics.tierBreakdown,
+      grandfathering: {
+        grandfatheredMembers,
+        grandfatheringEnabled: ALPHA_GROUP_CONFIG.grandfatheringEnabled,
+      },
+      inviteDecay: {
+        enabled: ALPHA_GROUP_CONFIG.inviteDecayEnabled,
+        usersWithDeclines,
+        usersAtMaxDeclines,
+        maxDeclines: ALPHA_GROUP_CONFIG.inviteDecayMaxDeclines,
+        baseHours: ALPHA_GROUP_CONFIG.inviteDecayBaseHours,
+        maxHours: ALPHA_GROUP_CONFIG.inviteDecayMaxHours,
+      },
+      config: {
+        inviteProbabilityMultiplier:
+          ALPHA_GROUP_CONFIG.inviteProbabilityMultiplier,
+        maxInvitesPerTick: ALPHA_GROUP_CONFIG.maxInvitesPerTick,
+        inviteCooldownHours: ALPHA_GROUP_CONFIG.inviteCooldownHours,
+        fastTrackEnabled: ALPHA_GROUP_CONFIG.fastTrackEnabled,
+        includeTradingActivity: ALPHA_GROUP_CONFIG.includeTradingActivity,
+        perNpcCustomizationEnabled:
+          ALPHA_GROUP_CONFIG.perNpcCustomizationEnabled,
+      },
+      thresholds: {
+        minReplies: ALPHA_GROUP_CONFIG.minReplies,
+        minLikes: ALPHA_GROUP_CONFIG.minLikes,
+        minTotalInteractions: ALPHA_GROUP_CONFIG.minTotalInteractions,
+        minQualityScore: ALPHA_GROUP_CONFIG.minQualityScore,
+      },
+      timestamp: now.toISOString(),
     },
-    invites: {
-      total: inviteStats.totalInvites,
-      pending: pendingInvites,
-      accepted: acceptedInvites,
-      declined: declinedInvites,
-      acceptanceRate,
-      last24h: invitesLast24h,
-      lastWeek: invitesLastWeek,
-    },
-    joins: {
-      last24h: joinsLast24h,
-      lastWeek: joinsLastWeek,
-    },
-    tiers: tierCapacities,
-    tierBreakdown: globalAnalytics.tierBreakdown,
-    grandfathering: {
-      grandfatheredMembers,
-      grandfatheringEnabled: ALPHA_GROUP_CONFIG.grandfatheringEnabled,
-    },
-    inviteDecay: {
-      enabled: ALPHA_GROUP_CONFIG.inviteDecayEnabled,
-      usersWithDeclines,
-      usersAtMaxDeclines,
-      maxDeclines: ALPHA_GROUP_CONFIG.inviteDecayMaxDeclines,
-      baseHours: ALPHA_GROUP_CONFIG.inviteDecayBaseHours,
-      maxHours: ALPHA_GROUP_CONFIG.inviteDecayMaxHours,
-    },
-    config: {
-      inviteProbabilityMultiplier:
-        ALPHA_GROUP_CONFIG.inviteProbabilityMultiplier,
-      maxInvitesPerTick: ALPHA_GROUP_CONFIG.maxInvitesPerTick,
-      inviteCooldownHours: ALPHA_GROUP_CONFIG.inviteCooldownHours,
-      fastTrackEnabled: ALPHA_GROUP_CONFIG.fastTrackEnabled,
-      includeTradingActivity: ALPHA_GROUP_CONFIG.includeTradingActivity,
-      perNpcCustomizationEnabled: ALPHA_GROUP_CONFIG.perNpcCustomizationEnabled,
-    },
-    thresholds: {
-      minReplies: ALPHA_GROUP_CONFIG.minReplies,
-      minLikes: ALPHA_GROUP_CONFIG.minLikes,
-      minTotalInteractions: ALPHA_GROUP_CONFIG.minTotalInteractions,
-      minQualityScore: ALPHA_GROUP_CONFIG.minQualityScore,
-    },
-    timestamp: now.toISOString(),
   });
 });
