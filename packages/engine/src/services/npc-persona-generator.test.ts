@@ -14,7 +14,7 @@ const mockActors: Actor[] = [
     description: 'AI researcher at OpenAGI',
     affiliations: ['openagi'],
     domain: ['tech', 'ai'],
-    tier: 1,
+    tier: 'S_TIER',
   },
   {
     id: 'bob',
@@ -22,7 +22,7 @@ const mockActors: Actor[] = [
     description: 'Engineer at AItropic',
     affiliations: ['aitropic'],
     domain: ['tech', 'ai'],
-    tier: 1,
+    tier: 'S_TIER',
   },
   {
     id: 'carol',
@@ -30,7 +30,7 @@ const mockActors: Actor[] = [
     description: 'Researcher at OpenAGI',
     affiliations: ['openagi'],
     domain: ['ai'],
-    tier: 2,
+    tier: 'A_TIER',
   },
   {
     id: 'dave',
@@ -38,14 +38,14 @@ const mockActors: Actor[] = [
     description: 'A politician',
     role: 'politician',
     domain: ['politics'],
-    tier: 2,
+    tier: 'A_TIER',
   },
   {
     id: 'eve',
     name: 'Eve Conspiracy',
     personality: 'contrarian conspiracy theorist',
     description: 'Spreads misinformation',
-    tier: 3,
+    tier: 'B_TIER',
   },
   {
     id: 'frank',
@@ -53,15 +53,15 @@ const mockActors: Actor[] = [
     description: 'Finance expert',
     domain: ['finance'],
     role: 'expert',
-    tier: 1,
+    tier: 'S_TIER',
   },
 ];
 
 // Mock organizations
 const mockOrganizations: Organization[] = [
-  { id: 'openagi', name: 'OpenAGI', sector: 'AI' },
-  { id: 'aitropic', name: 'AItropic', sector: 'AI' },
-  { id: 'deepmaind', name: 'DeepMaind', sector: 'AI' },
+  { id: 'openagi', name: 'OpenAGI', description: 'AI research lab', type: 'company', canBeInvolved: true },
+  { id: 'aitropic', name: 'AItropic', description: 'AI safety company', type: 'company', canBeInvolved: true },
+  { id: 'deepmaind', name: 'DeepMaind', description: 'AI research division', type: 'company', canBeInvolved: true },
 ];
 
 describe('NPCPersonaGenerator', () => {

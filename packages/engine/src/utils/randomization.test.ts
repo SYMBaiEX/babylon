@@ -180,7 +180,8 @@ describe('randomization with default RNG (Math.random)', () => {
   it('pickRandom works without RNG parameter', () => {
     const array = ['a', 'b', 'c'];
     const result = pickRandom(array);
-    expect(array).toContain(result);
+    expect(result).toBeDefined();
+    expect(array).toContain(result!);
   });
 
   it('randomChance works without RNG parameter', () => {
