@@ -52,11 +52,19 @@ ON "GroupMember" ("isGrandfathered");
 -- ============================================================================
 -- 4. Grandfather all existing active members
 -- This ensures existing users aren't kicked when new thresholds are applied
+-- Wrapped in DO block to make idempotent - only runs if no grandfathered members exist
 -- ============================================================================
 
-UPDATE "GroupMember" 
-SET "isGrandfathered" = TRUE, "grandfatheredAt" = NOW() 
-WHERE "isActive" = TRUE AND "isGrandfathered" = FALSE;
+DO $$
+BEGIN
+    -- Only grandfather members if this migration hasn't run before
+    -- (i.e., no members are grandfathered yet)
+    IF NOT EXISTS (SELECT 1 FROM "GroupMember" WHERE "isGrandfathered" = TRUE LIMIT 1) THEN
+        UPDATE "GroupMember" 
+        SET "isGrandfathered" = TRUE, "grandfatheredAt" = NOW() 
+        WHERE "isActive" = TRUE;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- 5. Add index for efficient trading stats queries (if not exists)
