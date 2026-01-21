@@ -100,13 +100,11 @@ describe('NPCPersonaGenerator', () => {
         () => rng2.next()
       );
 
-      // Compare reliability scores (should be identical with same seed)
+      // Deep equality comparison to catch regressions in any persona field
       for (const [id, persona1] of personas1) {
         const persona2 = personas2.get(id);
         expect(persona2).toBeDefined();
-        expect(persona1.reliability).toBe(persona2!.reliability);
-        expect(persona1.willingToLie).toBe(persona2!.willingToLie);
-        expect(persona1.selfInterest).toBe(persona2!.selfInterest);
+        expect(persona1).toEqual(persona2!);
       }
     });
 

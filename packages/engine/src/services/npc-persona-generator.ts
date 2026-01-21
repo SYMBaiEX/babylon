@@ -109,6 +109,48 @@ export interface PersonaAssignment {
  */
 export class NPCPersonaGenerator {
   /**
+   * Lazy-initialized competitor lookup map.
+   * Maps org ID -> Set of competitor org IDs (bidirectional).
+   */
+  private competitorMap: Map<string, Set<string>> | null = null;
+
+  /**
+   * Get or build the competitor map from correlations data.
+   * Built once on first access, then cached.
+   */
+  private getCompetitorMap(): Map<string, Set<string>> {
+    if (this.competitorMap) return this.competitorMap;
+
+    this.competitorMap = new Map<string, Set<string>>();
+
+    for (const c of correlations) {
+      if (c.relationship !== 'competitor') continue;
+
+      // Add primary -> related
+      if (!this.competitorMap.has(c.primary)) {
+        this.competitorMap.set(c.primary, new Set());
+      }
+      this.competitorMap.get(c.primary)!.add(c.related);
+
+      // Add related -> primary (bidirectional)
+      if (!this.competitorMap.has(c.related)) {
+        this.competitorMap.set(c.related, new Set());
+      }
+      this.competitorMap.get(c.related)!.add(c.primary);
+    }
+
+    return this.competitorMap;
+  }
+
+  /**
+   * Invalidate the competitor map cache.
+   * Call this if correlations data changes at runtime.
+   */
+  invalidateCompetitorCache(): void {
+    this.competitorMap = null;
+  }
+
+  /**
    * Assign personas to all actors
    *
    * @param actors - All game actors
@@ -380,8 +422,7 @@ export class NPCPersonaGenerator {
   /**
    * Find competitor organizations for an actor's affiliations
    *
-   * Uses the organization correlations data to identify orgs with
-   * 'competitor' relationship type.
+   * Uses the precomputed competitor map for O(1) lookup per affiliation.
    *
    * @param affiliations - The actor's affiliated organization IDs
    * @param organizations - All organizations (for validation)
@@ -395,30 +436,17 @@ export class NPCPersonaGenerator {
 
     const validOrgIds = new Set(organizations.map((o) => o.id));
     const competitors = new Set<string>();
+    const competitorMap = this.getCompetitorMap();
 
     for (const affiliation of affiliations) {
-      // Find correlations where this org is the primary and relationship is competitor
-      const competitorRelations = correlations.filter(
-        (c) =>
-          c.primary === affiliation &&
-          c.relationship === 'competitor' &&
-          validOrgIds.has(c.related)
-      );
-
-      for (const relation of competitorRelations) {
-        competitors.add(relation.related);
-      }
-
-      // Also check reverse direction (related -> primary)
-      const reverseCompetitors = correlations.filter(
-        (c) =>
-          c.related === affiliation &&
-          c.relationship === 'competitor' &&
-          validOrgIds.has(c.primary)
-      );
-
-      for (const relation of reverseCompetitors) {
-        competitors.add(relation.primary);
+      const orgCompetitors = competitorMap.get(affiliation);
+      if (orgCompetitors) {
+        for (const competitor of orgCompetitors) {
+          // Only include valid orgs from the current game
+          if (validOrgIds.has(competitor)) {
+            competitors.add(competitor);
+          }
+        }
       }
     }
 

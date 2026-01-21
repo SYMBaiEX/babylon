@@ -123,7 +123,9 @@ export function randomChance(
   probability: number,
   rng: RngFunction = Math.random
 ): boolean {
-  return rng() < probability;
+  // Clamp probability to [0, 1] range (handles NaN by coercing to 0)
+  const clampedProbability = Math.max(0, Math.min(1, probability || 0));
+  return rng() < clampedProbability;
 }
 
 /**
@@ -145,5 +147,7 @@ export function randomInt(
   max: number,
   rng: RngFunction = Math.random
 ): number {
+  // Handle invalid ranges: return min if max <= min
+  if (max <= min) return min;
   return Math.floor(rng() * (max - min)) + min;
 }

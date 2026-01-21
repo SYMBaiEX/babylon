@@ -24,16 +24,17 @@ describe('randomization with seeded RNG', () => {
       expect(result1).toEqual(result2);
     });
 
-    it('produces different results with different seeds', () => {
-      const rng1 = new SeededRandom(42);
-      const rng2 = new SeededRandom(12345);
-      const array = [1, 2, 3, 4, 5];
+    it('produces expected permutation for known seed', () => {
+      // Use a fixed seed and verify against a known output
+      // This is deterministic and will never flake
+      const rng = new SeededRandom(12345);
+      const array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-      const result1 = shuffleArray(array, () => rng1.next());
-      const result2 = shuffleArray(array, () => rng2.next());
+      const result = shuffleArray(array, () => rng.next());
 
-      // With different seeds, results should differ (not a perfect test but very unlikely to match)
-      expect(result1).not.toEqual(result2);
+      // Pre-computed expected result for seed 12345 with array [1..10]
+      // If SeededRandom implementation changes, this test will catch it
+      expect(result).toEqual([10, 2, 4, 7, 5, 1, 9, 6, 3, 8]);
     });
 
     it('does not mutate the original array', () => {
@@ -107,6 +108,27 @@ describe('randomization with seeded RNG', () => {
         expect(randomChance(0, () => rng.next())).toBe(false);
       }
     });
+
+    it('clamps probability below 0 to 0', () => {
+      const rng = new SeededRandom(42);
+      for (let i = 0; i < 10; i++) {
+        expect(randomChance(-0.5, () => rng.next())).toBe(false);
+        expect(randomChance(-100, () => rng.next())).toBe(false);
+      }
+    });
+
+    it('clamps probability above 1 to 1', () => {
+      const rng = new SeededRandom(42);
+      for (let i = 0; i < 10; i++) {
+        expect(randomChance(1.5, () => rng.next())).toBe(true);
+        expect(randomChance(100, () => rng.next())).toBe(true);
+      }
+    });
+
+    it('handles NaN by treating as 0', () => {
+      const rng = new SeededRandom(42);
+      expect(randomChance(NaN, () => rng.next())).toBe(false);
+    });
   });
 
   describe('randomInt', () => {
@@ -132,6 +154,19 @@ describe('randomization with seeded RNG', () => {
         expect(result).toBeGreaterThanOrEqual(10);
         expect(result).toBeLessThan(20);
       }
+    });
+
+    it('returns min when max equals min', () => {
+      const rng = new SeededRandom(42);
+      expect(randomInt(5, 5, () => rng.next())).toBe(5);
+      expect(randomInt(0, 0, () => rng.next())).toBe(0);
+      expect(randomInt(-10, -10, () => rng.next())).toBe(-10);
+    });
+
+    it('returns min when max is less than min', () => {
+      const rng = new SeededRandom(42);
+      expect(randomInt(10, 5, () => rng.next())).toBe(10);
+      expect(randomInt(100, 0, () => rng.next())).toBe(100);
     });
   });
 
