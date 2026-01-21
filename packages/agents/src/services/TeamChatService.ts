@@ -60,6 +60,8 @@ export class TeamChatService {
    * Uses upsert pattern to handle race conditions when multiple requests
    * try to create a team chat simultaneously.
    *
+   * Also ensures the user is a participant in the chat (repairs missing records).
+   *
    * @param userId - The human user ID (not agent ID)
    * @returns Team chat info with groupId and chatId
    */
@@ -67,6 +69,8 @@ export class TeamChatService {
     // Check if team chat already exists
     const existing = await this.getTeamChat(userId);
     if (existing) {
+      // Ensure user is a participant (repair if missing)
+      await this.ensureUserIsParticipant(userId, existing);
       return existing;
     }
 
@@ -199,6 +203,103 @@ export class TeamChatService {
     );
 
     return result;
+  }
+
+  /**
+   * Ensure the user is a participant in their team chat.
+   * Repairs missing chatParticipants and groupMembers records.
+   *
+   * This handles cases where:
+   * - Partial creation failure left user without participant record
+   * - Database corruption/migration removed the record
+   * - Any other scenario where the team chat exists but user can't access it
+   *
+   * @param userId - The human user ID
+   * @param teamChat - The team chat info
+   */
+  private async ensureUserIsParticipant(
+    userId: string,
+    teamChat: TeamChatInfo
+  ): Promise<void> {
+    // Check if user is already a participant
+    const [existingParticipant] = await db
+      .select({ id: chatParticipants.id })
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, teamChat.chatId),
+          eq(chatParticipants.userId, userId),
+          eq(chatParticipants.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (existingParticipant) {
+      // User is already a participant, nothing to do
+      return;
+    }
+
+    // User is missing from chatParticipants - repair it
+    logger.warn(
+      `Repairing missing chatParticipant record for user ${userId} in team chat ${teamChat.chatId}`,
+      { userId, chatId: teamChat.chatId, groupId: teamChat.groupId },
+      'TeamChatService'
+    );
+
+    await withTransaction(async (tx) => {
+      const now = new Date();
+      const [participantId, memberId] = await Promise.all([
+        generateSnowflakeId(),
+        generateSnowflakeId(),
+      ]);
+
+      // Upsert chat participant (in case there's an inactive record)
+      await tx
+        .insert(chatParticipants)
+        .values({
+          id: participantId,
+          chatId: teamChat.chatId,
+          userId,
+          joinedAt: now,
+          isActive: true,
+        })
+        .onConflictDoUpdate({
+          target: [chatParticipants.chatId, chatParticipants.userId],
+          set: {
+            isActive: true,
+            joinedAt: now,
+          },
+        });
+
+      // Also ensure user is in groupMembers (in case that's missing too)
+      await tx
+        .insert(groupMembers)
+        .values({
+          id: memberId,
+          groupId: teamChat.groupId,
+          userId,
+          role: 'owner',
+          addedBy: userId,
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        })
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
+            role: 'owner',
+            joinedAt: now,
+          },
+        });
+    });
+
+    logger.info(
+      `Repaired chatParticipant record for user ${userId} in team chat ${teamChat.chatId}`,
+      { userId, chatId: teamChat.chatId },
+      'TeamChatService'
+    );
   }
 
   /**
