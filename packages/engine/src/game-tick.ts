@@ -1378,8 +1378,12 @@ export async function executeGameTick(
 
   // Simulate market volatility (independent of NPC trades)
   // This keeps markets "alive" with realistic price movements
+  // Skip volatility when narrative events fired (they already moved prices)
   try {
-    const volatilityUpdates = await simulateMarketVolatility();
+    const narrativeEventsCount = result.narrativeArcs?.eventsGenerated ?? 0;
+    const volatilityUpdates = await simulateMarketVolatility({
+      narrativeEventsCount,
+    });
     if (volatilityUpdates > 0) {
       result.priceVolatilitySimulated = volatilityUpdates;
     }
@@ -2899,9 +2903,26 @@ const marketVolatilityState = new Map<
  * - Asymmetry (crashes faster than rallies)
  *
  * Called every game tick (~1 minute) to keep markets "alive".
+ *
+ * @param options - Optional configuration for volatility simulation
+ * @param options.reduced - If true, reduce volatility significantly (for when narrative events drove prices)
+ * @param options.narrativeEventsCount - Number of narrative events that fired this tick
  */
-export async function simulateMarketVolatility(): Promise<number> {
+export async function simulateMarketVolatility(options?: {
+  reduced?: boolean;
+  narrativeEventsCount?: number;
+}): Promise<number> {
   try {
+    // If narrative events fired this tick, skip or reduce volatility
+    // The idea is that prices should be driven by events, not random walks
+    if (options?.narrativeEventsCount && options.narrativeEventsCount > 0) {
+      logger.debug(
+        'Skipping volatility simulation (narrative events fired)',
+        { narrativeEventsCount: options.narrativeEventsCount },
+        'GameTick'
+      );
+      return 0;
+    }
     // Get all active perp market snapshots
     const markets = await db
       .select({

@@ -136,6 +136,27 @@ export interface StructuredEventData {
 }
 
 /**
+ * Scheduled event for deterministic narrative firing.
+ * Events are pre-planned during arc creation and fired at specific times.
+ */
+export interface ScheduledEvent {
+  /** Base day for the event (0-indexed from question creation) */
+  baseDay: number;
+  /** Hours of jitter from base day (can be negative or positive) */
+  jitterHours: number;
+  /** Event type determines narrative impact */
+  eventType: 'leak' | 'rumor' | 'scandal' | 'confirmation' | 'red_herring';
+  /** Brief description for LLM prompt context */
+  description: string;
+  /** Signal direction this event should suggest */
+  signalDirection: 'YES' | 'NO' | 'NEUTRAL';
+  /** Whether this event has been fired */
+  fired: boolean;
+  /** Timestamp when fired (ISO string) */
+  firedAt?: string;
+}
+
+/**
  * QuestionArcPlan - Narrative arc configuration for a prediction question.
  * Stores timing milestones and actor assignments for signal generation.
  */
@@ -160,6 +181,11 @@ export const questionArcPlans = pgTable(
     phaseRatios: jsonb('phaseRatios')
       .$type<{ early: number; middle: number; late: number; climax: number }>()
       .notNull(),
+
+    // Deterministic event schedule (replaces probability-based firing)
+    eventSchedule: jsonb('eventSchedule')
+      .$type<ScheduledEvent[]>()
+      .default(sql`'[]'::jsonb`),
 
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   },

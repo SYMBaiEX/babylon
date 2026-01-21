@@ -24,6 +24,7 @@ import {
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
 import { parseModifiersSafe, validatePriceModifier } from './jsonb-validators';
+import { applyCascadeEffects } from './market-correlation-service';
 import { PriceUpdateService } from './price-update-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -276,6 +277,44 @@ export async function applyEventToMarkets(
           },
           'EventMarketPipeline'
         );
+
+        // Apply cascade effects to related organizations
+        // Each primary org that had a price change may affect suppliers, competitors, partners
+        for (const update of applied) {
+          if (Math.abs(update.changePercent) > 0.01) {
+            // Only cascade for >1% moves
+            try {
+              const cascadeResult = await applyCascadeEffects(
+                update.organizationId,
+                update.changePercent,
+                `${event.type} event (arcId: ${event.arcId})`
+              );
+              if (cascadeResult.affectedCount > 0) {
+                logger.debug(
+                  'Applied cascade effects',
+                  {
+                    primaryOrg: update.organizationId,
+                    primaryChange: update.changePercent.toFixed(4),
+                    cascadeCount: cascadeResult.affectedCount,
+                  },
+                  'EventMarketPipeline'
+                );
+              }
+            } catch (cascadeError) {
+              logger.warn(
+                'Failed to apply cascade effects',
+                {
+                  organizationId: update.organizationId,
+                  error:
+                    cascadeError instanceof Error
+                      ? cascadeError.message
+                      : String(cascadeError),
+                },
+                'EventMarketPipeline'
+              );
+            }
+          }
+        }
       } catch (error) {
         // Price application is best-effort; modifiers are persisted regardless.
         logger.warn(
