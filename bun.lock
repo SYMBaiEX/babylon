@@ -235,6 +235,7 @@
       "name": "@babylon/a2a",
       "version": "0.1.0",
       "dependencies": {
+        "@babylon/api": "workspace:*",
         "@babylon/contracts": "workspace:*",
         "@babylon/shared": "workspace:*",
         "uuid": "^11.1.0",
@@ -247,6 +248,7 @@
       },
       "peerDependencies": {
         "@a2a-js/sdk": "^0.3.5",
+        "@babylon/api": "workspace:*",
         "@babylon/db": "workspace:*",
         "@babylon/shared": "workspace:*",
         "drizzle-orm": "^0.44.7",

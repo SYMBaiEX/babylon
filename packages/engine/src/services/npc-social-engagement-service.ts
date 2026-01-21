@@ -14,6 +14,7 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_ENGAGEMENT_CONFIG } from '../config/npc-activity';
 import type { LLMJsonClient } from '../llm/types';
 import { secureRandom } from '../utils/entropy';
+import { shuffleArray } from '../utils/randomization';
 import {
   formatActorFinanceGuardrails,
   formatActorToneGuardrails,
@@ -227,15 +228,9 @@ export async function processNPCSocialEngagements(
       };
     });
 
-    // Randomly sample actors using Fisher-Yates shuffle (unbiased)
+    // Randomly sample actors using shuffle utility
     const allActors = StaticDataRegistry.getAllActors();
-    const shuffled = [...allActors];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      const temp = shuffled[i]!;
-      shuffled[i] = shuffled[j]!;
-      shuffled[j] = temp;
-    }
+    const shuffled = shuffleArray(allActors, random);
     const sampledActorIds = shuffled
       .slice(0, NPC_ENGAGEMENT_CONFIG.actorsToSample)
       .map((a) => a.id);

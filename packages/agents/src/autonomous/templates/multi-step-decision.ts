@@ -550,8 +550,9 @@ ${
 }`
       : '';
 
-  // Action priority guidance for player-created agents
-  // Emphasizes TRADING as the primary activity - agents exist to trade!
+  // Action priority guidance - differs between NPCs and player agents
+  // NPCs: Balanced priorities (trading, posting, engagement)
+  // Player agents: Trading as primary activity
   const priorityActions: string[] = [];
 
   // Always start with pending interactions
@@ -559,17 +560,26 @@ ${
     'REPLY to pending interactions first (REPLY_COMMENT or REPLY_CHAT)'
   );
 
-  // TRADING is THE HIGHEST PRIORITY - this is why agents exist
-  // Even if you just traded, consider trading AGAIN on different markets
+  // TRADING priority depends on agent type
   if (canTrade) {
-    if (!justTraded) {
-      priorityActions.push(
-        '🔥🔥🔥 TRADE NOW - You have NOT traded this tick! Trading is your PRIMARY purpose!'
-      );
+    if (isNpc) {
+      // NPCs have balanced priorities - trading is ONE of their activities
+      if (!justTraded) {
+        priorityActions.push(
+          'TRADE: Consider taking a position based on your intuitions'
+        );
+      }
     } else {
-      priorityActions.push(
-        '🔥 TRADE AGAIN - Consider another position on a DIFFERENT market!'
-      );
+      // Player agents prioritize trading - this is why they exist
+      if (!justTraded) {
+        priorityActions.push(
+          '🔥🔥🔥 TRADE NOW - You have NOT traded this tick! Trading is your PRIMARY purpose!'
+        );
+      } else {
+        priorityActions.push(
+          '🔥 TRADE AGAIN - Consider another position on a DIFFERENT market!'
+        );
+      }
     }
   }
 
@@ -588,11 +598,19 @@ ${
     priorityActions.push('DM someone to build relationships');
   }
 
-  // POST is VERY LOW PRIORITY - almost never do this
+  // POST priority depends on agent type
   if (canPost) {
-    priorityActions.push(
-      '⚠️ POST is DISCOURAGED - only if you have NO other options (VERY LOW PRIORITY)'
-    );
+    if (isNpc) {
+      // NPCs should post to keep the feed active
+      priorityActions.push(
+        'POST: Share your thoughts, react to events, or comment on markets'
+      );
+    } else {
+      // Player agents should prioritize trading/engagement over posting
+      priorityActions.push(
+        '⚠️ POST is DISCOURAGED - only if you have NO other options (VERY LOW PRIORITY)'
+      );
+    }
   }
 
   // Always end with FINISH
@@ -616,8 +634,12 @@ ${
 `
       : '';
 
+  const actionPrioritySectionHeader = isNpc
+    ? '# Action Priority (Balanced: Trade, Post, Engage)'
+    : '# Action Priority (TRADING & ENGAGEMENT >> POSTING)';
+
   const actionPrioritySection = `
-# Action Priority (TRADING & ENGAGEMENT >> POSTING)
+${actionPrioritySectionHeader}
 ${numberedList}
 ${antiPostingGuidance}
 `;
@@ -719,13 +741,15 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 1-2 meaningful actions or when done
 5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use REPLY_CHAT for DMs.
-${canTrade ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
-${canComment ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
+${canTrade && !isNpc ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
+${canTrade && isNpc ? '6. **BALANCED ACTIONS**: Trading, posting, and engaging are all valuable. Follow your intuitions.' : ''}
+${canComment && !isNpc ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
 ${hasPostedThisTick ? `8. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
 ${!isNpc && canPost && !hasPostedThisTick ? '9. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
 
 # Action Ideas (in order of priority)
-${canTrade ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}
+${canTrade && !isNpc ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}
+${canTrade && isNpc ? '- **TRADE**: Take a position based on your intuitions' : ''}
 ${canComment ? "- ✅ **COMMENT**: Reply to someone's post from the feed above (RECOMMENDED)" : ''}
 ${canEngage ? '- ✅ **LIKE**: Show appreciation for a post you find interesting' : ''}
 ${canEngage ? "- ✅ **REPOST**: Share someone else's post with your take" : ''}
