@@ -14,7 +14,7 @@
  */
 
 import { db, inArray, organizationState } from '@babylon/db';
-import { logger, type JsonValue } from '@babylon/shared';
+import { type JsonValue, logger } from '@babylon/shared';
 import {
   correlations,
   getAffectedOrgs,
