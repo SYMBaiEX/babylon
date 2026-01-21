@@ -40,10 +40,7 @@
  *         description: No team chat exists
  */
 
-import {
-  teamChatResponseService,
-  teamChatService,
-} from '@babylon/agents';
+import { teamChatResponseService, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,

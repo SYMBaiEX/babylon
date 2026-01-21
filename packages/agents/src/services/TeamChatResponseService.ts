@@ -11,13 +11,7 @@
  */
 
 import { broadcastTypingIndicator } from '@babylon/api';
-import {
-  chatParticipants,
-  db,
-  eq,
-  userAgentConfigs,
-  users,
-} from '@babylon/db';
+import { chatParticipants, db, eq, userAgentConfigs, users } from '@babylon/db';
 import {
   type ActionResult,
   composePromptFromState,
@@ -302,10 +296,10 @@ Answer these questions:
 
 /**
  * Service for handling agent responses in team chat.
- * 
+ *
  * Uses LLM-based decision making: each agent first decides whether to respond
  * (via shouldRespondTemplate), then generates a response if appropriate.
- * 
+ *
  * Messages are queued per agent with a max limit (MAX_QUEUE_SIZE).
  * When queue is full, oldest messages are dropped to keep latest.
  */
@@ -332,10 +326,7 @@ export class TeamChatResponseService {
    * Add a message to an agent's queue and trigger processing.
    * If queue is at max, drops oldest message.
    */
-  private queueMessageForAgent(
-    agentId: string,
-    message: QueuedMessage
-  ): void {
+  private queueMessageForAgent(agentId: string, message: QueuedMessage): void {
     const state = this.getAgentState(agentId);
 
     logger.debug(
@@ -406,8 +397,8 @@ export class TeamChatResponseService {
       logger.debug(
         `Processing queued message for agent ${agentId}`,
         { chatId: latestMessage.chatId },
-      'TeamChatResponseService'
-    );
+        'TeamChatResponseService'
+      );
 
       // Generate response
       await this.generateAgentResponse({
@@ -458,10 +449,10 @@ export class TeamChatResponseService {
 
     // Get all participants with isAgent flag in one query (no N+1)
     const participants = await db
-        .select({
-          id: users.id,
-          displayName: users.displayName,
-          username: users.username,
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
         isAgent: users.isAgent,
       })
       .from(chatParticipants)
@@ -504,11 +495,11 @@ export class TeamChatResponseService {
   async broadcastToAllAgents(params: BroadcastParams): Promise<void> {
     const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
 
-            logger.info(
+    logger.info(
       `Broadcasting message to all agents`,
       { chatId, senderId },
-              'TeamChatResponseService'
-            );
+      'TeamChatResponseService'
+    );
 
     // Just use the existing notifyAgentsOfMessage which already broadcasts to all
     await this.notifyAgentsOfMessage({
@@ -565,14 +556,14 @@ export class TeamChatResponseService {
     let agentName = prefetchedAgentName;
     let agentUsername = '';
 
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-          username: users.username,
-        })
-        .from(users)
-        .where(eq(users.id, agentId))
-        .limit(1);
+    const [agent] = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
 
     if (!agentName) {
       agentName = agent?.displayName || agent?.username || 'Agent';
@@ -609,9 +600,9 @@ export class TeamChatResponseService {
 
     // First, decide if we should respond at all
     const shouldRespond = await this.shouldAgentRespond({
-        agentId,
+      agentId,
       chatId,
-        agentName,
+      agentName,
       agentUsername,
       systemPrompt,
       personality,
@@ -624,8 +615,8 @@ export class TeamChatResponseService {
       logger.info(
         `Agent ${agentName} decided not to respond: ${shouldRespond.reason}`,
         { agentId, chatId },
-          'TeamChatResponseService'
-        );
+        'TeamChatResponseService'
+      );
       return {
         success: true,
         agentName,
@@ -640,15 +631,15 @@ export class TeamChatResponseService {
     );
 
     // Broadcast typing indicator
-      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-        (error: Error) => {
-          logger.warn(
-            `Failed to broadcast typing indicator: ${error.message}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        }
-      );
+    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast typing indicator: ${error.message}`,
+          { chatId, agentId },
+          'TeamChatResponseService'
+        );
+      }
+    );
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -720,7 +711,7 @@ export class TeamChatResponseService {
 
         for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
           const response = await runtime.useModel(modelType, {
-        prompt,
+            prompt,
             temperature: attempt > 1 ? 0.5 : 0.7,
           });
 
@@ -901,7 +892,7 @@ export class TeamChatResponseService {
         state.values = {
           ...state.values,
           agentId,
-        system: systemPrompt,
+          system: systemPrompt,
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
@@ -996,7 +987,7 @@ export class TeamChatResponseService {
 
       // Notify other agents about this message (they can decide to respond)
       this.notifyAgentsOfMessage({
-          chatId,
+        chatId,
         senderId: agentId,
         ownerDisplayName,
         ownerUsername,
@@ -1023,15 +1014,15 @@ export class TeamChatResponseService {
             : 'Failed to generate response',
       };
     } finally {
-        broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-          (error: Error) => {
-            logger.warn(
-              `Failed to stop typing indicator: ${error.message}`,
-              { chatId, agentId },
-              'TeamChatResponseService'
-            );
-          }
-        );
+      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to stop typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
     }
   }
 
@@ -1117,11 +1108,11 @@ export class TeamChatResponseService {
 
       return { shouldRespond, reason };
     } catch (error) {
-        logger.error(
+      logger.error(
         `Failed to decide shouldAgentRespond: ${error}`,
         { agentId, chatId },
-          'TeamChatResponseService'
-        );
+        'TeamChatResponseService'
+      );
       // Default to not responding on error (fail safe)
       return { shouldRespond: false, reason: 'Error making decision' };
     }
