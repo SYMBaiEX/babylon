@@ -691,7 +691,9 @@ export class TieredGroupService {
       let targetTier: TierInfo | null = null;
 
       for (const tier of ALL_TIERS) {
-        if (engagementScore < TIER_CONFIG[tier].minEngagementScore) continue;
+        // Use NPC-specific thresholds for tier eligibility
+        const effectiveConfig = getEffectiveTierConfig(tier, npcId);
+        if (engagementScore < effectiveConfig.minEngagementScore) continue;
         const tierInfo = tiers.find((t) => t.tier === tier);
         if (tierInfo && !tierInfo.isFull) {
           targetTier = tierInfo;
@@ -700,10 +702,11 @@ export class TieredGroupService {
       }
 
       if (!targetTier) {
+        const tier3Config = getEffectiveTierConfig(3, npcId);
         return {
           success: false,
           tier: null,
-          reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${TIER_CONFIG[3].minEngagementScore})`,
+          reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${tier3Config.minEngagementScore})`,
         };
       }
 
