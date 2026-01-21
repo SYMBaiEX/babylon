@@ -21,8 +21,7 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { ready, authenticated, loadingProfile, user, getAccessToken } =
-    useAuth();
+  const { ready, authenticated, loadingProfile, user } = useAuth();
 
   const inFlightRef = useRef<AbortController | null>(null);
 
@@ -47,14 +46,9 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
     inFlightRef.current = controller;
 
     const run = async () => {
-      const token = await getAccessToken();
-      if (!token || controller.signal.aborted) {
-        router.replace(targetUrl);
-        return;
-      }
-
       const response = await fetch('/api/nft/eligibility', {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        cache: 'no-store',
         signal: controller.signal,
       });
 
@@ -88,7 +82,6 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
     authenticated,
     loadingProfile,
     user?.isAdmin,
-    getAccessToken,
   ]);
 
   return null;
