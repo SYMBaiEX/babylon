@@ -554,7 +554,9 @@ export class AlphaGroupInviteService {
    * Get detailed analytics for alpha group invites.
    */
   static async getDetailedAnalytics(): Promise<{
-    inviteStats: Awaited<ReturnType<typeof AlphaGroupInviteService.getInviteStats>>;
+    inviteStats: Awaited<
+      ReturnType<typeof AlphaGroupInviteService.getInviteStats>
+    >;
     declineStats: {
       totalDeclined: number;
       avgDeclineCount: number;
