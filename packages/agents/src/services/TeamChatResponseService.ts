@@ -10,6 +10,7 @@
 import { broadcastTypingIndicator } from '@babylon/api';
 import {
   and,
+  chatParticipants,
   db,
   eq,
   groupMembers,
@@ -146,20 +147,22 @@ Determine the next step to take in this team chat conversation.
 
 ---
 
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
+
+---
+
 # Team Chat Context
 This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
-You are {{agentName}}, one of the agents in this team chat.
-**{{senderDisplayName}}** just mentioned you directly.
+
+## Team Members
+{{teamMembers}}
 
 ---
 
 # Conversation History
 {{teamChatMessages}}
-
----
-
-# Current Message from {{senderDisplayName}}
-{{currentMessage}}
 
 ---
 
@@ -188,81 +191,67 @@ No actions taken yet.
 
 ---
 
-# REDUNDANCY RULES (CRITICAL)
-**AVOID REDUNDANCY** - These are DUPLICATES, DO NOT repeat:
-- ❌ Executing the SAME action with the SAME parameters you just executed
-- ❌ Buying/selling the same asset multiple times unless explicitly asked
-- ❌ Checking the same data twice in a row
+# How to Decide: Action or Just Reply?
 
-**ENCOURAGE COMPLEMENTARITY** - These ADD VALUE:
-- ✅ Different actions that provide different information
-- ✅ Sequential steps (check balance → then trade)
-- ✅ Using results from one action as input to another
+**Ask yourself**: Does this conversation need me to DO something, or can I just respond naturally?
 
-**Decision Logic**:
-- After executing an action, ask: "Did this COMPLETE the user's request?"
-- If YES → Set isFinish: true immediately
-- If NO and user asked for multiple things → Continue to next action
-- If about to repeat same action → STOP, set isFinish: true
+## When to Take an Action
+- Someone asks you to check data (markets, predictions, balance, PnL)
+- Someone asks you to execute a trade (buy, sell, open/close position)
+- Someone asks you to create content (post, comment)
+- You need real information to answer properly
+
+## When to Just Reply (No Action)
+- Casual chat, greetings, thanks
+- Sharing opinions or discussing ideas
+- Questions you can answer from the conversation context
+- Following up on previous discussion
 
 ---
 
-# Request Type Classification
-1. **SPECIFIC REQUEST** (e.g., "sell 100 shares", "check my balance", "check predictions"):
-   - Execute the ONE action needed
-   - Set isFinish: true IMMEDIATELY after
-   
-2. **MULTI-PART REQUEST** (e.g., "check predictions AND buy the best one"):
-   - Execute each distinct action in sequence
-   - Set isFinish: true only when ALL parts are complete
+# If Taking Actions
 
-3. **CONVERSATIONAL** (e.g., "hello", "thanks", questions without actions):
-   - Set action to "" and isFinish: true
+**AVOID REDUNDANCY**:
+- ❌ Don't repeat the same action with the same parameters
+- ❌ Don't buy/sell the same asset multiple times unless asked
+- ✅ Different actions that provide different information are fine
+- ✅ Use results from one action as input to another
+
+**After each action, ask**: "Can I now contribute meaningfully to this conversation?"
+- If YES → Set isFinish: true and respond
+- If NO (need more info) → Take another action
 
 ---
 
 # Decision Rules
-1. **Classify the request type FIRST** - Is it Specific, Multi-part, or Conversational?
-2. **Check what you've already done** - Review Actions Completed This Round
-3. **Before ANY action, ask**: "Have I already done THIS EXACT action?" If YES → STOP
-4. **For trades (buy/sell)**: Execute ONCE, then STOP. Do not repeat.
-5. **Use results from prior actions** - IDs, data from completed actions inform next parameters
-6. **When in doubt** → Set isFinish: true (better to under-execute than over-execute)
+1. **Read the conversation** - What's being discussed? What would be helpful?
+2. **Check if action needed** - Do I need to look up data or do something?
+3. **If actions already taken** - Review what you learned. Ready to respond?
+4. **For trades**: Execute ONCE, then stop. Never repeat.
+5. **When in doubt** → Just respond naturally (set isFinish: true with no action)
 
 <keys>
 "thought"
-  START WITH: "Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}."
-  THEN: Quote the user's request.
-  THEN: Classify request type (Specific/Multi-part/Conversational).
-  THEN: If actions > 0, state "I have already completed: [list actions]. Checking if request is satisfied."
-  THEN: Explain your decision:
-    - If finishing: "The request is fulfilled. Setting isFinish: true."
-    - If continuing: "Next action: [action name] because [reason]."
-"action" Name of the action to execute (empty string "" if setting isFinish: true or if no action needed)
+  What's happening in this conversation?
+  Do I need to take an action, or can I just reply?
+  If I took actions, what did I learn?
+"action" Name of the action to execute (empty string "" if no action needed)
 "parameters" JSON object with exact parameter names. Empty object {} if action has no parameters.
-"isFinish" Set to true when the user's request is satisfied (see Decision Rules)
+"isFinish" Set to true when ready to respond to the conversation
 </keys>
 
-CRITICAL CHECKS:
-- What step am I on? ({{iterationCount}}/{{maxIterations}})
-- How many actions have I taken THIS round? ({{actionCount}})
-- What TYPE of request is this? (Specific/Multi-part/Conversational)
-- If > 0 actions: Have I adequately addressed the request?
-- Am I about to execute the EXACT SAME action with EXACT SAME parameters? If YES → STOP
+REMEMBER:
+- Step {{iterationCount}}/{{maxIterations}}, Actions this round: {{actionCount}}
+- Don't repeat actions you've already taken
+- Most conversations just need a friendly reply, not actions
 
-# IMPORTANT
-YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
+# OUTPUT FORMAT
 <output>
 <response>
-  <thought>Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}. [Your reasoning]</thought>
-  <action>ACTION_NAME or ""</action>
-  <parameters>
-    {
-      "param1": "value1",
-      "param2": "value2"
-    }
-  </parameters>
-  <isFinish>true | false</isFinish>
+  <thought>Your reasoning about the conversation and what to do</thought>
+  <action>ACTION_NAME or "" if just replying</action>
+  <parameters>{} or {"param": "value"}</parameters>
+  <isFinish>true when ready to respond, false if need more actions</isFinish>
 </response>
 </output>`;
 
@@ -275,25 +264,29 @@ const multiStepSummaryTemplate = `You are responding in a team chat after comple
 Personality: {{personality}}
 {{/if}}
 
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
+
 # Team Chat Context
 This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
-You are {{agentName}}, responding to **{{senderDisplayName}}**.
+
+## Team Members
+{{teamMembers}}
 
 # Conversation History
 {{teamChatMessages}}
-
-# Current Message from {{senderDisplayName}}
-{{currentMessage}}
 
 # Actions You Completed
 {{actionResults}}
 
 # Your Task
-Write a natural response that:
-- Summarizes what you did and the results
-- Includes specific numbers, names, or data from the action results
-- Stays in character with your personality
-- You can @mention other team members if relevant
+Write a natural response based on the conversation and action results:
+- Summarize what you did and the results
+- Include specific numbers, names, or data from the action results
+- Stay in character with your personality
+- You can @mention other team members if relevant (use their @username)
+- NEVER greet or address yourself (@{{agentUsername}})
 
 Output ONLY this XML with your actual response (not examples or placeholders):
 
@@ -647,19 +640,44 @@ export class TeamChatResponseService {
       .where(eq(userAgentConfigs.userId, agentId))
       .limit(1);
 
-    // Use pre-fetched name if available, otherwise fetch it
+    // Fetch agent name and username
     let agentName = prefetchedAgentName;
+    let agentUsername = '';
+    
+    const [agent] = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
+    
     if (!agentName) {
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-          username: users.username,
-        })
-        .from(users)
-        .where(eq(users.id, agentId))
-        .limit(1);
       agentName = agent?.displayName || agent?.username || 'Agent';
     }
+    agentUsername = agent?.username || '';
+
+    // Fetch all team chat members for context
+    const teamMembersList = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+        isAgent: users.isAgent,
+      })
+      .from(chatParticipants)
+      .innerJoin(users, eq(chatParticipants.userId, users.id))
+      .where(eq(chatParticipants.chatId, chatId));
+
+    const teamMembers = teamMembersList
+      .map((m) => {
+        const name = m.displayName || m.username || 'Unknown';
+        const username = m.username || '';
+        const role = m.isAgent ? 'Agent' : 'Owner';
+        const isSelf = username === agentUsername;
+        return `- **${name}** (@${username}) - ${role}${isSelf ? ' (YOU)' : ''}`;
+      })
+      .join('\n');
 
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
@@ -723,10 +741,10 @@ export class TeamChatResponseService {
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
-          senderDisplayName,
+          agentUsername,
+          teamMembers,
           ownerDisplayName,
           ownerUsername,
-          currentMessage: this.sanitizeForPrompt(messageContent),
           iterationCount: iteration,
           maxIterations: MAX_ITERATIONS,
           actionCount: traceActionResults.length,
@@ -934,10 +952,10 @@ export class TeamChatResponseService {
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
-          senderDisplayName,
+          agentUsername,
+          teamMembers,
           ownerDisplayName,
           ownerUsername,
-          currentMessage: this.sanitizeForPrompt(messageContent),
         };
         state.data = {
           ...state.data,
