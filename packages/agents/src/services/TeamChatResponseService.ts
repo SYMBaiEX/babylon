@@ -19,9 +19,12 @@ import {
   users,
 } from '@babylon/db';
 import {
+  type ActionResult,
   composePromptFromState,
   type Memory,
   ModelType,
+  parseKeyValueXml,
+  type State,
   type UUID,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
@@ -82,6 +85,10 @@ interface TriggerResponseParams {
   mentionedAgentIds: string[];
   senderUserId: string;
   senderDisplayName: string;
+  senderUsername?: string;
+  /** Team chat owner info (for prompt context) */
+  ownerDisplayName: string;
+  ownerUsername: string;
   /**
    * Whether this is an untagged broadcast (all agents responding).
    * Affects timing and staggering behavior.
@@ -112,6 +119,188 @@ const MAX_PROMPT_CONTENT_LENGTH = 2000;
 
 /** Maximum length for LLM-generated responses before storage */
 const MAX_RESPONSE_CONTENT_LENGTH = 4000;
+
+/** Maximum iterations for multi-step execution */
+const MAX_ITERATIONS = 6;
+
+// =============================================================================
+// Multi-Step Decision Templates (adapted from AgentChat for team chat)
+// =============================================================================
+
+const multiStepDecisionTemplate = `<task>
+Determine the next step to take in this team chat conversation.
+</task>
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+## Personality
+{{personality}}
+{{/if}}
+
+{{#if tradingStrategy}}
+## Trading Strategy
+{{tradingStrategy}}
+{{/if}}
+
+---
+
+# Team Chat Context
+This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
+You are {{agentName}}, one of the agents in this team chat.
+**{{senderDisplayName}}** just mentioned you directly.
+
+---
+
+# Conversation History
+{{teamChatMessages}}
+
+---
+
+# Current Message from {{senderDisplayName}}
+{{currentMessage}}
+
+---
+
+# Execution Context
+Step {{iterationCount}} of {{maxIterations}}
+Actions taken this round: {{actionCount}}
+{{#if actionCount}}
+You have ALREADY taken {{actionCount}} action(s) in this round. Review them carefully before deciding.
+{{else}}
+This is your FIRST decision step - no actions have been taken yet.
+{{/if}}
+
+---
+
+{{actionsWithParams}}
+
+---
+
+# Actions Completed This Round
+{{#if actionCount}}
+{{actionResults}}
+**IMPORTANT**: Use IDs/data from these results for follow-up actions. Do NOT repeat these actions.
+{{else}}
+No actions taken yet.
+{{/if}}
+
+---
+
+# REDUNDANCY RULES (CRITICAL)
+**AVOID REDUNDANCY** - These are DUPLICATES, DO NOT repeat:
+- ❌ Executing the SAME action with the SAME parameters you just executed
+- ❌ Buying/selling the same asset multiple times unless explicitly asked
+- ❌ Checking the same data twice in a row
+
+**ENCOURAGE COMPLEMENTARITY** - These ADD VALUE:
+- ✅ Different actions that provide different information
+- ✅ Sequential steps (check balance → then trade)
+- ✅ Using results from one action as input to another
+
+**Decision Logic**:
+- After executing an action, ask: "Did this COMPLETE the user's request?"
+- If YES → Set isFinish: true immediately
+- If NO and user asked for multiple things → Continue to next action
+- If about to repeat same action → STOP, set isFinish: true
+
+---
+
+# Request Type Classification
+1. **SPECIFIC REQUEST** (e.g., "sell 100 shares", "check my balance", "check predictions"):
+   - Execute the ONE action needed
+   - Set isFinish: true IMMEDIATELY after
+   
+2. **MULTI-PART REQUEST** (e.g., "check predictions AND buy the best one"):
+   - Execute each distinct action in sequence
+   - Set isFinish: true only when ALL parts are complete
+
+3. **CONVERSATIONAL** (e.g., "hello", "thanks", questions without actions):
+   - Set action to "" and isFinish: true
+
+---
+
+# Decision Rules
+1. **Classify the request type FIRST** - Is it Specific, Multi-part, or Conversational?
+2. **Check what you've already done** - Review Actions Completed This Round
+3. **Before ANY action, ask**: "Have I already done THIS EXACT action?" If YES → STOP
+4. **For trades (buy/sell)**: Execute ONCE, then STOP. Do not repeat.
+5. **Use results from prior actions** - IDs, data from completed actions inform next parameters
+6. **When in doubt** → Set isFinish: true (better to under-execute than over-execute)
+
+<keys>
+"thought"
+  START WITH: "Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}."
+  THEN: Quote the user's request.
+  THEN: Classify request type (Specific/Multi-part/Conversational).
+  THEN: If actions > 0, state "I have already completed: [list actions]. Checking if request is satisfied."
+  THEN: Explain your decision:
+    - If finishing: "The request is fulfilled. Setting isFinish: true."
+    - If continuing: "Next action: [action name] because [reason]."
+"action" Name of the action to execute (empty string "" if setting isFinish: true or if no action needed)
+"parameters" JSON object with exact parameter names. Empty object {} if action has no parameters.
+"isFinish" Set to true when the user's request is satisfied (see Decision Rules)
+</keys>
+
+CRITICAL CHECKS:
+- What step am I on? ({{iterationCount}}/{{maxIterations}})
+- How many actions have I taken THIS round? ({{actionCount}})
+- What TYPE of request is this? (Specific/Multi-part/Conversational)
+- If > 0 actions: Have I adequately addressed the request?
+- Am I about to execute the EXACT SAME action with EXACT SAME parameters? If YES → STOP
+
+# IMPORTANT
+YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
+<output>
+<response>
+  <thought>Step {{iterationCount}}/{{maxIterations}}. Actions this round: {{actionCount}}. [Your reasoning]</thought>
+  <action>ACTION_NAME or ""</action>
+  <parameters>
+    {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  </parameters>
+  <isFinish>true | false</isFinish>
+</response>
+</output>`;
+
+const multiStepSummaryTemplate = `You are responding in a team chat after completing actions. Generate a helpful response.
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+Personality: {{personality}}
+{{/if}}
+
+# Team Chat Context
+This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
+You are {{agentName}}, responding to **{{senderDisplayName}}**.
+
+# Conversation History
+{{teamChatMessages}}
+
+# Current Message from {{senderDisplayName}}
+{{currentMessage}}
+
+# Actions You Completed
+{{actionResults}}
+
+# Your Task
+Write a natural response that:
+- Summarizes what you did and the results
+- Includes specific numbers, names, or data from the action results
+- Stays in character with your personality
+- You can @mention other team members if relevant
+
+Output ONLY this XML with your actual response (not examples or placeholders):
+
+<response>
+<thought>Brief reasoning about what to tell the user</thought>
+<text>Your helpful response with specific details from the actions</text>
+</response>`;
 
 /**
  * Service for handling agent responses in team chat
@@ -277,6 +466,9 @@ export class TeamChatResponseService {
       mentionedAgentIds,
       senderUserId: _senderUserId,
       senderDisplayName,
+      senderUsername,
+      ownerDisplayName,
+      ownerUsername,
     } = params;
 
     // Deduplicate and filter out empty/whitespace agent IDs
@@ -339,6 +531,9 @@ export class TeamChatResponseService {
         chatId,
         messageContent,
         senderDisplayName,
+        senderUsername,
+        ownerDisplayName,
+        ownerUsername,
         agentName,
       })
         .then((responseResult) => {
@@ -376,11 +571,11 @@ export class TeamChatResponseService {
   }
 
   /**
-   * Generate an agent response immediately using runtime.useModel
+   * Generate an agent response using multi-step execution (like AgentChat)
    *
-   * Uses the agent's configured model tier (free/pro) just like AgentChat.
+   * Uses the agent's configured model tier (free/pro) via runtime.useModel.
+   * Supports multi-step action execution (check balance, trade, etc.) before responding.
    * Uses TEAM_CHAT_MESSAGES provider for conversation context with proper names.
-   * No artificial delays - responds as fast as possible.
    *
    * @param params.depth - Current depth in agent-to-agent chain (0 = user-initiated)
    * @param params.agentName - Pre-fetched agent name (optimization to avoid redundant query)
@@ -390,6 +585,9 @@ export class TeamChatResponseService {
     chatId: string;
     messageContent: string;
     senderDisplayName: string;
+    senderUsername?: string;
+    ownerDisplayName: string;
+    ownerUsername: string;
     depth?: number;
     agentName?: string;
   }): Promise<{
@@ -403,13 +601,14 @@ export class TeamChatResponseService {
       chatId,
       messageContent,
       senderDisplayName,
+      senderUsername: _senderUsername,
+      ownerDisplayName,
+      ownerUsername,
       depth = 0,
       agentName: prefetchedAgentName,
     } = params;
 
     // Check cooldown and chain-based loop prevention (fail fast)
-    // Only apply cooldown for agent-to-agent chains (depth > 0)
-    // User-initiated mentions (depth === 0) should ALWAYS trigger a response
     if (depth > 0 && this.isAgentOnCooldown(chatId, agentId)) {
       logger.debug(
         `Agent ${agentId} on cooldown (A2A chain), skipping response`,
@@ -423,7 +622,6 @@ export class TeamChatResponseService {
       };
     }
 
-    // Check if agent already responded in this conversation chain
     if (depth > 0 && this.hasAgentRespondedInChain(chatId, agentId)) {
       logger.debug(
         `Agent ${agentId} already responded in this chain, skipping`,
@@ -437,11 +635,12 @@ export class TeamChatResponseService {
       };
     }
 
-    // Get agent config including model tier
+    // Get agent config including model tier and trading strategy
     const [config] = await db
       .select({
         systemPrompt: userAgentConfigs.systemPrompt,
         personality: userAgentConfigs.personality,
+        tradingStrategy: userAgentConfigs.tradingStrategy,
         modelTier: userAgentConfigs.modelTier,
       })
       .from(userAgentConfigs)
@@ -464,12 +663,12 @@ export class TeamChatResponseService {
 
     const systemPrompt = config?.systemPrompt || 'You are a helpful AI agent.';
     const personality = config?.personality || '';
-    // Use agent's configured model tier (default to 'free')
+    const tradingStrategy = config?.tradingStrategy || '';
     const modelTier = (config?.modelTier as 'free' | 'pro') || 'free';
     const modelType =
       modelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
 
-    // Broadcast typing indicator before generating response
+    // Broadcast typing indicator
     broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
       (error: Error) => {
         logger.warn(
@@ -481,69 +680,322 @@ export class TeamChatResponseService {
     );
 
     try {
-      // Get runtime for the agent
       const runtime = await agentRuntimeManager.getRuntime(agentId);
 
-      // Create ElizaOS Memory object with roomId = chatId for the provider
+      // Create ElizaOS Memory object
       const elizaMessage: Memory = {
         id: uuidv4() as UUID,
-        entityId: senderDisplayName as UUID, // Sender's identifier
-        roomId: chatId as UUID, // Provider uses this to fetch chat messages
+        entityId: senderDisplayName as UUID,
+        roomId: chatId as UUID,
         content: { text: messageContent },
         createdAt: Date.now(),
       };
 
-      // Compose state with TEAM_CHAT_MESSAGES provider
-      // This fetches conversation history with proper participant names
-      const state = await runtime.composeState(
-        elizaMessage,
-        ['TEAM_CHAT_MESSAGES'],
-        true // Strict filtering - only run specified providers
-      );
+      // Multi-step execution loop (like AgentChat)
+      const traceActionResults: Array<
+        ActionResult & {
+          actionType: string;
+          parameters?: Record<string, unknown>;
+          timestamp: number;
+        }
+      > = [];
+      let finalResponse: string | null = null;
 
-      // Add custom values to state for the prompt template
-      state.values = {
-        ...state.values,
-        system: systemPrompt,
-        personality: personality || '',
-        agentName,
-        senderDisplayName,
-        currentMessage: this.sanitizeForPrompt(messageContent),
-      };
+      for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+        logger.debug(
+          `[TeamChat MultiStep] Iteration ${iteration}/${MAX_ITERATIONS}`,
+          { agentId, chatId, actionsCompleted: traceActionResults.length },
+          'TeamChatResponseService'
+        );
 
-      // Define the prompt template using {{teamChatMessages}} from provider
-      const promptTemplate = `{{system}}
+        // Compose state with providers
+        const state: State = await runtime.composeState(
+          elizaMessage,
+          ['TEAM_CHAT_MESSAGES', 'ACTION_STATE', 'ACTIONS'],
+          true
+        );
 
-{{#if personality}}Your personality: {{personality}}
+        // Add custom values to state
+        state.values = {
+          ...state.values,
+          agentId,
+          system: systemPrompt,
+          personality: personality || '',
+          tradingStrategy: tradingStrategy || '',
+          agentName,
+          senderDisplayName,
+          ownerDisplayName,
+          ownerUsername,
+          currentMessage: this.sanitizeForPrompt(messageContent),
+          iterationCount: iteration,
+          maxIterations: MAX_ITERATIONS,
+          actionCount: traceActionResults.length,
+        };
 
-{{/if}}You are {{agentName}} in a team Command Center chat. {{senderDisplayName}} just mentioned you directly.
+        state.data = {
+          ...state.data,
+          actionResults: traceActionResults,
+        };
 
-Recent conversation:
-{{teamChatMessages}}
+        // Build prompt from decision template
+        const prompt = composePromptFromState({
+          state,
+          template: multiStepDecisionTemplate,
+        });
 
-{{senderDisplayName}}'s message to you: "{{currentMessage}}"
+        // Get LLM decision with retry
+        const MAX_PARSE_RETRIES = 3;
+        let parsedStep: Record<string, unknown> | null = null;
 
-Task: Generate a helpful, direct response to {{senderDisplayName}}'s message.
-- Address their request or question directly
-- Be authentic to your personality
-- You can @mention other team members if relevant
+        for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
+          const response = await runtime.useModel(modelType, {
+            prompt,
+            temperature: attempt > 1 ? 0.5 : 0.7,
+          });
 
-Generate ONLY the response text:`;
+          parsedStep = parseKeyValueXml(response);
 
-      // Compose the final prompt from state and template
-      const prompt = composePromptFromState({
-        state,
-        template: promptTemplate,
-      });
+          if (parsedStep) {
+            logger.debug(
+              `[TeamChat MultiStep] Parsed decision on attempt ${attempt}`,
+              { action: parsedStep.action, isFinish: parsedStep.isFinish },
+              'TeamChatResponseService'
+            );
+            break;
+          }
 
-      // Use runtime.useModel like AgentChat does
-      const responseContent = await runtime.useModel(modelType, {
-        prompt,
-        temperature: 0.7,
-      });
+          logger.warn(
+            `[TeamChat MultiStep] Failed to parse decision (attempt ${attempt})`,
+            { preview: response.substring(0, 200) },
+            'TeamChatResponseService'
+          );
+        }
 
-      // Clean and validate LLM response before storage
-      const cleanContent = responseContent
+        if (!parsedStep) {
+          finalResponse =
+            "I'm having trouble processing your request. Could you try rephrasing?";
+          break;
+        }
+
+        const thought = (parsedStep.thought as string) ?? '';
+        const action = (parsedStep.action as string) ?? '';
+        const parameters = parsedStep.parameters;
+        const isFinish = parsedStep.isFinish;
+
+        // No action - go to summary phase
+        if (!action || action === '') {
+          break;
+        }
+
+        // Execute action via runtime.processActions
+        logger.info(
+          `[TeamChat MultiStep] Executing action: ${action}`,
+          { parameters, agentId },
+          'TeamChatResponseService'
+        );
+
+        // Parse parameters
+        let actionParams = {};
+        if (parameters) {
+          if (typeof parameters === 'string') {
+            try {
+              actionParams = JSON.parse(parameters);
+            } catch {
+              logger.warn(
+                `[TeamChat MultiStep] Failed to parse parameters: ${parameters}`
+              );
+            }
+          } else if (typeof parameters === 'object') {
+            actionParams = parameters;
+          }
+        }
+
+        state.data = {
+          ...state.data,
+          actionParams,
+        };
+
+        const actionContent = {
+          text: `Executing action: ${action}`,
+          actions: [action],
+          thought: thought ?? '',
+        };
+
+        const actionMessage: Memory = {
+          id: uuidv4() as UUID,
+          entityId: runtime.agentId,
+          roomId: elizaMessage.roomId,
+          createdAt: Date.now(),
+          content: actionContent,
+        };
+
+        try {
+          // Capture result through callback (same pattern as AgentChat)
+          let actionResult: {
+            success?: boolean;
+            text?: string;
+            values?: Record<string, unknown>;
+          } | null = null;
+
+          await runtime.processActions(
+            elizaMessage,
+            [actionMessage],
+            state,
+            async (results: unknown) => {
+              // Capture the first result from callback
+              const resultsArray = results as Array<{
+                content?: {
+                  success?: boolean;
+                  text?: string;
+                  values?: Record<string, unknown>;
+                };
+              }> | null;
+              if (resultsArray && resultsArray.length > 0) {
+                const firstResult = resultsArray[0];
+                if (firstResult) {
+                  actionResult = {
+                    success: firstResult.content?.success ?? true,
+                    text:
+                      typeof firstResult.content?.text === 'string'
+                        ? firstResult.content.text
+                        : undefined,
+                    values: firstResult.content?.values,
+                  };
+                }
+              }
+              return [];
+            }
+          );
+
+          // Fallback to state cache if callback didn't capture
+          if (!actionResult) {
+            const cachedState = (
+              runtime as unknown as { stateCache?: Map<string, unknown> }
+            ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+              | {
+                  values?: {
+                    actionResults?: Array<{
+                      success?: boolean;
+                      text?: string;
+                      values?: Record<string, unknown>;
+                    }>;
+                  };
+                }
+              | undefined;
+            const actionResultsFromCache =
+              cachedState?.values?.actionResults || [];
+            actionResult =
+              actionResultsFromCache.length > 0
+                ? (actionResultsFromCache[0] ?? null)
+                : null;
+          }
+
+          const success = actionResult?.success ?? true;
+
+          traceActionResults.push({
+            actionType: action,
+            success,
+            text: actionResult?.text || `${action} executed`,
+            error: success ? undefined : actionResult?.text,
+            values: actionResult?.values,
+            parameters: actionParams,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : 'Unknown error';
+          traceActionResults.push({
+            actionType: action,
+            success: false,
+            text: `Action failed: ${errorMsg}`,
+            error: errorMsg,
+            parameters: actionParams,
+            timestamp: Date.now(),
+          });
+        }
+
+        // Check if done
+        if (isFinish === 'true' || isFinish === true) {
+          break;
+        }
+      }
+
+      // Generate summary/response
+      {
+        const state = await runtime.composeState(
+          elizaMessage,
+          ['TEAM_CHAT_MESSAGES', 'ACTION_STATE'],
+          true
+        );
+        state.values = {
+          ...state.values,
+          agentId,
+          system: systemPrompt,
+          personality: personality || '',
+          tradingStrategy: tradingStrategy || '',
+          agentName,
+          senderDisplayName,
+          ownerDisplayName,
+          ownerUsername,
+          currentMessage: this.sanitizeForPrompt(messageContent),
+        };
+        state.data = {
+          ...state.data,
+          actionResults: traceActionResults,
+        };
+
+        const summaryPrompt = composePromptFromState({
+          state,
+          template: multiStepSummaryTemplate,
+        });
+
+        const SUMMARY_RETRIES = 3;
+        let extractedText: string | undefined;
+
+        for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
+          const summaryResponse = await runtime.useModel(modelType, {
+            prompt: summaryPrompt,
+            temperature: attempt > 1 ? 0.5 : 0.7,
+          });
+
+          const summary = parseKeyValueXml(summaryResponse);
+          extractedText = summary?.text as string | undefined;
+
+          // Fallback: Try regex if parseKeyValueXml fails
+          if (!extractedText) {
+            const textMatch = summaryResponse.match(/<?\/?text>([^<]+)/i);
+            if (textMatch?.[1]) {
+              extractedText = textMatch[1].trim();
+            }
+          }
+
+          if (extractedText) {
+            logger.debug(
+              `[TeamChat MultiStep] Parsed summary on attempt ${attempt}`,
+              { preview: extractedText.substring(0, 50) },
+              'TeamChatResponseService'
+            );
+            break;
+          }
+
+          logger.warn(
+            `[TeamChat MultiStep] Failed to parse summary (attempt ${attempt})`,
+            { preview: summaryResponse.substring(0, 200) },
+            'TeamChatResponseService'
+          );
+        }
+
+        finalResponse =
+          extractedText ||
+          (traceActionResults.length > 0
+            ? 'Actions completed.'
+            : "I'm here to help!");
+      }
+
+      const responseText = finalResponse ?? "I'm here to help!";
+
+      // Clean and validate response
+      const cleanContent = responseText
         .trim()
         .replace(/^["']|["']$/g, '')
         .slice(0, MAX_RESPONSE_CONTENT_LENGTH);
@@ -571,17 +1023,18 @@ Generate ONLY the response text:`;
         };
       }
 
-      // Mark agent as having responded (for cooldown tracking)
+      // Mark agent as having responded
       this.markAgentResponded(chatId, agentId);
 
-      // Check if this agent mentioned other agents (agent-to-agent mentions)
-      // Only allow if we haven't exceeded max chain depth
+      // Handle agent-to-agent mentions
       if (depth < LOOP_PREVENTION.MAX_CHAIN_DEPTH) {
         await this.handleAgentToAgentMentions({
           respondingAgentId: agentId,
           respondingAgentName: agentName,
           chatId,
           responseContent: cleanContent,
+          ownerDisplayName,
+          ownerUsername,
           depth: depth + 1,
         });
       } else {
@@ -607,7 +1060,6 @@ Generate ONLY the response text:`;
             : 'Failed to generate response',
       };
     } finally {
-      // Stop typing indicator even if LLM generation or send fails
       broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
         (error: Error) => {
           logger.warn(
@@ -633,6 +1085,8 @@ Generate ONLY the response text:`;
     respondingAgentName: string;
     chatId: string;
     responseContent: string;
+    ownerDisplayName: string;
+    ownerUsername: string;
     depth: number;
   }): Promise<void> {
     const {
@@ -640,6 +1094,8 @@ Generate ONLY the response text:`;
       respondingAgentName,
       chatId,
       responseContent,
+      ownerDisplayName,
+      ownerUsername,
       depth,
     } = params;
 
@@ -733,6 +1189,8 @@ Generate ONLY the response text:`;
         chatId,
         messageContent: responseContent,
         senderDisplayName: respondingAgentName,
+        ownerDisplayName,
+        ownerUsername,
         depth,
       }).catch((error) => {
         logger.error(
