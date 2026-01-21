@@ -157,11 +157,19 @@ export default function ActorProfilePage() {
   const [replies, setReplies] = useState<ProfileReply[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
 
-  // Handle creating DM with user
+  // Handle creating DM with user or messaging own agent
   const handleMessageClick = async () => {
     if (!authenticated || !actorInfo?.id || isCreatingDM || !user?.id) return;
 
     setIsCreatingDM(true);
+
+    // Check if this is the user's own agent - redirect to team chat with @mention
+    if (actorInfo.isAgent && actorInfo.managedBy === user.id) {
+      const mentionHandle = actorInfo.username || actorInfo.id;
+      router.push(`/agents/team?mention=${encodeURIComponent(mentionHandle)}`);
+      setIsCreatingDM(false);
+      return;
+    }
 
     // Generate deterministic chat ID (same format as backend)
     // Sort IDs to ensure consistency
@@ -222,9 +230,11 @@ export default function ActorProfilePage() {
           id: user.id,
           name: user.displayName || user.username || 'User',
           description: user.bio || '',
-          role: 'User',
+          role: user.isAgent ? 'Agent' : 'User',
           type: 'user' as const,
-          isUser: true,
+          isUser: !user.isAgent,
+          isAgent: user.isAgent || false,
+          managedBy: user.managedBy || null,
           username: user.username,
           profileImageUrl: user.profileImageUrl,
           coverImageUrl: user.coverImageUrl,
@@ -273,9 +283,11 @@ export default function ActorProfilePage() {
             id: user.id,
             name: user.displayName || user.username || 'User',
             description: user.bio || '',
-            role: 'User',
+            role: user.isAgent ? 'Agent' : 'User',
             type: 'user' as const,
-            isUser: true,
+            isUser: !user.isAgent,
+            isAgent: user.isAgent || false,
+            managedBy: user.managedBy || null,
             username: user.username,
             profileImageUrl: user.profileImageUrl,
             coverImageUrl: user.coverImageUrl,
@@ -822,13 +834,19 @@ export default function ActorProfilePage() {
                   <div className="flex items-center gap-2 pt-3">
                     {authenticated && user && user.id !== actorInfo.id && (
                       <>
-                        {/* Message button - only for regular users, not actors/NPCs/agents */}
-                        {actorInfo.isUser && actorInfo.type === 'user' && (
+                        {/* Message button - for regular users, own agents (team chat), and other users' agents (DM) */}
+                        {((actorInfo.isUser && actorInfo.type === 'user') ||
+                          actorInfo.isAgent) && (
                           <button
                             onClick={handleMessageClick}
                             disabled={isCreatingDM}
                             className="rounded-full border border-border p-2 transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Send message"
+                            title={
+                              actorInfo.isAgent &&
+                              actorInfo.managedBy === user.id
+                                ? 'Message in Command Center'
+                                : 'Send message'
+                            }
                           >
                             <MessageCircle className="h-5 w-5" />
                           </button>

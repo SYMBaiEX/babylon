@@ -8,13 +8,25 @@
  * Generates an initial onboarding message from the agent to introduce
  * itself and its capabilities to the user. Posts message to both:
  * 1. agentMessages table (for agent chat history)
- * 2. DM messages table (for regular chat UI)
+ * 2. Team chat (Command Center) for unified communication
  */
 
-import { agentRuntimeManager, agentService } from '@babylon/agents';
-import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { chats, db, eq, messages as messagesTable } from '@babylon/db';
-import { GROQ_MODELS, generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  agentRuntimeManager,
+  agentService,
+  teamChatService,
+} from '@babylon/agents';
+import {
+  authenticateUser,
+  broadcastChatMessage,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  db,
+  generateSnowflakeId,
+  messages as messagesTable,
+} from '@babylon/db';
+import { GROQ_MODELS, logger } from '@babylon/shared';
 import {
   composePromptFromState,
   type Memory,
@@ -205,50 +217,86 @@ export const POST = withErrorHandling(
       },
     });
 
-    // Also post to the DM chat so it shows in the regular chat UI
-    // DM chat ID format: dm-{sortedId1}-{sortedId2}
-    const sortedIds = [user.id, agentId].sort();
-    const dmChatId = `dm-${sortedIds.join('-')}`;
-
+    // Post onboarding message to team chat (Command Center)
+    // Use ensureTeamChat to create the team chat if it doesn't exist yet
     try {
-      // Verify the DM chat exists before inserting to prevent orphaned records
-      const existingChat = await db
-        .select({ id: chats.id })
-        .from(chats)
-        .where(eq(chats.id, dmChatId))
-        .limit(1);
+      logger.info(
+        `Attempting to post onboarding to team chat for user ${user.id}`,
+        { agentId },
+        'AgentOnboarding'
+      );
 
-      if (existingChat.length === 0) {
-        logger.debug(
-          `Skipping DM message - chat does not exist yet`,
-          { dmChatId },
+      const teamChat = await teamChatService.ensureTeamChat(user.id);
+      console.log('ONBOARDING - ensureTeamChat result:', teamChat);
+
+      logger.info(
+        `ensureTeamChat result`,
+        {
+          teamChat: teamChat
+            ? { chatId: teamChat.chatId, groupId: teamChat.groupId }
+            : null,
+        },
+        'AgentOnboarding'
+      );
+
+      if (!teamChat) {
+        logger.warn(
+          `Failed to create/get team chat for onboarding message`,
+          { userId: user.id },
           'AgentOnboarding'
         );
       } else {
-        const dmMessageId = await generateSnowflakeId();
-        await db
-          .insert(messagesTable)
-          .values({
-            id: dmMessageId,
-            chatId: dmChatId,
-            senderId: agentId,
-            content: welcomeMessage,
-            type: 'system',
-            createdAt: messageTime,
-          })
-          .onConflictDoNothing(); // Ignore insert conflicts (e.g., duplicate DM message ID)
+        const teamChatMessageId = await generateSnowflakeId();
 
         logger.info(
-          `Onboarding message also posted to DM chat`,
-          { dmChatId, dmMessageId },
+          `Inserting onboarding message to team chat`,
+          { chatId: teamChat.chatId, messageId: teamChatMessageId, agentId },
+          'AgentOnboarding'
+        );
+
+        const insertResult = await db
+          .insert(messagesTable)
+          .values({
+            id: teamChatMessageId,
+            chatId: teamChat.chatId,
+            senderId: agentId,
+            content: welcomeMessage,
+            type: 'user',
+            createdAt: messageTime,
+          })
+          .onConflictDoNothing();
+        console.log('ONBOARDING - Message insert result:', insertResult);
+
+        logger.info(
+          `Message inserted, now broadcasting via SSE`,
+          { chatId: teamChat.chatId, messageId: teamChatMessageId },
+          'AgentOnboarding'
+        );
+
+        // Broadcast the message via SSE so it appears in real-time
+        await broadcastChatMessage(teamChat.chatId, {
+          id: teamChatMessageId,
+          content: welcomeMessage,
+          chatId: teamChat.chatId,
+          senderId: agentId,
+          type: 'user',
+          createdAt: messageTime.toISOString(),
+          isGameChat: false,
+          isDMChat: false,
+        });
+
+        logger.info(
+          `Onboarding message posted to team chat`,
+          { chatId: teamChat.chatId, messageId: teamChatMessageId },
           'AgentOnboarding'
         );
       }
     } catch (error) {
-      // Don't fail the whole request if DM message fails
-      logger.warn(
-        `Failed to post onboarding message to DM chat`,
-        { dmChatId, error: error instanceof Error ? error.message : 'Unknown' },
+      // Don't fail the whole request if team chat message fails
+      console.error('ONBOARDING ERROR - Failed to post to team chat:', error);
+      logger.error(
+        `Failed to post onboarding message to team chat`,
+        { error: error instanceof Error ? error.stack : 'Unknown' },
         'AgentOnboarding'
       );
     }
