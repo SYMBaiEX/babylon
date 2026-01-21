@@ -26,8 +26,6 @@ export {
 export * from './npc-bootstrap.service';
 export {
   type AgentOrderingStrategy,
-  detectMessageComplexity,
-  type MessageComplexity,
   type OrderableAgent,
   orderAgentIds,
   shuffleArray,
