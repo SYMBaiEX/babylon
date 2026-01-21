@@ -15,6 +15,9 @@ process.env.NODE_ENV = 'test';
 process.env.BUN_ENV = 'test';
 process.env.DATABASE_URL = 'postgresql://mock:mock@localhost:5432/mock_test';
 process.env.REDIS_URL = 'redis://localhost:6379';
+// Mock API keys to prevent initialization errors
+process.env.GROQ_API_KEY = 'mock-groq-api-key-for-testing';
+process.env.OPENAI_API_KEY = 'mock-openai-api-key-for-testing';
 
 // Mock Redis/ioredis
 mock.module('ioredis', () => {

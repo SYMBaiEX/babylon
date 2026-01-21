@@ -258,6 +258,27 @@ export {
 } from './reputation';
 // Services (all exported from services/index.ts)
 export * from './services';
+// Tier Configuration
+export {
+  ALL_TIERS,
+  getEffectiveTierConfig,
+  getHigherTier,
+  getLowerTier,
+  getNpcFocusWeights,
+  getTierConfig,
+  getTierForEngagementScore,
+  getTierForEngagementScoreWithNpc,
+  getTierGroupName,
+  getTierMessageGuidance,
+  getTierSuffix,
+  getTotalNpcCapacity,
+  isEligibleForPromotion,
+  isValidTier,
+  shouldDemote,
+  TIER_CONFIG,
+  TIER_MESSAGE_GUIDANCE,
+  type TierConfig,
+} from './services/tier-config';
 // Storage Bridge (database-agnostic storage abstraction)
 export {
   db,
