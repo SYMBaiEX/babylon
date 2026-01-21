@@ -2396,10 +2396,43 @@ ALPHA_DEFAULT_TRADING_WEIGHT=0.5          # Default weight for trading activity
 
 ---
 
-## Next Steps (Phase 2)
+## Implementation Status (Phase 2 Complete)
 
-1. **Admin API Endpoints** - Create REST endpoints for threshold management
-2. **Admin UI Dashboard** - Build React components for monitoring
-3. **Prometheus Metrics** - Add observability for invite rates
-4. **Per-NPC Customization** - Add `tierOverrides` to specific actor data files
-5. **A/B Testing** - Test different threshold configurations
+**Implemented on 2026-01-21:**
+
+| Priority | Item | Status | File(s) |
+|----------|------|--------|---------|
+| 1 | Admin API - Config Endpoint | ✅ Complete | `apps/web/src/app/api/admin/alpha-groups/config/route.ts` |
+| 2 | Admin API - Stats Endpoint | ✅ Complete | `apps/web/src/app/api/admin/alpha-groups/stats/route.ts` |
+| 3 | Admin Dashboard Page | ✅ Complete | `apps/web/src/app/admin/alpha-groups/page.tsx` |
+| 4 | RBAC Permissions | ✅ Complete | `packages/db/src/schema/admin.ts` |
+| 5 | Per-NPC Customization (Trading) | ✅ Complete | `ainsem.ts`, `airthur-hayes.ts`, `michael-sailor.ts` |
+| 6 | Per-NPC Customization (Social) | ✅ Complete | `joerogain.ts`, `logain-paul.ts`, `lex-fridmain.ts` |
+| 7 | Schema Type Exports | ✅ Complete | `packages/db/src/schema/messaging.ts` |
+| 8 | Detailed Analytics Method | ✅ Complete | `AlphaGroupInviteService.getDetailedAnalytics()` |
+
+### Admin Permissions Added
+
+- `view_alpha_groups` - View alpha group statistics and configuration
+- `manage_alpha_groups` - Preview config changes (actual changes require env vars)
+
+### NPCs with Custom Tier Overrides
+
+**Trading-Focused (Higher thresholds, trading-weighted engagement):**
+- `ainsem` - 20% harder, 70% trading weight
+- `airthur-hayes` - 30% harder, 75% trading weight  
+- `michael-sailor` - 10% harder, 60% trading weight
+
+**Social-Focused (Easier thresholds, social-weighted engagement):**
+- `joerogain` - 20% easier, 90% social weight
+- `logain-paul` - 15% easier, 85% social weight
+- `lex-fridmain` - Standard, 80% social weight
+
+---
+
+## Remaining Tasks (Phase 3 - Optional)
+
+1. **Prometheus Metrics** - Add native observability (currently using structured logging)
+2. **A/B Testing Framework** - Test different threshold configurations
+3. **More NPC Customization** - Add `tierOverrides` to additional actor data files
+4. **Engagement Analytics** - Track which NPCs are most effective at inviting
