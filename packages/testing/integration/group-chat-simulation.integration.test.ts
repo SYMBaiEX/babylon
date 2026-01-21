@@ -1137,8 +1137,8 @@ describe('Group Chat Simulation - End to End Flow', () => {
       );
 
       // Should have reasons explaining why not eligible
-      expect(engagement.reasons).toBeDefined();
-      expect(Array.isArray(engagement.reasons)).toBe(true);
+      expect(engagement.eligibilityReasons).toBeDefined();
+      expect(Array.isArray(engagement.eligibilityReasons)).toBe(true);
     });
   });
 

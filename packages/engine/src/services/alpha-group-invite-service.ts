@@ -324,7 +324,8 @@ export class AlphaGroupInviteService {
       return { canBeInvited: true, declineCount: 0, nextEligibleAt: null };
     }
 
-    const { declineCount, lastDeclinedAt, nextEligibleAt } = declinedInvites[0];
+    const invite = declinedInvites[0]!;
+    const { declineCount, lastDeclinedAt, nextEligibleAt } = invite;
 
     // Check if decline count should be reset due to inactivity
     if (shouldResetDeclineCount(lastDeclinedAt)) {
@@ -553,7 +554,7 @@ export class AlphaGroupInviteService {
    * Get detailed analytics for alpha group invites.
    */
   static async getDetailedAnalytics(): Promise<{
-    inviteStats: Awaited<ReturnType<typeof this.getInviteStats>>;
+    inviteStats: Awaited<ReturnType<typeof AlphaGroupInviteService.getInviteStats>>;
     declineStats: {
       totalDeclined: number;
       avgDeclineCount: number;
