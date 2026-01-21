@@ -11,6 +11,7 @@ import {
   balanceTransactions,
   count,
   Decimal,
+  type DrizzleClient,
   db,
   desc,
   eq,
@@ -25,6 +26,24 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { SQL } from 'drizzle-orm';
 import { FEE_CONFIG, type FeeType } from '../config/fees';
+
+/**
+ * Transaction context type - either an existing transaction or the db client
+ * Used to avoid nested transactions which can cause deadlocks
+ */
+export type TransactionContext = Transaction | DrizzleClient;
+
+/**
+ * Execute a function within a transaction context
+ * If an existing transaction is provided, uses it directly; otherwise creates a new one
+ * This prevents nested transaction deadlocks
+ */
+async function runInTransaction<T>(
+  existingTx: TransactionContext | undefined,
+  fn: (tx: TransactionContext) => Promise<T>
+): Promise<T> {
+  return existingTx ? fn(existingTx) : withTransaction(fn);
+}
 
 /**
  * Fee calculation result
@@ -140,6 +159,7 @@ export class FeeService {
    * @param {number} tradeAmount - Trade amount
    * @param {string} [tradeId] - Optional trade ID for reference
    * @param {string} [marketId] - Optional market ID for reference
+   * @param {TransactionContext} [existingTx] - Optional existing transaction/client to reuse (avoids nested transactions)
    * @returns {Promise<FeeDistributionResult>} Fee distribution result
    *
    * @example
@@ -158,7 +178,8 @@ export class FeeService {
     tradeType: FeeType,
     tradeAmount: number,
     tradeId?: string,
-    marketId?: string
+    marketId?: string,
+    existingTx?: TransactionContext
   ): Promise<FeeDistributionResult> {
     const feeCalc = FeeService.calculateFee(tradeAmount);
 
@@ -182,11 +203,13 @@ export class FeeService {
       };
     }
 
-    // Get user's referrer
-    const referrerId = await FeeService.getUserReferrer(userId);
+    // Get user's referrer (use existing tx if provided to avoid deadlock)
+    const referrerId = existingTx
+      ? await FeeService.getUserReferrerInTx(userId, existingTx)
+      : await FeeService.getUserReferrer(userId);
 
-    // Execute in transaction
-    const result = await withTransaction(async (tx) => {
+    // Core fee processing logic
+    const processFee = async (tx: TransactionContext) => {
       // Create trading fee record
       await tx.insert(tradingFees).values({
         id: await generateSnowflakeId(),
@@ -239,7 +262,10 @@ export class FeeService {
           : feeCalc.feeAmount,
         referrerId,
       };
-    });
+    };
+
+    // Use existing transaction if provided, otherwise create a new one
+    const result = await runInTransaction(existingTx, processFee);
 
     logger.info(
       'Trading fee processed',
@@ -270,13 +296,29 @@ export class FeeService {
   }
 
   /**
+   * Get user's referrer within an existing transaction
+   */
+  private static async getUserReferrerInTx(
+    userId: string,
+    tx: TransactionContext
+  ): Promise<string | null> {
+    const [user] = await tx
+      .select({ referredBy: users.referredBy })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return user?.referredBy || null;
+  }
+
+  /**
    * Distribute referral fee to referrer (within transaction)
    */
   private static async distributeReferralFeeInTx(
     referrerId: string,
     feeAmount: number,
     traderId: string,
-    tx: Transaction
+    tx: TransactionContext
   ): Promise<void> {
     // Credit referrer's virtual balance
     const [referrer] = await tx
