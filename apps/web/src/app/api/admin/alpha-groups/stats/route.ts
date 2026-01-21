@@ -17,12 +17,21 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { and, count, db, eq, groupInvites, groupMembers, groups, gte } from '@babylon/db';
 import {
-  AlphaGroupInviteService,
+  and,
+  count,
+  db,
+  eq,
+  groupInvites,
+  groupMembers,
+  groups,
+  gte,
+} from '@babylon/db';
+import {
   ALPHA_GROUP_CONFIG,
-  TieredGroupService,
+  AlphaGroupInviteService,
   TIER_CONFIG,
+  TieredGroupService,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -109,7 +118,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .select({ count: count() })
       .from(groupMembers)
       .where(
-        and(eq(groupMembers.isActive, true), eq(groupMembers.isGrandfathered, true))
+        and(
+          eq(groupMembers.isActive, true),
+          eq(groupMembers.isGrandfathered, true)
+        )
       )
       .then((r) => r[0]?.count ?? 0),
     // Users with declines
@@ -122,7 +134,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     db
       .select({ count: count() })
       .from(groupInvites)
-      .where(gte(groupInvites.declineCount, ALPHA_GROUP_CONFIG.inviteDecayMaxDeclines))
+      .where(
+        gte(
+          groupInvites.declineCount,
+          ALPHA_GROUP_CONFIG.inviteDecayMaxDeclines
+        )
+      )
       .then((r) => r[0]?.count ?? 0),
     // Tier 1 members
     db
@@ -180,12 +197,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .select({ count: count() })
       .from(groupMembers)
       .innerJoin(groups, eq(groupMembers.groupId, groups.id))
-      .where(
-        and(
-          eq(groups.type, 'npc'),
-          gte(groupMembers.joinedAt, oneDayAgo)
-        )
-      )
+      .where(and(eq(groups.type, 'npc'), gte(groupMembers.joinedAt, oneDayAgo)))
       .then((r) => r[0]?.count ?? 0),
     // Joins in last week
     db
@@ -193,43 +205,47 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .from(groupMembers)
       .innerJoin(groups, eq(groupMembers.groupId, groups.id))
       .where(
-        and(
-          eq(groups.type, 'npc'),
-          gte(groupMembers.joinedAt, oneWeekAgo)
-        )
+        and(eq(groups.type, 'npc'), gte(groupMembers.joinedAt, oneWeekAgo))
       )
       .then((r) => r[0]?.count ?? 0),
   ]);
 
   // Calculate acceptance rate
   const totalResponded = acceptedInvites + declinedInvites;
-  const acceptanceRate = totalResponded > 0 ? acceptedInvites / totalResponded : 0;
+  const acceptanceRate =
+    totalResponded > 0 ? acceptedInvites / totalResponded : 0;
 
   // Calculate tier capacities
   const tierCapacities = {
     1: {
       name: TIER_CONFIG[1].name,
       current: tier1Members,
-      max: globalAnalytics.tierBreakdown.find((t) => t.tier === 1)?.capacity ?? 0,
+      max:
+        globalAnalytics.tierBreakdown.find((t) => t.tier === 1)?.capacity ?? 0,
       fillRate:
         tier1Members /
-        (globalAnalytics.tierBreakdown.find((t) => t.tier === 1)?.capacity || 1),
+        (globalAnalytics.tierBreakdown.find((t) => t.tier === 1)?.capacity ||
+          1),
     },
     2: {
       name: TIER_CONFIG[2].name,
       current: tier2Members,
-      max: globalAnalytics.tierBreakdown.find((t) => t.tier === 2)?.capacity ?? 0,
+      max:
+        globalAnalytics.tierBreakdown.find((t) => t.tier === 2)?.capacity ?? 0,
       fillRate:
         tier2Members /
-        (globalAnalytics.tierBreakdown.find((t) => t.tier === 2)?.capacity || 1),
+        (globalAnalytics.tierBreakdown.find((t) => t.tier === 2)?.capacity ||
+          1),
     },
     3: {
       name: TIER_CONFIG[3].name,
       current: tier3Members,
-      max: globalAnalytics.tierBreakdown.find((t) => t.tier === 3)?.capacity ?? 0,
+      max:
+        globalAnalytics.tierBreakdown.find((t) => t.tier === 3)?.capacity ?? 0,
       fillRate:
         tier3Members /
-        (globalAnalytics.tierBreakdown.find((t) => t.tier === 3)?.capacity || 1),
+        (globalAnalytics.tierBreakdown.find((t) => t.tier === 3)?.capacity ||
+          1),
     },
   };
 
@@ -269,7 +285,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       maxHours: ALPHA_GROUP_CONFIG.inviteDecayMaxHours,
     },
     config: {
-      inviteProbabilityMultiplier: ALPHA_GROUP_CONFIG.inviteProbabilityMultiplier,
+      inviteProbabilityMultiplier:
+        ALPHA_GROUP_CONFIG.inviteProbabilityMultiplier,
       maxInvitesPerTick: ALPHA_GROUP_CONFIG.maxInvitesPerTick,
       inviteCooldownHours: ALPHA_GROUP_CONFIG.inviteCooldownHours,
       fastTrackEnabled: ALPHA_GROUP_CONFIG.fastTrackEnabled,
@@ -285,4 +302,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     timestamp: now.toISOString(),
   });
 });
-
