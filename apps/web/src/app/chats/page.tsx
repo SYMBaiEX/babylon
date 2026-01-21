@@ -2,8 +2,8 @@
 
 import { cn } from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
-import { useMemo } from 'react';
-import { AgentChat } from '@/components/agents/AgentChat';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import {
   ChatHeader,
@@ -33,6 +33,7 @@ import { useOwnedAgents } from '@/hooks/useOwnedAgents';
 import { useSSE } from '@/hooks/useSSE';
 
 export default function ChatsPage() {
+  const router = useRouter();
   useA2A();
   useChatParam();
 
@@ -41,8 +42,8 @@ export default function ChatsPage() {
     channels: ['feed'],
   });
 
-  // Get owned agents for detecting if chatting with own agent
-  const { getAgentData, updateAgentBalance } = useOwnedAgents();
+  // Hook kept for potential future use (owned agent detection is via chatDetails)
+  useOwnedAgents();
 
   const {
     // Auth
@@ -105,20 +106,27 @@ export default function ChatsPage() {
 
     // Actions
     sendMessage,
-    loadChats,
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
-  // If so, we'll render AgentChat instead of ChatView for AI capabilities
-  const ownAgentData = useMemo(() => {
+  // If so, redirect to team chat (Command Center) instead of this DM
+  const ownAgentUsername = useMemo(() => {
     if (!chatDetails?.chat.otherUser || chatDetails.chat.isGroup) return null;
     const other = chatDetails.chat.otherUser;
     // Check if the other user is an agent managed by the current user
     if (other.isAgent && other.managedBy === user?.id) {
-      return getAgentData(other.id);
+      return other.username || other.id;
     }
     return null;
-  }, [chatDetails, user?.id, getAgentData]);
+  }, [chatDetails, user?.id]);
+
+  // Redirect owned agent DMs to team chat
+  useEffect(() => {
+    if (ownAgentUsername) {
+      const mention = `@${ownAgentUsername} `;
+      router.replace(`/agents/team?mention=${encodeURIComponent(mention)}`);
+    }
+  }, [ownAgentUsername, router]);
 
   // Auth required state
   if (ready && !authenticated) {
@@ -191,25 +199,21 @@ export default function ChatsPage() {
             )}
           />
 
-          {/* Right Column: Chat View or Agent Chat */}
+          {/* Right Column: Chat View */}
           {/* Mobile/Tablet: only shown when chat selected */}
           {/* Desktop (xl): always shown */}
+          {/* Note: Owned agent DMs redirect to team chat automatically */}
           <div
             className={cn(
               'h-full min-h-0 min-w-0 flex-1 bg-background',
               selectedChatId ? 'block' : 'hidden xl:block'
             )}
           >
-            {ownAgentData ? (
-              <AgentChat
-                agent={ownAgentData}
-                onBalanceUpdate={(newBalance) =>
-                  updateAgentBalance(ownAgentData.id, newBalance)
-                }
-                onMessageSent={loadChats}
-                showBackButton={showBackButton}
-                onBack={() => setSelectedChatId(null)}
-              />
+            {ownAgentUsername ? (
+              // Redirecting to team chat...
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
             ) : (
               <ChatView
                 chatDetails={chatDetails}
