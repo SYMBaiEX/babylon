@@ -7,12 +7,20 @@
  */
 
 import { db, eq, users } from '@babylon/db';
-import type { AuthenticatedUser } from '@babylon/shared';
+import {
+  type AuthenticatedUser,
+  isNftGatingAllowlistedPath,
+} from '@babylon/shared';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { verifyAgentSession } from './agent-auth';
-import { AuthenticationError, isAuthenticationError } from './errors';
+import {
+  AuthenticationError,
+  AuthorizationError,
+  isAuthenticationError,
+} from './errors';
+import { hasNftAccess } from './services/nft-access-service';
 
 // Re-export types from shared for backwards compatibility
 export type { AuthenticatedUser } from '@babylon/shared';
@@ -60,6 +68,13 @@ export function getPrivyClient(): PrivyClient {
 export async function authenticate(
   request: NextRequest
 ): Promise<AuthenticatedUser> {
+  const pathname = new URL(request.url).pathname;
+
+  const nftGatingFlag = process.env.NFT_GATING_ENABLED ?? '';
+  const nftGatingEnabled = ['true', '1', 'yes', 'on'].includes(
+    nftGatingFlag.toLowerCase()
+  );
+
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
@@ -161,21 +176,68 @@ export async function authenticate(
       const claims = await privy.verifyAuthToken(tokenToVerify);
 
       const dbUserResult = await db
-        .select({ id: users.id, walletAddress: users.walletAddress })
+        .select({
+          id: users.id,
+          walletAddress: users.walletAddress,
+          isAdmin: users.isAdmin,
+        })
         .from(users)
         .where(eq(users.privyId, claims.userId))
         .limit(1);
       const dbUser = dbUserResult[0];
 
-      return {
+      const authedUser: AuthenticatedUser = {
         userId: dbUser?.id ?? claims.userId,
         dbUserId: dbUser?.id,
         privyId: claims.userId,
         walletAddress: dbUser?.walletAddress ?? undefined,
         email: undefined,
+        isAdmin: dbUser?.isAdmin ?? false,
         isAgent: false,
       };
+
+      if (
+        nftGatingEnabled &&
+        !authedUser.isAgent &&
+        !authedUser.isAdmin &&
+        !isNftGatingAllowlistedPath(pathname)
+      ) {
+        if (!authedUser.dbUserId) {
+          throw new AuthorizationError('NFT access required', 'nft', 'access', {
+            pathname,
+          });
+        }
+
+        const allowed = await hasNftAccess(authedUser.dbUserId);
+        if (!allowed) {
+          throw new AuthorizationError('NFT access required', 'nft', 'access', {
+            pathname,
+          });
+        }
+      }
+
+      return authedUser;
     } catch (error) {
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message.toLowerCase() : '';
+      const isExpiredTokenError =
+        errorMessage.includes('token expired') ||
+        errorMessage.includes('exp mismatch');
+
+      if (isExpiredTokenError) {
+        // If this isn't the last token to try, continue to the next one
+        if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+          continue;
+        }
+        throw new AuthenticationError(
+          'Authentication token has expired. Please refresh your session.'
+        );
+      }
+
       lastError = error as Error;
       // If this isn't the last token to try, continue to the next one
       if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {

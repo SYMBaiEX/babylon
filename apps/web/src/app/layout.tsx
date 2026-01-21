@@ -11,7 +11,7 @@ import { Toaster } from 'sonner';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
-import { NftPromoBanner } from '@/components/nft';
+import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
 import { BottomNav } from '@/components/shared/BottomNav';
 import { MobileHeader } from '@/components/shared/MobileHeader';
@@ -96,6 +96,11 @@ export default function RootLayout({
     (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
     'true';
 
+  const nftGatingFlag = process.env.NFT_GATING_ENABLED ?? '';
+  const nftGatingEnabled = ['true', '1', 'yes', 'on'].includes(
+    nftGatingFlag.toLowerCase()
+  );
+
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">
       <body
@@ -109,6 +114,10 @@ export default function RootLayout({
           </Suspense>
 
           <WaitlistWrapper waitlistMode={waitlistMode}>
+            <Suspense fallback={null}>
+              <NftAccessGate enabled={nftGatingEnabled} />
+            </Suspense>
+
             {/* NFT Collection Promo Banner - at the very top */}
             <Suspense fallback={null}>
               <NftPromoBanner />

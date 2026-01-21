@@ -118,6 +118,12 @@ export * from './share';
 export * from './config';
 
 // =============================================================================
+// NFT utilities (client-safe)
+// =============================================================================
+
+export * from './nft';
+
+// =============================================================================
 // NOT EXPORTED (Server-only modules - import from @babylon/api):
 // =============================================================================
 // - Token counting: import { countTokens, countTokensSync } from '@babylon/api'
