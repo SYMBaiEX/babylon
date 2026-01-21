@@ -144,13 +144,30 @@ type PrivyWalletLite = {
   address?: string;
   chainType?: string;
   walletClientType?: string | null;
+  type?: string | null;
 };
 
 type PrivyUserWithSmartWallet = PrivyUser &
   PrivyUserWithEmails & {
     smartWallet?: { address?: string | null };
     wallet?: PrivyWalletLite;
+    linkedAccounts?: PrivyWalletLite[];
+    linked_accounts?: PrivyWalletLite[];
   };
+
+function pickSmartWalletAddress(user: PrivyUserWithSmartWallet): string | null {
+  const direct = user.smartWallet?.address?.toLowerCase() ?? null;
+  if (direct) return direct;
+
+  const accounts = [
+    ...(user.linkedAccounts ?? []),
+    ...(user.linked_accounts ?? []),
+  ];
+  const smartWallet = accounts.find(
+    (a) => a.type === 'smart_wallet' && typeof a.address === 'string'
+  );
+  return smartWallet?.address?.toLowerCase() ?? null;
+}
 
 function pickEmbeddedEvmWallet(
   user: PrivyUserWithSmartWallet
@@ -180,7 +197,7 @@ async function ensureSmartWalletAddress(
   embeddedWalletAddress: string | null;
 }> {
   const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
-  let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
+  let smartWalletAddress = pickSmartWalletAddress(user);
   let embeddedWallet = pickEmbeddedEvmWallet(user);
 
   if (!smartWalletAddress) {
@@ -192,7 +209,7 @@ async function ensureSmartWalletAddress(
       createEthereumWallet: true,
     })) as PrivyUserWithSmartWallet;
 
-    smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
+    smartWalletAddress = pickSmartWalletAddress(updated);
     embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
   }
 
