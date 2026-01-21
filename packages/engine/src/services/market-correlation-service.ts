@@ -14,7 +14,7 @@
  */
 
 import { db, inArray, organizationState } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { logger, type JsonValue } from '@babylon/shared';
 import {
   correlations,
   getAffectedOrgs,
@@ -79,7 +79,7 @@ export async function applyCascadeEffects(
     newPrice: number;
     source: 'event';
     reason: string;
-    metadata: Record<string, unknown>;
+    metadata: Record<string, JsonValue>;
   }> = [];
 
   const effects: CascadeResult['effects'] = [];
