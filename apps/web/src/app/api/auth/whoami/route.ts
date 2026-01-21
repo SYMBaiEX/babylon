@@ -5,7 +5,7 @@
  * @access Requires API Key (X-Babylon-Api-Key header)
  *
  * @description
- * Returns the authenticated user's basic info based on their API key.
+ * Returns the authenticated user's ID based on their API key.
  * Used by external agents/clients to discover their user ID for A2A requests.
  *
  * @openapi
@@ -14,7 +14,7 @@
  *     tags:
  *       - Authentication
  *     summary: Get current user info from API key
- *     description: Returns user ID and basic info for the authenticated API key owner. Used to get the contextId for A2A requests.
+ *     description: Returns user ID for the authenticated API key owner. Used to get the contextId for A2A requests.
  *     security:
  *       - ApiKeyAuth: []
  *     responses:
@@ -31,9 +31,7 @@
  *                 username:
  *                   type: string
  *                   nullable: true
- *                 displayName:
- *                   type: string
- *                   nullable: true
+ *                   description: Username for debugging/logging purposes
  *       401:
  *         description: Invalid or missing API key
  *       404:
@@ -41,7 +39,7 @@
  *
  * @example
  * ```bash
- * curl -H "X-Babylon-Api-Key: bab_live_..." https://babylon.market/api/auth/whoami
+ * curl -H "X-Babylon-Api-Key: YOUR_API_KEY_HERE" https://babylon.market/api/auth/whoami
  * ```
  *
  * @example
@@ -65,10 +63,13 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const apiKey = request.headers.get('x-babylon-api-key');
 
+  // Headers for auth responses - prevent caching of sensitive identity data
+  const noCacheHeaders = { 'Cache-Control': 'no-store' };
+
   if (!apiKey) {
     return NextResponse.json(
       { error: 'X-Babylon-Api-Key header is required' },
-      { status: 401 }
+      { status: 401, headers: noCacheHeaders }
     );
   }
 
@@ -78,34 +79,36 @@ export async function GET(request: NextRequest) {
   if (!result) {
     return NextResponse.json(
       { error: 'Invalid or expired API key' },
-      { status: 401 }
+      { status: 401, headers: noCacheHeaders }
     );
   }
 
-  // Fetch user details
+  // Fetch user details (minimal: only id and username for debugging)
   const [user] = await db
     .select({
       id: users.id,
       username: users.username,
-      displayName: users.displayName,
     })
     .from(users)
     .where(eq(users.id, result.userId))
     .limit(1);
 
   if (!user) {
-    logger.warn('API key valid but user not found', { userId: result.userId }, 'whoami');
+    logger.warn(
+      'API key valid but user not found',
+      { userId: result.userId },
+      'whoami'
+    );
     return NextResponse.json(
       { error: 'User not found' },
-      { status: 404 }
+      { status: 404, headers: noCacheHeaders }
     );
   }
 
-  logger.debug('Whoami request', { userId: user.id, username: user.username }, 'whoami');
+  logger.debug('Whoami request', { userId: user.id }, 'whoami');
 
-  return NextResponse.json({
-    userId: user.id,
-    username: user.username,
-    displayName: user.displayName,
-  });
+  return NextResponse.json(
+    { userId: user.id, username: user.username },
+    { headers: noCacheHeaders }
+  );
 }
