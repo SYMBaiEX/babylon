@@ -1,4 +1,8 @@
-CREATE TABLE "ActorState" (
+-- Migration made idempotent to handle partial application states
+-- All CREATE TABLE, CREATE INDEX, DROP INDEX, and ALTER TABLE statements
+-- now use IF EXISTS/IF NOT EXISTS to be safe across environments
+
+CREATE TABLE IF NOT EXISTS "ActorState" (
 	"id" text PRIMARY KEY NOT NULL,
 	"tradingBalance" numeric(18, 2) DEFAULT '10000' NOT NULL,
 	"reputationPoints" integer DEFAULT 10000 NOT NULL,
@@ -7,14 +11,14 @@ CREATE TABLE "ActorState" (
 	"updatedAt" timestamp NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "OrganizationState" (
+CREATE TABLE IF NOT EXISTS "OrganizationState" (
 	"id" text PRIMARY KEY NOT NULL,
 	"currentPrice" double precision,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "TickTokenStats" (
+CREATE TABLE IF NOT EXISTS "TickTokenStats" (
 	"id" text PRIMARY KEY NOT NULL,
 	"tickId" text NOT NULL,
 	"tickStartedAt" timestamp NOT NULL,
@@ -29,7 +33,7 @@ CREATE TABLE "TickTokenStats" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "UserAgentConfig" (
+CREATE TABLE IF NOT EXISTS "UserAgentConfig" (
 	"id" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
 	"personality" text,
@@ -64,46 +68,46 @@ CREATE TABLE "UserAgentConfig" (
 	CONSTRAINT "UserAgentConfig_userId_unique" UNIQUE("userId")
 );
 --> statement-breakpoint
-DROP INDEX "User_agentCount_idx";--> statement-breakpoint
-DROP INDEX "User_autonomousTrading_idx";--> statement-breakpoint
-DROP INDEX "User_totalAgentPnL_idx";--> statement-breakpoint
-ALTER TABLE "Notification" ADD COLUMN "chatId" text;--> statement-breakpoint
-CREATE INDEX "ActorState_hasPool_idx" ON "ActorState" USING btree ("hasPool");--> statement-breakpoint
-CREATE INDEX "ActorState_reputationPoints_idx" ON "ActorState" USING btree ("reputationPoints");--> statement-breakpoint
-CREATE INDEX "OrganizationState_currentPrice_idx" ON "OrganizationState" USING btree ("currentPrice");--> statement-breakpoint
-CREATE INDEX "TickTokenStats_tickStartedAt_idx" ON "TickTokenStats" USING btree ("tickStartedAt");--> statement-breakpoint
-CREATE INDEX "TickTokenStats_tickId_idx" ON "TickTokenStats" USING btree ("tickId");--> statement-breakpoint
-CREATE INDEX "TickTokenStats_createdAt_idx" ON "TickTokenStats" USING btree ("createdAt");--> statement-breakpoint
-CREATE INDEX "UserAgentConfig_userId_idx" ON "UserAgentConfig" USING btree ("userId");--> statement-breakpoint
-CREATE INDEX "UserAgentConfig_status_idx" ON "UserAgentConfig" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "UserAgentConfig_autonomousTrading_idx" ON "UserAgentConfig" USING btree ("autonomousTrading");--> statement-breakpoint
-CREATE INDEX "Notification_chatId_idx" ON "Notification" USING btree ("chatId");--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentCount";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "totalAgentPnL";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentErrorMessage";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentLastChatAt";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentLastTickAt";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentMessageExamples";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentModelTier";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentPersonality";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentPointsBalance";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentStatus";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentStyle";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentSystem";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentTotalDeposited";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentTotalPointsSpent";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentTotalWithdrawn";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentTradingStrategy";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "autonomousCommenting";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "autonomousDMs";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "autonomousGroupChats";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "autonomousPosting";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "autonomousTrading";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "a2aEnabled";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentGoals";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentDirectives";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentConstraints";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentPersonaPrompt";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentPlanningHorizon";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentRiskTolerance";--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN "agentMaxActionsPerTick";
+DROP INDEX IF EXISTS "User_agentCount_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "User_autonomousTrading_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "User_totalAgentPnL_idx";--> statement-breakpoint
+ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "chatId" text;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ActorState_hasPool_idx" ON "ActorState" USING btree ("hasPool");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ActorState_reputationPoints_idx" ON "ActorState" USING btree ("reputationPoints");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "OrganizationState_currentPrice_idx" ON "OrganizationState" USING btree ("currentPrice");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "TickTokenStats_tickStartedAt_idx" ON "TickTokenStats" USING btree ("tickStartedAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "TickTokenStats_tickId_idx" ON "TickTokenStats" USING btree ("tickId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "TickTokenStats_createdAt_idx" ON "TickTokenStats" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "UserAgentConfig_userId_idx" ON "UserAgentConfig" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "UserAgentConfig_status_idx" ON "UserAgentConfig" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "UserAgentConfig_autonomousTrading_idx" ON "UserAgentConfig" USING btree ("autonomousTrading");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Notification_chatId_idx" ON "Notification" USING btree ("chatId");--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentCount";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "totalAgentPnL";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentErrorMessage";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentLastChatAt";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentLastTickAt";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentMessageExamples";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentModelTier";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentPersonality";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentPointsBalance";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentStatus";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentStyle";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentSystem";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentTotalDeposited";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentTotalPointsSpent";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentTotalWithdrawn";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentTradingStrategy";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "autonomousCommenting";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "autonomousDMs";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "autonomousGroupChats";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "autonomousPosting";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "autonomousTrading";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "a2aEnabled";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentGoals";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentDirectives";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentConstraints";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentPersonaPrompt";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentPlanningHorizon";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentRiskTolerance";--> statement-breakpoint
+ALTER TABLE "User" DROP COLUMN IF EXISTS "agentMaxActionsPerTick";

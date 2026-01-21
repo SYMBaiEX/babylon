@@ -37,4 +37,13 @@ export const data = {
   originalHandle: 'michaelsaylor',
   firstName: 'Michael',
   lastName: 'SAIlor',
+  // Bitcoin maximalist - moderate trading focus
+  tierOverrides: {
+    minEngagementScoreMultiplier: 1.1, // 10% harder
+    inviteProbabilityMultiplier: 0.9,
+    focusWeights: {
+      social: 0.4,
+      trading: 0.6, // Trading focus but also values engagement
+    },
+  },
 } as const satisfies ActorData;
