@@ -29,8 +29,7 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
     prediction.noShares
   );
   const daysLeft = getDaysLeft(prediction.resolutionDate);
-  const hasPosition =
-    prediction.userPosition !== null && prediction.userPosition !== undefined;
+  const position = prediction.userPosition;
 
   return (
     <button
@@ -38,7 +37,7 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
       onClick={() => onClick(prediction)}
       className={cn(
         'w-full cursor-pointer rounded p-3 text-left transition-all',
-        hasPosition
+        position
           ? 'bg-[#0066FF]/5 hover:bg-[#0066FF]/20'
           : 'bg-muted/30 hover:bg-muted'
       )}
@@ -72,37 +71,34 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
             </div>
           </div>
           <div className="flex gap-2">
-            <div className="font-medium text-green-600">
+            <span className="font-medium text-green-600">
               {yesPercent.toFixed(1)}% YES
-            </div>
-            <div className="font-medium text-red-600">
+            </span>
+            <span className="font-medium text-red-600">
               {noPercent.toFixed(1)}% NO
-            </div>
+            </span>
           </div>
         </div>
-        {hasPosition && prediction.userPosition && (
+        {position && (
           <div className="flex items-center gap-2 text-xs">
             <span
               className={cn(
                 'rounded px-2 py-0.5 font-medium',
-                prediction.userPosition.side === 'YES'
+                position.side === 'YES'
                   ? 'bg-green-600/20 text-green-600'
                   : 'bg-red-600/20 text-red-600'
               )}
             >
-              {prediction.userPosition.side}{' '}
-              {prediction.userPosition.shares.toFixed(2)}
+              {position.side} {position.shares.toFixed(2)}
             </span>
             <span
               className={cn(
                 'font-medium',
-                prediction.userPosition.unrealizedPnL >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
+                position.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
               )}
             >
-              {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}
-              {formatCurrency(prediction.userPosition.unrealizedPnL, {
+              {position.unrealizedPnL >= 0 ? '+' : ''}
+              {formatCurrency(position.unrealizedPnL, {
                 useThousandsSeparator: true,
               })}
             </span>

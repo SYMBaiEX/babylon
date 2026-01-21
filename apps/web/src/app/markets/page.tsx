@@ -193,7 +193,6 @@ export default function MarketsPage() {
             onLogin={data.login}
             portfolioPnL={data.portfolioPnL}
             portfolioLoading={data.portfolioLoading}
-            portfolioError={data.portfolioError}
             onShowPnLShare={handleShowPnLShare}
             onShowBuyPoints={handleShowBuyPoints}
             perpPositions={data.perpPositions}
