@@ -112,8 +112,8 @@ export async function applyCascadeEffects(
         relationship: affected.relationship,
         originalEffect: priceChangePercent,
         cascadeEffect,
-        eventSource,
-      },
+        eventSource: eventSource ?? null,
+      } as Record<string, string | number | boolean | null>,
     });
 
     effects.push({

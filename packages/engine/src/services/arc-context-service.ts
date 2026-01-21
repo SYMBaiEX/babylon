@@ -6,9 +6,14 @@
  * than those in "setup" phase.
  */
 
-import { arcStates, eq, inArray, questions } from '@babylon/db';
+import {
+  arcStates,
+  db,
+  inArray,
+  type LongTermArcState,
+  questions,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { type LongTermArcState } from './narrative-event-processor';
 import { StaticDataRegistry } from './static-data-registry';
 
 export interface ArcContext {
