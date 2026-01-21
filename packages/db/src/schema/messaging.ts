@@ -441,3 +441,13 @@ export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
 export type MessageType = 'user' | 'system';
 // TierLevel is exported from @babylon/shared - use that canonical definition
+
+// Alpha group enhancement types (for grandfathering and invite decay)
+export type GroupMemberGrandfatherFields = Pick<
+  GroupMember,
+  'isGrandfathered' | 'grandfatheredAt'
+>;
+export type GroupInviteDecayFields = Pick<
+  GroupInvite,
+  'declineCount' | 'lastDeclinedAt' | 'nextEligibleAt'
+>;

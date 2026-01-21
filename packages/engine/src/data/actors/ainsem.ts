@@ -35,4 +35,13 @@ export const data = {
   originalHandle: 'ansem',
   firstName: 'AInsem',
   lastName: '',
+  // Trading-focused KOL - prioritize trading activity for group invites
+  tierOverrides: {
+    minEngagementScoreMultiplier: 1.2, // 20% harder to join (premium groups)
+    inviteProbabilityMultiplier: 0.8, // Slightly more selective
+    focusWeights: {
+      social: 0.3,
+      trading: 0.7, // Heavy trading focus
+    },
+  },
 } as const satisfies ActorData;

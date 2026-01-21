@@ -37,4 +37,13 @@ export const data = {
   originalHandle: 'lexfridman',
   firstName: 'Lex',
   lastName: 'FridmAIn',
+  // Social/intellectual focused - values thoughtful engagement
+  tierOverrides: {
+    minEngagementScoreMultiplier: 1.0, // Standard thresholds
+    inviteProbabilityMultiplier: 1.0, // Standard probability
+    focusWeights: {
+      social: 0.8,
+      trading: 0.2, // Tech-focused, not trading
+    },
+  },
 } as const satisfies ActorData;

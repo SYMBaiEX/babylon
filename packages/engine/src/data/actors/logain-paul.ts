@@ -35,4 +35,13 @@ export const data = {
   originalHandle: 'loganpaul',
   firstName: 'LogAIn',
   lastName: 'Paul',
+  // Entertainment/influencer focused - easy to join
+  tierOverrides: {
+    minEngagementScoreMultiplier: 0.85,
+    inviteProbabilityMultiplier: 1.2,
+    focusWeights: {
+      social: 0.85,
+      trading: 0.15,
+    },
+  },
 } as const satisfies ActorData;

@@ -37,4 +37,13 @@ export const data = {
   hasPool: false,
   firstName: 'Joe',
   lastName: 'RogAIn',
+  // Social/entertainment focused - very easy to join, social engagement matters
+  tierOverrides: {
+    minEngagementScoreMultiplier: 0.8, // 20% easier to join
+    inviteProbabilityMultiplier: 1.3, // More likely to invite fans
+    focusWeights: {
+      social: 0.9,
+      trading: 0.1, // Minimal trading focus
+    },
+  },
 } as const satisfies ActorData;
