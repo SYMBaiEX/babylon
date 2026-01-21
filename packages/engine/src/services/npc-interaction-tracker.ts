@@ -303,7 +303,13 @@ export class NPCInteractionTracker {
       winRate: 0,
     };
 
-    if (ALPHA_GROUP_CONFIG.includeTradingActivity) {
+    // Fetch trading stats if either:
+    // 1. Trading activity is included in engagement score, OR
+    // 2. Fast-track is enabled (fast-track requires trading stats even if not in score)
+    if (
+      ALPHA_GROUP_CONFIG.includeTradingActivity ||
+      ALPHA_GROUP_CONFIG.fastTrackEnabled
+    ) {
       tradingStats = await this.getUserTradingStats(userId, {
         startDate,
         endDate,
@@ -326,26 +332,43 @@ export class NPCInteractionTracker {
       (rawSocialScore / ALPHA_GROUP_CONFIG.maxExpectedSocialScore) * 100
     );
 
-    // Calculate raw trading score
-    const tradeScore =
-      tradingStats.totalTrades * ALPHA_GROUP_CONFIG.tradeWeight;
-    const profitBonus =
-      tradingStats.profitableTrades * ALPHA_GROUP_CONFIG.profitableTradeBonus;
-    const rawTradingScore = tradeScore + profitBonus;
+    // Calculate raw trading score (only used in engagement if includeTradingActivity=true)
+    // Note: tradingStats are still fetched if fastTrackEnabled for fast-track eligibility
+    let tradingScore = 0;
+    if (ALPHA_GROUP_CONFIG.includeTradingActivity) {
+      const tradeScore =
+        tradingStats.totalTrades * ALPHA_GROUP_CONFIG.tradeWeight;
+      const profitBonus =
+        tradingStats.profitableTrades * ALPHA_GROUP_CONFIG.profitableTradeBonus;
+      const rawTradingScore = tradeScore + profitBonus;
 
-    // Normalize trading score to 0-100
-    const tradingScore = Math.min(
-      100,
-      (rawTradingScore / ALPHA_GROUP_CONFIG.maxExpectedTradingScore) * 100
-    );
+      // Normalize trading score to 0-100
+      tradingScore = Math.min(
+        100,
+        (rawTradingScore / ALPHA_GROUP_CONFIG.maxExpectedTradingScore) * 100
+      );
+    }
 
     // Apply focus weights (use provided or default)
+    // When trading is disabled, trading weight effectively becomes 0
     const weights = focusWeights || {
       social: ALPHA_GROUP_CONFIG.defaultSocialWeight,
-      trading: ALPHA_GROUP_CONFIG.defaultTradingWeight,
+      trading: ALPHA_GROUP_CONFIG.includeTradingActivity
+        ? ALPHA_GROUP_CONFIG.defaultTradingWeight
+        : 0,
     };
+    // Normalize weights to ensure they sum to 1 (when one is zero, use only the other)
+    const totalWeight = weights.social + weights.trading;
+    const normalizedWeights =
+      totalWeight > 0
+        ? {
+            social: weights.social / totalWeight,
+            trading: weights.trading / totalWeight,
+          }
+        : { social: 1, trading: 0 };
     const weightedScore =
-      socialScore * weights.social + tradingScore * weights.trading;
+      socialScore * normalizedWeights.social +
+      tradingScore * normalizedWeights.trading;
 
     // Apply quality multiplier for high-quality replies
     const qualityMultiplier =

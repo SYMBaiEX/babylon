@@ -101,7 +101,12 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
+
+      // Response has nested structure: { success, data: { config, tierConfig, ... } }
+      expect(response).toHaveProperty('success', true);
+      expect(response).toHaveProperty('data');
+      const data = response.data;
 
       // Verify structure of config response
       expect(data).toHaveProperty('config');
@@ -114,16 +119,16 @@ describe('Alpha Group Admin API Integration', () => {
       expect(data.config).toHaveProperty('inviteDecayEnabled');
       expect(data.config).toHaveProperty('grandfatheringEnabled');
 
-      // Verify tiers structure
-      expect(data).toHaveProperty('tiers');
-      expect(data.tiers).toHaveProperty('1');
-      expect(data.tiers).toHaveProperty('2');
-      expect(data.tiers).toHaveProperty('3');
+      // Verify tierConfig structure (API returns 'tierConfig', not 'tiers')
+      expect(data).toHaveProperty('tierConfig');
+      expect(data.tierConfig).toHaveProperty('1');
+      expect(data.tierConfig).toHaveProperty('2');
+      expect(data.tierConfig).toHaveProperty('3');
 
       // Verify tier config has expected fields
-      expect(data.tiers[3]).toHaveProperty('minEngagementScore');
-      expect(data.tiers[3]).toHaveProperty('inviteProbability');
-      expect(data.tiers[3]).toHaveProperty('maxMembers');
+      expect(data.tierConfig[3]).toHaveProperty('minEngagementScore');
+      expect(data.tierConfig[3]).toHaveProperty('inviteProbability');
+      expect(data.tierConfig[3]).toHaveProperty('maxMembers');
 
       console.log('✓ Alpha group config endpoint returns valid data');
     });
@@ -136,7 +141,8 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
+      const data = response.data;
 
       // Verify lowered thresholds
       expect(data.config.minReplies).toBe(1);
@@ -144,9 +150,9 @@ describe('Alpha Group Admin API Integration', () => {
       expect(data.config.minTotalInteractions).toBe(5);
 
       // Verify tier 3 has the new lower engagement score
-      expect(data.tiers[3].minEngagementScore).toBe(20);
+      expect(data.tierConfig[3].minEngagementScore).toBe(20);
       // Verify tier 3 has 10% invite probability
-      expect(data.tiers[3].inviteProbability).toBe(0.1);
+      expect(data.tierConfig[3].inviteProbability).toBe(0.1);
     });
   });
 
@@ -244,28 +250,35 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
+
+      // Response has nested structure: { success, data: { overview, invites, ... } }
+      expect(response).toHaveProperty('success', true);
+      expect(response).toHaveProperty('data');
+      const data = response.data;
 
       // Verify structure of stats response
-      expect(data).toHaveProperty('totalGroups');
-      expect(data).toHaveProperty('totalInvites');
-      expect(data).toHaveProperty('invitesLast24h');
-      expect(data).toHaveProperty('totalMembers');
-      expect(data).toHaveProperty('tierDistribution');
-      expect(data).toHaveProperty('pendingInvites');
+      expect(data).toHaveProperty('overview');
+      expect(data.overview).toHaveProperty('totalGroups');
+      expect(data.overview).toHaveProperty('totalMembers');
+      expect(data).toHaveProperty('invites');
+      expect(data.invites).toHaveProperty('total');
+      expect(data.invites).toHaveProperty('last24h');
+      expect(data.invites).toHaveProperty('pending');
+      expect(data).toHaveProperty('tiers');
 
       // Verify types
-      expect(typeof data.totalGroups).toBe('number');
-      expect(typeof data.totalInvites).toBe('number');
-      expect(typeof data.totalMembers).toBe('number');
-      expect(data.totalGroups).toBeGreaterThanOrEqual(0);
+      expect(typeof data.overview.totalGroups).toBe('number');
+      expect(typeof data.invites.total).toBe('number');
+      expect(typeof data.overview.totalMembers).toBe('number');
+      expect(data.overview.totalGroups).toBeGreaterThanOrEqual(0);
 
-      // Verify tier distribution is an object
-      expect(typeof data.tierDistribution).toBe('object');
+      // Verify tiers is an object
+      expect(typeof data.tiers).toBe('object');
 
       console.log('✓ Alpha group stats endpoint returns valid data');
       console.log(
-        `  Total groups: ${data.totalGroups}, Members: ${data.totalMembers}, Pending: ${data.pendingInvites}`
+        `  Total groups: ${data.overview.totalGroups}, Members: ${data.overview.totalMembers}, Pending: ${data.invites.pending}`
       );
     });
 
@@ -277,11 +290,13 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
+      const data = response.data;
 
       // Verify grandfathering stats are included
-      expect(data).toHaveProperty('grandfatheredMembers');
-      expect(typeof data.grandfatheredMembers).toBe('number');
+      expect(data).toHaveProperty('grandfathering');
+      expect(data.grandfathering).toHaveProperty('grandfatheredMembers');
+      expect(typeof data.grandfathering.grandfatheredMembers).toBe('number');
     });
 
     test('should include invite decay stats', async () => {
@@ -292,12 +307,14 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
+      const data = response.data;
 
       // Verify invite decay stats are included
-      expect(data).toHaveProperty('usersWithDeclines');
-      expect(data).toHaveProperty('avgDeclineCount');
-      expect(typeof data.usersWithDeclines).toBe('number');
+      expect(data).toHaveProperty('inviteDecay');
+      expect(data.inviteDecay).toHaveProperty('usersWithDeclines');
+      expect(data.inviteDecay).toHaveProperty('usersAtMaxDeclines');
+      expect(typeof data.inviteDecay.usersWithDeclines).toBe('number');
     });
   });
 
@@ -343,10 +360,10 @@ describe('Alpha Group Admin API Integration', () => {
       );
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const response = await res.json();
 
       // Should not expose user IDs, API keys, or other sensitive data
-      const jsonString = JSON.stringify(data);
+      const jsonString = JSON.stringify(response);
       expect(jsonString).not.toContain('password');
       expect(jsonString).not.toContain('apiKey');
       expect(jsonString).not.toContain('secretKey');
