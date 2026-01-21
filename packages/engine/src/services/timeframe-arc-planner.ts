@@ -23,6 +23,7 @@
 import { logger } from '@babylon/shared';
 import type { Actor, Organization } from '../types';
 import { shuffleArray } from '../utils/randomization';
+import type { RngFunction } from './narrative-state-service';
 
 /**
  * Timeframe categories for arc planning
@@ -251,15 +252,20 @@ export class TimeframeArcPlanner {
 
   /**
    * Get the expected signal direction for the current phase
+   *
+   * @param phase - Current phase name
+   * @param arcPlan - The arc plan for the question
+   * @param rng - Optional random number generator for reproducibility (defaults to Math.random)
    */
   getSignalDirection(
     phase: string,
-    arcPlan: TimeframeArcPlan
+    arcPlan: TimeframeArcPlan,
+    rng: RngFunction = Math.random
   ): 'correct' | 'wrong' | 'ambiguous' {
     const phaseConfig = arcPlan.phases[phase];
     if (!phaseConfig) return 'ambiguous';
 
-    const rand = Math.random();
+    const rand = rng();
 
     if (rand < phaseConfig.correctSignalRatio) {
       return 'correct';
@@ -270,13 +276,21 @@ export class TimeframeArcPlanner {
 
   /**
    * Get the clue strength for the current phase
+   *
+   * @param phase - Current phase name
+   * @param arcPlan - The arc plan for the question
+   * @param rng - Optional random number generator for reproducibility (defaults to Math.random)
    */
-  getClueStrength(phase: string, arcPlan: TimeframeArcPlan): number {
+  getClueStrength(
+    phase: string,
+    arcPlan: TimeframeArcPlan,
+    rng: RngFunction = Math.random
+  ): number {
     const phaseConfig = arcPlan.phases[phase];
     if (!phaseConfig) return 0.5;
 
     const [min, max] = phaseConfig.clueStrength;
-    return min + Math.random() * (max - min);
+    return min + rng() * (max - min);
   }
 
   /**

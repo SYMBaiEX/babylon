@@ -134,6 +134,8 @@ export class StaticDataRegistry {
   private static actorsByTier: Map<ActorTier | 'NONE', StaticActor[]> | null =
     null;
   private static actorsByDomain: Map<string, StaticActor[]> | null = null;
+  private static actorsByAffiliation: Map<string, StaticActor[]> | null = null;
+  private static orgByTicker: Map<string, StaticOrganization> | null = null;
 
   // ==========================================================================
   // INITIALIZATION
@@ -515,6 +517,72 @@ export class StaticDataRegistry {
     return this.orgList?.filter((o) => o.type === type) ?? [];
   }
 
+  /**
+   * Get organization by stock ticker - NO DATABASE CALL
+   * Lazy-builds the ticker index on first call.
+   */
+  static getOrganizationByTicker(ticker: string): StaticOrganization | null {
+    this.initialize();
+    if (!this.orgByTicker) {
+      this.orgByTicker = new Map();
+      for (const org of this.orgList ?? []) {
+        if (org.ticker) {
+          this.orgByTicker.set(org.ticker.toUpperCase(), org);
+        }
+      }
+    }
+    return this.orgByTicker.get(ticker.toUpperCase()) ?? null;
+  }
+
+  // ==========================================================================
+  // AFFILIATION ACCESSORS
+  // ==========================================================================
+
+  /**
+   * Get all actors affiliated with a specific organization - NO DATABASE CALL
+   * Lazy-builds the affiliation index on first call.
+   */
+  static getActorsByAffiliation(orgId: string): StaticActor[] {
+    this.initialize();
+    if (!this.actorsByAffiliation) {
+      this.actorsByAffiliation = new Map();
+      for (const actor of this.actorList ?? []) {
+        for (const affId of actor.affiliations) {
+          const existing = this.actorsByAffiliation.get(affId) ?? [];
+          existing.push(actor);
+          this.actorsByAffiliation.set(affId, existing);
+        }
+      }
+    }
+    return [...(this.actorsByAffiliation.get(orgId) ?? [])];
+  }
+
+  /**
+   * Get all organization IDs an actor is affiliated with - NO DATABASE CALL
+   */
+  static getActorAffiliations(actorId: string): string[] {
+    const actor = this.getActor(actorId);
+    return actor?.affiliations ?? [];
+  }
+
+  /**
+   * Get actors affiliated with any of the given organizations - NO DATABASE CALL
+   */
+  static getActorsByAffiliations(orgIds: string[]): StaticActor[] {
+    this.initialize();
+    const seen = new Set<string>();
+    const result: StaticActor[] = [];
+    for (const orgId of orgIds) {
+      for (const actor of this.getActorsByAffiliation(orgId)) {
+        if (!seen.has(actor.id)) {
+          seen.add(actor.id);
+          result.push(actor);
+        }
+      }
+    }
+    return result;
+  }
+
   // ==========================================================================
   // CHARACTER MAPPING ACCESSORS
   // ==========================================================================
@@ -588,6 +656,8 @@ export class StaticDataRegistry {
     this.orgMappings = null;
     this.actorsByTier = null;
     this.actorsByDomain = null;
+    this.actorsByAffiliation = null;
+    this.orgByTicker = null;
   }
 
   /**

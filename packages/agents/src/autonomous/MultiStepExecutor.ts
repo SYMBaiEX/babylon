@@ -14,7 +14,7 @@ import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getNpcGameContext } from '../plugins/babylon/providers/npc-game-context';
 import { agentService } from '../services/AgentService';
-import { getAgentConfig } from '../shared/agent-config';
+import { getAgentConfig, getAutonomousFeatures } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import {
   executeDirectComment,
@@ -122,6 +122,7 @@ export class MultiStepExecutor {
       config?.systemPrompt ?? 'You are an autonomous trading agent on Babylon.';
 
     // Determine enabled features - NPCs have all features enabled by default
+    // For USER_CONTROLLED agents: trading defaults to true, others default to false
     const enabledFeatures: string[] = [];
     if (isNpc) {
       enabledFeatures.push(
@@ -133,15 +134,14 @@ export class MultiStepExecutor {
         Features.GROUP_CHATS
       );
     } else {
-      if (config?.autonomousTrading) enabledFeatures.push(Features.TRADING);
-      if (config?.autonomousPosting) enabledFeatures.push(Features.POSTING);
-      if (config?.autonomousCommenting)
-        enabledFeatures.push(Features.COMMENTING);
+      const features = getAutonomousFeatures(config);
+      if (features.trading) enabledFeatures.push(Features.TRADING);
+      if (features.posting) enabledFeatures.push(Features.POSTING);
+      if (features.commenting) enabledFeatures.push(Features.COMMENTING);
       // User-controlled agents can also engage if they can comment
-      if (config?.autonomousCommenting) enabledFeatures.push(Features.ENGAGING);
-      if (config?.autonomousDMs) enabledFeatures.push(Features.DMS);
-      if (config?.autonomousGroupChats)
-        enabledFeatures.push(Features.GROUP_CHATS);
+      if (features.commenting) enabledFeatures.push(Features.ENGAGING);
+      if (features.dms) enabledFeatures.push(Features.DMS);
+      if (features.groupChats) enabledFeatures.push(Features.GROUP_CHATS);
     }
 
     // Get NPC game context ONCE before loop (arc awareness, world events)

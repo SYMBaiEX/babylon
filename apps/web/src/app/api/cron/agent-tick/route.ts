@@ -57,6 +57,8 @@ import {
   agentRuntimeManager,
   agentService,
   autonomousCoordinator,
+  getAutonomousFeatures,
+  hasAnyAutonomousFeature,
   releaseAgentLock,
 } from '@babylon/agents';
 import {
@@ -304,15 +306,7 @@ export async function POST(_req: NextRequest) {
         TICK_POINTS_COST <= 0 ||
         Number(user.virtualBalance ?? 0) >= TICK_POINTS_COST;
 
-      if (
-        user.isAgent &&
-        hasEnoughBalance &&
-        (config?.autonomousTrading ||
-          config?.autonomousPosting ||
-          config?.autonomousCommenting ||
-          config?.autonomousDMs ||
-          config?.autonomousGroupChats)
-      ) {
+      if (user.isAgent && hasEnoughBalance && hasAnyAutonomousFeature(config)) {
         eligibleAgents.push({
           agentId: agent.agentId,
           type: agent.type,
@@ -421,18 +415,13 @@ export async function POST(_req: NextRequest) {
         );
 
         // Determine enabled features from agent config
+        const features = getAutonomousFeatures(eligibleAgent.config);
         const enabledFeatures: string[] = [];
-        if (eligibleAgent.config) {
-          if (eligibleAgent.config.autonomousTrading)
-            enabledFeatures.push('trading');
-          if (eligibleAgent.config.autonomousPosting)
-            enabledFeatures.push('posting');
-          if (eligibleAgent.config.autonomousCommenting)
-            enabledFeatures.push('commenting');
-          if (eligibleAgent.config.autonomousDMs) enabledFeatures.push('DMs');
-          if (eligibleAgent.config.autonomousGroupChats)
-            enabledFeatures.push('group chats');
-        }
+        if (features.trading) enabledFeatures.push('trading');
+        if (features.posting) enabledFeatures.push('posting');
+        if (features.commenting) enabledFeatures.push('commenting');
+        if (features.dms) enabledFeatures.push('DMs');
+        if (features.groupChats) enabledFeatures.push('group chats');
 
         // Always record trajectories for RL training data collection
         // For USER_CONTROLLED agents, pass user.id (userId for User table lookup)
@@ -584,16 +573,8 @@ export async function POST(_req: NextRequest) {
 
     // Validation: Warn if no actions were executed
     if (totalActionsExecuted === 0 && results.length > 0) {
-      // Count agents with autonomous features enabled
-      const agentsWithFeatures = eligibleAgents.filter((a) => {
-        return (
-          a.config?.autonomousTrading ||
-          a.config?.autonomousPosting ||
-          a.config?.autonomousCommenting ||
-          a.config?.autonomousDMs ||
-          a.config?.autonomousGroupChats
-        );
-      }).length;
+      // All eligible agents have at least one autonomous feature (pre-filtered during eligibility check)
+      const agentsWithFeatures = eligibleAgents.length;
 
       logger.warn(
         'Agent tick completed but no actions were executed',
