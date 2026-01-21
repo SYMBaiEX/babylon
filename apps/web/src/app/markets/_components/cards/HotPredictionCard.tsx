@@ -1,6 +1,5 @@
 'use client';
 
-import { Clock } from 'lucide-react';
 import { memo } from 'react';
 import type { PredictionMarket } from '@/types/markets';
 import { calculateSharePercentages, getDaysLeft } from '../../_lib/formatters';
@@ -13,6 +12,7 @@ interface HotPredictionCardProps {
 /**
  * Card component for displaying a hot/trending prediction market.
  * Memoized for performance as prediction data changes infrequently.
+ * Uses text-only format for time remaining (e.g., "4d left") without icons.
  */
 export const HotPredictionCard = memo(function HotPredictionCard({
   prediction,
@@ -52,10 +52,7 @@ export const HotPredictionCard = memo(function HotPredictionCard({
           </span>
         </div>
         {daysLeft !== null && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {daysLeft}d
-          </div>
+          <span className="text-muted-foreground">{daysLeft}d left</span>
         )}
       </div>
     </button>

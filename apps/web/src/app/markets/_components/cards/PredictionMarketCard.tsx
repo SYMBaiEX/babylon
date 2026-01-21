@@ -5,7 +5,7 @@ import {
   formatCurrency,
   formatNumberWithSeparators,
 } from '@babylon/shared';
-import { ArrowUpDown, Clock } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 import { memo } from 'react';
 import type { PredictionMarketWithPosition } from '@/types/markets';
 import { calculateSharePercentages, getDaysLeft } from '../../_lib/formatters';
@@ -18,6 +18,7 @@ interface PredictionMarketCardProps {
 /**
  * Card component for displaying an active prediction market.
  * Shows question, probabilities, time remaining, and user position if any.
+ * Uses text-only format for time remaining (e.g., "4d left") without icons.
  */
 export const PredictionMarketCard = memo(function PredictionMarketCard({
   prediction,
@@ -64,10 +65,7 @@ export const PredictionMarketCard = memo(function PredictionMarketCard({
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3 text-xs">
           <div className="flex gap-3 text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
-            </div>
+            <span>{daysLeft !== null ? `${daysLeft}d left` : 'Soon'}</span>
             <div className="flex items-center gap-1">
               <ArrowUpDown className="h-3 w-3" />
               {totalShares > 0 ? formatNumberWithSeparators(totalShares) : '0'}

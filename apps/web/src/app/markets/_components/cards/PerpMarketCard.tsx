@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { TrendingDown, TrendingUp } from 'lucide-react';
 import { memo } from 'react';
 import type { PerpMarket } from '@/types/markets';
 import { formatPrice, formatVolume } from '../../_lib/formatters';
@@ -14,6 +13,7 @@ interface PerpMarketCardProps {
 /**
  * Card component for displaying a perpetual market in the list view.
  * Shows price, 24h change, volume, open interest, and funding rate.
+ * Uses color coding (green/red) and +/- signs for direction instead of icons.
  */
 export const PerpMarketCard = memo(function PerpMarketCard({
   market,
@@ -36,15 +36,10 @@ export const PerpMarketCard = memo(function PerpMarketCard({
           <div className="font-bold">{formatPrice(market.currentPrice)}</div>
           <div
             className={cn(
-              'flex items-center justify-end gap-1 font-medium text-xs',
+              'font-medium text-xs',
               isPositive ? 'text-green-600' : 'text-red-600'
             )}
           >
-            {isPositive ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
             {isPositive ? '+' : ''}
             {market.changePercent24h.toFixed(2)}%
           </div>

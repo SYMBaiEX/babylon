@@ -41,15 +41,6 @@ const BuyPointsModal = dynamic(
   { ssr: false }
 );
 
-// Lazy load sidebar - only needed on desktop
-const MarketsWidgetSidebar = dynamic(
-  () =>
-    import('@/components/markets/MarketsWidgetSidebar').then((m) => ({
-      default: m.MarketsWidgetSidebar,
-    })),
-  { ssr: false }
-);
-
 /**
  * Valid tab values from URL params.
  */
@@ -266,6 +257,9 @@ export default function MarketsPage() {
               <MarketsToggle
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
+                balance={data.portfolioPnL?.availableBalance}
+                authenticated={data.authenticated}
+                loading={data.portfolioLoading}
               />
             </div>
             {activeTab !== 'dashboard' && (
@@ -293,16 +287,6 @@ export default function MarketsPage() {
             <LoginPrompt onLogin={data.login} />
           )}
         </div>
-
-        {/* Widget Sidebar */}
-        <MarketsWidgetSidebar
-          onMarketClick={(market) => {
-            router.push(`/markets/perps/${market.ticker}?from=dashboard`);
-          }}
-          onPredictionClick={(marketId) => {
-            router.push(`/markets/predictions/${marketId}?from=dashboard`);
-          }}
-        />
       </div>
 
       {/* Mobile/Tablet Layout */}
@@ -313,6 +297,9 @@ export default function MarketsPage() {
             <MarketsToggle
               activeTab={activeTab}
               onTabChange={handleTabChange}
+              balance={data.portfolioPnL?.availableBalance}
+              authenticated={data.authenticated}
+              loading={data.portfolioLoading}
             />
           </div>
           {activeTab !== 'dashboard' && (
