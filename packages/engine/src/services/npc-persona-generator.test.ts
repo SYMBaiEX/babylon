@@ -59,9 +59,27 @@ const mockActors: Actor[] = [
 
 // Mock organizations
 const mockOrganizations: Organization[] = [
-  { id: 'openagi', name: 'OpenAGI', description: 'AI research lab', type: 'company', canBeInvolved: true },
-  { id: 'aitropic', name: 'AItropic', description: 'AI safety company', type: 'company', canBeInvolved: true },
-  { id: 'deepmaind', name: 'DeepMaind', description: 'AI research division', type: 'company', canBeInvolved: true },
+  {
+    id: 'openagi',
+    name: 'OpenAGI',
+    description: 'AI research lab',
+    type: 'company',
+    canBeInvolved: true,
+  },
+  {
+    id: 'aitropic',
+    name: 'AItropic',
+    description: 'AI safety company',
+    type: 'company',
+    canBeInvolved: true,
+  },
+  {
+    id: 'deepmaind',
+    name: 'DeepMaind',
+    description: 'AI research division',
+    type: 'company',
+    canBeInvolved: true,
+  },
 ];
 
 describe('NPCPersonaGenerator', () => {
