@@ -265,6 +265,7 @@ export class AgentRuntimeManager {
     // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
       isReady: async () => true, // Required by composeState
       log: async (_params: {
         body: { [key: string]: JsonValue };
@@ -585,6 +586,7 @@ export class AgentRuntimeManager {
     // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
       isReady: async () => true, // Required by composeState
       log: async (_params: {
         body: { [key: string]: JsonValue };
