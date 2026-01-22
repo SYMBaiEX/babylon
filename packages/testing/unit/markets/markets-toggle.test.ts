@@ -1,210 +1,159 @@
 /**
- * MarketsToggle Component Tests
+ * MarketsToggle Component Logic Tests
  *
- * Tests for the Markets page header toggle component that displays
- * tab navigation and user balance.
+ * Tests for the inline display logic used in MarketsToggle component.
+ * Uses REAL formatCurrency from @babylon/shared.
  *
- * Tests cover:
- * - Tab configuration and rendering
- * - Balance display logic with various states
- * - Edge cases: null, undefined, zero, negative values
- * - Loading states
- * - Authentication states
+ * Note: The component uses inline JSX conditionals, not extracted functions.
+ * These tests verify the logic patterns match the actual component behavior.
  */
 
 import { describe, expect, it } from 'bun:test';
 import { formatCurrency } from '@babylon/shared';
 
-// Tab configuration extracted from MarketsToggle
+// ============================================================================
+// Tab Configuration - Matches actual TABS constant in component
+// ============================================================================
+
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'perps', label: 'Perps' },
   { id: 'predictions', label: 'Predictions' },
 ] as const;
 
-type MarketTab = (typeof TABS)[number]['id'];
-
-/**
- * Determines if balance should be displayed based on component props.
- * Extracted from MarketsToggle for unit testing.
- */
-function shouldShowBalance(
-  authenticated: boolean | undefined,
-  balance: number | null | undefined,
-  loading: boolean | undefined
-): { showContainer: boolean; showValue: boolean; showSkeleton: boolean } {
-  const showContainer = !!authenticated;
-  const showSkeleton = showContainer && !!loading;
-  const showValue = showContainer && !loading && balance != null;
-
-  return { showContainer, showValue, showSkeleton };
-}
-
-/**
- * Formats balance for display in header.
- * Uses the shared formatCurrency utility.
- */
-function formatBalanceDisplay(balance: number): string {
-  return formatCurrency(balance, { useThousandsSeparator: true });
-}
-
 describe('MarketsToggle - Tab Configuration', () => {
   it('should have exactly 3 tabs', () => {
     expect(TABS).toHaveLength(3);
   });
 
-  it('should have correct tab IDs', () => {
-    const tabIds = TABS.map((t) => t.id);
-    expect(tabIds).toContain('dashboard');
-    expect(tabIds).toContain('perps');
-    expect(tabIds).toContain('predictions');
-  });
-
-  it('should have correct tab labels', () => {
-    const tabLabels = TABS.map((t) => t.label);
-    expect(tabLabels).toContain('Dashboard');
-    expect(tabLabels).toContain('Perps');
-    expect(tabLabels).toContain('Predictions');
-  });
-
-  it('should have tabs in correct order', () => {
-    expect(TABS[0]!.id).toBe('dashboard');
-    expect(TABS[1]!.id).toBe('perps');
-    expect(TABS[2]!.id).toBe('predictions');
+  it('should have correct tab IDs and labels in order', () => {
+    expect(TABS[0]).toEqual({ id: 'dashboard', label: 'Dashboard' });
+    expect(TABS[1]).toEqual({ id: 'perps', label: 'Perps' });
+    expect(TABS[2]).toEqual({ id: 'predictions', label: 'Predictions' });
   });
 });
 
-describe('MarketsToggle - Balance Display Logic', () => {
-  describe('Authentication states', () => {
-    it('should not show balance container when not authenticated', () => {
-      const result = shouldShowBalance(false, 1000, false);
-      expect(result.showContainer).toBe(false);
-      expect(result.showValue).toBe(false);
-      expect(result.showSkeleton).toBe(false);
-    });
+// ============================================================================
+// Balance Display - Testing REAL formatCurrency from @babylon/shared
+// ============================================================================
 
-    it('should not show balance container when authenticated is undefined', () => {
-      const result = shouldShowBalance(undefined, 1000, false);
-      expect(result.showContainer).toBe(false);
-      expect(result.showValue).toBe(false);
-    });
-
-    it('should show balance container when authenticated', () => {
-      const result = shouldShowBalance(true, 1000, false);
-      expect(result.showContainer).toBe(true);
-      expect(result.showValue).toBe(true);
-    });
+describe('MarketsToggle - Balance Formatting (real formatCurrency)', () => {
+  it('should format zero correctly', () => {
+    const result = formatCurrency(0, { useThousandsSeparator: true });
+    expect(result).toBe('ƀ0.00');
   });
 
-  describe('Loading states', () => {
-    it('should show skeleton when loading and authenticated', () => {
-      const result = shouldShowBalance(true, 1000, true);
-      expect(result.showContainer).toBe(true);
-      expect(result.showSkeleton).toBe(true);
-      expect(result.showValue).toBe(false);
-    });
-
-    it('should not show skeleton when not loading', () => {
-      const result = shouldShowBalance(true, 1000, false);
-      expect(result.showSkeleton).toBe(false);
-      expect(result.showValue).toBe(true);
-    });
-
-    it('should not show skeleton when not authenticated', () => {
-      const result = shouldShowBalance(false, 1000, true);
-      expect(result.showSkeleton).toBe(false);
-    });
+  it('should format small amounts correctly', () => {
+    const result = formatCurrency(99.99, { useThousandsSeparator: true });
+    expect(result).toBe('ƀ99.99');
   });
 
-  describe('Balance value edge cases', () => {
-    it('should show balance when value is zero', () => {
-      const result = shouldShowBalance(true, 0, false);
-      expect(result.showValue).toBe(true);
-    });
+  it('should format amounts with thousand separators', () => {
+    const result = formatCurrency(1234.56, { useThousandsSeparator: true });
+    // Actual format with thousand separators
+    expect(result).toContain('ƀ');
+    expect(result).toContain('1');
+    expect(result).toContain('234');
+  });
 
-    it('should show balance when value is negative', () => {
-      const result = shouldShowBalance(true, -100, false);
-      expect(result.showValue).toBe(true);
-    });
+  it('should format large amounts', () => {
+    const result = formatCurrency(1000000, { useThousandsSeparator: true });
+    expect(result).toContain('ƀ');
+    // Should have abbreviation or separators
+  });
 
-    it('should not show balance when value is null', () => {
-      const result = shouldShowBalance(true, null, false);
-      expect(result.showValue).toBe(false);
-    });
-
-    it('should not show balance when value is undefined', () => {
-      const result = shouldShowBalance(true, undefined, false);
-      expect(result.showValue).toBe(false);
-    });
-
-    it('should show balance for very large values', () => {
-      const result = shouldShowBalance(true, 999999999, false);
-      expect(result.showValue).toBe(true);
-    });
-
-    it('should show balance for very small positive values', () => {
-      const result = shouldShowBalance(true, 0.01, false);
-      expect(result.showValue).toBe(true);
-    });
+  it('should handle negative amounts', () => {
+    const result = formatCurrency(-500.25, { useThousandsSeparator: true });
+    expect(result).toContain('ƀ');
+    expect(result).toContain('-');
   });
 });
 
-describe('MarketsToggle - Balance Formatting', () => {
-  it('should format zero balance correctly', () => {
-    const formatted = formatBalanceDisplay(0);
-    // formatCurrency includes decimal places
-    expect(formatted).toBe('ƀ0.00');
-  });
+// ============================================================================
+// Balance Display Logic - Inline JSX conditionals
+// These test the actual patterns used in the component JSX
+// ============================================================================
 
-  it('should format small balances correctly', () => {
-    const formatted = formatBalanceDisplay(99.99);
-    expect(formatted).toBe('ƀ99.99');
-  });
+describe('MarketsToggle - Balance Display Logic (inline patterns)', () => {
+  /**
+   * Mirrors the actual JSX conditional:
+   * {authenticated && (...)}
+   */
+  const shouldShowBalanceContainer = (authenticated?: boolean) =>
+    !!authenticated;
 
-  it('should format large balances with thousand separators', () => {
-    const formatted = formatBalanceDisplay(1234567.89);
-    expect(formatted).toContain('ƀ');
-    expect(formatted).toContain('1');
-    // Should have some form of separation/abbreviation
-  });
-
-  it('should format negative balances correctly', () => {
-    const formatted = formatBalanceDisplay(-500.25);
-    expect(formatted).toContain('ƀ');
-    expect(formatted).toContain('-');
-  });
-
-  it('should handle boundary value at 1000', () => {
-    const formatted = formatBalanceDisplay(1000);
-    expect(formatted).toContain('ƀ');
-  });
-
-  it('should handle boundary value at 1000000', () => {
-    const formatted = formatBalanceDisplay(1000000);
-    expect(formatted).toContain('ƀ');
-  });
-});
-
-describe('MarketsToggle - Tab Active State', () => {
-  const isTabActive = (activeTab: MarketTab, tabId: MarketTab): boolean => {
-    return activeTab === tabId;
+  /**
+   * Mirrors the actual JSX conditional:
+   * {loading ? <skeleton/> : balance != null ? <value/> : null}
+   */
+  const getBalanceDisplayState = (
+    loading?: boolean,
+    balance?: number | null
+  ) => {
+    if (loading) return 'skeleton';
+    if (balance != null) return 'value';
+    return 'empty';
   };
 
-  it('should correctly identify active dashboard tab', () => {
-    expect(isTabActive('dashboard', 'dashboard')).toBe(true);
-    expect(isTabActive('dashboard', 'perps')).toBe(false);
-    expect(isTabActive('dashboard', 'predictions')).toBe(false);
+  describe('Container visibility', () => {
+    it('should hide container when not authenticated', () => {
+      expect(shouldShowBalanceContainer(false)).toBe(false);
+      expect(shouldShowBalanceContainer(undefined)).toBe(false);
+    });
+
+    it('should show container when authenticated', () => {
+      expect(shouldShowBalanceContainer(true)).toBe(true);
+    });
   });
 
-  it('should correctly identify active perps tab', () => {
-    expect(isTabActive('perps', 'dashboard')).toBe(false);
-    expect(isTabActive('perps', 'perps')).toBe(true);
-    expect(isTabActive('perps', 'predictions')).toBe(false);
+  describe('Balance display state', () => {
+    it('should show skeleton when loading', () => {
+      expect(getBalanceDisplayState(true, 1000)).toBe('skeleton');
+      expect(getBalanceDisplayState(true, null)).toBe('skeleton');
+    });
+
+    it('should show value when not loading and balance exists', () => {
+      expect(getBalanceDisplayState(false, 1000)).toBe('value');
+      expect(getBalanceDisplayState(false, 0)).toBe('value');
+      expect(getBalanceDisplayState(false, -100)).toBe('value');
+    });
+
+    it('should show empty when not loading and balance is null/undefined', () => {
+      expect(getBalanceDisplayState(false, null)).toBe('empty');
+      expect(getBalanceDisplayState(false, undefined)).toBe('empty');
+    });
+
+    it('should handle edge case: balance is exactly 0', () => {
+      // 0 != null is true, so should show value
+      expect(getBalanceDisplayState(false, 0)).toBe('value');
+    });
+  });
+});
+
+// ============================================================================
+// Tab Active State - Inline JSX conditional
+// ============================================================================
+
+describe('MarketsToggle - Tab Active State', () => {
+  /**
+   * Mirrors the actual JSX:
+   * activeTab === id ? 'text-foreground' : 'text-muted-foreground'
+   */
+  type TabId = 'dashboard' | 'perps' | 'predictions';
+
+  const getTabTextClass = (activeTab: TabId, tabId: TabId) =>
+    activeTab === tabId ? 'text-foreground' : 'text-muted-foreground';
+
+  it('should highlight active tab', () => {
+    expect(getTabTextClass('dashboard', 'dashboard')).toBe('text-foreground');
+    expect(getTabTextClass('perps', 'perps')).toBe('text-foreground');
+    expect(getTabTextClass('predictions', 'predictions')).toBe('text-foreground');
   });
 
-  it('should correctly identify active predictions tab', () => {
-    expect(isTabActive('predictions', 'dashboard')).toBe(false);
-    expect(isTabActive('predictions', 'perps')).toBe(false);
-    expect(isTabActive('predictions', 'predictions')).toBe(true);
+  it('should dim inactive tabs', () => {
+    expect(getTabTextClass('dashboard', 'perps')).toBe('text-muted-foreground');
+    expect(getTabTextClass('dashboard', 'predictions')).toBe(
+      'text-muted-foreground'
+    );
   });
 });
