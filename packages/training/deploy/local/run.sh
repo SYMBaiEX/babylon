@@ -29,6 +29,7 @@ IMAGE="${BABYLON_IMAGE:-revlentless/babylon-training:0.2.1}"
 ENV_FILE="${BABYLON_ENV_FILE:-$DEPLOY_DIR/.env}"
 PROFILE="${BABYLON_PROFILE:-12gb}"
 STEPS="${BABYLON_STEPS:-100}"
+MIN_AGENTS="${BABYLON_MIN_AGENTS:-1}"
 INTERACTIVE=false
 EXTRA_ARGS=""
 
@@ -54,6 +55,10 @@ while [[ $# -gt 0 ]]; do
             STEPS="$2"
             shift 2
             ;;
+        --min-agents-per-window|--min-agents)
+            MIN_AGENTS="$2"
+            shift 2
+            ;;
         --interactive|-i)
             INTERACTIVE=true
             shift
@@ -68,6 +73,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --env-file <path>    Environment file (default: $ENV_FILE)"
             echo "  --profile <profile>  GPU profile: 12gb, 24gb, l40, a100, h100"
             echo "  --steps <n>          Training steps (default: $STEPS)"
+            echo "  --min-agents <n>     Min agents per window (default: $MIN_AGENTS)"
             echo "  --interactive, -i    Start interactive bash shell"
             echo "  --help, -h           Show this help"
             echo ""
@@ -119,10 +125,11 @@ echo "============================================"
 echo "  Babylon RL Training - Local"
 echo "============================================"
 echo ""
-echo "Image:    $IMAGE"
-echo "Env file: $ENV_FILE"
-echo "Profile:  $PROFILE"
-echo "Steps:    $STEPS"
+echo "Image:      $IMAGE"
+echo "Env file:   $ENV_FILE"
+echo "Profile:    $PROFILE"
+echo "Steps:      $STEPS"
+echo "Min agents: $MIN_AGENTS"
 echo ""
 
 # Build docker run command
@@ -146,6 +153,7 @@ else
         python3 python/scripts/run_training.py \
         --profile "$PROFILE" \
         --steps "$STEPS" \
+        --min-agents-per-window "$MIN_AGENTS" \
         $EXTRA_ARGS
 fi
 
