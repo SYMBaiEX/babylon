@@ -561,8 +561,10 @@ class BabylonRLAIFEnv(BaseEnv):
         group_key, trajectory_group = item
         logger.info(f"Collecting trajectories for group: {group_key}, count: {len(trajectory_group)}")
 
-        if len(trajectory_group) < 2:
-            logger.warning(f"Group {group_key} has insufficient trajectories")
+        # We only need 1 trajectory since we generate n=group_size completions per trajectory
+        # This enables GRPO with multiple completions from a single prompt
+        if len(trajectory_group) < 1:
+            logger.warning(f"Group {group_key} has no trajectories")
             return None, []
 
         # Collect responses from the training model for each trajectory
