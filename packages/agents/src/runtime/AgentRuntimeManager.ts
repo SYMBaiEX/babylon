@@ -266,6 +266,7 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       isReady: () => true, // Required by composeState
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;
@@ -586,6 +587,7 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       isReady: () => true, // Required by composeState
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;
