@@ -1,30 +1,18 @@
 /**
  * Backend Profile Signer
  *
- * Allows the server to sign profile updates on behalf of users,
- * eliminating the need for signature popups in the UI.
+ * Previously used for on-chain profile updates, but this approach had issues
+ * with contract ownership verification (msg.sender != user wallet).
  *
- * This enables a seamless UX where profile updates (including username changes)
- * happen instantly without user interaction, while still being recorded on-chain.
+ * The new approach:
+ * 1. Profile updates are saved directly to the database
+ * 2. A separate background job syncs database state to on-chain
+ *
+ * This file is kept for backwards compatibility and utility functions.
  */
 
-import {
-  CAPABILITIES_HASH,
-  getIdentityRegistryAddress,
-  identityRegistryAbi,
-  logger,
-} from '@babylon/shared';
-import {
-  type Address,
-  createPublicClient,
-  createWalletClient,
-  http,
-} from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia } from 'viem/chains';
-
-const PROFILE_MANAGER_PRIVATE_KEY = process.env.PROFILE_MANAGER_PRIVATE_KEY;
-const RPC_URL = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+import { logger } from '@babylon/shared';
+import type { Address } from 'viem';
 
 export interface ProfileMetadata {
   name: string;
@@ -49,124 +37,52 @@ export interface BackendSignedUpdateResult {
 
 /**
  * Check if backend signing is configured
+ *
+ * @deprecated On-chain profile updates via backend signing are disabled.
+ * Profile updates now save to database directly and sync to chain via background job.
  */
 export function isBackendSigningEnabled(): boolean {
-  return Boolean(PROFILE_MANAGER_PRIVATE_KEY);
+  // Always return false - on-chain updates via backend signing are disabled
+  // Profile updates are now database-first with separate chain sync
+  return false;
 }
 
 /**
  * Update user profile by signing the transaction server-side
  *
- * This eliminates the need for users to sign transactions for profile updates.
- * The server signs on behalf of the user, providing a seamless UX.
+ * @deprecated This function is disabled. Profile updates should be saved to database
+ * directly via the update-profile API route. Chain sync happens separately.
  *
  * @param params - Profile update parameters
  * @returns Transaction hash and metadata
+ * @throws Error - Always throws as this method is deprecated
  */
-export async function updateProfileBackendSigned({
-  userAddress,
-  metadata,
-  endpoint,
-}: BackendSignedUpdateParams): Promise<BackendSignedUpdateResult> {
-  if (!PROFILE_MANAGER_PRIVATE_KEY) {
-    throw new Error(
-      'Backend signing not configured. Set PROFILE_MANAGER_PRIVATE_KEY environment variable.'
-    );
-  }
-
-  logger.info(
-    'Backend signing profile update',
-    { userAddress, username: metadata.username },
+export async function updateProfileBackendSigned(
+  _params: BackendSignedUpdateParams
+): Promise<BackendSignedUpdateResult> {
+  logger.warn(
+    'updateProfileBackendSigned is deprecated - profile updates are now database-first',
+    {},
     'BackendSigner'
   );
 
-  // Create wallet client with server's private key
-  const account = privateKeyToAccount(
-    PROFILE_MANAGER_PRIVATE_KEY as `0x${string}`
+  throw new Error(
+    'Backend-signed on-chain profile updates are disabled. ' +
+      'Profile updates are saved to the database and synced to chain via background job.'
   );
-  const walletClient = createWalletClient({
-    account,
-    chain: baseSepolia,
-    transport: http(RPC_URL),
-  });
-
-  const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(RPC_URL),
-  });
-
-  const registryAddress = getIdentityRegistryAddress();
-  if (!registryAddress) {
-    throw new Error('Identity registry not configured for this chain');
-  }
-
-  // Prepare metadata JSON
-  const metadataJson = JSON.stringify({
-    ...metadata,
-    type: metadata.type || 'user',
-    updated: metadata.updated || new Date().toISOString(),
-  });
-
-  logger.debug(
-    'Submitting on-chain update',
-    {
-      registry: registryAddress,
-      endpoint,
-      signer: account.address,
-    },
-    'BackendSigner'
-  );
-
-  // Sign and submit transaction
-  const txHash = await walletClient.writeContract({
-    address: registryAddress,
-    abi: identityRegistryAbi,
-    functionName: 'updateAgent',
-    args: [endpoint, CAPABILITIES_HASH, metadataJson],
-  });
-
-  logger.info(
-    'Profile update transaction submitted',
-    { txHash, userAddress },
-    'BackendSigner'
-  );
-
-  // Wait for transaction confirmation
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-    confirmations: 1,
-  });
-
-  if (receipt.status !== 'success') {
-    throw new Error('Transaction failed on-chain');
-  }
-
-  logger.info(
-    'Profile update confirmed on-chain',
-    { txHash, blockNumber: receipt.blockNumber.toString() },
-    'BackendSigner'
-  );
-
-  return {
-    txHash,
-    metadata,
-  };
 }
 
 /**
  * Verify a backend-signed transaction was successful
  *
- * @param txHash - Transaction hash to verify
- * @returns Whether the transaction succeeded
+ * @deprecated This function will be removed in a future version.
+ *
+ * @param _txHash - Transaction hash to verify
+ * @returns Always returns false as backend signing is disabled
  */
 export async function verifyBackendSignedUpdate(
-  txHash: `0x${string}`
+  _txHash: `0x${string}`
 ): Promise<boolean> {
-  const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(RPC_URL),
-  });
-
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-  return receipt.status === 'success';
+  logger.warn('verifyBackendSignedUpdate is deprecated', {}, 'BackendSigner');
+  return false;
 }
