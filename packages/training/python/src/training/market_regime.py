@@ -278,11 +278,26 @@ def detect_regime_from_prices(
     all_tickers = set(initial_prices.keys()) | set(final_prices.keys())
     
     for ticker in all_tickers:
-        initial = initial_prices.get(ticker, 0.0)
-        final = final_prices.get(ticker, initial)
+        initial_val = initial_prices.get(ticker, 0.0)
+        final_val = final_prices.get(ticker, initial_val)
         
-        if initial > 0:
-            price_data[ticker] = [initial, final]
+        # Handle both formats:
+        # - Simple: {"BTC": 100000}
+        # - Complex: {"BTC": {"tick": 0, "price": 100000}}
+        if isinstance(initial_val, dict):
+            initial_val = initial_val.get("price", 0.0)
+        if isinstance(final_val, dict):
+            final_val = final_val.get("price", initial_val)
+        
+        # Ensure numeric
+        try:
+            initial_val = float(initial_val)
+            final_val = float(final_val)
+        except (TypeError, ValueError):
+            continue
+        
+        if initial_val > 0:
+            price_data[ticker] = [initial_val, final_val]
     
     return detect_market_regime(price_data, window_id)
 
