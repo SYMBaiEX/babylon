@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Babylon Training - RunPod Deployment
+Babylon Training & Benchmark - RunPod Deployment
 
-Simple script to spin up training pods on RunPod.
+Simple script to spin up training and benchmark pods on RunPod.
 
 Usage:
-    # Using env file (recommended)
-    python setup.py train --gpu h100 --image user/babylon:latest --env-file ../env.example
+    # Training (using env file)
+    python setup.py train --gpu h100 --image user/babylon-training:latest --env-file ../.env
     
-    # Using CLI args
-    python setup.py train --gpu h100 --image user/babylon:latest --db "postgresql://..."
+    # Benchmark with HuggingFace model
+    python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1
+    
+    # Benchmark with local model (must be accessible via volume or pre-baked in image)
+    python setup.py benchmark --gpu h100 --model /models/final_model
     
     # List pods
     python setup.py list
@@ -188,20 +191,98 @@ def cmd_logs(args):
     """Get pod logs (requires SSH or web console)."""
     print(f"View logs at: https://console.runpod.io/pods?id={args.pod_id}")
 
+
+def cmd_benchmark(args):
+    """Create a benchmark pod."""
+    gpu_id = GPUS.get(args.gpu)
+    if not gpu_id:
+        sys.exit(f"Unknown GPU. Available: {', '.join(GPUS.keys())}")
+    
+    # Load env file if provided
+    env = {}
+    if args.env_file:
+        env = load_env_file(args.env_file)
+        print(f"Loaded {len(env)} environment variables from {args.env_file}")
+        
+        # Set RUNPOD_API_KEY from env file if not already set
+        if "RUNPOD_API_KEY" in env and not os.environ.get("RUNPOD_API_KEY"):
+            os.environ["RUNPOD_API_KEY"] = env["RUNPOD_API_KEY"]
+    
+    # Benchmark-specific env vars
+    if args.hf_model:
+        env["HF_MODEL"] = args.hf_model
+    if args.model:
+        env["MODEL_PATH"] = args.model
+    if args.hf_token:
+        env["HF_TOKEN"] = args.hf_token
+    if args.quick:
+        env["BENCHMARK_QUICK"] = "true"
+    if args.scenario:
+        env["BENCHMARK_SCENARIO"] = args.scenario
+    
+    # Validate model source
+    if not args.hf_model and not args.model:
+        sys.exit("Either --hf-model or --model is required for benchmarking.")
+    
+    # Determine image
+    image = args.image or f"{os.environ.get('DOCKER_REGISTRY', 'revlentless')}/babylon-benchmark:latest"
+    
+    # Build docker command (entrypoint handles the rest via env vars)
+    docker_cmd = []  # Use image's default entrypoint
+    
+    pod = api("POST", "/pods", {
+        "name": args.name or f"babylon-bench-{args.gpu}",
+        "imageName": image,
+        "gpuTypeIds": [gpu_id],
+        "gpuCount": 1,  # Benchmark typically needs 1 GPU
+        "volumeInGb": 50,
+        "containerDiskInGb": 50,
+        "env": env,
+        "dockerStartCmd": docker_cmd if docker_cmd else None,
+        "ports": ["9001/http"],  # vLLM port
+        "cloudType": "COMMUNITY" if args.community else "SECURE",
+        "interruptible": args.spot,
+        "supportPublicIp": True,
+    })
+    
+    print(f"\n✓ Created benchmark pod: {pod['id']}")
+    print(f"  Name: {args.name or f'babylon-bench-{args.gpu}'}")
+    print(f"  GPU: {gpu_id}")
+    if args.hf_model:
+        print(f"  HF Model: {args.hf_model}")
+    if args.model:
+        print(f"  Model Path: {args.model}")
+    print(f"  Quick mode: {args.quick}")
+    if args.scenario:
+        print(f"  Scenario: {args.scenario}")
+    print(f"  Spot: {args.spot}")
+    print(f"\n  View at: https://console.runpod.io/pods")
+
+
 def main():
     p = argparse.ArgumentParser(
-        description="Babylon RunPod Training",
+        description="Babylon RunPod Training & Benchmarking",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+Training Examples:
   # Using env file
-  python setup.py train --gpu h100 --image user/babylon:latest --env-file ../env.example
+  python setup.py train --gpu h100 --image user/babylon-training:latest --env-file ../.env
   
   # Using CLI args  
-  python setup.py train --gpu h100 --image user/babylon:latest --db "postgresql://..."
+  python setup.py train --gpu h100 --image user/babylon-training:latest --db "postgresql://..."
   
   # Spot instance (cheaper)
-  python setup.py train --gpu 4090 --image user/babylon:latest --env-file .env --spot
+  python setup.py train --gpu 4090 --image user/babylon-training:latest --env-file .env --spot
+
+Benchmark Examples:
+  # Benchmark HuggingFace model
+  python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1 --quick
+  
+  # Specific scenario
+  python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --scenario bear-market
+  
+  # Spot instance for cost savings
+  python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --spot --community
 """
     )
     sub = p.add_subparsers(dest="cmd")
@@ -233,10 +314,26 @@ Examples:
     lg = sub.add_parser("logs", help="View pod logs")
     lg.add_argument("pod_id", help="Pod ID")
     
+    # benchmark
+    b = sub.add_parser("benchmark", help="Start a benchmark pod")
+    b.add_argument("--gpu", required=True, choices=GPUS.keys(), help="GPU type")
+    b.add_argument("--image", help="Docker image (default: revlentless/babylon-benchmark:latest)")
+    b.add_argument("--hf-model", help="HuggingFace model ID to benchmark")
+    b.add_argument("--model", help="Path to model inside container")
+    b.add_argument("--env-file", help="Path to .env file")
+    b.add_argument("--name", help="Pod name (default: babylon-bench-<gpu>)")
+    b.add_argument("--hf-token", help="HF_TOKEN for private models")
+    b.add_argument("--quick", action="store_true", help="Quick mode (7-day scenarios)")
+    b.add_argument("--scenario", help="Specific scenario to run")
+    b.add_argument("--spot", action="store_true", help="Use spot instance")
+    b.add_argument("--community", action="store_true", help="Use community cloud")
+    
     args = p.parse_args()
     
     if args.cmd == "train":
         cmd_train(args)
+    elif args.cmd == "benchmark":
+        cmd_benchmark(args)
     elif args.cmd == "list":
         cmd_list(args)
     elif args.cmd == "stop":

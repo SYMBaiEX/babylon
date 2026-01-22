@@ -1,8 +1,10 @@
-# Babylon Training - RunPod
+# Babylon Training & Benchmark - RunPod
 
-Deploy Babylon RL training to [RunPod](https://runpod.io) cloud GPUs.
+Deploy Babylon RL training and benchmarks to [RunPod](https://runpod.io) cloud GPUs.
 
 ## Quick Start
+
+### Training
 
 ```bash
 # 1. Set API key
@@ -18,6 +20,19 @@ python setup.py train --gpu h100 --image yourorg/babylon-training:latest --env-f
 # 4. Monitor
 python setup.py list
 python setup.py logs <pod-id>
+```
+
+### Benchmarking
+
+```bash
+# Benchmark a HuggingFace model
+python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1 --quick
+
+# Benchmark with specific scenario
+python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --scenario bear-market
+
+# Use spot instance (cheaper)
+python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --spot --community
 ```
 
 ## Usage
@@ -62,6 +77,9 @@ python setup.py train \
 # Start training pod
 python setup.py train --gpu <type> --image <image> [options]
 
+# Start benchmark pod
+python setup.py benchmark --gpu <type> --hf-model <model> [options]
+
 # List all pods
 python setup.py list
 
@@ -99,6 +117,22 @@ python setup.py logs <pod-id>
 --community   Use community cloud (cheaper)
 ```
 
+## Benchmark Options
+
+```
+--gpu         GPU type (required): 4090, l40s, a100, h100, h200
+--hf-model    HuggingFace model ID to benchmark (e.g., elizalabs/ishtar-v0.1)
+--model       Path to model inside container (alternative to --hf-model)
+--image       Docker image (default: revlentless/babylon-benchmark:latest)
+--env-file    Path to .env file
+--name        Pod name (default: babylon-bench-<gpu>)
+--hf-token    HF_TOKEN for private models
+--quick       Quick mode - 7-day scenarios (faster)
+--scenario    Specific scenario: bull-market, bear-market, scandal-unfolds, pump-and-dump
+--spot        Use spot instance (cheaper, may interrupt)
+--community   Use community cloud (cheaper)
+```
+
 ## Environment Configuration
 
 Uses the master [`../env.example`](../env.example). Key variables:
@@ -110,25 +144,53 @@ Uses the master [`../env.example`](../env.example). Key variables:
 | `RUNPOD_API_KEY` | RunPod API access |
 | `HF_TOKEN` | Private model access |
 
-## Example Workflow
+## Example Workflows
+
+### Training Workflow
 
 ```bash
 # 1. Build and push image
-cd packages/training
-docker build -f deploy/docker/Dockerfile -t yourorg/babylon-training:latest .
-docker push yourorg/babylon-training:latest
+cd packages/training/deploy/docker
+./build.sh training -o yourorg -t latest
+./build.sh push-training -o yourorg -t latest
 
 # 2. Configure
-cp deploy/env.example deploy/runpod/.env
-# Edit .env
+cp ../env.example .env
+# Edit .env with DATABASE_URL, WANDB_API_KEY, etc.
 
 # 3. Deploy
-cd deploy/runpod
-python setup.py train --gpu h100 --image yourorg/babylon-training:latest --env-file .env
+cd ../runpod
+python setup.py train --gpu h100 --image yourorg/babylon-training:latest --env-file ../.env
 
 # 4. Monitor at https://runpod.io/console/pods
 
 # 5. Clean up when done
+python setup.py list
+python setup.py stop <pod-id>
+```
+
+### Benchmark Workflow
+
+```bash
+# 1. Benchmark a freshly trained model on HuggingFace
+python setup.py benchmark \
+  --gpu 4090 \
+  --hf-model elizalabs/ishtar-v0.1 \
+  --quick
+
+# 2. Run full benchmark suite (all scenarios)
+python setup.py benchmark \
+  --gpu h100 \
+  --hf-model elizalabs/ishtar-v0.1
+
+# 3. Run specific scenario
+python setup.py benchmark \
+  --gpu 4090 \
+  --hf-model elizalabs/ishtar-v0.1 \
+  --scenario bear-market \
+  --spot
+
+# 4. Monitor and clean up
 python setup.py list
 python setup.py stop <pod-id>
 ```
@@ -147,8 +209,25 @@ python setup.py stop <pod-id>
 - Verify DATABASE_URL is accessible from RunPod
 - Check CUDA/GPU availability
 
+### Benchmark fails
+
+- Ensure HF_TOKEN is set for private models
+- Check that the model exists on HuggingFace
+- Verify GPU has enough VRAM for the model
+- Check vLLM logs in the pod console
+
+## Benchmark Scenarios
+
+| Scenario | Duration | Condition | Tests |
+|----------|----------|-----------|-------|
+| `bull-market` | 22 days | Bull | Basic competence |
+| `bear-market` | 22 days | Bear | Capital protection |
+| `scandal-unfolds` | 22 days | Scandal | Information processing |
+| `pump-and-dump` | 22 days | Volatile | Skepticism |
+
 ## Related
 
 - [Master Environment Config](../env.example)
 - [Docker Images](../docker/README.md)
+- [Local Development](../local/README.md)
 - [Phala Cloud (TEE)](../phala/README.md)
