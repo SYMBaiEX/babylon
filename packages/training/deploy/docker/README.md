@@ -4,16 +4,18 @@ Production Docker images for Babylon RL training with GPU support.
 
 ## Build Strategy
 
-We use a **two-stage build** for fast iteration:
+We use a **multi-stage build** for fast iteration:
 
 | Image | Base | Build Time | Purpose |
 |-------|------|------------|---------|
 | `Dockerfile.base` | `vllm/vllm-openai:v0.14.0` | ~10 min | vLLM + FlashInfer + ML deps |
 | `Dockerfile` | Your base image | ~2 min | Training code |
+| `Dockerfile.bench` | `vllm/vllm-openai:v0.8.5` | ~5 min | Benchmark + vLLM for model evaluation |
 
 **Workflow:**
 1. Build `Dockerfile.base` once and push to registry
-2. Use `Dockerfile` for fast builds during development
+2. Use `Dockerfile` for fast training builds during development
+3. Use `Dockerfile.bench` for containerized benchmark evaluation
 
 ## Quick Start
 
@@ -118,6 +120,71 @@ docker build -f deploy/docker/Dockerfile \
   -t babylon-training:with-model .
 ```
 
+## Benchmark Image
+
+The benchmark image evaluates trained models using vLLM for inference.
+
+### Build
+
+```bash
+# From repo root (requires full monorepo context)
+cd packages/training/deploy/docker
+./build.sh benchmark -t 0.2.0,latest
+
+# Or manually
+docker build -f packages/training/deploy/docker/Dockerfile.bench \
+  -t babylon-benchmark:latest .
+```
+
+### Run
+
+```bash
+# With local trained model
+docker run --gpus all \
+  -v $(pwd)/trained_models:/models \
+  -v $(pwd)/benchmark-results:/benchmark-results \
+  -e MODEL_PATH=/models/final_model \
+  babylon-benchmark:latest
+
+# With HuggingFace model
+docker run --gpus all \
+  -e HF_MODEL=elizalabs/ishtar-v0.1 \
+  -e HF_TOKEN=hf_xxx \
+  babylon-benchmark:latest
+
+# Quick mode (shorter scenarios)
+docker run --gpus all \
+  -v $(pwd)/trained_models:/models \
+  -e MODEL_PATH=/models/final_model \
+  babylon-benchmark:latest --quick
+
+# Specific scenario
+docker run --gpus all \
+  -v $(pwd)/trained_models:/models \
+  -e MODEL_PATH=/models/final_model \
+  babylon-benchmark:latest --scenario bear-market --quick
+```
+
+### Benchmark Options
+
+| Option | Description |
+|--------|-------------|
+| `--scenario <id>` | Run specific scenario (bull-market, bear-market, etc.) |
+| `--quick` | Use shorter scenarios (7 days vs 22 days) |
+| `--archetype <type>` | Agent archetype to test (default: trader) |
+| `--baseline <type>` | Baseline strategy: random, momentum |
+| `--shell` | Start interactive shell |
+
+### Benchmark Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MODEL_PATH` | Path to trained adapter inside container |
+| `HF_MODEL` | HuggingFace model ID to download |
+| `HF_TOKEN` | HuggingFace token for private models |
+| `BENCHMARK_QUICK` | Set to "true" for quick mode |
+| `BENCHMARK_SCENARIO` | Scenario ID to run |
+
 ## Build Script
 
 The `build.sh` script simplifies building and pushing images.
@@ -128,8 +195,10 @@ The `build.sh` script simplifies building and pushing images.
 |---------|-------------|
 | `base` | Build base image |
 | `training` | Build training image |
+| `benchmark` | Build benchmark image |
 | `push-base` | Push base image |
 | `push-training` | Push training image |
+| `push-benchmark` | Push benchmark image |
 | `all` | Build and push everything |
 
 ### Options
