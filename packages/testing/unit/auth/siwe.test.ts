@@ -45,34 +45,52 @@ describe('SIWE Authentication', () => {
   describe('getExpectedDomain', () => {
     test('returns localhost for development', () => {
       const originalEnv = process.env.NEXT_PUBLIC_APP_URL;
-      delete process.env.NEXT_PUBLIC_APP_URL;
+      try {
+        delete process.env.NEXT_PUBLIC_APP_URL;
 
-      const domain = getExpectedDomain();
-      expect(domain).toBe('localhost');
-
-      process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        const domain = getExpectedDomain();
+        expect(domain).toBe('localhost');
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.NEXT_PUBLIC_APP_URL;
+        } else {
+          process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        }
+      }
     });
 
     test('extracts hostname from NEXT_PUBLIC_APP_URL', () => {
       const originalEnv = process.env.NEXT_PUBLIC_APP_URL;
-      process.env.NEXT_PUBLIC_APP_URL = 'https://babylon.market';
+      try {
+        process.env.NEXT_PUBLIC_APP_URL = 'https://babylon.market';
 
-      const domain = getExpectedDomain();
-      expect(domain).toBe('babylon.market');
-
-      process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        const domain = getExpectedDomain();
+        expect(domain).toBe('babylon.market');
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.NEXT_PUBLIC_APP_URL;
+        } else {
+          process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        }
+      }
     });
   });
 
   describe('getAppUrl', () => {
     test('returns full URL', () => {
       const originalEnv = process.env.NEXT_PUBLIC_APP_URL;
-      process.env.NEXT_PUBLIC_APP_URL = 'https://babylon.market';
+      try {
+        process.env.NEXT_PUBLIC_APP_URL = 'https://babylon.market';
 
-      const url = getAppUrl();
-      expect(url).toBe('https://babylon.market');
-
-      process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        const url = getAppUrl();
+        expect(url).toBe('https://babylon.market');
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.NEXT_PUBLIC_APP_URL;
+        } else {
+          process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+        }
+      }
     });
   });
 
@@ -104,10 +122,11 @@ describe('SIWE Authentication', () => {
       await generateNonce();
 
       expect(mockRedis.setex).toHaveBeenCalledTimes(1);
-      const call = mockRedis.setex.mock.calls[0];
-      expect(call[0]).toMatch(/^siwe:nonce:/);
-      expect(call[1]).toBe(300); // 5 minutes TTL
-      expect(call[2]).toBe('1');
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        expect.stringMatching(/^siwe:nonce:/),
+        300,
+        '1'
+      );
     });
   });
 
@@ -115,15 +134,15 @@ describe('SIWE Authentication', () => {
     test('returns true when nonce exists in Redis', async () => {
       mockRedis.del.mockImplementation(() => Promise.resolve(1));
 
-      const result = await consumeNonce('test-nonce');
+      const result = await consumeNonce('testnonce');
       expect(result).toBe(true);
-      expect(mockRedis.del).toHaveBeenCalledWith('siwe:nonce:test-nonce');
+      expect(mockRedis.del).toHaveBeenCalledWith('siwe:nonce:testnonce');
     });
 
     test('returns false when nonce does not exist', async () => {
       mockRedis.del.mockImplementation(() => Promise.resolve(0));
 
-      const result = await consumeNonce('nonexistent-nonce');
+      const result = await consumeNonce('nonexistentnonce');
       expect(result).toBe(false);
     });
   });
@@ -193,6 +212,36 @@ describe('SIWE Authentication', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe('invalid_nonce');
+      }
+    });
+
+    test('returns expired_message when message is expired', async () => {
+      mockRedis.del.mockImplementation(() => Promise.resolve(1));
+
+      const { SiweMessage } = await import('siwe');
+      const { privateKeyToAccount } = await import('viem/accounts');
+
+      const account = privateKeyToAccount(`0x${'1'.repeat(64)}`);
+      const expiredMessage = new SiweMessage({
+        domain: getExpectedDomain(),
+        address: account.address,
+        statement: 'Test',
+        uri: getAppUrl(),
+        version: '1',
+        chainId: 1,
+        nonce: 'validnonce123',
+        issuedAt: new Date(Date.now() - 10_000).toISOString(),
+        expirationTime: new Date(Date.now() - 1_000).toISOString(),
+      });
+
+      const message = expiredMessage.prepareMessage();
+      const signature = await account.signMessage({ message });
+
+      const result = await verifySiweMessage(message, signature);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('expired_message');
       }
     });
   });

@@ -69,12 +69,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       { ip: clientIp.slice(0, 10) + '...' },
       'SIWE'
     );
+    const retryAfterSeconds = Math.max(1, rateLimitResult.retryAfter ?? 60);
     return NextResponse.json(
       { error: 'rate_limited', message: 'Too many requests. Try again later.' },
       {
         status: 429,
         headers: {
-          'Retry-After': String(Math.ceil(rateLimitResult.resetIn / 1000)),
+          'Retry-After': String(retryAfterSeconds),
         },
       }
     );

@@ -99,7 +99,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Validate request body
   const parseResult = AuthSchema.safeParse(body);
   if (!parseResult.success) {
-    const firstError = parseResult.error.errors[0];
+    const firstError = parseResult.error.issues[0];
     return NextResponse.json(
       {
         error: 'validation_error',

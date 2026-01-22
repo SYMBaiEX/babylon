@@ -8,7 +8,11 @@
  */
 
 import { logger } from '@babylon/shared';
-import { SiweMessage, generateNonce as siweGenerateNonce } from 'siwe';
+import {
+  SiweErrorType,
+  SiweMessage,
+  generateNonce as siweGenerateNonce,
+} from 'siwe';
 import { getAddress } from 'viem';
 import { getRedis } from '../redis/client';
 
@@ -101,42 +105,71 @@ export async function verifySiweMessage(
   message: string,
   signature: string
 ): Promise<SiweVerifyResult> {
+  let siweMessage: SiweMessage;
   try {
-    const siweMessage = new SiweMessage(message);
-    const expectedDomain = getExpectedDomain();
-
-    if (siweMessage.domain !== expectedDomain) {
-      logger.warn(
-        'SIWE domain mismatch',
-        { expected: expectedDomain, received: siweMessage.domain },
-        'SIWE'
-      );
-      return { success: false, error: 'invalid_domain' };
-    }
-
-    const nonceValid = await consumeNonce(siweMessage.nonce);
-    if (!nonceValid) {
-      return { success: false, error: 'invalid_nonce' };
-    }
-
-    const result = await siweMessage.verify({ signature });
-
-    if (
-      siweMessage.expirationTime &&
-      new Date() > new Date(siweMessage.expirationTime)
-    ) {
-      return { success: false, error: 'expired_message' };
-    }
-
-    return { success: true, address: getAddress(result.data.address) };
+    siweMessage = new SiweMessage(message);
   } catch (err) {
     logger.warn(
-      'SIWE verification failed',
+      'SIWE message parse failed',
       { error: err instanceof Error ? err.message : String(err) },
       'SIWE'
     );
     return { success: false, error: 'invalid_signature' };
   }
+
+  const expectedDomain = getExpectedDomain();
+
+  if (siweMessage.domain !== expectedDomain) {
+    logger.warn(
+      'SIWE domain mismatch',
+      { expected: expectedDomain, received: siweMessage.domain },
+      'SIWE'
+    );
+    return { success: false, error: 'invalid_domain' };
+  }
+
+  const nonceValid = await consumeNonce(siweMessage.nonce);
+  if (!nonceValid) {
+    return { success: false, error: 'invalid_nonce' };
+  }
+
+  const verifyResponse = await siweMessage.verify(
+    {
+      signature,
+      domain: expectedDomain,
+      time: new Date().toISOString(),
+    },
+    { suppressExceptions: true }
+  );
+
+  if (!verifyResponse.success) {
+    const errorType =
+      verifyResponse.error &&
+      typeof verifyResponse.error === 'object' &&
+      'type' in verifyResponse.error
+        ? verifyResponse.error.type
+        : undefined;
+
+    if (errorType === SiweErrorType.EXPIRED_MESSAGE) {
+      return { success: false, error: 'expired_message' };
+    }
+
+    logger.warn(
+      'SIWE verification failed',
+      {
+        error:
+          verifyResponse.error instanceof Error
+            ? verifyResponse.error.message
+            : typeof verifyResponse.error === 'string'
+              ? verifyResponse.error
+              : (errorType ?? 'unknown'),
+      },
+      'SIWE'
+    );
+    return { success: false, error: 'invalid_signature' };
+  }
+
+  return { success: true, address: getAddress(verifyResponse.data.address) };
 }
 
 /**
