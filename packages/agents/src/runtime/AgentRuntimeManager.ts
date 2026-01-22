@@ -63,6 +63,127 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
 
+/**
+ * Creates a stub adapter that catches ALL method calls.
+ * Uses a Proxy to provide sensible defaults for any method ElizaOS might call,
+ * preventing "is not a function" errors without manual whack-a-mole.
+ */
+function createStubAdapter(existingAdapter: unknown): unknown {
+  // Explicit stubs for known methods (with proper return types)
+  const explicitStubs: Record<string, unknown> = {
+    // Lifecycle
+    init: async () => {},
+    close: async () => {},
+    isReady: async () => true,
+    // Agent methods
+    getAgent: async () => null,
+    getAgents: async () => [],
+    createAgent: async () => true,
+    updateAgent: async () => true,
+    deleteAgent: async () => true,
+    // Entity methods
+    getEntitiesByIds: async () => [],
+    getEntityById: async () => null,
+    createEntity: async () => true,
+    updateEntity: async () => {},
+    // Room/Participant methods
+    getParticipantsForRoom: async () => [],
+    addParticipantsRoom: async () => true,
+    addParticipant: async () => true,
+    removeParticipant: async () => true,
+    getRoom: async () => null,
+    getRoomsByIds: async () => [],
+    createRoom: async () => crypto.randomUUID(),
+    createRooms: async () => [],
+    deleteRoom: async () => {},
+    updateRoom: async () => {},
+    // World methods
+    createWorld: async () => crypto.randomUUID(),
+    getWorld: async () => null,
+    getAllWorlds: async () => [],
+    updateWorld: async () => {},
+    removeWorld: async () => {},
+    ensureWorldExists: async () => {},
+    // Memory methods
+    createMemory: async (memory: { id?: string } | null) =>
+      (memory?.id || crypto.randomUUID()) as UUID,
+    getMemories: async () => [],
+    getMemoryById: async () => null,
+    getMemoriesByIds: async () => [],
+    getMemoriesByRoomIds: async () => [],
+    searchMemories: async () => [],
+    deleteMemory: async () => {},
+    deleteAllMemories: async () => {},
+    countMemories: async () => 0,
+    // Logging
+    log: async () => {},
+    getLogs: async () => [],
+    deleteLog: async () => {},
+    // Cache
+    getCache: async () => undefined,
+    setCache: async () => true,
+    deleteCache: async () => true,
+    // Relationships
+    createRelationship: async () => true,
+    getRelationship: async () => null,
+    getRelationships: async () => [],
+    updateRelationship: async () => {},
+    // Tasks
+    createTask: async () => crypto.randomUUID(),
+    getTask: async () => null,
+    getTasks: async () => [],
+    updateTask: async () => {},
+    deleteTask: async () => {},
+    // Components
+    getComponent: async () => null,
+    getComponents: async () => [],
+    createComponent: async () => true,
+    updateComponent: async () => {},
+    deleteComponent: async () => {},
+    // Embeddings
+    getCachedEmbeddings: async () => [],
+    ensureEmbeddingDimension: async () => {},
+    // Misc
+    getConnection: async () => null,
+    runMigrations: async () => {},
+    runPluginMigrations: async () => {},
+  };
+
+  // Create a Proxy that:
+  // 1. Returns explicit stubs if defined
+  // 2. Falls back to existing adapter method if available
+  // 3. Returns a no-op async function for any unknown method
+  return new Proxy(existingAdapter || {}, {
+    get(target, prop) {
+      const propName = String(prop);
+
+      // Check explicit stubs first
+      if (propName in explicitStubs) {
+        return explicitStubs[propName];
+      }
+
+      // Check existing adapter
+      const existing = (target as Record<string, unknown>)[propName];
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      // For any unknown method, return a no-op async function
+      // This prevents "is not a function" errors for any method ElizaOS might add
+      if (propName !== 'then' && propName !== 'toJSON' && !propName.startsWith('_')) {
+        logger.debug(
+          `Adapter stub: unknown method "${propName}" called, returning no-op`,
+          undefined,
+          'AgentRuntimeManager'
+        );
+        return async () => null;
+      }
+
+      return undefined;
+    },
+  });
+}
+
 export class AgentRuntimeManager {
   private static instance: AgentRuntimeManager;
 
@@ -261,47 +382,9 @@ export class AgentRuntimeManager {
 
     runtime.currentModel = 'groq';
 
-    // Override adapter methods to prevent undefined errors
-    // Babylon doesn't use ElizaOS's memory system, so we stub these out
-    runtime.adapter = {
-      ...runtime.adapter,
-      // Required by composeState and runtime.initialize
-      init: async () => {},
-      close: async () => {},
-      // Agent methods - Babylon manages agents separately
-      getAgents: async () => [],
-      createAgent: async (_agent: unknown) => true,
-      updateAgent: async (_agentId: unknown, _agent: unknown) => true,
-      deleteAgent: async (_agentId: unknown) => true,
-      // Entity methods
-      getEntitiesByIds: async (_ids: unknown) => [],
-      getParticipantsForRoom: async (_roomId: unknown) => [],
-      addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
-      // Memory methods - Babylon uses its own DB
-      getAgent: async (_agentId: unknown) => null, // Required by composeState
-      isReady: async () => true,
-      log: async (_params: {
-        body: { [key: string]: JsonValue };
-        entityId: string;
-        roomId: string;
-        type: string;
-      }): Promise<void> => {
-        // No-op - Babylon uses its own logging
-      },
-      createMemory: async (
-        memory: unknown,
-        _tableName?: string
-      ): Promise<UUID> => {
-        // No-op - Babylon uses its own DB for message storage
-        // Return the memory ID or generate one
-        const memoryObj = memory as { id?: string } | null;
-        return (memoryObj?.id || crypto.randomUUID()) as UUID;
-      },
-      getMemories: async (_params: unknown): Promise<unknown[]> => {
-        // Return empty array - Babylon uses its own DB
-        return [];
-      },
-    } as typeof runtime.adapter;
+    // Create stub adapter that catches ALL method calls
+    // Uses Proxy to provide sensible defaults for any method ElizaOS might call
+    runtime.adapter = createStubAdapter(runtime.adapter) as typeof runtime.adapter;
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
