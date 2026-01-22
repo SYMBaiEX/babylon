@@ -1,8 +1,15 @@
-import { and, chatParticipants, chats, db, eq, groupMembers } from '@babylon/db';
+import {
+  and,
+  chatParticipants,
+  chats,
+  db,
+  eq,
+  groupMembers,
+} from '@babylon/db';
 import { generateSnowflakeId, logger, ValidationError } from '@babylon/shared';
 import { sql } from 'drizzle-orm';
-import { AuthorizationError, NotFoundError } from '../errors';
 import { isUserAdmin } from '../admin-middleware';
+import { AuthorizationError, NotFoundError } from '../errors';
 import { hasNftAccess } from './nft-access-service';
 
 export interface NftChatGatingConfig {
@@ -223,4 +230,3 @@ export async function revokeNftChatMembershipIfNeeded(
     }
   });
 }
-

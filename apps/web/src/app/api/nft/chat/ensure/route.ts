@@ -16,4 +16,3 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticateWithDbUser(request);
   return successResponse(await ensureNftChatMembership(user.dbUserId));
 });
-

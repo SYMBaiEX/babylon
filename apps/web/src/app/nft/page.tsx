@@ -1,14 +1,14 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { NftGrid, RevealModal } from '@/components/nft';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { useAuth } from '@/hooks/useAuth';
 import { useNftMint } from '@/hooks/useNftMint';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 
 type ViewTab = 'all' | 'mine';
 
@@ -129,9 +129,9 @@ export default function NftGalleryPage() {
       });
 
       if (!response.ok) {
-        const json = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const json = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         toast.error(json?.error ?? 'Failed to unlock chat access');
         return;
       }
@@ -175,7 +175,9 @@ export default function NftGalleryPage() {
                   disabled={ensuringChatAccess}
                   className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/10 px-4 py-2 text-[#0066FF] text-sm transition-colors hover:bg-[#0066FF]/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {ensuringChatAccess ? 'Opening chat...' : 'Open FD Alpha Chat →'}
+                  {ensuringChatAccess
+                    ? 'Opening chat...'
+                    : 'Open FD Alpha Chat →'}
                 </button>
                 <a
                   href={`/nft/${eligibility.mintedNft.tokenId}`}

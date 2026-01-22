@@ -172,6 +172,10 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import {
+  canAccessNftChatGate,
+  getNftChatGatingConfig,
+} from '@babylon/api/services/nft-chat-gating-service';
 // Import from new Drizzle client
 import {
   agentMessages,
@@ -198,10 +202,6 @@ import {
   logger,
 } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import {
-  canAccessNftChatGate,
-  getNftChatGatingConfig,
-} from '@babylon/api/services/nft-chat-gating-service';
 
 /**
  * GET /api/chats
