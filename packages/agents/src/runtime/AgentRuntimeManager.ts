@@ -97,7 +97,7 @@ function createAdapterStubs(existingAdapter: unknown): unknown {
     getRoomsByWorld: async () => [],
     getRoomsForParticipant: async () => [],
     getRoomsForParticipants: async () => [],
-    createRooms: async () => [],
+    createRooms: async (rooms: unknown[]) => rooms, // Return rooms to avoid "Failed to create room" error
     deleteRoom: async () => {},
     deleteRoomsByWorldId: async () => {},
     updateRoom: async () => {},
