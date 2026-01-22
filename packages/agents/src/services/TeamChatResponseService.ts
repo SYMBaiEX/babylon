@@ -289,10 +289,11 @@ Answer these questions:
 ---
 
 # Output Format
-<decision>
-<should_respond>YES or NO</should_respond>
-<reason>One sentence explaining why</reason>
-</decision>`;
+Output ONLY this XML format:
+<response>
+<thought>Brief reasoning about whether to respond</thought>
+<decision>YES or NO</decision>
+</response>`;
 
 /**
  * Service for handling agent responses in team chat.
@@ -1029,6 +1030,7 @@ export class TeamChatResponseService {
   /**
    * Decide if an agent should respond to the current conversation.
    * Uses LLM to make the decision based on conversation context.
+   * Includes retry mechanism for parsing failures.
    */
   private async shouldAgentRespond(params: {
     agentId: string;
@@ -1072,41 +1074,94 @@ export class TeamChatResponseService {
         true
       );
 
-      // Get conversation from provider
-      const recentConversation =
-        (state.values?.teamChatMessages as string) || 'No recent messages.';
+      // Add custom values to state for template
+      state.values = {
+        ...state.values,
+        agentName,
+        agentUsername,
+        system: systemPrompt,
+        personality,
+        ownerDisplayName,
+        ownerUsername,
+        teamMembers,
+      };
 
-      // Build prompt
-      const prompt = shouldRespondTemplate
-        .replace(/\{\{agentName\}\}/g, agentName)
-        .replace(/\{\{agentUsername\}\}/g, agentUsername)
-        .replace(/\{\{system\}\}/g, systemPrompt)
-        .replace(/\{\{personality\}\}/g, personality)
-        .replace(
-          /\{\{#if personality\}\}[\s\S]*?\{\{\/if\}\}/g,
-          personality ? `## Personality\n${personality}` : ''
-        )
-        .replace(/\{\{ownerDisplayName\}\}/g, ownerDisplayName)
-        .replace(/\{\{ownerUsername\}\}/g, ownerUsername)
-        .replace(/\{\{teamMembers\}\}/g, teamMembers)
-        .replace(/\{\{teamChatMessages\}\}/g, recentConversation);
-
-      // Use small model for quick decision (same for both tiers)
-      const response = await runtime.useModel(ModelType.TEXT_SMALL, {
-        prompt,
-        temperature: 0.3, // Low temperature for consistent decisions
+      // Build prompt using composePromptFromState (handles Handlebars properly)
+      const prompt = composePromptFromState({
+        state,
+        template: shouldRespondTemplate,
       });
 
-      // Parse decision
-      const shouldRespondMatch = response.match(
-        /<should_respond>\s*(YES|NO)\s*<\/should_respond>/i
-      );
-      const reasonMatch = response.match(/<reason>\s*([^<]+)\s*<\/reason>/i);
+      // Retry mechanism for parsing
+      const MAX_PARSE_RETRIES = 3;
+      let parsedResponse: Record<string, unknown> | null = null;
 
-      const shouldRespond = shouldRespondMatch?.[1]?.toUpperCase() === 'YES';
-      const reason = reasonMatch?.[1]?.trim() || 'No reason provided';
+      for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
+        const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+          prompt,
+          temperature: attempt > 1 ? 0.5 : 0.3, // Increase temperature on retry
+        });
 
-      return { shouldRespond, reason };
+        parsedResponse = parseKeyValueXml(response);
+
+        if (parsedResponse?.decision) {
+          logger.debug(
+            `[ShouldRespond] Parsed decision on attempt ${attempt}`,
+            {
+              decision: parsedResponse.decision,
+              thought: parsedResponse.thought,
+            },
+            'TeamChatResponseService'
+          );
+          break;
+        }
+
+        // Fallback: try regex extraction
+        const decisionMatch = response.match(
+          /<decision>\s*(YES|NO)\s*<\/decision>/i
+        );
+        if (decisionMatch) {
+          const thoughtMatch = response.match(
+            /<thought>\s*([^<]+)\s*<\/thought>/i
+          );
+          parsedResponse = {
+            decision: decisionMatch[1],
+            thought: thoughtMatch?.[1]?.trim() || '',
+          };
+          logger.debug(
+            `[ShouldRespond] Fallback regex parsed on attempt ${attempt}`,
+            { decision: parsedResponse.decision },
+            'TeamChatResponseService'
+          );
+          break;
+        }
+
+        logger.warn(
+          `[ShouldRespond] Failed to parse decision (attempt ${attempt})`,
+          { preview: response.substring(0, 200) },
+          'TeamChatResponseService'
+        );
+      }
+
+      if (!parsedResponse?.decision) {
+        logger.warn(
+          `[ShouldRespond] All parse attempts failed, defaulting to NO`,
+          { agentId, chatId },
+          'TeamChatResponseService'
+        );
+        return { shouldRespond: false, reason: 'Failed to parse decision' };
+      }
+
+      const decision = ((parsedResponse.decision as string) || '')
+        .toUpperCase()
+        .trim();
+      const thought =
+        ((parsedResponse.thought as string) || '').trim() || 'No reason given';
+
+      return {
+        shouldRespond: decision === 'YES',
+        reason: thought,
+      };
     } catch (error) {
       logger.error(
         `Failed to decide shouldAgentRespond: ${error}`,
