@@ -221,28 +221,47 @@ export class TeamChatService {
     userId: string,
     teamChat: TeamChatInfo
   ): Promise<void> {
-    // Check if user is already a participant
-    const [existingParticipant] = await db
-      .select({ id: chatParticipants.id })
-      .from(chatParticipants)
-      .where(
-        and(
-          eq(chatParticipants.chatId, teamChat.chatId),
-          eq(chatParticipants.userId, userId),
-          eq(chatParticipants.isActive, true)
+    // Check if user is already a participant AND group member
+    const [[existingParticipant], [existingGroupMember]] = await Promise.all([
+      db
+        .select({ id: chatParticipants.id })
+        .from(chatParticipants)
+        .where(
+          and(
+            eq(chatParticipants.chatId, teamChat.chatId),
+            eq(chatParticipants.userId, userId),
+            eq(chatParticipants.isActive, true)
+          )
         )
-      )
-      .limit(1);
+        .limit(1),
+      db
+        .select({ id: groupMembers.id })
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, teamChat.groupId),
+            eq(groupMembers.userId, userId),
+            eq(groupMembers.isActive, true)
+          )
+        )
+        .limit(1),
+    ]);
 
-    if (existingParticipant) {
-      // User is already a participant, nothing to do
+    if (existingParticipant && existingGroupMember) {
+      // User has both records, nothing to do
       return;
     }
 
-    // User is missing from chatParticipants - repair it
+    // User is missing chatParticipants and/or groupMembers - repair it
     logger.warn(
-      `Repairing missing chatParticipant record for user ${userId} in team chat ${teamChat.chatId}`,
-      { userId, chatId: teamChat.chatId, groupId: teamChat.groupId },
+      `Repairing missing records for user ${userId} in team chat`,
+      {
+        userId,
+        chatId: teamChat.chatId,
+        groupId: teamChat.groupId,
+        missingParticipant: !existingParticipant,
+        missingGroupMember: !existingGroupMember,
+      },
       'TeamChatService'
     );
 
