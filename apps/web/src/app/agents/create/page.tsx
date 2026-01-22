@@ -236,23 +236,15 @@ export default function CreateAgentPage() {
     // Generate onboarding message and wait for it to complete
     // This ensures the message is ready when user sees the team chat
     try {
-      const onboardingResponse = await fetch(
-        `/api/agents/${agentId}/onboarding`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      const onboardingResult = await onboardingResponse.json();
-      console.log('Onboarding response:', onboardingResult);
-      if (!onboardingResponse.ok) {
-        console.error('Onboarding failed:', onboardingResult);
-      }
+      await fetch(`/api/agents/${agentId}/onboarding`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
     } catch (error) {
-      console.error('Error generating onboarding message:', error);
+      console.warn('Error generating onboarding message:', error);
     }
 
     clearDraft();

@@ -227,7 +227,6 @@ export const POST = withErrorHandling(
       );
 
       const teamChat = await teamChatService.ensureTeamChat(user.id);
-      console.log('ONBOARDING - ensureTeamChat result:', teamChat);
 
       logger.info(
         `ensureTeamChat result`,
@@ -254,7 +253,7 @@ export const POST = withErrorHandling(
           'AgentOnboarding'
         );
 
-        const insertResult = await db
+        await db
           .insert(messagesTable)
           .values({
             id: teamChatMessageId,
@@ -265,7 +264,6 @@ export const POST = withErrorHandling(
             createdAt: messageTime,
           })
           .onConflictDoNothing();
-        console.log('ONBOARDING - Message insert result:', insertResult);
 
         logger.info(
           `Message inserted, now broadcasting via SSE`,
@@ -293,7 +291,6 @@ export const POST = withErrorHandling(
       }
     } catch (error) {
       // Don't fail the whole request if team chat message fails
-      console.error('ONBOARDING ERROR - Failed to post to team chat:', error);
       logger.error(
         `Failed to post onboarding message to team chat`,
         { error: error instanceof Error ? error.stack : 'Unknown' },
