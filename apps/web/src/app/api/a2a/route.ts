@@ -229,7 +229,10 @@ export async function POST(request: NextRequest) {
 
     // Validate and override contextId in message params
     if (isPlainObject(body.params.message)) {
-      if (body.params.message.contextId && body.params.message.contextId !== authenticatedUserId) {
+      if (
+        body.params.message.contextId &&
+        body.params.message.contextId !== authenticatedUserId
+      ) {
         logger.warn('Overriding mismatched message contextId', {
           providedContextId: body.params.message.contextId,
           authenticatedUserId,
@@ -239,7 +242,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate and override contextId at params level (for tasks/get and other methods)
-    if (body.params.contextId && body.params.contextId !== authenticatedUserId) {
+    if (
+      body.params.contextId &&
+      body.params.contextId !== authenticatedUserId
+    ) {
       logger.warn('Overriding mismatched params contextId', {
         providedContextId: body.params.contextId,
         authenticatedUserId,
@@ -251,8 +257,12 @@ export async function POST(request: NextRequest) {
   // SECURITY: Server API key and localhost bypass
   // These auth methods allow arbitrary contextId, which enables acting as any user.
   // This is intentional for admin/internal operations but should be monitored.
-  if (authResult?.authMethod === 'server-key' || authResult?.authMethod === 'localhost') {
-    const providedContextId = body.params?.message?.contextId ?? body.params?.contextId;
+  if (
+    authResult?.authMethod === 'server-key' ||
+    authResult?.authMethod === 'localhost'
+  ) {
+    const providedContextId =
+      body.params?.message?.contextId ?? body.params?.contextId;
     if (providedContextId !== undefined && providedContextId !== null) {
       // Log server-key operations with user context for audit trail
       logger.info('Server/localhost A2A operation with user context', {
