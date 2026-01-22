@@ -133,12 +133,13 @@ echo "Min agents: $MIN_AGENTS"
 echo ""
 
 # Build docker run command
+# Note: Training saves to /app/python/trained_models (relative to python/ dir)
 DOCKER_CMD=(
     docker run
     --gpus all
     --network host
     --env-file "$ENV_FILE"
-    -v "$TRAINING_DIR/trained_models:/app/trained_models"
+    -v "$TRAINING_DIR/trained_models:/app/python/trained_models"
     -v "$TRAINING_DIR/logs:/app/logs"
 )
 
