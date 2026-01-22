@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
+import { isNftGatingEnabled } from '@babylon/shared';
 // Vercel Analytics
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -10,7 +11,6 @@ import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
-import { isNftGatingEnabled } from '@babylon/shared';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
