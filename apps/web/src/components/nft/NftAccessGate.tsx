@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import type { EligibilityResponse } from '@/types/nft';
+import { apiFetch } from '@/utils/api-fetch';
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -46,8 +47,7 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
     inFlightRef.current = controller;
 
     const run = async () => {
-      const response = await fetch('/api/nft/eligibility', {
-        credentials: 'include',
+      const response = await apiFetch('/api/nft/eligibility', {
         cache: 'no-store',
         signal: controller.signal,
       });
