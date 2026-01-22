@@ -464,7 +464,13 @@ export class TeamChatResponseService {
     ownerUsername: string;
     chainDepth?: number;
   }): Promise<void> {
-    const { chatId, senderId, ownerDisplayName, ownerUsername, chainDepth = 0 } = params;
+    const {
+      chatId,
+      senderId,
+      ownerDisplayName,
+      ownerUsername,
+      chainDepth = 0,
+    } = params;
 
     // Prevent infinite agent-to-agent loops by limiting chain depth
     if (chainDepth >= MAX_AGENT_CHAIN_DEPTH) {
