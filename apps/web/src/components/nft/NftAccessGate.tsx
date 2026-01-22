@@ -58,18 +58,25 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
     inFlightRef.current = controller;
 
     const run = async () => {
-      const response = await apiFetch('/api/nft/eligibility', {
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+      try {
+        const response = await apiFetch('/api/nft/eligibility', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
 
-      if (!response.ok || controller.signal.aborted) {
-        router.replace(targetUrl);
-        return;
-      }
+        if (!response.ok || controller.signal.aborted) {
+          router.replace(targetUrl);
+          return;
+        }
 
-      const json = (await response.json()) as unknown;
-      if (!isEligibilityApiResponse(json) || json.data.hasMinted !== true) {
+        const json = (await response.json()) as unknown;
+        if (!isEligibilityApiResponse(json) || json.data.hasMinted !== true) {
+          router.replace(targetUrl);
+        }
+      } catch {
+        // Ignore abort errors from cleanup
+        if (controller.signal.aborted) return;
+        // On any other error, redirect to gate
         router.replace(targetUrl);
       }
     };

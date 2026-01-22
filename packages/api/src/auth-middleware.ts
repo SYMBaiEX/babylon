@@ -320,7 +320,11 @@ export async function optionalAuth(
       const claims = await privy.verifyAuthToken(tokenToVerify);
 
       const dbUserResult = await db
-        .select({ id: users.id, walletAddress: users.walletAddress })
+        .select({
+          id: users.id,
+          walletAddress: users.walletAddress,
+          isAdmin: users.isAdmin,
+        })
         .from(users)
         .where(eq(users.privyId, claims.userId))
         .limit(1);
@@ -332,6 +336,7 @@ export async function optionalAuth(
         privyId: claims.userId,
         walletAddress: dbUser?.walletAddress ?? undefined,
         email: undefined,
+        isAdmin: dbUser?.isAdmin ?? false,
         isAgent: false,
       };
     } catch {

@@ -33,3 +33,12 @@ export function isNftGatingAllowlistedPath(pathname: string): boolean {
   if (EXACT_ALLOWLIST.has(pathname)) return true;
   return PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix));
 }
+
+/**
+ * Check if NFT gating is enabled via environment variable.
+ * Accepts: 'true', '1', 'yes', 'on' (case-insensitive)
+ */
+export function isNftGatingEnabled(): boolean {
+  const flag = process.env.NFT_GATING_ENABLED ?? '';
+  return ['true', '1', 'yes', 'on'].includes(flag.toLowerCase());
+}

@@ -218,4 +218,22 @@ describe('authenticate middleware', () => {
       isAdmin: true,
     });
   });
+
+  it('allows access for minted users when NFT gating is enabled', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [{ hasMinted: true }];
+
+    const request = createRequest('privy-token', '/api/posts');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+      isAdmin: false,
+    });
+  });
 });

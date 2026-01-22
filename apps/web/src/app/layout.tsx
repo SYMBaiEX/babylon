@@ -10,6 +10,7 @@ import { Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner';
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal';
+import { isNftGatingEnabled } from '@babylon/shared';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { NftAccessGate, NftPromoBanner } from '@/components/nft';
 import { Providers } from '@/components/providers/Providers';
@@ -96,10 +97,7 @@ export default function RootLayout({
     (process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE) ===
     'true';
 
-  const nftGatingFlag = process.env.NFT_GATING_ENABLED ?? '';
-  const nftGatingEnabled = ['true', '1', 'yes', 'on'].includes(
-    nftGatingFlag.toLowerCase()
-  );
+  const nftGatingEnabled = isNftGatingEnabled();
 
   return (
     <html lang="en" suppressHydrationWarning className="overscroll-none">

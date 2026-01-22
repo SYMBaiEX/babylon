@@ -1,3 +1,4 @@
+import { isNftGatingEnabled } from '@babylon/shared';
 import { redirect } from 'next/navigation';
 import { HomePageClient } from './HomePageClient';
 
@@ -6,10 +7,7 @@ type HomePageProps = {
 };
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const nftGatingFlag = process.env.NFT_GATING_ENABLED ?? '';
-  const nftGatingEnabled = ['true', '1', 'yes', 'on'].includes(
-    nftGatingFlag.toLowerCase()
-  );
+  const nftGatingEnabled = isNftGatingEnabled();
 
   if (nftGatingEnabled) {
     const resolvedSearchParams = searchParams ? await searchParams : undefined;

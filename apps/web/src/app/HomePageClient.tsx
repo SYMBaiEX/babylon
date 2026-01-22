@@ -38,7 +38,7 @@ function HomePageContent() {
 
     // Redirect to feed, preserving referral code if present
     const ref = searchParams.get('ref');
-    const feedUrl = ref ? `/feed?ref=${ref}` : '/feed';
+    const feedUrl = ref ? `/feed?ref=${encodeURIComponent(ref)}` : '/feed';
     router.push(feedUrl);
   }, [ready, authenticated, router, showLoginModal, searchParams]);
 
