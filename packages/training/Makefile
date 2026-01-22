@@ -125,9 +125,12 @@ help:
 	@echo "  make hf-export-dataset   Export trajectories to HuggingFace dataset"
 	@echo "  make hf-push-model       Push trained model to HuggingFace Hub"
 	@echo ""
-	@echo "$(GREEN)A/B Testing & Evaluation:$(RESET)"
-	@echo "  make ab-test        Run A/B test (MODEL_A vs MODEL_B)"
-	@echo "  make ab-test-quick  Quick A/B test with trained model"
+	@echo "$(GREEN)Benchmarking & Evaluation:$(RESET)"
+	@echo "  make benchmark           Run full benchmark suite against trained model"
+	@echo "  make benchmark-quick     Quick benchmark (7-day scenarios)"
+	@echo "  make benchmark-scenario  Run single scenario (SCENARIO=bear-market)"
+	@echo "  make ab-test             Run A/B test (MODEL_A vs MODEL_B)"
+	@echo "  make ab-test-quick       Quick A/B test with trained model"
 	@echo ""
 	@echo "$(GREEN)Development:$(RESET)"
 	@echo "  make venv           Create/update Python virtual environment"
@@ -471,8 +474,41 @@ train-cloud-online: db-up db-migrate bridge-check
 		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),)
 
 #---------------------------------------------------------------------------
-# A/B Testing & Evaluation
+# Benchmarking & Evaluation
 #---------------------------------------------------------------------------
+
+# Default benchmark settings
+BENCHMARK_MODEL ?= ./python/trained_models/final_model
+BENCHMARK_OUTPUT ?= ./benchmark-results
+SCENARIO ?= 
+
+# Run full benchmark suite against trained model
+benchmark:
+	@echo "$(CYAN)Running benchmark suite...$(RESET)"
+	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
+		--model $(BENCHMARK_MODEL) \
+		--output $(BENCHMARK_OUTPUT) \
+		$(if $(SCENARIO),--scenario $(SCENARIO),)
+	@echo "$(GREEN)✓ Benchmark complete$(RESET)"
+
+# Quick benchmark (7-day scenarios instead of 22-day)
+benchmark-quick:
+	@echo "$(CYAN)Running quick benchmark...$(RESET)"
+	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
+		--model $(BENCHMARK_MODEL) \
+		--output $(BENCHMARK_OUTPUT) \
+		--quick \
+		$(if $(SCENARIO),--scenario $(SCENARIO),)
+	@echo "$(GREEN)✓ Quick benchmark complete$(RESET)"
+
+# Run single scenario benchmark
+benchmark-scenario:
+	@if [ -z "$(SCENARIO)" ]; then \
+		echo "$(YELLOW)Usage: make benchmark-scenario SCENARIO=bear-market$(RESET)"; \
+		echo "Valid scenarios: bull-market, bear-market, scandal-unfolds, pump-and-dump"; \
+		exit 1; \
+	fi
+	$(MAKE) benchmark SCENARIO=$(SCENARIO)
 
 # Run A/B test comparing trained model against baseline
 ab-test:
