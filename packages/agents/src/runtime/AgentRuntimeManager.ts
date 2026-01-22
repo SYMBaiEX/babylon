@@ -357,7 +357,9 @@ export class AgentRuntimeManager {
     runtime.currentModel = 'groq';
 
     // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
-    runtime.adapter = createAdapterStubs(runtime.adapter) as typeof runtime.adapter;
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
@@ -651,47 +653,10 @@ export class AgentRuntimeManager {
     }
     runtime.currentModel = 'groq';
 
-    // Override adapter methods to prevent undefined errors
-    // Babylon doesn't use ElizaOS's memory system, so we stub these out
-    runtime.adapter = {
-      ...runtime.adapter,
-      // Required by composeState and runtime.initialize
-      init: async () => {},
-      close: async () => {},
-      // Agent methods - Babylon manages agents separately
-      getAgents: async () => [],
-      createAgent: async (_agent: unknown) => true,
-      updateAgent: async (_agentId: unknown, _agent: unknown) => true,
-      deleteAgent: async (_agentId: unknown) => true,
-      // Entity methods
-      getEntitiesByIds: async (_ids: unknown) => [],
-      getParticipantsForRoom: async (_roomId: unknown) => [],
-      addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
-      // Memory methods - Babylon uses its own DB
-      getAgent: async (_agentId: unknown) => null, // Required by composeState
-      isReady: async () => true, // Required by composeState
-      log: async (_params: {
-        body: { [key: string]: JsonValue };
-        entityId: string;
-        roomId: string;
-        type: string;
-      }): Promise<void> => {
-        // No-op - Babylon uses its own logging
-      },
-      createMemory: async (
-        memory: unknown,
-        _tableName?: string
-      ): Promise<UUID> => {
-        // No-op - Babylon uses its own DB for message storage
-        // Return the memory ID or generate one
-        const memoryObj = memory as { id?: string } | null;
-        return (memoryObj?.id || crypto.randomUUID()) as UUID;
-      },
-      getMemories: async (_params: unknown): Promise<unknown[]> => {
-        // Return empty array - Babylon uses its own DB
-        return [];
-      },
-    } as typeof runtime.adapter;
+    // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
 
     // Configure logger
     this.configureLogger(runtime, character.name);
