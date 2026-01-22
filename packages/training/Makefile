@@ -7,15 +7,25 @@
 #   make tier3      - Run DB integration tests
 #   make tier4      - Run full GPU training
 #
-# Infrastructure:
-#   make db-up      - Start test PostgreSQL/Redis
-#   make db-down    - Stop and remove containers
-#   make db-migrate - Apply database schema
+# Docker:
+#   make docker-base      - Build base image (vLLM + FlashInfer)
+#   make docker-training  - Build training image
+#   make docker-push      - Push both images to registry
+#
+# Local Training:
+#   make local-train      - Run training in Docker locally
+#
+# Cloud:
+#   make runpod-train     - Deploy training to RunPod
 
 .PHONY: all help tier1 tier2 tier3 tier4 db-up db-down db-migrate \
         train-12gb train-16gb train-24gb train-l40 train-l40-2gpu train-l40-4gpu \
         train-l40-8gpu train-a100-4gpu train-h100-4gpu \
-        train-online bridge-server generate-data venv lint test clean
+        train-online bridge-server generate-data venv lint test clean \
+        docker-base docker-training docker-push docker-all \
+        local-train local-shell \
+        runpod-train runpod-list runpod-stop \
+        hf-export-dataset hf-push-model
 
 # Default target
 all: test
@@ -28,6 +38,10 @@ RESET := \033[0m
 
 # Paths
 PYTHON_DIR := python
+DEPLOY_DIR := deploy
+DOCKER_DIR := $(DEPLOY_DIR)/docker
+LOCAL_DIR := $(DEPLOY_DIR)/local
+RUNPOD_DIR := $(DEPLOY_DIR)/runpod
 VENV := venv
 VENV_BIN := $(VENV)/bin
 PYTHON := $(VENV_BIN)/python
@@ -38,8 +52,16 @@ PYTEST := $(VENV_BIN)/pytest
 DB_URL := postgresql://babylon_test:test_password@localhost:5434/babylon_test
 DB_COMPOSE := docker-compose.test.yml
 
+# Docker settings
+DOCKER_ORG ?= revlentless
+DOCKER_TAG ?= latest
+
 # Default profile (can be overridden: make train PROFILE=24gb)
 PROFILE ?= 12gb
+
+# Training settings
+STEPS ?= 100
+MIN_AGENTS ?= 1
 
 #---------------------------------------------------------------------------
 # Help
@@ -62,7 +84,25 @@ help:
 	@echo "  make db-migrate     Apply database schema"
 	@echo "  make db-reset       Stop, clean, start, and migrate"
 	@echo ""
-	@echo "$(GREEN)Training (with GPU profiles):$(RESET)"
+	@echo "$(GREEN)Docker Images:$(RESET)"
+	@echo "  make docker-base         Build base image (vLLM 0.14 + FlashInfer)"
+	@echo "  make docker-training     Build training image"
+	@echo "  make docker-push         Push both images to registry"
+	@echo "  make docker-all          Build and push everything"
+	@echo "  Options: DOCKER_ORG=myorg DOCKER_TAG=v1.0"
+	@echo ""
+	@echo "$(GREEN)Local Docker Training:$(RESET)"
+	@echo "  make local-train         Run training in Docker locally"
+	@echo "  make local-shell         Start interactive shell in container"
+	@echo "  Options: PROFILE=24gb STEPS=100"
+	@echo ""
+	@echo "$(GREEN)RunPod Cloud Training:$(RESET)"
+	@echo "  make runpod-train        Deploy training pod to RunPod"
+	@echo "  make runpod-list         List running pods"
+	@echo "  make runpod-stop POD=id  Stop and delete a pod"
+	@echo "  Options: GPU=h100 STEPS=1000"
+	@echo ""
+	@echo "$(GREEN)Native Training (with GPU profiles):$(RESET)"
 	@echo "  make train-12gb     Train with 12GB GPU profile (RTX 3060)"
 	@echo "  make train-16gb     Train with 16GB GPU profile (RTX 4080)"
 	@echo "  make train-24gb     Train with 24GB GPU profile (RTX 4090)"
@@ -74,23 +114,16 @@ help:
 	@echo "  make train-h100-4gpu Train with 4x H100-80GB - fastest for 30B"
 	@echo "  make train PROFILE=<name>  Train with custom profile"
 	@echo ""
-	@echo "$(GREEN)Online Training (Phase 3):$(RESET)"
+	@echo "$(GREEN)Online Training:$(RESET)"
 	@echo "  make bridge-server  Start TypeScript simulation bridge"
 	@echo "  make bridge-check   Check if bridge server is running"
 	@echo "  make train-online   Run online training (requires bridge-server)"
 	@echo "  make train-hybrid   Run hybrid training (mix offline + online)"
 	@echo "  make generate-data  Generate trajectories for offline training"
 	@echo ""
-	@echo "$(GREEN)Cloud & Production (Phase 4):$(RESET)"
-	@echo "  make docker-build           Build Docker image for cloud deployment"
-	@echo "  make docker-build-runpod    Build RunPod-optimized image (pre-baked deps)"
-	@echo "  make docker-build-runpod-30b Build with Qwen3-30B pre-downloaded"
-	@echo "  make docker-push-runpod     Push RunPod image to Docker Hub"
-	@echo "  make train-cloud            Train with W&B logging enabled"
-	@echo "  make train-cloud-l40        Cloud training with 1x L40"
-	@echo "  make train-cloud-l40-2gpu   Cloud training with 2x L40"
-	@echo "  make train-cloud-l40-4gpu   Cloud training with 4x L40 (Qwen3 30B)"
-	@echo "  make train-cloud-online     Cloud online training with W&B"
+	@echo "$(GREEN)HuggingFace Export:$(RESET)"
+	@echo "  make hf-export-dataset   Export trajectories to HuggingFace dataset"
+	@echo "  make hf-push-model       Push trained model to HuggingFace Hub"
 	@echo ""
 	@echo "$(GREEN)A/B Testing & Evaluation:$(RESET)"
 	@echo "  make ab-test        Run A/B test (MODEL_A vs MODEL_B)"
@@ -102,7 +135,7 @@ help:
 	@echo "  make test           Run all tests (tier1 + tier2)"
 	@echo "  make clean          Remove generated files"
 	@echo ""
-	@echo "$(YELLOW)Profiles available:$(RESET)"
+	@echo "$(YELLOW)GPU Profiles:$(RESET)"
 	@echo "  12gb, 16gb, 24gb, 48gb, cpu, l40, l40-2gpu, l40-4gpu, l40-8gpu, a100-4gpu, h100-4gpu"
 	@echo ""
 
@@ -198,7 +231,100 @@ db-reset: db-down db-up db-migrate
 	@echo "$(GREEN)✓ Database reset complete$(RESET)"
 
 #---------------------------------------------------------------------------
-# Training Shortcuts
+# Docker Images
+#---------------------------------------------------------------------------
+
+docker-base:
+	@echo "$(CYAN)Building base Docker image...$(RESET)"
+	cd $(DOCKER_DIR) && ./build.sh base -o $(DOCKER_ORG) -t $(DOCKER_TAG)
+	@echo "$(GREEN)✓ Base image built$(RESET)"
+
+docker-training:
+	@echo "$(CYAN)Building training Docker image...$(RESET)"
+	cd $(DOCKER_DIR) && ./build.sh training -o $(DOCKER_ORG) -t $(DOCKER_TAG) -b $(DOCKER_TAG)
+	@echo "$(GREEN)✓ Training image built$(RESET)"
+
+docker-push:
+	@echo "$(CYAN)Pushing Docker images...$(RESET)"
+	cd $(DOCKER_DIR) && ./build.sh push-base -o $(DOCKER_ORG) -t $(DOCKER_TAG)
+	cd $(DOCKER_DIR) && ./build.sh push-training -o $(DOCKER_ORG) -t $(DOCKER_TAG)
+	@echo "$(GREEN)✓ Images pushed to $(DOCKER_ORG)$(RESET)"
+
+docker-all:
+	@echo "$(CYAN)Building and pushing all Docker images...$(RESET)"
+	cd $(DOCKER_DIR) && ./build.sh all -o $(DOCKER_ORG) -t $(DOCKER_TAG)
+	@echo "$(GREEN)✓ All images built and pushed$(RESET)"
+
+#---------------------------------------------------------------------------
+# Local Docker Training
+#---------------------------------------------------------------------------
+
+local-train:
+	@echo "$(CYAN)Starting local Docker training...$(RESET)"
+	cd $(LOCAL_DIR) && ./run.sh --profile $(PROFILE) --steps $(STEPS) --min-agents $(MIN_AGENTS)
+
+local-shell:
+	@echo "$(CYAN)Starting interactive shell in training container...$(RESET)"
+	cd $(LOCAL_DIR) && ./run.sh --interactive
+
+#---------------------------------------------------------------------------
+# RunPod Cloud Training
+#---------------------------------------------------------------------------
+
+# Default RunPod settings
+GPU ?= h100
+RUNPOD_IMAGE ?= $(DOCKER_ORG)/babylon-training:$(DOCKER_TAG)
+
+runpod-train:
+	@echo "$(CYAN)Deploying training to RunPod...$(RESET)"
+	cd $(RUNPOD_DIR) && python setup.py train \
+		--gpu $(GPU) \
+		--image $(RUNPOD_IMAGE) \
+		--env-file ../$(DEPLOY_DIR)/.env \
+		--steps $(STEPS) \
+		--min-agents-per-window $(MIN_AGENTS)
+	@echo "$(GREEN)✓ Pod created$(RESET)"
+
+runpod-list:
+	@echo "$(CYAN)Listing RunPod pods...$(RESET)"
+	cd $(RUNPOD_DIR) && python setup.py list
+
+runpod-stop:
+	@if [ -z "$(POD)" ]; then \
+		echo "$(YELLOW)Usage: make runpod-stop POD=<pod-id>$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Stopping pod $(POD)...$(RESET)"
+	cd $(RUNPOD_DIR) && python setup.py stop $(POD)
+	@echo "$(GREEN)✓ Pod stopped$(RESET)"
+
+#---------------------------------------------------------------------------
+# HuggingFace Export
+#---------------------------------------------------------------------------
+
+HF_REPO ?= 
+HF_OUTPUT ?= ./hf_dataset
+
+hf-export-dataset:
+	@echo "$(CYAN)Exporting trajectories to HuggingFace dataset...$(RESET)"
+	cd $(PYTHON_DIR) && $(PYTHON) scripts/hf/trajectories_to_hf_dataset.py \
+		--output $(HF_OUTPUT) \
+		$(if $(HF_REPO),--push-to-hub $(HF_REPO),)
+	@echo "$(GREEN)✓ Dataset exported$(RESET)"
+
+hf-push-model:
+	@if [ -z "$(HF_REPO)" ]; then \
+		echo "$(YELLOW)Usage: make hf-push-model HF_REPO=your-org/model-name$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Pushing model to HuggingFace Hub...$(RESET)"
+	cd $(PYTHON_DIR) && $(PYTHON) scripts/hf/push_model_to_hf.py \
+		--adapter-path ./trained_models/final_model \
+		--repo-id $(HF_REPO)
+	@echo "$(GREEN)✓ Model pushed to $(HF_REPO)$(RESET)"
+
+#---------------------------------------------------------------------------
+# Training Shortcuts (Native - no Docker)
 #---------------------------------------------------------------------------
 
 train-12gb:
@@ -228,92 +354,14 @@ train-a100-4gpu:
 train-h100-4gpu:
 	$(MAKE) train PROFILE=h100-4gpu
 
-#---------------------------------------------------------------------------
-# Phase 4: Cloud & Production
-#---------------------------------------------------------------------------
-
-# Build Docker image for cloud deployment
-docker-build:
-	@echo "$(CYAN)Building Docker image for cloud deployment...$(RESET)"
-	docker build -t babylon-training:latest .
-	@echo "$(GREEN)✓ Docker image built: babylon-training:latest$(RESET)"
-
-# Build RunPod-optimized Docker image (pre-baked dependencies)
-docker-build-runpod:
-	@echo "$(CYAN)Building RunPod-optimized Docker image...$(RESET)"
-	@echo "This will take 15-30 minutes (compiling flash-attn)"
-	docker build -f Dockerfile.runpod -t babylon-training:runpod .
-	@echo "$(GREEN)✓ Docker image built: babylon-training:runpod$(RESET)"
-
-# Build RunPod image with model pre-downloaded (larger but faster startup)
-docker-build-runpod-30b:
-	@echo "$(CYAN)Building RunPod image with Qwen3-30B pre-downloaded...$(RESET)"
-	@echo "This will take 30-60 minutes and create a ~100GB image"
-	docker build -f Dockerfile.runpod \
-		--build-arg PRELOAD_MODEL=Qwen/Qwen3-30B-A3B \
-		-t babylon-training:runpod-30b .
-	@echo "$(GREEN)✓ Docker image built: babylon-training:runpod-30b$(RESET)"
-
-# Push RunPod image to Docker Hub
-docker-push-runpod:
-	@echo "$(CYAN)Pushing RunPod image to Docker Hub...$(RESET)"
-	@if [ -z "$(DOCKER_REPO)" ]; then \
-		echo "$(YELLOW)Set DOCKER_REPO to push: make docker-push-runpod DOCKER_REPO=your-org/babylon-training$(RESET)"; \
-		exit 1; \
-	fi
-	docker tag babylon-training:runpod $(DOCKER_REPO):runpod
-	docker push $(DOCKER_REPO):runpod
-	@echo "$(GREEN)✓ Pushed to $(DOCKER_REPO):runpod$(RESET)"
-
-# Production training with W&B logging (requires WANDB_API_KEY)
-train-cloud: db-up db-migrate
-	@echo "$(CYAN)Starting production cloud training with W&B logging...$(RESET)"
-	@if [ -z "$$WANDB_API_KEY" ]; then \
-		echo "$(YELLOW)Warning: WANDB_API_KEY not set. W&B logging will be disabled.$(RESET)"; \
-	fi
-	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
-		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
-		$(PYTHON) scripts/run_training.py \
-		--profile $(PROFILE) \
-		--wandb-project $(WANDB_PROJECT) \
-		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),) \
-		$(if $(WANDB_RUN_NAME),--wandb-run-name $(WANDB_RUN_NAME),)
-
-# Cloud training with specific L40 profiles
-train-cloud-l40:
-	$(MAKE) train-cloud PROFILE=l40
-
-train-cloud-l40-2gpu:
-	$(MAKE) train-cloud PROFILE=l40-2gpu
-
-train-cloud-l40-4gpu:
-	$(MAKE) train-cloud PROFILE=l40-4gpu
-
-# Online cloud training (with bridge)
-train-cloud-online: db-up db-migrate bridge-check
-	@echo "$(CYAN)Starting production online training with W&B logging...$(RESET)"
-	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
-		USE_SIMULATION_BRIDGE=1 \
-		SIMULATION_BRIDGE_URL=http://localhost:3001 \
-		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
-		$(PYTHON) scripts/run_training.py \
-		--profile $(PROFILE) \
-		--mode online \
-		--bridge-url http://localhost:3001 \
-		--wandb-project $(WANDB_PROJECT) \
-		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),)
-
-# Default W&B settings
-WANDB_PROJECT ?= babylon-training
-WANDB_ENTITY ?= 
-WANDB_RUN_NAME ?= 
-
 train: db-up db-migrate
-	@echo "$(CYAN)Starting training with profile: $(PROFILE)$(RESET)"
+	@echo "$(CYAN)Starting native training with profile: $(PROFILE)$(RESET)"
 	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) WANDB_MODE=offline \
 		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
 		$(PYTHON) scripts/run_training.py \
 		--profile $(PROFILE) \
+		--steps $(STEPS) \
+		--min-agents-per-window $(MIN_AGENTS) \
 		--no-wandb \
 		--skip-validation
 
@@ -365,8 +413,62 @@ bridge-check:
 
 generate-data:
 	@echo "$(CYAN)Generating training trajectories...$(RESET)"
-	./scripts/generate_dataset.sh $(HOURS) $(PARALLEL) $(NPCS) $(OUTPUT)
+	cd ../.. && bun run packages/engine/examples/generate-training-data.ts \
+		--causal --hours $(HOURS) --npcs $(NPCS) --seed $(SEED)
 	@echo "$(GREEN)✓ Data generation complete$(RESET)"
+
+# Default data generation settings
+HOURS ?= 24
+NPCS ?= 10
+SEED ?= 42
+
+#---------------------------------------------------------------------------
+# Cloud Training with W&B
+#---------------------------------------------------------------------------
+
+# Default W&B settings
+WANDB_PROJECT ?= babylon-training
+WANDB_ENTITY ?= 
+WANDB_RUN_NAME ?= 
+
+train-cloud: db-up db-migrate
+	@echo "$(CYAN)Starting cloud training with W&B logging...$(RESET)"
+	@if [ -z "$$WANDB_API_KEY" ]; then \
+		echo "$(YELLOW)Warning: WANDB_API_KEY not set. W&B logging will be disabled.$(RESET)"; \
+	fi
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--steps $(STEPS) \
+		--min-agents-per-window $(MIN_AGENTS) \
+		--wandb-project $(WANDB_PROJECT) \
+		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),) \
+		$(if $(WANDB_RUN_NAME),--wandb-run-name $(WANDB_RUN_NAME),)
+
+# Cloud training with specific profiles
+train-cloud-l40:
+	$(MAKE) train-cloud PROFILE=l40
+
+train-cloud-l40-2gpu:
+	$(MAKE) train-cloud PROFILE=l40-2gpu
+
+train-cloud-l40-4gpu:
+	$(MAKE) train-cloud PROFILE=l40-4gpu
+
+# Online cloud training (with bridge)
+train-cloud-online: db-up db-migrate bridge-check
+	@echo "$(CYAN)Starting production online training with W&B logging...$(RESET)"
+	cd $(PYTHON_DIR) && DATABASE_URL=$(DB_URL) \
+		USE_SIMULATION_BRIDGE=1 \
+		SIMULATION_BRIDGE_URL=http://localhost:3001 \
+		PATH="$(shell pwd)/$(PYTHON_DIR)/$(VENV_BIN):$$PATH" \
+		$(PYTHON) scripts/run_training.py \
+		--profile $(PROFILE) \
+		--mode online \
+		--bridge-url http://localhost:3001 \
+		--wandb-project $(WANDB_PROJECT) \
+		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),)
 
 #---------------------------------------------------------------------------
 # A/B Testing & Evaluation
@@ -412,6 +514,6 @@ clean:
 	rm -rf $(PYTHON_DIR)/trained_models
 	rm -rf $(PYTHON_DIR)/.pytest_cache
 	rm -rf $(PYTHON_DIR)/__pycache__
+	rm -rf $(PYTHON_DIR)/hf_dataset
 	find $(PYTHON_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@echo "$(GREEN)✓ Clean complete$(RESET)"
-
