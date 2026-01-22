@@ -124,7 +124,9 @@ export function useAgentTotalPnL(
   // Sanitize deposit/withdrawal values to prevent NaN propagation
   const depositedRaw = Number(totalDeposited);
   const withdrawnRaw = Number(totalWithdrawn);
-  const depositedSafe = Number.isFinite(depositedRaw) ? depositedRaw : undefined;
+  const depositedSafe = Number.isFinite(depositedRaw)
+    ? depositedRaw
+    : undefined;
   const withdrawnSafe = Number.isFinite(withdrawnRaw) ? withdrawnRaw : 0;
 
   // Calculate net contributions (what was actually put in)
