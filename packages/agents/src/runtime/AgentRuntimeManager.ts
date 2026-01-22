@@ -265,8 +265,21 @@ export class AgentRuntimeManager {
     // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
-      isReady: () => true, // Required by composeState
-      getAgent: async (_agentId: unknown) => null, // Required by composeState
+      // Required by composeState and runtime.initialize
+      isReady: () => true,
+      init: async () => {},
+      close: async () => {},
+      // Agent methods - Babylon manages agents separately
+      getAgent: async (_agentId: unknown) => null,
+      getAgents: async () => [],
+      createAgent: async (_agent: unknown) => true,
+      updateAgent: async (_agentId: unknown, _agent: unknown) => true,
+      deleteAgent: async (_agentId: unknown) => true,
+      // Entity methods
+      getEntitiesByIds: async (_ids: unknown) => [],
+      getParticipantsForRoom: async (_roomId: unknown) => [],
+      addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
+      // Memory methods - Babylon uses its own DB
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;
@@ -586,8 +599,21 @@ export class AgentRuntimeManager {
     // Babylon doesn't use ElizaOS's memory system, so we stub these out
     runtime.adapter = {
       ...runtime.adapter,
-      isReady: () => true, // Required by composeState
-      getAgent: async (_agentId: unknown) => null, // Required by composeState
+      // Required by composeState and runtime.initialize
+      isReady: () => true,
+      init: async () => {},
+      close: async () => {},
+      // Agent methods - Babylon manages agents separately
+      getAgent: async (_agentId: unknown) => null,
+      getAgents: async () => [],
+      createAgent: async (_agent: unknown) => true,
+      updateAgent: async (_agentId: unknown, _agent: unknown) => true,
+      deleteAgent: async (_agentId: unknown) => true,
+      // Entity methods
+      getEntitiesByIds: async (_ids: unknown) => [],
+      getParticipantsForRoom: async (_roomId: unknown) => [],
+      addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
+      // Memory methods - Babylon uses its own DB
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;
