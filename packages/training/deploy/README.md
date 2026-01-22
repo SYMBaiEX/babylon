@@ -26,16 +26,22 @@ deploy/
 ├── README.md         # This file
 ├── docker/           # Docker images
 │   ├── Dockerfile.base   # Base image with vLLM + FlashInfer
-│   ├── Dockerfile        # Production image
+│   ├── Dockerfile        # Production training image
+│   ├── Dockerfile.bench  # Benchmark image with vLLM
 │   ├── build.sh          # Build/push CLI
 │   ├── scripts/          # Container scripts
 │   └── README.md
 ├── local/            # Local development scripts
 │   ├── run.sh            # Quick local training
+│   ├── benchmark.sh      # Run benchmarks in Docker
 │   └── README.md
 ├── runpod/           # RunPod cloud deployment
 │   ├── setup.py          # CLI for RunPod pods
 │   └── README.md
+└── phala/            # Phala Cloud (TEE) deployment
+    ├── docker-compose.yml
+    ├── scripts/          # Attestation, secrets, deploy
+    └── README.md
 ```
 
 ## Deployment Options
@@ -44,17 +50,23 @@ deploy/
 |----------|-------------|----------|------------|
 | **Local Docker** | Your GPU | Development, testing | 5 min |
 | **RunPod** | RTX 4090, A100, H100, H200 | Production training | 10 min |
+| **Phala Cloud** | TEE-enabled GPUs | Privacy-preserving training | 15 min |
 
 ## Environment Configuration
 
 All platforms use the same environment variables. See [`env.example`](./env.example) for the complete list.
 
-**Required:**
-- `DATABASE_URL` - PostgreSQL with trajectory data
+**Required (choose one data source):**
+- `DATABASE_URL` - PostgreSQL with trajectory data (default)
+- Or `TRAJECTORY_SOURCE=huggingface` + `HF_TRAJECTORY_DATASET` - Load from HuggingFace dataset
 
 **Recommended:**
 - `WANDB_API_KEY` - Experiment tracking
-- `HF_TOKEN` - For private/gated models
+- `HF_TOKEN` - For private/gated models and pushing to HuggingFace
+
+**Optional Post-Training:**
+- `HF_PUSH_REPO` - Push trained model to HuggingFace Hub
+- `BENCHMARK_ENABLED=true` - Run benchmark suite after training
 
 ## GPU Profiles
 
@@ -70,7 +82,7 @@ The training supports various GPU configurations:
 
 ## Docker Images
 
-We use a **two-stage build** for faster iteration:
+We use a **multi-stage build** for faster iteration:
 
 1. **Base Image** (`Dockerfile.base`) - Built once, ~10 min
    - Uses official `vllm/vllm-openai:v0.14.0`
@@ -82,24 +94,87 @@ We use a **two-stage build** for faster iteration:
    - Adds your training code
    - Optionally pre-downloads model weights
 
+3. **Benchmark Image** (`Dockerfile.bench`) - ~5 min
+   - Standalone vLLM server + TypeScript benchmark
+   - Supports LoRA adapters via volume mounts
+   - Supports HuggingFace model downloads
+
 ```bash
 cd docker
 
-# Build and push everything
+# Build and push everything (base + training + benchmark)
 ./build.sh all -t 0.2.0,latest
 
 # Or step by step
 ./build.sh base -t 0.2.0,latest
-./build.sh push-base -t 0.2.0,latest
 ./build.sh training -t 0.2.0,latest
-./build.sh push-training -t 0.2.0,latest
+./build.sh benchmark -t 0.2.0,latest
 
 # Different org
 ./build.sh all -o myorg -t 1.0.0
 ```
+
+## HuggingFace Integration
+
+### Loading Trajectories from HuggingFace
+
+Instead of a live database, you can train on frozen HuggingFace datasets:
+
+```bash
+# Set trajectory source to HuggingFace
+export TRAJECTORY_SOURCE=huggingface
+export HF_TRAJECTORY_DATASET=elizalabs/babylon-trajectories-simulation-v1
+export HF_TRAJECTORY_SPLIT=raw
+
+# Run training
+./local/run.sh --profile 12gb --steps 100
+```
+
+### Pushing Models to HuggingFace
+
+After training, push your model to HuggingFace Hub:
+
+```bash
+# Set push configuration
+export HF_PUSH_REPO=elizalabs/ishtar-qwen3-4b-grpo-v0.1
+export HF_MODEL_CODENAME=ishtar
+export HF_TOKEN=your-token
+
+# Run training (will push at the end)
+./local/run.sh --profile 24gb --steps 1000
+```
+
+Model codenames are Babylon-inspired: `ishtar`, `marduk`, `gilgamesh`, `enkidu`, `tiamat`, etc.
+
+## Post-Training Benchmark
+
+Run benchmarks on trained models using the containerized benchmark runner:
+
+```bash
+cd local
+
+# Quick benchmark with trained model
+./benchmark.sh
+
+# Benchmark specific checkpoint
+./benchmark.sh --model step_500
+
+# Full benchmark (22-day scenarios)
+./benchmark.sh --full
+
+# Specific scenario
+./benchmark.sh --scenario bear-market
+
+# Or via Makefile
+make local-benchmark
+make local-benchmark-quick
+```
+
+The benchmark image uses vLLM to run inference on your trained model against fixed scenarios (bull-market, bear-market, scandal-unfolds, pump-and-dump).
 
 ## Platform Guides
 
 - **[Local Development](./local/README.md)** - Run training on your local GPU
 - **[Docker](./docker/README.md)** - Building and configuring images
 - **[RunPod](./runpod/README.md)** - Cloud GPU training
+- **[Phala Cloud](./phala/README.md)** - TEE-enabled privacy-preserving training

@@ -10,7 +10,7 @@ We use a **multi-stage build** for fast iteration:
 |-------|------|------------|---------|
 | `Dockerfile.base` | `vllm/vllm-openai:v0.14.0` | ~10 min | vLLM + FlashInfer + ML deps |
 | `Dockerfile` | Your base image | ~2 min | Training code |
-| `Dockerfile.bench` | `vllm/vllm-openai:v0.8.5` | ~5 min | Benchmark + vLLM for model evaluation |
+| `Dockerfile.bench` | `vllm/vllm-openai:v0.14.0` | ~5 min | Benchmark + vLLM for model evaluation |
 
 **Workflow:**
 1. Build `Dockerfile.base` once and push to registry

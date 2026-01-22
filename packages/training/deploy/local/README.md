@@ -76,8 +76,67 @@ The script automatically mounts:
 
 | Host Path | Container Path | Purpose |
 |-----------|----------------|---------|
-| `../../trained_models` | `/app/trained_models` | Model checkpoints |
+| `../../trained_models` | `/app/python/trained_models` | Model checkpoints |
 | `../../logs` | `/app/logs` | Training logs |
+
+## Post-Training Actions
+
+### Push Model to HuggingFace
+
+Set these environment variables before training:
+
+```bash
+export HF_PUSH_REPO=elizalabs/ishtar-qwen3-4b-grpo-v0.1
+export HF_MODEL_CODENAME=ishtar
+export HF_TOKEN=your-hf-token
+
+./run.sh --profile 24gb --steps 1000
+# Model will be pushed to HuggingFace after training completes
+```
+
+### Run Benchmark
+
+After training, run benchmarks in a containerized environment:
+
+```bash
+# Quick benchmark with trained model
+./benchmark.sh
+
+# Benchmark specific checkpoint
+./benchmark.sh --model step_500
+
+# Specific scenario
+./benchmark.sh --scenario bear-market
+
+# Full benchmark (22-day scenarios)
+./benchmark.sh --full
+
+# Interactive shell for debugging
+./benchmark.sh --interactive
+```
+
+Benchmark results are saved to `../../benchmark-results/`.
+
+## Benchmark Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--image <image>` | Docker image | `revlentless/babylon-benchmark:latest` |
+| `--model <name>` | Model in trained_models/ | `final_model` |
+| `--scenario <id>` | Specific scenario | all |
+| `--quick` | Quick mode (7-day scenarios) | default |
+| `--full` | Full mode (22-day scenarios) | - |
+| `--output <dir>` | Results directory | `../../benchmark-results` |
+| `--interactive, -i` | Interactive shell | - |
+
+### Available Scenarios
+
+| Scenario | Description |
+|----------|-------------|
+| `bull-market` | Strong upward price trend |
+| `bear-market` | Downward trend with volatility |
+| `scandal-unfolds` | FUD event causes price drop |
+| `pump-and-dump` | Pump followed by crash |
 
 ## Troubleshooting
 
