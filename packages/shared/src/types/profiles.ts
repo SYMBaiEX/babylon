@@ -54,6 +54,10 @@ export type ProfileInfo = (UserProfile | ActorProfile) & {
   affiliations?: string[];
   game?: { id: string };
   isUser?: boolean;
+  /** Whether this is an AI agent (not an NPC actor) */
+  isAgent?: boolean;
+  /** User ID of the agent's owner (for detecting own agents) */
+  managedBy?: string | null;
   profileImageUrl?: string;
   coverImageUrl?: string;
   onChainRegistered?: boolean;

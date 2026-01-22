@@ -3,7 +3,8 @@
 import { cn } from '@babylon/shared';
 import { Bot, Plus, Radio, Users, X } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -21,6 +22,8 @@ import { MemberList } from './MemberList';
  * Users can @mention specific agents to direct tasks.
  */
 export default function TeamChatPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { ready, authenticated, user } = useAuth();
 
   const {
@@ -34,6 +37,7 @@ export default function TeamChatPage() {
     hasMore,
     messageInput,
     handleInputChange,
+    setMessageInput,
     typingUsers,
     thinkingAgents,
     sendError,
@@ -45,6 +49,17 @@ export default function TeamChatPage() {
 
   // Mobile member drawer state
   const [showMemberDrawer, setShowMemberDrawer] = useState(false);
+
+  // Handle @mention from query parameter (when redirected from agent profile)
+  useEffect(() => {
+    const mention = searchParams.get('mention');
+    if (mention && !loading && teamChat) {
+      // Pre-populate input with @mention and a trailing space
+      setMessageInput(`@${mention} `);
+      // Clean up URL by removing the query parameter
+      router.replace('/agents/team', { scroll: false });
+    }
+  }, [searchParams, loading, teamChat, setMessageInput, router]);
 
   // Auth required state
   if (ready && !authenticated) {

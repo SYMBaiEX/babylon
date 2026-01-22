@@ -4,4 +4,7 @@
 
 export { actionStateProvider } from './action-state';
 export { actionsProvider } from './actions';
-export { recentMessagesProvider } from './recent-messages';
+export {
+  recentMessagesProvider,
+  teamChatMessagesProvider,
+} from './recent-messages';

@@ -1,15 +1,12 @@
 /**
  * Team Chat Message API
  *
- * @route POST /api/agents/team-chat/message - Send message to team chat with @mention handling
+ * @route POST /api/agents/team-chat/message - Send message to team chat
  * @access Authenticated
  *
  * @description
  * Sends a message to the user's Command Center team chat.
- * Automatically triggers priority responses from @mentioned agents.
- *
- * When no agents are @mentioned, ALL agents in the team chat will respond.
- * This is configurable via UNTAGGED_RESPONSE_CONFIG.
+ * Broadcasts to all agents - each agent decides via LLM whether to respond.
  *
  * @openapi
  * /api/agents/team-chat/message:
@@ -18,9 +15,8 @@
  *       - Agents
  *     summary: Send team chat message
  *     description: |
- *       Sends a message to Command Center and triggers agent responses.
- *       - If specific agents are @mentioned, only those agents respond.
- *       - If no agents are @mentioned, ALL agents respond (untagged broadcast).
+ *       Sends a message to Command Center and broadcasts to all agents.
+ *       Each agent uses LLM to decide whether to respond based on context.
  *     security:
  *       - PrivyAuth: []
  *     requestBody:
@@ -34,27 +30,17 @@
  *             properties:
  *               content:
  *                 type: string
- *                 description: Message content (can include @mentions)
- *               mentionedAgentIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: Agent IDs that were @mentioned (parsed client-side)
+ *                 description: Message content
  *     responses:
  *       201:
- *         description: Message sent, agent responses triggered
+ *         description: Message sent, broadcasted to agents
  *       401:
  *         description: Unauthorized
  *       404:
  *         description: No team chat exists
  */
 
-import {
-  type AgentOrderingStrategy,
-  orderAgentIds,
-  teamChatResponseService,
-  teamChatService,
-} from '@babylon/agents';
+import { teamChatResponseService, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
@@ -68,38 +54,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 // =============================================================================
-// Untagged Response Configuration
-// =============================================================================
-
-/**
- * Configuration for how agents respond when no specific agent is @mentioned.
- *
- * This can be modified by developers to tune the behavior.
- *
- * TODO(BAB-XXX): Consider moving to environment variables or a config service
- * for runtime tuning without code changes. This would allow:
- * - A/B testing different maxAgents values
- * - Per-team customization of ordering strategy
- * - Dynamic adjustment based on team size
- */
-const UNTAGGED_RESPONSE_CONFIG = {
-  /**
-   * Maximum number of agents that will respond to an untagged message.
-   * Set to null for unlimited (all agents respond).
-   */
-  maxAgents: null as number | null,
-
-  /**
-   * Strategy for ordering which agents respond first.
-   * - 'random': Randomize the order (default, feels more natural)
-   * - 'created_asc': Oldest agents first
-   * - 'created_desc': Newest agents first
-   * - 'alphabetical': Alphabetically by display name
-   */
-  orderingStrategy: 'random' as AgentOrderingStrategy,
-};
-
-// =============================================================================
 // Request Validation
 // =============================================================================
 
@@ -109,10 +63,6 @@ const messageSchema = z.object({
     .string()
     .min(1, 'Message content is required')
     .max(4000, 'Message too long. Maximum 4000 characters allowed.'),
-  mentionedAgentIds: z
-    .array(z.string().regex(/^\d+$/, 'Invalid agent ID format'))
-    .max(10, 'Maximum 10 agents can be mentioned at once.')
-    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -154,7 +104,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { content, mentionedAgentIds } = parseResult.data;
+  const { content } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
@@ -185,11 +135,7 @@ export async function POST(req: NextRequest) {
 
   logger.info(
     `Team chat message sent by user ${user.id}`,
-    {
-      chatId: teamChat.chatId,
-      messageId,
-      mentionCount: mentionedAgentIds?.length ?? 0,
-    },
+    { chatId: teamChat.chatId, messageId },
     'TeamChatMessageAPI'
   );
 
@@ -205,93 +151,31 @@ export async function POST(req: NextRequest) {
     isDMChat: false,
   });
 
-  // Get all team agents for response handling
-  const teamAgents = await teamChatService.getTeamChatAgents(
-    user.id,
-    teamChat.groupId
-  );
+  // Get user info for owner context
+  const [userInfo] = await db
+    .select({ displayName: users.displayName, username: users.username })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  const ownerDisplayName =
+    userInfo?.displayName || userInfo?.username || 'User';
+  const ownerUsername = userInfo?.username || '';
 
-  // Determine which agents should respond
-  let agentIdsToRespond: string[] = [];
-  let isUntaggedBroadcast = false;
-
-  if (mentionedAgentIds && mentionedAgentIds.length > 0) {
-    // Specific agents were @mentioned - validate and use those
-    const teamAgentIds = new Set(teamAgents.map((agent) => agent.id));
-    agentIdsToRespond = mentionedAgentIds.filter((id) => teamAgentIds.has(id));
-  } else {
-    // No agents @mentioned - ALL agents should respond (untagged broadcast)
-    isUntaggedBroadcast = true;
-    agentIdsToRespond = teamAgents.map((agent) => agent.id);
-
-    // Apply ordering strategy
-    agentIdsToRespond = orderAgentIds(
-      agentIdsToRespond,
-      teamAgents,
-      UNTAGGED_RESPONSE_CONFIG.orderingStrategy
-    );
-
-    // Apply max agents cap if configured
-    if (
-      UNTAGGED_RESPONSE_CONFIG.maxAgents !== null &&
-      agentIdsToRespond.length > UNTAGGED_RESPONSE_CONFIG.maxAgents
-    ) {
-      agentIdsToRespond = agentIdsToRespond.slice(
-        0,
-        UNTAGGED_RESPONSE_CONFIG.maxAgents
+  // Broadcast to all agents (they decide via LLM whether to respond)
+  teamChatResponseService
+    .broadcastToAllAgents({
+      chatId: teamChat.chatId,
+      senderId: user.id,
+      ownerDisplayName,
+      ownerUsername,
+    })
+    .catch((error) => {
+      logger.error(
+        `Failed to broadcast to agents: ${error}`,
+        { chatId: teamChat.chatId },
+        'TeamChatMessageAPI'
       );
-    }
-
-    logger.info(
-      `Untagged message - triggering all ${agentIdsToRespond.length} agent(s)`,
-      {
-        chatId: teamChat.chatId,
-        agentCount: agentIdsToRespond.length,
-        ordering: UNTAGGED_RESPONSE_CONFIG.orderingStrategy,
-        maxAgents: UNTAGGED_RESPONSE_CONFIG.maxAgents,
-      },
-      'TeamChatMessageAPI'
-    );
-  }
-
-  // Trigger agent responses if there are any agents to respond
-  let responseResult = null;
-  if (agentIdsToRespond.length > 0) {
-    // Get user display name for mentions
-    const [userInfo] = await db
-      .select({ displayName: users.displayName, username: users.username })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-    const senderDisplayName =
-      userInfo?.displayName || userInfo?.username || 'User';
-
-    // Trigger responses asynchronously (don't block the API response)
-    teamChatResponseService
-      .triggerMentionedAgentResponses({
-        chatId: teamChat.chatId,
-        messageContent: content.trim(),
-        mentionedAgentIds: agentIdsToRespond,
-        senderUserId: user.id,
-        senderDisplayName,
-        isUntaggedBroadcast,
-      })
-      .catch((error) => {
-        logger.error(
-          `Failed to trigger agent responses: ${error}`,
-          { chatId: teamChat.chatId },
-          'TeamChatMessageAPI'
-        );
-      });
-
-    responseResult = {
-      agentsNotified: agentIdsToRespond.length,
-      isUntaggedBroadcast,
-      invalidMentions: mentionedAgentIds
-        ? mentionedAgentIds.length - agentIdsToRespond.length
-        : 0,
-    };
-  }
+    });
 
   return NextResponse.json(
     {
@@ -304,7 +188,6 @@ export async function POST(req: NextRequest) {
         type: 'user',
         createdAt: now.toISOString(),
       },
-      agentResponses: responseResult,
     },
     { status: 201 }
   );
