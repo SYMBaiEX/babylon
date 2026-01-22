@@ -15,18 +15,11 @@ const TABS: { id: MarketTab; label: string }[] = [
 interface MarketsToggleProps {
   activeTab: MarketTab;
   onTabChange: (tab: MarketTab) => void;
-  /** User's available balance to display in header */
   balance?: number | null;
-  /** Whether user is authenticated */
   authenticated?: boolean;
-  /** Whether balance is loading */
   loading?: boolean;
 }
 
-/**
- * Markets toggle component for switching between market views.
- * Shows active tab with underline indicator. Displays balance when authenticated.
- */
 export function MarketsToggle({
   activeTab,
   onTabChange,

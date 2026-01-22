@@ -8,10 +8,6 @@ interface PortfolioPnLCardProps {
   onShowBuyPoints: () => void;
 }
 
-/**
- * Portfolio action bar for sharing P&L and buying points.
- * Balance is displayed in the header, so this focuses on actions only.
- */
 export function PortfolioPnLCard({
   data,
   loading,
