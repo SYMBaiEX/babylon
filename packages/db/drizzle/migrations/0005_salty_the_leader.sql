@@ -1,4 +1,8 @@
-CREATE TABLE "AdminRole" (
+-- Migration made idempotent to handle partial application states
+-- All CREATE TABLE, CREATE INDEX, DROP INDEX, DROP TABLE, and ALTER TABLE statements
+-- now use IF EXISTS/IF NOT EXISTS to be safe across environments
+
+CREATE TABLE IF NOT EXISTS "AdminRole" (
 	"id" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
 	"role" text NOT NULL,
@@ -9,7 +13,7 @@ CREATE TABLE "AdminRole" (
 	CONSTRAINT "AdminRole_userId_unique" UNIQUE("userId")
 );
 --> statement-breakpoint
-CREATE TABLE "PerpMarketSnapshot" (
+CREATE TABLE IF NOT EXISTS "PerpMarketSnapshot" (
 	"ticker" text PRIMARY KEY NOT NULL,
 	"organizationId" text NOT NULL,
 	"name" text,
@@ -32,7 +36,7 @@ CREATE TABLE "PerpMarketSnapshot" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "GroupInvite" (
+CREATE TABLE IF NOT EXISTS "GroupInvite" (
 	"id" text PRIMARY KEY NOT NULL,
 	"groupId" text NOT NULL,
 	"invitedUserId" text NOT NULL,
@@ -44,7 +48,7 @@ CREATE TABLE "GroupInvite" (
 	CONSTRAINT "GroupInvite_groupId_invitedUserId_key" UNIQUE("groupId","invitedUserId")
 );
 --> statement-breakpoint
-CREATE TABLE "GroupMember" (
+CREATE TABLE IF NOT EXISTS "GroupMember" (
 	"id" text PRIMARY KEY NOT NULL,
 	"groupId" text NOT NULL,
 	"userId" text NOT NULL,
@@ -60,7 +64,7 @@ CREATE TABLE "GroupMember" (
 	CONSTRAINT "GroupMember_groupId_userId_key" UNIQUE("groupId","userId")
 );
 --> statement-breakpoint
-CREATE TABLE "Group" (
+CREATE TABLE IF NOT EXISTS "Group" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
@@ -71,7 +75,7 @@ CREATE TABLE "Group" (
 	"updatedAt" timestamp NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "AdminAuditLog" (
+CREATE TABLE IF NOT EXISTS "AdminAuditLog" (
 	"id" text PRIMARY KEY NOT NULL,
 	"adminId" text NOT NULL,
 	"action" text NOT NULL,
@@ -85,7 +89,7 @@ CREATE TABLE "AdminAuditLog" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "AnalyticsDailySnapshot" (
+CREATE TABLE IF NOT EXISTS "AnalyticsDailySnapshot" (
 	"id" text PRIMARY KEY NOT NULL,
 	"date" timestamp NOT NULL,
 	"totalUsers" integer DEFAULT 0 NOT NULL,
@@ -114,7 +118,7 @@ CREATE TABLE "AnalyticsDailySnapshot" (
 	CONSTRAINT "AnalyticsDailySnapshot_date_unique" UNIQUE("date")
 );
 --> statement-breakpoint
-CREATE TABLE "QuestionArcPlan" (
+CREATE TABLE IF NOT EXISTS "QuestionArcPlan" (
 	"id" text PRIMARY KEY NOT NULL,
 	"questionId" text NOT NULL,
 	"uncertaintyPeakDay" integer NOT NULL,
@@ -126,69 +130,70 @@ CREATE TABLE "QuestionArcPlan" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "Actor" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "CharacterMapping" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "ChatAdmin" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "ChatInvite" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "GroupChatMembership" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "OrganizationMapping" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "UserGroupAdmin" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "UserGroupInvite" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "UserGroupMember" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "UserGroup" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP TABLE "Actor" CASCADE;--> statement-breakpoint
-DROP TABLE "CharacterMapping" CASCADE;--> statement-breakpoint
-DROP TABLE "ChatAdmin" CASCADE;--> statement-breakpoint
-DROP TABLE "ChatInvite" CASCADE;--> statement-breakpoint
-DROP TABLE "GroupChatMembership" CASCADE;--> statement-breakpoint
-DROP TABLE "OrganizationMapping" CASCADE;--> statement-breakpoint
-DROP TABLE "UserGroupAdmin" CASCADE;--> statement-breakpoint
-DROP TABLE "UserGroupInvite" CASCADE;--> statement-breakpoint
-DROP TABLE "UserGroupMember" CASCADE;--> statement-breakpoint
-DROP TABLE "UserGroup" CASCADE;--> statement-breakpoint
-DROP INDEX "Chat_npcAdminId_idx";--> statement-breakpoint
-ALTER TABLE "Market" ADD COLUMN "resolutionProofUrl" text;--> statement-breakpoint
-ALTER TABLE "Market" ADD COLUMN "resolutionDescription" text;--> statement-breakpoint
-ALTER TABLE "Post" ADD COLUMN "imageUrl" text;--> statement-breakpoint
-ALTER TABLE "Report" ADD COLUMN "reportedCommentId" text;--> statement-breakpoint
-ALTER TABLE "trajectories" ADD COLUMN "archetype" varchar(50);--> statement-breakpoint
-ALTER TABLE "AdminRole" ADD CONSTRAINT "AdminRole_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "AdminRole" ADD CONSTRAINT "AdminRole_grantedBy_User_id_fk" FOREIGN KEY ("grantedBy") REFERENCES "public"."User"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "QuestionArcPlan" ADD CONSTRAINT "QuestionArcPlan_questionId_Question_id_fk" FOREIGN KEY ("questionId") REFERENCES "public"."Question"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "AdminRole_role_idx" ON "AdminRole" USING btree ("role");--> statement-breakpoint
-CREATE INDEX "AdminRole_userId_idx" ON "AdminRole" USING btree ("userId");--> statement-breakpoint
-CREATE INDEX "AdminRole_grantedAt_idx" ON "AdminRole" USING btree ("grantedAt");--> statement-breakpoint
-CREATE INDEX "AdminRole_revokedAt_idx" ON "AdminRole" USING btree ("revokedAt");--> statement-breakpoint
-CREATE INDEX "PerpMarketSnapshot_orgId_idx" ON "PerpMarketSnapshot" USING btree ("organizationId");--> statement-breakpoint
-CREATE INDEX "GroupInvite_groupId_idx" ON "GroupInvite" USING btree ("groupId");--> statement-breakpoint
-CREATE INDEX "GroupInvite_invitedUserId_status_idx" ON "GroupInvite" USING btree ("invitedUserId","status");--> statement-breakpoint
-CREATE INDEX "GroupInvite_status_idx" ON "GroupInvite" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "GroupMember_groupId_idx" ON "GroupMember" USING btree ("groupId");--> statement-breakpoint
-CREATE INDEX "GroupMember_userId_idx" ON "GroupMember" USING btree ("userId");--> statement-breakpoint
-CREATE INDEX "GroupMember_groupId_isActive_idx" ON "GroupMember" USING btree ("groupId","isActive");--> statement-breakpoint
-CREATE INDEX "GroupMember_userId_isActive_idx" ON "GroupMember" USING btree ("userId","isActive");--> statement-breakpoint
-CREATE INDEX "GroupMember_lastMessageAt_idx" ON "GroupMember" USING btree ("lastMessageAt");--> statement-breakpoint
-CREATE INDEX "GroupMember_role_idx" ON "GroupMember" USING btree ("role");--> statement-breakpoint
-CREATE INDEX "Group_type_idx" ON "Group" USING btree ("type");--> statement-breakpoint
-CREATE INDEX "Group_ownerId_idx" ON "Group" USING btree ("ownerId");--> statement-breakpoint
-CREATE INDEX "Group_createdById_idx" ON "Group" USING btree ("createdById");--> statement-breakpoint
-CREATE INDEX "Group_createdAt_idx" ON "Group" USING btree ("createdAt");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_adminId_idx" ON "AdminAuditLog" USING btree ("adminId");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_action_idx" ON "AdminAuditLog" USING btree ("action");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_resourceType_idx" ON "AdminAuditLog" USING btree ("resourceType");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_resourceId_idx" ON "AdminAuditLog" USING btree ("resourceId");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_createdAt_idx" ON "AdminAuditLog" USING btree ("createdAt");--> statement-breakpoint
-CREATE INDEX "AdminAuditLog_adminId_createdAt_idx" ON "AdminAuditLog" USING btree ("adminId","createdAt");--> statement-breakpoint
-CREATE INDEX "AnalyticsDailySnapshot_date_idx" ON "AnalyticsDailySnapshot" USING btree ("date");--> statement-breakpoint
-CREATE INDEX "AnalyticsDailySnapshot_createdAt_idx" ON "AnalyticsDailySnapshot" USING btree ("createdAt");--> statement-breakpoint
-CREATE INDEX "QuestionArcPlan_questionId_idx" ON "QuestionArcPlan" USING btree ("questionId");--> statement-breakpoint
-CREATE INDEX "BalanceTransaction_type_createdAt_idx" ON "BalanceTransaction" USING btree ("type","createdAt");--> statement-breakpoint
-CREATE INDEX "BalanceTransaction_userId_type_idx" ON "BalanceTransaction" USING btree ("userId","type");--> statement-breakpoint
-CREATE INDEX "llm_call_logs_createdAt_idx" ON "llm_call_logs" USING btree ("createdAt");--> statement-breakpoint
-CREATE INDEX "Report_reportedCommentId_idx" ON "Report" USING btree ("reportedCommentId");--> statement-breakpoint
-CREATE INDEX "Report_reportedCommentId_status_idx" ON "Report" USING btree ("reportedCommentId","status");--> statement-breakpoint
-CREATE INDEX "trajectories_archetype_idx" ON "trajectories" USING btree ("archetype");--> statement-breakpoint
-CREATE INDEX "User_isActor_createdAt_idx" ON "User" USING btree ("isActor","createdAt");--> statement-breakpoint
-CREATE INDEX "User_isAgent_createdAt_idx" ON "User" USING btree ("isAgent","createdAt");--> statement-breakpoint
-ALTER TABLE "Chat" DROP COLUMN "npcAdminId";--> statement-breakpoint
-ALTER TABLE "ActorState" ADD CONSTRAINT "positive_trading_balance" CHECK ("ActorState"."tradingBalance" >= 0);
+-- Disable RLS on tables that may or may not exist
+DO $$ BEGIN ALTER TABLE "Actor" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "CharacterMapping" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "ChatAdmin" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "ChatInvite" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "GroupChatMembership" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "OrganizationMapping" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "UserGroupAdmin" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "UserGroupInvite" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "UserGroupMember" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "UserGroup" DISABLE ROW LEVEL SECURITY; EXCEPTION WHEN undefined_table THEN NULL; END $$;--> statement-breakpoint
+DROP TABLE IF EXISTS "Actor" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "CharacterMapping" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "ChatAdmin" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "ChatInvite" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "GroupChatMembership" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "OrganizationMapping" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "UserGroupAdmin" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "UserGroupInvite" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "UserGroupMember" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "UserGroup" CASCADE;--> statement-breakpoint
+DROP INDEX IF EXISTS "Chat_npcAdminId_idx";--> statement-breakpoint
+ALTER TABLE "Market" ADD COLUMN IF NOT EXISTS "resolutionProofUrl" text;--> statement-breakpoint
+ALTER TABLE "Market" ADD COLUMN IF NOT EXISTS "resolutionDescription" text;--> statement-breakpoint
+ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "imageUrl" text;--> statement-breakpoint
+ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "reportedCommentId" text;--> statement-breakpoint
+ALTER TABLE "trajectories" ADD COLUMN IF NOT EXISTS "archetype" varchar(50);--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "AdminRole" ADD CONSTRAINT "AdminRole_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "AdminRole" ADD CONSTRAINT "AdminRole_grantedBy_User_id_fk" FOREIGN KEY ("grantedBy") REFERENCES "public"."User"("id") ON DELETE restrict ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "QuestionArcPlan" ADD CONSTRAINT "QuestionArcPlan_questionId_Question_id_fk" FOREIGN KEY ("questionId") REFERENCES "public"."Question"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminRole_role_idx" ON "AdminRole" USING btree ("role");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminRole_userId_idx" ON "AdminRole" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminRole_grantedAt_idx" ON "AdminRole" USING btree ("grantedAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminRole_revokedAt_idx" ON "AdminRole" USING btree ("revokedAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "PerpMarketSnapshot_orgId_idx" ON "PerpMarketSnapshot" USING btree ("organizationId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupInvite_groupId_idx" ON "GroupInvite" USING btree ("groupId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupInvite_invitedUserId_status_idx" ON "GroupInvite" USING btree ("invitedUserId","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupInvite_status_idx" ON "GroupInvite" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_groupId_idx" ON "GroupMember" USING btree ("groupId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_userId_idx" ON "GroupMember" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_groupId_isActive_idx" ON "GroupMember" USING btree ("groupId","isActive");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_userId_isActive_idx" ON "GroupMember" USING btree ("userId","isActive");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_lastMessageAt_idx" ON "GroupMember" USING btree ("lastMessageAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "GroupMember_role_idx" ON "GroupMember" USING btree ("role");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Group_type_idx" ON "Group" USING btree ("type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Group_ownerId_idx" ON "Group" USING btree ("ownerId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Group_createdById_idx" ON "Group" USING btree ("createdById");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Group_createdAt_idx" ON "Group" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_adminId_idx" ON "AdminAuditLog" USING btree ("adminId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_action_idx" ON "AdminAuditLog" USING btree ("action");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_resourceType_idx" ON "AdminAuditLog" USING btree ("resourceType");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_resourceId_idx" ON "AdminAuditLog" USING btree ("resourceId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_createdAt_idx" ON "AdminAuditLog" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AdminAuditLog_adminId_createdAt_idx" ON "AdminAuditLog" USING btree ("adminId","createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AnalyticsDailySnapshot_date_idx" ON "AnalyticsDailySnapshot" USING btree ("date");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "AnalyticsDailySnapshot_createdAt_idx" ON "AnalyticsDailySnapshot" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "QuestionArcPlan_questionId_idx" ON "QuestionArcPlan" USING btree ("questionId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "BalanceTransaction_type_createdAt_idx" ON "BalanceTransaction" USING btree ("type","createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "BalanceTransaction_userId_type_idx" ON "BalanceTransaction" USING btree ("userId","type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "llm_call_logs_createdAt_idx" ON "llm_call_logs" USING btree ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Report_reportedCommentId_idx" ON "Report" USING btree ("reportedCommentId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "Report_reportedCommentId_status_idx" ON "Report" USING btree ("reportedCommentId","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "trajectories_archetype_idx" ON "trajectories" USING btree ("archetype");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "User_isActor_createdAt_idx" ON "User" USING btree ("isActor","createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "User_isAgent_createdAt_idx" ON "User" USING btree ("isAgent","createdAt");--> statement-breakpoint
+ALTER TABLE "Chat" DROP COLUMN IF EXISTS "npcAdminId";--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "ActorState" ADD CONSTRAINT "positive_trading_balance" CHECK ("ActorState"."tradingBalance" >= 0); EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -26,6 +26,8 @@ export const ADMIN_PERMISSIONS = [
   'view_reports',
   'resolve_reports',
   'manage_escrow',
+  'view_alpha_groups',
+  'manage_alpha_groups',
 ] as const;
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
@@ -45,8 +47,16 @@ export const ROLE_PERMISSIONS: Record<AdminRoleType, AdminPermission[]> = {
     'view_reports',
     'resolve_reports',
     'manage_escrow',
+    'view_alpha_groups',
+    'manage_alpha_groups',
   ],
-  VIEWER: ['view_stats', 'view_users', 'view_trading', 'view_system'],
+  VIEWER: [
+    'view_stats',
+    'view_users',
+    'view_trading',
+    'view_system',
+    'view_alpha_groups',
+  ],
 };
 
 /**

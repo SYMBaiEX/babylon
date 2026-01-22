@@ -96,20 +96,17 @@ import {
   BusinessLogicError,
   checkProfileUpdateRateLimit,
   confirmOnchainProfileUpdate,
-  isBackendSigningEnabled,
   logProfileUpdate,
   notifyProfileComplete,
   PointsService,
   requireUserByIdentifier,
   successResponse,
-  updateProfileBackendSigned,
   withErrorHandling,
 } from '@babylon/api';
 import { and, db, eq, ne, sql, users } from '@babylon/db';
 import type { StringRecord } from '@babylon/shared';
 import { logger, UpdateUserSchema, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import type { Address } from 'viem';
 import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
@@ -225,80 +222,36 @@ export const POST = withErrorHandling(
 
     await checkProfileUpdateRateLimit(canonicalUserId, isUsernameChanging);
 
-    const hasOnchainProfileChanges = [
-      normalizedUsername !== undefined &&
-        normalizedUsername !== (currentUser!.username ?? ''),
-      normalizedDisplayName !== undefined &&
-        normalizedDisplayName !== (currentUser!.displayName ?? ''),
-      normalizedBio !== undefined && normalizedBio !== (currentUser!.bio ?? ''),
-    ].some(Boolean);
-
-    const requiresOnchainUpdate =
-      hasOnchainProfileChanges &&
-      currentUser!.onChainRegistered &&
-      currentUser!.nftTokenId;
-
+    // On-chain sync is handled by a separate background job.
+    // Profile updates are now database-first - we save to DB immediately
+    // and the chain sync job will update on-chain state later.
+    //
+    // If user provides an onchainTxHash, we still confirm it for backwards compatibility.
     let onchainMetadata: StringRecord<JsonValue> | null = null;
-    let backendSignedTxHash: `0x${string}` | undefined;
 
-    if (requiresOnchainUpdate) {
-      if (isBackendSigningEnabled()) {
-        logger.info(
-          'Using backend signing for profile update',
-          { userId: canonicalUserId },
-          'POST /api/users/[userId]/update-profile'
-        );
+    if (
+      onchainTxHash &&
+      currentUser!.onChainRegistered &&
+      currentUser!.nftTokenId
+    ) {
+      // User provided a transaction hash - confirm it (backwards compatibility)
+      const onchainResult = await confirmOnchainProfileUpdate({
+        userId: canonicalUserId,
+        walletAddress: currentUser!.walletAddress!,
+        txHash: onchainTxHash as `0x${string}`,
+      });
 
-        const endpoint = `https://babylon.market/agent/${currentUser!.walletAddress!.toLowerCase()}`;
-        const metadata = {
-          name: normalizedDisplayName!,
-          username: normalizedUsername!,
-          bio: normalizedBio!,
-          profileImageUrl: normalizedProfileImageUrl!,
-          coverImageUrl: normalizedCoverImageUrl!,
-        };
+      onchainMetadata = onchainResult.metadata as StringRecord<JsonValue>;
 
-        const result = await updateProfileBackendSigned({
-          userAddress: currentUser!.walletAddress! as Address,
-          metadata,
-          endpoint,
-        });
-
-        backendSignedTxHash = result.txHash;
-        // ProfileMetadata is structurally compatible with StringRecord<JsonValue>
-        // (all fields are string | null, which are JsonValue types)
-        onchainMetadata = result.metadata as unknown as StringRecord<JsonValue>;
-
-        logger.info(
-          'Backend-signed profile update successful',
-          { userId: canonicalUserId, txHash: backendSignedTxHash },
-          'POST /api/users/[userId]/update-profile'
-        );
-
-        logger.error(
-          'Backend signing failed',
-          { userId: canonicalUserId },
-          'POST /api/users/[userId]/update-profile'
-        );
-      } else {
-        const onchainResult = await confirmOnchainProfileUpdate({
+      logger.info(
+        'Confirmed user-signed on-chain profile update',
+        {
           userId: canonicalUserId,
-          walletAddress: currentUser!.walletAddress!,
-          txHash: onchainTxHash! as `0x${string}`,
-        });
-
-        onchainMetadata = onchainResult.metadata as StringRecord<JsonValue>;
-
-        logger.info(
-          'Confirmed user-signed on-chain profile update',
-          {
-            userId: canonicalUserId,
-            txHash: onchainTxHash,
-            tokenId: onchainResult.tokenId,
-          },
-          'POST /api/users/[userId]/update-profile'
-        );
-      }
+          txHash: onchainTxHash,
+          tokenId: onchainResult.tokenId,
+        },
+        'POST /api/users/[userId]/update-profile'
+      );
     }
 
     // Update referral code if username is changing and username is available
@@ -361,6 +314,24 @@ export const POST = withErrorHandling(
             normalizedBio.length > 0 &&
             normalizedProfileImageUrl.length > 0
           : undefined,
+      // Mark profile as needing chain sync if user is on-chain registered
+      // and profile fields changed (not just visibility settings)
+      ...(currentUser!.onChainRegistered &&
+        !onchainTxHash &&
+        (normalizedUsername !== undefined ||
+          normalizedDisplayName !== undefined ||
+          normalizedBio !== undefined ||
+          normalizedProfileImageUrl !== undefined ||
+          normalizedCoverImageUrl !== undefined) && {
+          profileChainSyncNeeded: true,
+          profileChainSyncError: null,
+        }),
+      // If user provided on-chain tx hash, mark as synced
+      ...(onchainTxHash && {
+        profileChainSyncNeeded: false,
+        profileChainSyncAt: new Date(),
+        profileChainSyncError: null,
+      }),
     };
 
     const [updatedUser] = await db
@@ -384,6 +355,7 @@ export const POST = withErrorHandling(
         usernameChangedAt: users.usernameChangedAt,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
+        profileChainSyncNeeded: users.profileChainSyncNeeded,
       });
 
     // Award points for profile milestones
@@ -463,8 +435,8 @@ export const POST = withErrorHandling(
     await logProfileUpdate(
       canonicalUserId,
       fieldsUpdated,
-      Boolean(backendSignedTxHash),
-      backendSignedTxHash || onchainTxHash
+      false, // backendSigned - now always false (database-first approach)
+      onchainTxHash
     );
 
     logger.info(
@@ -472,8 +444,7 @@ export const POST = withErrorHandling(
       {
         userId: canonicalUserId,
         pointsAwarded: pointsAwarded.length,
-        onchainConfirmed: requiresOnchainUpdate,
-        backendSigned: Boolean(backendSignedTxHash),
+        onchainConfirmed: Boolean(onchainTxHash),
       },
       'POST /api/users/[userId]/update-profile'
     );
@@ -492,8 +463,7 @@ export const POST = withErrorHandling(
       usernameChanged: isUsernameChanging,
       profileComplete: updatedUser?.profileComplete ?? false,
       pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),
-      onchainUpdate: requiresOnchainUpdate,
-      backendSigned: Boolean(backendSignedTxHash),
+      onchainUpdate: Boolean(onchainTxHash),
     }).catch((error) => {
       logger.warn('Failed to track profile_updated event', { error });
     });
@@ -502,11 +472,11 @@ export const POST = withErrorHandling(
       user: updatedUser,
       message: 'Profile updated successfully',
       pointsAwarded,
-      onchain: requiresOnchainUpdate
+      onchain: onchainTxHash
         ? {
-            txHash: backendSignedTxHash || onchainTxHash,
+            txHash: onchainTxHash,
             metadata: onchainMetadata,
-            backendSigned: Boolean(backendSignedTxHash),
+            backendSigned: false,
           }
         : null,
     });

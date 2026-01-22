@@ -37,6 +37,7 @@ import {
   Bell,
   Bot,
   ChevronDown,
+  Crown,
   Database,
   DollarSign,
   Eye,
@@ -60,6 +61,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab';
 import { AgentsTab } from '@/components/admin/AgentsTab';
 import { AIModelsTab } from '@/components/admin/AIModelsTab';
+import { AlphaGroupsTab } from '@/components/admin/AlphaGroupsTab';
 import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
 import { ContentModerationTab } from '@/components/admin/ContentModerationTab';
@@ -107,7 +109,8 @@ type Tab =
   | 'training-data'
   | 'agents'
   | 'escrow'
-  | 'audit-logs';
+  | 'audit-logs'
+  | 'alpha-groups';
 
 /**
  * Admin Dashboard Component
@@ -246,6 +249,7 @@ export default function AdminDashboard() {
       items: [
         { id: 'registry' as const, label: 'Registry', icon: Layers },
         { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
+        { id: 'alpha-groups' as const, label: 'Alpha Groups', icon: Crown },
         { id: 'notifications' as const, label: 'Notifications', icon: Bell },
       ],
     },
@@ -399,6 +403,7 @@ export default function AdminDashboard() {
         {activeTab === 'notifications' && <NotificationsTab />}
         {activeTab === 'escrow' && <EscrowManagementTab />}
         {activeTab === 'audit-logs' && <AuditLogsTab />}
+        {activeTab === 'alpha-groups' && <AlphaGroupsTab />}
       </div>
     </PageContainer>
   );

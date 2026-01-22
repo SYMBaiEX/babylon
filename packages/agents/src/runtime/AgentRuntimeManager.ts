@@ -266,11 +266,9 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       // Required by composeState and runtime.initialize
-      isReady: () => true,
       init: async () => {},
       close: async () => {},
       // Agent methods - Babylon manages agents separately
-      getAgent: async (_agentId: unknown) => null,
       getAgents: async () => [],
       createAgent: async (_agent: unknown) => true,
       updateAgent: async (_agentId: unknown, _agent: unknown) => true,
@@ -280,6 +278,8 @@ export class AgentRuntimeManager {
       getParticipantsForRoom: async (_roomId: unknown) => [],
       addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
       // Memory methods - Babylon uses its own DB
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
+      isReady: async () => true,
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;
@@ -600,11 +600,9 @@ export class AgentRuntimeManager {
     runtime.adapter = {
       ...runtime.adapter,
       // Required by composeState and runtime.initialize
-      isReady: () => true,
       init: async () => {},
       close: async () => {},
       // Agent methods - Babylon manages agents separately
-      getAgent: async (_agentId: unknown) => null,
       getAgents: async () => [],
       createAgent: async (_agent: unknown) => true,
       updateAgent: async (_agentId: unknown, _agent: unknown) => true,
@@ -614,6 +612,8 @@ export class AgentRuntimeManager {
       getParticipantsForRoom: async (_roomId: unknown) => [],
       addParticipantsRoom: async (_entityIds: unknown, _roomId: unknown) => true,
       // Memory methods - Babylon uses its own DB
+      getAgent: async (_agentId: unknown) => null, // Required by composeState
+      isReady: async () => true, // Required by composeState
       log: async (_params: {
         body: { [key: string]: JsonValue };
         entityId: string;

@@ -31,7 +31,7 @@
  * ```
  */
 
-import type { ActorTier } from '@babylon/shared';
+import type { ActorTier, ActorTierOverrides } from '@babylon/shared';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { actors as actorsData } from '../data/actors';
@@ -65,6 +65,8 @@ export interface StaticActor {
   initialMood: number;
   profileImageUrl?: string;
   isTest: boolean;
+  /** Optional tier customization for alpha group mechanics */
+  tierOverrides?: ActorTierOverrides;
 }
 
 /** Organization type enum matching @babylon/shared */
@@ -176,6 +178,7 @@ export class StaticDataRegistry {
         role?: string;
         initialLuck?: string;
         initialMood?: number;
+        tierOverrides?: ActorTierOverrides;
       };
 
       const staticActor: StaticActor = {
@@ -199,6 +202,7 @@ export class StaticDataRegistry {
         initialMood: actorAny.initialMood ?? 0,
         profileImageUrl: this.getActorImageUrl(actorAny.id),
         isTest: actorAny.id.startsWith('test-'),
+        tierOverrides: actorAny.tierOverrides,
       };
 
       this.actorMap.set(actor.id, staticActor);

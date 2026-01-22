@@ -28,6 +28,23 @@ const mockValidateUserApiKey = mock(async (apiKey: string) => {
   return null;
 });
 
+// Mock db query
+const mockDbSelect = mock(() => ({
+  from: () => ({
+    where: () => ({
+      limit: (n: number) => {
+        // Return based on last query context
+        const lastCall = mockDbSelect.mock.calls.at(-1) as
+          | [{ userId?: string }]
+          | undefined;
+        const userId = lastCall?.[0]?.userId;
+        const user = userId ? mockUsers.get(userId) : undefined;
+        return Promise.resolve(user ? [user] : []);
+      },
+    }),
+  }),
+}));
+
 // Track the userId being queried
 let lastQueriedUserId: string | null = null;
 

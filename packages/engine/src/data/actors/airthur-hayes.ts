@@ -35,4 +35,13 @@ export const data = {
   originalHandle: 'arthurhayes',
   firstName: 'Arthur',
   lastName: 'HAIyes',
+  // Trading-focused macro analyst - heavy trading emphasis
+  tierOverrides: {
+    minEngagementScoreMultiplier: 1.3, // 30% harder to join (elite trading circle)
+    inviteProbabilityMultiplier: 0.7, // Very selective
+    focusWeights: {
+      social: 0.25,
+      trading: 0.75, // Very heavy trading focus
+    },
+  },
 } as const satisfies ActorData;

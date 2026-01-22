@@ -29,6 +29,9 @@
     },
     "src/app/api/cron/markets-tick/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/cron/profile-chain-sync/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -79,6 +82,10 @@
     {
       "path": "/api/cron/training-check",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/profile-chain-sync",
+      "schedule": "0 */6 * * *"
     }
   ],
   "headers": [
