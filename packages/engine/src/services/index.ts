@@ -136,6 +136,10 @@ export { getOracleService, OracleService } from './oracle/oracle-service';
 export * from './oracle/types';
 export { CommitmentStore } from './oracle-commitment-store';
 export {
+  calculatePortfolioBreakdown,
+  type PortfolioBreakdownSnapshot,
+} from './portfolio-breakdown';
+export {
   calculatePortfolioPnL,
   type PortfolioPnLSnapshot,
 } from './portfolio-pnl';
