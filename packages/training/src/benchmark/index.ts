@@ -69,6 +69,8 @@ export type {
 export { ModelBenchmarkService } from './ModelBenchmarkService';
 export type { ModelConfig } from './ModelRegistry';
 export {
+  createLocalModel,
+  createLocalModelFromEnv,
   getBaselineModels,
   getModelById,
   getModelByModelId,
@@ -117,7 +119,6 @@ export type {
   SimulationResult,
 } from './SimulationEngine';
 export { SimulationEngine } from './SimulationEngine';
-
 // Stakeholder Reports
 export type {
   AgentBenchmarkSummary,
@@ -125,3 +126,22 @@ export type {
   ScenarioBenchmarkResult,
 } from './StakeholderReport';
 export { StakeholderReportGenerator } from './StakeholderReport';
+export type {
+  BenchmarkScenarioOptions,
+  VLLMBenchmarkConfig,
+  VLLMBenchmarkResult,
+} from './VLLMBenchmarkRunner';
+export {
+  createVLLMBenchmarkRunnerFromEnv,
+  VLLMBenchmarkRunner,
+} from './VLLMBenchmarkRunner';
+// vLLM Integration
+export type {
+  CompletionRequest,
+  CompletionResponse,
+  VLLMClientConfig,
+} from './VLLMInferenceClient';
+export {
+  createVLLMClientFromEnv,
+  VLLMInferenceClient,
+} from './VLLMInferenceClient';
