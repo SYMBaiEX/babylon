@@ -1,68 +1,95 @@
 import { describe, expect, it } from 'bun:test';
-import { formatCurrency } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, formatCurrency } from '@babylon/shared';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MarketsToggle } from '../../../../apps/web/src/components/shared/MarketsToggle';
 
 describe('formatCurrency (used in MarketsToggle)', () => {
   it('formats amounts correctly', () => {
-    expect(formatCurrency(0, { useThousandsSeparator: true })).toBe('ƀ0.00');
-    expect(formatCurrency(99.99, { useThousandsSeparator: true })).toBe(
-      'ƀ99.99'
+    expect(formatCurrency(0, { useThousandsSeparator: true })).toBe(
+      `${BABYLON_POINTS_SYMBOL}0.00`
     );
-    expect(formatCurrency(-500.25, { useThousandsSeparator: true })).toContain(
-      '-'
+    expect(formatCurrency(99.99, { useThousandsSeparator: true })).toBe(
+      `${BABYLON_POINTS_SYMBOL}99.99`
+    );
+    expect(formatCurrency(-500.25, { useThousandsSeparator: true })).toBe(
+      `${BABYLON_POINTS_SYMBOL}-500.25`
     );
   });
 
   it('handles thousand separators', () => {
     const result = formatCurrency(1234.56, { useThousandsSeparator: true });
-    expect(result).toContain('ƀ');
-    expect(result).toContain('1');
+    expect(result).toBe(`${BABYLON_POINTS_SYMBOL}1,234.56`);
   });
 });
 
-describe('MarketsToggle display logic', () => {
-  const showContainer = (auth?: boolean) => !!auth;
-  const displayState = (loading?: boolean, balance?: number | null) => {
-    if (loading) return 'skeleton';
-    if (balance != null) return 'value';
-    return 'empty';
-  };
+describe('MarketsToggle rendering', () => {
+  const noop = () => {};
 
-  it('hides balance when not authenticated', () => {
-    expect(showContainer(false)).toBe(false);
-    expect(showContainer(undefined)).toBe(false);
+  it('renders tab buttons as type=button', () => {
+    const html = renderToStaticMarkup(
+      createElement(MarketsToggle, {
+        activeTab: 'dashboard',
+        onTabChange: noop,
+      })
+    );
+    expect(html.match(/type=\"button\"/g)?.length).toBe(3);
   });
 
-  it('shows balance when authenticated', () => {
-    expect(showContainer(true)).toBe(true);
+  it('renders active tab styling', () => {
+    const html = renderToStaticMarkup(
+      createElement(MarketsToggle, {
+        activeTab: 'perps',
+        onTabChange: noop,
+      })
+    );
+    expect(html).toMatch(
+      /<button[^>]*class=\"[^\"]*text-foreground[^\"]*\"[^>]*>Perps/
+    );
+    expect(html).toMatch(
+      /<button[^>]*class=\"[^\"]*text-muted-foreground[^\"]*\"[^>]*>Dashboard/
+    );
   });
 
-  it('shows skeleton when loading', () => {
-    expect(displayState(true, 1000)).toBe('skeleton');
-    expect(displayState(true, null)).toBe('skeleton');
+  it('does not render balance when unauthenticated', () => {
+    const html = renderToStaticMarkup(
+      createElement(MarketsToggle, {
+        activeTab: 'dashboard',
+        onTabChange: noop,
+        authenticated: false,
+        balance: 1234.56,
+        loading: false,
+      })
+    );
+    expect(html).not.toContain(BABYLON_POINTS_SYMBOL);
   });
 
-  it('shows value when balance exists', () => {
-    expect(displayState(false, 1000)).toBe('value');
-    expect(displayState(false, 0)).toBe('value');
+  it('renders skeleton when loading and authenticated', () => {
+    const html = renderToStaticMarkup(
+      createElement(MarketsToggle, {
+        activeTab: 'dashboard',
+        onTabChange: noop,
+        authenticated: true,
+        balance: 1234.56,
+        loading: true,
+      })
+    );
+    expect(html).toContain('animate-pulse');
   });
 
-  it('shows empty when no balance', () => {
-    expect(displayState(false, null)).toBe('empty');
-    expect(displayState(false, undefined)).toBe('empty');
-  });
-});
+  it('renders formatted balance when authenticated and available', () => {
+    const balance = 1234.56;
+    const formatted = formatCurrency(balance, { useThousandsSeparator: true });
 
-describe('Tab active state', () => {
-  type TabId = 'dashboard' | 'perps' | 'predictions';
-  const getClass = (active: TabId, tab: TabId) =>
-    active === tab ? 'text-foreground' : 'text-muted-foreground';
-
-  it('highlights active tab', () => {
-    expect(getClass('dashboard', 'dashboard')).toBe('text-foreground');
-    expect(getClass('perps', 'perps')).toBe('text-foreground');
-  });
-
-  it('dims inactive tabs', () => {
-    expect(getClass('dashboard', 'perps')).toBe('text-muted-foreground');
+    const html = renderToStaticMarkup(
+      createElement(MarketsToggle, {
+        activeTab: 'dashboard',
+        onTabChange: noop,
+        authenticated: true,
+        balance,
+        loading: false,
+      })
+    );
+    expect(html).toContain(formatted);
   });
 });

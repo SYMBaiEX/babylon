@@ -33,6 +33,7 @@ export function MarketsToggle({
         {TABS.map(({ id, label }) => (
           <button
             key={id}
+            type="button"
             onClick={() => onTabChange(id)}
             className={cn(
               'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',

@@ -256,7 +256,7 @@ export default function MarketsPage() {
               <MarketsToggle
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
-                balance={data.portfolioPnL?.availableBalance}
+                balance={data.portfolioPnL?.available}
                 authenticated={data.authenticated}
                 loading={data.portfolioLoading}
               />
@@ -296,7 +296,7 @@ export default function MarketsPage() {
             <MarketsToggle
               activeTab={activeTab}
               onTabChange={handleTabChange}
-              balance={data.portfolioPnL?.availableBalance}
+              balance={data.portfolioPnL?.available}
               authenticated={data.authenticated}
               loading={data.portfolioLoading}
             />

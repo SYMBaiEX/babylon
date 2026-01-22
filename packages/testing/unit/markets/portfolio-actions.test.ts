@@ -1,48 +1,72 @@
 import { describe, expect, it } from 'bun:test';
+import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { PortfolioPnLCard } from '../../../../apps/web/src/components/markets/PortfolioPnLCard';
 
-describe('Share button disabled state', () => {
-  // Mirrors: disabled={loading || !data}
-  const isDisabled = (loading: boolean, data: unknown) => loading || !data;
+const snapshot: PortfolioPnLSnapshot = {
+  lifetimePnL: 0,
+  netContributions: 0,
+  totalDeposited: 0,
+  totalWithdrawn: 0,
+  availableBalance: 0,
+  unrealizedPerpPnL: 0,
+  unrealizedPredictionPnL: 0,
+  totalUnrealizedPnL: 0,
+  totalPnL: 0,
+  accountEquity: 0,
+};
+
+describe('PortfolioPnLCard rendering', () => {
+  const noop = () => {};
 
   it('disabled when loading', () => {
-    expect(isDisabled(true, {})).toBe(true);
-    expect(isDisabled(true, null)).toBe(true);
+    const html = renderToStaticMarkup(
+      createElement(PortfolioPnLCard, {
+        data: snapshot,
+        loading: true,
+        onShare: noop,
+        onShowBuyPoints: noop,
+      })
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled(=|\s|>)[^>]*>.*Share P&amp;L/);
   });
 
   it('disabled when no data', () => {
-    expect(isDisabled(false, null)).toBe(true);
-    expect(isDisabled(false, undefined)).toBe(true);
+    const html = renderToStaticMarkup(
+      createElement(PortfolioPnLCard, {
+        data: null,
+        loading: false,
+        onShare: noop,
+        onShowBuyPoints: noop,
+      })
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled(=|\s|>)[^>]*>.*Share P&amp;L/);
   });
 
   it('enabled when has data and not loading', () => {
-    expect(isDisabled(false, {})).toBe(false);
-    expect(isDisabled(false, { balance: 1000 })).toBe(false);
-  });
-});
-
-describe('Portfolio data validation', () => {
-  const isValid = (d: unknown): boolean => {
-    if (!d || typeof d !== 'object') return false;
-    const o = d as Record<string, unknown>;
-    return (
-      typeof o.availableBalance === 'number' &&
-      typeof o.accountEquity === 'number' &&
-      typeof o.totalPnL === 'number'
+    const html = renderToStaticMarkup(
+      createElement(PortfolioPnLCard, {
+        data: snapshot,
+        loading: false,
+        onShare: noop,
+        onShowBuyPoints: noop,
+      })
     );
-  };
-
-  it('validates correct shape', () => {
-    expect(
-      isValid({ availableBalance: 0, accountEquity: 0, totalPnL: 0 })
-    ).toBe(true);
-    expect(
-      isValid({ availableBalance: -100, accountEquity: -200, totalPnL: -500 })
-    ).toBe(true);
+    expect(html).not.toMatch(
+      /<button[^>]*\sdisabled(=|\s|>)[^>]*>.*Share P&amp;L/
+    );
   });
 
-  it('rejects invalid data', () => {
-    expect(isValid(null)).toBe(false);
-    expect(isValid({})).toBe(false);
-    expect(isValid({ availableBalance: '1000' })).toBe(false);
+  it('adds an accessible name for Buy Points', () => {
+    const html = renderToStaticMarkup(
+      createElement(PortfolioPnLCard, {
+        data: snapshot,
+        loading: false,
+        onShare: noop,
+        onShowBuyPoints: noop,
+      })
+    );
+    expect(html).toContain('aria-label="Buy Points"');
   });
 });

@@ -1,5 +1,5 @@
+import type { PortfolioBreakdownSnapshot } from '@babylon/engine/client';
 import { Share2, Sparkles } from 'lucide-react';
-import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 
 interface PortfolioPnLCardProps {
   data: PortfolioBreakdownSnapshot | null;
@@ -28,6 +28,7 @@ export function PortfolioPnLCard({
       <button
         type="button"
         onClick={onShowBuyPoints}
+        aria-label="Buy Points"
         className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-600 px-4 py-2.5 font-medium text-primary-foreground shadow-md transition-all hover:from-yellow-600 hover:to-amber-700 hover:shadow-lg"
       >
         <Sparkles className="h-4 w-4" />

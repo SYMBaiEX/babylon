@@ -19,7 +19,7 @@ export const TrendingPerpCard = memo(function TrendingPerpCard({
   market,
   onClick,
 }: TrendingPerpCardProps) {
-  const isPositive = market.change24h >= 0;
+  const isPositive = market.changePercent24h >= 0;
 
   return (
     <button

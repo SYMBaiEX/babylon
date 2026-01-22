@@ -51,9 +51,9 @@ export const HotPredictionCard = memo(function HotPredictionCard({
             {noPercent.toFixed(0)}% NO
           </span>
         </div>
-        {daysLeft !== null && (
-          <span className="text-muted-foreground">{daysLeft}d left</span>
-        )}
+        <span className="text-muted-foreground">
+          {daysLeft !== null ? `${daysLeft}d left` : 'Soon'}
+        </span>
       </div>
     </button>
   );
