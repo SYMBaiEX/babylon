@@ -25,7 +25,8 @@
         docker-base docker-training docker-push docker-all \
         local-train local-shell \
         runpod-train runpod-list runpod-stop \
-        hf-export-dataset hf-push-model
+        hf-export-dataset hf-push-model \
+        benchmark benchmark-quick benchmark-scenario ab-test ab-test-quick
 
 # Default target
 all: test
@@ -125,9 +126,14 @@ help:
 	@echo "  make hf-export-dataset   Export trajectories to HuggingFace dataset"
 	@echo "  make hf-push-model       Push trained model to HuggingFace Hub"
 	@echo ""
-	@echo "$(GREEN)Benchmarking & Evaluation:$(RESET)"
-	@echo "  make benchmark           Run full benchmark suite against trained model"
-	@echo "  make benchmark-quick     Quick benchmark (7-day scenarios)"
+	@echo "$(GREEN)Benchmarking (Docker):$(RESET)"
+	@echo "  make local-benchmark       Run benchmark in Docker container"
+	@echo "  make local-benchmark-quick Quick Docker benchmark (7-day scenarios)"
+	@echo "  Options: BENCHMARK_MODEL=step_500 SCENARIO=bear-market"
+	@echo ""
+	@echo "$(GREEN)Benchmarking (Native):$(RESET)"
+	@echo "  make benchmark           Run native benchmark (requires bun)"
+	@echo "  make benchmark-quick     Quick native benchmark"
 	@echo "  make benchmark-scenario  Run single scenario (SCENARIO=bear-market)"
 	@echo "  make ab-test             Run A/B test (MODEL_A vs MODEL_B)"
 	@echo "  make ab-test-quick       Quick A/B test with trained model"
@@ -478,30 +484,37 @@ train-cloud-online: db-up db-migrate bridge-check
 #---------------------------------------------------------------------------
 
 # Default benchmark settings
-BENCHMARK_MODEL ?= ./python/trained_models/final_model
+BENCHMARK_MODEL ?= final_model
 BENCHMARK_OUTPUT ?= ./benchmark-results
 SCENARIO ?= 
 
-# Run full benchmark suite against trained model
+# Docker-based benchmark (recommended)
+local-benchmark:
+	@echo "$(CYAN)Running Docker benchmark...$(RESET)"
+	cd $(LOCAL_DIR) && ./benchmark.sh --model $(BENCHMARK_MODEL) $(if $(SCENARIO),--scenario $(SCENARIO),)
+
+local-benchmark-quick:
+	@echo "$(CYAN)Running quick Docker benchmark...$(RESET)"
+	cd $(LOCAL_DIR) && ./benchmark.sh --model $(BENCHMARK_MODEL) --quick $(if $(SCENARIO),--scenario $(SCENARIO),)
+
+# Native benchmark (requires full monorepo setup with bun)
 benchmark:
-	@echo "$(CYAN)Running benchmark suite...$(RESET)"
+	@echo "$(CYAN)Running native benchmark suite...$(RESET)"
 	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
-		--model $(BENCHMARK_MODEL) \
-		--output $(BENCHMARK_OUTPUT) \
+		--model packages/training/trained_models/$(BENCHMARK_MODEL) \
+		--output packages/training/$(BENCHMARK_OUTPUT) \
 		$(if $(SCENARIO),--scenario $(SCENARIO),)
 	@echo "$(GREEN)✓ Benchmark complete$(RESET)"
 
-# Quick benchmark (7-day scenarios instead of 22-day)
 benchmark-quick:
-	@echo "$(CYAN)Running quick benchmark...$(RESET)"
+	@echo "$(CYAN)Running quick native benchmark...$(RESET)"
 	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
-		--model $(BENCHMARK_MODEL) \
-		--output $(BENCHMARK_OUTPUT) \
+		--model packages/training/trained_models/$(BENCHMARK_MODEL) \
+		--output packages/training/$(BENCHMARK_OUTPUT) \
 		--quick \
 		$(if $(SCENARIO),--scenario $(SCENARIO),)
 	@echo "$(GREEN)✓ Quick benchmark complete$(RESET)"
 
-# Run single scenario benchmark
 benchmark-scenario:
 	@if [ -z "$(SCENARIO)" ]; then \
 		echo "$(YELLOW)Usage: make benchmark-scenario SCENARIO=bear-market$(RESET)"; \
