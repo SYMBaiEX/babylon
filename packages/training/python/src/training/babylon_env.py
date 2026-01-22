@@ -71,16 +71,34 @@ load_dotenv()
 class BabylonEnvConfig(BaseEnvConfig):
     """Configuration for Babylon RLAIF environment"""
 
-    # Database settings
+    # =========================================================================
+    # Trajectory Source Configuration
+    # =========================================================================
+    trajectory_source: str = Field(
+        default_factory=lambda: os.getenv("TRAJECTORY_SOURCE", "db"),
+        description="Source for trajectories: 'db' (PostgreSQL) or 'huggingface'"
+    )
+    
+    # Database settings (used when trajectory_source='db')
     database_url: str = Field(
         default_factory=lambda: os.getenv("DATABASE_URL", ""),
         description="PostgreSQL connection URL"
+    )
+    
+    # HuggingFace settings (used when trajectory_source='huggingface')
+    hf_trajectory_dataset: str = Field(
+        default_factory=lambda: os.getenv("HF_TRAJECTORY_DATASET", ""),
+        description="HuggingFace dataset ID (e.g., 'elizalabs/babylon-trajectories-v1')"
+    )
+    hf_trajectory_split: str = Field(
+        default_factory=lambda: os.getenv("HF_TRAJECTORY_SPLIT", "raw"),
+        description="HuggingFace dataset split to use: 'raw', 'preferences', 'sft'"
     )
 
     # Training window settings
     lookback_hours: int = Field(
         default=720,  # 30 days - increased from 72 for imported data
-        description="Hours to look back for trajectories"
+        description="Hours to look back for trajectories (only for database source)"
     )
     min_agents_per_window: int = Field(
         default=2,
@@ -251,12 +269,39 @@ class BabylonRLAIFEnv(BaseEnv):
         return env_config, server_configs
 
     async def setup(self):
-        """Initialize database connection and load trajectories"""
+        """Initialize data source connection and load trajectories"""
         logger.info("=" * 60)
         logger.info("BABYLON RLAIF ENVIRONMENT SETUP")
         logger.info("=" * 60)
 
-        # Connect to database
+        # Determine trajectory source
+        source = self.config.trajectory_source.lower()
+        logger.info(f"Trajectory source: {source}")
+        
+        if source == "huggingface":
+            await self._setup_huggingface_source()
+        else:
+            # Default: database source
+            await self._setup_database_source()
+
+        logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
+        for group in self.trajectory_cache:
+            logger.info(f"  Group '{group['group_key']}': {len(group['trajectories'])} trajectories")
+
+        # Initialize evaluation suite and rollout dumper
+        self.eval_suite = EvaluationSuite(
+            generate_test_count=50,
+            success_threshold=0.5,
+        )
+        self.rollout_dumper = RolloutDumper(
+            output_dir="./rollout_dumps",
+            success_threshold=0.7,
+            save_rate=0.1,  # Save 10% of rollouts for debugging
+        )
+        logger.info("Initialized EvaluationSuite and RolloutDumper")
+
+    async def _setup_database_source(self):
+        """Initialize PostgreSQL database connection and load trajectories."""
         if not self.config.database_url:
             raise ValueError("DATABASE_URL not set in environment or config")
 
@@ -280,32 +325,56 @@ class BabylonRLAIFEnv(BaseEnv):
             max_size=5,
             command_timeout=120,  # 2 minute timeout for large queries
             statement_cache_size=0,  # Disable for pooler compatibility
-            # Additional settings for reliability
             server_settings={
                 'application_name': 'babylon-training',
             }
         )
         logger.info("Connected to PostgreSQL database")
 
-        # Load available trajectories
-        await self._load_trajectories()
-        logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
-        for group in self.trajectory_cache:
-            logger.info(f"  Group '{group['group_key']}': {len(group['trajectories'])} trajectories")
+        # Load trajectories from database
+        await self._load_trajectories_from_db()
 
-        # Initialize evaluation suite and rollout dumper
-        self.eval_suite = EvaluationSuite(
-            generate_test_count=50,
-            success_threshold=0.5,
+    async def _setup_huggingface_source(self):
+        """Initialize HuggingFace dataset reader and load trajectories."""
+        if not self.config.hf_trajectory_dataset:
+            raise ValueError(
+                "HF_TRAJECTORY_DATASET not set. "
+                "Required when TRAJECTORY_SOURCE=huggingface"
+            )
+        
+        from ..data_bridge.hf_reader import HuggingFaceTrajectoryReader, HFReaderConfig
+        
+        logger.info(f"Loading from HuggingFace: {self.config.hf_trajectory_dataset}")
+        logger.info(f"  Split: {self.config.hf_trajectory_split}")
+        
+        config = HFReaderConfig(
+            dataset_id=self.config.hf_trajectory_dataset,
+            split=self.config.hf_trajectory_split,
+            max_trajectories=self.config.max_trajectories,
+            min_actions=self.config.min_actions_per_trajectory,
         )
-        self.rollout_dumper = RolloutDumper(
-            output_dir="./rollout_dumps",
-            success_threshold=0.7,
-            save_rate=0.1,  # Save 10% of rollouts for debugging
+        
+        reader = HuggingFaceTrajectoryReader(config)
+        await reader.connect()
+        
+        # Get trajectory groups in the same format as database loading
+        self.trajectory_cache = reader.get_trajectory_groups(
+            min_agents_per_window=self.config.min_agents_per_window
         )
-        logger.info("Initialized EvaluationSuite and RolloutDumper")
+        
+        # Log stats
+        stats = reader.get_stats()
+        logger.info(f"HuggingFace dataset stats:")
+        logger.info(f"  Total trajectories: {stats['total_trajectories']}")
+        logger.info(f"  Total windows: {stats['total_windows']}")
+        logger.info(f"  Avg P&L: ${stats['avg_pnl']:.2f}")
+        logger.info(f"  Archetypes: {stats['archetypes']}")
+        
+        # Shuffle for variety
+        import random
+        random.shuffle(self.trajectory_cache)
 
-    async def _load_trajectories(self):
+    async def _load_trajectories_from_db(self):
         """Load trajectories from database and group by scenario/window"""
         if not self.db_pool:
             raise RuntimeError("Database not connected")
@@ -523,13 +592,21 @@ class BabylonRLAIFEnv(BaseEnv):
         self.judgement_samples = []  # Clear after logging
         await super().wandb_log(wandb_metrics)
 
+    async def _reload_trajectories(self):
+        """Reload trajectories from the configured source."""
+        source = self.config.trajectory_source.lower()
+        if source == "huggingface":
+            await self._setup_huggingface_source()
+        else:
+            await self._load_trajectories_from_db()
+
     async def get_next_item(self) -> Optional[Tuple]:
         """Get next trajectory group for scoring"""
         logger.debug(f"get_next_item called, cache size: {len(self.trajectory_cache)}")
         if not self.trajectory_cache:
             # Reload trajectories if cache is empty
             logger.info("Trajectory cache empty, reloading...")
-            await self._load_trajectories()
+            await self._reload_trajectories()
             logger.info(f"After reload: {len(self.trajectory_cache)} groups")
 
         if not self.trajectory_cache:

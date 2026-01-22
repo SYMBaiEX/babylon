@@ -607,6 +607,9 @@ class TrainingOrchestrator:
                 logger.info(f"Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)")
                 logger.info(f"Model saved to: {self.save_path}")
                 logger.info("=" * 70)
+                
+                # Run post-training actions (HF push, benchmark)
+                self._run_post_training()
             else:
                 logger.error(f"Training failed with return code: {return_code}")
                 logger.error(f"Check logs at: {self.log_dir}")
@@ -614,6 +617,55 @@ class TrainingOrchestrator:
             return return_code
         finally:
             self.cleanup()
+    
+    def _run_post_training(self):
+        """Run post-training actions if configured."""
+        # Check if any post-training actions are enabled
+        hf_push_repo = os.environ.get("HF_PUSH_REPO", "")
+        benchmark_enabled = os.environ.get("BENCHMARK_ENABLED", "").lower() == "true"
+        
+        if not hf_push_repo and not benchmark_enabled:
+            logger.info("No post-training actions configured")
+            return
+        
+        logger.info("\n" + "=" * 70)
+        logger.info("RUNNING POST-TRAINING ACTIONS")
+        logger.info("=" * 70)
+        
+        # Find the final model path
+        final_model_path = Path(self.save_path) / "final_model"
+        if not final_model_path.exists():
+            # Try to find the latest checkpoint
+            checkpoints = list(Path(self.save_path).glob("step_*"))
+            if checkpoints:
+                final_model_path = max(checkpoints, key=lambda p: int(p.name.split("_")[1]))
+                logger.info(f"Using latest checkpoint: {final_model_path}")
+            else:
+                logger.warning(f"No model found at {self.save_path}")
+                return
+        
+        # Get W&B run ID if available
+        wandb_run_id = os.environ.get("WANDB_RUN_ID")
+        if not wandb_run_id:
+            # Try to find it from wandb
+            try:
+                import wandb
+                if wandb.run:
+                    wandb_run_id = wandb.run.id
+            except (ImportError, AttributeError):
+                pass
+        
+        # Import and run post-training
+        from scripts.post_training import run_post_training
+        
+        run_post_training(
+            model_path=str(final_model_path),
+            training_steps=self.training_steps,
+            final_reward=0.0,  # TODO: Extract from training metrics
+            wandb_run_id=wandb_run_id,
+            base_model=self.model_name,
+            dataset_id=os.environ.get("HF_TRAJECTORY_DATASET"),
+        )
     
     def _log_config(self):
         """Log training configuration"""
