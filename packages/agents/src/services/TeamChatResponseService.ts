@@ -284,26 +284,29 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 # Decision Rule
 
-Ask yourself: **"Was I asked to do something OR do I have something new to contribute?"**
+Look at the conversation history above. Ask yourself:
+1. **Did I already respond** to the most recent user request? (Check if YOUR messages appear after their request)
+2. **Was I asked to do something** OR do I have something NEW to contribute?
 
 ⚠️ **IMPORTANT**: To perform ANY action above, you MUST respond YES. Saying NO means you cannot take any action.
 
 ## RESPOND (YES) if:
-- Someone asked YOU to do something (analyze, check, trade, discuss, debate, etc.)
-- Someone @mentioned you (@{{agentUsername}})
-- You were asked a direct question
-- You have NEW information or perspective to add
+- Someone asked YOU to do something AND you haven't responded yet
+- Someone @mentioned you (@{{agentUsername}}) AND you haven't replied yet
+- You were asked a direct question AND you haven't answered yet
+- You have genuinely NEW information (not repeating what you already said)
 
 ## DON'T RESPOND (NO) if:
-- You have nothing new to add to the conversation
-- You would just be repeating yourself or others
+- You already responded to this request (your message appears after the user's request)
+- You would just be repeating what you or others already said
+- The conversation has moved on and your response would be outdated
 
 ---
 
 # Output Format
 Output ONLY this XML format:
 <response>
-<thought>Brief reasoning about whether to respond</thought>
+<thought>Brief reasoning - did I already respond? Do I have something new?</thought>
 <decision>YES or NO</decision>
 </response>`;
 
@@ -472,21 +475,21 @@ export class TeamChatResponseService {
 
     // Prevent infinite agent-to-agent loops by limiting chain depth
     if (chainDepth >= MAX_AGENT_CHAIN_DEPTH) {
-      logger.info(
+    logger.info(
         `Skipping agent notification - max chain depth (${MAX_AGENT_CHAIN_DEPTH}) reached`,
         { chatId, senderId, chainDepth },
-        'TeamChatResponseService'
-      );
+      'TeamChatResponseService'
+    );
       return;
     }
 
     // Get all ACTIVE participants with isAgent flag in one query (no N+1)
     // Filter on isActive to exclude removed agents
     const participants = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-        username: users.username,
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          username: users.username,
         isAgent: users.isAgent,
       })
       .from(chatParticipants)
@@ -535,11 +538,11 @@ export class TeamChatResponseService {
   async broadcastToAllAgents(params: BroadcastParams): Promise<void> {
     const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
 
-    logger.info(
+            logger.info(
       `Broadcasting message to all agents`,
       { chatId, senderId },
-      'TeamChatResponseService'
-    );
+              'TeamChatResponseService'
+            );
 
     // Just use the existing notifyAgentsOfMessage which already broadcasts to all
     await this.notifyAgentsOfMessage({
@@ -599,14 +602,14 @@ export class TeamChatResponseService {
     let agentName = prefetchedAgentName;
     let agentUsername = '';
 
-    const [agent] = await db
-      .select({
-        displayName: users.displayName,
-        username: users.username,
-      })
-      .from(users)
-      .where(eq(users.id, agentId))
-      .limit(1);
+      const [agent] = await db
+        .select({
+          displayName: users.displayName,
+          username: users.username,
+        })
+        .from(users)
+        .where(eq(users.id, agentId))
+        .limit(1);
 
     if (!agentName) {
       agentName = agent?.displayName || agent?.username || 'Agent';
@@ -649,9 +652,9 @@ export class TeamChatResponseService {
 
     // First, decide if we should respond at all
     const shouldRespond = await this.shouldAgentRespond({
-      agentId,
+        agentId,
       chatId,
-      agentName,
+        agentName,
       agentUsername,
       systemPrompt,
       personality,
@@ -664,8 +667,8 @@ export class TeamChatResponseService {
       logger.info(
         `Agent ${agentName} decided not to respond: ${shouldRespond.reason}`,
         { agentId, chatId },
-        'TeamChatResponseService'
-      );
+          'TeamChatResponseService'
+        );
       return {
         success: true,
         agentName,
@@ -680,15 +683,15 @@ export class TeamChatResponseService {
     );
 
     // Broadcast typing indicator
-    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-      (error: Error) => {
-        logger.warn(
-          `Failed to broadcast typing indicator: ${error.message}`,
-          { chatId, agentId },
-          'TeamChatResponseService'
-        );
-      }
-    );
+      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -760,7 +763,7 @@ export class TeamChatResponseService {
 
         for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
           const response = await runtime.useModel(modelType, {
-            prompt,
+        prompt,
             temperature: attempt > 1 ? 0.5 : 0.7,
           });
 
@@ -945,7 +948,7 @@ export class TeamChatResponseService {
         state.values = {
           ...state.values,
           agentId,
-          system: systemPrompt,
+        system: systemPrompt,
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
@@ -1041,7 +1044,7 @@ export class TeamChatResponseService {
       // Notify other agents about this message (they can decide to respond)
       // Increment chain depth to track agent-to-agent conversation depth
       this.notifyAgentsOfMessage({
-        chatId,
+          chatId,
         senderId: agentId,
         ownerDisplayName,
         ownerUsername,
@@ -1069,15 +1072,15 @@ export class TeamChatResponseService {
             : 'Failed to generate response',
       };
     } finally {
-      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-        (error: Error) => {
-          logger.warn(
-            `Failed to stop typing indicator: ${error.message}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        }
-      );
+        broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+          (error: Error) => {
+            logger.warn(
+              `Failed to stop typing indicator: ${error.message}`,
+              { chatId, agentId },
+              'TeamChatResponseService'
+            );
+          }
+        );
     }
   }
 
@@ -1159,14 +1162,14 @@ export class TeamChatResponseService {
         parsedResponse = parseKeyValueXml(response);
 
         if (parsedResponse?.decision) {
-          logger.debug(
+        logger.debug(
             `[ShouldRespond] Parsed decision on attempt ${attempt}`,
             {
               decision: parsedResponse.decision,
               thought: parsedResponse.thought,
             },
-            'TeamChatResponseService'
-          );
+          'TeamChatResponseService'
+        );
           break;
         }
 
@@ -1182,11 +1185,11 @@ export class TeamChatResponseService {
             decision: decisionMatch[1],
             thought: thoughtMatch?.[1]?.trim() || '',
           };
-          logger.debug(
+        logger.debug(
             `[ShouldRespond] Fallback regex parsed on attempt ${attempt}`,
             { decision: parsedResponse.decision },
-            'TeamChatResponseService'
-          );
+          'TeamChatResponseService'
+        );
           break;
         }
 
