@@ -267,6 +267,12 @@ export const users = pgTable(
     managedBy: text('managedBy'),
     // Game guide completion tracking
     gameGuideCompletedAt: timestamp('gameGuideCompletedAt', { mode: 'date' }),
+    // Profile chain sync tracking (database-first architecture)
+    profileChainSyncNeeded: boolean('profileChainSyncNeeded')
+      .notNull()
+      .default(false),
+    profileChainSyncAt: timestamp('profileChainSyncAt', { mode: 'date' }),
+    profileChainSyncError: text('profileChainSyncError'),
   },
   (table) => [
     index('User_displayName_idx').on(table.displayName),
@@ -294,6 +300,11 @@ export const users = pgTable(
     index('User_walletAddress_idx').on(table.walletAddress),
     index('User_registrationIpHash_idx').on(table.registrationIpHash),
     index('User_lastReferralIpHash_idx').on(table.lastReferralIpHash),
+    // Index for efficient profile chain sync queries
+    index('User_profileChainSyncNeeded_onChainRegistered_idx').on(
+      table.profileChainSyncNeeded,
+      table.onChainRegistered
+    ),
   ]
 );
 

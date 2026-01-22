@@ -162,53 +162,69 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   >(null);
 
   // Calculate points in positions from actual position data
-  // Sum of currentValue from predictions + margin from perpetuals
-  // For perps, we use size/leverage to get actual capital tied up (margin), not notional value
-  const pointsInPositions = useMemo(() => {
+  // Sum of currentValue from predictions + (margin + unrealized) from perpetuals
+  // For perps, include unrealized P&L for consistency with prediction currentValue
+  const positionsValue = useMemo(() => {
     const predictionValue = predictions.reduce(
       (sum, pos) => sum + (pos.currentValue ?? pos.shares * pos.currentPrice),
       0
     );
-    // Use margin (size/leverage) for perps to represent actual capital at risk
+    // Use margin + unrealized P&L for perps to match prediction positions
+    // (prediction currentValue is the position's current worth including unrealized gains,
+    // so perp value should similarly be margin + unrealized)
     const perpValue = perps.reduce((sum, pos) => {
       const leverage = Number(pos.leverage);
       const effectiveLeverage =
         Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
-      return sum + Math.abs(pos.size / effectiveLeverage);
+      const margin = Math.abs(pos.size / effectiveLeverage);
+      const unrealized = Number(pos.unrealizedPnL);
+      const unrealizedSafe = Number.isFinite(unrealized) ? unrealized : 0;
+      return sum + margin + unrealizedSafe;
     }, 0);
     return predictionValue + perpValue;
   }, [predictions, perps]);
 
   // Total portfolio = available balance + points in positions
   const totalPortfolio = useMemo(
-    () => (balance?.balance || 0) + pointsInPositions,
-    [balance?.balance, pointsInPositions]
+    () => (balance?.balance || 0) + positionsValue,
+    [balance?.balance, positionsValue]
   );
 
-  // Calculate total unrealized P&L from positions
-  const unrealizedPnL = useMemo(() => {
-    const predictionPnL = predictions.reduce(
-      (sum, pos) => sum + (pos.unrealizedPnL ?? 0),
-      0
-    );
-    const perpPnL = perps.reduce((sum, pos) => sum + pos.unrealizedPnL, 0);
-    return predictionPnL + perpPnL;
-  }, [predictions, perps]);
-
-  // Total P&L = lifetime realized P&L + unrealized P&L
-  const totalPnL = useMemo(
-    () => (balance?.lifetimePnL || 0) + unrealizedPnL,
-    [balance?.lifetimePnL, unrealizedPnL]
+  // Check if we have reliable deposit data for true P&L calculation
+  const hasDepositData = useMemo(
+    () =>
+      balance != null &&
+      typeof balance.totalDeposited === 'number' &&
+      typeof balance.totalWithdrawn === 'number',
+    [balance]
   );
 
-  // P&L percentage based on net contributions (totalDeposited - totalWithdrawn)
+  // Net contributions = what user actually put in
   const netContributions = useMemo(
-    () => (balance?.totalDeposited || 0) - (balance?.totalWithdrawn || 0),
-    [balance?.totalDeposited, balance?.totalWithdrawn]
+    () =>
+      hasDepositData
+        ? (balance!.totalDeposited ?? 0) - (balance!.totalWithdrawn ?? 0)
+        : undefined,
+    [hasDepositData, balance]
+  );
+
+  // True P&L = Current Portfolio Value - Net Contributions
+  // Only calculated when we have reliable deposit/withdrawal tracking.
+  // Note: This assumes all portfolio funds came from tracked deposits;
+  // may not account for airdrops, rewards, or admin adjustments.
+  const totalPnL = useMemo(
+    () =>
+      typeof netContributions === 'number'
+        ? totalPortfolio - netContributions
+        : 0,
+    [totalPortfolio, netContributions]
   );
 
   const pnlPercent = useMemo(
-    () => (netContributions > 0 ? (totalPnL / netContributions) * 100 : 0),
+    () =>
+      typeof netContributions === 'number' && netContributions > 0
+        ? (totalPnL / netContributions) * 100
+        : 0,
     [totalPnL, netContributions]
   );
 
@@ -367,7 +383,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm">In Positions</span>
             <span className="font-semibold text-foreground text-sm">
-              {formatPoints(pointsInPositions)} pts
+              {formatPoints(positionsValue)} pts
             </span>
           </div>
           <div className="flex items-center justify-between">

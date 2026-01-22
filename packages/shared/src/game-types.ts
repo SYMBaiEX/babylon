@@ -364,6 +364,49 @@ export interface ElizaCharacter {
 }
 
 /**
+ * Per-actor tier customization for alpha group mechanics.
+ * Allows NPCs to have different invite thresholds based on personality.
+ *
+ * Trading-focused NPCs (crypto, finance) should weight trading activity higher.
+ * Social-focused NPCs (media, entertainment) should weight social interactions higher.
+ */
+export interface ActorTierOverrides {
+  /**
+   * Multiplier for minEngagementScore thresholds.
+   * - 1.0 = default thresholds
+   * - 1.5 = 50% harder to join (higher engagement required)
+   * - 0.8 = 20% easier to join
+   * @default 1.0
+   */
+  minEngagementScoreMultiplier?: number;
+
+  /**
+   * Multiplier for invite probabilities.
+   * - 1.0 = default probability
+   * - 0.5 = half as likely to send invites
+   * - 2.0 = twice as likely to send invites
+   * @default 1.0
+   */
+  inviteProbabilityMultiplier?: number;
+
+  /**
+   * Focus weights for engagement score calculation.
+   * Controls how social interactions vs trading activity contribute to the score.
+   * Values should sum to 1.0.
+   *
+   * @example
+   * { social: 0.7, trading: 0.3 } // Social-focused NPC
+   * { social: 0.3, trading: 0.7 } // Trading-focused NPC
+   */
+  focusWeights?: {
+    /** Weight for social interactions (replies, likes, shares) */
+    social: number;
+    /** Weight for trading activity (trades, P&L) */
+    trading: number;
+  };
+}
+
+/**
  * Extended Actor definition for data files
  * Includes all fields from individual actor TypeScript files
  * (stored in packages/engine/src/data/actors/*.ts)
@@ -378,6 +421,11 @@ export interface ActorData extends Actor {
   originalHandle: string; // For name replacement
   firstName?: string; // Current first name (for name replacement)
   lastName?: string; // Current last name (for name replacement)
+  /**
+   * Optional tier customization for alpha group mechanics.
+   * Allows this actor to have different thresholds than the defaults.
+   */
+  tierOverrides?: ActorTierOverrides;
 }
 
 /**
