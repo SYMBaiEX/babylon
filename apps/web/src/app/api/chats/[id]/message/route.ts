@@ -103,6 +103,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
 import {
   and,
   asUser,
@@ -332,6 +333,8 @@ export const POST = withErrorHandling(
           );
         }
 
+        await requireNftChatAccess(user, chatId);
+
         // Verify NFT ownership for NFT-gated chats (cached)
         if (chat.nftGated && chat.requiredNftContractAddress) {
           const [userData] = await db
@@ -351,20 +354,22 @@ export const POST = withErrorHandling(
             // Remove user from chat since they no longer have NFT access
             // Wrap in transaction for consistency
             await db.transaction(async (tx) => {
-              await tx
-                .update(groupMembers)
-                .set({
-                  isActive: false,
-                  kickedAt: new Date(),
-                  kickReason: 'Lost NFT access',
-                })
-                .where(
-                  and(
-                    eq(groupMembers.groupId, chatId),
-                    eq(groupMembers.userId, user.userId),
-                    eq(groupMembers.isActive, true)
-                  )
-                );
+              if (chat.groupId) {
+                await tx
+                  .update(groupMembers)
+                  .set({
+                    isActive: false,
+                    kickedAt: new Date(),
+                    kickReason: 'Lost NFT access',
+                  })
+                  .where(
+                    and(
+                      eq(groupMembers.groupId, chat.groupId),
+                      eq(groupMembers.userId, user.userId),
+                      eq(groupMembers.isActive, true)
+                    )
+                  );
+              }
 
               await tx
                 .delete(chatParticipants)
