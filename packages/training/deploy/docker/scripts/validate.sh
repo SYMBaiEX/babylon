@@ -36,7 +36,7 @@ fi
 # 2. Python packages
 echo ""
 echo "[2/6] Checking Python packages..."
-python3.11 -c "
+python3 -c "
 import sys
 packages = ['torch', 'vllm', 'atroposlib', 'asyncpg', 'transformers', 'peft']
 missing = []
@@ -56,7 +56,7 @@ else:
 # 3. CUDA availability
 echo ""
 echo "[3/6] Checking CUDA..."
-python3.11 -c "
+python3 -c "
 import torch
 if torch.cuda.is_available():
     print(f'  ✓ CUDA available (PyTorch {torch.__version__})')
@@ -71,7 +71,7 @@ echo "[4/6] Checking database..."
 if [ -z "$DATABASE_URL" ]; then
     echo "  ⚠ DATABASE_URL not set (required for training)"
 else
-    python3.11 -c "
+    python3 -c "
 import os, asyncio, asyncpg
 async def test():
     pool = await asyncpg.create_pool(
@@ -109,7 +109,7 @@ fi
 # 6. Model loading test
 echo ""
 echo "[6/6] Testing model loading (tokenizer only)..."
-python3.11 -c "
+python3 -c "
 from transformers import AutoTokenizer
 tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B-Instruct', trust_remote_code=True)
 print('  ✓ Tokenizer loads OK')
@@ -123,7 +123,7 @@ if [ "$ERRORS" -eq 0 ]; then
     echo "============================================"
     echo ""
     echo "Ready to train! Example:"
-    echo "  python3.11 python/scripts/run_training.py --profile 12gb --steps 100"
+    echo "  python3 python/scripts/run_training.py --profile 12gb --steps 100"
     exit 0
 else
     echo "  ✗ Validation Failed - $ERRORS error(s)"

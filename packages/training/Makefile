@@ -280,7 +280,7 @@ runpod-train:
 	cd $(RUNPOD_DIR) && python setup.py train \
 		--gpu $(GPU) \
 		--image $(RUNPOD_IMAGE) \
-		--env-file ../$(DEPLOY_DIR)/.env \
+		--env-file ../.env \
 		--steps $(STEPS) \
 		--min-agents-per-window $(MIN_AGENTS)
 	@echo "$(GREEN)✓ Pod created$(RESET)"
