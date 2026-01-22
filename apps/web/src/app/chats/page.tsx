@@ -123,7 +123,7 @@ export default function ChatsPage() {
   // Redirect owned agent DMs to team chat
   useEffect(() => {
     if (ownAgentUsername) {
-      const mention = `@${ownAgentUsername} `;
+      const mention = `${ownAgentUsername} `;
       router.replace(`/agents/team?mention=${encodeURIComponent(mention)}`);
     }
   }, [ownAgentUsername, router]);
