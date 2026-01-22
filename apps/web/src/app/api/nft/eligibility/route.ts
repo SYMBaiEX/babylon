@@ -1,7 +1,7 @@
 import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { db, eq, nftCollection, nftSnapshot } from '@babylon/db';
 import type { NextRequest } from 'next/server';
-import type { EligibilityResponse } from '@/types/nft';
+import type { EligibilityApiResponse, EligibilityResponse } from '@/types/nft';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -25,12 +25,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .limit(1);
 
   if (!snapshotEntry) {
-    return successResponse({
+    const payload = {
       eligible: false,
       status: 'not_eligible',
       hasMinted: false,
       reason: 'not_in_top_100',
-    } satisfies EligibilityResponse);
+    } satisfies EligibilityResponse;
+
+    return successResponse({
+      success: true,
+      data: payload,
+    } satisfies EligibilityApiResponse);
   }
 
   if (snapshotEntry.hasMinted && snapshotEntry.mintedTokenId !== null) {
@@ -44,7 +49,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .where(eq(nftCollection.tokenId, snapshotEntry.mintedTokenId))
       .limit(1);
 
-    return successResponse({
+    const payload = {
       eligible: true,
       status: 'already_minted',
       snapshotRank: snapshotEntry.rank,
@@ -59,15 +64,25 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             txHash: snapshotEntry.mintTxHash ?? '',
           }
         : undefined,
-    } satisfies EligibilityResponse);
+    } satisfies EligibilityResponse;
+
+    return successResponse({
+      success: true,
+      data: payload,
+    } satisfies EligibilityApiResponse);
   }
 
-  return successResponse({
+  const payload = {
     eligible: true,
     status: 'eligible',
     snapshotRank: snapshotEntry.rank,
     snapshotPoints: snapshotEntry.points,
     snapshotTakenAt: snapshotEntry.snapshotTakenAt.toISOString(),
     hasMinted: false,
-  } satisfies EligibilityResponse);
+  } satisfies EligibilityResponse;
+
+  return successResponse({
+    success: true,
+    data: payload,
+  } satisfies EligibilityApiResponse);
 });

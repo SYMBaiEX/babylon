@@ -4,12 +4,8 @@ import { isNftGatingAllowlistedPath } from '@babylon/shared';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import type { EligibilityResponse } from '@/types/nft';
+import type { EligibilityApiResponse } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
-
-type ApiResponse<T> =
-  | { success: true; data: T }
-  | { success: false; error?: unknown };
 
 function buildNftRedirectUrl(searchParams: URLSearchParams): string {
   const nextParams = new URLSearchParams(searchParams);
@@ -18,6 +14,21 @@ function buildNftRedirectUrl(searchParams: URLSearchParams): string {
   return qs ? `/nft?${qs}` : '/nft';
 }
 
+function isEligibilityApiResponse(
+  value: unknown
+): value is EligibilityApiResponse {
+  if (typeof value !== 'object' || value === null) return false;
+  if (
+    !('success' in value) ||
+    (value as { success: unknown }).success !== true
+  ) {
+    return false;
+  }
+  if (!('data' in value)) return false;
+  const data = (value as { data: unknown }).data;
+  if (typeof data !== 'object' || data === null) return false;
+  return 'hasMinted' in data;
+}
 export function NftAccessGate({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -57,13 +68,8 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
         return;
       }
 
-      const json = (await response.json()) as ApiResponse<EligibilityResponse>;
-      if (!('success' in json) || json.success !== true) {
-        router.replace(targetUrl);
-        return;
-      }
-
-      if (json.data.hasMinted !== true) {
+      const json = (await response.json()) as unknown;
+      if (!isEligibilityApiResponse(json) || json.data.hasMinted !== true) {
         router.replace(targetUrl);
       }
     };
