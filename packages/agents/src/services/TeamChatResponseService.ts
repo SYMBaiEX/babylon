@@ -284,26 +284,29 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 # Decision Rule
 
-Ask yourself: **"Was I asked to do something OR do I have something new to contribute?"**
+Look at the conversation history above. Ask yourself:
+1. **Did I already respond** to the most recent user request? (Check if YOUR messages appear after their request)
+2. **Was I asked to do something** OR do I have something NEW to contribute?
 
 ⚠️ **IMPORTANT**: To perform ANY action above, you MUST respond YES. Saying NO means you cannot take any action.
 
 ## RESPOND (YES) if:
-- Someone asked YOU to do something (analyze, check, trade, discuss, debate, etc.)
-- Someone @mentioned you (@{{agentUsername}})
-- You were asked a direct question
-- You have NEW information or perspective to add
+- Someone asked YOU to do something AND you haven't responded yet
+- Someone @mentioned you (@{{agentUsername}}) AND you haven't replied yet
+- You were asked a direct question AND you haven't answered yet
+- You have genuinely NEW information (not repeating what you already said)
 
 ## DON'T RESPOND (NO) if:
-- You have nothing new to add to the conversation
-- You would just be repeating yourself or others
+- You already responded to this request (your message appears after the user's request)
+- You would just be repeating what you or others already said
+- The conversation has moved on and your response would be outdated
 
 ---
 
 # Output Format
 Output ONLY this XML format:
 <response>
-<thought>Brief reasoning about whether to respond</thought>
+<thought>Brief reasoning - did I already respond? Do I have something new?</thought>
 <decision>YES or NO</decision>
 </response>`;
 
