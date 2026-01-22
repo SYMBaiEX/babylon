@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import type {
+  EligibilityApiResponse,
   EligibilityResponse,
   MintConfirmResponse,
   MintFlowState,
@@ -88,7 +89,8 @@ export function useNftMint(): UseNftMintResult {
           return;
         }
 
-        const data: EligibilityResponse = await response.json();
+        const json: EligibilityApiResponse = await response.json();
+        const data: EligibilityResponse = json.data;
 
         // Check if aborted before updating state
         if (signal?.aborted) return;
