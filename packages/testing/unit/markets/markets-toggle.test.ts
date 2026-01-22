@@ -4,8 +4,12 @@ import { formatCurrency } from '@babylon/shared';
 describe('formatCurrency (used in MarketsToggle)', () => {
   it('formats amounts correctly', () => {
     expect(formatCurrency(0, { useThousandsSeparator: true })).toBe('ƀ0.00');
-    expect(formatCurrency(99.99, { useThousandsSeparator: true })).toBe('ƀ99.99');
-    expect(formatCurrency(-500.25, { useThousandsSeparator: true })).toContain('-');
+    expect(formatCurrency(99.99, { useThousandsSeparator: true })).toBe(
+      'ƀ99.99'
+    );
+    expect(formatCurrency(-500.25, { useThousandsSeparator: true })).toContain(
+      '-'
+    );
   });
 
   it('handles thousand separators', () => {

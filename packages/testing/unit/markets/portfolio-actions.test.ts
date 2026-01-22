@@ -32,8 +32,12 @@ describe('Portfolio data validation', () => {
   };
 
   it('validates correct shape', () => {
-    expect(isValid({ availableBalance: 0, accountEquity: 0, totalPnL: 0 })).toBe(true);
-    expect(isValid({ availableBalance: -100, accountEquity: -200, totalPnL: -500 })).toBe(true);
+    expect(
+      isValid({ availableBalance: 0, accountEquity: 0, totalPnL: 0 })
+    ).toBe(true);
+    expect(
+      isValid({ availableBalance: -100, accountEquity: -200, totalPnL: -500 })
+    ).toBe(true);
   });
 
   it('rejects invalid data', () => {
