@@ -129,12 +129,7 @@ def validate_environment() -> list[str]:
             "  Set in .env or export DATABASE_URL=postgresql://..."
         )
     
-    # Check OPENAI_API_KEY (for RLAIF judge)
-    if not os.getenv("OPENAI_API_KEY"):
-        errors.append(
-            "OPENAI_API_KEY not set. Required for RLAIF judge scoring.\n"
-            "  Set in .env or export OPENAI_API_KEY=sk-..."
-        )
+    # Note: OPENAI_API_KEY is NOT required - RLAIF judge uses local vLLM instance
     
     # Check for run-api command (Atropos)
     import shutil
