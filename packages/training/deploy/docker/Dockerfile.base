@@ -1,0 +1,71 @@
+# Babylon Training Base Image
+#
+# Uses the official vLLM OpenAI image as base, which includes:
+# - CUDA runtime
+# - PyTorch with CUDA support  
+# - vLLM with FlashInfer attention backend (no flash-attn compilation needed!)
+#
+# Build this ONCE and push to your registry:
+#   docker build -f deploy/docker/Dockerfile.base -t yourorg/babylon-base:0.2.0 .
+#   docker push yourorg/babylon-base:0.2.0
+#
+# Then use Dockerfile which extends this and builds in ~2 minutes.
+#
+# ============================================================================
+FROM vllm/vllm-openai:v0.14.0
+
+# Note: vllm/vllm-openai uses Python 3.12 and includes:
+# - PyTorch with CUDA
+# - vLLM with FlashInfer backend
+# - No flash-attn by default (uses FlashInfer instead - actually better for inference!)
+
+# Install system dependencies
+USER root
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    unzip \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Bun for database migrations
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
+
+# Create app directory
+WORKDIR /app
+
+# Install additional ML dependencies for training
+RUN pip install --no-cache-dir \
+    transformers>=4.36.0 \
+    peft>=0.8.0 \
+    accelerate>=1.12.0 \
+    atroposlib \
+    wandb \
+    huggingface-hub \
+    tenacity \
+    python-dotenv \
+    psycopg2-binary \
+    aiohttp
+
+# Verify installations
+RUN python3 -c "import torch; print(f'PyTorch {torch.__version__}, CUDA available: {torch.cuda.is_available()}')"
+RUN python3 -c "import vllm; print(f'vLLM {vllm.__version__}')"
+
+# Set environment defaults
+ENV PYTHONPATH=/app/python
+ENV HF_HOME="/app/.cache/huggingface"
+ENV CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+# FlashInfer is the default attention backend in vLLM - no need to set explicitly
+# But we document it here for clarity
+ENV VLLM_ATTENTION_BACKEND="FLASHINFER"
+
+# Create directories
+RUN mkdir -p /app/trained_models /app/logs /app/data /app/rollout_dumps /app/.cache
+
+# Labels for tracking
+LABEL maintainer="babylon-team"
+LABEL version="0.2.1"
+LABEL description="Babylon Training Base Image - vLLM with FlashInfer"
+LABEL vllm.version="0.14.0"
