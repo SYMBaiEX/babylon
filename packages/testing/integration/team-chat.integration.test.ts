@@ -559,55 +559,33 @@ describe('TeamChatResponseService', () => {
     await cleanupTestData();
   });
 
-  describe('triggerMentionedAgentResponses', () => {
-    test('returns empty result for empty mentions array', async () => {
-      const result =
-        await teamChatResponseService.triggerMentionedAgentResponses({
+  describe('broadcastToAllAgents', () => {
+    test('broadcasts message to all agents in chat', async () => {
+      // broadcastToAllAgents queues messages for all agents
+      // Each agent then decides via LLM whether to respond
+      await expect(
+        teamChatResponseService.broadcastToAllAgents({
           chatId: testTeamChat.chatId,
-          messageContent: 'Hello everyone',
-          mentionedAgentIds: [],
-          senderUserId: testUser.id,
-          senderDisplayName: testUser.displayName,
-        });
-
-      expect(result.triggered).toBe(0);
-      expect(result.responses).toEqual([]);
+          senderId: testUser.id,
+          ownerDisplayName: testUser.displayName,
+          ownerUsername: testUser.username,
+        })
+      ).resolves.toBeUndefined();
     });
 
-    test('schedules responses for mentioned agents', async () => {
-      const result =
-        await teamChatResponseService.triggerMentionedAgentResponses({
-          chatId: testTeamChat.chatId,
-          messageContent: `Hey @${testAgent.username}, can you help?`,
-          mentionedAgentIds: [testAgent.id],
-          senderUserId: testUser.id,
-          senderDisplayName: testUser.displayName,
-        });
-
-      expect(result.triggered).toBe(1);
-      expect(result.responses.length).toBe(1);
-      expect(result.responses[0]!.agentId).toBe(testAgent.id);
-      expect(result.responses[0]!.success).toBe(true);
-
-      // Note: Actual response generation happens asynchronously
-      // In a full test, we'd wait and verify messages were created
-    });
-
-    test('handles multiple mentioned agents', async () => {
+    test('handles broadcast with multiple agents', async () => {
       const agent2 = await createTestAgent(testUser.id, 'response-a2');
       await teamChatService.addAgentToTeamChat(testUser.id, agent2.id);
 
-      const result =
-        await teamChatResponseService.triggerMentionedAgentResponses({
+      // Should broadcast to both agents without error
+      await expect(
+        teamChatResponseService.broadcastToAllAgents({
           chatId: testTeamChat.chatId,
-          messageContent: `@${testAgent.username} and @${agent2.username}, coordinate!`,
-          mentionedAgentIds: [testAgent.id, agent2.id],
-          senderUserId: testUser.id,
-          senderDisplayName: testUser.displayName,
-        });
-
-      expect(result.triggered).toBe(2);
-      expect(result.responses.length).toBe(2);
+          senderId: testUser.id,
+          ownerDisplayName: testUser.displayName,
+          ownerUsername: testUser.username,
+        })
+      ).resolves.toBeUndefined();
     });
   });
 });
@@ -941,78 +919,46 @@ describe('syncExistingAgents', () => {
   });
 });
 
-describe('Loop Prevention Behavior', () => {
+describe('Broadcast Behavior', () => {
   afterAll(async () => {
     await cleanupTestData();
   });
 
-  test('allows first response from mentioned agent', async () => {
-    const user = await createTestUser('loop-1');
-    const agent = await createTestAgent(user.id, 'loop-a1');
+  test('broadcasts to all agents in chat', async () => {
+    const user = await createTestUser('broadcast-1');
+    const agent = await createTestAgent(user.id, 'broadcast-a1');
     const teamChat = await teamChatService.ensureTeamChat(user.id);
     testCleanup.teamChatIds.push(teamChat.id);
     testCleanup.groupIds.push(teamChat.groupId);
     testCleanup.chatIds.push(teamChat.chatId);
     await teamChatService.addAgentToTeamChat(user.id, agent.id);
 
-    // First mention should trigger response
-    const result1 =
-      await teamChatResponseService.triggerMentionedAgentResponses({
+    // Broadcast should queue message for all agents
+    await expect(
+      teamChatResponseService.broadcastToAllAgents({
         chatId: teamChat.chatId,
-        messageContent: `@${agent.username} hello`,
-        mentionedAgentIds: [agent.id],
-        senderUserId: user.id,
-        senderDisplayName: user.displayName,
-      });
-
-    expect(result1.triggered).toBe(1);
-    expect(result1.responses[0]?.success).toBe(true);
+        senderId: user.id,
+        ownerDisplayName: user.displayName,
+        ownerUsername: user.username,
+      })
+    ).resolves.toBeUndefined();
   });
 
-  test('deduplicates agent IDs in same request', async () => {
-    const user = await createTestUser('loop-2');
-    const agent = await createTestAgent(user.id, 'loop-a2');
-    const teamChat = await teamChatService.ensureTeamChat(user.id);
-    testCleanup.teamChatIds.push(teamChat.id);
-    testCleanup.groupIds.push(teamChat.groupId);
-    testCleanup.chatIds.push(teamChat.chatId);
-    await teamChatService.addAgentToTeamChat(user.id, agent.id);
-
-    // Same agent ID mentioned multiple times
-    const result = await teamChatResponseService.triggerMentionedAgentResponses(
-      {
-        chatId: teamChat.chatId,
-        messageContent: `@${agent.username} @${agent.username} @${agent.username}`,
-        mentionedAgentIds: [agent.id, agent.id, agent.id],
-        senderUserId: user.id,
-        senderDisplayName: user.displayName,
-      }
-    );
-
-    // Should only trigger once despite duplicate IDs
-    // Note: The service currently doesn't dedupe at the caller level,
-    // but cooldown will prevent multiple responses
-    expect(result.triggered).toBeGreaterThanOrEqual(1);
-  });
-
-  test('handles empty string agent IDs gracefully', async () => {
-    const user = await createTestUser('loop-3');
+  test('handles broadcast with no agents in chat', async () => {
+    const user = await createTestUser('broadcast-2');
     const teamChat = await teamChatService.ensureTeamChat(user.id);
     testCleanup.teamChatIds.push(teamChat.id);
     testCleanup.groupIds.push(teamChat.groupId);
     testCleanup.chatIds.push(teamChat.chatId);
 
-    // Test that empty/whitespace agent IDs are filtered out before processing
-    const result = await teamChatResponseService.triggerMentionedAgentResponses(
-      {
+    // Should handle empty agent list gracefully
+    await expect(
+      teamChatResponseService.broadcastToAllAgents({
         chatId: teamChat.chatId,
-        messageContent: 'Hello',
-        mentionedAgentIds: ['', '   '].filter(Boolean),
-        senderUserId: user.id,
-        senderDisplayName: user.displayName,
-      }
-    );
-
-    expect(result.triggered).toBe(0);
+        senderId: user.id,
+        ownerDisplayName: user.displayName,
+        ownerUsername: user.username,
+      })
+    ).resolves.toBeUndefined();
   });
 });

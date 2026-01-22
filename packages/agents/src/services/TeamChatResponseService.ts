@@ -54,12 +54,17 @@ const MAX_ITERATIONS = 6;
 /** Maximum messages to keep in queue per agent (keeps latest, drops oldest) */
 const MAX_QUEUE_SIZE = 2;
 
+/** Maximum depth of agent-to-agent response chain to prevent infinite loops */
+const MAX_AGENT_CHAIN_DEPTH = 3;
+
 /** Queued message for an agent to process */
 interface QueuedMessage {
   chatId: string;
   ownerDisplayName: string;
   ownerUsername: string;
   queuedAt: number;
+  /** Tracks agent-to-agent chain depth to prevent infinite loops */
+  chainDepth?: number;
 }
 
 /** Agent processing state */
@@ -416,6 +421,7 @@ export class TeamChatResponseService {
         chatId: latestMessage.chatId,
         ownerDisplayName: latestMessage.ownerDisplayName,
         ownerUsername: latestMessage.ownerUsername,
+        chainDepth: latestMessage.chainDepth ?? 0,
       });
     } finally {
       state.isProcessing = false;
@@ -448,14 +454,27 @@ export class TeamChatResponseService {
   /**
    * Notify all agents in a chat about a new message.
    * Each agent will queue the message and decide whether to respond.
+   *
+   * @param params.chainDepth - Current agent-to-agent chain depth (0 for user messages)
    */
   public async notifyAgentsOfMessage(params: {
     chatId: string;
     senderId: string;
     ownerDisplayName: string;
     ownerUsername: string;
+    chainDepth?: number;
   }): Promise<void> {
-    const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
+    const { chatId, senderId, ownerDisplayName, ownerUsername, chainDepth = 0 } = params;
+
+    // Prevent infinite agent-to-agent loops by limiting chain depth
+    if (chainDepth >= MAX_AGENT_CHAIN_DEPTH) {
+      logger.info(
+        `Skipping agent notification - max chain depth (${MAX_AGENT_CHAIN_DEPTH}) reached`,
+        { chatId, senderId, chainDepth },
+        'TeamChatResponseService'
+      );
+      return;
+    }
 
     // Get all ACTIVE participants with isAgent flag in one query (no N+1)
     // Filter on isActive to exclude removed agents
@@ -489,7 +508,7 @@ export class TeamChatResponseService {
 
       logger.debug(
         `Queueing message for agent ${participant.displayName || participant.id}`,
-        { chatId, senderId },
+        { chatId, senderId, chainDepth },
         'TeamChatResponseService'
       );
 
@@ -498,6 +517,7 @@ export class TeamChatResponseService {
         ownerDisplayName,
         ownerUsername,
         queuedAt: Date.now(),
+        chainDepth,
       });
     }
   }
@@ -534,6 +554,7 @@ export class TeamChatResponseService {
    * Uses TEAM_CHAT_MESSAGES provider for conversation context with proper names.
    *
    * @param params.agentName - Pre-fetched agent name (optimization to avoid redundant query)
+   * @param params.chainDepth - Current agent-to-agent chain depth for loop prevention
    */
   private async generateAgentResponse(params: {
     agentId: string;
@@ -541,6 +562,7 @@ export class TeamChatResponseService {
     ownerDisplayName: string;
     ownerUsername: string;
     agentName?: string;
+    chainDepth?: number;
   }): Promise<{
     success: boolean;
     agentName: string;
@@ -554,6 +576,7 @@ export class TeamChatResponseService {
       ownerDisplayName,
       ownerUsername,
       agentName: prefetchedAgentName,
+      chainDepth = 0,
     } = params;
 
     // Get agent config including model tier and trading strategy
@@ -1012,11 +1035,13 @@ export class TeamChatResponseService {
       }
 
       // Notify other agents about this message (they can decide to respond)
+      // Increment chain depth to track agent-to-agent conversation depth
       this.notifyAgentsOfMessage({
         chatId,
         senderId: agentId,
         ownerDisplayName,
         ownerUsername,
+        chainDepth: chainDepth + 1,
       }).catch((err) => {
         logger.error(
           `Failed to notify agents of message: ${err}`,
