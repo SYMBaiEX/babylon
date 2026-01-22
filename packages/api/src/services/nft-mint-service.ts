@@ -40,6 +40,7 @@ import {
   keccak256,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { getPrivyClient } from '../auth-middleware';
 
 // ============================================================================
 // Types
@@ -148,6 +149,18 @@ const TRANSFER_EVENT_SIGNATURE =
 // Helper Functions
 // ============================================================================
 
+type PrivyWalletAccountLite = {
+  type?: string | null;
+  address?: string | null;
+};
+
+type PrivyUserWalletsLite = {
+  smartWallet?: { address?: string | null } | null;
+  wallet?: PrivyWalletAccountLite | null;
+  linkedAccounts?: PrivyWalletAccountLite[] | null;
+  linked_accounts?: PrivyWalletAccountLite[] | null;
+};
+
 function getChainConfig(chainId: number) {
   const config = CHAIN_CONFIG[chainId];
   if (!config) {
@@ -219,6 +232,103 @@ function validateConfig(): {
   }
 
   return { contractAddress, chainId, signerPrivateKey };
+}
+
+function isPrivyConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_PRIVY_APP_ID && process.env.PRIVY_APP_SECRET
+  );
+}
+
+async function getDbUserForMint(dbUserId: string): Promise<{
+  privyId: string;
+  walletAddress: string | null;
+}> {
+  const [user] = await db
+    .select({ privyId: users.privyId, walletAddress: users.walletAddress })
+    .from(users)
+    .where(eq(users.id, dbUserId))
+    .limit(1);
+
+  if (!user?.privyId) {
+    throw new ValidationError(
+      'User profile not found',
+      ['userId'],
+      [{ field: 'userId', message: 'User not found in database' }]
+    );
+  }
+
+  return { privyId: user.privyId, walletAddress: user.walletAddress };
+}
+
+function pickPrivySmartWalletAddress(privyUser: PrivyUserWalletsLite): string {
+  const direct = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+  if (direct) return direct;
+
+  const accounts = [
+    ...(privyUser.linkedAccounts ?? []),
+    ...(privyUser.linked_accounts ?? []),
+  ];
+  const smartWallet = accounts.find((a) => a.type === 'smart_wallet');
+  const fromLinked = smartWallet?.address?.toLowerCase() ?? null;
+  if (fromLinked) return fromLinked;
+
+  throw new ValidationError(
+    'Smart wallet not ready',
+    ['walletAddress'],
+    [
+      {
+        field: 'walletAddress',
+        message:
+          'Smart wallet address not available. Please re-login and try again.',
+      },
+    ]
+  );
+}
+
+async function resolveUserSmartWalletAddress(userId: string): Promise<Address> {
+  const { privyId, walletAddress } = await getDbUserForMint(userId);
+
+  if (isPrivyConfigured()) {
+    const privyClient = getPrivyClient();
+    try {
+      const privyUser = (await privyClient.getUser(
+        privyId
+      )) as PrivyUserWalletsLite;
+      const address = pickPrivySmartWalletAddress(privyUser);
+      if (!isAddress(address)) {
+        throw new ValidationError(
+          'Invalid smart wallet address',
+          ['walletAddress'],
+          [{ field: 'walletAddress', message: 'Invalid Ethereum address' }]
+        );
+      }
+      return address.toLowerCase() as Address;
+    } catch (error) {
+      if (
+        process.env.NODE_ENV !== 'test' &&
+        process.env.NODE_ENV !== 'development'
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  if (walletAddress && isAddress(walletAddress)) {
+    return walletAddress.toLowerCase() as Address;
+  }
+
+  throw new ValidationError(
+    'Smart wallet not ready',
+    ['walletAddress'],
+    [
+      {
+        field: 'walletAddress',
+        message:
+          'Smart wallet address not available. Please re-login and try again.',
+      },
+    ]
+  );
 }
 
 /**
@@ -370,25 +480,8 @@ export async function prepareMint(userId: string): Promise<PrepareResult> {
     );
   }
 
-  // Get user's wallet address
-  const [user] = await db
-    .select({
-      id: users.id,
-      walletAddress: users.walletAddress,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (!user?.walletAddress || !isAddress(user.walletAddress)) {
-    throw new ValidationError(
-      'Wallet not connected',
-      ['walletAddress'],
-      [{ field: 'walletAddress', message: 'No valid wallet address' }]
-    );
-  }
-
-  const walletAddress = user.walletAddress.toLowerCase() as Address;
+  // Resolve user's smart wallet address from Privy (multi-chain safe).
+  const walletAddress = await resolveUserSmartWalletAddress(userId);
 
   // Generate nonce and deadline (1 hour from now)
   const nonce = generateNonce();
@@ -469,29 +562,18 @@ export async function confirmMint(
   const normalizedWallet = walletAddress.toLowerCase() as Address;
   const normalizedContract = contractAddress.toLowerCase() as Address;
 
-  // Verify wallet matches user
-  const [user] = await db
-    .select({
-      id: users.id,
-      walletAddress: users.walletAddress,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (!user?.walletAddress) {
-    throw new ValidationError(
-      'No wallet connected',
-      ['walletAddress'],
-      [{ field: 'walletAddress', message: 'User has no wallet' }]
-    );
-  }
-
-  if (user.walletAddress.toLowerCase() !== normalizedWallet) {
+  // Verify wallet belongs to the authenticated user via Privy (do not rely on DB).
+  const expectedSmartWallet = await resolveUserSmartWalletAddress(userId);
+  if (expectedSmartWallet.toLowerCase() !== normalizedWallet.toLowerCase()) {
     throw new ValidationError(
       'Wallet mismatch',
       ['walletAddress'],
-      [{ field: 'walletAddress', message: 'Wallet does not match user' }]
+      [
+        {
+          field: 'walletAddress',
+          message: 'Wallet does not match authenticated user smart wallet',
+        },
+      ]
     );
   }
 
