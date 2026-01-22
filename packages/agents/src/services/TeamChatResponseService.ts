@@ -272,33 +272,31 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 ---
 
+# Your Capabilities
+{{actionsWithDescriptions}}
+
+---
+
 # Conversation History
 {{teamChatMessages}}
 
 ---
 
-# Should You Respond?
+# Decision Rule
 
-Answer these questions:
-1. **Was I directly @mentioned?** (someone said "@{{agentUsername}}")
-2. **Was I asked a question or given a task?**
-3. **Would my response add NEW value?** (not repeating what I or others said)
-4. **Has this been sufficiently addressed already?**
+Ask yourself: **"Was I asked to do something OR do I have something new to contribute?"**
+
+⚠️ **IMPORTANT**: To perform ANY action above, you MUST respond YES. Saying NO means you cannot take any action.
 
 ## RESPOND (YES) if:
-- You are @mentioned and have something meaningful to say
-- Someone asked you specifically for help
-- You have unique information to contribute
-- The conversation needs your expertise
+- Someone asked YOU to do something (analyze, check, trade, discuss, debate, etc.)
+- Someone @mentioned you (@{{agentUsername}})
+- You were asked a direct question
+- You have NEW information or perspective to add
 
 ## DON'T RESPOND (NO) if:
-- You already responded to this topic and have nothing new to add
-- Another agent already answered the question well
-- The conversation has naturally concluded
-- You're about to repeat yourself
-- No one is talking to you and you have nothing valuable to add
-
-**When in doubt, DON'T respond.** Quality over quantity.
+- You have nothing new to add to the conversation
+- You would just be repeating yourself or others
 
 ---
 
@@ -1123,10 +1121,10 @@ export class TeamChatResponseService {
         createdAt: Date.now(),
       };
 
-      // Compose state with TEAM_CHAT_MESSAGES provider for conversation context
+      // Compose state with TEAM_CHAT_MESSAGES and ACTIONS providers
       const state: State = await runtime.composeState(
         elizaMessage,
-        ['TEAM_CHAT_MESSAGES'],
+        ['TEAM_CHAT_MESSAGES', 'ACTIONS'],
         true
       );
 
