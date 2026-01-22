@@ -219,7 +219,6 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 ## Team Members
 {{teamMembers}}
 
-# Your Capabilities
 {{actionsWithDescriptions}}
 
 # Conversation History
@@ -408,8 +407,8 @@ export class TeamChatResponseService {
       logger.debug(
         `Processing queued message for agent ${agentId}`,
         { chatId: latestMessage.chatId },
-      'TeamChatResponseService'
-    );
+        'TeamChatResponseService'
+      );
 
       // Generate response
       await this.generateAgentResponse({
@@ -461,10 +460,10 @@ export class TeamChatResponseService {
     // Get all ACTIVE participants with isAgent flag in one query (no N+1)
     // Filter on isActive to exclude removed agents
     const participants = await db
-        .select({
-          id: users.id,
-          displayName: users.displayName,
-          username: users.username,
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
         isAgent: users.isAgent,
       })
       .from(chatParticipants)
@@ -512,11 +511,11 @@ export class TeamChatResponseService {
   async broadcastToAllAgents(params: BroadcastParams): Promise<void> {
     const { chatId, senderId, ownerDisplayName, ownerUsername } = params;
 
-            logger.info(
+    logger.info(
       `Broadcasting message to all agents`,
       { chatId, senderId },
-              'TeamChatResponseService'
-            );
+      'TeamChatResponseService'
+    );
 
     // Just use the existing notifyAgentsOfMessage which already broadcasts to all
     await this.notifyAgentsOfMessage({
@@ -573,14 +572,14 @@ export class TeamChatResponseService {
     let agentName = prefetchedAgentName;
     let agentUsername = '';
 
-      const [agent] = await db
-        .select({
-          displayName: users.displayName,
-          username: users.username,
-        })
-        .from(users)
-        .where(eq(users.id, agentId))
-        .limit(1);
+    const [agent] = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
 
     if (!agentName) {
       agentName = agent?.displayName || agent?.username || 'Agent';
@@ -623,9 +622,9 @@ export class TeamChatResponseService {
 
     // First, decide if we should respond at all
     const shouldRespond = await this.shouldAgentRespond({
-        agentId,
+      agentId,
       chatId,
-        agentName,
+      agentName,
       agentUsername,
       systemPrompt,
       personality,
@@ -638,8 +637,8 @@ export class TeamChatResponseService {
       logger.info(
         `Agent ${agentName} decided not to respond: ${shouldRespond.reason}`,
         { agentId, chatId },
-          'TeamChatResponseService'
-        );
+        'TeamChatResponseService'
+      );
       return {
         success: true,
         agentName,
@@ -654,15 +653,15 @@ export class TeamChatResponseService {
     );
 
     // Broadcast typing indicator
-      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-        (error: Error) => {
-          logger.warn(
-            `Failed to broadcast typing indicator: ${error.message}`,
-            { chatId, agentId },
-            'TeamChatResponseService'
-          );
-        }
-      );
+    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+      (error: Error) => {
+        logger.warn(
+          `Failed to broadcast typing indicator: ${error.message}`,
+          { chatId, agentId },
+          'TeamChatResponseService'
+        );
+      }
+    );
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -734,7 +733,7 @@ export class TeamChatResponseService {
 
         for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
           const response = await runtime.useModel(modelType, {
-        prompt,
+            prompt,
             temperature: attempt > 1 ? 0.5 : 0.7,
           });
 
@@ -919,7 +918,7 @@ export class TeamChatResponseService {
         state.values = {
           ...state.values,
           agentId,
-        system: systemPrompt,
+          system: systemPrompt,
           personality: personality || '',
           tradingStrategy: tradingStrategy || '',
           agentName,
@@ -1014,7 +1013,7 @@ export class TeamChatResponseService {
 
       // Notify other agents about this message (they can decide to respond)
       this.notifyAgentsOfMessage({
-          chatId,
+        chatId,
         senderId: agentId,
         ownerDisplayName,
         ownerUsername,
@@ -1041,15 +1040,15 @@ export class TeamChatResponseService {
             : 'Failed to generate response',
       };
     } finally {
-        broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
-          (error: Error) => {
-            logger.warn(
-              `Failed to stop typing indicator: ${error.message}`,
-              { chatId, agentId },
-              'TeamChatResponseService'
-            );
-          }
-        );
+      broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to stop typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
     }
   }
 
@@ -1131,14 +1130,14 @@ export class TeamChatResponseService {
         parsedResponse = parseKeyValueXml(response);
 
         if (parsedResponse?.decision) {
-        logger.debug(
+          logger.debug(
             `[ShouldRespond] Parsed decision on attempt ${attempt}`,
             {
               decision: parsedResponse.decision,
               thought: parsedResponse.thought,
             },
-          'TeamChatResponseService'
-        );
+            'TeamChatResponseService'
+          );
           break;
         }
 
@@ -1154,11 +1153,11 @@ export class TeamChatResponseService {
             decision: decisionMatch[1],
             thought: thoughtMatch?.[1]?.trim() || '',
           };
-        logger.debug(
+          logger.debug(
             `[ShouldRespond] Fallback regex parsed on attempt ${attempt}`,
             { decision: parsedResponse.decision },
-          'TeamChatResponseService'
-        );
+            'TeamChatResponseService'
+          );
           break;
         }
 
