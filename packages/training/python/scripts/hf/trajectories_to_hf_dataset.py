@@ -12,16 +12,16 @@ Output formats:
 
 Usage:
     # Export to local parquet files
-    python scripts/export_to_huggingface.py --output ./hf_dataset
+    python scripts/trajectories_to_hf_dataset.py --output ./hf_dataset
     
     # Export and push to HuggingFace Hub
-    python scripts/export_to_huggingface.py --push-to-hub babylonlabs/babylon-trading-v1
+    python scripts/trajectories_to_hf_dataset.py --push-to-hub babylonlabs/babylon-trading-v1
     
     # Export only preference pairs
-    python scripts/export_to_huggingface.py --format preferences --output ./preferences
+    python scripts/trajectories_to_hf_dataset.py --format preferences --output ./preferences
     
     # Limit export size
-    python scripts/export_to_huggingface.py --max-pairs 10000 --output ./subset
+    python scripts/trajectories_to_hf_dataset.py --max-pairs 10000 --output ./subset
 
 Environment:
     DATABASE_URL: PostgreSQL connection string
