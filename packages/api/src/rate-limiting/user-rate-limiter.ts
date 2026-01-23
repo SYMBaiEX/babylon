@@ -84,6 +84,13 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'update_profile',
   }, // 5 updates per minute
 
+  // SIWE Authentication
+  SIWE_NONCE: {
+    maxRequests: 10,
+    windowMs: 60000,
+    actionType: 'siwe_nonce',
+  }, // 10 nonce requests per minute per IP
+
   // Agent actions
   GENERATE_AGENT_PROFILE: {
     maxRequests: 5,
