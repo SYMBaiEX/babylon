@@ -1,20 +1,18 @@
 import { describe, expect, it } from 'bun:test';
-import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
+import type { PortfolioBreakdownSnapshot } from '@babylon/engine/client';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PortfolioPnLCard } from '../../../../apps/web/src/components/markets/PortfolioPnLCard';
 
-const snapshot: PortfolioPnLSnapshot = {
-  lifetimePnL: 0,
-  netContributions: 0,
-  totalDeposited: 0,
-  totalWithdrawn: 0,
-  availableBalance: 0,
-  unrealizedPerpPnL: 0,
-  unrealizedPredictionPnL: 0,
-  totalUnrealizedPnL: 0,
+const snapshot: PortfolioBreakdownSnapshot = {
+  wallet: 0,
+  agents: 0,
+  positions: 0,
+  available: 0,
+  originalAmount: 0,
+  totalAssets: 0,
   totalPnL: 0,
-  accountEquity: 0,
+  agentCount: 0,
 };
 
 describe('PortfolioPnLCard rendering', () => {

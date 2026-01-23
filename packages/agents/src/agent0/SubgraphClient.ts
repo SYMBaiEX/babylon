@@ -50,20 +50,15 @@ export interface SubgraphAgent {
 
 export class SubgraphClient {
   private client: GraphQLClient | null;
-  private isLocalnet: boolean;
 
   constructor() {
     const subgraphUrl = process.env.AGENT0_SUBGRAPH_URL;
-    const network = process.env.AGENT0_NETWORK || 'sepolia';
-    this.isLocalnet = network === 'localnet';
 
     if (!subgraphUrl) {
-      // For localnet, subgraph might not be available - allow graceful degradation
-      if (this.isLocalnet) {
-        this.client = null;
-        return;
-      }
-      throw new Error('AGENT0_SUBGRAPH_URL environment variable is required');
+      // Allow graceful degradation when subgraph URL is not configured
+      // This enables the API to function without Agent0 integration
+      this.client = null;
+      return;
     }
 
     this.client = new GraphQLClient(subgraphUrl, {
@@ -123,11 +118,10 @@ export class SubgraphClient {
   /**
    * Get agent by token ID
    */
-  async getAgent(tokenId: number): Promise<SubgraphAgent> {
+  async getAgent(tokenId: number): Promise<SubgraphAgent | null> {
     if (!this.client) {
-      throw new Error(
-        'Subgraph client not available (localnet mode or AGENT0_SUBGRAPH_URL not set)'
-      );
+      // Graceful degradation when subgraph is not configured
+      return null;
     }
 
     const query = `
@@ -152,7 +146,13 @@ export class SubgraphClient {
       agentId: tokenId.toString(),
     })) as { agents: RawSubgraphAgent[] };
 
-    return this.transformAgent(data.agents[0]!);
+    // Return null if agent not found in subgraph
+    const agent = data.agents[0];
+    if (!agent) {
+      return null;
+    }
+
+    return this.transformAgent(agent);
   }
 
   /**
@@ -258,6 +258,6 @@ export class SubgraphClient {
       return [];
     }
     const agent = await this.getAgent(tokenId);
-    return agent.feedbacks!;
+    return agent?.feedbacks ?? [];
   }
 }
