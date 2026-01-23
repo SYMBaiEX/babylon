@@ -11,9 +11,18 @@
  */
 
 import { agentRuntimeManager, agentService } from '@babylon/agents';
-import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db, eq, userAgentConfigs, users } from '@babylon/db';
-import { checkUserInput, GROQ_MODELS, logger } from '@babylon/shared';
+import {
+  authenticateUser,
+  broadcastChatMessage,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, messages, userAgentConfigs, users } from '@babylon/db';
+import {
+  checkUserInput,
+  GROQ_MODELS,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
 import {
   type ActionResult,
   composePromptFromState,
@@ -50,9 +59,19 @@ Determine the next step to take in this conversation.
 
 ---
 
+{{#if isTeamChatMode}}
+# Team Chat Context
+You are in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+Other agents may also be working on this task. Focus on YOUR contribution - do your best work independently.
+You can use the CHECK_TEAM_CHAT action if you want to see what other agents have said.
+
+# Your Identity  
+You are **{{agentName}}** (@{{agentUsername}}).
+{{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}.
 You are currently chatting with your creator/owner. Address them by name when appropriate.
+{{/if}}
 
 ---
 
@@ -169,7 +188,7 @@ YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `You are responding to your creator/owner after completing actions. Generate a helpful response.
+const multiStepSummaryTemplate = `You are responding after completing actions. Generate a helpful response.
 
 # Your Character
 {{system}}
@@ -178,11 +197,23 @@ const multiStepSummaryTemplate = `You are responding to your creator/owner after
 Personality: {{personality}}
 {{/if}}
 
+{{#if isTeamChatMode}}
+# Team Chat Context
+You are **{{agentName}}** (@{{agentUsername}}) in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+Other agents may also be responding. Focus on YOUR findings and contribution.
+{{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}. You are chatting with them now.
+{{/if}}
 
 # Conversation History
 {{recentMessages}}
+
+---
+
+{{actionsWithParams}}
+
+---
 
 # Current Message from {{ownerName}}
 {{currentMessage}}
@@ -216,9 +247,22 @@ export const POST = withErrorHandling(
     const { agentId } = await params;
     logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat');
 
-    const body = (await req.json()) as { message: string; usePro?: boolean };
+    const body = (await req.json()) as {
+      message: string;
+      usePro?: boolean;
+      /** Optional team chat ID - if provided, agent response goes to the shared team chat */
+      teamChatId?: string;
+      /** Owner display name for team chat context */
+      teamChatOwnerName?: string;
+      /** Owner username for team chat context */
+      teamChatOwnerUsername?: string;
+    };
     const message = body.message;
     const usePro = body.usePro ?? false;
+    const teamChatId = body.teamChatId;
+    const teamChatOwnerName = body.teamChatOwnerName;
+    const teamChatOwnerUsername = body.teamChatOwnerUsername;
+    const isTeamChatMode = !!teamChatId;
 
     // Validate input
     const inputCheck = checkUserInput(message);
@@ -332,6 +376,13 @@ export const POST = withErrorHandling(
         // Owner info for personalized conversation
         ownerName,
         ownerUsername,
+        // Team chat context
+        isTeamChatMode,
+        teamChatId,
+        teamChatOwnerName: teamChatOwnerName || ownerName,
+        teamChatOwnerUsername: teamChatOwnerUsername || ownerUsername,
+        agentName: agentWithConfig.displayName || 'Agent',
+        agentUsername: agentWithConfig.username || '',
       };
 
       // Add action results to state data
@@ -543,6 +594,13 @@ export const POST = withErrorHandling(
         // Owner info for personalized conversation
         ownerName,
         ownerUsername,
+        // Team chat context
+        isTeamChatMode,
+        teamChatId,
+        teamChatOwnerName: teamChatOwnerName || ownerName,
+        teamChatOwnerUsername: teamChatOwnerUsername || ownerUsername,
+        agentName: agentWithConfig.displayName || 'Agent',
+        agentUsername: agentWithConfig.username || '',
       };
       state.data = {
         ...state.data,
@@ -601,7 +659,7 @@ export const POST = withErrorHandling(
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
 
-    // Save messages
+    // Save messages to agent's individual chat
     const userMessageId = uuidv4();
     const assistantMessageId = uuidv4();
     const userMessageTime = new Date();
@@ -637,6 +695,43 @@ export const POST = withErrorHandling(
         },
       ],
     });
+
+    // If team chat mode, write agent response to the shared team chat
+    // User message is written by frontend (once) before calling multiple agents
+    if (teamChatId) {
+      const teamAgentMessageId = await generateSnowflakeId();
+
+      // Write agent response to team chat
+      await db.insert(messages).values({
+        id: teamAgentMessageId,
+        chatId: teamChatId,
+        senderId: agentId,
+        content: responseText,
+        createdAt: assistantMessageTime,
+      });
+
+      // Broadcast agent response to team chat
+      broadcastChatMessage(teamChatId, {
+        id: teamAgentMessageId,
+        content: responseText,
+        chatId: teamChatId,
+        senderId: agentId,
+        type: 'user',
+        createdAt: assistantMessageTime.toISOString(),
+      }).catch((err) => {
+        logger.warn(
+          `Failed to broadcast agent message to team chat: ${err}`,
+          { teamChatId, agentId },
+          'AgentChat'
+        );
+      });
+
+      logger.info(
+        `Agent response written to team chat ${teamChatId}`,
+        { agentMessageId: teamAgentMessageId, agentId },
+        'AgentChat'
+      );
+    }
 
     // Update lastChatAt
     await db

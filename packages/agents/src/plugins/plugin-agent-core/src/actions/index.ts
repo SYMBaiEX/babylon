@@ -14,6 +14,7 @@ export { checkPredictionsAction } from './check-predictions';
 export { checkRecentCommentsAction } from './check-recent-comments';
 export { checkRecentMarketTradesAction } from './check-recent-market-trades';
 export { checkRecentPostsAction } from './check-recent-posts';
+export { checkTeamChatAction } from './check-team-chat';
 export { closePerpAction } from './close-perp';
 export { createCommentAction } from './create-comment';
 export { createPostAction } from './create-post';

@@ -6,7 +6,8 @@
  *
  * @description
  * Sends a message to the user's Command Center team chat.
- * Broadcasts to all agents - each agent decides via LLM whether to respond.
+ * Agent responses are triggered separately by the frontend calling /api/agents/[agentId]/chat
+ * for each selected agent (parallel execution model).
  *
  * @openapi
  * /api/agents/team-chat/message:
@@ -15,8 +16,8 @@
  *       - Agents
  *     summary: Send team chat message
  *     description: |
- *       Sends a message to Command Center and broadcasts to all agents.
- *       Each agent uses LLM to decide whether to respond based on context.
+ *       Sends a message to Command Center.
+ *       Agent responses are triggered separately via /api/agents/[agentId]/chat.
  *     security:
  *       - PrivyAuth: []
  *     requestBody:
@@ -33,21 +34,21 @@
  *                 description: Message content
  *     responses:
  *       201:
- *         description: Message sent, broadcasted to agents
+ *         description: Message sent successfully
  *       401:
  *         description: Unauthorized
  *       404:
  *         description: No team chat exists
  */
 
-import { teamChatResponseService, teamChatService } from '@babylon/agents';
+import { teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
   checkRateLimitAsync,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
-import { db, eq, generateSnowflakeId, messages, users } from '@babylon/db';
+import { db, generateSnowflakeId, messages } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -151,31 +152,9 @@ export async function POST(req: NextRequest) {
     isDMChat: false,
   });
 
-  // Get user info for owner context
-  const [userInfo] = await db
-    .select({ displayName: users.displayName, username: users.username })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  const ownerDisplayName =
-    userInfo?.displayName || userInfo?.username || 'User';
-  const ownerUsername = userInfo?.username || '';
-
-  // Broadcast to all agents (they decide via LLM whether to respond)
-  teamChatResponseService
-    .broadcastToAllAgents({
-      chatId: teamChat.chatId,
-      senderId: user.id,
-      ownerDisplayName,
-      ownerUsername,
-    })
-    .catch((error) => {
-      logger.error(
-        `Failed to broadcast to agents: ${error}`,
-        { chatId: teamChat.chatId },
-        'TeamChatMessageAPI'
-      );
-    });
+  // Note: Agent responses are now triggered by the frontend calling
+  // /api/agents/[agentId]/chat for each selected agent (parallel execution).
+  // The old broadcastToAllAgents flow has been removed to prevent duplicate responses.
 
   return NextResponse.json(
     {

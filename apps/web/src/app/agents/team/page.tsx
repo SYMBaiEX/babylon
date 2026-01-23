@@ -45,6 +45,10 @@ export default function TeamChatPage() {
     topSentinelRef,
     sendMessage,
     handleScroll,
+    // Agent selection
+    selectedAgentIds,
+    processingAgentIds,
+    toggleAgentSelection,
   } = useTeamChat();
 
   // Mobile member drawer state
@@ -195,6 +199,9 @@ export default function TeamChatPage() {
               user={user}
               teamChat={teamChat}
               onClose={() => setShowMemberDrawer(false)}
+              selectedAgentIds={selectedAgentIds}
+              processingAgentIds={processingAgentIds}
+              onToggleAgent={toggleAgentSelection}
             />
           </div>
         </>
@@ -220,7 +227,13 @@ export default function TeamChatPage() {
           <Separator />
 
           {/* Member list - extracted component */}
-          <MemberList user={user} teamChat={teamChat} />
+          <MemberList
+            user={user}
+            teamChat={teamChat}
+            selectedAgentIds={selectedAgentIds}
+            processingAgentIds={processingAgentIds}
+            onToggleAgent={toggleAgentSelection}
+          />
         </div>
 
         <Separator orientation="vertical" className="hidden lg:block" />
@@ -266,6 +279,21 @@ export default function TeamChatPage() {
             thinkingAgents={thinkingAgents}
             onShowMembers={() => setShowMemberDrawer(true)}
             onScroll={handleScroll}
+            // Selected agents for parallel execution
+            selectedAgents={
+              teamChat?.agents
+                .filter(
+                  (a) =>
+                    selectedAgentIds.has(a.id) || processingAgentIds.has(a.id)
+                )
+                .map((a) => ({
+                  id: a.id,
+                  displayName: a.displayName || a.username || 'Agent',
+                  profileImageUrl: a.profileImageUrl,
+                  isProcessing: processingAgentIds.has(a.id),
+                })) || []
+            }
+            onRemoveSelectedAgent={toggleAgentSelection}
           />
         </div>
       </div>

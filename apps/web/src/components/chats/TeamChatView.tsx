@@ -1,7 +1,9 @@
 'use client';
 
-import { Brain, MessageCircle, Radio, Users } from 'lucide-react';
+import { cn } from '@babylon/shared';
+import { Brain, Loader2, MessageCircle, Radio, Users, X } from 'lucide-react';
 import React from 'react';
+import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
 import type { MentionableAgent } from './MentionAutocomplete';
@@ -83,6 +85,14 @@ function ThinkingIndicator({
   );
 }
 
+/** Info for a selected agent chip */
+interface SelectedAgentInfo {
+  id: string;
+  displayName: string;
+  profileImageUrl?: string | null;
+  isProcessing: boolean;
+}
+
 interface TeamChatViewProps {
   chatDetails: ChatDetails | null;
   currentUserId: string | undefined;
@@ -108,6 +118,10 @@ interface TeamChatViewProps {
   onShowMembers?: () => void;
   /** Callback when messages container is scrolled (for auto-scroll tracking) */
   onScroll?: (container: HTMLDivElement) => void;
+  /** Selected agents for parallel execution */
+  selectedAgents?: SelectedAgentInfo[];
+  /** Callback when an agent chip is removed */
+  onRemoveSelectedAgent?: (agentId: string) => void;
 }
 
 /**
@@ -135,6 +149,8 @@ export function TeamChatView({
   thinkingAgents = [],
   onShowMembers,
   onScroll,
+  selectedAgents = [],
+  onRemoveSelectedAgent,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -237,6 +253,49 @@ export function TeamChatView({
         <div className="px-4">
           <Separator />
         </div>
+
+        {/* Selected Agents Chips - shown above input when agents are selected */}
+        {selectedAgents.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-4 pt-3">
+            <span className="self-center text-muted-foreground text-xs">
+              Send to:
+            </span>
+            {selectedAgents.map((agent) => (
+              <div
+                key={agent.id}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full py-1 pr-2 pl-1 text-sm',
+                  agent.isProcessing
+                    ? 'bg-blue-500/20 text-blue-500'
+                    : 'bg-muted text-foreground'
+                )}
+              >
+                <Avatar
+                  src={agent.profileImageUrl ?? undefined}
+                  name={agent.displayName}
+                  size="sm"
+                />
+                <span className="max-w-[100px] truncate font-medium">
+                  {agent.displayName}
+                </span>
+                {agent.isProcessing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  onRemoveSelectedAgent && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveSelectedAgent(agent.id)}
+                      className="rounded-full p-0.5 hover:bg-background/50"
+                      aria-label={`Remove ${agent.displayName}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Message Input with @mention support */}
         <MessageInput

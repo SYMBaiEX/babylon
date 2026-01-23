@@ -14,7 +14,6 @@
 import {
   agentRuntimeManager,
   agentService,
-  teamChatResponseService,
   teamChatService,
 } from '@babylon/agents';
 import {
@@ -24,10 +23,8 @@ import {
 } from '@babylon/api';
 import {
   db,
-  eq,
   generateSnowflakeId,
   messages as messagesTable,
-  users,
 } from '@babylon/db';
 import { GROQ_MODELS, logger } from '@babylon/shared';
 import {
@@ -289,31 +286,8 @@ export const POST = withErrorHandling(
           'AgentOnboarding'
         );
 
-        // Get user info for owner context
-        const [userInfo] = await db
-          .select({ displayName: users.displayName, username: users.username })
-          .from(users)
-          .where(eq(users.id, user.id))
-          .limit(1);
-        const ownerDisplayName =
-          userInfo?.displayName || userInfo?.username || 'User';
-        const ownerUsername = userInfo?.username || '';
-
-        // Notify other agents about this message so they can respond
-        teamChatResponseService
-          .notifyAgentsOfMessage({
-            chatId: teamChat.chatId,
-            senderId: agentId,
-            ownerDisplayName,
-            ownerUsername,
-          })
-          .catch((err) => {
-            logger.warn(
-              `Failed to notify agents of onboarding message: ${err}`,
-              { chatId: teamChat.chatId, agentId },
-              'AgentOnboarding'
-            );
-          });
+        // Note: Agent responses are now triggered by the user selecting agents
+        // in the Command Center sidebar, not automatically on new messages.
       }
     } catch (error) {
       // Don't fail the whole request if team chat message fails
