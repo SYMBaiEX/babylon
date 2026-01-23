@@ -155,8 +155,6 @@ export const teamChatMessagesProvider: Provider = {
     message: Memory,
     state: State
   ): Promise<ProviderResult> => {
-    const agentUserId = runtime.agentId;
-
     // Get chatId from multiple sources (in priority order):
     // 1. message.roomId - The ElizaOS way (room = chat)
     // 2. state.values.teamChatId - If manually set before composeState
@@ -193,7 +191,7 @@ export const teamChatMessagesProvider: Provider = {
         .from(messages)
         .where(eq(messages.chatId, chatId))
         .orderBy(desc(messages.createdAt))
-        .limit(15);
+        .limit(50);
 
       if (chatMessages.length === 0) {
         return {
@@ -237,11 +235,8 @@ export const teamChatMessagesProvider: Provider = {
         }
       }
 
-      // Helper to get speaker name
+      // Helper to get speaker name (always use actual name, never "You")
       const getSpeakerName = (senderId: string): string => {
-        if (senderId === agentUserId) {
-          return 'You';
-        }
         const sender = senderInfoMap.get(senderId);
         return formatUserName(
           sender?.displayName ?? null,
