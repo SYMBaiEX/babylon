@@ -120,7 +120,7 @@ export default function NftGalleryPage() {
 
   const handleOpenGatedChat = async () => {
     if (!authenticated) return;
-    if (!eligibility?.hasMinted) return;
+    if (myNftCount === 0) return;
 
     setEnsuringChatAccess(true);
     try {
@@ -159,7 +159,7 @@ export default function NftGalleryPage() {
               </p>
             </div>
 
-            {authenticated && !eligibility?.hasMinted && (
+            {authenticated && myNftCount === 0 && !eligibility?.hasMinted && (
               <button
                 onClick={handleClaimClick}
                 disabled={isMinting || isCheckingEligibility}
@@ -169,7 +169,7 @@ export default function NftGalleryPage() {
               </button>
             )}
 
-            {eligibility?.hasMinted && eligibility.mintedNft && (
+            {authenticated && myNftCount > 0 && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -181,12 +181,14 @@ export default function NftGalleryPage() {
                     ? 'Opening chat...'
                     : 'Open FD Alpha Chat →'}
                 </button>
-                <a
-                  href={`/nft/${eligibility.mintedNft.tokenId}`}
-                  className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-green-600 text-sm transition-colors hover:bg-green-500/20"
-                >
-                  View My NFT →
-                </a>
+                {eligibility?.mintedNft ? (
+                  <a
+                    href={`/nft/${eligibility.mintedNft.tokenId}`}
+                    className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-green-600 text-sm transition-colors hover:bg-green-500/20"
+                  >
+                    View My NFT →
+                  </a>
+                ) : null}
               </div>
             )}
           </div>

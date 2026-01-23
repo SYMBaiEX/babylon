@@ -23,7 +23,11 @@ function parseBooleanFlag(value: string | undefined): boolean {
 }
 
 export function getNftChatGatingConfig(): NftChatGatingConfig {
-  const enabled = parseBooleanFlag(process.env.NFT_CHAT_GATING_ENABLED);
+  // Prefer the global flag (NFT_GATING_ENABLED) to avoid proliferating flags.
+  // Keep the legacy chat-only flag for backwards compatibility.
+  const enabled =
+    parseBooleanFlag(process.env.NFT_GATING_ENABLED) ||
+    parseBooleanFlag(process.env.NFT_CHAT_GATING_ENABLED);
   const chatId = process.env.NFT_CHAT_GATING_CHAT_ID?.trim() || null;
   return { enabled, chatId };
 }
@@ -185,8 +189,10 @@ export async function ensureNftChatMembership(userId: string): Promise<{
 
 /**
  * Revoke NFT chat membership if the user no longer has NFT access.
- * TODO: Wire this up to a scheduled job or on-chain event listener
- * to automatically revoke access when NFT ownership changes.
+ *
+ * Note: PR4 introduces a best-effort reconciliation path via `GET /api/chats`
+ * (grant/revoke on user activity). This remains useful as a targeted helper for
+ * other entry points.
  */
 export async function revokeNftChatMembershipIfNeeded(
   userId: string,
@@ -243,4 +249,78 @@ export async function revokeNftChatMembershipIfNeeded(
     { userId, chatId, groupId, reason },
     'NFTChatGatingService'
   );
+}
+
+export async function reconcileNftChatMembershipForUser(user: {
+  dbUserId: string;
+  isAgent?: boolean;
+}): Promise<
+  | { status: 'skipped'; reason: 'disabled' | 'agent' | 'missing_chat_id' }
+  | { status: 'noop'; allowed: boolean }
+  | { status: 'ensured'; chatId: string }
+  | { status: 'revoked'; chatId: string }
+> {
+  if (user.isAgent) return { status: 'skipped', reason: 'agent' };
+
+  const config = getNftChatGatingConfig();
+  if (!config.enabled) return { status: 'skipped', reason: 'disabled' };
+  if (!config.chatId) return { status: 'skipped', reason: 'missing_chat_id' };
+
+  const chatId = config.chatId;
+
+  const allowed = await canAccessNftChatGate(user.dbUserId, chatId);
+
+  // Check current membership state to avoid write-amplifying on every /api/chats call.
+  const [chatRow] = await db
+    .select({ groupId: chats.groupId })
+    .from(chats)
+    .where(eq(chats.id, chatId))
+    .limit(1);
+
+  const groupId = chatRow?.groupId ?? null;
+  const [activeParticipant] = await db
+    .select({ id: chatParticipants.id })
+    .from(chatParticipants)
+    .where(
+      and(
+        eq(chatParticipants.chatId, chatId),
+        eq(chatParticipants.userId, user.dbUserId),
+        eq(chatParticipants.isActive, true)
+      )
+    )
+    .limit(1);
+
+  const [activeMember] =
+    groupId === null
+      ? [undefined]
+      : await db
+          .select({ id: groupMembers.id })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, groupId),
+              eq(groupMembers.userId, user.dbUserId),
+              eq(groupMembers.isActive, true)
+            )
+          )
+          .limit(1);
+
+  const hasActiveMembership = Boolean(
+    activeParticipant && (groupId ? activeMember : true)
+  );
+
+  if (allowed) {
+    if (hasActiveMembership) return { status: 'noop', allowed: true };
+    await ensureNftChatMembership(user.dbUserId);
+    return { status: 'ensured', chatId };
+  }
+
+  if (!hasActiveMembership) return { status: 'noop', allowed: false };
+
+  await revokeNftChatMembershipIfNeeded(
+    user.dbUserId,
+    chatId,
+    'NFT access revoked (ownership check)'
+  );
+  return { status: 'revoked', chatId };
 }

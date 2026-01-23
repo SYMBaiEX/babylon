@@ -140,6 +140,39 @@ export interface MintPrepareResponse {
   encodedData: string;
 }
 
+// ============================================================================
+// Ownership / Holdings Types
+// ============================================================================
+
+export interface NftHoldingsResponse {
+  success: true;
+  data: {
+    walletAddress: string | null;
+    collectionId: string | null;
+    tokenIds: number[];
+    nfts: Array<{
+      tokenId: number;
+      name: string;
+      thumbnailUrl: string;
+    }>;
+    /**
+     * True when the indexer was unavailable and we fell back to DB ownership.
+     */
+    degraded: boolean;
+  };
+}
+
+export interface NftAccessResponse {
+  success: true;
+  data: {
+    hasAccess: boolean;
+    /**
+     * True when the indexer was unavailable and we fell back to DB-based access.
+     */
+    degraded: boolean;
+  };
+}
+
 /**
  * Mint confirmation request
  */

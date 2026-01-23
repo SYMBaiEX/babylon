@@ -175,6 +175,7 @@ import {
 import {
   canAccessNftChatGate,
   getNftChatGatingConfig,
+  reconcileNftChatMembershipForUser,
 } from '@babylon/api/services/nft-chat-gating-service';
 // Import from new Drizzle client
 import {
@@ -310,6 +311,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const user = await authenticate(request);
+
+  // Best-effort reconciliation: grant/revoke gated chat membership based on the
+  // latest access check (on-chain when available; falls back when degraded).
+  if (user.dbUserId) {
+    await reconcileNftChatMembershipForUser({
+      dbUserId: user.dbUserId,
+      isAgent: user.isAgent,
+    });
+  }
   const nftChatGatingConfig = getNftChatGatingConfig();
   const gatedChatId = nftChatGatingConfig.chatId;
   const canAccessNftGatedChat =

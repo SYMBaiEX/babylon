@@ -16,6 +16,11 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  getNftTokenOwnersFromIndexer,
+  getOwnerUsersByWalletAddresses,
+  NftIndexerUnavailableError,
+} from '@babylon/api/services/nft-indexer-service';
+import {
   db,
   eq,
   nftClaims,
@@ -66,21 +71,73 @@ export const GET = withErrorHandling(
       throw new NotFoundError(`NFT with token ID ${tokenId} not found`);
     }
 
-    // Get current ownership
-    const [ownership] = await db
-      .select({
-        ownerAddress: nftOwnership.ownerAddress,
-        userId: nftOwnership.userId,
-        acquiredAt: nftOwnership.acquiredAt,
-        txHash: nftOwnership.txHash,
-        username: users.username,
-        displayName: users.displayName,
-        profileImageUrl: users.profileImageUrl,
-      })
-      .from(nftOwnership)
-      .leftJoin(users, eq(nftOwnership.userId, users.id))
-      .where(eq(nftOwnership.tokenId, tokenId))
-      .limit(1);
+    // Get current ownership (prefer indexer, fallback to DB ownership)
+    let ownership: {
+      ownerAddress: string;
+      user: {
+        id: string;
+        username: string | null;
+        displayName: string | null;
+        profileImageUrl: string | null;
+      } | null;
+      acquiredAt: string;
+      txHash: string | null;
+    } | null = null;
+
+    try {
+      const owners = await getNftTokenOwnersFromIndexer([tokenId]);
+      const owner = owners.get(tokenId) ?? null;
+      if (owner) {
+        const ownerUsers = await getOwnerUsersByWalletAddresses([
+          owner.ownerAddress,
+        ]);
+        const user = ownerUsers.get(owner.ownerAddress) ?? null;
+        ownership = {
+          ownerAddress: owner.ownerAddress,
+          user,
+          acquiredAt: owner.acquiredAt,
+          txHash: null,
+        };
+      }
+    } catch (error) {
+      if (
+        !(error instanceof NftIndexerUnavailableError) &&
+        !(error instanceof Error && error.name === 'ValidationError')
+      ) {
+        throw error;
+      }
+
+      const [dbOwnership] = await db
+        .select({
+          ownerAddress: nftOwnership.ownerAddress,
+          userId: nftOwnership.userId,
+          acquiredAt: nftOwnership.acquiredAt,
+          txHash: nftOwnership.txHash,
+          username: users.username,
+          displayName: users.displayName,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(nftOwnership)
+        .leftJoin(users, eq(nftOwnership.userId, users.id))
+        .where(eq(nftOwnership.tokenId, tokenId))
+        .limit(1);
+
+      ownership = dbOwnership
+        ? {
+            ownerAddress: dbOwnership.ownerAddress,
+            user: dbOwnership.userId
+              ? {
+                  id: dbOwnership.userId,
+                  username: dbOwnership.username,
+                  displayName: dbOwnership.displayName,
+                  profileImageUrl: dbOwnership.profileImageUrl,
+                }
+              : null,
+            acquiredAt: dbOwnership.acquiredAt.toISOString(),
+            txHash: dbOwnership.txHash,
+          }
+        : null;
+    }
 
     // Get original claim info
     const [claim] = await db
@@ -120,15 +177,8 @@ export const GET = withErrorHandling(
       currentOwner: ownership
         ? {
             walletAddress: ownership.ownerAddress,
-            user: ownership.userId
-              ? {
-                  id: ownership.userId,
-                  username: ownership.username,
-                  displayName: ownership.displayName,
-                  profileImageUrl: ownership.profileImageUrl,
-                }
-              : null,
-            acquiredAt: ownership.acquiredAt.toISOString(),
+            user: ownership.user,
+            acquiredAt: ownership.acquiredAt,
             txHash: ownership.txHash,
           }
         : null,
