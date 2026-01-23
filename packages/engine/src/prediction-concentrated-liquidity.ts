@@ -42,7 +42,8 @@
  * ```
  */
 
-import { PredictionPricing } from '@babylon/core/markets/prediction';
+// Use /client path to avoid pulling in PredictionDbAdapter which imports @babylon/db
+import { PredictionPricing } from '@babylon/core/markets/prediction/client';
 import { logger } from '@babylon/shared';
 
 /**
