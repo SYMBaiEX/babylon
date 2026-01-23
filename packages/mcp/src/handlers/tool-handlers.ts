@@ -48,15 +48,21 @@ async function safeFetch<T>(
     );
   }
 
-  // Handle 204 No Content or empty body responses
-  if (
-    response.status === 204 ||
-    response.headers.get('content-length') === '0'
-  ) {
+  // Handle 204 No Content early
+  if (response.status === 204) {
     return null;
   }
 
-  return (await response.json()) as T;
+  // Read body as text to handle empty responses reliably
+  // (content-length header may not always be present, e.g. chunked transfer)
+  const text = await response.text();
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return JSON.parse(trimmed) as T;
 }
 
 /**
