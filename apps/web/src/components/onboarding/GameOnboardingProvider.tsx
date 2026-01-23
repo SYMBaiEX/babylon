@@ -1,6 +1,6 @@
 'use client';
 
-import type { GameOnboardingStep } from '@babylon/db';
+import type { GameOnboardingStep } from '@babylon/shared';
 import { ONBOARDING_STEP_INFO } from '@babylon/shared';
 import {
   createContext,
