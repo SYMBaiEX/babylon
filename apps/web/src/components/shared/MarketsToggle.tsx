@@ -1,76 +1,63 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatCurrency } from '@babylon/shared';
 import type { MarketTab } from '@/types/markets';
 
 // Re-export for backwards compatibility
 export type { MarketTab } from '@/types/markets';
 
-/**
- * Markets toggle component for switching between market views.
- *
- * Provides tab navigation between Dashboard, Perps, and Predictions views.
- * Shows active tab with underline indicator and hover states.
- *
- * @param props - MarketsToggle component props
- * @returns Markets toggle element with tabs
- *
- * @example
- * ```tsx
- * <MarketsToggle
- *   activeTab="dashboard"
- *   onTabChange={(tab) => setActiveTab(tab)}
- * />
- * ```
- */
+const TABS: { id: MarketTab; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'perps', label: 'Perps' },
+  { id: 'predictions', label: 'Predictions' },
+];
+
 interface MarketsToggleProps {
   activeTab: MarketTab;
   onTabChange: (tab: MarketTab) => void;
+  balance?: number | null;
+  authenticated?: boolean;
+  loading?: boolean;
 }
 
-export function MarketsToggle({ activeTab, onTabChange }: MarketsToggleProps) {
+export function MarketsToggle({
+  activeTab,
+  onTabChange,
+  balance,
+  authenticated,
+  loading,
+}: MarketsToggleProps) {
   return (
     <div className="flex w-full items-center border-border border-b">
-      <button
-        onClick={() => onTabChange('dashboard')}
-        className={cn(
-          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'dashboard'
-            ? 'text-foreground'
-            : 'text-muted-foreground'
-        )}
-      >
-        Dashboard
-        {activeTab === 'dashboard' && (
-          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
-        )}
-      </button>
-      <button
-        onClick={() => onTabChange('perps')}
-        className={cn(
-          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'perps' ? 'text-foreground' : 'text-muted-foreground'
-        )}
-      >
-        Perps
-        {activeTab === 'perps' && (
-          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
-        )}
-      </button>
-      <button
-        onClick={() => onTabChange('predictions')}
-        className={cn(
-          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
-          activeTab === 'predictions'
-            ? 'text-foreground'
-            : 'text-muted-foreground'
-        )}
-      >
-        Predictions
-        {activeTab === 'predictions' && (
-          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
-        )}
-      </button>
+      <div className="flex flex-1">
+        {TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onTabChange(id)}
+            className={cn(
+              'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+              activeTab === id ? 'text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            {label}
+            {activeTab === id && (
+              <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
+            )}
+          </button>
+        ))}
+      </div>
+      {authenticated && (
+        <div className="flex shrink-0 items-center px-4">
+          {loading ? (
+            <div className="h-5 w-16 animate-pulse rounded bg-muted" />
+          ) : balance != null ? (
+            <span className="font-semibold text-foreground">
+              {formatCurrency(balance, { useThousandsSeparator: true })}
+            </span>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

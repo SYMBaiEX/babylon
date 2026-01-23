@@ -318,25 +318,6 @@ export function usePerpMarket(ticker: string) {
 }
 
 /**
- * Get top movers (gainers and losers) - memoized
- */
-export function usePerpTopMovers(count = 4) {
-  const { markets, loading, error, refetch } = usePerpMarkets();
-
-  const { topGainers, topLosers } = useMemo(() => {
-    const sorted = [...markets].sort(
-      (a, b) => b.changePercent24h - a.changePercent24h
-    );
-    return {
-      topGainers: sorted.slice(0, count),
-      topLosers: sorted.slice(-count).reverse(),
-    };
-  }, [markets, count]);
-
-  return { topGainers, topLosers, loading, error, refetch };
-}
-
-/**
  * Invalidate the markets cache.
  * Call after actions that affect market stats (trading, etc.)
  */

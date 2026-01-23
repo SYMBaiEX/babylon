@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { TrendingDown, TrendingUp } from 'lucide-react';
 import { memo } from 'react';
 import type { PerpMarket } from '@/types/markets';
 import { formatPrice } from '../../_lib/formatters';
@@ -14,12 +13,13 @@ interface TrendingPerpCardProps {
 /**
  * Card component for displaying a trending perpetual market.
  * Memoized for performance as market data changes infrequently.
+ * Uses color coding (green/red) and +/- signs for direction instead of icons.
  */
 export const TrendingPerpCard = memo(function TrendingPerpCard({
   market,
   onClick,
 }: TrendingPerpCardProps) {
-  const isPositive = market.change24h >= 0;
+  const isPositive = market.changePercent24h >= 0;
 
   return (
     <button
@@ -40,15 +40,10 @@ export const TrendingPerpCard = memo(function TrendingPerpCard({
           </div>
           <div
             className={cn(
-              'flex items-center justify-end gap-1 font-bold text-xs',
+              'font-bold text-xs',
               isPositive ? 'text-green-600' : 'text-red-600'
             )}
           >
-            {isPositive ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
             {isPositive ? '+' : ''}
             {market.changePercent24h.toFixed(2)}%
           </div>
