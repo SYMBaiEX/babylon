@@ -1,5 +1,5 @@
-import type { MessageType } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import type { MessageType } from '@/components/chats/types';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageTypeEnum } from '@/components/chats/types';

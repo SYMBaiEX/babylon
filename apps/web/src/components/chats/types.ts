@@ -31,12 +31,16 @@ export interface Chat {
   };
 }
 
-import type { MessageType } from '@babylon/db';
+/**
+ * Message type for chat messages.
+ * Defined locally to avoid importing from @babylon/db in client code.
+ */
+export type MessageType = 'user' | 'system';
 
-// Enum for runtime checks, type-guarded by MessageType from db
+// Enum for runtime checks
 export const MessageTypeEnum = {
-  USER: 'user' as MessageType,
-  SYSTEM: 'system' as MessageType,
+  USER: 'user' as const satisfies MessageType,
+  SYSTEM: 'system' as const satisfies MessageType,
 } as const;
 
 export interface Message {

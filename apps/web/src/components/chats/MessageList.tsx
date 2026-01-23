@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageType } from '@babylon/db';
+import type { MessageType } from './types';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
