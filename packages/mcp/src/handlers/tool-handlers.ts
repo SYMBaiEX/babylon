@@ -33,6 +33,7 @@ import {
 /**
  * Safe fetch helper that validates response status and returns typed JSON.
  * Throws a descriptive error if the response is not OK.
+ * Handles 204 No Content responses by returning null.
  */
 async function safeFetch<T>(
   url: string | URL,
@@ -45,6 +46,14 @@ async function safeFetch<T>(
     throw new Error(
       `API request failed: ${response.status} ${response.statusText} - ${errorText.slice(0, 200)}`
     );
+  }
+
+  // Handle 204 No Content or empty body responses
+  if (
+    response.status === 204 ||
+    response.headers.get('content-length') === '0'
+  ) {
+    return null as T;
   }
 
   return (await response.json()) as T;

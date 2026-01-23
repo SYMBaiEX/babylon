@@ -207,7 +207,8 @@ export class SubgraphClient {
 
     if (filters.strategies && filters.strategies.length > 0) {
       results = results.filter((agent) => {
-        const caps = JSON.parse(agent.capabilities!);
+        if (!agent.capabilities) return false;
+        const caps = JSON.parse(agent.capabilities);
         const parsed = parseCapabilities(caps);
         const agentStrategies = parsed.strategies ?? [];
         return filters.strategies!.some((s) => agentStrategies.includes(s));
@@ -216,7 +217,8 @@ export class SubgraphClient {
 
     if (filters.markets && filters.markets.length > 0) {
       results = results.filter((agent) => {
-        const caps = JSON.parse(agent.capabilities!);
+        if (!agent.capabilities) return false;
+        const caps = JSON.parse(agent.capabilities);
         const parsed = parseCapabilities(caps);
         const agentMarkets = parsed.markets ?? [];
         return filters.markets!.some((m) => agentMarkets.includes(m));
