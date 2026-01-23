@@ -59,25 +59,28 @@ export function isNftChatGatedChat(chatId: string): boolean {
 }
 
 export async function canAccessNftChatGate(
-  userId: string,
+  dbUserId: string,
   chatId: string
 ): Promise<boolean> {
   if (!isNftChatGatedChat(chatId)) return true;
 
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await isUserAdmin(dbUserId);
   if (isAdmin) return true;
 
-  return hasNftAccess(userId);
+  return hasNftAccess(dbUserId);
 }
 
 export async function requireNftChatAccess(
-  user: { userId: string; isAgent?: boolean },
+  user: { userId: string; dbUserId?: string; isAgent?: boolean },
   chatId: string
 ): Promise<void> {
   if (!isNftChatGatedChat(chatId)) return;
   if (user.isAgent) return;
 
-  const allowed = await canAccessNftChatGate(user.userId, chatId);
+  // Prefer dbUserId for NFT access check (hasNftAccess expects database user ID).
+  // Falls back to userId for backwards compatibility (userId === dbUserId when user exists in DB).
+  const effectiveUserId = user.dbUserId ?? user.userId;
+  const allowed = await canAccessNftChatGate(effectiveUserId, chatId);
   if (!allowed) {
     throw new AuthorizationError('NFT chat access required', 'chat', 'access', {
       chatId,
@@ -180,6 +183,11 @@ export async function ensureNftChatMembership(userId: string): Promise<{
   return { success: true, chatId };
 }
 
+/**
+ * Revoke NFT chat membership if the user no longer has NFT access.
+ * TODO: Wire this up to a scheduled job or on-chain event listener
+ * to automatically revoke access when NFT ownership changes.
+ */
 export async function revokeNftChatMembershipIfNeeded(
   userId: string,
   chatId: string,
@@ -229,4 +237,10 @@ export async function revokeNftChatMembershipIfNeeded(
         );
     }
   });
+
+  logger.info(
+    'Revoked NFT gated chat membership',
+    { userId, chatId, groupId, reason },
+    'NFTChatGatingService'
+  );
 }

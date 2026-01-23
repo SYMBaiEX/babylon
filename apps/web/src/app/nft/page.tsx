@@ -137,6 +137,8 @@ export default function NftGalleryPage() {
       }
 
       router.push('/chats');
+    } catch {
+      toast.error('Failed to unlock chat access');
     } finally {
       setEnsuringChatAccess(false);
     }
