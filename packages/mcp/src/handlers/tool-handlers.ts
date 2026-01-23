@@ -49,6 +49,7 @@ async function safeFetch<T>(
 
   return (await response.json()) as T;
 }
+
 import type {
   AcceptGroupInviteArgs,
   AcceptGroupInviteResult,
