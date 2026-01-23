@@ -57,6 +57,9 @@ const MAX_QUEUE_SIZE = 2;
 /** Maximum depth of agent-to-agent response chain to prevent infinite loops */
 const MAX_AGENT_CHAIN_DEPTH = 3;
 
+/** Maximum concurrent agents that can call LLM at the same time (prevents rate limiting) */
+const MAX_CONCURRENT_LLM_CALLS = 2;
+
 /** Queued message for an agent to process */
 interface QueuedMessage {
   chatId: string;
@@ -74,12 +77,118 @@ interface AgentProcessingState {
 }
 
 // =============================================================================
-// Multi-Step Decision Templates (adapted from AgentChat for team chat)
+// Global Agent Response Concurrency Limiter
 // =============================================================================
 
-const multiStepDecisionTemplate = `<task>
-Determine the next step to take in this team chat conversation.
-</task>
+/**
+ * Simple semaphore to limit concurrent agent response processes.
+ * Prevents rate limiting when multiple agents try to respond simultaneously.
+ * This locks the ENTIRE response flow: shouldRespond -> execute actions -> final response
+ */
+class AgentResponseLimiter {
+  private currentCount = 0;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(private maxConcurrent: number) {}
+
+  /**
+   * Acquire a slot. Resolves immediately if slots available, otherwise waits.
+   */
+  async acquire(): Promise<void> {
+    if (this.currentCount < this.maxConcurrent) {
+      this.currentCount++;
+      logger.info(
+        `[AgentResponseLimiter] Acquired slot (${this.currentCount}/${this.maxConcurrent} active)`,
+        {},
+        'TeamChatResponseService'
+      );
+      return;
+    }
+
+    // Wait for a slot to become available
+    logger.info(
+      `[AgentResponseLimiter] Queue full, waiting... (${this.waitQueue.length + 1} waiting)`,
+      {},
+      'TeamChatResponseService'
+    );
+
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  /**
+   * Release a slot. Wakes up the next waiting caller if any.
+   */
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      logger.info(
+        `[AgentResponseLimiter] Released slot, starting next agent (${this.waitQueue.length} still waiting)`,
+        {},
+        'TeamChatResponseService'
+      );
+      next?.();
+    } else {
+      this.currentCount--;
+      logger.info(
+        `[AgentResponseLimiter] Released slot (${this.currentCount}/${this.maxConcurrent} active)`,
+        {},
+        'TeamChatResponseService'
+      );
+    }
+  }
+
+  /**
+   * Execute a function with concurrency limiting
+   */
+  async withLimit<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+}
+
+// Global instance - limits how many agents can be generating responses at once
+const agentResponseLimiter = new AgentResponseLimiter(MAX_CONCURRENT_LLM_CALLS);
+
+// =============================================================================
+// XML Response Extraction Helper
+// =============================================================================
+
+/**
+ * Extract content from XML response using parseKeyValueXml
+ * The response MUST be wrapped in <response> tags - anything outside (like <think>) is ignored
+ */
+function extractResponseContent(raw: string): Record<string, unknown> | null {
+  // Extract <response>...</response> block (ignores anything outside like <think> tags)
+  const responseMatch = raw.match(/<response>([\s\S]*?)<\/response>/i);
+  if (!responseMatch) {
+    return null;
+  }
+
+  // Parse the XML response with error handling
+  try {
+    const parsed = parseKeyValueXml(responseMatch[0]);
+    return parsed;
+  } catch (error) {
+    logger.warn(
+      'Failed to parse XML response',
+      { error: error instanceof Error ? error.message : String(error) },
+      'TeamChatResponseService'
+    );
+    return null;
+  }
+}
+
+// =============================================================================
+// Action Executor Template
+// =============================================================================
+
+const actionExecutorTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in a team chat.
 
 # Your Character
 {{system}}
@@ -102,6 +211,14 @@ Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
 
 ---
 
+# Your Goal
+{{goal}}
+
+**Focus on**: {{focus}}
+**Avoid**: {{avoid}}
+
+---
+
 # Team Chat Context
 This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
 
@@ -115,13 +232,13 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 ---
 
-# Execution Context
+# Execution Status
 Step {{iterationCount}} of {{maxIterations}}
-Actions taken this round: {{actionCount}}
 {{#if actionCount}}
-You have ALREADY taken {{actionCount}} action(s) in this round. Review them carefully before deciding.
+Actions completed: {{actionCount}}
+{{actionResults}}
 {{else}}
-This is your FIRST decision step - no actions have been taken yet.
+No actions taken yet.
 {{/if}}
 
 ---
@@ -130,129 +247,43 @@ This is your FIRST decision step - no actions have been taken yet.
 
 ---
 
-# Actions Completed This Round
-{{#if actionCount}}
-{{actionResults}}
-**IMPORTANT**: Use IDs/data from these results for follow-up actions. Do NOT repeat these actions.
-{{else}}
-No actions taken yet.
-{{/if}}
+# Instructions
 
----
+Execute actions until you achieve your goal, then respond with the result.
 
-# How to Decide: Action or Just Reply?
+1. **Need data or to perform an action?** → Execute an action
+2. **Goal achieved? Ready to respond?** → Write your response
 
-**Ask yourself**: Does this conversation need me to DO something, or can I just respond naturally?
-
-## When to Take an Action
-- Someone asks you to check data (markets, predictions, balance, PnL)
-- Someone asks you to execute a trade (buy, sell, open/close position)
-- Someone asks you to create content (post, comment)
-- You need real information to answer properly
-
-## When to Just Reply (No Action)
-- Casual chat, greetings, thanks
-- Sharing opinions or discussing ideas
-- Questions you can answer from the conversation context
-- Following up on previous discussion
-
----
-
-# If Taking Actions
-
-**AVOID REDUNDANCY**:
-- ❌ Don't repeat the same action with the same parameters
-- ❌ Don't buy/sell the same asset multiple times unless asked
-- ✅ Different actions that provide different information are fine
-- ✅ Use results from one action as input to another
-
-**After each action, ask**: "Can I now contribute meaningfully to this conversation?"
-- If YES → Set isFinish: true and respond
-- If NO (need more info) → Take another action
-
----
-
-# Decision Rules
-1. **Read the conversation** - What's being discussed? What would be helpful?
-2. **Check if action needed** - Do I need to look up data or do something?
-3. **If actions already taken** - Review what you learned. Ready to respond?
-4. **For trades**: Execute ONCE, then stop. Never repeat.
-5. **When in doubt** → Just respond naturally (set isFinish: true with no action)
-
-<keys>
-"thought"
-  What's happening in this conversation?
-  Do I need to take an action, or can I just reply?
-  If I took actions, what did I learn?
-"action" Name of the action to execute (empty string "" if no action needed)
-"parameters" JSON object with exact parameter names. Empty object {} if action has no parameters.
-"isFinish" Set to true when ready to respond to the conversation
-</keys>
-
-REMEMBER:
-- Step {{iterationCount}}/{{maxIterations}}, Actions this round: {{actionCount}}
-- Don't repeat actions you've already taken
-- Most conversations just need a friendly reply, not actions
-- ONLY speak for yourself - NEVER write responses for other agents
-
-# OUTPUT FORMAT
-<output>
-<response>
-  <thought>Your reasoning about the conversation and what to do</thought>
-  <action>ACTION_NAME or "" if just replying</action>
-  <parameters>{} or {"param": "value"}</parameters>
-  <isFinish>true when ready to respond, false if need more actions</isFinish>
-</response>
-</output>`;
-
-const multiStepSummaryTemplate = `You are responding in a team chat after completing actions. Generate a helpful response.
-
-# Your Character
-{{system}}
-
-{{#if personality}}
-Personality: {{personality}}
-{{/if}}
-
-# Your Identity
-You are **{{agentName}}** (@{{agentUsername}}).
-Remember: YOU are @{{agentUsername}}. Do NOT greet yourself or talk to yourself.
-
-# Team Chat Context
-This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
-
-## Team Members
-{{teamMembers}}
-
-{{actionsWithDescriptions}}
-
-# Conversation History
-{{teamChatMessages}}
-
-# Actions You Completed
-{{actionResults}}
-
-# Your Task
-Write a natural response based on the conversation and action results:
-- Summarize what you did and the results
-- Include specific numbers, names, or data from the action results
+## Rules
+- Focus on achieving your goal
+- Use action results in your response
 - Stay in character with your personality
-- You can @mention other team members if relevant (use their @username)
-- NEVER greet or address yourself (@{{agentUsername}})
-- ONLY speak for yourself - NEVER write as another agent or include their hypothetical responses
+- ONLY speak for yourself - NEVER write as another agent
 
-Output ONLY this XML with your actual response (not examples or placeholders):
+---
 
+# Output Format
+
+IMPORTANT: Output ONLY the XML below. Do NOT use function calling or tools.
+
+If you need to take an action:
 <response>
-<thought>Brief reasoning about what to tell the user</thought>
-<text>Your helpful response with specific details from the actions</text>
+<thought>Why I need this action</thought>
+<action>ACTION_NAME</action>
+<parameters>{"param": "value"}</parameters>
+</response>
+
+If you're ready to respond (goal achieved):
+<response>
+<thought>How I'll respond based on what I learned</thought>
+<text>Your actual response to the conversation</text>
 </response>`;
 
 // =============================================================================
-// Should Respond Decision Template
+// Summary Template (Fallback when action loop ends without text response)
 // =============================================================================
 
-const shouldRespondTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in a team chat. Decide if you should respond.
+const summaryTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in a team chat.
 
 # Your Character
 {{system}}
@@ -261,6 +292,82 @@ const shouldRespondTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in
 ## Personality
 {{personality}}
 {{/if}}
+
+---
+
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+
+---
+
+# Context
+This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUsername}}).
+
+## Team Members
+{{teamMembers}}
+
+---
+
+# Conversation History
+{{teamChatMessages}}
+
+---
+
+# Your Goal
+{{goal}}
+
+## Focus on
+{{focus}}
+
+## Avoid
+{{avoid}}
+
+---
+
+# Actions You Completed
+{{actionResults}}
+
+---
+
+# Your Task
+
+Based on the actions you completed and their results, write your response to the conversation.
+
+- Synthesize the information from your action results
+- Answer the original request or share what you learned
+- Stay in character with your personality
+- Be concise and helpful
+
+---
+
+# Output Format
+
+IMPORTANT: Output ONLY the XML below.
+
+<response>
+<thought>How I'll summarize what I learned from my actions</thought>
+<text>Your response to the conversation based on action results</text>
+</response>`;
+
+// =============================================================================
+// Should Respond Decision Template
+// =============================================================================
+
+const shouldRespondTemplate = `You are **{{agentName}}** (@{{agentUsername}}) in a team chat.
+
+# Your Character
+{{system}}
+
+{{#if personality}}
+## Personality
+{{personality}}
+{{/if}}
+
+---
+
+# Your Identity
+You are **{{agentName}}** (@{{agentUsername}}).
+Remember: YOU are @{{agentUsername}}.
 
 ---
 
@@ -282,39 +389,57 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 ---
 
-# Decision Rule
+# Your Task
 
-Look at the conversation history above. Ask yourself:
-1. **Did I already respond** to the most recent user request? (Check if YOUR messages appear after their request)
-2. **Was I asked to do something** OR do I have something NEW to contribute?
+Analyze the conversation and decide:
+1. **Should I respond at all?**
+2. **If YES, what's my goal?**
+3. **What should I focus on?**
+4. **What should I AVOID?** (things already said by me or others)
 
-⚠️ **IMPORTANT**: To perform ANY action above, you MUST respond YES. Saying NO means you cannot take any action.
+---
 
-## RESPOND (YES) if:
-- Someone asked YOU to do something AND you haven't responded yet
-- Someone @mentioned you (@{{agentUsername}}) AND you haven't replied yet
-- You were asked a direct question AND you haven't answered yet
-- You have genuinely NEW information (not repeating what you already said)
+# Decision Rules
+
+## RESPOND (YES) if ANY of these are true:
+- Someone @mentioned you (@{{agentUsername}}) and you haven't replied yet
+- You have NEW information, insight, or a different perspective to share
+- The topic relates to your expertise and you can add value
+- You can help with something being discussed
 
 ## DON'T RESPOND (NO) if:
-- You already responded to this request (your message appears after the user's request)
-- You would just be repeating what you or others already said
-- The conversation has moved on and your response would be outdated
+- You ALREADY responded to this specific topic recently (check conversation history)
+- You'd just be repeating what someone else said
+- You have nothing new to add
+- The conversation doesn't involve you and you can't contribute
 
 ---
 
 # Output Format
-Output ONLY this XML format:
+
+IMPORTANT: Output ONLY the XML below. Do NOT use function calling or tools.
+
+If you should NOT respond:
 <response>
-<thought>Brief reasoning - did I already respond? Do I have something new?</thought>
-<decision>YES or NO</decision>
+<thought>Why I shouldn't respond</thought>
+<decision>NO</decision>
+</response>
+
+If you SHOULD respond:
+<response>
+<thought>Analysis of what's happening and what I should do</thought>
+<decision>YES</decision>
+<goal>What I need to accomplish (e.g., "Check my positions and report", "Share my opinion on the trade")</goal>
+<focus>Specific things to include (e.g., "My exact share count", "My entry price")</focus>
+<avoid>Things to avoid (e.g., "Repeating 170+ shares - already mentioned", "Echoing the same market percentages others said")</avoid>
 </response>`;
 
 /**
  * Service for handling agent responses in team chat.
  *
- * Uses LLM-based decision making: each agent first decides whether to respond
- * (via shouldRespondTemplate), then generates a response if appropriate.
+ * Flow:
+ * 1. shouldAgentRespond() - Decides IF to respond and sets goal/focus/avoid
+ * 2. Action executor loop - Executes actions until goal is achieved, then responds
  *
  * Messages are queued per agent with a max limit (MAX_QUEUE_SIZE).
  * When queue is full, oldest messages are dropped to keep latest.
@@ -416,14 +541,17 @@ export class TeamChatResponseService {
         'TeamChatResponseService'
       );
 
-      // Generate response
-      await this.generateAgentResponse({
-        agentId,
-        chatId: latestMessage.chatId,
-        ownerDisplayName: latestMessage.ownerDisplayName,
-        ownerUsername: latestMessage.ownerUsername,
-        chainDepth: latestMessage.chainDepth ?? 0,
-      });
+      // Generate response with global concurrency limit
+      // This ensures only MAX_CONCURRENT_LLM_CALLS agents run the full response flow at once
+      await agentResponseLimiter.withLimit(() =>
+        this.generateAgentResponse({
+          agentId,
+          chatId: latestMessage.chatId,
+          ownerDisplayName: latestMessage.ownerDisplayName,
+          ownerUsername: latestMessage.ownerUsername,
+          chainDepth: latestMessage.chainDepth ?? 0,
+        })
+      );
     } finally {
       state.isProcessing = false;
 
@@ -650,8 +778,8 @@ export class TeamChatResponseService {
     const modelType =
       modelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
 
-    // First, decide if we should respond at all
-    const shouldRespond = await this.shouldAgentRespond({
+    // First, decide if we should respond and get goal guidance
+    const decision = await this.shouldAgentRespond({
       agentId,
       chatId,
       agentName,
@@ -661,11 +789,12 @@ export class TeamChatResponseService {
       teamMembers,
       ownerDisplayName,
       ownerUsername,
+      modelTier,
     });
 
-    if (!shouldRespond.shouldRespond) {
+    if (!decision.shouldRespond) {
       logger.info(
-        `Agent ${agentName} decided not to respond: ${shouldRespond.reason}`,
+        `Agent ${agentName} decided not to respond: ${decision.reason}`,
         { agentId, chatId },
         'TeamChatResponseService'
       );
@@ -676,9 +805,14 @@ export class TeamChatResponseService {
       };
     }
 
+    // Extract goal guidance for action executor
+    const goal = decision.goal || 'Respond naturally to the conversation';
+    const focus = decision.focus || 'Be helpful and stay in character';
+    const avoid = decision.avoid || "Don't repeat what others have said";
+
     logger.info(
-      `Agent ${agentName} will respond: ${shouldRespond.reason}`,
-      { agentId, chatId },
+      `Agent ${agentName} will respond`,
+      { agentId, chatId, goal, focus, avoid },
       'TeamChatResponseService'
     );
 
@@ -729,7 +863,7 @@ export class TeamChatResponseService {
           true
         );
 
-        // Add custom values to state
+        // Add custom values to state (including goal guidance)
         state.values = {
           ...state.values,
           agentId,
@@ -741,6 +875,11 @@ export class TeamChatResponseService {
           teamMembers,
           ownerDisplayName,
           ownerUsername,
+          // Goal guidance for action executor
+          goal,
+          focus,
+          avoid,
+          // Execution context
           iterationCount: iteration,
           maxIterations: MAX_ITERATIONS,
           actionCount: traceActionResults.length,
@@ -751,35 +890,35 @@ export class TeamChatResponseService {
           actionResults: traceActionResults,
         };
 
-        // Build prompt from decision template
+        // Build prompt from action executor template
         const prompt = composePromptFromState({
           state,
-          template: multiStepDecisionTemplate,
+          template: actionExecutorTemplate,
         });
 
         // Get LLM decision with retry
         const MAX_PARSE_RETRIES = 3;
         let parsedStep: Record<string, unknown> | null = null;
-
         for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
           const response = await runtime.useModel(modelType, {
             prompt,
             temperature: attempt > 1 ? 0.5 : 0.7,
           });
 
-          parsedStep = parseKeyValueXml(response);
+          // Use extractResponseContent to handle <think> tags and extract <response> block
+          parsedStep = extractResponseContent(response);
 
           if (parsedStep) {
             logger.debug(
-              `[TeamChat MultiStep] Parsed decision on attempt ${attempt}`,
-              { action: parsedStep.action, isFinish: parsedStep.isFinish },
+              `Parsed action response on attempt ${attempt}`,
+              { action: parsedStep.action, hasText: !!parsedStep.text },
               'TeamChatResponseService'
             );
             break;
           }
 
           logger.warn(
-            `[TeamChat MultiStep] Failed to parse decision (attempt ${attempt})`,
+            `Failed to parse action response (attempt ${attempt})`,
             { preview: response.substring(0, 200) },
             'TeamChatResponseService'
           );
@@ -794,10 +933,26 @@ export class TeamChatResponseService {
         const thought = (parsedStep.thought as string) ?? '';
         const action = (parsedStep.action as string) ?? '';
         const parameters = parsedStep.parameters;
-        const isFinish = parsedStep.isFinish;
+        const responseText = (parsedStep.text as string) ?? '';
 
-        // No action - go to summary phase
-        if (!action || action === '') {
+        // If text field is present, agent is ready to respond (no more actions needed)
+        if (responseText && responseText.trim()) {
+          logger.info(
+            `Agent ready to respond with text`,
+            { agentId, textPreview: responseText.substring(0, 100) },
+            'TeamChatResponseService'
+          );
+          finalResponse = responseText.trim();
+          break;
+        }
+
+        // No action - break out of loop
+        if (!action || action.trim() === '') {
+          logger.debug(
+            `No action and no text, breaking loop`,
+            { agentId },
+            'TeamChatResponseService'
+          );
           break;
         }
 
@@ -927,90 +1082,103 @@ export class TeamChatResponseService {
             timestamp: Date.now(),
           });
         }
-
-        // Check if done (normalize to handle LLM outputting TRUE/True/true)
-        const isFinishNormalized =
-          isFinish === true ||
-          (typeof isFinish === 'string' &&
-            isFinish.toLowerCase().trim() === 'true');
-        if (isFinishNormalized) {
-          break;
-        }
       }
 
-      // Generate summary/response
-      {
-        const state = await runtime.composeState(
+      // If no response was generated, use summary prompt as fallback
+      if (!finalResponse) {
+        logger.info(
+          `Loop ended without text response, using summary fallback`,
+          { agentId, actionsCompleted: traceActionResults.length },
+          'TeamChatResponseService'
+        );
+
+        // Build summary state with action results
+        const summaryState: State = await runtime.composeState(
           elizaMessage,
-          ['TEAM_CHAT_MESSAGES', 'ACTION_STATE'],
+          ['TEAM_CHAT_MESSAGES'],
           true
         );
-        state.values = {
-          ...state.values,
-          agentId,
-          system: systemPrompt,
-          personality: personality || '',
-          tradingStrategy: tradingStrategy || '',
+
+        summaryState.values = {
+          ...summaryState.values,
           agentName,
           agentUsername,
+          system: systemPrompt,
+          personality: personality || '',
           teamMembers,
           ownerDisplayName,
           ownerUsername,
+          goal: goal || 'Respond to the conversation',
+          focus: focus || '',
+          avoid: avoid || '',
         };
-        state.data = {
-          ...state.data,
+
+        // Pass action results directly - composePromptFromState handles formatting
+        summaryState.data = {
+          ...summaryState.data,
           actionResults: traceActionResults,
         };
 
-        const summaryPrompt = composePromptFromState({
-          state,
-          template: multiStepSummaryTemplate,
-        });
+        // Generate summary with retry
+        const MAX_SUMMARY_RETRIES = 2;
+        for (let attempt = 1; attempt <= MAX_SUMMARY_RETRIES; attempt++) {
+          try {
+            const summaryPrompt = composePromptFromState({
+              state: summaryState,
+              template: summaryTemplate,
+            });
 
-        const SUMMARY_RETRIES = 3;
-        let extractedText: string | undefined;
+            const summaryResponse = await runtime.useModel(modelType, {
+              prompt: summaryPrompt,
+              temperature: 0.7,
+            });
 
-        for (let attempt = 1; attempt <= SUMMARY_RETRIES; attempt++) {
-          const summaryResponse = await runtime.useModel(modelType, {
-            prompt: summaryPrompt,
-            temperature: attempt > 1 ? 0.5 : 0.7,
-          });
-
-          const summary = parseKeyValueXml(summaryResponse);
-          extractedText = summary?.text as string | undefined;
-
-          // Fallback: Try regex if parseKeyValueXml fails
-          if (!extractedText) {
-            const textMatch = summaryResponse.match(/<?\/?text>([^<]+)/i);
-            if (textMatch?.[1]) {
-              extractedText = textMatch[1].trim();
+            const parsedSummary = extractResponseContent(summaryResponse);
+            if (parsedSummary?.text) {
+              finalResponse = (parsedSummary.text as string).trim();
+              logger.info(
+                `Summary fallback generated response`,
+                { agentId, responsePreview: finalResponse.substring(0, 100) },
+                'TeamChatResponseService'
+              );
+              break;
             }
-          }
 
-          if (extractedText) {
-            logger.debug(
-              `[TeamChat MultiStep] Parsed summary on attempt ${attempt}`,
-              { preview: extractedText.substring(0, 50) },
+            logger.warn(
+              `Summary fallback failed to parse (attempt ${attempt})`,
+              { preview: summaryResponse.substring(0, 200) },
               'TeamChatResponseService'
             );
-            break;
+          } catch (summaryError) {
+            logger.error(
+              `Summary fallback error (attempt ${attempt})`,
+              {
+                error:
+                  summaryError instanceof Error
+                    ? summaryError.message
+                    : String(summaryError),
+              },
+              'TeamChatResponseService'
+            );
           }
-
-          logger.warn(
-            `[TeamChat MultiStep] Failed to parse summary (attempt ${attempt})`,
-            { preview: summaryResponse.substring(0, 200) },
-            'TeamChatResponseService'
-          );
         }
 
-        finalResponse =
-          extractedText ||
-          (traceActionResults.length > 0
-            ? 'Actions completed.'
-            : "I'm here to help!");
+        // If summary also failed, give up
+        if (!finalResponse) {
+          logger.warn(
+            `Both loop and summary fallback failed to generate response`,
+            { agentId, actionsCompleted: traceActionResults.length },
+            'TeamChatResponseService'
+          );
+          return {
+            success: false,
+            agentName,
+            error: 'Failed to generate response even with summary fallback',
+          };
+        }
       }
 
-      const responseText = finalResponse ?? "I'm here to help!";
+      const responseText = finalResponse ?? 'empty';
 
       // Clean and validate response
       const cleanContent = responseText
@@ -1063,13 +1231,11 @@ export class TeamChatResponseService {
         messageId: sendResult.messageId,
       };
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         agentName,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to generate response',
+        error: errorMsg,
       };
     } finally {
       broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
@@ -1085,8 +1251,8 @@ export class TeamChatResponseService {
   }
 
   /**
-   * Decide if an agent should respond to the current conversation.
-   * Uses LLM to make the decision based on conversation context.
+   * Decide if an agent should respond and what to do.
+   * Returns goal/focus/avoid guidance for the action executor.
    * Includes retry mechanism for parsing failures.
    */
   private async shouldAgentRespond(params: {
@@ -1099,7 +1265,14 @@ export class TeamChatResponseService {
     teamMembers: string;
     ownerDisplayName: string;
     ownerUsername: string;
-  }): Promise<{ shouldRespond: boolean; reason: string }> {
+    modelTier: 'free' | 'pro';
+  }): Promise<{
+    shouldRespond: boolean;
+    reason: string;
+    goal?: string;
+    focus?: string;
+    avoid?: string;
+  }> {
     const {
       agentId,
       chatId,
@@ -1110,7 +1283,11 @@ export class TeamChatResponseService {
       teamMembers,
       ownerDisplayName,
       ownerUsername,
+      modelTier,
     } = params;
+
+    const modelType =
+      modelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL;
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -1154,12 +1331,13 @@ export class TeamChatResponseService {
       let parsedResponse: Record<string, unknown> | null = null;
 
       for (let attempt = 1; attempt <= MAX_PARSE_RETRIES; attempt++) {
-        const response = await runtime.useModel(ModelType.TEXT_SMALL, {
+        const response = await runtime.useModel(modelType, {
           prompt,
           temperature: attempt > 1 ? 0.5 : 0.3, // Increase temperature on retry
         });
 
-        parsedResponse = parseKeyValueXml(response);
+        // Use extractResponseContent to handle <think> tags and extract <response> block
+        parsedResponse = extractResponseContent(response);
 
         if (parsedResponse?.decision) {
           logger.debug(
@@ -1167,13 +1345,14 @@ export class TeamChatResponseService {
             {
               decision: parsedResponse.decision,
               thought: parsedResponse.thought,
+              goal: parsedResponse.goal,
             },
             'TeamChatResponseService'
           );
           break;
         }
 
-        // Fallback: try regex extraction
+        // Fallback: try regex extraction for key fields
         const decisionMatch = response.match(
           /<decision>\s*(YES|NO)\s*<\/decision>/i
         );
@@ -1181,13 +1360,20 @@ export class TeamChatResponseService {
           const thoughtMatch = response.match(
             /<thought>\s*([^<]+)\s*<\/thought>/i
           );
+          const goalMatch = response.match(/<goal>\s*([^<]+)\s*<\/goal>/i);
+          const focusMatch = response.match(/<focus>\s*([^<]+)\s*<\/focus>/i);
+          const avoidMatch = response.match(/<avoid>\s*([^<]+)\s*<\/avoid>/i);
+
           parsedResponse = {
             decision: decisionMatch[1],
             thought: thoughtMatch?.[1]?.trim() || '',
+            goal: goalMatch?.[1]?.trim() || '',
+            focus: focusMatch?.[1]?.trim() || '',
+            avoid: avoidMatch?.[1]?.trim() || '',
           };
           logger.debug(
             `[ShouldRespond] Fallback regex parsed on attempt ${attempt}`,
-            { decision: parsedResponse.decision },
+            { decision: parsedResponse.decision, goal: parsedResponse.goal },
             'TeamChatResponseService'
           );
           break;
@@ -1215,14 +1401,43 @@ export class TeamChatResponseService {
       const thought =
         ((parsedResponse.thought as string) || '').trim() || 'No reason given';
 
+      if (decision !== 'YES') {
+        return { shouldRespond: false, reason: thought };
+      }
+
+      // Extract guidance for action executor
+      const goal =
+        ((parsedResponse.goal as string) || '').trim() ||
+        'Respond naturally to the conversation';
+      const focus =
+        ((parsedResponse.focus as string) || '').trim() ||
+        'Be helpful and stay in character';
+      const avoid =
+        ((parsedResponse.avoid as string) || '').trim() ||
+        "Don't repeat what others have said";
+
+      logger.info(
+        `[ShouldRespond] Decision: YES`,
+        { agentUsername, goal, focus, avoid },
+        'TeamChatResponseService'
+      );
+
       return {
-        shouldRespond: decision === 'YES',
+        shouldRespond: true,
         reason: thought,
+        goal,
+        focus,
+        avoid,
       };
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(
-        `Failed to decide shouldAgentRespond: ${error}`,
-        { agentId, chatId },
+        `[ShouldRespond] Failed: ${errorMsg}`,
+        {
+          agentId,
+          chatId,
+          stack: error instanceof Error ? error.stack : undefined,
+        },
         'TeamChatResponseService'
       );
       // Default to not responding on error (fail safe)
