@@ -58,6 +58,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
 import {
   and,
   asSystem,
@@ -170,6 +171,8 @@ export const GET = withErrorHandling(
           'read'
         );
       }
+
+      await requireNftChatAccess(authUser, chatId);
     }
 
     // Get chat with messages
