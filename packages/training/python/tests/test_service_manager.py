@@ -49,7 +49,7 @@ class TestServiceConfig:
         assert config.vllm_gpu_memory_utilization == 0.85
         assert config.vllm_dtype == "auto"
         assert config.vllm_max_model_len == 4096
-        assert config.startup_timeout == 180
+        assert config.startup_timeout == 600
         assert config.health_check_interval == 2.0
         assert config.shutdown_timeout == 10
         assert config.log_dir == "./logs/services"

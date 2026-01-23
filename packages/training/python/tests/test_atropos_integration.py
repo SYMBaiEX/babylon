@@ -315,7 +315,7 @@ class TestEnvironmentConfig:
         config = BabylonEnvConfig()
         
         assert config.group_size == 4
-        assert config.lookback_hours == 72
+        assert config.lookback_hours == 720  # 30 days - increased for imported data
         assert config.min_agents_per_window == 2
         
     def test_custom_config(self):
