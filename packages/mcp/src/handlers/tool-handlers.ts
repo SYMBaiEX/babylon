@@ -33,12 +33,12 @@ import {
 /**
  * Safe fetch helper that validates response status and returns typed JSON.
  * Throws a descriptive error if the response is not OK.
- * Handles 204 No Content responses by returning null.
+ * Returns null for 204 No Content or empty body responses.
  */
 async function safeFetch<T>(
   url: string | URL,
   options?: RequestInit
-): Promise<T> {
+): Promise<T | null> {
   const response = await fetch(url.toString(), options);
 
   if (!response.ok) {
@@ -53,10 +53,25 @@ async function safeFetch<T>(
     response.status === 204 ||
     response.headers.get('content-length') === '0'
   ) {
-    return null as T;
+    return null;
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * Safe fetch helper that throws if the response is null/empty.
+ * Use this for endpoints that must return JSON data.
+ */
+async function safeFetchRequired<T>(
+  url: string | URL,
+  options?: RequestInit
+): Promise<T> {
+  const result = await safeFetch<T>(url, options);
+  if (result === null) {
+    throw new Error('API returned empty response when data was expected');
+  }
+  return result;
 }
 
 import type {
@@ -346,7 +361,7 @@ export async function executePlaceBet(
 
   // Call the existing market API logic
   const apiBaseUrl = getAPIBaseUrl();
-  const result = await safeFetch<PlaceBetResult>(
+  return safeFetchRequired<PlaceBetResult>(
     `${apiBaseUrl}/markets/${args.marketId}/bet`,
     {
       method: 'POST',
@@ -360,7 +375,6 @@ export async function executePlaceBet(
       }),
     }
   );
-  return result;
 }
 
 /**
@@ -449,7 +463,7 @@ export async function executeClosePosition(
 
   // Call the existing close position API logic
   const apiBaseUrl = getAPIBaseUrl();
-  const result = await safeFetch<ClosePositionResult>(
+  const result = await safeFetchRequired<ClosePositionResult>(
     `${apiBaseUrl}/positions/${args.positionId}/close`,
     {
       method: 'POST',
@@ -546,7 +560,7 @@ export async function executeBuyShares(
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<BuySharesResult>(
+  return safeFetchRequired<BuySharesResult>(
     `${apiBaseUrl}/markets/predictions/${args.marketId}/buy`,
     {
       method: 'POST',
@@ -574,7 +588,7 @@ export async function executeSellShares(
   if (!position || position.userId !== agent.userId) {
     throw new Error('Position not found or access denied');
   }
-  return safeFetch<SellSharesResult>(
+  return safeFetchRequired<SellSharesResult>(
     `${apiBaseUrl}/markets/predictions/${position.marketId}/sell`,
     {
       method: 'POST',
@@ -595,17 +609,20 @@ export async function executeOpenPosition(
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<OpenPositionResult>(`${apiBaseUrl}/markets/perps/open`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: agent.userId,
-      ticker: args.ticker,
-      side: args.side,
-      amount: args.amount,
-      leverage: args.leverage,
-    }),
-  });
+  return safeFetchRequired<OpenPositionResult>(
+    `${apiBaseUrl}/markets/perps/open`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: agent.userId,
+        ticker: args.ticker,
+        side: args.side,
+        amount: args.amount,
+        leverage: args.leverage,
+      }),
+    }
+  );
 }
 
 /**
@@ -676,6 +693,12 @@ export async function executeGetTrades(
       timestamp: Date | string;
     }>;
   }>(url);
+
+  // Handle null/empty response
+  if (!data) {
+    return { trades: [] };
+  }
+
   return {
     trades: data.trades.map((trade) => ({
       id: trade.id,
@@ -714,6 +737,12 @@ export async function executeGetTradeHistory(
       timestamp: Date | string;
     }>;
   }>(url);
+
+  // Handle null/empty response
+  if (!data) {
+    return { trades: [] };
+  }
+
   return {
     trades: data.trades.map((trade) => ({
       id: trade.id,
@@ -1811,7 +1840,7 @@ export async function executeGetLeaderboard(
   if (args.pointsType) url.searchParams.set('pointsType', args.pointsType);
   if (args.minPoints)
     url.searchParams.set('minPoints', args.minPoints.toString());
-  return safeFetch<GetLeaderboardResult>(url);
+  return safeFetchRequired<GetLeaderboardResult>(url);
 }
 
 /**
@@ -1934,7 +1963,9 @@ export async function executeGetReputation(
 ): Promise<GetReputationResult> {
   const userId = args.userId || agent.userId;
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<GetReputationResult>(`${apiBaseUrl}/reputation/${userId}`);
+  return safeFetchRequired<GetReputationResult>(
+    `${apiBaseUrl}/reputation/${userId}`
+  );
 }
 
 /**
@@ -1945,7 +1976,7 @@ export async function executeGetReputationBreakdown(
   args: GetReputationBreakdownArgs
 ): Promise<GetReputationBreakdownResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<GetReputationBreakdownResult>(
+  return safeFetchRequired<GetReputationBreakdownResult>(
     `${apiBaseUrl}/reputation/breakdown/${args.userId}`
   );
 }
@@ -2018,17 +2049,20 @@ export async function executePaymentRequest(
 ): Promise<PaymentRequestResult> {
   // agent used for userId in request body
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<PaymentRequestResult>(`${apiBaseUrl}/payments/request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: args.from || agent.userId,
-      to: args.to,
-      amount: args.amount,
-      service: args.service,
-      metadata: args.metadata,
-    }),
-  });
+  return safeFetchRequired<PaymentRequestResult>(
+    `${apiBaseUrl}/payments/request`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: args.from || agent.userId,
+        to: args.to,
+        amount: args.amount,
+        service: args.service,
+        metadata: args.metadata,
+      }),
+    }
+  );
 }
 
 /**
@@ -2039,14 +2073,17 @@ export async function executePaymentReceipt(
   args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<PaymentReceiptResult>(`${apiBaseUrl}/payments/receipt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requestId: args.requestId,
-      txHash: args.txHash,
-    }),
-  });
+  return safeFetchRequired<PaymentReceiptResult>(
+    `${apiBaseUrl}/payments/receipt`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: args.requestId,
+        txHash: args.txHash,
+      }),
+    }
+  );
 }
 
 // ============================================================================
@@ -2422,7 +2459,7 @@ export async function executeAppealBan(
   args: AppealBanArgs
 ): Promise<AppealBanResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<AppealBanResult>(`${apiBaseUrl}/moderation/appeal`, {
+  return safeFetchRequired<AppealBanResult>(`${apiBaseUrl}/moderation/appeal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2566,6 +2603,12 @@ export async function executeGetFavoritePosts(
   }>(url, {
     headers: { 'X-User-Id': agent.userId },
   });
+
+  // Handle null/empty response
+  if (!data) {
+    return { posts: [] };
+  }
+
   return {
     posts: data.posts.map((post) => ({
       id: post.id,
@@ -2591,16 +2634,19 @@ export async function executeTransferPoints(
   args: TransferPointsArgs
 ): Promise<TransferPointsResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  return safeFetch<TransferPointsResult>(`${apiBaseUrl}/points/transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fromUserId: agent.userId,
-      recipientId: args.recipientId,
-      amount: args.amount,
-      message: args.message,
-    }),
-  });
+  return safeFetchRequired<TransferPointsResult>(
+    `${apiBaseUrl}/points/transfer`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromUserId: agent.userId,
+        recipientId: args.recipientId,
+        amount: args.amount,
+        message: args.message,
+      }),
+    }
+  );
 }
 
 // ============================================================================
