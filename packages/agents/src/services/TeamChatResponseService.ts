@@ -51,29 +51,41 @@ const MAX_RESPONSE_CONTENT_LENGTH = 4000;
 /** Maximum iterations for multi-step execution */
 const MAX_ITERATIONS = 6;
 
-/** Maximum messages to keep in queue per agent (keeps latest, drops oldest) */
-const MAX_QUEUE_SIZE = 2;
-
 /** Maximum depth of agent-to-agent response chain to prevent infinite loops */
-const MAX_AGENT_CHAIN_DEPTH = 3;
+const MAX_AGENT_CHAIN_DEPTH = 30;
 
 /** Maximum concurrent agents that can call LLM at the same time (prevents rate limiting) */
 const MAX_CONCURRENT_LLM_CALLS = 2;
 
-/** Queued message for an agent to process */
-interface QueuedMessage {
+/** Maximum time (ms) for a single agent's full response generation before timeout */
+const AGENT_RESPONSE_TIMEOUT_MS = 120000; // 2 minutes
+
+/** Maximum time (ms) for a single action execution before timeout */
+const ACTION_EXECUTION_TIMEOUT_MS = 30000; // 30 seconds
+
+/**
+ * Wrap a promise with a timeout
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() =>
+    clearTimeout(timeoutId)
+  );
+}
+
+/** Parameters for triggering an agent response */
+interface AgentTriggerParams {
   chatId: string;
   ownerDisplayName: string;
   ownerUsername: string;
-  queuedAt: number;
-  /** Tracks agent-to-agent chain depth to prevent infinite loops */
-  chainDepth?: number;
-}
-
-/** Agent processing state */
-interface AgentProcessingState {
-  isProcessing: boolean;
-  queue: QueuedMessage[];
+  chainDepth: number;
 }
 
 // =============================================================================
@@ -259,6 +271,7 @@ Execute actions until you achieve your goal, then respond with the result.
 - Use action results in your response
 - Stay in character with your personality
 - ONLY speak for yourself - NEVER write as another agent
+- **CHECK CONVERSATION HISTORY** - Look for messages from "{{agentName}}" (that's you). Do NOT repeat what you already said. Do NOT repeat what other agents said. Your response must be NEW and DIFFERENT.
 
 ---
 
@@ -337,6 +350,7 @@ Based on the actions you completed and their results, write your response to the
 - Answer the original request or share what you learned
 - Stay in character with your personality
 - Be concise and helpful
+- **CHECK CONVERSATION HISTORY for messages from "{{agentName}}"** (that's you) - Do NOT repeat what you already said. Do NOT repeat what other agents said. Your response must add NEW information.
 
 ---
 
@@ -389,49 +403,60 @@ This is a team Command Center chat owned by **{{ownerDisplayName}}** (@{{ownerUs
 
 ---
 
-# Your Task
+# Step 1: Find the LAST message from the owner ({{ownerDisplayName}})
 
-Analyze the conversation and decide:
-1. **Should I respond at all?**
-2. **If YES, what's my goal?**
-3. **What should I focus on?**
-4. **What should I AVOID?** (things already said by me or others)
+Look at the conversation history above and find the **most recent message from the owner**. This is your PRIMARY instruction.
+
+**Owner's last request**: [Identify what they asked for]
+**Has it been fulfilled?**: [YES/NO - check if the conversation achieved what they wanted]
+
+---
+
+# Step 2: Check @mentions
+
+- Did the owner @mention YOU (@{{agentUsername}})? → You should respond
+- Did they @mention OTHER agents but NOT you? → You should PROBABLY stay quiet and let them handle it
+  - Exception: You may respond if you have CRITICAL information that would significantly change the conversation
+
+---
+
+# Step 3: Check for Repetition
+
+Look for messages from **{{agentName}} (@{{agentUsername}})** - that's YOU.
+- If you would say the same thing you already said → DO NOT respond
+- If another agent already covered what you want to say → DO NOT respond
 
 ---
 
 # Decision Rules
 
-## RESPOND (YES) if ANY of these are true:
-- Someone @mentioned you (@{{agentUsername}}) and you haven't replied yet
-- You have NEW information, insight, or a different perspective to share
-- The topic relates to your expertise and you can add value
-- You can help with something being discussed
+## RESPOND (YES) if:
+- Owner's request is NOT yet fulfilled AND you can help fulfill it
+- You are @mentioned and haven't replied
+- You have NEW information to advance the conversation toward owner's goal
+- Owner asked for debate/discussion and it's not concluded yet
 
 ## DON'T RESPOND (NO) if:
-- You ALREADY responded to this specific topic recently (check conversation history)
-- You'd just be repeating what someone else said
-- You have nothing new to add
-- The conversation doesn't involve you and you can't contribute
+- Owner's request has been fulfilled
+- Other agents were @mentioned but NOT you, AND you don't have critical new information
+- You would just repeat what's already been said
+- You have nothing NEW to contribute toward owner's goal
 
 ---
 
 # Output Format
 
-IMPORTANT: Output ONLY the XML below. Do NOT use function calling or tools.
-
-If you should NOT respond:
 <response>
-<thought>Why I shouldn't respond</thought>
-<decision>NO</decision>
-</response>
-
-If you SHOULD respond:
-<response>
-<thought>Analysis of what's happening and what I should do</thought>
-<decision>YES</decision>
-<goal>What I need to accomplish (e.g., "Check my positions and report", "Share my opinion on the trade")</goal>
-<focus>Specific things to include (e.g., "My exact share count", "My entry price")</focus>
-<avoid>Things to avoid (e.g., "Repeating 170+ shares - already mentioned", "Echoing the same market percentages others said")</avoid>
+<thought>
+1. Owner's last request: [what they asked]
+2. Fulfilled yet? [yes/no and why]
+3. Am I @mentioned or relevant? [yes/no]
+4. Would I repeat myself or others? [yes/no]
+</thought>
+<decision>YES or NO</decision>
+<goal>How I will help fulfill the owner's request (only if YES)</goal>
+<focus>Specific NEW content to add (only if YES)</focus>
+<avoid>What NOT to repeat (only if YES)</avoid>
 </response>`;
 
 /**
@@ -441,142 +466,79 @@ If you SHOULD respond:
  * 1. shouldAgentRespond() - Decides IF to respond and sets goal/focus/avoid
  * 2. Action executor loop - Executes actions until goal is achieved, then responds
  *
- * Messages are queued per agent with a max limit (MAX_QUEUE_SIZE).
- * When queue is full, oldest messages are dropped to keep latest.
+ * Uses a simple "processing" flag per agent - if already processing, skip.
+ * The agent will see the latest conversation state from DB when it runs.
  */
 export class TeamChatResponseService {
   /**
-   * Processing state per agent.
-   * Key: agentId, Value: { isProcessing, queue }
+   * Tracks which agents are currently processing.
+   * Key: agentId, Value: true if processing
    */
-  private agentStates = new Map<string, AgentProcessingState>();
+  private processingAgents = new Set<string>();
 
   /**
-   * Get or create processing state for an agent
+   * Trigger an agent to potentially respond.
+   * If already processing, skip - they'll see the latest state anyway.
    */
-  private getAgentState(agentId: string): AgentProcessingState {
-    let state = this.agentStates.get(agentId);
-    if (!state) {
-      state = { isProcessing: false, queue: [] };
-      this.agentStates.set(agentId, state);
+  private triggerAgentResponse(
+    agentId: string,
+    params: AgentTriggerParams
+  ): void {
+    // Skip if already processing
+    if (this.processingAgents.has(agentId)) {
+      logger.debug(
+        `Agent ${agentId} already processing, skipping`,
+        { chatId: params.chatId },
+        'TeamChatResponseService'
+      );
+      return;
     }
-    return state;
-  }
 
-  /**
-   * Add a message to an agent's queue and trigger processing.
-   * If queue is at max, drops oldest message.
-   */
-  private queueMessageForAgent(agentId: string, message: QueuedMessage): void {
-    const state = this.getAgentState(agentId);
+    // Mark as processing and start
+    this.processingAgents.add(agentId);
 
     logger.debug(
-      `[QUEUE] Adding message for agent ${agentId}`,
-      { isProcessing: state.isProcessing, queueLength: state.queue.length },
+      `Triggering response for agent ${agentId}`,
+      { chatId: params.chatId, chainDepth: params.chainDepth },
       'TeamChatResponseService'
     );
 
-    // Add to queue
-    state.queue.push(message);
-
-    // If over max, drop oldest (keep latest)
-    while (state.queue.length > MAX_QUEUE_SIZE) {
-      const dropped = state.queue.shift();
-      logger.debug(
-        `Queue full for agent ${agentId}, dropped oldest message`,
-        { droppedAt: dropped?.queuedAt },
-        'TeamChatResponseService'
-      );
-    }
-
-    // Start processing if not already
-    if (!state.isProcessing) {
-      logger.debug(
-        `[QUEUE] Starting processing for agent ${agentId}`,
-        { queueLength: state.queue.length },
-        'TeamChatResponseService'
-      );
-      this.processAgentQueue(agentId);
-    } else {
-      logger.debug(
-        `[QUEUE] Agent ${agentId} is already processing, message queued`,
-        { queueLength: state.queue.length },
-        'TeamChatResponseService'
-      );
-    }
+    // Process async (don't block)
+    this.processAgent(agentId, params).finally(() => {
+      this.processingAgents.delete(agentId);
+    });
   }
 
   /**
-   * Process an agent's message queue one at a time.
-   * After processing, checks for more messages.
+   * Process an agent's response with global concurrency limiting.
    */
-  private async processAgentQueue(agentId: string): Promise<void> {
-    const state = this.getAgentState(agentId);
-
-    // Already processing? This shouldn't happen but guard anyway
-    if (state.isProcessing) {
-      return;
-    }
-
-    // Nothing to process?
-    if (state.queue.length === 0) {
-      return;
-    }
-
-    state.isProcessing = true;
-
+  private async processAgent(
+    agentId: string,
+    params: AgentTriggerParams
+  ): Promise<void> {
     try {
-      // Take the LATEST message (most recent context)
-      // Clear the queue since we're processing the latest state
-      const latestMessage = state.queue[state.queue.length - 1];
-      state.queue = []; // Clear queue - we're processing latest
-
-      if (!latestMessage) {
-        return;
-      }
-
-      logger.debug(
-        `Processing queued message for agent ${agentId}`,
-        { chatId: latestMessage.chatId },
+      // Generate response with global concurrency limit and timeout
+      // This ensures only MAX_CONCURRENT_LLM_CALLS agents run the full response flow at once
+      // Timeout prevents one stuck agent from blocking others indefinitely
+      await withTimeout(
+        agentResponseLimiter.withLimit(() =>
+          this.generateAgentResponse({
+            agentId,
+            chatId: params.chatId,
+            ownerDisplayName: params.ownerDisplayName,
+            ownerUsername: params.ownerUsername,
+            chainDepth: params.chainDepth,
+          })
+        ),
+        AGENT_RESPONSE_TIMEOUT_MS,
+        `Agent response timed out after ${AGENT_RESPONSE_TIMEOUT_MS / 1000}s`
+      );
+    } catch (error) {
+      logger.error(
+        `Failed to process agent response: ${error}`,
+        { agentId, chatId: params.chatId },
         'TeamChatResponseService'
       );
-
-      // Generate response with global concurrency limit
-      // This ensures only MAX_CONCURRENT_LLM_CALLS agents run the full response flow at once
-      await agentResponseLimiter.withLimit(() =>
-        this.generateAgentResponse({
-          agentId,
-          chatId: latestMessage.chatId,
-          ownerDisplayName: latestMessage.ownerDisplayName,
-          ownerUsername: latestMessage.ownerUsername,
-          chainDepth: latestMessage.chainDepth ?? 0,
-        })
-      );
-    } finally {
-      state.isProcessing = false;
-
-      // Check if more messages arrived while processing
-      if (state.queue.length > 0) {
-        logger.debug(
-          `[QUEUE] Agent ${agentId} finished, picking up ${state.queue.length} queued message(s)`,
-          {},
-          'TeamChatResponseService'
-        );
-        // Process next (async, don't await)
-        this.processAgentQueue(agentId).catch((err) => {
-          logger.error(
-            `Failed to process agent queue: ${err}`,
-            { agentId },
-            'TeamChatResponseService'
-          );
-        });
-      } else {
-        logger.debug(
-          `[QUEUE] Agent ${agentId} finished, no more messages in queue`,
-          {},
-          'TeamChatResponseService'
-        );
-      }
     }
   }
 
@@ -647,11 +609,10 @@ export class TeamChatResponseService {
         'TeamChatResponseService'
       );
 
-      this.queueMessageForAgent(participant.id, {
+      this.triggerAgentResponse(participant.id, {
         chatId,
         ownerDisplayName,
         ownerUsername,
-        queuedAt: Date.now(),
         chainDepth,
       });
     }
@@ -816,16 +777,25 @@ export class TeamChatResponseService {
       'TeamChatResponseService'
     );
 
-    // Broadcast typing indicator
-    broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
-      (error: Error) => {
-        logger.warn(
-          `Failed to broadcast typing indicator: ${error.message}`,
-          { chatId, agentId },
-          'TeamChatResponseService'
-        );
-      }
-    );
+    // Broadcast typing indicator and set up heartbeat
+    // Frontend expires typing indicators after 5 seconds, so we re-send every 3 seconds
+    const sendTypingHeartbeat = () => {
+      broadcastTypingIndicator(chatId, agentId, agentName, true).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast typing indicator: ${error.message}`,
+            { chatId, agentId },
+            'TeamChatResponseService'
+          );
+        }
+      );
+    };
+
+    // Send initial typing indicator
+    sendTypingHeartbeat();
+
+    // Set up heartbeat interval (every 3 seconds to stay ahead of 5 second expiry)
+    const typingHeartbeatInterval = setInterval(sendTypingHeartbeat, 3000);
 
     try {
       const runtime = await agentRuntimeManager.getRuntime(agentId);
@@ -1006,34 +976,39 @@ export class TeamChatResponseService {
             values?: Record<string, unknown>;
           } | null = null;
 
-          await runtime.processActions(
-            elizaMessage,
-            [actionMessage],
-            state,
-            async (results: unknown) => {
-              // Capture the first result from callback
-              const resultsArray = results as Array<{
-                content?: {
-                  success?: boolean;
-                  text?: string;
-                  values?: Record<string, unknown>;
-                };
-              }> | null;
-              if (resultsArray && resultsArray.length > 0) {
-                const firstResult = resultsArray[0];
-                if (firstResult) {
-                  actionResult = {
-                    success: firstResult.content?.success ?? true,
-                    text:
-                      typeof firstResult.content?.text === 'string'
-                        ? firstResult.content.text
-                        : undefined,
-                    values: firstResult.content?.values,
+          // Wrap action execution with timeout to prevent hanging
+          await withTimeout(
+            runtime.processActions(
+              elizaMessage,
+              [actionMessage],
+              state,
+              async (results: unknown) => {
+                // Capture the first result from callback
+                const resultsArray = results as Array<{
+                  content?: {
+                    success?: boolean;
+                    text?: string;
+                    values?: Record<string, unknown>;
                   };
+                }> | null;
+                if (resultsArray && resultsArray.length > 0) {
+                  const firstResult = resultsArray[0];
+                  if (firstResult) {
+                    actionResult = {
+                      success: firstResult.content?.success ?? true,
+                      text:
+                        typeof firstResult.content?.text === 'string'
+                          ? firstResult.content.text
+                          : undefined,
+                      values: firstResult.content?.values,
+                    };
+                  }
                 }
+                return [];
               }
-              return [];
-            }
+            ),
+            ACTION_EXECUTION_TIMEOUT_MS,
+            `Action ${action} timed out after ${ACTION_EXECUTION_TIMEOUT_MS / 1000}s`
           );
 
           // Fallback to state cache if callback didn't capture
@@ -1238,6 +1213,10 @@ export class TeamChatResponseService {
         error: errorMsg,
       };
     } finally {
+      // Stop the typing heartbeat interval
+      clearInterval(typingHeartbeatInterval);
+
+      // Send final "stop typing" signal
       broadcastTypingIndicator(chatId, agentId, agentName, false).catch(
         (error: Error) => {
           logger.warn(
