@@ -104,7 +104,7 @@ export function MemberList({
                 <div
                   key={agent.id}
                   className={cn(
-                    'group flex items-center gap-2 rounded-lg p-2 transition-colors',
+                    'group flex min-w-0 items-center gap-2 rounded-lg p-2 transition-colors',
                     isSelected
                       ? 'bg-blue-500/15 ring-1 ring-blue-500/30'
                       : 'hover:bg-muted/50',
@@ -117,7 +117,7 @@ export function MemberList({
                     onClick={() => canSelect && onToggleAgent(agent.id)}
                     disabled={isProcessing}
                     className={cn(
-                      'flex flex-1 items-center gap-3 text-left',
+                      'flex min-w-0 flex-1 items-center gap-3 text-left',
                       isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}
                     aria-label={
