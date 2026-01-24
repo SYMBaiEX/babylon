@@ -112,7 +112,6 @@ export default function TeamChatPage() {
     topSentinelRef,
     sendMessage,
     handleScroll,
-    scrollToBottom,
     // Agent selection
     selectedAgentIds,
     processingAgentIds,
@@ -250,14 +249,6 @@ export default function TeamChatPage() {
       setShowCreateAgent(false);
     }
   }, [activeTab]);
-
-  // Scroll chat to bottom when switching to Chat tab
-  useEffect(() => {
-    if (activeTab !== 'chat') return;
-    // Small delay to ensure DOM is ready
-    const timeoutId = setTimeout(() => scrollToBottom('instant'), 50);
-    return () => clearTimeout(timeoutId);
-  }, [activeTab, scrollToBottom]);
 
   // Handle @mention from query parameter (when redirected from agent profile)
   useEffect(() => {
@@ -461,24 +452,24 @@ export default function TeamChatPage() {
         {/* Member Sidebar - only visible on Chat tab for lg+ */}
         {activeTab === 'chat' && (
           <>
-        <div className="hidden w-64 flex-col border-border border-r lg:flex">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4">
-            <h3 className="font-semibold text-foreground">Team Members</h3>
-            <div
-              className={cn(
-                'flex items-center gap-1.5 text-xs',
-                sseConnected ? 'text-green-500' : 'text-muted-foreground'
-              )}
-            >
-              <Radio className="h-3 w-3" />
-              {sseConnected ? 'Live' : 'Offline'}
-            </div>
-          </div>
+            <div className="hidden w-64 flex-col border-border border-r lg:flex">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4">
+                <h3 className="font-semibold text-foreground">Team Members</h3>
+                <div
+                  className={cn(
+                    'flex items-center gap-1.5 text-xs',
+                    sseConnected ? 'text-green-500' : 'text-muted-foreground'
+                  )}
+                >
+                  <Radio className="h-3 w-3" />
+                  {sseConnected ? 'Live' : 'Offline'}
+                </div>
+              </div>
 
-          <Separator />
+              <Separator />
 
-          {/* Member list - extracted component */}
+              {/* Member list - extracted component */}
               <MemberList
                 user={user}
                 teamChat={teamChat}
@@ -489,9 +480,9 @@ export default function TeamChatPage() {
                 onViewSettings={handleViewSettings}
                 onAddAgent={handleAddAgent}
               />
-        </div>
+            </div>
 
-        <Separator orientation="vertical" className="hidden lg:block" />
+            <Separator orientation="vertical" className="hidden lg:block" />
           </>
         )}
 
@@ -499,45 +490,45 @@ export default function TeamChatPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           {/* Chat Tab */}
           {activeTab === 'chat' && (
-          <TeamChatView
-            chatDetails={chatDetails}
-            currentUserId={user?.id}
-            authenticated={authenticated}
-            sseConnected={sseConnected}
-            loading={false}
-            isLoadingMore={isLoadingMore}
-            hasMore={hasMore}
-            messageInput={messageInput}
-            sending={sending}
-            sendError={sendError}
-            topSentinelRef={topSentinelRef}
-            messagesEndRef={messagesEndRef}
-            onMessageChange={handleInputChange}
-            onSendMessage={sendMessage}
-            agents={[
-              // Include current user so they can mention themselves
-              ...(user
-                ? [
-                    {
-                      id: user.id,
-                      username: user.username || null,
-                      displayName: user.displayName || user.username || 'You',
-                      profileImageUrl: user.profileImageUrl || null,
-                    },
-                  ]
-                : []),
-              // Include all agents
-              ...(teamChat?.agents.map((agent) => ({
-                id: agent.id,
-                username: agent.username,
-                displayName: agent.displayName,
-                profileImageUrl: agent.profileImageUrl,
-              })) || []),
-            ]}
-            typingUsers={typingUsers}
-            thinkingAgents={thinkingAgents}
-            onShowMembers={() => setShowMemberDrawer(true)}
-            onScroll={handleScroll}
+            <TeamChatView
+              chatDetails={chatDetails}
+              currentUserId={user?.id}
+              authenticated={authenticated}
+              sseConnected={sseConnected}
+              loading={false}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore}
+              messageInput={messageInput}
+              sending={sending}
+              sendError={sendError}
+              topSentinelRef={topSentinelRef}
+              messagesEndRef={messagesEndRef}
+              onMessageChange={handleInputChange}
+              onSendMessage={sendMessage}
+              agents={[
+                // Include current user so they can mention themselves
+                ...(user
+                  ? [
+                      {
+                        id: user.id,
+                        username: user.username || null,
+                        displayName: user.displayName || user.username || 'You',
+                        profileImageUrl: user.profileImageUrl || null,
+                      },
+                    ]
+                  : []),
+                // Include all agents
+                ...(teamChat?.agents.map((agent) => ({
+                  id: agent.id,
+                  username: agent.username,
+                  displayName: agent.displayName,
+                  profileImageUrl: agent.profileImageUrl,
+                })) || []),
+              ]}
+              typingUsers={typingUsers}
+              thinkingAgents={thinkingAgents}
+              onShowMembers={() => setShowMemberDrawer(true)}
+              onScroll={handleScroll}
               // Selected agents (only before sending - closes after send)
               selectedAgents={
                 teamChat?.agents

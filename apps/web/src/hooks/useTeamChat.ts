@@ -100,7 +100,6 @@ interface UseTeamChatReturn {
   sendMessage: () => Promise<void>;
   refresh: () => Promise<void>;
   handleScroll: (container: HTMLDivElement) => void;
-  scrollToBottom: (behavior?: 'instant' | 'smooth') => void;
 }
 
 export function useTeamChat(): UseTeamChatReturn {
@@ -753,6 +752,5 @@ export function useTeamChat(): UseTeamChatReturn {
     sendMessage,
     refresh: fetchTeamChat,
     handleScroll,
-    scrollToBottom,
   };
 }
