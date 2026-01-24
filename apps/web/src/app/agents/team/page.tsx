@@ -118,7 +118,7 @@ export default function TeamChatPage() {
     selectedAgentIds,
     processingAgentIds,
     toggleAgentSelection,
-    deselectAllAgents,
+    selectAgent,
     stopAgent,
     // Conversations (fresh chat)
     conversations,
@@ -649,12 +649,8 @@ export default function TeamChatPage() {
                       await refreshTeamChat();
                       // Switch to chat tab
                       setActiveTab('chat');
-                      // Select only the new agent
-                      deselectAllAgents();
-                      // Small delay to ensure state is updated
-                      setTimeout(() => {
-                        toggleAgentSelection(agent.id);
-                      }, 100);
+                      // Select only the new agent (use selectAgent to avoid toggle issues)
+                      selectAgent(agent.id);
                     }}
                     compact
                   />

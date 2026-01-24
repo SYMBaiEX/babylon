@@ -105,6 +105,7 @@ interface UseTeamChatReturn {
   selectedAgentIds: Set<string>;
   processingAgentIds: Set<string>;
   toggleAgentSelection: (agentId: string) => void;
+  selectAgent: (agentId: string) => void;
   selectAllAgents: () => void;
   deselectAllAgents: () => void;
   stopAgent: (agentId: string) => void;
@@ -571,6 +572,11 @@ export function useTeamChat(): UseTeamChatReturn {
     },
     [processingAgentIds]
   );
+
+  // Select a specific agent (non-toggling - use after agent creation)
+  const selectAgent = useCallback((agentId: string) => {
+    setSelectedAgentIds(new Set([agentId]));
+  }, []);
 
   const selectAllAgents = useCallback(() => {
     if (!teamChat?.agents) return;
@@ -1099,6 +1105,7 @@ export function useTeamChat(): UseTeamChatReturn {
     selectedAgentIds,
     processingAgentIds,
     toggleAgentSelection,
+    selectAgent,
     selectAllAgents,
     deselectAllAgents,
     stopAgent,
