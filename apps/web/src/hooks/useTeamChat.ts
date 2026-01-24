@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { toast } from 'sonner';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
@@ -48,6 +49,7 @@ interface TeamChatAgent {
   profileImageUrl: string | null;
   isAgent: boolean;
   modelTier: 'free' | 'pro';
+  virtualBalance: number;
 }
 
 /** Team chat info from API */
@@ -711,6 +713,10 @@ export function useTeamChat(): UseTeamChatReturn {
         const controller = new AbortController();
         abortControllersRef.current.set(agentId, controller);
 
+        // Look up agent to get their modelTier for pro mode
+        const agent = teamChat.agents.find((a) => a.id === agentId);
+        const usePro = agent?.modelTier === 'pro';
+
         try {
           const agentResponse = await fetch(`/api/agents/${agentId}/chat`, {
             method: 'POST',
@@ -720,7 +726,7 @@ export function useTeamChat(): UseTeamChatReturn {
             },
             body: JSON.stringify({
               message: content,
-              usePro: false, // Use free tier by default
+              usePro,
               teamChatId: teamChat.chatId,
               teamChatOwnerName: ownerName,
               teamChatOwnerUsername: ownerUsername,
@@ -728,8 +734,56 @@ export function useTeamChat(): UseTeamChatReturn {
             signal: controller.signal,
           });
 
-          if (!agentResponse.ok) {
-            console.error(`Agent ${agentId} failed to respond`);
+          if (agentResponse.ok) {
+            // Parse response to get points info
+            const data = (await agentResponse.json()) as {
+              success?: boolean;
+              pointsCost?: number;
+              balanceAfter?: number;
+            };
+
+            // Show toast if points were deducted
+            if (data.pointsCost && data.pointsCost > 0) {
+              toast.success(
+                `Message sent to ${agent?.displayName} (-${data.pointsCost} point${data.pointsCost > 1 ? 's' : ''})`
+              );
+            }
+
+            // Update agent balance in local state
+            if (typeof data.balanceAfter === 'number') {
+              setTeamChat((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId
+                      ? { ...a, virtualBalance: data.balanceAfter as number }
+                      : a
+                  ),
+                };
+              });
+            }
+          } else {
+            // Handle error response from backend
+            try {
+              const errorData = (await agentResponse.json()) as {
+                error?: string;
+                message?: string;
+              };
+              const errorMessage =
+                errorData.error || errorData.message || 'Failed to respond';
+
+              // Check for insufficient balance error
+              if (errorMessage.toLowerCase().includes('insufficient')) {
+                toast.error(
+                  `${agent?.displayName}: Insufficient points. Deposit to continue.`
+                );
+              } else {
+                console.error(`Agent ${agentId} error:`, errorMessage);
+              }
+            } catch {
+              console.error(`Agent ${agentId} failed to respond`);
+            }
           }
         } catch (err) {
           // Don't log abort errors - they're expected when user stops
