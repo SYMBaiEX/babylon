@@ -1,6 +1,6 @@
 'use client';
 
-import type { PortfolioPnLSnapshot } from '@babylon/engine/client';
+import type { PortfolioBreakdownSnapshot } from '@babylon/engine/client';
 import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
 import { memo } from 'react';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
@@ -19,9 +19,8 @@ interface DashboardTabContentProps {
   onLogin: () => void;
 
   // Portfolio
-  portfolioPnL: PortfolioPnLSnapshot | null;
+  portfolioPnL: PortfolioBreakdownSnapshot | null;
   portfolioLoading: boolean;
-  portfolioError: string | null;
   onShowPnLShare: () => void;
   onShowBuyPoints: () => void;
 
@@ -40,15 +39,13 @@ interface DashboardTabContentProps {
 
 /**
  * Dashboard tab content component.
- * Shows portfolio overview, positions, trending markets, and hot predictions.
- * Memoized to prevent unnecessary re-renders when parent state changes.
+ * Shows portfolio actions, positions, trending markets, and hot predictions.
  */
 export const DashboardTabContent = memo(function DashboardTabContent({
   authenticated,
   onLogin,
   portfolioPnL,
   portfolioLoading,
-  portfolioError,
   onShowPnLShare,
   onShowBuyPoints,
   perpPositions,
@@ -71,9 +68,8 @@ export const DashboardTabContent = memo(function DashboardTabContent({
         <PortfolioPnLCard
           data={portfolioPnL}
           loading={portfolioLoading}
-          error={portfolioError}
           onShare={onShowPnLShare}
-          setShowBuyPointsModal={onShowBuyPoints}
+          onShowBuyPoints={onShowBuyPoints}
         />
       )}
 

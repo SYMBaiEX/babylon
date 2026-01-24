@@ -24,6 +24,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { pickRandom, type RngFunction } from '../utils/randomization';
 
 function isTestEnvironment(): boolean {
   return (
@@ -45,6 +46,8 @@ export interface AutoJoinEmptyUsersToNpcGroupChatsOptions {
   userIdAllowlist?: string[];
   /** Optional: restrict destination chats to these specific chat IDs (useful for tests) */
   chatIdAllowlist?: string[];
+  /** Optional random number generator (defaults to Math.random) */
+  rng?: RngFunction;
 }
 
 export async function autoJoinEmptyUsersToNpcGroupChats(
@@ -202,12 +205,13 @@ export async function autoJoinEmptyUsersToNpcGroupChats(
     invitedBy: string;
   };
 
+  const rng = options.rng ?? Math.random;
   const assignments: JoinAssignment[] = [];
   for (const userId of userIds) {
     const available = chatSlots.filter((c) => c.slots > 0);
     if (available.length === 0) break;
 
-    const selected = available[Math.floor(Math.random() * available.length)];
+    const selected = pickRandom(available, rng);
     if (!selected) break;
 
     assignments.push({

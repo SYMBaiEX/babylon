@@ -31,12 +31,16 @@ import { NPCInteractionTracker } from './npc-interaction-tracker';
 import { StaticDataRegistry } from './static-data-registry';
 import {
   ALL_TIERS,
+  getEffectiveTierConfig,
   getHigherTier,
   getLowerTier,
+  getNpcFocusWeights,
   getTierConfig,
   getTierForEngagementScore,
+  getTierForEngagementScoreWithNpc,
   getTierGroupName,
   isEligibleForPromotion,
+  isEligibleForPromotionWithNpc,
   isValidTier,
   shouldDemote,
   TIER_CONFIG,
@@ -63,6 +67,42 @@ export interface UserTierStatus {
   eligibleTier: TierLevel | null;
   canBePromoted: boolean;
   promotionBlockedReason: string | null;
+}
+
+/**
+ * Comprehensive membership status for a user in a tiered NPC group.
+ */
+export interface MembershipStatus {
+  /** Whether user has an active membership */
+  isMember: boolean;
+  /** Current tier level (null if not a member) */
+  tier: TierLevel | null;
+  /** Group ID (null if not a member) */
+  groupId: string | null;
+  /** When user joined the current tier */
+  joinedAt: Date | null;
+  /** Days in current tier */
+  daysInTier: number;
+  /** Whether member was grandfathered (joined before threshold change) */
+  isGrandfathered: boolean;
+  /** When member was grandfathered (null if not grandfathered) */
+  grandfatheredAt: Date | null;
+  /** User's current engagement score */
+  engagementScore: number;
+  /** Social component of engagement score */
+  socialScore: number;
+  /** Trading component of engagement score */
+  tradingScore: number;
+  /** Tier user would qualify for based on current score */
+  eligibleTier: TierLevel | null;
+  /** Whether user can be promoted to a higher tier */
+  canBePromoted: boolean;
+  /** Reason promotion is blocked (null if can be promoted) */
+  promotionBlockedReason: string | null;
+  /** Whether user should be demoted (inactive too long) */
+  shouldBeDemoted: boolean;
+  /** Days since last activity in group */
+  daysSinceLastActivity: number;
 }
 
 export class TieredGroupService {
@@ -298,7 +338,173 @@ export class TieredGroupService {
   }
 
   /**
+   * Get comprehensive membership status for a user with an NPC.
+   *
+   * Includes grandfathering info, engagement breakdown, and demotion status.
+   *
+   * @param userId - User ID to check
+   * @param npcId - NPC ID to check membership with
+   * @returns MembershipStatus with all relevant info
+   */
+  static async getMembershipStatus(
+    userId: string,
+    npcId: string
+  ): Promise<MembershipStatus> {
+    const now = Date.now();
+
+    // Get focus weights for NPC-specific engagement calculation
+    const focusWeights = getNpcFocusWeights(npcId);
+
+    // Find active membership
+    const [membership] = await db
+      .select({
+        groupId: groupMembers.groupId,
+        tier: groupMembers.tier,
+        joinedAt: groupMembers.joinedAt,
+        lastMessageAt: groupMembers.lastMessageAt,
+        isGrandfathered: groupMembers.isGrandfathered,
+        grandfatheredAt: groupMembers.grandfatheredAt,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .where(
+        and(
+          eq(groupMembers.userId, userId),
+          eq(groupMembers.isActive, true),
+          eq(groups.ownerId, npcId),
+          eq(groups.type, 'npc'),
+          isNotNull(groups.tier)
+        )
+      )
+      .limit(1);
+
+    // Calculate engagement score with NPC-specific focus weights
+    const interactionScore =
+      await NPCInteractionTracker.calculateEngagementScore(
+        userId,
+        npcId,
+        undefined,
+        focusWeights
+      );
+
+    // Determine eligible tier using NPC-specific thresholds
+    const eligibleTier = getTierForEngagementScoreWithNpc(
+      interactionScore.engagementScore,
+      npcId
+    );
+
+    // If not a member, return early
+    if (!membership || !isValidTier(membership.tier)) {
+      return {
+        isMember: false,
+        tier: null,
+        groupId: null,
+        joinedAt: null,
+        daysInTier: 0,
+        isGrandfathered: false,
+        grandfatheredAt: null,
+        engagementScore: interactionScore.engagementScore,
+        socialScore: interactionScore.socialScore,
+        tradingScore: interactionScore.tradingScore,
+        eligibleTier,
+        canBePromoted: false,
+        promotionBlockedReason: 'Not a member',
+        shouldBeDemoted: false,
+        daysSinceLastActivity: 0,
+      };
+    }
+
+    const currentTier = membership.tier;
+    const daysInTier = Math.floor(
+      (now - membership.joinedAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const lastActivity = membership.lastMessageAt ?? membership.joinedAt;
+    const daysSinceLastActivity = Math.floor(
+      (now - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Check demotion status (grandfathered members can still be demoted for inactivity)
+    const shouldBeDemotedFlag = shouldDemote(
+      currentTier,
+      daysSinceLastActivity
+    );
+
+    // Check promotion eligibility using NPC-specific thresholds
+    let canBePromoted = false;
+    let promotionBlockedReason: string | null = null;
+
+    if (currentTier === 1) {
+      promotionBlockedReason = 'Already at highest tier';
+    } else {
+      // Grandfathered members cannot be promoted until they meet current thresholds
+      if (membership.isGrandfathered) {
+        const currentTierConfig = getEffectiveTierConfig(currentTier, npcId);
+        if (
+          interactionScore.engagementScore <
+          currentTierConfig.minEngagementScore
+        ) {
+          promotionBlockedReason = `Grandfathered: need score ${currentTierConfig.minEngagementScore}+ to promote (current: ${interactionScore.engagementScore.toFixed(0)})`;
+        }
+      }
+
+      if (!promotionBlockedReason) {
+        if (
+          isEligibleForPromotionWithNpc(
+            currentTier,
+            interactionScore.engagementScore,
+            daysInTier,
+            npcId
+          )
+        ) {
+          const higherTier = getHigherTier(currentTier);
+          if (higherTier) {
+            const tiers = await this.getNpcTiers(npcId);
+            const targetTier = tiers.find((t) => t.tier === higherTier);
+            if (targetTier && !targetTier.isFull) {
+              canBePromoted = true;
+            } else {
+              promotionBlockedReason = `Tier ${higherTier} is full`;
+            }
+          }
+        } else {
+          const config = getEffectiveTierConfig(currentTier, npcId);
+          const daysNeeded = config.promotionWaitDays - daysInTier;
+          if (daysNeeded > 0) {
+            promotionBlockedReason = `Need ${daysNeeded} more days in current tier`;
+          } else {
+            const higherTier = getHigherTier(currentTier);
+            if (higherTier) {
+              const targetConfig = getEffectiveTierConfig(higherTier, npcId);
+              promotionBlockedReason = `Need engagement score ${targetConfig.minEngagementScore}+ (current: ${interactionScore.engagementScore.toFixed(0)})`;
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      isMember: true,
+      tier: currentTier,
+      groupId: membership.groupId,
+      joinedAt: membership.joinedAt,
+      daysInTier,
+      isGrandfathered: membership.isGrandfathered ?? false,
+      grandfatheredAt: membership.grandfatheredAt ?? null,
+      engagementScore: interactionScore.engagementScore,
+      socialScore: interactionScore.socialScore,
+      tradingScore: interactionScore.tradingScore,
+      eligibleTier,
+      canBePromoted,
+      promotionBlockedReason,
+      shouldBeDemoted: shouldBeDemotedFlag,
+      daysSinceLastActivity,
+    };
+  }
+
+  /**
    * Get user's tier status with an NPC
+   * @deprecated Use getMembershipStatus for more comprehensive info
    */
   static async getUserTierStatus(
     userId: string,
@@ -485,7 +691,9 @@ export class TieredGroupService {
       let targetTier: TierInfo | null = null;
 
       for (const tier of ALL_TIERS) {
-        if (engagementScore < TIER_CONFIG[tier].minEngagementScore) continue;
+        // Use NPC-specific thresholds for tier eligibility
+        const effectiveConfig = getEffectiveTierConfig(tier, npcId);
+        if (engagementScore < effectiveConfig.minEngagementScore) continue;
         const tierInfo = tiers.find((t) => t.tier === tier);
         if (tierInfo && !tierInfo.isFull) {
           targetTier = tierInfo;
@@ -494,10 +702,11 @@ export class TieredGroupService {
       }
 
       if (!targetTier) {
+        const tier3Config = getEffectiveTierConfig(3, npcId);
         return {
           success: false,
           tier: null,
-          reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${TIER_CONFIG[3].minEngagementScore})`,
+          reason: `No available tier (score: ${engagementScore.toFixed(0)}, min: ${tier3Config.minEngagementScore})`,
         };
       }
 

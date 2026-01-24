@@ -13,6 +13,7 @@ import {
   userAgentConfigs,
   users,
 } from '@babylon/db';
+import { generateSnowflakeId } from './snowflake';
 
 /** User with agent configuration attached */
 export type UserWithAgentConfig = User & {
@@ -22,7 +23,7 @@ export type UserWithAgentConfig = User & {
 /**
  * Get agent config for a user
  */
-export async function getAgentConfig(
+async function fetchAgentConfig(
   userId: string
 ): Promise<UserAgentConfig | null> {
   const result = await db
@@ -31,6 +32,40 @@ export async function getAgentConfig(
     .where(eq(userAgentConfigs.userId, userId))
     .limit(1);
   return result[0] ?? null;
+}
+
+export async function getAgentConfig(
+  userId: string
+): Promise<UserAgentConfig | null> {
+  const existing = await fetchAgentConfig(userId);
+  if (existing) return existing;
+
+  const [user] = await db
+    .select({ id: users.id, isAgent: users.isAgent })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user?.isAgent) return null;
+
+  const now = new Date();
+  const [created] = await db
+    .insert(userAgentConfigs)
+    .values({
+      id: await generateSnowflakeId(),
+      userId,
+      // Explicit true ensures agents trade by default regardless of DB migration state
+      autonomousTrading: true,
+      status: 'idle',
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: userAgentConfigs.userId })
+    .returning();
+
+  if (created) return created;
+
+  return await fetchAgentConfig(userId);
 }
 
 /**
@@ -88,15 +123,17 @@ export async function upsertAgentConfig(
     return result[0]!;
   }
 
-  // Generate a new ID
-  const id = `uac_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  // Generate a new ID using snowflake for consistency
+  const id = await generateSnowflakeId();
+  const now = new Date();
   const result = await db
     .insert(userAgentConfigs)
     .values({
       id,
       userId,
       ...config,
-      updatedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     })
     .returning();
 
@@ -183,11 +220,16 @@ export function getPlanningHorizon(config: UserAgentConfig | null): string {
 
 /**
  * Helper to check if autonomous trading is enabled
+ * Defaults to true to match database schema (autonomousTrading defaults to true)
  */
 export function isAutonomousTradingEnabled(
   config: UserAgentConfig | null
 ): boolean {
-  return config?.autonomousTrading ?? false;
+  // Note: Database schema defaults autonomousTrading to true for new agents
+  // When config is null (no config exists), we default to false (agent not set up)
+  // When config exists but autonomousTrading is null/undefined (legacy), default to true
+  if (!config) return false;
+  return config.autonomousTrading ?? true;
 }
 
 /**
@@ -224,6 +266,36 @@ export function isAutonomousGroupChatsEnabled(
   config: UserAgentConfig | null
 ): boolean {
   return config?.autonomousGroupChats ?? false;
+}
+
+/**
+ * Get all autonomous feature flags with proper defaults
+ * Trading defaults to true, all others default to false
+ */
+export function getAutonomousFeatures(config: UserAgentConfig | null) {
+  return {
+    trading: isAutonomousTradingEnabled(config),
+    posting: isAutonomousPostingEnabled(config),
+    commenting: isAutonomousCommentingEnabled(config),
+    dms: isAutonomousDMsEnabled(config),
+    groupChats: isAutonomousGroupChatsEnabled(config),
+  };
+}
+
+/**
+ * Check if any autonomous feature is enabled
+ */
+export function hasAnyAutonomousFeature(
+  config: UserAgentConfig | null
+): boolean {
+  const features = getAutonomousFeatures(config);
+  return (
+    features.trading ||
+    features.posting ||
+    features.commenting ||
+    features.dms ||
+    features.groupChats
+  );
 }
 
 /**

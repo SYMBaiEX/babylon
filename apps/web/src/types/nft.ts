@@ -117,6 +117,17 @@ export interface EligibilityResponse {
 }
 
 /**
+ * Eligibility API response wrapper
+ *
+ * Note: we use a wrapped format here to keep API responses consistent with other
+ * NFT endpoints that return `{ success, data }`.
+ */
+export interface EligibilityApiResponse {
+  success: true;
+  data: EligibilityResponse;
+}
+
+/**
  * Mint preparation response (contract call data with signature)
  */
 export interface MintPrepareResponse {

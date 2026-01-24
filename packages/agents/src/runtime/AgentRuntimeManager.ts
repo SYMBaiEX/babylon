@@ -63,6 +63,101 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
 
+/**
+ * Creates adapter stub methods for ElizaOS runtime.
+ * Babylon doesn't use ElizaOS's memory/DB system, so we stub these out.
+ */
+function createAdapterStubs(existingAdapter: unknown): unknown {
+  return {
+    ...(existingAdapter as object),
+    // Lifecycle
+    init: async () => {},
+    close: async () => {},
+    isReady: async () => true,
+    // Agent methods
+    getAgent: async () => null,
+    getAgents: async () => [],
+    createAgent: async () => true,
+    updateAgent: async () => true,
+    deleteAgent: async () => true,
+    // Entity methods
+    getEntitiesByIds: async () => [],
+    createEntities: async () => true,
+    updateEntity: async () => {},
+    getEntitiesForRoom: async () => [],
+    // Room/Participant methods
+    getParticipantsForRoom: async () => [],
+    getParticipantsForEntity: async () => [],
+    addParticipantsRoom: async () => true,
+    removeParticipant: async () => true,
+    isRoomParticipant: async () => false,
+    getParticipantUserState: async () => null,
+    setParticipantUserState: async () => {},
+    getRoomsByIds: async () => [],
+    getRoomsByWorld: async () => [],
+    getRoomsForParticipant: async () => [],
+    getRoomsForParticipants: async () => [],
+    createRooms: async (rooms: unknown[]) => rooms, // Return rooms to avoid "Failed to create room" error
+    deleteRoom: async () => {},
+    deleteRoomsByWorldId: async () => {},
+    updateRoom: async () => {},
+    // World methods
+    createWorld: async () => crypto.randomUUID() as UUID,
+    getWorld: async () => null,
+    getAllWorlds: async () => [],
+    updateWorld: async () => {},
+    removeWorld: async () => {},
+    // Memory methods
+    createMemory: async (memory: { id?: string } | null) =>
+      (memory?.id || crypto.randomUUID()) as UUID,
+    getMemories: async () => [],
+    getMemoryById: async () => null,
+    getMemoriesByIds: async () => [],
+    getMemoriesByRoomIds: async () => [],
+    getMemoriesByWorldId: async () => [],
+    searchMemories: async () => [],
+    updateMemory: async () => true,
+    deleteMemory: async () => {},
+    deleteManyMemories: async () => {},
+    deleteAllMemories: async () => {},
+    countMemories: async () => 0,
+    // Logging
+    log: async () => {},
+    getLogs: async () => [],
+    deleteLog: async () => {},
+    // Cache
+    getCache: async () => undefined,
+    setCache: async () => true,
+    deleteCache: async () => true,
+    // Embeddings
+    getCachedEmbeddings: async () => [],
+    ensureEmbeddingDimension: async () => {},
+    // Relationships
+    createRelationship: async () => true,
+    getRelationship: async () => null,
+    getRelationships: async () => [],
+    updateRelationship: async () => {},
+    // Tasks
+    createTask: async () => crypto.randomUUID() as UUID,
+    getTask: async () => null,
+    getTasks: async () => [],
+    getTasksByName: async () => [],
+    updateTask: async () => {},
+    deleteTask: async () => {},
+    // Components
+    getComponent: async () => null,
+    getComponents: async () => [],
+    createComponent: async () => true,
+    updateComponent: async () => {},
+    deleteComponent: async () => {},
+    // Misc
+    getConnection: async () => null,
+    runMigrations: async () => {},
+    runPluginMigrations: async () => {},
+    db: null,
+  };
+}
+
 export class AgentRuntimeManager {
   private static instance: AgentRuntimeManager;
 
@@ -261,32 +356,10 @@ export class AgentRuntimeManager {
 
     runtime.currentModel = 'groq';
 
-    // Override adapter methods to prevent undefined errors
-    // Babylon doesn't use ElizaOS's memory system, so we stub these out
-    runtime.adapter = {
-      ...runtime.adapter,
-      log: async (_params: {
-        body: { [key: string]: JsonValue };
-        entityId: string;
-        roomId: string;
-        type: string;
-      }): Promise<void> => {
-        // No-op - Babylon uses its own logging
-      },
-      createMemory: async (
-        memory: unknown,
-        _tableName?: string
-      ): Promise<UUID> => {
-        // No-op - Babylon uses its own DB for message storage
-        // Return the memory ID or generate one
-        const memoryObj = memory as { id?: string } | null;
-        return (memoryObj?.id || crypto.randomUUID()) as UUID;
-      },
-      getMemories: async (_params: unknown): Promise<unknown[]> => {
-        // Return empty array - Babylon uses its own DB
-        return [];
-      },
-    } as typeof runtime.adapter;
+    // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
@@ -580,32 +653,10 @@ export class AgentRuntimeManager {
     }
     runtime.currentModel = 'groq';
 
-    // Override adapter methods to prevent undefined errors
-    // Babylon doesn't use ElizaOS's memory system, so we stub these out
-    runtime.adapter = {
-      ...runtime.adapter,
-      log: async (_params: {
-        body: { [key: string]: JsonValue };
-        entityId: string;
-        roomId: string;
-        type: string;
-      }): Promise<void> => {
-        // No-op - Babylon uses its own logging
-      },
-      createMemory: async (
-        memory: unknown,
-        _tableName?: string
-      ): Promise<UUID> => {
-        // No-op - Babylon uses its own DB for message storage
-        // Return the memory ID or generate one
-        const memoryObj = memory as { id?: string } | null;
-        return (memoryObj?.id || crypto.randomUUID()) as UUID;
-      },
-      getMemories: async (_params: unknown): Promise<unknown[]> => {
-        // Return empty array - Babylon uses its own DB
-        return [];
-      },
-    } as typeof runtime.adapter;
+    // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
 
     // Configure logger
     this.configureLogger(runtime, character.name);

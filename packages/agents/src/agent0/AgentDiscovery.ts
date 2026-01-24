@@ -262,8 +262,18 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
     agent0Data: SubgraphAgent,
     reputationBridge?: IReputationBridge | null
   ): Promise<AgentProfile> {
-    const parsed = JSON.parse(agent0Data.capabilities!);
-    const capabilities = parseCapabilities(parsed);
+    // Parse capabilities defensively - provide defaults if missing
+    const defaultCapabilities = {
+      strategies: [],
+      markets: [],
+      actions: [],
+      version: '1.0.0',
+      skills: [],
+      domains: [],
+    };
+    const capabilities = agent0Data.capabilities
+      ? parseCapabilities(JSON.parse(agent0Data.capabilities))
+      : defaultCapabilities;
 
     let reputation;
     if (reputationBridge) {
@@ -280,11 +290,12 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
         isBanned: aggregated.isBanned,
       };
     } else {
+      // Use optional chaining for reputation - may be undefined
       reputation = {
-        totalBets: agent0Data.reputation!.totalBets,
-        winningBets: agent0Data.reputation!.winningBets,
-        accuracyScore: agent0Data.reputation!.accuracyScore / 100,
-        trustScore: agent0Data.reputation!.trustScore / 100,
+        totalBets: agent0Data.reputation?.totalBets ?? 0,
+        winningBets: agent0Data.reputation?.winningBets ?? 0,
+        accuracyScore: (agent0Data.reputation?.accuracyScore ?? 0) / 100,
+        trustScore: (agent0Data.reputation?.trustScore ?? 0) / 100,
         totalVolume: '0',
         profitLoss: 0,
         isBanned: false,
@@ -296,7 +307,7 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
       tokenId: agent0Data.tokenId,
       address: agent0Data.walletAddress,
       name: agent0Data.name,
-      endpoint: agent0Data.a2aEndpoint!,
+      endpoint: agent0Data.a2aEndpoint ?? '',
       capabilities,
       reputation,
       isActive: true,
@@ -371,6 +382,9 @@ export class AgentDiscoveryService implements IAgentDiscoveryService {
 
       // Fallback to subgraph client
       const agent0Data = await this.subgraphClient.getAgent(tokenId);
+      if (!agent0Data) {
+        return null;
+      }
       return this.transformAgent0Profile(agent0Data, this.reputationBridge);
     }
 

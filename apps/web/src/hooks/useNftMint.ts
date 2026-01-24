@@ -1,8 +1,9 @@
+import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { useSmartWallet } from '@/hooks/useSmartWallet';
 import type {
+  EligibilityApiResponse,
   EligibilityResponse,
   MintConfirmResponse,
   MintFlowState,
@@ -30,8 +31,7 @@ interface UseNftMintResult {
 
 export function useNftMint(): UseNftMintResult {
   const { authenticated, getAccessToken } = useAuth();
-  const { smartWalletReady, smartWalletAddress, sendSmartWalletTransaction } =
-    useSmartWallet();
+  const { getClientForChain } = useSmartWallets();
 
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(
     null
@@ -89,7 +89,8 @@ export function useNftMint(): UseNftMintResult {
           return;
         }
 
-        const data: EligibilityResponse = await response.json();
+        const json: EligibilityApiResponse = await response.json();
+        const data: EligibilityResponse = json.data;
 
         // Check if aborted before updating state
         if (signal?.aborted) return;
@@ -140,11 +141,6 @@ export function useNftMint(): UseNftMintResult {
 
     if (!eligibility?.eligible || eligibility.hasMinted) {
       toast.error('You are not eligible to mint');
-      return;
-    }
-
-    if (!smartWalletReady || !smartWalletAddress) {
-      toast.error('Smart wallet not ready');
       return;
     }
 
@@ -208,7 +204,24 @@ export function useNftMint(): UseNftMintResult {
 
     let txHash: string;
     try {
-      txHash = await sendSmartWalletTransaction({
+      const chainClient = await getClientForChain({
+        id: prepareData.chainId,
+      });
+
+      const chainClientAddress = chainClient?.account?.address;
+      if (!chainClientAddress) {
+        handleError('Smart wallet not ready');
+        return;
+      }
+
+      if (prepareData.to.toLowerCase() !== chainClientAddress.toLowerCase()) {
+        handleError(
+          'Smart wallet mismatch. Please refresh and try again (or re-login).'
+        );
+        return;
+      }
+
+      txHash = await chainClient.sendTransaction({
         to: prepareData.contractAddress as `0x${string}`,
         data: prepareData.encodedData as `0x${string}`,
         value: 0n,
@@ -238,7 +251,7 @@ export function useNftMint(): UseNftMintResult {
         },
         body: JSON.stringify({
           txHash,
-          walletAddress: smartWalletAddress,
+          walletAddress: prepareData.to,
         }),
       });
 
@@ -278,14 +291,7 @@ export function useNftMint(): UseNftMintResult {
     );
 
     toast.success('NFT minted successfully!');
-  }, [
-    authenticated,
-    eligibility,
-    smartWalletReady,
-    smartWalletAddress,
-    getAccessToken,
-    sendSmartWalletTransaction,
-  ]);
+  }, [authenticated, eligibility, getAccessToken, getClientForChain]);
 
   const resetFlow = useCallback(() => {
     setFlowState(

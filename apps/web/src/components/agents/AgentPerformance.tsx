@@ -11,43 +11,68 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { useAgent0Reputation } from '@/hooks/useAgent0Reputation';
+import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 
 /**
  * Displays agent trading performance metrics (PnL, trades, win rate).
+ * Fetches positions to calculate unrealized PnL for total portfolio value.
  * Optionally shows Agent0 network reputation when agentId is provided.
  */
 interface AgentPerformanceProps {
   agent: {
+    id: string;
     lifetimePnL: string;
     totalTrades: number;
     profitableTrades: number;
     winRate: number;
+    virtualBalance?: number;
+    totalDeposited?: number;
+    totalWithdrawn?: number;
   };
-  /** If provided, fetches and displays Agent0 network reputation */
-  agentId?: string;
 }
 
-export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
-  const pnl = parseFloat(agent.lifetimePnL);
-  const isProfitable = pnl >= 0;
+export function AgentPerformance({ agent }: AgentPerformanceProps) {
+  // Use shared hook for P&L calculation
+  // Pass deposit data to calculate true P&L (portfolio - contributions)
+  const {
+    realizedPnL,
+    unrealizedPnL,
+    totalPnL,
+    pointsInPositions,
+    totalPortfolio,
+    isProfitable,
+    loading: positionsLoading,
+    error: positionsError,
+    predictions,
+    perps,
+  } = useAgentTotalPnL({
+    agentId: agent.id,
+    availableBalance: agent.virtualBalance ?? 0,
+    totalDeposited: agent.totalDeposited,
+    totalWithdrawn: agent.totalWithdrawn,
+    realizedPnL: agent.lifetimePnL,
+  });
+
   const totalTrades = agent.totalTrades || 0;
   const profitableTrades = agent.profitableTrades || 0;
   const winRate = agent.winRate || 0;
+  const availableBalance = agent.virtualBalance ?? 0;
 
-  // Fetch Agent0 network reputation data if agentId is provided
+  // Fetch Agent0 network reputation data
   const {
     profile: agent0Profile,
     reputation: agent0Reputation,
     loading: agent0Loading,
     isAgent0Available,
-  } = useAgent0Reputation(agentId);
+  } = useAgent0Reputation(agent.id);
 
   const stats = [
     {
       label: 'Lifetime P&L',
-      value: pnl.toFixed(2),
+      value: positionsLoading ? '...' : totalPnL.toFixed(2),
       icon: isProfitable ? TrendingUp : TrendingDown,
       color: isProfitable ? 'text-green-600' : 'text-red-600',
     },
@@ -91,6 +116,64 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
         ))}
       </div>
 
+      {/* Portfolio Overview */}
+      <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
+        <h3 className="mb-4 flex items-center gap-2 font-semibold text-lg">
+          <Wallet className="h-5 w-5 text-[#0066FF]" />
+          Portfolio Overview
+        </h3>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
+            <span className="text-muted-foreground">Available Balance</span>
+            <span className="font-semibold">
+              {availableBalance.toFixed(2)} pts
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
+            <span className="text-muted-foreground">In Positions</span>
+            <span className="font-semibold">
+              {positionsLoading ? '...' : pointsInPositions.toFixed(2)} pts
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
+            <span className="text-muted-foreground">Total Portfolio</span>
+            <span className="font-semibold">
+              {positionsLoading ? '...' : totalPortfolio.toFixed(2)} pts
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border-border border-t bg-muted/30 p-3 pt-4 transition-all hover:bg-muted/50">
+            <span className="text-muted-foreground">Unrealized P&L</span>
+            <span
+              className={cn(
+                'font-semibold',
+                unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {positionsLoading
+                ? '...'
+                : `${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toFixed(2)} pts`}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
+            <span className="text-muted-foreground">Realized P&L</span>
+            <span
+              className={cn(
+                'font-semibold',
+                realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {realizedPnL >= 0 ? '+' : ''}
+              {realizedPnL.toFixed(2)} pts
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Detailed Stats */}
       <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
         <h3 className="mb-4 font-semibold text-lg">Detailed Statistics</h3>
@@ -102,16 +185,16 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
           </div>
 
           <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
-            <span className="text-muted-foreground">Profitable Trades</span>
-            <span className="font-semibold text-green-600">
-              {profitableTrades}
+            <span className="text-muted-foreground">Open Positions</span>
+            <span className="font-semibold text-blue-600">
+              {positionsLoading ? '...' : predictions.length + perps.length}
             </span>
           </div>
 
           <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50">
-            <span className="text-muted-foreground">Losing Trades</span>
-            <span className="font-semibold text-red-600">
-              {totalTrades - profitableTrades}
+            <span className="text-muted-foreground">Profitable Trades</span>
+            <span className="font-semibold text-green-600">
+              {profitableTrades}
             </span>
           </div>
 
@@ -126,7 +209,19 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
       <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
         <h3 className="mb-4 font-semibold text-lg">Activity Summary</h3>
 
-        {totalTrades === 0 ? (
+        {positionsLoading ? (
+          <div className="py-8 text-center text-muted-foreground">
+            <Activity className="mx-auto mb-4 h-12 w-12 animate-pulse opacity-50" />
+            <p>Loading activity...</p>
+          </div>
+        ) : positionsError ? (
+          <div className="py-8 text-center text-muted-foreground">
+            <Activity className="mx-auto mb-4 h-12 w-12 opacity-50" />
+            <p>Failed to load positions</p>
+          </div>
+        ) : totalTrades === 0 &&
+          predictions.length === 0 &&
+          perps.length === 0 ? (
           <div className="py-8 text-center text-muted-foreground">
             <Activity className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p>No trading activity yet</p>
@@ -138,7 +233,7 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
           <div className="space-y-3">
             <div className="rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
               <div className="mb-2 text-muted-foreground text-sm">
-                Performance
+                Total Performance (Realized + Unrealized)
               </div>
               <div className="flex items-center gap-2">
                 {isProfitable ? (
@@ -153,16 +248,34 @@ export function AgentPerformance({ agent, agentId }: AgentPerformanceProps) {
                   )}
                 >
                   {isProfitable ? '+' : ''}
-                  {pnl.toFixed(2)} points
+                  {totalPnL.toFixed(2)} points
                 </span>
               </div>
             </div>
+
+            {predictions.length > 0 && (
+              <div className="rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
+                <div className="mb-2 text-muted-foreground text-sm">
+                  Open Prediction Positions
+                </div>
+                <div className="font-semibold">{predictions.length}</div>
+              </div>
+            )}
+
+            {perps.length > 0 && (
+              <div className="rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
+                <div className="mb-2 text-muted-foreground text-sm">
+                  Open Stock Positions
+                </div>
+                <div className="font-semibold">{perps.length}</div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Agent0 Network Reputation */}
-      {agentId && (
+      {agent.id.length > 0 && (
         <div className="rounded-lg border border-border bg-card/50 p-6 backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-semibold text-lg">

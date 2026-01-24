@@ -1,16 +1,20 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { NftGrid, RevealModal } from '@/components/nft';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { useAuth } from '@/hooks/useAuth';
 import { useNftMint } from '@/hooks/useNftMint';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
+import { apiFetch } from '@/utils/api-fetch';
 
 type ViewTab = 'all' | 'mine';
 
 export default function NftGalleryPage() {
   const { authenticated, user } = useAuth();
+  const router = useRouter();
   const {
     eligibility,
     isCheckingEligibility,
@@ -39,6 +43,7 @@ export default function NftGalleryPage() {
   // Modals
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const showRevealModal = flowState === 'revealing';
+  const [ensuringChatAccess, setEnsuringChatAccess] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -113,6 +118,32 @@ export default function NftGalleryPage() {
     fetchNfts();
   };
 
+  const handleOpenGatedChat = async () => {
+    if (!authenticated) return;
+    if (!eligibility?.hasMinted) return;
+
+    setEnsuringChatAccess(true);
+    try {
+      const response = await apiFetch('/api/nft/chat/ensure', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const json = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        toast.error(json?.error ?? 'Failed to unlock chat access');
+        return;
+      }
+
+      router.push('/chats');
+    } catch {
+      toast.error('Failed to unlock chat access');
+    } finally {
+      setEnsuringChatAccess(false);
+    }
+  };
+
   return (
     <PageContainer noPadding className="flex h-full flex-col">
       {/* Header */}
@@ -139,12 +170,24 @@ export default function NftGalleryPage() {
             )}
 
             {eligibility?.hasMinted && eligibility.mintedNft && (
-              <a
-                href={`/nft/${eligibility.mintedNft.tokenId}`}
-                className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-green-600 text-sm transition-colors hover:bg-green-500/20"
-              >
-                View My NFT →
-              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenGatedChat}
+                  disabled={ensuringChatAccess}
+                  className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/10 px-4 py-2 text-[#0066FF] text-sm transition-colors hover:bg-[#0066FF]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {ensuringChatAccess
+                    ? 'Opening chat...'
+                    : 'Open FD Alpha Chat →'}
+                </button>
+                <a
+                  href={`/nft/${eligibility.mintedNft.tokenId}`}
+                  className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-green-600 text-sm transition-colors hover:bg-green-500/20"
+                >
+                  View My NFT →
+                </a>
+              </div>
             )}
           </div>
 

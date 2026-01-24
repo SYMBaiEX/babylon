@@ -233,30 +233,8 @@ export default function CreateAgentPage() {
     const result = await response.json();
     const agentId = result.agent.id;
 
-    // Create DM chat with the agent first
-    let chatId: string | null = null;
-    try {
-      const dmResponse = await fetch('/api/chats/dm', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: agentId,
-        }),
-      });
-
-      if (dmResponse.ok) {
-        const dmResult = await dmResponse.json();
-        chatId = dmResult.chat.id;
-      }
-    } catch (error) {
-      console.warn('Error creating DM chat:', error);
-    }
-
     // Generate onboarding message and wait for it to complete
-    // This ensures the message is ready when user sees the chat
+    // This ensures the message is ready when user sees the team chat
     try {
       await fetch(`/api/agents/${agentId}/onboarding`, {
         method: 'POST',
@@ -272,12 +250,10 @@ export default function CreateAgentPage() {
     clearDraft();
     toast.success('Agent created successfully!');
 
-    // Redirect to chats page with the agent's chat selected
-    if (chatId) {
-      router.push(`/chats?chat=${chatId}`);
-    } else {
-      router.push('/chats');
-    }
+    // Redirect to team chat (Command Center) with @mention for the new agent
+    const agentUsername = profileData.username;
+    const mention = agentUsername ? `${agentUsername} ` : '';
+    router.push(`/agents/team?mention=${encodeURIComponent(mention)}`);
   }, [
     profileData,
     agentData,

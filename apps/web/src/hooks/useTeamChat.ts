@@ -547,23 +547,6 @@ export function useTeamChat(): UseTeamChatReturn {
 
     const content = messageInput.trim();
 
-    // Extract mentioned agent IDs from content by matching @username patterns
-    // Case-sensitive matching against agent usernames
-    const mentionRegex = /(?:^|[\s])@([A-Za-z0-9_.-]+)/g;
-    const extractedMentions: string[] = [];
-    let match;
-    while ((match = mentionRegex.exec(content)) !== null) {
-      const mentionedUsername = match[1];
-      const agent = teamChat.agents.find(
-        (a) => a.username === mentionedUsername
-      );
-      if (agent) {
-        extractedMentions.push(agent.id);
-      }
-    }
-    // Deduplicate
-    const mentionedIds = [...new Set(extractedMentions)];
-
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
     const optimisticId = `pending-${crypto.randomUUID()}`;
@@ -596,10 +579,7 @@ export function useTeamChat(): UseTeamChatReturn {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          content,
-          mentionedAgentIds: mentionedIds.length > 0 ? mentionedIds : undefined,
-        }),
+        body: JSON.stringify({ content }),
       });
 
       if (!response.ok) {

@@ -143,13 +143,14 @@
 
 import {
   authenticate,
+  ConflictError,
   cachedDb,
   getPrivyClient,
   InternalServerError,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { db, eq, sql, users } from '@babylon/db';
+import { db, eq, or, sql, users } from '@babylon/db';
 import {
   checkForAdminEmail,
   logger,
@@ -162,30 +163,53 @@ type PrivyWalletLite = {
   id?: string | null;
   address?: string;
   chainType?: string;
+  chain_type?: string;
   walletClientType?: string | null;
+  wallet_client?: string | null;
+  type?: string | null;
 };
 
 type PrivyUserWithSmartWallet = PrivyUser &
   PrivyUserWithEmails & {
     smartWallet?: { address?: string | null };
     wallet?: PrivyWalletLite;
+    linkedAccounts?: PrivyWalletLite[];
+    linked_accounts?: PrivyWalletLite[];
   };
+
+function pickSmartWalletAddress(user: PrivyUserWithSmartWallet): string | null {
+  const direct = user.smartWallet?.address?.toLowerCase() ?? null;
+  if (direct) return direct;
+
+  const accounts = [
+    ...(user.linkedAccounts ?? []),
+    ...(user.linked_accounts ?? []),
+  ];
+  const smartWallet = accounts.find(
+    (a) => a.type === 'smart_wallet' && typeof a.address === 'string'
+  );
+  return smartWallet?.address?.toLowerCase() ?? null;
+}
 
 function pickEmbeddedEvmWallet(
   user: PrivyUserWithSmartWallet
 ): PrivyWalletLite | null {
   const candidates: PrivyWalletLite[] = [];
   if (user.wallet) candidates.push(user.wallet);
-  if (Array.isArray(user.linkedAccounts)) {
-    for (const acc of user.linkedAccounts) {
-      if (acc?.type === 'wallet') candidates.push(acc);
-    }
+  for (const acc of user.linkedAccounts ?? []) {
+    if (acc?.type === 'wallet') candidates.push(acc);
+  }
+  for (const acc of user.linked_accounts ?? []) {
+    if (acc?.type === 'wallet') candidates.push(acc);
   }
   return (
     candidates.find(
       (w) =>
-        (w.walletClientType === 'privy' || Boolean(w.id)) &&
-        (!w.chainType || w.chainType === 'ethereum') &&
+        (w.walletClientType === 'privy' ||
+          w.wallet_client === 'privy' ||
+          Boolean(w.id)) &&
+        (!(w.chainType ?? w.chain_type) ||
+          (w.chainType ?? w.chain_type) === 'ethereum') &&
         typeof w.address === 'string'
     ) ?? null
   );
@@ -197,21 +221,8 @@ async function ensureSmartWalletAddress(privyId: string): Promise<{
 }> {
   const privyClient = getPrivyClient();
   const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
-  let smartWalletAddress = user.smartWallet?.address?.toLowerCase() ?? null;
-  let embeddedWallet = pickEmbeddedEvmWallet(user);
-
-  if (!smartWalletAddress) {
-    // Note: createEthereumWallet must be true when creating a smart wallet
-    // If user already has an embedded wallet, Privy will skip creating a new one
-    const updated = (await privyClient.createWallets({
-      userId: privyId,
-      createEthereumSmartWallet: true,
-      createEthereumWallet: true,
-    })) as PrivyUserWithSmartWallet;
-
-    smartWalletAddress = updated.smartWallet?.address?.toLowerCase() ?? null;
-    embeddedWallet = embeddedWallet ?? pickEmbeddedEvmWallet(updated);
-  }
+  const smartWalletAddress = pickSmartWalletAddress(user);
+  const embeddedWallet = pickEmbeddedEvmWallet(user);
 
   return {
     smartWalletAddress,
@@ -247,7 +258,9 @@ const userSelectFields = {
   hasTwitter: users.hasTwitter,
   hasDiscord: users.hasDiscord,
   farcasterUsername: users.farcasterUsername,
+  farcasterFid: users.farcasterFid,
   twitterUsername: users.twitterUsername,
+  twitterId: users.twitterId,
   discordUsername: users.discordUsername,
   showTwitterPublic: users.showTwitterPublic,
   showFarcasterPublic: users.showFarcasterPublic,
@@ -258,6 +271,167 @@ const userSelectFields = {
   updatedAt: users.updatedAt,
   gameGuideCompletedAt: users.gameGuideCompletedAt,
 } as const;
+
+type UserSelectResult = {
+  id: string;
+  privyId: string | null;
+  username: string | null;
+  displayName: string | null;
+  bio: string | null;
+  profileImageUrl: string | null;
+  coverImageUrl: string | null;
+  walletAddress: string | null;
+  email: string | null;
+  profileComplete: boolean;
+  hasUsername: boolean;
+  hasBio: boolean;
+  hasProfileImage: boolean;
+  onChainRegistered: boolean;
+  nftTokenId: number | null;
+  referralCode: string | null;
+  referredBy: string | null;
+  reputationPoints: number;
+  virtualBalance: string;
+  pointsAwardedForProfile: boolean;
+  pointsAwardedForFarcasterFollow: boolean;
+  pointsAwardedForTwitterFollow: boolean;
+  pointsAwardedForDiscordJoin: boolean;
+  hasFarcaster: boolean;
+  hasTwitter: boolean;
+  hasDiscord: boolean;
+  farcasterUsername: string | null;
+  farcasterFid: string | null;
+  twitterUsername: string | null;
+  twitterId: string | null;
+  discordUsername: string | null;
+  showTwitterPublic: boolean;
+  showFarcasterPublic: boolean;
+  showWalletPublic: boolean;
+  isAdmin: boolean;
+  isActor: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  gameGuideCompletedAt: Date | null;
+};
+
+function buildUserResponse(
+  dbUser: UserSelectResult,
+  stats: Awaited<ReturnType<typeof cachedDb.getUserProfileStats>> | null
+) {
+  return {
+    id: dbUser.id,
+    privyId: dbUser.privyId,
+    username: dbUser.username,
+    displayName: dbUser.displayName,
+    bio: dbUser.bio,
+    profileImageUrl: dbUser.profileImageUrl,
+    coverImageUrl: dbUser.coverImageUrl,
+    walletAddress: dbUser.walletAddress,
+    profileComplete: dbUser.profileComplete,
+    hasUsername: dbUser.hasUsername,
+    hasBio: dbUser.hasBio,
+    hasProfileImage: dbUser.hasProfileImage,
+    onChainRegistered: dbUser.onChainRegistered,
+    nftTokenId: dbUser.nftTokenId,
+    referralCode: dbUser.referralCode,
+    referredBy: dbUser.referredBy,
+    reputationPoints: dbUser.reputationPoints,
+    virtualBalance: Number(dbUser.virtualBalance ?? 0),
+    pointsAwardedForProfile: dbUser.pointsAwardedForProfile,
+    pointsAwardedForFarcasterFollow: dbUser.pointsAwardedForFarcasterFollow,
+    pointsAwardedForTwitterFollow: dbUser.pointsAwardedForTwitterFollow,
+    pointsAwardedForDiscordJoin: dbUser.pointsAwardedForDiscordJoin,
+    hasFarcaster: dbUser.hasFarcaster,
+    hasTwitter: dbUser.hasTwitter,
+    hasDiscord: dbUser.hasDiscord,
+    farcasterUsername: dbUser.farcasterUsername,
+    twitterUsername: dbUser.twitterUsername,
+    discordUsername: dbUser.discordUsername,
+    showTwitterPublic: dbUser.showTwitterPublic,
+    showFarcasterPublic: dbUser.showFarcasterPublic,
+    showWalletPublic: dbUser.showWalletPublic,
+    isAdmin: dbUser.isAdmin,
+    isActor: dbUser.isActor,
+    createdAt: dbUser.createdAt.toISOString(),
+    updatedAt: dbUser.updatedAt.toISOString(),
+    gameGuideCompletedAt: dbUser.gameGuideCompletedAt?.toISOString() ?? null,
+    stats: stats || undefined,
+  };
+}
+
+async function updateReferrerForIncompleteUser(
+  dbUser: UserSelectResult,
+  referralCode: string
+): Promise<UserSelectResult> {
+  const normalizedCode = referralCode.trim();
+
+  // First, try to find referrer by username (legacy system, case-insensitive)
+  let [referrer] = await db
+    .select({ id: users.id, username: users.username })
+    .from(users)
+    .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
+    .limit(1);
+
+  // If not found by username, try by referralCode
+  if (!referrer) {
+    [referrer] = await db
+      .select({ id: users.id, username: users.username })
+      .from(users)
+      .where(eq(users.referralCode, normalizedCode))
+      .limit(1);
+  }
+
+  if (referrer && referrer.id !== dbUser.id) {
+    const previousReferrer = dbUser.referredBy;
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({ referredBy: referrer.id })
+      .where(eq(users.id, dbUser.id))
+      .returning(userSelectFields);
+
+    if (!updatedUser) {
+      throw new InternalServerError('Failed to update user record');
+    }
+
+    if (previousReferrer && previousReferrer !== referrer.id) {
+      logger.info(
+        'Updated user with NEW referrer (latest referral wins)',
+        {
+          userId: updatedUser.id,
+          previousReferrer,
+          newReferrer: referrer.id,
+          referrerUsername: referrer.username,
+          referralCode,
+        },
+        'GET /api/users/me'
+      );
+    } else if (!previousReferrer) {
+      logger.info(
+        'Updated existing user with referrer',
+        {
+          userId: updatedUser.id,
+          referrerId: referrer.id,
+          referrerUsername: referrer.username,
+          referralCode,
+        },
+        'GET /api/users/me'
+      );
+    }
+
+    return updatedUser;
+  }
+
+  if (referrer?.id === dbUser.id) {
+    logger.warn(
+      'Self-referral attempt blocked for existing user',
+      { userId: dbUser.id, referralCode },
+      'GET /api/users/me'
+    );
+  }
+
+  return dbUser;
+}
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
@@ -291,7 +465,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let smartWalletAddress: string | null = null;
 
     const privyClient = getPrivyClient();
-    const privyUser = await privyClient.getUser(privyId);
+    const privyUser = (await privyClient.getUser(
+      privyId
+    )) as PrivyUserWithSmartWallet;
 
     // Extract email from linked accounts
     if (privyUser.email?.address) {
@@ -313,7 +489,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Prefer Privy smart wallet over linked/embedded wallet for DB storage
-    smartWalletAddress = privyUser.smartWallet?.address?.toLowerCase() ?? null;
+    smartWalletAddress = pickSmartWalletAddress(privyUser);
     if (smartWalletAddress) {
       authUser.walletAddress = smartWalletAddress;
     }
@@ -329,6 +505,174 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
       'GET /api/users/me'
     );
+
+    // Check if Farcaster or Twitter account is already linked to an existing user
+    // If found, auto-link the new Privy session to the existing account
+    // This allows users to login with their social account and access their existing Babylon account
+    if (farcasterFid || twitterId) {
+      const conditions = [];
+      if (farcasterFid) {
+        conditions.push(eq(users.farcasterFid, farcasterFid));
+      }
+      if (twitterId) {
+        conditions.push(eq(users.twitterId, twitterId));
+      }
+
+      const existingUsersWithSocial = await db
+        .select(userSelectFields)
+        .from(users)
+        .where(or(...conditions))
+        .limit(2);
+
+      // If multiple users found, it means Farcaster and Twitter belong to different accounts
+      // Skip auto-linking to prevent linking the wrong account
+      if (existingUsersWithSocial.length > 1) {
+        logger.warn(
+          'Multiple users found with conflicting social accounts - skipping auto-link',
+          {
+            newPrivyId: privyId,
+            farcasterFid,
+            twitterId,
+            foundUserIds: existingUsersWithSocial.map((u) => u.id),
+          },
+          'GET /api/users/me'
+        );
+
+        // Return error to prevent insert failure due to unique constraint violation
+        throw new ConflictError(
+          'Your social accounts are linked to different existing users. Please contact support.',
+          'User.socialAccounts'
+        );
+      } else if (existingUsersWithSocial.length === 1) {
+        const existingUserWithSocial = existingUsersWithSocial[0]!;
+        const matchedByFarcaster =
+          !!farcasterFid &&
+          existingUserWithSocial.farcasterFid === farcasterFid;
+        const matchedByTwitter =
+          !!twitterId && existingUserWithSocial.twitterId === twitterId;
+
+        const linkedAccount =
+          matchedByFarcaster && matchedByTwitter
+            ? 'Farcaster+Twitter'
+            : matchedByFarcaster
+              ? 'Farcaster'
+              : matchedByTwitter
+                ? 'Twitter'
+                : 'Unknown';
+
+        logger.info(
+          'Found existing user by social account - auto-linking new Privy session',
+          {
+            newPrivyId: privyId,
+            oldPrivyId: existingUserWithSocial.privyId,
+            existingUserId: existingUserWithSocial.id,
+            existingUsername: existingUserWithSocial.username,
+            linkedAccount,
+            farcasterFid,
+            twitterId,
+          },
+          'GET /api/users/me'
+        );
+
+        // Check if the new privyId is already linked to a different user
+        const [existingUserWithPrivyId] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.privyId, privyId))
+          .limit(1);
+
+        if (
+          existingUserWithPrivyId &&
+          existingUserWithPrivyId.id !== existingUserWithSocial.id
+        ) {
+          logger.warn(
+            'New privyId already linked to a different user - skipping auto-link to prevent account conflict',
+            {
+              newPrivyId: privyId,
+              existingPrivyUserId: existingUserWithPrivyId.id,
+              socialMatchUserId: existingUserWithSocial.id,
+            },
+            'GET /api/users/me'
+          );
+          // Skip auto-linking, let normal flow continue
+        } else {
+          // Update the existing user's privyId to the new one
+          const [updatedUser] = await db
+            .update(users)
+            .set({
+              privyId,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, existingUserWithSocial.id))
+            .returning(userSelectFields);
+
+          if (updatedUser) {
+            dbUser = updatedUser;
+
+            logger.info(
+              'Successfully linked new Privy session to existing user',
+              {
+                userId: updatedUser.id,
+                username: updatedUser.username,
+                newPrivyId: privyId,
+              },
+              'GET /api/users/me'
+            );
+          }
+        }
+      }
+    }
+
+    // If we found and linked to an existing user, skip the new user creation
+    if (dbUser) {
+      let linkedUser = dbUser;
+
+      if (referralCode && !linkedUser.profileComplete) {
+        linkedUser = await updateReferrerForIncompleteUser(
+          linkedUser,
+          referralCode
+        );
+      } else if (referralCode && linkedUser.profileComplete) {
+        logger.warn(
+          'Referral change blocked - profile already complete',
+          {
+            userId: linkedUser.id,
+            referralCode,
+            existingReferrer: linkedUser.referredBy,
+          },
+          'GET /api/users/me'
+        );
+      }
+
+      // Get cached profile stats for the linked user
+      const stats = await cachedDb.getUserProfileStats(linkedUser.id);
+
+      const responseUser = buildUserResponse(linkedUser, stats);
+
+      const needsOnboarding = !linkedUser.profileComplete;
+      const needsOnchain =
+        linkedUser.profileComplete && !linkedUser.onChainRegistered;
+
+      logger.info(
+        'Returning linked existing user profile',
+        {
+          userId: linkedUser.id,
+          username: linkedUser.username,
+          profileComplete: linkedUser.profileComplete,
+          onChainRegistered: linkedUser.onChainRegistered,
+          needsOnboarding,
+          needsOnchain,
+        },
+        'GET /api/users/me'
+      );
+
+      return successResponse({
+        authenticated: true,
+        needsOnboarding,
+        needsOnchain,
+        user: responseUser,
+      });
+    }
 
     // Resolve referrer if referralCode provided
     let resolvedReferrerId: string | null = null;
@@ -479,69 +823,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   } else if (referralCode && dbUser && !dbUser.profileComplete) {
     // User exists BUT profile not complete - update referredBy with latest referral code (latest wins!)
     // ⚠️ IMPORTANT: Only allow referral changes BEFORE profile completion to prevent gaming
-    const normalizedCode = referralCode.trim();
-
-    // First, try to find referrer by username (legacy system, case-insensitive)
-    let [referrer] = await db
-      .select({ id: users.id, username: users.username })
-      .from(users)
-      .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
-      .limit(1);
-
-    // If not found by username, try by referralCode
-    if (!referrer) {
-      [referrer] = await db
-        .select({ id: users.id, username: users.username })
-        .from(users)
-        .where(eq(users.referralCode, normalizedCode))
-        .limit(1);
-    }
-
-    if (referrer && referrer.id !== dbUser.id) {
-      const previousReferrer = dbUser.referredBy;
-
-      const [updatedUser] = await db
-        .update(users)
-        .set({ referredBy: referrer.id })
-        .where(eq(users.id, dbUser.id))
-        .returning(userSelectFields);
-
-      if (!updatedUser) {
-        throw new InternalServerError('Failed to update user record');
-      }
-      dbUser = updatedUser;
-
-      if (previousReferrer && previousReferrer !== referrer.id) {
-        logger.info(
-          'Updated user with NEW referrer (latest referral wins)',
-          {
-            userId: dbUser.id,
-            previousReferrer,
-            newReferrer: referrer.id,
-            referrerUsername: referrer.username,
-            referralCode,
-          },
-          'GET /api/users/me'
-        );
-      } else if (!previousReferrer) {
-        logger.info(
-          'Updated existing user with referrer',
-          {
-            userId: dbUser.id,
-            referrerId: referrer.id,
-            referrerUsername: referrer.username,
-            referralCode,
-          },
-          'GET /api/users/me'
-        );
-      }
-    } else if (referrer?.id === dbUser.id) {
-      logger.warn(
-        'Self-referral attempt blocked for existing user',
-        { userId: dbUser.id, referralCode },
-        'GET /api/users/me'
-      );
-    }
+    dbUser = await updateReferrerForIncompleteUser(dbUser, referralCode);
   } else if (referralCode && dbUser && dbUser.profileComplete) {
     // User has completed profile - don't allow referral changes anymore
     logger.warn(
@@ -554,6 +836,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // At this point dbUser should always be defined (either fetched or created)
   if (!dbUser) {
     throw new InternalServerError('Failed to create or find user record');
+  }
+
+  // Backfill: store smart wallet address in DB when we previously persisted the
+  // embedded wallet (legacy behavior).
+  const { smartWalletAddress: ensuredSmartWallet, embeddedWalletAddress } =
+    await ensureSmartWalletAddress(privyId);
+  if (ensuredSmartWallet) {
+    const normalizedDbWallet = dbUser.walletAddress?.toLowerCase() ?? null;
+    const normalizedEmbedded = embeddedWalletAddress?.toLowerCase() ?? null;
+    const normalizedSmart = ensuredSmartWallet.toLowerCase();
+
+    const shouldUpgradeFromEmbedded =
+      normalizedDbWallet !== null &&
+      normalizedEmbedded !== null &&
+      normalizedDbWallet === normalizedEmbedded &&
+      normalizedDbWallet !== normalizedSmart;
+
+    const shouldFillMissing = normalizedDbWallet === null;
+
+    if (shouldUpgradeFromEmbedded || shouldFillMissing) {
+      const [updatedUser] = await db
+        .update(users)
+        .set({ walletAddress: ensuredSmartWallet, updatedAt: new Date() })
+        .where(eq(users.id, dbUser.id))
+        .returning(userSelectFields);
+
+      if (updatedUser) {
+        dbUser = updatedUser;
+      }
+    }
   }
 
   // Auto-promote existing users to admin if they have a verified admin domain email
@@ -591,45 +903,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get cached profile stats
   const stats = await cachedDb.getUserProfileStats(dbUser.id);
 
-  const responseUser = {
-    id: dbUser.id,
-    privyId: dbUser.privyId,
-    username: dbUser.username,
-    displayName: dbUser.displayName,
-    bio: dbUser.bio,
-    profileImageUrl: dbUser.profileImageUrl,
-    coverImageUrl: dbUser.coverImageUrl,
-    walletAddress: dbUser.walletAddress,
-    profileComplete: dbUser.profileComplete,
-    hasUsername: dbUser.hasUsername,
-    hasBio: dbUser.hasBio,
-    hasProfileImage: dbUser.hasProfileImage,
-    onChainRegistered: dbUser.onChainRegistered,
-    nftTokenId: dbUser.nftTokenId,
-    referralCode: dbUser.referralCode,
-    referredBy: dbUser.referredBy,
-    reputationPoints: dbUser.reputationPoints,
-    virtualBalance: Number(dbUser.virtualBalance ?? 0),
-    pointsAwardedForProfile: dbUser.pointsAwardedForProfile,
-    pointsAwardedForFarcasterFollow: dbUser.pointsAwardedForFarcasterFollow,
-    pointsAwardedForTwitterFollow: dbUser.pointsAwardedForTwitterFollow,
-    pointsAwardedForDiscordJoin: dbUser.pointsAwardedForDiscordJoin,
-    hasFarcaster: dbUser.hasFarcaster,
-    hasTwitter: dbUser.hasTwitter,
-    hasDiscord: dbUser.hasDiscord,
-    farcasterUsername: dbUser.farcasterUsername,
-    twitterUsername: dbUser.twitterUsername,
-    discordUsername: dbUser.discordUsername,
-    showTwitterPublic: dbUser.showTwitterPublic,
-    showFarcasterPublic: dbUser.showFarcasterPublic,
-    showWalletPublic: dbUser.showWalletPublic,
-    isAdmin: dbUser.isAdmin,
-    isActor: dbUser.isActor,
-    createdAt: dbUser.createdAt.toISOString(),
-    updatedAt: dbUser.updatedAt.toISOString(),
-    gameGuideCompletedAt: dbUser.gameGuideCompletedAt?.toISOString() ?? null,
-    stats: stats || undefined,
-  };
+  const responseUser = buildUserResponse(dbUser, stats);
 
   const needsOnboarding = !dbUser.profileComplete;
   const needsOnchain = dbUser.profileComplete && !dbUser.onChainRegistered;

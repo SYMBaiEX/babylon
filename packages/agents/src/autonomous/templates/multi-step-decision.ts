@@ -550,8 +550,9 @@ ${
 }`
       : '';
 
-  // Action priority guidance for player-created agents
-  // Emphasizes TRADING as the primary activity - agents exist to trade!
+  // Action priority guidance - differs between NPCs and player agents
+  // NPCs: Balanced priorities (trading, posting, engagement)
+  // Player agents: Trading as primary activity
   const priorityActions: string[] = [];
 
   // Always start with pending interactions
@@ -559,17 +560,26 @@ ${
     'REPLY to pending interactions first (REPLY_COMMENT or REPLY_CHAT)'
   );
 
-  // TRADING is THE HIGHEST PRIORITY - this is why agents exist
-  // Even if you just traded, consider trading AGAIN on different markets
+  // TRADING priority depends on agent type
   if (canTrade) {
-    if (!justTraded) {
-      priorityActions.push(
-        '🔥🔥🔥 TRADE NOW - You have NOT traded this tick! Trading is your PRIMARY purpose!'
-      );
+    if (isNpc) {
+      // NPCs have balanced priorities - trading is ONE of their activities
+      if (!justTraded) {
+        priorityActions.push(
+          'TRADE: Consider taking a position based on your intuitions'
+        );
+      }
     } else {
-      priorityActions.push(
-        '🔥 TRADE AGAIN - Consider another position on a DIFFERENT market!'
-      );
+      // Player agents prioritize trading - this is why they exist
+      if (!justTraded) {
+        priorityActions.push(
+          '🔥🔥🔥 TRADE NOW - You have NOT traded this tick! Trading is your PRIMARY purpose!'
+        );
+      } else {
+        priorityActions.push(
+          '🔥 TRADE AGAIN - Consider another position on a DIFFERENT market!'
+        );
+      }
     }
   }
 
@@ -588,11 +598,19 @@ ${
     priorityActions.push('DM someone to build relationships');
   }
 
-  // POST is VERY LOW PRIORITY - almost never do this
+  // POST priority depends on agent type
   if (canPost) {
-    priorityActions.push(
-      '⚠️ POST is DISCOURAGED - only if you have NO other options (VERY LOW PRIORITY)'
-    );
+    if (isNpc) {
+      // NPCs should post to keep the feed active
+      priorityActions.push(
+        'POST: Share your thoughts, react to events, or comment on markets'
+      );
+    } else {
+      // Player agents should prioritize trading/engagement over posting
+      priorityActions.push(
+        '⚠️ POST is DISCOURAGED - only if you have NO other options (VERY LOW PRIORITY)'
+      );
+    }
   }
 
   // Always end with FINISH
@@ -616,8 +634,12 @@ ${
 `
       : '';
 
+  const actionPrioritySectionHeader = isNpc
+    ? '# Action Priority (Balanced: Trade, Post, Engage)'
+    : '# Action Priority (TRADING & ENGAGEMENT >> POSTING)';
+
   const actionPrioritySection = `
-# Action Priority (TRADING & ENGAGEMENT >> POSTING)
+${actionPrioritySectionHeader}
 ${numberedList}
 ${antiPostingGuidance}
 `;
@@ -719,13 +741,15 @@ ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assigne
 3. **No Duplicates**: Don't repeat the same action on the same target
 4. **Know When to Stop**: Set isFinish=true after 1-2 meaningful actions or when done
 5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use REPLY_CHAT for DMs.
-${canTrade ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
-${canComment ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
+${canTrade && !isNpc ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
+${canTrade && isNpc ? '6. **BALANCED ACTIONS**: Trading, posting, and engaging are all valuable. Follow your intuitions.' : ''}
+${canComment && !isNpc ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
 ${hasPostedThisTick ? `8. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
 ${!isNpc && canPost && !hasPostedThisTick ? '9. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
 
 # Action Ideas (in order of priority)
-${canTrade ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}
+${canTrade && !isNpc ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}
+${canTrade && isNpc ? '- **TRADE**: Take a position based on your intuitions' : ''}
 ${canComment ? "- ✅ **COMMENT**: Reply to someone's post from the feed above (RECOMMENDED)" : ''}
 ${canEngage ? '- ✅ **LIKE**: Show appreciation for a post you find interesting' : ''}
 ${canEngage ? "- ✅ **REPOST**: Share someone else's post with your take" : ''}
@@ -850,7 +874,7 @@ function formatPositionManagementGuidance(
     // Significant loss
     else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
       alerts.push(
-        `🔴 LOSING: ${p.ticker} ${p.side} is down ${p.pnlPercent.toFixed(1)}%. Consider cutting losses or averaging down if still bullish.`
+        `🔴 LOSING: ${p.ticker} ${p.side} is down ${p.pnlPercent.toFixed(1)}%. To cut losses, use side="close_position" with this ticker.`
       );
     }
     // Good profit - consider taking
@@ -870,27 +894,28 @@ function formatPositionManagementGuidance(
   // Check prediction positions
   for (const p of positions.predictions) {
     const absChange = Math.abs(p.pnlPercent);
+    const sellAction = p.side.toLowerCase() === 'yes' ? 'sell_yes' : 'sell_no';
 
     if (
       absChange < STAGNANT_THRESHOLD_PERCENT &&
       p.timeHeldMs > STAGNANT_TIME_MS
     ) {
       alerts.push(
-        `⚠️ STAGNANT: "${p.question.substring(0, 30)}..." ${p.side} hasn't moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}.`
+        `⚠️ STAGNANT: "${p.question.substring(0, 30)}..." ${p.side} hasn't moved (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%) in ${p.timeHeld}. To exit: use side="${sellAction}" on marketId ${p.marketId}.`
       );
     } else if (p.pnlPercent < LOSS_THRESHOLD_PERCENT) {
       alerts.push(
-        `🔴 LOSING: "${p.question.substring(0, 30)}..." ${p.side} down ${p.pnlPercent.toFixed(1)}%.`
+        `🔴 LOSING: "${p.question.substring(0, 30)}..." ${p.side} down ${p.pnlPercent.toFixed(1)}%. To cut losses: use side="${sellAction}" on marketId ${p.marketId}.`
       );
     } else if (p.pnlPercent > PROFIT_THRESHOLD_PERCENT) {
       alerts.push(
-        `🟢 PROFIT: "${p.question.substring(0, 30)}..." ${p.side} up +${p.pnlPercent.toFixed(1)}%.`
+        `🟢 PROFIT: "${p.question.substring(0, 30)}..." ${p.side} up +${p.pnlPercent.toFixed(1)}%. To take profits: use side="${sellAction}" on marketId ${p.marketId}.`
       );
     }
     // Very long hold - check if thesis still valid
     else if (p.timeHeldMs > LONG_HOLD_TIME_MS) {
       alerts.push(
-        `⏰ AGED: "${p.question.substring(0, 30)}..." ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). Review if thesis still valid.`
+        `⏰ AGED: "${p.question.substring(0, 30)}..." ${p.side} held for ${p.timeHeld} (${p.pnlPercent >= 0 ? '+' : ''}${p.pnlPercent.toFixed(1)}%). To exit if thesis invalid: use side="${sellAction}" on marketId ${p.marketId}.`
       );
     }
   }
@@ -1030,13 +1055,26 @@ function formatActionSchemas(enabledFeatures: string[]): string {
 }`);
     } else if (action.name === Actions.TRADE) {
       // Special handling for TRADE with multiple variants
-      schemas.push(`TRADE (prediction - buy):
+      schemas.push(`TRADE (prediction - open position):
 {
   "marketType": "prediction",
   "marketId": "exact_market_id_from_list",
   "side": "buy_yes | buy_no",
   "amount": 100,
   "reasoning": "Why this trade"
+}
+
+TRADE (prediction - close/sell position):
+⚠️ To EXIT a position, you must SELL the same side you bought!
+- To close a YES position → use "sell_yes"
+- To close a NO position → use "sell_no"
+- Buying the opposite side does NOT close your position!
+{
+  "marketType": "prediction",
+  "marketId": "marketId_from_your_positions",
+  "side": "sell_yes | sell_no",
+  "amount": 50,
+  "reasoning": "Closing position because..."
 }
 
 TRADE (perp):

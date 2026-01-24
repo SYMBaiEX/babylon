@@ -14,7 +14,9 @@
 export * from './ActorSocialActions';
 export * from './activity-pattern-service';
 export * from './alpha-group-invite-service';
+export * from './arc-context-service';
 export * from './capital-allocation-service';
+export * from './event-reaction-service';
 export * from './following-mechanics';
 export * from './game-onboarding-service';
 // Group Chat Service
@@ -55,6 +57,8 @@ export {
 export * from './event-market-linker'; // BAB-5: Event-market connection
 // Event-market pipeline for narrative-driven market impacts
 export * from './event-market-pipeline';
+// Market correlation service for cross-market cascade effects
+export * from './market-correlation-service';
 export * from './market-metrics-service'; // BAB-5: Metrics-based question generation
 export * from './market-mover-agent';
 export * from './market-timeframes'; // Multi-timeframe market system
@@ -131,6 +135,10 @@ export * from './world-facts-generator';
 export { getOracleService, OracleService } from './oracle/oracle-service';
 export * from './oracle/types';
 export { CommitmentStore } from './oracle-commitment-store';
+export {
+  calculatePortfolioBreakdown,
+  type PortfolioBreakdownSnapshot,
+} from './portfolio-breakdown';
 export {
   calculatePortfolioPnL,
   type PortfolioPnLSnapshot,

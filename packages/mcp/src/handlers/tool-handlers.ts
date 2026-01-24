@@ -29,6 +29,57 @@ import {
   getAPIBaseUrl,
   logger,
 } from '@babylon/shared';
+
+/**
+ * Safe fetch helper that validates response status and returns typed JSON.
+ * Throws a descriptive error if the response is not OK.
+ * Returns null for 204 No Content or empty body responses.
+ */
+async function safeFetch<T>(
+  url: string | URL,
+  options?: RequestInit
+): Promise<T | null> {
+  const response = await fetch(url.toString(), options);
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(
+      `API request failed: ${response.status} ${response.statusText} - ${errorText.slice(0, 200)}`
+    );
+  }
+
+  // Handle 204 No Content early
+  if (response.status === 204) {
+    return null;
+  }
+
+  // Read body as text to handle empty responses reliably
+  // (content-length header may not always be present, e.g. chunked transfer)
+  const text = await response.text();
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return JSON.parse(trimmed) as T;
+}
+
+/**
+ * Safe fetch helper that throws if the response is null/empty.
+ * Use this for endpoints that must return JSON data.
+ */
+async function safeFetchRequired<T>(
+  url: string | URL,
+  options?: RequestInit
+): Promise<T> {
+  const result = await safeFetch<T>(url, options);
+  if (result === null) {
+    throw new Error('API returned empty response when data was expected');
+  }
+  return result;
+}
+
 import type {
   AcceptGroupInviteArgs,
   AcceptGroupInviteResult,
@@ -316,8 +367,8 @@ export async function executePlaceBet(
 
   // Call the existing market API logic
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/${args.marketId}/bet`,
+  return safeFetchRequired<PlaceBetResult>(
+    `${apiBaseUrl}/markets/${args.marketId}/bet`,
     {
       method: 'POST',
       headers: {
@@ -330,9 +381,6 @@ export async function executePlaceBet(
       }),
     }
   );
-
-  const result = (await response.json()) as PlaceBetResult;
-  return result;
 }
 
 /**
@@ -421,8 +469,8 @@ export async function executeClosePosition(
 
   // Call the existing close position API logic
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/positions/${args.positionId}/close`,
+  const result = await safeFetchRequired<ClosePositionResult>(
+    `${apiBaseUrl}/positions/${args.positionId}/close`,
     {
       method: 'POST',
       headers: {
@@ -433,8 +481,6 @@ export async function executeClosePosition(
       }),
     }
   );
-
-  const result = (await response.json()) as ClosePositionResult;
   return result;
 }
 
@@ -520,8 +566,8 @@ export async function executeBuyShares(
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/predictions/${args.marketId}/buy`,
+  return safeFetchRequired<BuySharesResult>(
+    `${apiBaseUrl}/markets/predictions/${args.marketId}/buy`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -532,7 +578,6 @@ export async function executeBuyShares(
       }),
     }
   );
-  return (await response.json()) as BuySharesResult;
 }
 
 /**
@@ -549,8 +594,8 @@ export async function executeSellShares(
   if (!position || position.userId !== agent.userId) {
     throw new Error('Position not found or access denied');
   }
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/predictions/${position.marketId}/sell`,
+  return safeFetchRequired<SellSharesResult>(
+    `${apiBaseUrl}/markets/predictions/${position.marketId}/sell`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -560,7 +605,6 @@ export async function executeSellShares(
       }),
     }
   );
-  return (await response.json()) as SellSharesResult;
 }
 
 /**
@@ -571,18 +615,20 @@ export async function executeOpenPosition(
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/markets/perps/open`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: agent.userId,
-      ticker: args.ticker,
-      side: args.side,
-      amount: args.amount,
-      leverage: args.leverage,
-    }),
-  });
-  return (await response.json()) as OpenPositionResult;
+  return safeFetchRequired<OpenPositionResult>(
+    `${apiBaseUrl}/markets/perps/open`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: agent.userId,
+        ticker: args.ticker,
+        side: args.side,
+        amount: args.amount,
+        leverage: args.leverage,
+      }),
+    }
+  );
 }
 
 /**
@@ -639,11 +685,10 @@ export async function executeGetTrades(
   args: GetTradesArgs
 ): Promise<GetTradesResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/trades`);
+  const url = new URL(`${apiBaseUrl}/trades`);
   if (args.marketId) url.searchParams.set('marketId', args.marketId);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as {
+  const data = await safeFetch<{
     trades: Array<{
       id: string;
       marketId: string;
@@ -653,7 +698,13 @@ export async function executeGetTrades(
       price: string;
       timestamp: Date | string;
     }>;
-  };
+  }>(url);
+
+  // Handle null/empty response
+  if (!data) {
+    return { trades: [] };
+  }
+
   return {
     trades: data.trades.map((trade) => ({
       id: trade.id,
@@ -679,11 +730,10 @@ export async function executeGetTradeHistory(
 ): Promise<GetTradeHistoryResult> {
   const apiBaseUrl = getAPIBaseUrl();
   const url = new URL(
-    `${apiBaseUrl}/api/markets/predictions/${args.userId}/trades`
+    `${apiBaseUrl}/markets/predictions/${args.userId}/trades`
   );
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as {
+  const data = await safeFetch<{
     trades: Array<{
       id: string;
       marketId: string;
@@ -692,7 +742,13 @@ export async function executeGetTradeHistory(
       price: string;
       timestamp: Date | string;
     }>;
-  };
+  }>(url);
+
+  // Handle null/empty response
+  if (!data) {
+    return { trades: [] };
+  }
+
   return {
     trades: data.trades.map((trade) => ({
       id: trade.id,
@@ -1784,24 +1840,13 @@ export async function executeGetLeaderboard(
   args: GetLeaderboardArgs
 ): Promise<GetLeaderboardResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/leaderboard`);
+  const url = new URL(`${apiBaseUrl}/leaderboard`);
   if (args.page) url.searchParams.set('page', args.page.toString());
   if (args.pageSize) url.searchParams.set('pageSize', args.pageSize.toString());
   if (args.pointsType) url.searchParams.set('pointsType', args.pointsType);
   if (args.minPoints)
     url.searchParams.set('minPoints', args.minPoints.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as {
-    leaderboard: Array<{
-      rank: number;
-      userId: string;
-      username: string | null;
-      displayName: string | null;
-      points: number;
-    }>;
-    pagination: { page: number; pageSize: number; total: number };
-  };
-  return data;
+  return safeFetchRequired<GetLeaderboardResult>(url);
 }
 
 /**
@@ -1924,9 +1969,9 @@ export async function executeGetReputation(
 ): Promise<GetReputationResult> {
   const userId = args.userId || agent.userId;
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/reputation/${userId}`);
-  const data = (await response.json()) as GetReputationResult;
-  return data;
+  return safeFetchRequired<GetReputationResult>(
+    `${apiBaseUrl}/reputation/${userId}`
+  );
 }
 
 /**
@@ -1937,11 +1982,9 @@ export async function executeGetReputationBreakdown(
   args: GetReputationBreakdownArgs
 ): Promise<GetReputationBreakdownResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/reputation/breakdown/${args.userId}`
+  return safeFetchRequired<GetReputationBreakdownResult>(
+    `${apiBaseUrl}/reputation/breakdown/${args.userId}`
   );
-  const data = (await response.json()) as GetReputationBreakdownResult;
-  return data;
 }
 
 // ============================================================================
@@ -2012,18 +2055,20 @@ export async function executePaymentRequest(
 ): Promise<PaymentRequestResult> {
   // agent used for userId in request body
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/payments/request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: args.from || agent.userId,
-      to: args.to,
-      amount: args.amount,
-      service: args.service,
-      metadata: args.metadata,
-    }),
-  });
-  return (await response.json()) as PaymentRequestResult;
+  return safeFetchRequired<PaymentRequestResult>(
+    `${apiBaseUrl}/payments/request`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: args.from || agent.userId,
+        to: args.to,
+        amount: args.amount,
+        service: args.service,
+        metadata: args.metadata,
+      }),
+    }
+  );
 }
 
 /**
@@ -2034,15 +2079,17 @@ export async function executePaymentReceipt(
   args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/payments/receipt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requestId: args.requestId,
-      txHash: args.txHash,
-    }),
-  });
-  return (await response.json()) as PaymentReceiptResult;
+  return safeFetchRequired<PaymentReceiptResult>(
+    `${apiBaseUrl}/payments/receipt`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: args.requestId,
+        txHash: args.txHash,
+      }),
+    }
+  );
 }
 
 // ============================================================================
@@ -2418,7 +2465,7 @@ export async function executeAppealBan(
   args: AppealBanArgs
 ): Promise<AppealBanResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/moderation/appeal`, {
+  return safeFetchRequired<AppealBanResult>(`${apiBaseUrl}/moderation/appeal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2426,7 +2473,6 @@ export async function executeAppealBan(
       reason: args.reason,
     }),
   });
-  return (await response.json()) as AppealBanResult;
 }
 
 /**
@@ -2550,20 +2596,25 @@ export async function executeGetFavoritePosts(
   args: GetFavoritePostsArgs
 ): Promise<GetFavoritePostsResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/posts/feed/favorites`);
+  const url = new URL(`${apiBaseUrl}/posts/feed/favorites`);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   if (args.offset) url.searchParams.set('offset', args.offset.toString());
-  const response = await fetch(url.toString(), {
-    headers: { 'X-User-Id': agent.userId },
-  });
-  const data = (await response.json()) as {
+  const data = await safeFetch<{
     posts: Array<{
       id: string;
       content: string;
       authorId: string;
       timestamp: Date | string;
     }>;
-  };
+  }>(url, {
+    headers: { 'X-User-Id': agent.userId },
+  });
+
+  // Handle null/empty response
+  if (!data) {
+    return { posts: [] };
+  }
+
   return {
     posts: data.posts.map((post) => ({
       id: post.id,
@@ -2589,18 +2640,19 @@ export async function executeTransferPoints(
   args: TransferPointsArgs
 ): Promise<TransferPointsResult> {
   const apiBaseUrl = getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/points/transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fromUserId: agent.userId,
-      recipientId: args.recipientId,
-      amount: args.amount,
-      message: args.message,
-    }),
-  });
-  const result = (await response.json()) as TransferPointsResult;
-  return result;
+  return safeFetchRequired<TransferPointsResult>(
+    `${apiBaseUrl}/points/transfer`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromUserId: agent.userId,
+        recipientId: args.recipientId,
+        amount: args.amount,
+        message: args.message,
+      }),
+    }
+  );
 }
 
 // ============================================================================

@@ -131,6 +131,7 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
 import { asSystem, asUser } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -150,6 +151,8 @@ export const POST = withErrorHandling(
     if (!chatId) {
       throw new BusinessLogicError('Chat ID is required', 'CHAT_ID_REQUIRED');
     }
+
+    await requireNftChatAccess(user, chatId);
 
     // Validate request body
     const body = await request.json();
@@ -394,6 +397,8 @@ export const GET = withErrorHandling(
     if (!chatId) {
       throw new BusinessLogicError('Chat ID is required', 'CHAT_ID_REQUIRED');
     }
+
+    await requireNftChatAccess(user, chatId);
 
     // Get chat participants
     const participants = await asUser(user, async (db) => {

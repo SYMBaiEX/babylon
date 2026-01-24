@@ -51,6 +51,17 @@ export * from './plugins/plugin-trajectory-logger/src';
 export * from './runtime/AgentRuntimeManager';
 // Services
 export * from './services';
+// Shared utilities
+export {
+  getAgentConfig,
+  getAutonomousFeatures,
+  hasAnyAutonomousFeature,
+  isAutonomousCommentingEnabled,
+  isAutonomousDMsEnabled,
+  isAutonomousGroupChatsEnabled,
+  isAutonomousPostingEnabled,
+  isAutonomousTradingEnabled,
+} from './shared/agent-config';
 // Templates loader
 export * from './templates-loader';
 // Training utilities (RL model fetching, config)

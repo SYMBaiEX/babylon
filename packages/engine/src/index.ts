@@ -23,6 +23,15 @@ export {
 } from './actors-loader';
 // State Store Adapters
 export { DbStateStore, InMemoryStateStore } from './adapters';
+// Alpha Group Configuration
+export {
+  ALPHA_GROUP_CONFIG,
+  type AlphaGroupConfig,
+  calculateNextEligibleDate,
+  DOMAIN_FOCUS_WEIGHTS,
+  getFocusWeightsForDomains,
+  shouldResetDeclineCount,
+} from './config/alpha-group-config';
 // Content Pacing Configuration
 export {
   CONTENT_PACING,
@@ -249,6 +258,27 @@ export {
 } from './reputation';
 // Services (all exported from services/index.ts)
 export * from './services';
+// Tier Configuration
+export {
+  ALL_TIERS,
+  getEffectiveTierConfig,
+  getHigherTier,
+  getLowerTier,
+  getNpcFocusWeights,
+  getTierConfig,
+  getTierForEngagementScore,
+  getTierForEngagementScoreWithNpc,
+  getTierGroupName,
+  getTierMessageGuidance,
+  getTierSuffix,
+  getTotalNpcCapacity,
+  isEligibleForPromotion,
+  isValidTier,
+  shouldDemote,
+  TIER_CONFIG,
+  TIER_MESSAGE_GUIDANCE,
+  type TierConfig,
+} from './services/tier-config';
 // Storage Bridge (database-agnostic storage abstraction)
 export {
   db,

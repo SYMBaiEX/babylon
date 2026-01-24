@@ -12,6 +12,11 @@
  */
 
 import { logger } from '@babylon/shared';
+import {
+  type RngFunction,
+  randomChance,
+  shuffleArray,
+} from '../utils/randomization';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -431,11 +436,13 @@ export function checkVoiceConsistency(
  *
  * @param actorId - The actor's ID
  * @param topicText - The topic/question text
+ * @param rng - Optional random number generator (defaults to Math.random)
  * @returns Whether the actor should post about this topic
  */
 export function shouldPostAboutTopic(
   actorId: string,
-  topicText: string
+  topicText: string,
+  rng: RngFunction = Math.random
 ): boolean {
   const actor = StaticDataRegistry.getActor(actorId);
   const config = getCharacterConfigOrDefault(actorId);
@@ -504,7 +511,7 @@ export function shouldPostAboutTopic(
   const scaledProbability =
     config.offDomainProbability * (1 - engagementThreshold);
 
-  if (Math.random() < scaledProbability) {
+  if (randomChance(scaledProbability, rng)) {
     logger.debug(
       `Actor ${actorId} posting off-domain`,
       { topicText: topicText.substring(0, 50), probability: scaledProbability },
@@ -520,25 +527,15 @@ export function shouldPostAboutTopic(
  * Check if actor should generate an organic (non-question) post
  *
  * @param actorId - The actor's ID
+ * @param rng - Optional random number generator (defaults to Math.random)
  * @returns Whether to generate an organic post
  */
-export function shouldGenerateOrganicPost(actorId: string): boolean {
+export function shouldGenerateOrganicPost(
+  actorId: string,
+  rng: RngFunction = Math.random
+): boolean {
   const config = getCharacterConfigOrDefault(actorId);
-  return Math.random() < config.organicPostProbability;
-}
-
-/**
- * Fisher-Yates shuffle for uniform randomness
- */
-function fisherYatesShuffle<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = shuffled[i];
-    shuffled[i] = shuffled[j] as T;
-    shuffled[j] = temp as T;
-  }
-  return shuffled;
+  return randomChance(config.organicPostProbability, rng);
 }
 
 /**
@@ -546,17 +543,22 @@ function fisherYatesShuffle<T>(array: T[]): T[] {
  *
  * @param actorId - The actor's ID
  * @param count - Number of templates to return
+ * @param rng - Optional random number generator (defaults to Math.random)
  * @returns Array of template posts
  */
-export function getTemplatePosts(actorId: string, count: number = 3): string[] {
+export function getTemplatePosts(
+  actorId: string,
+  count: number = 3,
+  rng: RngFunction = Math.random
+): string[] {
   const config = getCharacterConfigOrDefault(actorId);
 
   if (config.templatePosts.length === 0) {
     return [];
   }
 
-  // Shuffle using Fisher-Yates and take requested count
-  const shuffled = fisherYatesShuffle(config.templatePosts);
+  // Shuffle using shared utility and take requested count
+  const shuffled = shuffleArray(config.templatePosts, rng);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
 

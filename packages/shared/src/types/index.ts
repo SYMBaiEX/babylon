@@ -27,6 +27,8 @@ export {
 export * from './groups';
 // Social interaction types
 export * from './interactions';
+// Message types (chat/system)
+export * from './messages';
 // Agent monitoring types
 export * from './monitoring';
 // Payment types

@@ -7,7 +7,42 @@
 
 import { db } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { type RngFunction } from '../utils/randomization';
 import type { QuestionArcPlan as ArcPlanType } from './question-arc-planner';
+
+// Re-export RngFunction for consumers that were importing it from here
+export type { RngFunction } from '../utils/randomization';
+
+/**
+ * Simulation context for reproducible training and testing.
+ *
+ * @description
+ * Provides a shared RNG function that can be threaded through
+ * narrative engine components for deterministic simulation.
+ *
+ * @example
+ * ```typescript
+ * import { SeededRandom } from '@babylon/engine';
+ *
+ * const seeded = new SeededRandom(12345);
+ * const ctx: SimulationContext = {
+ *   rng: () => seeded.next(),
+ *   seed: 12345,
+ * };
+ *
+ * // Thread through arc planning and signal generation
+ * const plan = planner.planQuestionArc(question, actors, orgs, ctx.rng);
+ * const signal = getSignalDirection(arcPlan, phase, actorId, outcome, ctx.rng);
+ * ```
+ */
+export interface SimulationContext {
+  /** Random number generator function returning [0, 1) */
+  rng: RngFunction;
+  /** Optional seed for reproducibility logging */
+  seed?: number | string;
+  /** Whether this is a training/simulation run (vs live game) */
+  isTraining?: boolean;
+}
 
 /** Calculate signal ratio from phase targets */
 const ratio = (correct: number, wrong: number) => correct / (correct + wrong);
@@ -41,10 +76,16 @@ export async function saveArcPlan(
         ),
         climax: 1.0,
       },
+      // Store deterministic event schedule
+      eventSchedule: arc.eventSchedule ?? [],
       createdAt: new Date(),
     },
   });
-  logger.info('Saved arc plan', { questionId }, 'NarrativeStateService');
+  logger.info(
+    'Saved arc plan',
+    { questionId, eventCount: arc.eventSchedule?.length ?? 0 },
+    'NarrativeStateService'
+  );
 }
 
 /** Get arc plan for a question */
@@ -89,13 +130,15 @@ export function getPhaseForDay(
  * @param phase - Current narrative phase
  * @param actorId - ID of the actor generating content (empty string for events)
  * @param questionOutcome - The predetermined outcome (true = YES, false = NO)
+ * @param rng - Optional random number generator for reproducibility (defaults to Math.random)
  * @returns Signal direction and reasoning
  */
 export function getSignalDirection(
   arcPlan: DatabaseArcPlan,
   phase: 'early' | 'middle' | 'late' | 'climax',
   actorId: string,
-  questionOutcome: boolean
+  questionOutcome: boolean,
+  rng: RngFunction = Math.random
 ): {
   direction: 'YES' | 'NO' | 'NEUTRAL';
   reason: 'insider' | 'deceiver' | 'phase';
@@ -123,7 +166,8 @@ export function getSignalDirection(
   };
   const correctSignalRatio = phaseRatios[phase];
 
-  const shouldBeCorrect = Math.random() < correctSignalRatio;
+  // Use provided RNG for reproducibility in training/simulation
+  const shouldBeCorrect = rng() < correctSignalRatio;
   if (shouldBeCorrect) {
     return { direction: questionOutcome ? 'YES' : 'NO', reason: 'phase' };
   }
