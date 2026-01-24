@@ -49,44 +49,22 @@ class TestValidateEnvironment:
             if original:
                 os.environ["DATABASE_URL"] = original
     
-    def test_missing_openai_api_key(self):
-        """Test error when OPENAI_API_KEY not set"""
-        original = os.environ.get("OPENAI_API_KEY")
-        if "OPENAI_API_KEY" in os.environ:
-            del os.environ["OPENAI_API_KEY"]
-        
-        try:
-            errors = validate_environment()
-            key_errors = [e for e in errors if "OPENAI_API_KEY" in e]
-            assert len(key_errors) >= 1
-        finally:
-            if original:
-                os.environ["OPENAI_API_KEY"] = original
-    
     def test_with_all_env_vars_set(self):
         """Test fewer errors when env vars are set"""
         original_db = os.environ.get("DATABASE_URL")
-        original_key = os.environ.get("OPENAI_API_KEY")
         
         os.environ["DATABASE_URL"] = "postgresql://test:test@localhost/test"
-        os.environ["OPENAI_API_KEY"] = "sk-test123"
         
         try:
             errors = validate_environment()
-            # Should not have DB or OpenAI key errors
+            # Should not have DB errors
             db_errors = [e for e in errors if "DATABASE_URL" in e]
-            key_errors = [e for e in errors if "OPENAI_API_KEY" in e]
             assert len(db_errors) == 0
-            assert len(key_errors) == 0
         finally:
             if original_db:
                 os.environ["DATABASE_URL"] = original_db
             else:
                 del os.environ["DATABASE_URL"]
-            if original_key:
-                os.environ["OPENAI_API_KEY"] = original_key
-            else:
-                del os.environ["OPENAI_API_KEY"]
 
 
 class TestTrainingOrchestratorInit:

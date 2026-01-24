@@ -78,7 +78,7 @@ class TinkerTrainingConfig(BaseModel):
         description="PostgreSQL connection URL",
     )
     lookback_hours: int = Field(
-        default=72, description="Hours to look back for trajectories"
+        default=720, description="Hours to look back for trajectories (30 days)"
     )
     min_agents_per_window: int = Field(
         default=2, description="Minimum agents per window"
@@ -88,6 +88,9 @@ class TinkerTrainingConfig(BaseModel):
     )
     max_steps_per_trajectory: int = Field(
         default=20, description="Max steps to include per trajectory"
+    )
+    max_trajectories: int = Field(
+        default=1000, description="Maximum trajectories to load (prevents OOM)"
     )
     max_token_length: int = Field(default=4096, description="Maximum sequence length")
 
@@ -199,11 +202,22 @@ class BabylonTinkerTrainer:
         if not self.config.database_url:
             raise ValueError("DATABASE_URL not set")
 
+        db_url = self.config.database_url
+        is_supabase_pooler = "pooler.supabase.com" in db_url or ":6543" in db_url
+        
+        if is_supabase_pooler:
+            logger.warning(
+                "⚠️  Detected Supabase pooler connection (port 6543). "
+                "Consider using direct connection (port 5432) for reliability."
+            )
+
+        # statement_cache_size=0 for pooler compatibility
         self._db_pool = await asyncpg.create_pool(
-            self.config.database_url,
-            min_size=2,
-            max_size=10,
-            command_timeout=60,
+            db_url,
+            min_size=1,
+            max_size=5,
+            command_timeout=120,
+            statement_cache_size=0,
         )
         logger.info("Connected to database")
 
@@ -246,7 +260,22 @@ class BabylonTinkerTrainer:
         if not self._db_pool:
             raise RuntimeError("Database not connected")
 
+        from datetime import timedelta
+        
+        logger.info(f"Loading trajectories (lookback={self.config.lookback_hours}h, "
+                    f"max={self.config.max_trajectories})")
+
         async with self._db_pool.acquire() as conn:
+            # First check available trajectories
+            try:
+                count_row = await conn.fetchrow("""
+                    SELECT COUNT(*) as total FROM trajectories WHERE "isTrainingData" = true
+                """)
+                total_count = count_row['total'] if count_row else 0
+                logger.info(f"Database has {total_count} total training trajectories")
+            except Exception as e:
+                logger.warning(f"Could not get trajectory count: {e}")
+            
             rows = await conn.fetch(
                 """
                 SELECT 
@@ -267,11 +296,15 @@ class BabylonTinkerTrainer:
                     AND t."stepsJson"::text != 'null'
                     AND t."stepsJson"::text != '[]'
                     AND t."episodeLength" >= $2
-                ORDER BY t."windowId", t."scenarioId", t."createdAt"
+                ORDER BY t."createdAt" DESC
+                LIMIT $3
                 """,
-                f"{self.config.lookback_hours} hours",
+                timedelta(hours=self.config.lookback_hours),
                 self.config.min_actions_per_trajectory,
+                self.config.max_trajectories,
             )
+        
+        logger.info(f"Fetched {len(rows)} trajectories from database")
 
         # Group by window/scenario
         groups: dict = {}
