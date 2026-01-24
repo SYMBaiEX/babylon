@@ -41,8 +41,8 @@ export interface GroqModelConfig {
 export const GROQ_MODELS = {
   /** Free tier model - fast and efficient */
   FREE: {
-    displayName: 'Llama 4 Maverick 17B',
-    modelId: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    displayName: 'GPT-OSS 20B',
+    modelId: 'openai/gpt-oss-20b',
     tier: 'free',
     description: 'Fast and efficient for everyday tasks',
   },
