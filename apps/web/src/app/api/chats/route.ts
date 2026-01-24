@@ -331,14 +331,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get user's Command Center group to exclude its chats from regular chat list
+    // Get ALL user's Command Center groups to exclude from regular chat list
+    // (handles edge case of duplicate team groups from race conditions)
     // Command Center is managed separately at /agents/team
-    const [teamGroup] = await dbClient
+    const teamGroups = await dbClient
       .select({ id: groups.id })
       .from(groups)
-      .where(and(eq(groups.type, 'team'), eq(groups.ownerId, user.userId)))
-      .limit(1);
-    const teamGroupId = teamGroup?.id;
+      .where(and(eq(groups.type, 'team'), eq(groups.ownerId, user.userId)));
+    const teamGroupIds = new Set(teamGroups.map((g) => g.id));
 
     // Get user's group memberships
     const memberships = await dbClient
@@ -377,10 +377,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .where(inArray(chats.groupId, groupIds))
         : [];
 
-    // Filter out Command Center chats (all chats linked to the team group)
-    const filteredGroupChats = teamGroupId
-      ? groupChatsWithGroupId.filter((c) => c.groupId !== teamGroupId)
-      : groupChatsWithGroupId;
+    // Filter out Command Center chats (all chats linked to any team group)
+    const filteredGroupChats =
+      teamGroupIds.size > 0
+        ? groupChatsWithGroupId.filter(
+            (c) => !c.groupId || !teamGroupIds.has(c.groupId)
+          )
+        : groupChatsWithGroupId;
     const filteredGroupChatsForAccess =
       gatedChatId && canAccessNftGatedChat === false
         ? filteredGroupChats.filter((c) => c.id !== gatedChatId)

@@ -512,12 +512,6 @@ export function useTeamChat(): UseTeamChatReturn {
         },
       });
 
-      if (response.status === 404) {
-        // No team chat exists - user has no agents
-        setTeamChat(null);
-        return;
-      }
-
       if (!response.ok) {
         const data = await response.json();
         setError(data.message || data.error || 'Failed to load Command Center');

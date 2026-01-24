@@ -61,7 +61,6 @@
 import { teamChatService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
 import {
-  and,
   chatParticipants,
   chats,
   db,
@@ -71,7 +70,6 @@ import {
   inArray,
   messages,
   userAgentConfigs,
-  users,
   withTransaction,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -153,25 +151,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
-  // Per spec: Command Center is created when the user has at least one agent.
-  // Avoid creating empty Command Centers for users without agents.
-  const [agentExists] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.managedBy, user.id), eq(users.isAgent, true)))
-    .limit(1);
-
-  if (!agentExists) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'No agents found',
-        message: 'Create your first agent to initialize your Command Center.',
-      },
-      { status: 404 }
-    );
-  }
-
+  // Always create Command Center - even with 0 agents
+  // This allows users to see the Command Center UI before creating their first agent
   const teamChat = await teamChatService.ensureTeamChat(user.id);
 
   // Sync any existing agents that aren't in the team chat yet

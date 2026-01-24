@@ -60,7 +60,7 @@ export class AutonomousGroupChatService {
       const teamGroups = await db
         .select({ id: groups.id })
         .from(groups)
-        .where(and(eq(groups.type, 'team')));
+        .where(eq(groups.type, 'team'));
       teamGroupIds = new Set(teamGroups.map((g) => g.id));
     }
 

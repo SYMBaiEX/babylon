@@ -78,84 +78,110 @@ export class TeamChatService {
     }
 
     // Create new team chat in a transaction with conflict handling
-    const result = await withTransaction(async (tx) => {
-      // Re-check inside transaction to avoid creating orphaned records on race condition
-      const [existingInTx] = await tx
-        .select()
-        .from(groups)
-        .where(and(eq(groups.type, 'team'), eq(groups.ownerId, userId)))
-        .limit(1);
+    // Database has a partial unique index (ownerId WHERE type='team') to prevent duplicates
+    let result: TeamChatInfo | null = null;
 
-      if (existingInTx) {
-        // Another transaction won the race - return null to signal we should fetch existing
-        return null;
+    try {
+      result = await withTransaction(async (tx) => {
+        // Re-check inside transaction to avoid creating orphaned records on race condition
+        const [existingInTx] = await tx
+          .select()
+          .from(groups)
+          .where(and(eq(groups.type, 'team'), eq(groups.ownerId, userId)))
+          .limit(1);
+
+        if (existingInTx) {
+          // Another transaction won the race - return null to signal we should fetch existing
+          return null;
+        }
+
+        const now = new Date();
+        const [groupId, chatId, memberId, participantId] = await Promise.all([
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+          generateSnowflakeId(),
+        ]);
+
+        // 1. Create the Group (type='team' for Command Center)
+        // activeChatId will be set after creating the first Chat
+        await tx.insert(groups).values({
+          id: groupId,
+          name: TEAM_CHAT_NAME,
+          description: TEAM_CHAT_DESCRIPTION,
+          type: 'team',
+          ownerId: userId,
+          createdById: userId,
+          activeChatId: chatId, // Point to initial chat
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // 2. Create the initial Chat linked to the group
+        await tx.insert(chats).values({
+          id: chatId,
+          name: TEAM_CHAT_NAME,
+          description: TEAM_CHAT_DESCRIPTION,
+          isGroup: true,
+          groupId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // 3. Add user as owner of the group
+        await tx.insert(groupMembers).values({
+          id: memberId,
+          groupId,
+          userId,
+          role: 'owner',
+          addedBy: userId,
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        });
+
+        // 4. Add user as chat participant
+        await tx.insert(chatParticipants).values({
+          id: participantId,
+          chatId,
+          userId,
+          joinedAt: now,
+          isActive: true,
+        });
+
+        return {
+          id: groupId,
+          groupId,
+          chatId,
+          ownerId: userId,
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+    } catch (error) {
+      // Handle unique constraint violation (race condition - another transaction won)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes('unique') ||
+        errorMessage.includes('duplicate') ||
+        errorMessage.includes('Group_team_ownerId_unique')
+      ) {
+        logger.info(
+          `Team chat creation race condition detected for user ${userId}, fetching existing`,
+          undefined,
+          'TeamChatService'
+        );
+        const existingAfterRace = await this.getTeamChat(userId);
+        if (existingAfterRace) {
+          return existingAfterRace;
+        }
       }
-
-      const now = new Date();
-      const [groupId, chatId, memberId, participantId] = await Promise.all([
-        generateSnowflakeId(),
-        generateSnowflakeId(),
-        generateSnowflakeId(),
-        generateSnowflakeId(),
-      ]);
-
-      // 1. Create the Group (type='team' for Command Center)
-      // activeChatId will be set after creating the first Chat
-      await tx.insert(groups).values({
-        id: groupId,
-        name: TEAM_CHAT_NAME,
-        description: TEAM_CHAT_DESCRIPTION,
-        type: 'team',
-        ownerId: userId,
-        createdById: userId,
-        activeChatId: chatId, // Point to initial chat
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 2. Create the initial Chat linked to the group
-      await tx.insert(chats).values({
-        id: chatId,
-        name: TEAM_CHAT_NAME,
-        description: TEAM_CHAT_DESCRIPTION,
-        isGroup: true,
-        groupId,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 3. Add user as owner of the group
-      await tx.insert(groupMembers).values({
-        id: memberId,
-        groupId,
-        userId,
-        role: 'owner',
-        addedBy: userId,
-        joinedAt: now,
-        isActive: true,
-        messageCount: 0,
-        qualityScore: 1.0,
-      });
-
-      // 4. Add user as chat participant
-      await tx.insert(chatParticipants).values({
-        id: participantId,
-        chatId,
-        userId,
-        joinedAt: now,
-        isActive: true,
-      });
-
-      return {
-        id: groupId,
-        groupId,
-        chatId,
-        ownerId: userId,
-        createdAt: now,
-        updatedAt: now,
-      };
-    });
+      // Re-throw other errors
+      throw error;
+    }
 
     // Handle race condition: if result is null, another transaction won - fetch existing
     if (result === null) {

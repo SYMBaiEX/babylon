@@ -413,33 +413,6 @@ export default function TeamChatPage() {
     );
   }
 
-  // No team chat (no agents yet)
-  if (!teamChat) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20">
-              <Bot className="h-10 w-10 text-blue-500" />
-            </div>
-            <h2 className="mb-2 font-bold text-2xl text-foreground">
-              Your Command Center is ready
-            </h2>
-            <p className="mb-6 text-muted-foreground">
-              Create your first agent to start coordinating. Your Command Center
-              will automatically include all your agents in one unified chat.
-            </p>
-            <Link href="/agents/create">
-              <Button size="lg" className="gap-2">
-                <Plus className="h-5 w-5" />
-                Create Your First Agent
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </PageContainer>
-    );
-  }
 
   return (
     <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">

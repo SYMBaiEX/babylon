@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 // Enum for group types
@@ -208,6 +209,11 @@ export const groups = pgTable(
     index('Group_tier_idx').on(table.tier),
     index('Group_ownerId_tier_idx').on(table.ownerId, table.tier),
     index('Group_parentGroupId_idx').on(table.parentGroupId),
+    // Ensure only ONE team group (Command Center) per owner
+    // This prevents race conditions from creating duplicate team chats
+    uniqueIndex('Group_team_ownerId_unique')
+      .on(table.ownerId)
+      .where(sql`${table.type} = 'team'`),
   ]
 );
 

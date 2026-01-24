@@ -9,7 +9,6 @@ import {
   Square,
   User,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
@@ -93,18 +92,7 @@ export function MemberList({
             </span>
           )}
         </p>
-        {!teamChat?.agents.length ? (
-          <p className="text-muted-foreground text-sm">
-            No agents yet.{' '}
-            <Link
-              href="/agents/create"
-              className="text-blue-500 hover:underline"
-              onClick={onClose}
-            >
-              Create one
-            </Link>
-          </p>
-        ) : (
+        {teamChat?.agents.length ? (
           <nav role="list" aria-label="Team agents" className="space-y-1">
             {teamChat.agents.map((agent) => {
               const isSelected = selectedAgentIds.has(agent.id);
@@ -247,7 +235,7 @@ export function MemberList({
               );
             })}
           </nav>
-        )}
+        ) : null}
       </div>
 
       {/* Add agent button */}
