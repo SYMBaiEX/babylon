@@ -51,7 +51,6 @@ import {
   actionStateProvider,
   actionsProvider,
   recentMessagesProvider,
-  teamChatMessagesProvider,
 } from './providers';
 
 /**
@@ -94,7 +93,6 @@ export const agentCorePlugin: Plugin = {
   providers: [
     actionsProvider,
     recentMessagesProvider,
-    teamChatMessagesProvider,
     actionStateProvider,
   ],
 };

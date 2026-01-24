@@ -10,12 +10,8 @@
  * These tests verify the Command Center works correctly for agent coordination.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import {
-  type TeamChatInfo,
-  teamChatResponseService,
-  teamChatService,
-} from '@babylon/agents';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { teamChatService } from '@babylon/agents';
 import {
   chatParticipants,
   chats,
@@ -540,56 +536,6 @@ describe('TeamChatService', () => {
   });
 });
 
-describe('TeamChatResponseService', () => {
-  let testUser: { id: string; username: string; displayName: string };
-  let testAgent: { id: string; username: string; displayName: string };
-  let testTeamChat: TeamChatInfo;
-
-  beforeAll(async () => {
-    testUser = await createTestUser('response-user');
-    testAgent = await createTestAgent(testUser.id, 'response-agent');
-    testTeamChat = await teamChatService.ensureTeamChat(testUser.id);
-    testCleanup.teamChatIds.push(testTeamChat.id);
-    testCleanup.groupIds.push(testTeamChat.groupId);
-    testCleanup.chatIds.push(testTeamChat.chatId);
-    await teamChatService.addAgentToTeamChat(testUser.id, testAgent.id);
-  });
-
-  afterAll(async () => {
-    await cleanupTestData();
-  });
-
-  describe('broadcastToAllAgents', () => {
-    test('broadcasts message to all agents in chat', async () => {
-      // broadcastToAllAgents queues messages for all agents
-      // Each agent then decides via LLM whether to respond
-      await expect(
-        teamChatResponseService.broadcastToAllAgents({
-          chatId: testTeamChat.chatId,
-          senderId: testUser.id,
-          ownerDisplayName: testUser.displayName,
-          ownerUsername: testUser.username,
-        })
-      ).resolves.toBeUndefined();
-    });
-
-    test('handles broadcast with multiple agents', async () => {
-      const agent2 = await createTestAgent(testUser.id, 'response-a2');
-      await teamChatService.addAgentToTeamChat(testUser.id, agent2.id);
-
-      // Should broadcast to both agents without error
-      await expect(
-        teamChatResponseService.broadcastToAllAgents({
-          chatId: testTeamChat.chatId,
-          senderId: testUser.id,
-          ownerDisplayName: testUser.displayName,
-          ownerUsername: testUser.username,
-        })
-      ).resolves.toBeUndefined();
-    });
-  });
-});
-
 describe('Edge Cases and Boundary Conditions', () => {
   afterAll(async () => {
     await cleanupTestData();
@@ -916,49 +862,5 @@ describe('syncExistingAgents', () => {
 
     const agents = await teamChatService.getTeamChatAgents(user1.id);
     expect(agents.length).toBe(1);
-  });
-});
-
-describe('Broadcast Behavior', () => {
-  afterAll(async () => {
-    await cleanupTestData();
-  });
-
-  test('broadcasts to all agents in chat', async () => {
-    const user = await createTestUser('broadcast-1');
-    const agent = await createTestAgent(user.id, 'broadcast-a1');
-    const teamChat = await teamChatService.ensureTeamChat(user.id);
-    testCleanup.teamChatIds.push(teamChat.id);
-    testCleanup.groupIds.push(teamChat.groupId);
-    testCleanup.chatIds.push(teamChat.chatId);
-    await teamChatService.addAgentToTeamChat(user.id, agent.id);
-
-    // Broadcast should queue message for all agents
-    await expect(
-      teamChatResponseService.broadcastToAllAgents({
-        chatId: teamChat.chatId,
-        senderId: user.id,
-        ownerDisplayName: user.displayName,
-        ownerUsername: user.username,
-      })
-    ).resolves.toBeUndefined();
-  });
-
-  test('handles broadcast with no agents in chat', async () => {
-    const user = await createTestUser('broadcast-2');
-    const teamChat = await teamChatService.ensureTeamChat(user.id);
-    testCleanup.teamChatIds.push(teamChat.id);
-    testCleanup.groupIds.push(teamChat.groupId);
-    testCleanup.chatIds.push(teamChat.chatId);
-
-    // Should handle empty agent list gracefully
-    await expect(
-      teamChatResponseService.broadcastToAllAgents({
-        chatId: teamChat.chatId,
-        senderId: user.id,
-        ownerDisplayName: user.displayName,
-        ownerUsername: user.username,
-      })
-    ).resolves.toBeUndefined();
   });
 });
