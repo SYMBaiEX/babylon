@@ -1,7 +1,8 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Loader2, MessageSquarePlus } from 'lucide-react';
+import { Loader2, MessageSquarePlus, Check, X, Pencil } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 /** Conversation info */
@@ -18,6 +19,7 @@ interface ConversationListProps {
   loading?: boolean;
   onNewChat: () => void;
   onSelectConversation: (chatId: string) => void;
+  onRenameConversation?: (chatId: string, newName: string) => Promise<void>;
   /** Called when a link is clicked (for closing drawer on mobile) */
   onClose?: () => void;
 }
@@ -27,17 +29,72 @@ interface ConversationListProps {
  *
  * Shows all conversations in the team chat.
  * Allows creating new conversations (fresh chat).
+ * Hover over a conversation to show rename button.
  */
 export function ConversationList({
   conversations,
   loading = false,
   onNewChat,
   onSelectConversation,
+  onRenameConversation,
   onClose,
 }: ConversationListProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
+
   const handleSelectConversation = (chatId: string) => {
+    if (editingId) return; // Don't switch while editing
     onSelectConversation(chatId);
     onClose?.();
+  };
+
+  const handleStartEdit = (
+    e: React.MouseEvent,
+    conversation: ConversationInfo
+  ) => {
+    e.stopPropagation(); // Prevent selecting the conversation
+    if (!onRenameConversation) return;
+    setEditingId(conversation.id);
+    setEditValue(conversation.name || '');
+  };
+
+  const handleSaveRename = async () => {
+    if (!editingId || !onRenameConversation || !editValue.trim()) {
+      setEditingId(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onRenameConversation(editingId, editValue.trim());
+    } finally {
+      setIsSaving(false);
+      setEditingId(null);
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveRename();
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
+    }
   };
 
   return (
@@ -68,12 +125,10 @@ export function ConversationList({
           </p>
         ) : (
           conversations.map((conversation) => (
-            <button
+            <div
               key={conversation.id}
-              type="button"
-              onClick={() => handleSelectConversation(conversation.id)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                'group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
                 conversation.isActive
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -85,10 +140,59 @@ export function ConversationList({
                   conversation.isActive ? 'bg-primary' : 'bg-transparent'
                 )}
               />
-              <span className="truncate text-sm">
-                {conversation.name || 'Untitled'}
-              </span>
-            </button>
+
+              {editingId === conversation.id ? (
+                // Inline edit mode
+                <div className="flex flex-1 items-center gap-1">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isSaving}
+                    className="h-6 flex-1 rounded border border-primary/50 bg-background px-1.5 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveRename}
+                    disabled={isSaving}
+                    className="p-0.5 text-primary hover:text-primary/80"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelRename}
+                    disabled={isSaving}
+                    className="p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                // Normal display mode
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectConversation(conversation.id)}
+                    className="flex-1 truncate text-left text-sm"
+                  >
+                    {conversation.name || 'Untitled'}
+                  </button>
+                  {onRenameConversation && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleStartEdit(e, conversation)}
+                      className="shrink-0 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                      title="Rename"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           ))
         )}
       </div>

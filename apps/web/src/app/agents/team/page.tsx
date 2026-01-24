@@ -125,6 +125,7 @@ export default function TeamChatPage() {
     conversationsLoading,
     createConversation,
     switchConversation,
+    renameConversation,
   } = useTeamChat();
 
   // Mobile member drawer state
@@ -455,6 +456,7 @@ export default function TeamChatPage() {
                 loading={conversationsLoading}
                 onNewChat={() => createConversation()}
                 onSelectConversation={switchConversation}
+                onRenameConversation={renameConversation}
                 onClose={() => setShowMemberDrawer(false)}
               />
             </div>
@@ -540,6 +542,7 @@ export default function TeamChatPage() {
                   loading={conversationsLoading}
                   onNewChat={() => createConversation()}
                   onSelectConversation={switchConversation}
+                  onRenameConversation={renameConversation}
                 />
               </div>
 
