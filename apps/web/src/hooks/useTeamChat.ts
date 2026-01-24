@@ -89,10 +89,19 @@ interface UseTeamChatReturn {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
+  // Agent selection (for parallel task execution)
+  selectedAgentIds: Set<string>;
+  processingAgentIds: Set<string>;
+  toggleAgentSelection: (agentId: string) => void;
+  selectAllAgents: () => void;
+  deselectAllAgents: () => void;
+  stopAgent: (agentId: string) => void;
+
   // Actions
   sendMessage: () => Promise<void>;
   refresh: () => Promise<void>;
   handleScroll: (container: HTMLDivElement) => void;
+  scrollToBottom: (behavior?: 'instant' | 'smooth') => void;
 }
 
 export function useTeamChat(): UseTeamChatReturn {
@@ -117,12 +126,22 @@ export function useTeamChat(): UseTeamChatReturn {
   // Thinking indicator state (for complex queries)
   const [thinkingAgents, setThinkingAgents] = useState<ThinkingAgent[]>([]);
 
+  // Agent selection state (for parallel task execution)
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [processingAgentIds, setProcessingAgentIds] = useState<Set<string>>(
+    new Set()
+  );
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const wasNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  // Store AbortControllers for each processing agent (for stop functionality)
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   // SSE for real-time messages
   const {
@@ -497,6 +516,52 @@ export function useTeamChat(): UseTeamChatReturn {
     }
   }, [user?.id, fetchTeamChat]);
 
+  // Agent selection methods
+  const toggleAgentSelection = useCallback(
+    (agentId: string) => {
+      // Can't toggle if agent is processing
+      if (processingAgentIds.has(agentId)) return;
+
+      setSelectedAgentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(agentId)) {
+          next.delete(agentId);
+        } else {
+          next.add(agentId);
+        }
+        return next;
+      });
+    },
+    [processingAgentIds]
+  );
+
+  const selectAllAgents = useCallback(() => {
+    if (!teamChat?.agents) return;
+    const allIds = teamChat.agents
+      .filter((a) => !processingAgentIds.has(a.id))
+      .map((a) => a.id);
+    setSelectedAgentIds(new Set(allIds));
+  }, [teamChat?.agents, processingAgentIds]);
+
+  const deselectAllAgents = useCallback(() => {
+    setSelectedAgentIds(new Set());
+  }, []);
+
+  // Stop a processing agent (aborts the fetch request)
+  const stopAgent = useCallback((agentId: string) => {
+    const controller = abortControllersRef.current.get(agentId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(agentId);
+    }
+    // Remove from processing immediately
+    setProcessingAgentIds((prev) => {
+      const next = new Set(prev);
+      next.delete(agentId);
+      return next;
+    });
+  }, []);
+
   // Build chat details from team chat info and realtime messages
   const chatDetails: ChatDetails | null = teamChat
     ? {
@@ -534,7 +599,7 @@ export function useTeamChat(): UseTeamChatReturn {
       }
     : null;
 
-  // Send message with optimistic update (iMessage-style)
+  // Send message with optimistic update and parallel agent execution
   const sendMessage = useCallback(async () => {
     // Guard: require valid user, teamChat, content, and not already sending
     if (!teamChat || !messageInput.trim() || sending || !user?.id) return;
@@ -546,6 +611,14 @@ export function useTeamChat(): UseTeamChatReturn {
     }
 
     const content = messageInput.trim();
+
+    // Auto-select all agents if none selected
+    let agentsToCall = Array.from(selectedAgentIds);
+    if (agentsToCall.length === 0 && teamChat?.agents) {
+      agentsToCall = teamChat.agents
+        .filter((a) => !processingAgentIds.has(a.id))
+        .map((a) => a.id);
+    }
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -560,6 +633,9 @@ export function useTeamChat(): UseTeamChatReturn {
       stableKey: optimisticId,
     });
 
+    // Scroll to bottom after DOM updates with new message
+    setTimeout(() => scrollToBottom('instant'), 50);
+
     setMessageInput('');
     setSending(true);
     setSendError(null);
@@ -573,6 +649,7 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
+      // First, save user message to team chat (happens once for all agents)
       const response = await fetch('/api/agents/team-chat/message', {
         method: 'POST',
         headers: {
@@ -587,6 +664,77 @@ export function useTeamChat(): UseTeamChatReturn {
         removeMessage(optimisticId);
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
+        return;
+      }
+
+      // If agents are selected, call them in parallel
+      if (agentsToCall.length > 0) {
+        // Mark selected agents as processing
+        setProcessingAgentIds((prev) => {
+          const next = new Set(prev);
+          for (const id of agentsToCall) {
+            next.add(id);
+          }
+          return next;
+        });
+
+        // Clear selection (agents are now being processed)
+        setSelectedAgentIds(new Set());
+
+        // Get user info for team chat context
+        const ownerName = user.displayName || user.username || 'User';
+        const ownerUsername = user.username || '';
+
+        // Call each selected agent in parallel
+        const agentCalls = agentsToCall.map(async (agentId) => {
+          // Create AbortController for this agent (for stop functionality)
+          const controller = new AbortController();
+          abortControllersRef.current.set(agentId, controller);
+
+          try {
+            const agentResponse = await fetch(`/api/agents/${agentId}/chat`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                message: content,
+                usePro: false, // Use free tier by default
+                teamChatId: teamChat.chatId,
+                teamChatOwnerName: ownerName,
+                teamChatOwnerUsername: ownerUsername,
+              }),
+              signal: controller.signal,
+            });
+
+            if (!agentResponse.ok) {
+              console.error(`Agent ${agentId} failed to respond`);
+            }
+          } catch (err) {
+            // Don't log abort errors - they're expected when user stops
+            if (err instanceof Error && err.name === 'AbortError') {
+              console.log(`Agent ${agentId} request was cancelled`);
+            } else {
+              console.error(`Error calling agent ${agentId}:`, err);
+            }
+          } finally {
+            // Clean up AbortController
+            abortControllersRef.current.delete(agentId);
+            // Remove from processing when done
+            setProcessingAgentIds((prev) => {
+              const next = new Set(prev);
+              next.delete(agentId);
+              return next;
+            });
+          }
+        });
+
+        // Don't await - let agents process in background
+        // Responses will come through SSE/broadcast
+        Promise.all(agentCalls).catch((err) => {
+          console.error('Error in parallel agent calls:', err);
+        });
       }
     } catch (err) {
       // Rollback optimistic message on network error
@@ -601,11 +749,14 @@ export function useTeamChat(): UseTeamChatReturn {
     teamChat,
     messageInput,
     sending,
-    user?.id,
+    user,
+    selectedAgentIds,
+    processingAgentIds,
     getAccessToken,
     addMessage,
     removeMessage,
     sendTypingIndicator,
+    scrollToBottom,
   ]);
 
   return {
@@ -626,8 +777,17 @@ export function useTeamChat(): UseTeamChatReturn {
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
+    // Agent selection
+    selectedAgentIds,
+    processingAgentIds,
+    toggleAgentSelection,
+    selectAllAgents,
+    deselectAllAgents,
+    stopAgent,
+    // Actions
     sendMessage,
     refresh: fetchTeamChat,
     handleScroll,
+    scrollToBottom,
   };
 }

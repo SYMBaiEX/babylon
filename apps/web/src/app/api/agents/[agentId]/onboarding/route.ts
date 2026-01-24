@@ -37,8 +37,8 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-// Onboarding message template - uses {{actionsWithDescriptions}} from ACTIONS provider
-const onboardingTemplate = `You are an AI agent that has just been created. Generate a warm, personalized welcome message to introduce yourself to your owner.
+// Onboarding message template - for team chat greeting
+const onboardingTemplate = `You are a new AI agent joining the team Command Center chat. Write a SHORT, friendly greeting to introduce yourself to the team.
 
 # Your Identity
 Name: {{agentName}}
@@ -58,26 +58,23 @@ Name: {{agentName}}
 
 ---
 
-# Your Capabilities
-These are the actions you can perform for your owner:
-
-{{actionsWithDescriptions}}
-
----
-
 # Your Task
-Write a warm, personalized welcome message that:
-1. Introduces yourself by name and personality
-2. Briefly explains what you can do for the user based on your available actions
-3. Invites them to start chatting or give you a task
-4. Stays true to your personality and character
+Write a SHORT, friendly greeting message (1-2 sentences MAX) that:
+1. Says hi to the team
+2. Introduces yourself briefly by name
+3. Shows a bit of your personality
+4. Expresses that you're excited/ready to help
 
-Keep it concise (2-3 paragraphs max) and engaging. Don't list every action - summarize your capabilities naturally.
+IMPORTANT:
+- This is a casual team chat, NOT a formal introduction
+- Keep it SHORT - just 1-2 sentences like "Hey everyone! I'm [name], [brief personality]. Excited to join the team!"
+- Do NOT list your capabilities - that comes later when asked
+- Be warm and conversational, like joining a group chat with friends
 
 Output ONLY this XML format:
 <response>
-<thought>Brief reasoning about how to introduce yourself</thought>
-<text>Your welcome message to the user</text>
+<thought>Brief reasoning</thought>
+<text>Your SHORT greeting (1-2 sentences only)</text>
 </response>`;
 
 export const POST = withErrorHandling(
@@ -288,6 +285,9 @@ export const POST = withErrorHandling(
           { chatId: teamChat.chatId, messageId: teamChatMessageId },
           'AgentOnboarding'
         );
+
+        // Note: Agent responses are now triggered by the user selecting agents
+        // in the Command Center sidebar, not automatically on new messages.
       }
     } catch (error) {
       // Don't fail the whole request if team chat message fails
