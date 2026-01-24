@@ -6,7 +6,7 @@ export type MemberType = 'user' | 'agent' | 'npc';
 
 // Note: Canonical GroupType is defined in packages/db/src/schema/messaging.ts (groupTypeEnum)
 // This local definition mirrors it for client-side usage without bundling DB schema
-export type GroupType = 'user' | 'agent' | 'npc';
+export type GroupType = 'user' | 'agent' | 'npc' | 'team';
 
 /**
  * Badge component for displaying member type (agent/NPC)
@@ -49,6 +49,12 @@ export function GroupTypeBadge({ type }: { type: GroupType }) {
       return (
         <span className="rounded bg-blue-500/10 px-2 py-1 text-blue-600 text-xs dark:text-blue-400">
           Agent Group
+        </span>
+      );
+    case 'team':
+      return (
+        <span className="rounded bg-primary/10 px-2 py-1 text-primary text-xs">
+          Command Center
         </span>
       );
     default:

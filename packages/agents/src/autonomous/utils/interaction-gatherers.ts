@@ -13,6 +13,7 @@ import {
   db,
   desc,
   eq,
+  groups,
   gte,
   inArray,
   isNull,
@@ -199,8 +200,21 @@ export async function gatherPendingChatMessages(
   const validChats = agentChats.filter((c) => c.chat !== null);
   if (validChats.length === 0) return interactions;
 
-  const chatIds = validChats.map((c) => c.chatId);
-  const chatMap = new Map(validChats.map((c) => [c.chatId, c.chat!]));
+  // Filter out team chats (Command Center) - agents shouldn't auto-respond there
+  // Team chats use group.type = 'team'
+  const teamGroups = await db
+    .select({ id: groups.id })
+    .from(groups)
+    .where(eq(groups.type, 'team'));
+  const teamGroupIds = new Set(teamGroups.map((g) => g.id));
+
+  const nonTeamChats = validChats.filter(
+    (c) => !c.chat?.groupId || !teamGroupIds.has(c.chat.groupId)
+  );
+  if (nonTeamChats.length === 0) return interactions;
+
+  const chatIds = nonTeamChats.map((c) => c.chatId);
+  const chatMap = new Map(nonTeamChats.map((c) => [c.chatId, c.chat!]));
 
   // Batch fetch recent messages
   const allRecentMessages = await db

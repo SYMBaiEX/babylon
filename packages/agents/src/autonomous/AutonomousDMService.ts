@@ -4,12 +4,22 @@
  * Handles agents responding to direct messages autonomously
  */
 
-import { and, db, desc, eq, gte, messages, ne } from '@babylon/db';
+import {
+  and,
+  chatParticipants,
+  db,
+  desc,
+  eq,
+  gte,
+  messages,
+  ne,
+  users,
+} from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
-import { getAgentContext } from './agent-context';
+import { getAgentContext, isNpcUser } from './agent-context';
 import { executeDirectMessage } from './DirectExecutors';
 
 /**
@@ -34,6 +44,18 @@ export class AutonomousDMService {
 
     const config = await getAgentConfig(agentUserId);
 
+    // For user-controlled agents, get the owner ID to filter out owner DMs
+    // (Owner should use Command Center/team chat instead of DMs)
+    let ownerUserId: string | null = null;
+    if (!isNpcUser(agentUserId)) {
+      const [agentRecord] = await db
+        .select({ managedBy: users.managedBy })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+      ownerUserId = agentRecord?.managedBy ?? null;
+    }
+
     // Get agent's DM chats (non-group chats)
     const dmChatsRaw = await db.query.chatParticipants.findMany({
       where: (chatParticipants, { eq }) =>
@@ -48,6 +70,30 @@ export class AutonomousDMService {
     for (const chatParticipant of dmChatsRaw) {
       const chat = chatParticipant.chat;
       if (!chat || chat.isGroup) continue; // Skip group chats
+
+      // Skip DMs with the owner - owner should use Command Center instead
+      // Directly check if owner is a participant (more reliable than checking arbitrary other participant)
+      if (ownerUserId && chat.id) {
+        const ownerParticipation = await db
+          .select({ userId: chatParticipants.userId })
+          .from(chatParticipants)
+          .where(
+            and(
+              eq(chatParticipants.chatId, chat.id),
+              eq(chatParticipants.userId, ownerUserId)
+            )
+          )
+          .limit(1);
+
+        if (ownerParticipation.length > 0) {
+          logger.debug(
+            `Skipping DM with owner ${ownerUserId} - use Command Center instead`,
+            undefined,
+            'AutonomousDM'
+          );
+          continue;
+        }
+      }
 
       // Get recent messages in this chat
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);

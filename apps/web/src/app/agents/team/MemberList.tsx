@@ -9,7 +9,6 @@ import {
   Square,
   User,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
@@ -93,18 +92,7 @@ export function MemberList({
             </span>
           )}
         </p>
-        {!teamChat?.agents.length ? (
-          <p className="text-muted-foreground text-sm">
-            No agents yet.{' '}
-            <Link
-              href="/agents/create"
-              className="text-blue-500 hover:underline"
-              onClick={onClose}
-            >
-              Create one
-            </Link>
-          </p>
-        ) : (
+        {teamChat?.agents.length ? (
           <nav role="list" aria-label="Team agents" className="space-y-1">
             {teamChat.agents.map((agent) => {
               const isSelected = selectedAgentIds.has(agent.id);
@@ -116,7 +104,7 @@ export function MemberList({
                 <div
                   key={agent.id}
                   className={cn(
-                    'group flex items-center gap-2 rounded-lg p-2 transition-colors',
+                    'group flex min-w-0 items-center gap-2 rounded-lg p-2 transition-colors',
                     isSelected
                       ? 'bg-blue-500/15 ring-1 ring-blue-500/30'
                       : 'hover:bg-muted/50',
@@ -129,7 +117,7 @@ export function MemberList({
                     onClick={() => canSelect && onToggleAgent(agent.id)}
                     disabled={isProcessing}
                     className={cn(
-                      'flex flex-1 items-center gap-3 text-left',
+                      'flex min-w-0 flex-1 items-center gap-3 text-left',
                       isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}
                     aria-label={
@@ -247,7 +235,7 @@ export function MemberList({
               );
             })}
           </nav>
-        )}
+        ) : null}
       </div>
 
       {/* Add agent button */}

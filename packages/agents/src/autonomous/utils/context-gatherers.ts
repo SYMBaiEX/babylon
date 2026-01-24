@@ -16,6 +16,7 @@ import {
   eq,
   getDbInstance,
   getRawDrizzle,
+  groups,
   gte,
   inArray,
   isNull,
@@ -244,11 +245,19 @@ export async function getAgentPositions(agentUserId: string): Promise<{
 
 /**
  * Get agent's group chats for potential sharing
+ * Excludes team chats (Command Center) - agents shouldn't auto-respond there
  */
 export async function getAgentGroupChats(
   agentUserId: string
 ): Promise<{ id: string; name: string; memberCount: number }[]> {
   try {
+    // Filter out team chats (Command Center)
+    const teamGroups = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(eq(groups.type, 'team'));
+    const teamGroupIds = new Set(teamGroups.map((g) => g.id));
+
     // Use DB-side aggregate count instead of loading all participant rows
     const rawDb = getRawDrizzle();
     const agentParticipation = rawDb
@@ -261,16 +270,22 @@ export async function getAgentGroupChats(
       .select({
         id: chats.id,
         name: chats.name,
+        groupId: chats.groupId,
         memberCount: count(chatParticipants.id),
       })
       .from(chats)
       .innerJoin(agentParticipation, eq(chats.id, agentParticipation.chatId))
       .innerJoin(chatParticipants, eq(chats.id, chatParticipants.chatId))
       .where(eq(chats.isGroup, true))
-      .groupBy(chats.id, chats.name)
-      .limit(5);
+      .groupBy(chats.id, chats.name, chats.groupId)
+      .limit(10); // Fetch more to account for filtering
 
-    return groupChatsWithCount.map((chat) => ({
+    // Filter out team chats
+    const filteredChats = groupChatsWithCount.filter(
+      (chat) => !chat.groupId || !teamGroupIds.has(chat.groupId)
+    );
+
+    return filteredChats.slice(0, 5).map((chat) => ({
       id: chat.id,
       name: chat.name ?? 'Group Chat',
       memberCount: chat.memberCount,

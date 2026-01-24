@@ -235,19 +235,6 @@ export function AgentCreate({
     const result = await response.json();
     const agentId = result.agent.id;
 
-    // Generate onboarding message
-    try {
-      await fetch(`/api/agents/${agentId}/onboarding`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (error) {
-      console.warn('Error generating onboarding message:', error);
-    }
-
     clearDraft();
     toast.success('Agent created successfully!');
 

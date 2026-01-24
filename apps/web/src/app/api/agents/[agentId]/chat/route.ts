@@ -439,6 +439,7 @@ export const POST = withErrorHandling(
         maxIterations: MAX_ITERATIONS,
         actionCount: traceActionResults.length,
         // Owner info for personalized conversation
+        ownerId: user.id, // For RECENT_MESSAGES provider to filter team chat messages
         ownerName,
         ownerUsername,
         // Team chat context
@@ -677,6 +678,7 @@ export const POST = withErrorHandling(
         tradingStrategy: agentConfig?.tradingStrategy ?? '',
         currentMessage: message,
         // Owner info for personalized conversation
+        ownerId: user.id, // For RECENT_MESSAGES provider to filter team chat messages
         ownerName,
         ownerUsername,
         // Team chat context
@@ -752,51 +754,18 @@ export const POST = withErrorHandling(
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
 
-    // Save messages to agent's individual chat
-    const userMessageId = uuidv4();
-    const assistantMessageId = uuidv4();
     const userMessageTime = new Date();
     const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
+    let responseMessageId: string;
 
-    await db.agentMessage.createMany({
-      data: [
-        {
-          id: userMessageId,
-          agentUserId: agentId,
-          role: 'user',
-          content: message,
-          pointsCost: 0,
-          metadata: {},
-          createdAt: userMessageTime,
-        },
-        {
-          id: assistantMessageId,
-          agentUserId: agentId,
-          role: 'assistant',
-          content: responseText,
-          modelUsed,
-          pointsCost,
-          createdAt: assistantMessageTime,
-          metadata: {
-            multiStep: true,
-            actionsExecuted: traceActionResults.length,
-            actions: traceActionResults.map((a) => ({
-              type: a.actionType,
-              success: a.success,
-            })),
-          },
-        },
-      ],
-    });
-
-    // If team chat mode, write agent response to the shared team chat
-    // User message is written by frontend (once) before calling multiple agents
-    if (teamChatId) {
-      const teamAgentMessageId = await generateSnowflakeId();
+    if (isTeamChatMode && teamChatId) {
+      // Team chat mode: Write only to messages table (not agentMessages)
+      // User message is written by frontend (once) before calling multiple agents
+      responseMessageId = await generateSnowflakeId();
 
       // Write agent response to team chat
       await db.insert(messages).values({
-        id: teamAgentMessageId,
+        id: responseMessageId,
         chatId: teamChatId,
         senderId: agentId,
         content: responseText,
@@ -805,7 +774,7 @@ export const POST = withErrorHandling(
 
       // Broadcast agent response to team chat
       broadcastChatMessage(teamChatId, {
-        id: teamAgentMessageId,
+        id: responseMessageId,
         content: responseText,
         chatId: teamChatId,
         senderId: agentId,
@@ -821,9 +790,44 @@ export const POST = withErrorHandling(
 
       logger.info(
         `Agent response written to team chat ${teamChatId}`,
-        { agentMessageId: teamAgentMessageId, agentId },
+        { agentMessageId: responseMessageId, agentId },
         'AgentChat'
       );
+    } else {
+      // Legacy DM mode: Write to agentMessages table
+      const userMessageId = uuidv4();
+      responseMessageId = uuidv4();
+
+      await db.agentMessage.createMany({
+        data: [
+          {
+            id: userMessageId,
+            agentUserId: agentId,
+            role: 'user',
+            content: message,
+            pointsCost: 0,
+            metadata: {},
+            createdAt: userMessageTime,
+          },
+          {
+            id: responseMessageId,
+            agentUserId: agentId,
+            role: 'assistant',
+            content: responseText,
+            modelUsed,
+            pointsCost,
+            createdAt: assistantMessageTime,
+            metadata: {
+              multiStep: true,
+              actionsExecuted: traceActionResults.length,
+              actions: traceActionResults.map((a) => ({
+                type: a.actionType,
+                success: a.success,
+              })),
+            },
+          },
+        ],
+      });
     }
 
     // Update lastChatAt
@@ -859,7 +863,7 @@ export const POST = withErrorHandling(
 
     return NextResponse.json({
       success: true,
-      messageId: assistantMessageId,
+      messageId: responseMessageId,
       response: responseText,
       pointsCost,
       modelUsed,
