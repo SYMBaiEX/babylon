@@ -38,9 +38,8 @@ export default function CreateAgentPage() {
         onBack={() => router.push('/agents')}
         backLabel="Back"
         onSuccess={(agent) => {
-          // Redirect to team chat with @mention for the new agent
-          const mention = agent.username ? `${agent.username} ` : '';
-          router.push(`/agents/team?mention=${encodeURIComponent(mention)}`);
+          // Redirect to team chat and select the new agent
+          router.push(`/agents/team?selectAgent=${encodeURIComponent(agent.id)}`);
         }}
       />
     </PageContainer>
