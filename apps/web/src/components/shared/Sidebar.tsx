@@ -3,7 +3,6 @@
 import { cn, getReferralUrl } from '@babylon/shared';
 import {
   Bell,
-  Bot,
   Check,
   Copy,
   Gift,
@@ -159,15 +158,6 @@ function SidebarContent() {
       icon: MessageCircle,
       color: '#0066FF',
       active: pathname === '/chats',
-    },
-    {
-      name: 'Agents',
-      href: '/agents',
-      icon: Bot,
-      color: '#0066FF',
-      active:
-        pathname === '/agents' ||
-        (pathname.startsWith('/agents/') && pathname !== '/agents/team'),
     },
     {
       name: 'Command Center',
