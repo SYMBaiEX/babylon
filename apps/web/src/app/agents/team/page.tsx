@@ -413,7 +413,6 @@ export default function TeamChatPage() {
     );
   }
 
-
   return (
     <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
       {/* Mobile Member Drawer - only for Chat tab */}
