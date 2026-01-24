@@ -399,12 +399,22 @@ def create_preference_pairs(
                 better_msgs = trajectory_to_conversation(better)
                 worse_msgs = trajectory_to_conversation(worse)
                 
-                # Get prompt and completions
+                # Get prompt and completions for both trajectories
                 prompt_better, completion_better = conversation_to_text(better_msgs)
                 prompt_worse, completion_worse = conversation_to_text(worse_msgs)
                 
-                # Use the better trajectory's prompt as the shared prompt
-                # (they should be similar since same window/scenario)
+                # Ensure chosen and rejected share the identical prompt
+                # This is critical for preference learning - the model must compare
+                # completions given the exact same context
+                if prompt_better != prompt_worse:
+                    # Prompts differ despite same window/scenario - skip this pair
+                    # This can happen due to different observation states or step counts
+                    logger.debug(
+                        f"Skipping pair: prompts differ for window {better.window_id} "
+                        f"(better={better.trajectory_id}, worse={worse.trajectory_id})"
+                    )
+                    continue
+                
                 pairs.append(PreferencePair(
                     prompt=prompt_better,
                     chosen=completion_better,

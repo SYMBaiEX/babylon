@@ -43,16 +43,47 @@ COPY python/ ./python/
 COPY Makefile ./Makefile
 COPY config/ ./config/
 
-# Install the training package
-RUN cd python && pip install -e .
+# Install the training package (--no-cache-dir to avoid storing cache in image layer)
+RUN cd python && pip install -e . --no-cache-dir
 
 # Create db directory (for optional migrations)
 RUN mkdir -p ./db
 
 # Optional: Pre-download model weights
+# ============================================================================
+# SECURITY WARNING: trust_remote_code=True executes arbitrary Python code from
+# the model repository. This allows custom model architectures but poses a
+# security risk if used with untrusted models. Only use with models from:
+#   - Official HuggingFace organizations (meta-llama, mistralai, Qwen, google, etc.)
+#   - Your own verified repositories
+#
+# Approved model patterns (add to this list as needed):
+#   - Qwen/Qwen*
+#   - meta-llama/Llama*
+#   - mistralai/Mistral*
+#   - google/gemma*
+#   - NousResearch/*
+# ============================================================================
 ARG PRELOAD_MODEL=""
+
+# Allowlist of trusted model prefixes for trust_remote_code=True
+# Models not matching these patterns will be rejected at build time
 RUN if [ -n "$PRELOAD_MODEL" ]; then \
-    echo "Pre-downloading model: $PRELOAD_MODEL" && \
+    # Validate model against allowlist before downloading
+    ALLOWED_PREFIXES="Qwen/ meta-llama/ mistralai/ google/ NousResearch/ microsoft/ deepseek-ai/"; \
+    MODEL_ALLOWED=false; \
+    for prefix in $ALLOWED_PREFIXES; do \
+        case "$PRELOAD_MODEL" in \
+            ${prefix}*) MODEL_ALLOWED=true; break ;; \
+        esac; \
+    done; \
+    if [ "$MODEL_ALLOWED" = "false" ]; then \
+        echo "ERROR: Model '$PRELOAD_MODEL' is not in the trusted allowlist." >&2; \
+        echo "Allowed prefixes: $ALLOWED_PREFIXES" >&2; \
+        echo "Add the model prefix to ALLOWED_PREFIXES if you trust this source." >&2; \
+        exit 1; \
+    fi; \
+    echo "Pre-downloading trusted model: $PRELOAD_MODEL" && \
     python3 -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
         print('Downloading tokenizer...'); \
         AutoTokenizer.from_pretrained('$PRELOAD_MODEL', trust_remote_code=True); \

@@ -29,28 +29,35 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Bun for database migrations
+# Use pipefail to ensure curl failures don't silently succeed
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://bun.sh/install | bash
+SHELL ["/bin/sh", "-c"]
 ENV PATH="/root/.bun/bin:$PATH"
 
 # Create app directory
 WORKDIR /app
 
 # Install additional ML dependencies for training
+# Versions pinned for reproducible builds (update periodically)
 RUN pip install --no-cache-dir \
-    transformers>=4.36.0 \
-    peft>=0.8.0 \
-    accelerate>=1.12.0 \
-    atroposlib \
-    wandb \
-    huggingface-hub \
-    tenacity \
-    python-dotenv \
-    psycopg2-binary \
-    aiohttp
+    transformers==4.47.1 \
+    peft==0.14.0 \
+    accelerate==1.2.1 \
+    atroposlib==0.1.2 \
+    wandb==0.19.1 \
+    huggingface-hub==0.27.1 \
+    tenacity==9.0.0 \
+    python-dotenv==1.0.1 \
+    psycopg2-binary==2.9.10 \
+    aiohttp==3.11.11
 
-# Verify installations
-RUN python3 -c "import torch; print(f'PyTorch {torch.__version__}, CUDA available: {torch.cuda.is_available()}')"
-RUN python3 -c "import vllm; print(f'vLLM {vllm.__version__}')"
+# Verify installations (consolidated into single layer)
+RUN python3 -c "\
+import torch; \
+import vllm; \
+print(f'PyTorch {torch.__version__}, CUDA available: {torch.cuda.is_available()}'); \
+print(f'vLLM {vllm.__version__}')"
 
 # Set environment defaults
 ENV PYTHONPATH=/app/python
