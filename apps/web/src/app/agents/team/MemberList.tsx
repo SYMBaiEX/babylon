@@ -1,11 +1,27 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Bot, Check, Loader2, Plus } from 'lucide-react';
+import {
+  Check,
+  Loader2,
+  MoreVertical,
+  Plus,
+  Settings,
+  User,
+} from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 /** Agent info for member list */
 interface TeamChatAgent {
@@ -56,6 +72,10 @@ export function MemberList({
   processingAgentIds = new Set(),
   onToggleAgent,
 }: MemberListProps) {
+  const router = useRouter();
+  // Track which dropdown is open (by agent id)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
   return (
     <div className="flex-1 overflow-y-auto p-4">
       {/* You (the user) */}
@@ -81,9 +101,13 @@ export function MemberList({
       <div>
         <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
           Agents ({teamChat?.agentCount ?? 0})
-          {selectedAgentIds.size > 0 && (
+          {selectedAgentIds.size > 0 ? (
             <span className="ml-2 text-blue-500">
               · {selectedAgentIds.size} selected
+            </span>
+          ) : (
+            <span className="ml-2 font-normal normal-case opacity-70">
+              · Click to select
             </span>
           )}
         </p>
@@ -104,47 +128,45 @@ export function MemberList({
               const isSelected = selectedAgentIds.has(agent.id);
               const isProcessing = processingAgentIds.has(agent.id);
               const canSelect = !isProcessing && onToggleAgent;
+              const agentName = agent.displayName || agent.username || 'Agent';
 
               return (
-                <div key={agent.id} className="flex items-center gap-2">
-                  {/* Selection checkbox/button */}
-                  {onToggleAgent && (
-                    <button
-                      type="button"
-                      onClick={() => canSelect && onToggleAgent(agent.id)}
-                      disabled={isProcessing}
-                      className={cn(
-                        'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
-                        isSelected
-                          ? 'border-blue-500 bg-blue-500 text-white'
-                          : 'border-muted-foreground/30 hover:border-blue-500/50',
-                        isProcessing && 'cursor-not-allowed opacity-50'
-                      )}
-                      aria-label={
-                        isSelected
-                          ? `Deselect ${agent.displayName || agent.username}`
-                          : `Select ${agent.displayName || agent.username}`
-                      }
-                    >
-                      {isSelected && <Check className="h-3 w-3" />}
-                    </button>
+                <div
+                  key={agent.id}
+                  className={cn(
+                    'group flex items-center gap-2 rounded-lg p-2 transition-colors',
+                    isSelected
+                      ? 'bg-blue-500/15 ring-1 ring-blue-500/30'
+                      : 'hover:bg-muted/50',
+                    isProcessing && 'opacity-70'
                   )}
-
-                  {/* Agent info - clickable to go to profile */}
-                  <Link
-                    href={`/agents/${agent.id}`}
-                    onClick={onClose}
+                >
+                  {/* Agent info - clickable to toggle selection */}
+                  <button
+                    type="button"
+                    onClick={() => canSelect && onToggleAgent(agent.id)}
+                    disabled={isProcessing}
                     className={cn(
-                      'flex flex-1 items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50',
-                      isSelected && 'bg-blue-500/10'
+                      'flex flex-1 items-center gap-3 text-left',
+                      isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}
+                    aria-label={
+                      isSelected
+                        ? `Deselect ${agentName}`
+                        : `Select ${agentName}`
+                    }
                   >
                     <div className="relative">
                       <Avatar
                         src={agent.profileImageUrl ?? undefined}
-                        name={agent.displayName || agent.username || 'Agent'}
+                        name={agentName}
                         size="sm"
                       />
+                      {isSelected && !isProcessing && (
+                        <div className="-right-1 -bottom-1 absolute rounded-full bg-blue-500 p-0.5">
+                          <Check className="h-2.5 w-2.5 text-white" />
+                        </div>
+                      )}
                       {isProcessing && (
                         <div className="-right-1 -bottom-1 absolute rounded-full bg-background p-0.5">
                           <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
@@ -153,7 +175,7 @@ export function MemberList({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground text-sm">
-                        {agent.displayName || agent.username || 'Agent'}
+                        {agentName}
                       </p>
                       {agent.username && (
                         <p className="truncate text-muted-foreground text-xs">
@@ -161,17 +183,74 @@ export function MemberList({
                         </p>
                       )}
                     </div>
-                    {isProcessing ? (
+                    {isProcessing && (
                       <span className="flex-shrink-0 text-blue-500 text-xs">
                         Working...
                       </span>
-                    ) : (
-                      <Bot
-                        className="h-4 w-4 flex-shrink-0 text-blue-500"
-                        aria-hidden="true"
-                      />
                     )}
-                  </Link>
+                  </button>
+
+                  {/* 3-dot dropdown menu */}
+                  <DropdownMenu
+                    open={openDropdown === agent.id}
+                    onOpenChange={(open) =>
+                      setOpenDropdown(open ? agent.id : null)
+                    }
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                          'text-muted-foreground hover:bg-muted hover:text-foreground',
+                          'opacity-0 focus:opacity-100 group-hover:opacity-100',
+                          openDropdown === agent.id && 'opacity-100'
+                        )}
+                        aria-label={`Options for ${agentName}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {/* Select/Unselect */}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (canSelect) onToggleAgent(agent.id);
+                          setOpenDropdown(null);
+                        }}
+                        disabled={isProcessing}
+                      >
+                        <Check className="mr-2 h-4 w-4" />
+                        {isSelected ? 'Unselect' : 'Select'}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
+
+                      {/* View Profile */}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          router.push(`/agents/${agent.id}`);
+                          onClose?.();
+                          setOpenDropdown(null);
+                        }}
+                      >
+                        <User className="mr-2 h-4 w-4" />
+                        View Profile
+                      </DropdownMenuItem>
+
+                      {/* Agent Settings (dummy) */}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          router.push(`/agents/${agent.id}/settings`);
+                          onClose?.();
+                          setOpenDropdown(null);
+                        }}
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })}

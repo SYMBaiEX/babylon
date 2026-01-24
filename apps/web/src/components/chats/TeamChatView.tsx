@@ -304,7 +304,7 @@ export function TeamChatView({
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
-          placeholder="Message... @mention agents"
+          placeholder="Send to all agents, or select specific ones →"
           mentionableMembers={agents}
         />
       </div>

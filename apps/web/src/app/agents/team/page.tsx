@@ -279,18 +279,15 @@ export default function TeamChatPage() {
             thinkingAgents={thinkingAgents}
             onShowMembers={() => setShowMemberDrawer(true)}
             onScroll={handleScroll}
-            // Selected agents for parallel execution
+            // Selected agents (only before sending - closes after send)
             selectedAgents={
               teamChat?.agents
-                .filter(
-                  (a) =>
-                    selectedAgentIds.has(a.id) || processingAgentIds.has(a.id)
-                )
+                .filter((a) => selectedAgentIds.has(a.id))
                 .map((a) => ({
                   id: a.id,
                   displayName: a.displayName || a.username || 'Agent',
                   profileImageUrl: a.profileImageUrl,
-                  isProcessing: processingAgentIds.has(a.id),
+                  isProcessing: false, // Processing status shown in sidebar only
                 })) || []
             }
             onRemoveSelectedAgent={toggleAgentSelection}

@@ -592,7 +592,14 @@ export function useTeamChat(): UseTeamChatReturn {
     }
 
     const content = messageInput.trim();
-    const agentsToCall = Array.from(selectedAgentIds);
+
+    // Auto-select all agents if none selected
+    let agentsToCall = Array.from(selectedAgentIds);
+    if (agentsToCall.length === 0 && teamChat?.agents) {
+      agentsToCall = teamChat.agents
+        .filter((a) => !processingAgentIds.has(a.id))
+        .map((a) => a.id);
+    }
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -710,6 +717,7 @@ export function useTeamChat(): UseTeamChatReturn {
     sending,
     user,
     selectedAgentIds,
+    processingAgentIds,
     getAccessToken,
     addMessage,
     removeMessage,
