@@ -260,7 +260,7 @@ export function TeamChatView({
 
         {/* Selected Agents Chips - shown above input when agents are selected */}
         {selectedAgents.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto px-4 pt-3 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+          <div className="scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex items-center gap-2 overflow-x-auto px-4 pt-3">
             <span className="shrink-0 text-muted-foreground text-xs">
               Send to:
             </span>

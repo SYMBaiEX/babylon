@@ -156,7 +156,7 @@ export function MemberList({
                           {agentName}
                         </p>
                         {agent.modelTier === 'pro' && (
-                          <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-primary text-[10px]">
+                          <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-[10px] text-primary">
                             PRO
                           </span>
                         )}
