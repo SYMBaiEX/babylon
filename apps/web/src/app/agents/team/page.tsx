@@ -263,12 +263,81 @@ export default function TeamChatPage() {
   }, [searchParams, loading, teamChat, setMessageInput, router]);
 
   // Scroll to bottom when switching to chat tab or on initial load
+  // Uses MutationObserver to keep scrolling as images/content load
   useEffect(() => {
-    if (activeTab === 'chat' && teamChat && !loading) {
-      // Small delay to ensure DOM has rendered
-      setTimeout(() => scrollToBottom('instant'), 100);
+    // Only scroll when on chat tab with loaded data
+    if (activeTab !== 'chat' || !teamChat?.chatId || loading) return;
+
+    const endMarker = messagesEndRef.current;
+    if (!endMarker) return;
+
+    // Find the scroll container
+    const container = endMarker.closest('[data-chat-messages-container]');
+    if (!container) {
+      // Fallback: just scroll once
+      scrollToBottom('instant');
+      return;
     }
-  }, [activeTab, teamChat, loading, scrollToBottom]);
+
+    let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
+    const IDLE_MS = 500; // Stop after 500ms of no DOM changes
+    const MAX_TIME = 2000; // Hard timeout after 2 seconds
+    const startTime = Date.now();
+    let isActive = true;
+
+    const scrollToEnd = () => {
+      endMarker.scrollIntoView({ behavior: 'auto', block: 'end' });
+    };
+
+    const finish = () => {
+      isActive = false;
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
+    };
+
+    // Scroll immediately
+    scrollToEnd();
+
+    // Watch for DOM changes (images loading, etc.) and scroll on each
+    observer = new MutationObserver(() => {
+      if (!isActive) return;
+
+      // Check hard timeout
+      if (Date.now() - startTime > MAX_TIME) {
+        scrollToEnd();
+        finish();
+        return;
+      }
+
+      // Scroll on mutation
+      scrollToEnd();
+
+      // Reset idle timer - finish after no changes for IDLE_MS
+      if (idleTimeout) clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => {
+        scrollToEnd();
+        finish();
+      }, IDLE_MS);
+    });
+
+    // Observe childList and subtree for content changes
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Start idle timer (will finish if no mutations happen)
+    idleTimeout = setTimeout(() => {
+      scrollToEnd();
+      finish();
+    }, IDLE_MS);
+
+    return () => {
+      observer?.disconnect();
+      if (idleTimeout) clearTimeout(idleTimeout);
+    };
+  }, [activeTab, teamChat?.chatId, loading, messagesEndRef, scrollToBottom]);
 
   // Auth required state
   if (ready && !authenticated) {
