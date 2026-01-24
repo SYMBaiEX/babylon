@@ -17,6 +17,7 @@ import {
   or,
   users,
 } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { SQL } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import type { NftGalleryResponse, NftSummary } from '@/types/nft';
@@ -161,6 +162,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       (error instanceof Error && error.name === 'ValidationError')
     ) {
       // Fall back to DB ownership for local/testing/degraded mode.
+      logger.warn(
+        'NFT indexer unavailable for collection, falling back to DB ownership',
+        { error: error instanceof Error ? error.message : error },
+        'GET /api/nft/collection'
+      );
     } else {
       throw error;
     }

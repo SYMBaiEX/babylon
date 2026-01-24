@@ -59,6 +59,9 @@ export async function hasNftAccessForAuthUser(user: {
       return await hasOnchainNftAccess(walletAddress);
     } catch (error) {
       if (!(error instanceof NftIndexerUnavailableError)) throw error;
+      // Short-circuit to DB fallback to avoid double indexer call via hasNftAccess
+      if (user.dbUserId) return hasDbNftAccessFallback(user.dbUserId);
+      return false;
     }
   }
 

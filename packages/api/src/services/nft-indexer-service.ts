@@ -74,6 +74,27 @@ const accessCache = new Map<string, CachedAccess>();
 const DEFAULT_POSITIVE_TTL_MS = 10_000;
 const DEFAULT_NEGATIVE_TTL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 2_500;
+const MAX_CACHE_ENTRIES = 10_000;
+
+/**
+ * Evicts expired entries and enforces size cap on the cache.
+ * Uses FIFO eviction when size exceeds MAX_CACHE_ENTRIES.
+ */
+function evictExpiredCacheEntries(nowMs: number): void {
+  // Evict expired entries
+  for (const [key, value] of accessCache) {
+    if (value.expiresAtMs <= nowMs) {
+      accessCache.delete(key);
+    }
+  }
+
+  // Enforce size cap with FIFO eviction
+  while (accessCache.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = accessCache.keys().next().value;
+    if (oldestKey) accessCache.delete(oldestKey);
+    else break;
+  }
+}
 
 function getCacheTtls(): { positiveTtlMs: number; negativeTtlMs: number } {
   // Keep this intentionally simple: TTLs are internal defaults for now.
@@ -192,8 +213,12 @@ export async function hasOnchainNftAccess(
 
   const nowMs = Date.now();
   const cached = accessCache.get(cacheKey);
-  if (cached && cached.expiresAtMs > nowMs) {
-    return cached.allowed;
+  if (cached) {
+    if (cached.expiresAtMs > nowMs) {
+      return cached.allowed;
+    }
+    // Delete expired entry
+    accessCache.delete(cacheKey);
   }
 
   const balance = await getNftHolderBalanceFromIndexer(address);
@@ -202,6 +227,9 @@ export async function hasOnchainNftAccess(
   const { positiveTtlMs, negativeTtlMs } = getCacheTtls();
   const ttlMs = allowed ? positiveTtlMs : negativeTtlMs;
   accessCache.set(cacheKey, { allowed, expiresAtMs: nowMs + ttlMs });
+
+  // Periodic eviction to prevent unbounded growth
+  evictExpiredCacheEntries(nowMs);
 
   return allowed;
 }

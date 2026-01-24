@@ -22,12 +22,19 @@ function parseBooleanFlag(value: string | undefined): boolean {
   return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 }
 
+/**
+ * Returns the NFT chat gating configuration.
+ *
+ * Flag precedence:
+ * - If NFT_GATING_ENABLED is defined, it is authoritative (overrides legacy flag)
+ * - Otherwise, falls back to NFT_CHAT_GATING_ENABLED for backwards compatibility
+ */
 export function getNftChatGatingConfig(): NftChatGatingConfig {
-  // Prefer the global flag (NFT_GATING_ENABLED) to avoid proliferating flags.
-  // Keep the legacy chat-only flag for backwards compatibility.
+  const globalFlag = process.env.NFT_GATING_ENABLED;
   const enabled =
-    parseBooleanFlag(process.env.NFT_GATING_ENABLED) ||
-    parseBooleanFlag(process.env.NFT_CHAT_GATING_ENABLED);
+    globalFlag !== undefined
+      ? parseBooleanFlag(globalFlag)
+      : parseBooleanFlag(process.env.NFT_CHAT_GATING_ENABLED);
   const chatId = process.env.NFT_CHAT_GATING_CHAT_ID?.trim() || null;
   return { enabled, chatId };
 }
@@ -255,72 +262,82 @@ export async function reconcileNftChatMembershipForUser(user: {
   dbUserId: string;
   isAgent?: boolean;
 }): Promise<
-  | { status: 'skipped'; reason: 'disabled' | 'agent' | 'missing_chat_id' }
+  | { status: 'skipped'; reason: 'disabled' | 'agent' | 'missing_chat_id' | 'error' }
   | { status: 'noop'; allowed: boolean }
   | { status: 'ensured'; chatId: string }
   | { status: 'revoked'; chatId: string }
 > {
-  if (user.isAgent) return { status: 'skipped', reason: 'agent' };
+  try {
+    if (user.isAgent) return { status: 'skipped', reason: 'agent' };
 
-  const config = getNftChatGatingConfig();
-  if (!config.enabled) return { status: 'skipped', reason: 'disabled' };
-  if (!config.chatId) return { status: 'skipped', reason: 'missing_chat_id' };
+    const config = getNftChatGatingConfig();
+    if (!config.enabled) return { status: 'skipped', reason: 'disabled' };
+    if (!config.chatId) return { status: 'skipped', reason: 'missing_chat_id' };
 
-  const chatId = config.chatId;
+    const chatId = config.chatId;
 
-  const allowed = await canAccessNftChatGate(user.dbUserId, chatId);
+    const allowed = await canAccessNftChatGate(user.dbUserId, chatId);
 
-  // Check current membership state to avoid write-amplifying on every /api/chats call.
-  const [chatRow] = await db
-    .select({ groupId: chats.groupId })
-    .from(chats)
-    .where(eq(chats.id, chatId))
-    .limit(1);
+    // Check current membership state to avoid write-amplifying on every /api/chats call.
+    const [chatRow] = await db
+      .select({ groupId: chats.groupId })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
 
-  const groupId = chatRow?.groupId ?? null;
-  const [activeParticipant] = await db
-    .select({ id: chatParticipants.id })
-    .from(chatParticipants)
-    .where(
-      and(
-        eq(chatParticipants.chatId, chatId),
-        eq(chatParticipants.userId, user.dbUserId),
-        eq(chatParticipants.isActive, true)
+    const groupId = chatRow?.groupId ?? null;
+    const [activeParticipant] = await db
+      .select({ id: chatParticipants.id })
+      .from(chatParticipants)
+      .where(
+        and(
+          eq(chatParticipants.chatId, chatId),
+          eq(chatParticipants.userId, user.dbUserId),
+          eq(chatParticipants.isActive, true)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  const [activeMember] =
-    groupId === null
-      ? [undefined]
-      : await db
-          .select({ id: groupMembers.id })
-          .from(groupMembers)
-          .where(
-            and(
-              eq(groupMembers.groupId, groupId),
-              eq(groupMembers.userId, user.dbUserId),
-              eq(groupMembers.isActive, true)
+    const [activeMember] =
+      groupId === null
+        ? [undefined]
+        : await db
+            .select({ id: groupMembers.id })
+            .from(groupMembers)
+            .where(
+              and(
+                eq(groupMembers.groupId, groupId),
+                eq(groupMembers.userId, user.dbUserId),
+                eq(groupMembers.isActive, true)
+              )
             )
-          )
-          .limit(1);
+            .limit(1);
 
-  const hasActiveMembership = Boolean(
-    activeParticipant && (groupId ? activeMember : true)
-  );
+    const hasActiveMembership = Boolean(
+      activeParticipant && (groupId ? activeMember : true)
+    );
 
-  if (allowed) {
-    if (hasActiveMembership) return { status: 'noop', allowed: true };
-    await ensureNftChatMembership(user.dbUserId);
-    return { status: 'ensured', chatId };
+    if (allowed) {
+      if (hasActiveMembership) return { status: 'noop', allowed: true };
+      await ensureNftChatMembership(user.dbUserId);
+      return { status: 'ensured', chatId };
+    }
+
+    if (!hasActiveMembership) return { status: 'noop', allowed: false };
+
+    await revokeNftChatMembershipIfNeeded(
+      user.dbUserId,
+      chatId,
+      'NFT access revoked (ownership check)'
+    );
+    return { status: 'revoked', chatId };
+  } catch (error) {
+    logger.warn(
+      'Failed to reconcile NFT chat membership',
+      { error, dbUserId: user.dbUserId },
+      'NFTChatGatingService'
+    );
+    // Return safe noop to avoid accidental revocation on error
+    return { status: 'skipped', reason: 'error' };
   }
-
-  if (!hasActiveMembership) return { status: 'noop', allowed: false };
-
-  await revokeNftChatMembershipIfNeeded(
-    user.dbUserId,
-    chatId,
-    'NFT access revoked (ownership check)'
-  );
-  return { status: 'revoked', chatId };
 }

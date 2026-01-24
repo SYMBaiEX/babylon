@@ -315,10 +315,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Best-effort reconciliation: grant/revoke gated chat membership based on the
   // latest access check (on-chain when available; falls back when degraded).
   if (user.dbUserId) {
-    await reconcileNftChatMembershipForUser({
-      dbUserId: user.dbUserId,
-      isAgent: user.isAgent,
-    });
+    try {
+      await reconcileNftChatMembershipForUser({
+        dbUserId: user.dbUserId,
+        isAgent: user.isAgent,
+      });
+    } catch (error) {
+      logger.warn(
+        'NFT chat reconciliation failed',
+        { error, userId: user.userId, dbUserId: user.dbUserId },
+        'GET /api/chats'
+      );
+    }
   }
   const nftChatGatingConfig = getNftChatGatingConfig();
   const gatedChatId = nftChatGatingConfig.chatId;
