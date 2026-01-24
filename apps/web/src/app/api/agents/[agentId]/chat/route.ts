@@ -343,8 +343,19 @@ export const POST = withErrorHandling(
       ? GROQ_MODELS.PRO.displayName
       : GROQ_MODELS.FREE.displayName;
 
-    // Only deduct points for pro mode (from virtualBalance)
+    // Check balance BEFORE deducting (to return clear error in production)
     let newBalance = Number(agentWithConfig.virtualBalance ?? 0);
+    if (pointsCost > 0 && newBalance < pointsCost) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Insufficient balance. Have: ${newBalance.toFixed(2)}, Need: ${pointsCost.toFixed(2)}`,
+        },
+        { status: 402 }
+      );
+    }
+
+    // Deduct points for pro mode (from virtualBalance)
     if (pointsCost > 0) {
       newBalance = await agentService.deductPoints(
         agentId,
