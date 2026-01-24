@@ -6,26 +6,13 @@
  *
  * @description
  * Generates an initial onboarding message from the agent to introduce
- * itself and its capabilities to the user. Posts message to both:
- * 1. agentMessages table (for agent chat history)
- * 2. Team chat (Command Center) for unified communication
+ * itself and its capabilities to the user. Saves to agentMessages table
+ * for agent chat history.
  */
 
-import {
-  agentRuntimeManager,
-  agentService,
-  teamChatService,
-} from '@babylon/agents';
-import {
-  authenticateUser,
-  broadcastChatMessage,
-  withErrorHandling,
-} from '@babylon/api';
-import {
-  db,
-  generateSnowflakeId,
-  messages as messagesTable,
-} from '@babylon/db';
+import { agentRuntimeManager, agentService } from '@babylon/agents';
+import { authenticateUser, withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
 import { GROQ_MODELS, logger } from '@babylon/shared';
 import {
   composePromptFromState,
@@ -37,8 +24,8 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-// Onboarding message template - for team chat greeting
-const onboardingTemplate = `You are a new AI agent joining the team Command Center chat. Write a SHORT, friendly greeting to introduce yourself to the team.
+// Onboarding message template - for agent introduction
+const onboardingTemplate = `You are a new AI agent. Write a SHORT, friendly greeting to introduce yourself.
 
 # Your Identity
 Name: {{agentName}}
@@ -60,16 +47,15 @@ Name: {{agentName}}
 
 # Your Task
 Write a SHORT, friendly greeting message (1-2 sentences MAX) that:
-1. Says hi to the team
+1. Says hi
 2. Introduces yourself briefly by name
 3. Shows a bit of your personality
 4. Expresses that you're excited/ready to help
 
 IMPORTANT:
-- This is a casual team chat, NOT a formal introduction
-- Keep it SHORT - just 1-2 sentences like "Hey everyone! I'm [name], [brief personality]. Excited to join the team!"
+- Keep it SHORT - just 1-2 sentences like "Hey! I'm [name], [brief personality]. Ready to help!"
 - Do NOT list your capabilities - that comes later when asked
-- Be warm and conversational, like joining a group chat with friends
+- Be warm and conversational
 
 Output ONLY this XML format:
 <response>
@@ -213,90 +199,6 @@ export const POST = withErrorHandling(
         createdAt: messageTime,
       },
     });
-
-    // Post onboarding message to team chat (Command Center)
-    // Use ensureTeamChat to create the team chat if it doesn't exist yet
-    try {
-      logger.info(
-        `Attempting to post onboarding to team chat for user ${user.id}`,
-        { agentId },
-        'AgentOnboarding'
-      );
-
-      const teamChat = await teamChatService.ensureTeamChat(user.id);
-
-      logger.info(
-        `ensureTeamChat result`,
-        {
-          teamChat: teamChat
-            ? { chatId: teamChat.chatId, groupId: teamChat.groupId }
-            : null,
-        },
-        'AgentOnboarding'
-      );
-
-      if (!teamChat) {
-        logger.warn(
-          `Failed to create/get team chat for onboarding message`,
-          { userId: user.id },
-          'AgentOnboarding'
-        );
-      } else {
-        const teamChatMessageId = await generateSnowflakeId();
-
-        logger.info(
-          `Inserting onboarding message to team chat`,
-          { chatId: teamChat.chatId, messageId: teamChatMessageId, agentId },
-          'AgentOnboarding'
-        );
-
-        await db
-          .insert(messagesTable)
-          .values({
-            id: teamChatMessageId,
-            chatId: teamChat.chatId,
-            senderId: agentId,
-            content: welcomeMessage,
-            type: 'user',
-            createdAt: messageTime,
-          })
-          .onConflictDoNothing();
-
-        logger.info(
-          `Message inserted, now broadcasting via SSE`,
-          { chatId: teamChat.chatId, messageId: teamChatMessageId },
-          'AgentOnboarding'
-        );
-
-        // Broadcast the message via SSE so it appears in real-time
-        await broadcastChatMessage(teamChat.chatId, {
-          id: teamChatMessageId,
-          content: welcomeMessage,
-          chatId: teamChat.chatId,
-          senderId: agentId,
-          type: 'user',
-          createdAt: messageTime.toISOString(),
-          isGameChat: false,
-          isDMChat: false,
-        });
-
-        logger.info(
-          `Onboarding message posted to team chat`,
-          { chatId: teamChat.chatId, messageId: teamChatMessageId },
-          'AgentOnboarding'
-        );
-
-        // Note: Agent responses are now triggered by the user selecting agents
-        // in the Command Center sidebar, not automatically on new messages.
-      }
-    } catch (error) {
-      // Don't fail the whole request if team chat message fails
-      logger.error(
-        `Failed to post onboarding message to team chat`,
-        { error: error instanceof Error ? error.stack : 'Unknown' },
-        'AgentOnboarding'
-      );
-    }
 
     logger.info(
       `Onboarding message generated for agent ${agentId}`,

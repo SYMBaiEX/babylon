@@ -147,18 +147,6 @@ export class TeamChatService {
         isActive: true,
       });
 
-      // 5. Create welcome system message
-      const welcomeMessageId = await generateSnowflakeId();
-      await tx.insert(messages).values({
-        id: welcomeMessageId,
-        chatId,
-        senderId: 'system',
-        type: 'system',
-        content:
-          'Welcome to your Command Center! This is where you coordinate all your agents. Use @mentions to direct specific agents.',
-        createdAt: now,
-      });
-
       return {
         id: groupId,
         groupId,
@@ -461,8 +449,7 @@ export class TeamChatService {
 
     await withTransaction(async (tx) => {
       const now = new Date();
-      const [memberId, participantId, messageId] = await Promise.all([
-        generateSnowflakeId(),
+      const [memberId, participantId] = await Promise.all([
         generateSnowflakeId(),
         generateSnowflakeId(),
       ]);
@@ -511,18 +498,7 @@ export class TeamChatService {
           },
         });
 
-      // 3. Create system message announcing the agent joined
-      const agentName = agent.displayName || agent.username || 'Agent';
-      await tx.insert(messages).values({
-        id: messageId,
-        chatId: teamChat.chatId,
-        senderId: 'system',
-        type: 'system',
-        content: `🤖 ${agentName} joined the team`,
-        createdAt: now,
-      });
-
-      // 4. Update group timestamp
+      // 3. Update group timestamp
       await tx
         .update(groups)
         .set({ updatedAt: now })
@@ -801,8 +777,7 @@ export class TeamChatService {
 
     const result = await withTransaction(async (tx) => {
       const now = new Date();
-      const [chatId, participantId, welcomeMessageId] = await Promise.all([
-        generateSnowflakeId(),
+      const [chatId, participantId] = await Promise.all([
         generateSnowflakeId(),
         generateSnowflakeId(),
       ]);
@@ -855,17 +830,7 @@ export class TeamChatService {
           .onConflictDoNothing();
       }
 
-      // 4. Create welcome system message
-      await tx.insert(messages).values({
-        id: welcomeMessageId,
-        chatId,
-        senderId: 'system',
-        type: 'system',
-        content: 'New conversation started. Your agents are ready to help!',
-        createdAt: now,
-      });
-
-      // 5. Update group to point to new conversation
+      // 4. Update group to point to new conversation
       await tx
         .update(groups)
         .set({ activeChatId: chatId, updatedAt: now })

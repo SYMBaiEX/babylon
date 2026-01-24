@@ -168,16 +168,6 @@ describe('TeamChatService', () => {
       expect(member).toBeDefined();
       expect(member!.userId).toBe(user.id);
       expect(member!.role).toBe('owner');
-
-      // Verify welcome message was created
-      const welcomeMessages = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.chatId, teamChat.chatId));
-      expect(welcomeMessages.length).toBeGreaterThanOrEqual(1);
-      const welcomeMsg = welcomeMessages.find((m) => m.type === 'system');
-      expect(welcomeMsg).toBeDefined();
-      expect(welcomeMsg?.content).toContain('Command Center');
     });
 
     test('returns existing team chat if one already exists', async () => {
@@ -276,17 +266,6 @@ describe('TeamChatService', () => {
       const agentParticipant = participants.find((p) => p.userId === agent.id);
       expect(agentParticipant).toBeDefined();
       expect(agentParticipant?.isActive).toBe(true);
-
-      // Verify system message was created
-      const msgs = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.chatId, teamChat.chatId));
-      const joinMsg = msgs.find(
-        (m) => m.type === 'system' && m.content?.includes('joined the team')
-      );
-      expect(joinMsg).toBeDefined();
-      expect(joinMsg?.content).toContain(agent.displayName);
     });
 
     test('handles adding same agent twice (upsert)', async () => {
