@@ -15,6 +15,11 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  AgentDetail,
+  type AgentDetailData,
+  AgentDetailSkeleton,
+} from '@/components/agents/AgentDetail';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
 import { Avatar } from '@/components/shared/Avatar';
@@ -124,6 +129,11 @@ export default function TeamChatPage() {
     'all'
   );
 
+  // Selected agent detail state (for viewing agent within Command Center)
+  const [selectedAgentDetail, setSelectedAgentDetail] =
+    useState<AgentDetailData | null>(null);
+  const [selectedAgentLoading, setSelectedAgentLoading] = useState(false);
+
   // Fetch agents for Agents tab
   const fetchAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -155,6 +165,39 @@ export default function TeamChatPage() {
       setAgentsLoading(false);
     }
   }, [getAccessToken, agentFilter]);
+
+  // Fetch full agent detail when clicking an agent card
+  const fetchAgentDetail = useCallback(
+    async (agentId: string) => {
+      setSelectedAgentLoading(true);
+      const token = await getAccessToken();
+
+      if (!token) {
+        setSelectedAgentLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/agents/${agentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSelectedAgentDetail(data.agent);
+        }
+      } catch (err) {
+        console.error('Failed to fetch agent detail:', err);
+      } finally {
+        setSelectedAgentLoading(false);
+      }
+    },
+    [getAccessToken]
+  );
+
+  // Clear selected agent (go back to grid)
+  const clearSelectedAgent = useCallback(() => {
+    setSelectedAgentDetail(null);
+  }, []);
 
   // Fetch agents when switching to Agents tab or filter changes
   useEffect(() => {
@@ -362,24 +405,24 @@ export default function TeamChatPage() {
         {/* Member Sidebar - only visible on Chat tab for lg+ */}
         {activeTab === 'chat' && (
           <>
-        <div className="hidden w-64 flex-col border-border border-r lg:flex">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4">
-            <h3 className="font-semibold text-foreground">Team Members</h3>
-            <div
-              className={cn(
-                'flex items-center gap-1.5 text-xs',
-                sseConnected ? 'text-green-500' : 'text-muted-foreground'
-              )}
-            >
-              <Radio className="h-3 w-3" />
-              {sseConnected ? 'Live' : 'Offline'}
-            </div>
-          </div>
+            <div className="hidden w-64 flex-col border-border border-r lg:flex">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4">
+                <h3 className="font-semibold text-foreground">Team Members</h3>
+                <div
+                  className={cn(
+                    'flex items-center gap-1.5 text-xs',
+                    sseConnected ? 'text-green-500' : 'text-muted-foreground'
+                  )}
+                >
+                  <Radio className="h-3 w-3" />
+                  {sseConnected ? 'Live' : 'Offline'}
+                </div>
+              </div>
 
-          <Separator />
+              <Separator />
 
-          {/* Member list - extracted component */}
+              {/* Member list - extracted component */}
               <MemberList
                 user={user}
                 teamChat={teamChat}
@@ -387,9 +430,9 @@ export default function TeamChatPage() {
                 processingAgentIds={processingAgentIds}
                 onToggleAgent={toggleAgentSelection}
               />
-        </div>
+            </div>
 
-        <Separator orientation="vertical" className="hidden lg:block" />
+            <Separator orientation="vertical" className="hidden lg:block" />
           </>
         )}
 
@@ -397,45 +440,45 @@ export default function TeamChatPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           {/* Chat Tab */}
           {activeTab === 'chat' && (
-          <TeamChatView
-            chatDetails={chatDetails}
-            currentUserId={user?.id}
-            authenticated={authenticated}
-            sseConnected={sseConnected}
-            loading={false}
-            isLoadingMore={isLoadingMore}
-            hasMore={hasMore}
-            messageInput={messageInput}
-            sending={sending}
-            sendError={sendError}
-            topSentinelRef={topSentinelRef}
-            messagesEndRef={messagesEndRef}
-            onMessageChange={handleInputChange}
-            onSendMessage={sendMessage}
-            agents={[
-              // Include current user so they can mention themselves
-              ...(user
-                ? [
-                    {
-                      id: user.id,
-                      username: user.username || null,
-                      displayName: user.displayName || user.username || 'You',
-                      profileImageUrl: user.profileImageUrl || null,
-                    },
-                  ]
-                : []),
-              // Include all agents
-              ...(teamChat?.agents.map((agent) => ({
-                id: agent.id,
-                username: agent.username,
-                displayName: agent.displayName,
-                profileImageUrl: agent.profileImageUrl,
-              })) || []),
-            ]}
-            typingUsers={typingUsers}
-            thinkingAgents={thinkingAgents}
-            onShowMembers={() => setShowMemberDrawer(true)}
-            onScroll={handleScroll}
+            <TeamChatView
+              chatDetails={chatDetails}
+              currentUserId={user?.id}
+              authenticated={authenticated}
+              sseConnected={sseConnected}
+              loading={false}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore}
+              messageInput={messageInput}
+              sending={sending}
+              sendError={sendError}
+              topSentinelRef={topSentinelRef}
+              messagesEndRef={messagesEndRef}
+              onMessageChange={handleInputChange}
+              onSendMessage={sendMessage}
+              agents={[
+                // Include current user so they can mention themselves
+                ...(user
+                  ? [
+                      {
+                        id: user.id,
+                        username: user.username || null,
+                        displayName: user.displayName || user.username || 'You',
+                        profileImageUrl: user.profileImageUrl || null,
+                      },
+                    ]
+                  : []),
+                // Include all agents
+                ...(teamChat?.agents.map((agent) => ({
+                  id: agent.id,
+                  username: agent.username,
+                  displayName: agent.displayName,
+                  profileImageUrl: agent.profileImageUrl,
+                })) || []),
+              ]}
+              typingUsers={typingUsers}
+              thinkingAgents={thinkingAgents}
+              onShowMembers={() => setShowMemberDrawer(true)}
+              onScroll={handleScroll}
               // Selected agents (only before sending - closes after send)
               selectedAgents={
                 teamChat?.agents
@@ -453,195 +496,218 @@ export default function TeamChatPage() {
 
           {/* Agents Tab */}
           {activeTab === 'agents' && (
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Header with filters and create button */}
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setAgentFilter('all')}
-                    className={cn(
-                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                      agentFilter === 'all'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setAgentFilter('active')}
-                    className={cn(
-                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                      agentFilter === 'active'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    Active
-                  </button>
-                  <button
-                    onClick={() => setAgentFilter('idle')}
-                    className={cn(
-                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                      agentFilter === 'idle'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    Idle
-                  </button>
+            <div className="flex-1 overflow-y-auto">
+              {/* Show AgentDetail when an agent is selected */}
+              {selectedAgentDetail ? (
+                <div className="p-4">
+                  <AgentDetail
+                    agent={selectedAgentDetail}
+                    onUpdate={() => fetchAgentDetail(selectedAgentDetail.id)}
+                    onBack={clearSelectedAgent}
+                    backLabel="Back to Agents"
+                    compact
+                  />
                 </div>
-                <Link href="/agents/create">
-                  <Button size="sm" className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Create Agent
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Agent Cards Grid */}
-              {agentsLoading ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="animate-pulse rounded-lg bg-muted/30 p-6"
-                    >
-                      <div className="mb-4 flex items-center gap-4">
-                        <Skeleton className="h-12 w-12 rounded-full" />
-                        <div className="flex-1">
-                          <Skeleton className="mb-2 h-4 w-24" />
-                          <Skeleton className="h-3 w-16" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-3 w-3/4" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : agents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 px-4 py-16">
-                  <Bot className="mb-4 h-16 w-16 text-blue-500" />
-                  <h3 className="mb-2 font-bold text-2xl">No Agents Yet</h3>
-                  <p className="mb-6 max-w-md text-center text-muted-foreground text-sm">
-                    Create your first AI agent to start trading and chatting
-                  </p>
-                  <Link href="/agents/create">
-                    <Button className="gap-2">
-                      <Plus className="h-5 w-5" />
-                      Create Agent
-                    </Button>
-                  </Link>
+              ) : selectedAgentLoading ? (
+                <div className="p-4">
+                  <AgentDetailSkeleton compact />
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {agents.map((agent) => (
-                    <Link
-                      key={agent.id}
-                      href={`/agents/${agent.id}`}
-                      className="h-full"
-                    >
-                      <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-blue-500/30 hover:bg-muted">
-                        {/* Header */}
-                        <div className="mb-4 flex items-start gap-4">
-                          <Avatar
-                            id={agent.id}
-                            name={agent.name}
-                            type="user"
-                            size="lg"
-                            src={agent.profileImageUrl}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate font-semibold text-lg">
-                              {agent.name}
-                            </h3>
-                            {agent.username && (
-                              <p className="truncate text-muted-foreground text-sm">
-                                @{agent.username}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 text-sm">
-                              <span
-                                className={
-                                  agent.autonomousEnabled
-                                    ? 'text-green-400'
-                                    : 'text-muted-foreground'
-                                }
-                              >
-                                {agent.autonomousEnabled ? (
-                                  <>
-                                    <Activity className="mr-1 inline h-3 w-3" />
-                                    Active
-                                  </>
-                                ) : (
-                                  'Idle'
-                                )}
-                              </span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-muted-foreground capitalize">
-                                {agent.modelTier}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <div className="mb-4 flex-1">
-                          {agent.description && (
-                            <p className="line-clamp-2 text-muted-foreground text-sm">
-                              {agent.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Stats */}
-                        <div className="mt-auto grid grid-cols-2 gap-4 border-border border-t pt-4">
-                          <div>
-                            <div className="mb-1 text-muted-foreground text-xs">
-                              Balance
-                            </div>
-                            <div className="font-semibold">
-                              {Number(agent.virtualBalance ?? 0).toFixed(2)} pts
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 text-muted-foreground text-xs">
-                              P&L
-                            </div>
-                            <div
-                              className={cn(
-                                'flex items-center gap-1 font-semibold',
-                                parseFloat(agent.lifetimePnL) >= 0
-                                  ? 'text-green-600'
-                                  : 'text-red-600'
-                              )}
-                            >
-                              <TrendingUp className="h-3 w-3" />
-                              {parseFloat(agent.lifetimePnL).toFixed(2)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 text-muted-foreground text-xs">
-                              Trades
-                            </div>
-                            <div className="font-semibold">
-                              {agent.totalTrades}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 text-muted-foreground text-xs">
-                              Win Rate
-                            </div>
-                            <div className="font-semibold">
-                              {(agent.winRate * 100).toFixed(0)}%
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                <div className="p-4">
+                  {/* Header with filters and create button */}
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setAgentFilter('all')}
+                        className={cn(
+                          'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                          agentFilter === 'all'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setAgentFilter('active')}
+                        className={cn(
+                          'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                          agentFilter === 'active'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        Active
+                      </button>
+                      <button
+                        onClick={() => setAgentFilter('idle')}
+                        className={cn(
+                          'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                          agentFilter === 'idle'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        Idle
+                      </button>
+                    </div>
+                    <Link href="/agents/create">
+                      <Button size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Agent
+                      </Button>
                     </Link>
-                  ))}
+                  </div>
+
+                  {/* Agent Cards Grid */}
+                  {agentsLoading ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="animate-pulse rounded-lg bg-muted/30 p-6"
+                        >
+                          <div className="mb-4 flex items-center gap-4">
+                            <Skeleton className="h-12 w-12 rounded-full" />
+                            <div className="flex-1">
+                              <Skeleton className="mb-2 h-4 w-24" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-3/4" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : agents.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 px-4 py-16">
+                      <Bot className="mb-4 h-16 w-16 text-blue-500" />
+                      <h3 className="mb-2 font-bold text-2xl">No Agents Yet</h3>
+                      <p className="mb-6 max-w-md text-center text-muted-foreground text-sm">
+                        Create your first AI agent to start trading and chatting
+                      </p>
+                      <Link href="/agents/create">
+                        <Button className="gap-2">
+                          <Plus className="h-5 w-5" />
+                          Create Agent
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {agents.map((agent) => (
+                        <button
+                          key={agent.id}
+                          type="button"
+                          onClick={() => fetchAgentDetail(agent.id)}
+                          className="h-full text-left"
+                        >
+                          <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-blue-500/30 hover:bg-muted">
+                            {/* Header */}
+                            <div className="mb-4 flex items-start gap-4">
+                              <Avatar
+                                id={agent.id}
+                                name={agent.name}
+                                type="user"
+                                size="lg"
+                                src={agent.profileImageUrl}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <h3 className="truncate font-semibold text-lg">
+                                  {agent.name}
+                                </h3>
+                                {agent.username && (
+                                  <p className="truncate text-muted-foreground text-sm">
+                                    @{agent.username}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span
+                                    className={
+                                      agent.autonomousEnabled
+                                        ? 'text-green-400'
+                                        : 'text-muted-foreground'
+                                    }
+                                  >
+                                    {agent.autonomousEnabled ? (
+                                      <>
+                                        <Activity className="mr-1 inline h-3 w-3" />
+                                        Active
+                                      </>
+                                    ) : (
+                                      'Idle'
+                                    )}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    •
+                                  </span>
+                                  <span className="text-muted-foreground capitalize">
+                                    {agent.modelTier}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Description */}
+                            <div className="mb-4 flex-1">
+                              {agent.description && (
+                                <p className="line-clamp-2 text-muted-foreground text-sm">
+                                  {agent.description}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Stats */}
+                            <div className="mt-auto grid grid-cols-2 gap-4 border-border border-t pt-4">
+                              <div>
+                                <div className="mb-1 text-muted-foreground text-xs">
+                                  Balance
+                                </div>
+                                <div className="font-semibold">
+                                  {Number(agent.virtualBalance ?? 0).toFixed(2)}{' '}
+                                  pts
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-1 text-muted-foreground text-xs">
+                                  P&L
+                                </div>
+                                <div
+                                  className={cn(
+                                    'flex items-center gap-1 font-semibold',
+                                    parseFloat(agent.lifetimePnL) >= 0
+                                      ? 'text-green-600'
+                                      : 'text-red-600'
+                                  )}
+                                >
+                                  <TrendingUp className="h-3 w-3" />
+                                  {parseFloat(agent.lifetimePnL).toFixed(2)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-1 text-muted-foreground text-xs">
+                                  Trades
+                                </div>
+                                <div className="font-semibold">
+                                  {agent.totalTrades}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-1 text-muted-foreground text-xs">
+                                  Win Rate
+                                </div>
+                                <div className="font-semibold">
+                                  {(agent.winRate * 100).toFixed(0)}%
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
