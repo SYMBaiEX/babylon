@@ -72,19 +72,20 @@ export class AutonomousDMService {
       if (!chat || chat.isGroup) continue; // Skip group chats
 
       // Skip DMs with the owner - owner should use Command Center instead
+      // Directly check if owner is a participant (more reliable than checking arbitrary other participant)
       if (ownerUserId && chat.id) {
-        const [otherParticipant] = await db
+        const ownerParticipation = await db
           .select({ userId: chatParticipants.userId })
           .from(chatParticipants)
           .where(
             and(
               eq(chatParticipants.chatId, chat.id),
-              ne(chatParticipants.userId, agentUserId)
+              eq(chatParticipants.userId, ownerUserId)
             )
           )
           .limit(1);
 
-        if (otherParticipant?.userId === ownerUserId) {
+        if (ownerParticipation.length > 0) {
           logger.debug(
             `Skipping DM with owner ${ownerUserId} - use Command Center instead`,
             undefined,

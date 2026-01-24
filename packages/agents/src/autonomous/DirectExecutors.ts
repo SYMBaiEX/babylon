@@ -1318,7 +1318,7 @@ export async function executeDirectMessage(
     if (agent?.managedBy === recipientId) {
       return {
         success: false,
-        error: 'Agents cannot DM their owner - use Command Center instead',
+        error: 'Agent-owner DMs are not allowed - use Command Center instead',
       };
     }
 

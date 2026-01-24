@@ -41,7 +41,7 @@ interface GroupDetails {
   id: string;
   name: string;
   description: string | null;
-  type: 'user' | 'npc' | 'agent';
+  type: 'user' | 'npc' | 'agent' | 'team';
   members: Member[];
   isAdmin: boolean;
   isCreator: boolean;

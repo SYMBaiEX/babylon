@@ -135,11 +135,16 @@ export function GroupsTab() {
   const getGroupTypeLabel = (type: string) => {
     switch (type) {
       case 'npc-only':
+      case 'npc':
         return 'NPC Only';
       case 'npc-mixed':
         return 'NPC + Users';
       case 'user':
         return 'User Created';
+      case 'agent':
+        return 'Agent Group';
+      case 'team':
+        return 'Command Center';
       default:
         return 'Unknown';
     }
@@ -148,11 +153,16 @@ export function GroupsTab() {
   const getGroupTypeColor = (type: string) => {
     switch (type) {
       case 'npc-only':
+      case 'npc':
         return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
       case 'npc-mixed':
         return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
       case 'user':
         return 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+      case 'agent':
+        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+      case 'team':
+        return 'bg-primary/10 text-primary border-primary/20';
       default:
         return 'bg-muted text-muted-foreground border-border';
     }

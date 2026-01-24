@@ -52,15 +52,15 @@ export async function getOrCreateDMChat(
   const userAData = userAInfo[0];
   const userBData = userBInfo[0];
 
-  // Block agent-owner DMs
+  // Block agent-owner DMs (both directions)
   if (userAData?.isAgent && userAData?.managedBy === userB) {
     throw new Error(
-      'Agents cannot DM their owner - use Command Center instead'
+      'Agent-owner DMs are not allowed - use Command Center instead'
     );
   }
   if (userBData?.isAgent && userBData?.managedBy === userA) {
     throw new Error(
-      'Agents cannot DM their owner - use Command Center instead'
+      'Agent-owner DMs are not allowed - use Command Center instead'
     );
   }
 

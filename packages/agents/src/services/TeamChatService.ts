@@ -26,6 +26,7 @@ import {
   groupMembers,
   groups,
   messages,
+  ne,
   type User,
   users,
   withTransaction,
@@ -1000,6 +1001,7 @@ export class TeamChatService {
     }
 
     const wasActive = teamChat.chatId === chatId;
+    let newActiveChatId: string | null = null;
 
     await withTransaction(async (tx) => {
       // 1. Delete all messages in this chat
@@ -1014,12 +1016,22 @@ export class TeamChatService {
       await tx.delete(chats).where(eq(chats.id, chatId));
 
       // 4. If this was the active conversation, switch to another
+      // Query inside transaction to avoid TOCTOU race condition
       if (wasActive) {
-        const otherChat = conversations.find((c) => c.id !== chatId);
-        if (otherChat) {
+        const [fallbackChat] = await tx
+          .select({ id: chats.id })
+          .from(chats)
+          .where(
+            and(eq(chats.groupId, teamChat.groupId), ne(chats.id, chatId))
+          )
+          .orderBy(desc(chats.createdAt))
+          .limit(1);
+
+        if (fallbackChat) {
+          newActiveChatId = fallbackChat.id;
           await tx
             .update(groups)
-            .set({ activeChatId: otherChat.id, updatedAt: new Date() })
+            .set({ activeChatId: fallbackChat.id, updatedAt: new Date() })
             .where(eq(groups.id, teamChat.groupId));
         }
       }
@@ -1027,16 +1039,11 @@ export class TeamChatService {
 
     logger.info(
       `Deleted conversation ${chatId}`,
-      { wasActive },
+      { wasActive, newActiveChatId },
       'TeamChatService'
     );
 
-    if (wasActive) {
-      const otherChat = conversations.find((c) => c.id !== chatId);
-      return otherChat?.id || null;
-    }
-
-    return null;
+    return wasActive ? newActiveChatId : null;
   }
 }
 
