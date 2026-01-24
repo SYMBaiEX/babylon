@@ -163,10 +163,9 @@ export default function ActorProfilePage() {
 
     setIsCreatingDM(true);
 
-    // Check if this is the user's own agent - redirect to team chat with @mention
+    // Check if this is the user's own agent - redirect to team chat and select the agent
     if (actorInfo.isAgent && actorInfo.managedBy === user.id) {
-      const mentionHandle = actorInfo.username || actorInfo.id;
-      router.push(`/agents/team?mention=${encodeURIComponent(mentionHandle)}`);
+      router.push(`/agents/team?selectAgent=${encodeURIComponent(actorInfo.id)}`);
       setIsCreatingDM(false);
       return;
     }

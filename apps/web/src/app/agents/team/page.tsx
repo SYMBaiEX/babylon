@@ -104,7 +104,6 @@ export default function TeamChatPage() {
     hasMore,
     messageInput,
     handleInputChange,
-    setMessageInput,
     typingUsers,
     thinkingAgents,
     sendError,
@@ -260,16 +259,16 @@ export default function TeamChatPage() {
     }
   }, [activeTab]);
 
-  // Handle @mention from query parameter (when redirected from agent profile)
+  // Handle selectAgent from query parameter (when redirected from agent profile)
   useEffect(() => {
-    const mention = searchParams.get('mention');
-    if (mention && !loading && teamChat) {
-      // Pre-populate input with @mention and a trailing space
-      setMessageInput(`@${mention} `);
+    const agentIdToSelect = searchParams.get('selectAgent');
+    if (agentIdToSelect && !loading && teamChat) {
+      // Select the agent in the sidebar
+      selectAgent(agentIdToSelect);
       // Clean up URL by removing the query parameter
       router.replace('/agents/team', { scroll: false });
     }
-  }, [searchParams, loading, teamChat, setMessageInput, router]);
+  }, [searchParams, loading, teamChat, selectAgent, router]);
 
   // Scroll to bottom when switching to chat tab or on initial load
   // Uses MutationObserver to keep scrolling as images/content load
