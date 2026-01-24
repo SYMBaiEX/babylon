@@ -11,9 +11,6 @@ import { cn } from '@babylon/shared';
 import { ArrowLeft, Bot, Loader2, Wallet } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { Skeleton } from '@/components/shared/Skeleton';
-import { useAuth } from '@/hooks/useAuth';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   AgentConfigForm,
   type AgentSettingsData,
@@ -22,6 +19,9 @@ import {
   ProfilePreviewCard,
 } from '@/app/agents/create/components';
 import { useAgentForm } from '@/app/agents/create/hooks';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 
 const TOTAL_PROFILE_PICTURES = 100;
 const TOTAL_BANNERS = 100;
@@ -344,7 +344,9 @@ export function AgentCreate({
           <div className="space-y-4 lg:col-span-1">
             <ProfilePreviewCard
               profileData={profileData}
-              onCycleProfilePic={(direction) => cycleImage('profile', direction)}
+              onCycleProfilePic={(direction) =>
+                cycleImage('profile', direction)
+              }
               onCycleBanner={(direction) => cycleImage('cover', direction)}
               isLoading={!isInitialized}
             />
@@ -449,4 +451,3 @@ export function AgentCreate({
     </div>
   );
 }
-
