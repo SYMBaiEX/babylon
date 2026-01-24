@@ -143,7 +143,7 @@ export function ConversationList({
 
               {editingId === conversation.id ? (
                 // Inline edit mode
-                <div className="flex flex-1 items-center gap-1">
+                <div className="flex min-w-0 flex-1 items-center gap-1">
                   <input
                     ref={inputRef}
                     type="text"
@@ -151,13 +151,13 @@ export function ConversationList({
                     onChange={(e) => setEditValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isSaving}
-                    className="h-6 flex-1 rounded border border-primary/50 bg-background px-1.5 text-sm outline-none focus:border-primary"
+                    className="h-6 min-w-0 flex-1 rounded border border-primary/50 bg-background px-1.5 text-sm outline-none focus:border-primary"
                   />
                   <button
                     type="button"
                     onClick={handleSaveRename}
                     disabled={isSaving}
-                    className="p-0.5 text-primary hover:text-primary/80"
+                    className="shrink-0 p-0.5 text-primary hover:text-primary/80"
                   >
                     <Check className="h-3.5 w-3.5" />
                   </button>
@@ -165,7 +165,7 @@ export function ConversationList({
                     type="button"
                     onClick={handleCancelRename}
                     disabled={isSaving}
-                    className="p-0.5 text-muted-foreground hover:text-foreground"
+                    className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
