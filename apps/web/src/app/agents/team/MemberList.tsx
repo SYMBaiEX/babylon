@@ -1,14 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Check,
-  Loader2,
-  MoreVertical,
-  Plus,
-  Settings,
-  User,
-} from 'lucide-react';
+import { Check, Loader2, MoreVertical, Plus, Settings, User } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';

@@ -518,7 +518,8 @@ describe('NFT Chat Gating Service', () => {
       mockDbSelect.mockImplementation(() => ({
         from: () => ({
           where: () => ({
-            limit: () => Promise.resolve([{ groupId: 'group-123' }]),
+            limit: () =>
+              Promise.resolve([{ groupId: 'group-123' }]),
           }),
         }),
       }));
@@ -709,10 +710,7 @@ describe('NFT Chat Gating - Integration Scenarios', () => {
       // NFT access check should not even be called for admins
       mockHasNftAccess.mockResolvedValue(false);
 
-      const canAccess = await canAccessNftChatGate(
-        'admin-user',
-        'fd-alpha-chat'
-      );
+      const canAccess = await canAccessNftChatGate('admin-user', 'fd-alpha-chat');
       expect(canAccess).toBe(true);
       expect(mockHasNftAccess).not.toHaveBeenCalled();
     });

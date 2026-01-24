@@ -100,7 +100,6 @@ interface UseTeamChatReturn {
   sendMessage: () => Promise<void>;
   refresh: () => Promise<void>;
   handleScroll: (container: HTMLDivElement) => void;
-  scrollToBottom: (behavior?: 'instant' | 'smooth') => void;
 }
 
 export function useTeamChat(): UseTeamChatReturn {
@@ -615,10 +614,6 @@ export function useTeamChat(): UseTeamChatReturn {
       stableKey: optimisticId,
     });
 
-    // Scroll to bottom after DOM updates with new message
-    // Small delay to ensure React has rendered the new message
-    setTimeout(() => scrollToBottom('instant'), 50);
-
     setMessageInput('');
     setSending(true);
     setSendError(null);
@@ -727,7 +722,6 @@ export function useTeamChat(): UseTeamChatReturn {
     addMessage,
     removeMessage,
     sendTypingIndicator,
-    scrollToBottom,
   ]);
 
   return {
@@ -758,6 +752,5 @@ export function useTeamChat(): UseTeamChatReturn {
     sendMessage,
     refresh: fetchTeamChat,
     handleScroll,
-    scrollToBottom,
   };
 }
