@@ -51,6 +51,7 @@ import {
   actionStateProvider,
   actionsProvider,
   recentMessagesProvider,
+  teamMembersProvider,
 } from './providers';
 
 /**
@@ -90,7 +91,12 @@ export const agentCorePlugin: Plugin = {
     closePerpAction,
   ],
 
-  providers: [actionsProvider, recentMessagesProvider, actionStateProvider],
+  providers: [
+    actionsProvider,
+    recentMessagesProvider,
+    actionStateProvider,
+    teamMembersProvider,
+  ],
 };
 
 export * from './actions';

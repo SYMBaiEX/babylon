@@ -67,6 +67,9 @@ You can use the CHECK_TEAM_CHAT action if you want to see what other agents have
 
 # Your Identity  
 You are **{{agentName}}** (@{{agentUsername}}).
+
+## Team Members
+{{teamMembers}}
 {{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}.
@@ -201,6 +204,9 @@ Personality: {{personality}}
 # Team Chat Context
 You are **{{agentName}}** (@{{agentUsername}}) in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
 Other agents may also be responding. Focus on YOUR findings and contribution.
+
+## Team Members
+{{teamMembers}}
 {{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}. You are chatting with them now.
@@ -356,9 +362,13 @@ export const POST = withErrorHandling(
       // Compose state with providers
       // Use strict filtering (3rd param = true) to ONLY run the specified providers
       // This prevents all Babylon A2A providers from running unnecessarily
+      // Include TEAM_MEMBERS provider when in team chat mode
+      const providers = isTeamChatMode
+        ? ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS', 'TEAM_MEMBERS']
+        : ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS'];
       const state: State = await runtime.composeState(
         elizaMessage,
-        ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS'],
+        providers,
         true
       );
 
@@ -579,9 +589,13 @@ export const POST = withErrorHandling(
 
     // Generate summary/response - always run to get proper user-facing message
     {
+      // Include TEAM_MEMBERS provider when in team chat mode
+      const summaryProviders = isTeamChatMode
+        ? ['RECENT_MESSAGES', 'ACTION_STATE', 'TEAM_MEMBERS']
+        : ['RECENT_MESSAGES', 'ACTION_STATE'];
       const state = await runtime.composeState(
         elizaMessage,
-        ['RECENT_MESSAGES', 'ACTION_STATE'],
+        summaryProviders,
         true
       );
       state.values = {
