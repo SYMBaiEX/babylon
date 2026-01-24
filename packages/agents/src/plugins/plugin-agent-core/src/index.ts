@@ -90,11 +90,7 @@ export const agentCorePlugin: Plugin = {
     closePerpAction,
   ],
 
-  providers: [
-    actionsProvider,
-    recentMessagesProvider,
-    actionStateProvider,
-  ],
+  providers: [actionsProvider, recentMessagesProvider, actionStateProvider],
 };
 
 export * from './actions';
