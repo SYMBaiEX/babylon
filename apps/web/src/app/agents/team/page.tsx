@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
 
 // Lazy load activity feed for performance
@@ -119,6 +120,11 @@ export default function TeamChatPage() {
     toggleAgentSelection,
     deselectAllAgents,
     stopAgent,
+    // Conversations (fresh chat)
+    conversations,
+    conversationsLoading,
+    createConversation,
+    switchConversation,
   } = useTeamChat();
 
   // Mobile member drawer state
@@ -457,15 +463,37 @@ export default function TeamChatPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4">
               <h3 id="drawer-title" className="font-semibold text-foreground">
-                Team Members
+                Command Center
               </h3>
               <button
                 onClick={() => setShowMemberDrawer(false)}
                 className="rounded-lg p-2 transition-colors hover:bg-muted"
-                aria-label="Close team members drawer"
+                aria-label="Close drawer"
               >
                 <X className="h-5 w-5" />
               </button>
+            </div>
+
+            <Separator />
+
+            {/* Conversations Section */}
+            <div className="p-3">
+              <ConversationList
+                conversations={conversations}
+                loading={conversationsLoading}
+                onNewChat={() => createConversation()}
+                onSelectConversation={switchConversation}
+                onClose={() => setShowMemberDrawer(false)}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Team Members Header */}
+            <div className="p-4">
+              <h3 className="font-semibold text-foreground text-sm">
+                Team Members
+              </h3>
             </div>
 
             <Separator />
@@ -533,7 +561,19 @@ export default function TeamChatPage() {
         {activeTab === 'chat' && (
           <>
             <div className="hidden w-64 flex-col border-border border-r lg:flex">
-              {/* Header */}
+              {/* Conversations Section */}
+              <div className="p-3">
+                <ConversationList
+                  conversations={conversations}
+                  loading={conversationsLoading}
+                  onNewChat={() => createConversation()}
+                  onSelectConversation={switchConversation}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Team Members Header */}
               <div className="p-4">
                 <h3 className="font-semibold text-foreground">Team Members</h3>
               </div>
