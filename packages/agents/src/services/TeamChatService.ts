@@ -37,6 +37,14 @@ const TEAM_CHAT_NAME = 'Command Center';
 const TEAM_CHAT_DESCRIPTION = 'Coordinate all your agents in one place';
 
 /**
+ * Generate a chat name with date and time
+ * Format: "Chat Jan 24, 10:30 AM"
+ */
+function generateChatName(date: Date = new Date()): string {
+  return `Chat ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+}
+
+/**
  * Team chat information returned by service methods.
  * Now maps directly from Group table (type='team').
  */
@@ -120,8 +128,8 @@ export class TeamChatService {
         // 2. Create the initial Chat linked to the group
         await tx.insert(chats).values({
           id: chatId,
-          name: TEAM_CHAT_NAME,
-          description: TEAM_CHAT_DESCRIPTION,
+          name: generateChatName(now),
+          description: null,
           isGroup: true,
           groupId,
           createdBy: userId,
@@ -809,9 +817,7 @@ export class TeamChatService {
       ]);
 
       // Generate default title if not provided
-      const chatTitle =
-        title ||
-        `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      const chatTitle = title || generateChatName(now);
 
       // 1. Create new Chat linked to the same Group
       const [newChat] = await tx
