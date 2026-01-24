@@ -112,6 +112,7 @@ export default function TeamChatPage() {
     topSentinelRef,
     sendMessage,
     handleScroll,
+    scrollToBottom,
     // Agent selection
     selectedAgentIds,
     processingAgentIds,
@@ -260,6 +261,14 @@ export default function TeamChatPage() {
       router.replace('/agents/team', { scroll: false });
     }
   }, [searchParams, loading, teamChat, setMessageInput, router]);
+
+  // Scroll to bottom when switching to chat tab or on initial load
+  useEffect(() => {
+    if (activeTab === 'chat' && teamChat && !loading) {
+      // Small delay to ensure DOM has rendered
+      setTimeout(() => scrollToBottom('instant'), 100);
+    }
+  }, [activeTab, teamChat, loading, scrollToBottom]);
 
   // Auth required state
   if (ready && !authenticated) {
