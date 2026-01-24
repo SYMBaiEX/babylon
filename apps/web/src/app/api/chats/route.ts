@@ -188,9 +188,9 @@ import {
   desc,
   eq,
   groupMembers,
+  groups,
   inArray,
   messages,
-  userAgentTeamChats,
   users,
 } from '@babylon/db';
 import {
@@ -331,14 +331,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get user's Command Center chat ID to exclude from regular chat list
+    // Get user's Command Center group to exclude its chats from regular chat list
     // Command Center is managed separately at /agents/team
-    const [teamChat] = await dbClient
-      .select({ chatId: userAgentTeamChats.chatId })
-      .from(userAgentTeamChats)
-      .where(eq(userAgentTeamChats.userId, user.userId))
+    const [teamGroup] = await dbClient
+      .select({ id: groups.id })
+      .from(groups)
+      .where(and(eq(groups.type, 'team'), eq(groups.ownerId, user.userId)))
       .limit(1);
-    const teamChatId = teamChat?.chatId;
+    const teamGroupId = teamGroup?.id;
 
     // Get user's group memberships
     const memberships = await dbClient
@@ -377,9 +377,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .where(inArray(chats.groupId, groupIds))
         : [];
 
-    // Filter out Command Center from group chats
-    const filteredGroupChats = teamChatId
-      ? groupChatsWithGroupId.filter((c) => c.id !== teamChatId)
+    // Filter out Command Center chats (all chats linked to the team group)
+    const filteredGroupChats = teamGroupId
+      ? groupChatsWithGroupId.filter((c) => c.groupId !== teamGroupId)
       : groupChatsWithGroupId;
     const filteredGroupChatsForAccess =
       gatedChatId && canAccessNftGatedChat === false

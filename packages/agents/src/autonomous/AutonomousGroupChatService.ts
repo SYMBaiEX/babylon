@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import { and, db, desc, eq, gte, messages } from '@babylon/db';
+import { and, db, desc, eq, groups, gte, messages } from '@babylon/db';
 import { shuffleArray } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
 import { callGroqDirect } from '../llm/direct-groq';
@@ -49,12 +49,32 @@ export class AutonomousGroupChatService {
 
     let messagesCreated = 0;
 
+    // Filter out team chats (Command Center) - agents shouldn't auto-respond there
+    // Team chats use group.type = 'team'
+    const groupIds = groupChatsRaw
+      .map((c) => c.chat?.groupId)
+      .filter((gid): gid is string => !!gid);
+
+    let teamGroupIds = new Set<string>();
+    if (groupIds.length > 0) {
+      const teamGroups = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(and(eq(groups.type, 'team')));
+      teamGroupIds = new Set(teamGroups.map((g) => g.id));
+    }
+
     // Shuffle to prevent starvation (deterministic order would always favor same chats)
     const shuffledChats = shuffleArray(groupChatsRaw);
 
     for (const chatParticipant of shuffledChats) {
       const chat = chatParticipant.chat;
       if (!chat || !chat.isGroup) continue; // Skip DMs
+
+      // Skip team chats (Command Center) - user explicitly triggers agent responses there
+      if (chat.groupId && teamGroupIds.has(chat.groupId)) {
+        continue;
+      }
 
       // Get recent messages in this group
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
