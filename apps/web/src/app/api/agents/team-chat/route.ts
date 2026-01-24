@@ -68,7 +68,9 @@ import {
   eq,
   groupMembers,
   groups,
+  inArray,
   messages,
+  userAgentConfigs,
   userAgentTeamChats,
   users,
   withTransaction,
@@ -105,6 +107,24 @@ export async function GET(req: NextRequest) {
     'TeamChatAPI'
   );
 
+  // Fetch modelTier for each agent from userAgentConfigs
+  const agentIds = teamChatWithMembers.agents.map((a) => a.id);
+  const agentConfigs =
+    agentIds.length > 0
+      ? await db
+          .select({
+            userId: userAgentConfigs.userId,
+            modelTier: userAgentConfigs.modelTier,
+          })
+          .from(userAgentConfigs)
+          .where(inArray(userAgentConfigs.userId, agentIds))
+      : [];
+
+  // Create a map for quick lookup
+  const modelTierMap = new Map(
+    agentConfigs.map((c) => [c.userId, c.modelTier])
+  );
+
   return NextResponse.json({
     success: true,
     teamChat: {
@@ -119,6 +139,7 @@ export async function GET(req: NextRequest) {
         displayName: agent.displayName,
         profileImageUrl: agent.profileImageUrl,
         isAgent: agent.isAgent,
+        modelTier: modelTierMap.get(agent.id) ?? 'free',
       })),
       agentCount: teamChatWithMembers.agents.length,
     },
@@ -168,6 +189,24 @@ export async function POST(req: NextRequest) {
     'TeamChatAPI'
   );
 
+  // Fetch modelTier for each agent from userAgentConfigs
+  const agentIds = agents.map((a) => a.id);
+  const agentConfigs =
+    agentIds.length > 0
+      ? await db
+          .select({
+            userId: userAgentConfigs.userId,
+            modelTier: userAgentConfigs.modelTier,
+          })
+          .from(userAgentConfigs)
+          .where(inArray(userAgentConfigs.userId, agentIds))
+      : [];
+
+  // Create a map for quick lookup
+  const modelTierMap = new Map(
+    agentConfigs.map((c) => [c.userId, c.modelTier])
+  );
+
   return NextResponse.json({
     success: true,
     teamChat: {
@@ -182,6 +221,7 @@ export async function POST(req: NextRequest) {
         displayName: agent.displayName,
         profileImageUrl: agent.profileImageUrl,
         isAgent: agent.isAgent,
+        modelTier: modelTierMap.get(agent.id) ?? 'free',
       })),
       agentCount: agents.length,
     },

@@ -122,6 +122,8 @@ interface TeamChatViewProps {
   selectedAgents?: SelectedAgentInfo[];
   /** Callback when an agent chip is removed */
   onRemoveSelectedAgent?: (agentId: string) => void;
+  /** Whether any selected agent is processing (disables input) */
+  hasProcessingSelected?: boolean;
 }
 
 /**
@@ -151,6 +153,7 @@ export function TeamChatView({
   onScroll,
   selectedAgents = [],
   onRemoveSelectedAgent,
+  hasProcessingSelected = false,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -257,15 +260,15 @@ export function TeamChatView({
 
         {/* Selected Agents Chips - shown above input when agents are selected */}
         {selectedAgents.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-4 pt-3">
-            <span className="self-center text-muted-foreground text-xs">
+          <div className="scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex items-center gap-2 overflow-x-auto px-4 pt-3">
+            <span className="shrink-0 text-muted-foreground text-xs">
               Send to:
             </span>
             {selectedAgents.map((agent) => (
               <div
                 key={agent.id}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-full py-1 pr-2 pl-1 text-sm',
+                  'flex shrink-0 items-center gap-1.5 rounded-full py-1 pr-2 pl-1 text-sm',
                   agent.isProcessing
                     ? 'bg-blue-500/20 text-blue-500'
                     : 'bg-muted text-foreground'
@@ -280,19 +283,18 @@ export function TeamChatView({
                 <span className="max-w-[100px] truncate font-medium">
                   {agent.displayName}
                 </span>
-                {agent.isProcessing ? (
+                {agent.isProcessing && (
                   <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  onRemoveSelectedAgent && (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveSelectedAgent(agent.id)}
-                      className="rounded-full p-0.5 hover:bg-background/50"
-                      aria-label={`Remove ${agent.displayName}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )
+                )}
+                {onRemoveSelectedAgent && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveSelectedAgent(agent.id)}
+                    className="rounded-full p-0.5 hover:bg-background/50"
+                    aria-label={`Remove ${agent.displayName}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 )}
               </div>
             ))}
@@ -306,7 +308,14 @@ export function TeamChatView({
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
-          placeholder="Send to all agents, or select specific ones →"
+          disabled={hasProcessingSelected}
+          placeholder={
+            hasProcessingSelected
+              ? 'Waiting for agents to finish... (remove to unblock)'
+              : selectedAgents.length > 0
+                ? `Message ${selectedAgents.length === 1 ? selectedAgents[0]?.displayName : `${selectedAgents.length} agents`}...`
+                : 'No agents selected - will send to all agents'
+          }
           mentionableMembers={agents}
         />
       </div>

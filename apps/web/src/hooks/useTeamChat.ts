@@ -47,6 +47,7 @@ interface TeamChatAgent {
   displayName: string | null;
   profileImageUrl: string | null;
   isAgent: boolean;
+  modelTier: 'free' | 'pro';
 }
 
 /** Team chat info from API */
@@ -516,17 +517,34 @@ export function useTeamChat(): UseTeamChatReturn {
     }
   }, [user?.id, fetchTeamChat]);
 
+  // Auto-select first agent on initial load
+  const hasAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (
+      teamChat?.agents &&
+      teamChat.agents.length > 0 &&
+      !hasAutoSelectedRef.current &&
+      selectedAgentIds.size === 0
+    ) {
+      hasAutoSelectedRef.current = true;
+      const firstAgent = teamChat.agents[0];
+      if (firstAgent) {
+        setSelectedAgentIds(new Set([firstAgent.id]));
+      }
+    }
+  }, [teamChat?.agents, selectedAgentIds.size]);
+
   // Agent selection methods
   const toggleAgentSelection = useCallback(
     (agentId: string) => {
-      // Can't toggle if agent is processing
-      if (processingAgentIds.has(agentId)) return;
-
       setSelectedAgentIds((prev) => {
         const next = new Set(prev);
         if (next.has(agentId)) {
+          // Always allow removing from selection (even if processing)
           next.delete(agentId);
         } else {
+          // Can't select if agent is processing
+          if (processingAgentIds.has(agentId)) return prev;
           next.add(agentId);
         }
         return next;
@@ -612,13 +630,17 @@ export function useTeamChat(): UseTeamChatReturn {
 
     const content = messageInput.trim();
 
-    // Auto-select all agents if none selected
+    // Use selected agents, or fall back to all agents if none selected
     let agentsToCall = Array.from(selectedAgentIds);
     if (agentsToCall.length === 0 && teamChat?.agents) {
-      agentsToCall = teamChat.agents
-        .filter((a) => !processingAgentIds.has(a.id))
-        .map((a) => a.id);
+      agentsToCall = teamChat.agents.map((a) => a.id);
     }
+
+    // Filter out any agents that are already processing
+    const availableAgents = agentsToCall.filter(
+      (id) => !processingAgentIds.has(id)
+    );
+    if (availableAgents.length === 0) return;
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -667,75 +689,72 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
-      // If agents are selected, call them in parallel
-      if (agentsToCall.length > 0) {
-        // Mark selected agents as processing
-        setProcessingAgentIds((prev) => {
-          const next = new Set(prev);
-          for (const id of agentsToCall) {
-            next.add(id);
+      // Call available agents in parallel (skip any that are already processing)
+      // Mark agents as processing
+      // Note: We keep the selection so user can continue chatting with same agents
+      // They can remove processing agents via X button if they want to unblock
+      setProcessingAgentIds((prev) => {
+        const next = new Set(prev);
+        for (const id of availableAgents) {
+          next.add(id);
+        }
+        return next;
+      });
+
+      // Get user info for team chat context
+      const ownerName = user.displayName || user.username || 'User';
+      const ownerUsername = user.username || '';
+
+      // Call each available agent in parallel
+      const agentCalls = availableAgents.map(async (agentId) => {
+        // Create AbortController for this agent (for stop functionality)
+        const controller = new AbortController();
+        abortControllersRef.current.set(agentId, controller);
+
+        try {
+          const agentResponse = await fetch(`/api/agents/${agentId}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              message: content,
+              usePro: false, // Use free tier by default
+              teamChatId: teamChat.chatId,
+              teamChatOwnerName: ownerName,
+              teamChatOwnerUsername: ownerUsername,
+            }),
+            signal: controller.signal,
+          });
+
+          if (!agentResponse.ok) {
+            console.error(`Agent ${agentId} failed to respond`);
           }
-          return next;
-        });
-
-        // Clear selection (agents are now being processed)
-        setSelectedAgentIds(new Set());
-
-        // Get user info for team chat context
-        const ownerName = user.displayName || user.username || 'User';
-        const ownerUsername = user.username || '';
-
-        // Call each selected agent in parallel
-        const agentCalls = agentsToCall.map(async (agentId) => {
-          // Create AbortController for this agent (for stop functionality)
-          const controller = new AbortController();
-          abortControllersRef.current.set(agentId, controller);
-
-          try {
-            const agentResponse = await fetch(`/api/agents/${agentId}/chat`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                message: content,
-                usePro: false, // Use free tier by default
-                teamChatId: teamChat.chatId,
-                teamChatOwnerName: ownerName,
-                teamChatOwnerUsername: ownerUsername,
-              }),
-              signal: controller.signal,
-            });
-
-            if (!agentResponse.ok) {
-              console.error(`Agent ${agentId} failed to respond`);
-            }
-          } catch (err) {
-            // Don't log abort errors - they're expected when user stops
-            if (err instanceof Error && err.name === 'AbortError') {
-              console.log(`Agent ${agentId} request was cancelled`);
-            } else {
-              console.error(`Error calling agent ${agentId}:`, err);
-            }
-          } finally {
-            // Clean up AbortController
-            abortControllersRef.current.delete(agentId);
-            // Remove from processing when done
-            setProcessingAgentIds((prev) => {
-              const next = new Set(prev);
-              next.delete(agentId);
-              return next;
-            });
+        } catch (err) {
+          // Don't log abort errors - they're expected when user stops
+          if (err instanceof Error && err.name === 'AbortError') {
+            console.log(`Agent ${agentId} request was cancelled`);
+          } else {
+            console.error(`Error calling agent ${agentId}:`, err);
           }
-        });
+        } finally {
+          // Clean up AbortController
+          abortControllersRef.current.delete(agentId);
+          // Remove from processing when done
+          setProcessingAgentIds((prev) => {
+            const next = new Set(prev);
+            next.delete(agentId);
+            return next;
+          });
+        }
+      });
 
-        // Don't await - let agents process in background
-        // Responses will come through SSE/broadcast
-        Promise.all(agentCalls).catch((err) => {
-          console.error('Error in parallel agent calls:', err);
-        });
-      }
+      // Don't await - let agents process in background
+      // Responses will come through SSE/broadcast
+      Promise.all(agentCalls).catch((err) => {
+        console.error('Error in parallel agent calls:', err);
+      });
     } catch (err) {
       // Rollback optimistic message on network error
       removeMessage(optimisticId);

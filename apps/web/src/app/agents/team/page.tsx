@@ -6,7 +6,6 @@ import {
   Bot,
   MessageCircle,
   Plus,
-  Radio,
   TrendingUp,
   Users,
   X,
@@ -113,10 +112,12 @@ export default function TeamChatPage() {
     sendMessage,
     handleScroll,
     scrollToBottom,
+    refresh: refreshTeamChat,
     // Agent selection
     selectedAgentIds,
     processingAgentIds,
     toggleAgentSelection,
+    deselectAllAgents,
     stopAgent,
   } = useTeamChat();
 
@@ -471,7 +472,6 @@ export default function TeamChatPage() {
 
             {/* Member list - extracted component */}
             <MemberList
-              user={user}
               teamChat={teamChat}
               onClose={() => setShowMemberDrawer(false)}
               selectedAgentIds={selectedAgentIds}
@@ -534,24 +534,14 @@ export default function TeamChatPage() {
           <>
             <div className="hidden w-64 flex-col border-border border-r lg:flex">
               {/* Header */}
-              <div className="flex items-center justify-between p-4">
+              <div className="p-4">
                 <h3 className="font-semibold text-foreground">Team Members</h3>
-                <div
-                  className={cn(
-                    'flex items-center gap-1.5 text-xs',
-                    sseConnected ? 'text-green-500' : 'text-muted-foreground'
-                  )}
-                >
-                  <Radio className="h-3 w-3" />
-                  {sseConnected ? 'Live' : 'Offline'}
-                </div>
               </div>
 
               <Separator />
 
               {/* Member list - extracted component */}
               <MemberList
-                user={user}
                 teamChat={teamChat}
                 selectedAgentIds={selectedAgentIds}
                 processingAgentIds={processingAgentIds}
@@ -610,7 +600,7 @@ export default function TeamChatPage() {
               thinkingAgents={thinkingAgents}
               onShowMembers={() => setShowMemberDrawer(true)}
               onScroll={handleScroll}
-              // Selected agents (only before sending - closes after send)
+              // Selected agents - persists after send, shows processing state
               selectedAgents={
                 teamChat?.agents
                   .filter((a) => selectedAgentIds.has(a.id))
@@ -618,10 +608,17 @@ export default function TeamChatPage() {
                     id: a.id,
                     displayName: a.displayName || a.username || 'Agent',
                     profileImageUrl: a.profileImageUrl,
-                    isProcessing: false, // Processing status shown in sidebar only
+                    isProcessing: processingAgentIds.has(a.id),
                   })) || []
               }
               onRemoveSelectedAgent={toggleAgentSelection}
+              // Disable input if any selected agent is processing
+              hasProcessingSelected={
+                selectedAgentIds.size > 0 &&
+                Array.from(selectedAgentIds).some((id) =>
+                  processingAgentIds.has(id)
+                )
+              }
             />
           )}
 
@@ -634,9 +631,18 @@ export default function TeamChatPage() {
                   <AgentCreate
                     onBack={() => setShowCreateAgent(false)}
                     backLabel="Back to Agents"
-                    onSuccess={() => {
+                    onSuccess={async (agent) => {
                       setShowCreateAgent(false);
-                      fetchAgents(); // Refresh the list
+                      // Refresh team chat to include the new agent
+                      await refreshTeamChat();
+                      // Switch to chat tab
+                      setActiveTab('chat');
+                      // Select only the new agent
+                      deselectAllAgents();
+                      // Small delay to ensure state is updated
+                      setTimeout(() => {
+                        toggleAgentSelection(agent.id);
+                      }, 100);
                     }}
                     compact
                   />

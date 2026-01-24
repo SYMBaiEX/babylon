@@ -12,7 +12,6 @@ import {
 import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { Separator } from '@/components/shared/Separator';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -28,13 +27,7 @@ interface TeamChatAgent {
   username: string | null;
   displayName: string | null;
   profileImageUrl: string | null;
-}
-
-/** User info for member list */
-interface UserInfo {
-  profileImageUrl?: string | null | undefined;
-  displayName?: string | null | undefined;
-  username?: string | null | undefined;
+  modelTier: 'free' | 'pro';
 }
 
 /** Team chat info for member list */
@@ -44,7 +37,6 @@ interface TeamChatInfo {
 }
 
 interface MemberListProps {
-  user: UserInfo | null | undefined;
   teamChat: TeamChatInfo | null | undefined;
   /** Called when a link is clicked (for closing drawer on mobile) */
   onClose?: () => void;
@@ -67,12 +59,11 @@ interface MemberListProps {
 /**
  * Member list component for Command Center sidebar/drawer
  *
- * Shows the current user and all agents in the team chat.
+ * Shows all agents in the team chat.
  * Supports agent selection for parallel task execution.
  * Used by both desktop sidebar and mobile drawer.
  */
 export function MemberList({
-  user,
   teamChat,
   onClose,
   selectedAgentIds = new Set(),
@@ -88,25 +79,6 @@ export function MemberList({
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
-      {/* You (the user) */}
-      <div className="mb-4">
-        <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-          You
-        </p>
-        <div className="flex items-center gap-3">
-          <Avatar
-            src={user?.profileImageUrl ?? undefined}
-            name={user?.displayName || user?.username || 'You'}
-            size="sm"
-          />
-          <span className="font-medium text-foreground text-sm">
-            {user?.displayName || user?.username || 'You'}
-          </span>
-        </div>
-      </div>
-
-      <Separator className="my-4" />
-
       {/* Agents */}
       <div>
         <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
@@ -179,9 +151,16 @@ export function MemberList({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground text-sm">
-                        {agentName}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium text-foreground text-sm">
+                          {agentName}
+                        </p>
+                        {agent.modelTier === 'pro' && (
+                          <span className="shrink-0 rounded bg-primary/20 px-1.5 py-0.5 font-medium text-[10px] text-primary">
+                            PRO
+                          </span>
+                        )}
+                      </div>
                       {agent.username && (
                         <p className="truncate text-muted-foreground text-xs">
                           @{agent.username}
