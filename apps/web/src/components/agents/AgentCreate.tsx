@@ -68,12 +68,12 @@ export function AgentCreate({
 
   // Settings state for step 3
   const [settingsData, setSettingsData] = useState<AgentSettingsData>({
-    modelTier: 'free',
+    modelTier: 'pro',
     autonomousEnabled: true,
-    autonomousPosting: false,
-    autonomousCommenting: false,
-    autonomousDMs: false,
-    autonomousGroupChats: false,
+    autonomousPosting: true,
+    autonomousCommenting: true,
+    autonomousDMs: true,
+    autonomousGroupChats: true,
     a2aEnabled: true,
   });
 
