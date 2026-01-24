@@ -270,6 +270,18 @@ export const POST = withErrorHandling(
     const teamChatOwnerUsername = body.teamChatOwnerUsername;
     const isTeamChatMode = !!teamChatId;
 
+    // Get abort signal from request for cancellation support
+    const { signal } = req;
+
+    // Helper to check if request was cancelled
+    const checkCancelled = () => {
+      if (signal.aborted) {
+        logger.info('Request cancelled by client', { agentId }, 'AgentChat');
+        return true;
+      }
+      return false;
+    };
+
     // Validate input
     const inputCheck = checkUserInput(message);
     if (!inputCheck.safe) {
@@ -353,6 +365,14 @@ export const POST = withErrorHandling(
     let finalResponse: string | null = null;
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      // Check if client cancelled the request
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 } // Client Closed Request
+        );
+      }
+
       logger.info(
         `[MultiStep] Iteration ${iteration}/${MAX_ITERATIONS}`,
         { agentId, actionsCompleted: traceActionResults.length },
@@ -417,6 +437,14 @@ export const POST = withErrorHandling(
           temperature: attempt > 1 ? 0.5 : 0.7,
         });
 
+        // Check cancellation after LLM call
+        if (checkCancelled()) {
+          return NextResponse.json(
+            { success: false, cancelled: true, error: 'Request cancelled' },
+            { status: 499 }
+          );
+        }
+
         parsedStep = parseKeyValueXml(response);
 
         if (parsedStep) {
@@ -449,6 +477,14 @@ export const POST = withErrorHandling(
       // No action - go to summary phase
       if (!action || action === '') {
         break;
+      }
+
+      // Check cancellation before action execution
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 }
+        );
       }
 
       // Execute action via runtime.processActions
@@ -620,6 +656,14 @@ export const POST = withErrorHandling(
         ...state.data,
         actionResults: traceActionResults,
       };
+
+      // Check cancellation before summary generation
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 }
+        );
+      }
 
       const summaryPrompt = composePromptFromState({
         state,

@@ -7,8 +7,10 @@ import {
   MoreVertical,
   Plus,
   Settings,
+  Square,
   User,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
@@ -53,6 +55,8 @@ interface MemberListProps {
   processingAgentIds?: Set<string>;
   /** Called when an agent is toggled for selection */
   onToggleAgent?: (agentId: string) => void;
+  /** Called when "Stop" is clicked on a processing agent */
+  onStopAgent?: (agentId: string) => void;
   /** Called when "View Profile" is clicked */
   onViewProfile?: (agentId: string) => void;
   /** Called when "Settings" is clicked */
@@ -75,6 +79,7 @@ export function MemberList({
   selectedAgentIds = new Set(),
   processingAgentIds = new Set(),
   onToggleAgent,
+  onStopAgent,
   onViewProfile,
   onViewSettings,
   onAddAgent,
@@ -189,74 +194,80 @@ export function MemberList({
                         </p>
                       )}
                     </div>
-                    {isProcessing && (
-                      <span className="flex-shrink-0 text-blue-500 text-xs">
-                        Working...
-                      </span>
-                    )}
                   </button>
 
-                  {/* 3-dot dropdown menu */}
-                  <DropdownMenu
-                    open={openDropdown === agent.id}
-                    onOpenChange={(open) =>
-                      setOpenDropdown(open ? agent.id : null)
-                    }
-                  >
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
-                          'text-muted-foreground hover:bg-muted hover:text-foreground',
-                          'opacity-0 focus:opacity-100 group-hover:opacity-100',
-                          openDropdown === agent.id && 'opacity-100'
-                        )}
-                        aria-label={`Options for ${agentName}`}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      {/* Select/Unselect */}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (canSelect) onToggleAgent(agent.id);
-                          setOpenDropdown(null);
-                        }}
-                        disabled={isProcessing}
-                      >
-                        <Check className="mr-2 h-4 w-4" />
-                        {isSelected ? 'Unselect' : 'Select'}
-                      </DropdownMenuItem>
+                  {/* Stop button when processing, otherwise show dropdown menu */}
+                  {isProcessing ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 flex-shrink-0 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-600"
+                      onClick={() => onStopAgent?.(agent.id)}
+                      aria-label={`Stop ${agentName}`}
+                    >
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                    </Button>
+                  ) : (
+                    <DropdownMenu
+                      open={openDropdown === agent.id}
+                      onOpenChange={(open) =>
+                        setOpenDropdown(open ? agent.id : null)
+                      }
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                            'text-muted-foreground hover:bg-muted hover:text-foreground',
+                            'opacity-0 focus:opacity-100 group-hover:opacity-100',
+                            openDropdown === agent.id && 'opacity-100'
+                          )}
+                          aria-label={`Options for ${agentName}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {/* Select/Unselect */}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (canSelect) onToggleAgent(agent.id);
+                            setOpenDropdown(null);
+                          }}
+                        >
+                          <Check className="mr-2 h-4 w-4" />
+                          {isSelected ? 'Unselect' : 'Select'}
+                        </DropdownMenuItem>
 
-                      <DropdownMenuSeparator />
+                        <DropdownMenuSeparator />
 
-                      {/* View Profile */}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          onViewProfile?.(agent.id);
-                          onClose?.();
-                          setOpenDropdown(null);
-                        }}
-                      >
-                        <User className="mr-2 h-4 w-4" />
-                        View Profile
-                      </DropdownMenuItem>
+                        {/* View Profile */}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            onViewProfile?.(agent.id);
+                            onClose?.();
+                            setOpenDropdown(null);
+                          }}
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          View Profile
+                        </DropdownMenuItem>
 
-                      {/* Agent Settings */}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          onViewSettings?.(agent.id);
-                          onClose?.();
-                          setOpenDropdown(null);
-                        }}
-                      >
-                        <Settings className="mr-2 h-4 w-4" />
-                        Settings
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        {/* Agent Settings */}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            onViewSettings?.(agent.id);
+                            onClose?.();
+                            setOpenDropdown(null);
+                          }}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          Settings
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               );
             })}

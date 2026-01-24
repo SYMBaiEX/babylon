@@ -117,6 +117,7 @@ export default function TeamChatPage() {
     selectedAgentIds,
     processingAgentIds,
     toggleAgentSelection,
+    stopAgent,
   } = useTeamChat();
 
   // Mobile member drawer state
@@ -476,6 +477,7 @@ export default function TeamChatPage() {
               selectedAgentIds={selectedAgentIds}
               processingAgentIds={processingAgentIds}
               onToggleAgent={toggleAgentSelection}
+              onStopAgent={stopAgent}
               onViewProfile={handleViewProfile}
               onViewSettings={handleViewSettings}
               onAddAgent={handleAddAgent}
@@ -554,6 +556,7 @@ export default function TeamChatPage() {
                 selectedAgentIds={selectedAgentIds}
                 processingAgentIds={processingAgentIds}
                 onToggleAgent={toggleAgentSelection}
+                onStopAgent={stopAgent}
                 onViewProfile={handleViewProfile}
                 onViewSettings={handleViewSettings}
                 onAddAgent={handleAddAgent}
