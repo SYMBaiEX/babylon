@@ -272,6 +272,7 @@ export function TeamChatView({
                 )}
               >
                 <Avatar
+                  id={agent.id}
                   src={agent.profileImageUrl ?? undefined}
                   name={agent.displayName}
                   size="sm"

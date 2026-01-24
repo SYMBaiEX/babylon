@@ -10,7 +10,11 @@
  * Uses runtime.composeState() for providers and runtime.processActions() for execution.
  */
 
-import { agentRuntimeManager, agentService } from '@babylon/agents';
+import {
+  agentRuntimeManager,
+  agentService,
+  teamChatService,
+} from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
@@ -297,6 +301,26 @@ export const POST = withErrorHandling(
     }
 
     const user = await authenticateUser(req);
+
+    // Validate team chat ownership (security check)
+    // Prevents users from writing to other users' team chats
+    if (teamChatId) {
+      const isValidTeamChat = await teamChatService.validateTeamChatOwnership(
+        user.id,
+        teamChatId
+      );
+      if (!isValidTeamChat) {
+        logger.warn(
+          'Invalid team chat ID - user does not own this chat',
+          { userId: user.id, teamChatId, agentId },
+          'AgentChat'
+        );
+        return NextResponse.json(
+          { success: false, error: 'Invalid team chat' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Verify ownership
     const agentWithConfig = await agentService.getAgentWithConfig(

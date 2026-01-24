@@ -342,6 +342,25 @@ export class TeamChatService {
   }
 
   /**
+   * Validate that a team chat ID belongs to a specific user.
+   * This is a security check to prevent users from writing to other users' team chats.
+   *
+   * @param userId - The human user ID to validate against
+   * @param chatId - The chat ID to validate
+   * @returns True if the chat belongs to the user, false otherwise
+   */
+  async validateTeamChatOwnership(
+    userId: string,
+    chatId: string
+  ): Promise<boolean> {
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      return false;
+    }
+    return teamChat.chatId === chatId;
+  }
+
+  /**
    * Get the team chat with all member agents
    *
    * @param userId - The human user ID
