@@ -262,7 +262,10 @@ export async function reconcileNftChatMembershipForUser(user: {
   dbUserId: string;
   isAgent?: boolean;
 }): Promise<
-  | { status: 'skipped'; reason: 'disabled' | 'agent' | 'missing_chat_id' | 'error' }
+  | {
+      status: 'skipped';
+      reason: 'disabled' | 'agent' | 'missing_chat_id' | 'error';
+    }
   | { status: 'noop'; allowed: boolean }
   | { status: 'ensured'; chatId: string }
   | { status: 'revoked'; chatId: string }
