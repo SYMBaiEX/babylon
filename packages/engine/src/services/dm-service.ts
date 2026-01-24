@@ -54,10 +54,14 @@ export async function getOrCreateDMChat(
 
   // Block agent-owner DMs
   if (userAData?.isAgent && userAData?.managedBy === userB) {
-    throw new Error('Agents cannot DM their owner - use Command Center instead');
+    throw new Error(
+      'Agents cannot DM their owner - use Command Center instead'
+    );
   }
   if (userBData?.isAgent && userBData?.managedBy === userA) {
-    throw new Error('Agents cannot DM their owner - use Command Center instead');
+    throw new Error(
+      'Agents cannot DM their owner - use Command Center instead'
+    );
   }
 
   // Find existing DM chat using a single query with self-join
