@@ -318,51 +318,43 @@ export default function TeamChatPage() {
 
       {/* Tab Bar */}
       <div className="shrink-0 border-border border-b bg-background">
-        <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex gap-1">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
-                activeTab === 'chat'
-                  ? 'bg-blue-500/10 text-blue-500'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <MessageCircle className="h-4 w-4" />
-              Chat
-            </button>
-            <button
-              onClick={() => setActiveTab('agents')}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
-                activeTab === 'agents'
-                  ? 'bg-blue-500/10 text-blue-500'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Bot className="h-4 w-4" />
-              Agents
-            </button>
-            <button
-              onClick={() => setActiveTab('activity')}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
-                activeTab === 'activity'
-                  ? 'bg-blue-500/10 text-blue-500'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Activity className="h-4 w-4" />
-              Activity
-            </button>
-          </div>
-          <Link href="/agents/create">
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Create Agent
-            </Button>
-          </Link>
+        <div className="flex gap-1 px-4 py-2">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
+              activeTab === 'chat'
+                ? 'bg-blue-500/10 text-blue-500'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <MessageCircle className="h-4 w-4" />
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('agents')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
+              activeTab === 'agents'
+                ? 'bg-blue-500/10 text-blue-500'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Bot className="h-4 w-4" />
+            Agents
+          </button>
+          <button
+            onClick={() => setActiveTab('activity')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors',
+              activeTab === 'activity'
+                ? 'bg-blue-500/10 text-blue-500'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Activity className="h-4 w-4" />
+            Activity
+          </button>
         </div>
       </div>
 
@@ -462,41 +454,49 @@ export default function TeamChatPage() {
           {/* Agents Tab */}
           {activeTab === 'agents' && (
             <div className="flex-1 overflow-y-auto p-4">
-              {/* Filters */}
-              <div className="mb-4 flex gap-2">
-                <button
-                  onClick={() => setAgentFilter('all')}
-                  className={cn(
-                    'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                    agentFilter === 'all'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setAgentFilter('active')}
-                  className={cn(
-                    'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                    agentFilter === 'active'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => setAgentFilter('idle')}
-                  className={cn(
-                    'rounded-full px-4 py-2 font-medium text-sm transition-all',
-                    agentFilter === 'idle'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  Idle
-                </button>
+              {/* Header with filters and create button */}
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAgentFilter('all')}
+                    className={cn(
+                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                      agentFilter === 'all'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setAgentFilter('active')}
+                    className={cn(
+                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                      agentFilter === 'active'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    Active
+                  </button>
+                  <button
+                    onClick={() => setAgentFilter('idle')}
+                    className={cn(
+                      'rounded-full px-4 py-2 font-medium text-sm transition-all',
+                      agentFilter === 'idle'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    Idle
+                  </button>
+                </div>
+                <Link href="/agents/create">
+                  <Button size="sm" className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Agent
+                  </Button>
+                </Link>
               </div>
 
               {/* Agent Cards Grid */}
