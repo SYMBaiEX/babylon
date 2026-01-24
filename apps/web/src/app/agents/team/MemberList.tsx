@@ -3,7 +3,6 @@
 import { cn } from '@babylon/shared';
 import {
   Check,
-  Loader2,
   MoreVertical,
   Plus,
   Settings,
@@ -178,11 +177,6 @@ export function MemberList({
                           <Check className="h-2.5 w-2.5 text-white" />
                         </div>
                       )}
-                      {isProcessing && (
-                        <div className="-right-1 -bottom-1 absolute rounded-full bg-background p-0.5">
-                          <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-                        </div>
-                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground text-sm">
@@ -198,15 +192,17 @@ export function MemberList({
 
                   {/* Stop button when processing, otherwise show dropdown menu */}
                   {isProcessing ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 flex-shrink-0 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-600"
+                    <button
+                      type="button"
+                      className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors hover:bg-primary/10"
                       onClick={() => onStopAgent?.(agent.id)}
                       aria-label={`Stop ${agentName}`}
                     >
-                      <Square className="h-3.5 w-3.5 fill-current" />
-                    </Button>
+                      {/* Spinning ring */}
+                      <div className="absolute inset-0.5 animate-spin rounded-full border-2 border-transparent border-t-primary" />
+                      {/* Stop square in center */}
+                      <Square className="relative h-3 w-3 fill-primary text-primary" />
+                    </button>
                   ) : (
                     <DropdownMenu
                       open={openDropdown === agent.id}
