@@ -1,16 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Check,
-  Loader2,
-  MoreVertical,
-  Plus,
-  Settings,
-  User,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Check, Loader2, MoreVertical, Plus, Settings, User } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
@@ -55,6 +46,12 @@ interface MemberListProps {
   processingAgentIds?: Set<string>;
   /** Called when an agent is toggled for selection */
   onToggleAgent?: (agentId: string) => void;
+  /** Called when "View Profile" is clicked */
+  onViewProfile?: (agentId: string) => void;
+  /** Called when "Settings" is clicked */
+  onViewSettings?: (agentId: string) => void;
+  /** Called when "Add Agent" is clicked */
+  onAddAgent?: () => void;
 }
 
 /**
@@ -71,8 +68,10 @@ export function MemberList({
   selectedAgentIds = new Set(),
   processingAgentIds = new Set(),
   onToggleAgent,
+  onViewProfile,
+  onViewSettings,
+  onAddAgent,
 }: MemberListProps) {
-  const router = useRouter();
   // Track which dropdown is open (by agent id)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
@@ -229,7 +228,7 @@ export function MemberList({
                       {/* View Profile */}
                       <DropdownMenuItem
                         onClick={() => {
-                          router.push(`/agents/${agent.id}`);
+                          onViewProfile?.(agent.id);
                           onClose?.();
                           setOpenDropdown(null);
                         }}
@@ -238,10 +237,10 @@ export function MemberList({
                         View Profile
                       </DropdownMenuItem>
 
-                      {/* Agent Settings (dummy) */}
+                      {/* Agent Settings */}
                       <DropdownMenuItem
                         onClick={() => {
-                          router.push(`/agents/${agent.id}/settings`);
+                          onViewSettings?.(agent.id);
                           onClose?.();
                           setOpenDropdown(null);
                         }}
@@ -260,12 +259,18 @@ export function MemberList({
 
       {/* Add agent button */}
       <div className="mt-4">
-        <Link href="/agents/create" onClick={onClose}>
-          <Button variant="outline" size="sm" className="w-full gap-2">
-            <Plus className="h-4 w-4" />
-            Add Agent
-          </Button>
-        </Link>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={() => {
+            onAddAgent?.();
+            onClose?.();
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          Add Agent
+        </Button>
       </div>
     </div>
   );

@@ -111,6 +111,14 @@ export interface AgentDetailData {
   updatedAt: string;
 }
 
+/** Available tab values for AgentDetail */
+export type AgentDetailTab =
+  | 'activity'
+  | 'performance'
+  | 'logs'
+  | 'settings'
+  | 'wallet';
+
 interface AgentDetailProps {
   /** Agent data to display */
   agent: AgentDetailData;
@@ -122,6 +130,8 @@ interface AgentDetailProps {
   backLabel?: string;
   /** Whether to show the component in compact mode (no page padding) */
   compact?: boolean;
+  /** Default tab to show (defaults to 'activity') */
+  defaultTab?: AgentDetailTab;
 }
 
 /**
@@ -136,8 +146,11 @@ export function AgentDetail({
   onBack,
   backLabel = 'Back',
   compact = false,
+  defaultTab = 'activity',
 }: AgentDetailProps) {
-  const containerClass = compact ? 'space-y-6' : 'mx-auto max-w-7xl space-y-6 p-4';
+  const containerClass = compact
+    ? 'space-y-6'
+    : 'mx-auto max-w-7xl space-y-6 p-4';
 
   return (
     <div className={containerClass}>
@@ -171,7 +184,9 @@ export function AgentDetail({
               <div>
                 <h1 className="mb-1 font-bold text-2xl">{agent.name}</h1>
                 {agent.username && (
-                  <p className="mb-1 text-muted-foreground">@{agent.username}</p>
+                  <p className="mb-1 text-muted-foreground">
+                    @{agent.username}
+                  </p>
                 )}
               </div>
               {agent.username && (
@@ -190,7 +205,9 @@ export function AgentDetail({
             <div className="flex items-center gap-4 text-sm">
               <span
                 className={
-                  agent.autonomousEnabled ? 'text-green-400' : 'text-foreground/80'
+                  agent.autonomousEnabled
+                    ? 'text-green-400'
+                    : 'text-foreground/80'
                 }
               >
                 {agent.autonomousEnabled ? (
@@ -227,7 +244,9 @@ export function AgentDetail({
             </div>
           </div>
           <div>
-            <div className="mb-1 text-muted-foreground text-xs">Lifetime P&L</div>
+            <div className="mb-1 text-muted-foreground text-xs">
+              Lifetime P&L
+            </div>
             <AgentPnLDisplay
               agentId={agent.id}
               realizedPnL={agent.lifetimePnL}
@@ -238,7 +257,7 @@ export function AgentDetail({
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="activity" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-muted/50">
           <TabsTrigger
             value="activity"
@@ -298,11 +317,11 @@ export function AgentDetail({
           </TabsContent>
 
           <TabsContent value="settings">
-            <AgentSettings agent={agent} onUpdate={onUpdate} />
+            <AgentSettings agent={agent} onUpdate={onUpdate ?? (() => {})} />
           </TabsContent>
 
           <TabsContent value="wallet">
-            <AgentWallet agent={agent} onUpdate={onUpdate} />
+            <AgentWallet agent={agent} onUpdate={onUpdate ?? (() => {})} />
           </TabsContent>
         </div>
       </Tabs>
@@ -311,8 +330,14 @@ export function AgentDetail({
 }
 
 /** Loading skeleton for agent detail */
-export function AgentDetailSkeleton({ compact = false }: { compact?: boolean }) {
-  const containerClass = compact ? 'space-y-6' : 'mx-auto max-w-7xl space-y-6 p-4';
+export function AgentDetailSkeleton({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
+  const containerClass = compact
+    ? 'space-y-6'
+    : 'mx-auto max-w-7xl space-y-6 p-4';
 
   return (
     <div className={containerClass}>
@@ -352,4 +377,3 @@ export function AgentDetailNotFound({
     </div>
   );
 }
-

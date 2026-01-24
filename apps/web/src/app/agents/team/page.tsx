@@ -15,10 +15,12 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { AgentCreate } from '@/components/agents/AgentCreate';
 import {
   AgentDetail,
   type AgentDetailData,
   AgentDetailSkeleton,
+  type AgentDetailTab,
 } from '@/components/agents/AgentDetail';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
@@ -133,6 +135,11 @@ export default function TeamChatPage() {
   const [selectedAgentDetail, setSelectedAgentDetail] =
     useState<AgentDetailData | null>(null);
   const [selectedAgentLoading, setSelectedAgentLoading] = useState(false);
+  const [selectedAgentDefaultTab, setSelectedAgentDefaultTab] =
+    useState<AgentDetailTab>('activity');
+
+  // Create agent view state
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
 
   // Fetch agents for Agents tab
   const fetchAgents = useCallback(async () => {
@@ -199,12 +206,49 @@ export default function TeamChatPage() {
     setSelectedAgentDetail(null);
   }, []);
 
+  // Handle sidebar "View Profile" - switch to Agents tab and show detail
+  const handleViewProfile = useCallback(
+    (agentId: string) => {
+      setActiveTab('agents');
+      setShowCreateAgent(false);
+      setSelectedAgentDefaultTab('activity');
+      fetchAgentDetail(agentId);
+    },
+    [fetchAgentDetail]
+  );
+
+  // Handle sidebar "Settings" - switch to Agents tab and show detail with Settings tab
+  const handleViewSettings = useCallback(
+    (agentId: string) => {
+      setActiveTab('agents');
+      setShowCreateAgent(false);
+      setSelectedAgentDefaultTab('settings');
+      fetchAgentDetail(agentId);
+    },
+    [fetchAgentDetail]
+  );
+
+  // Handle sidebar "Add Agent" - switch to Agents tab and show create form
+  const handleAddAgent = useCallback(() => {
+    setActiveTab('agents');
+    setSelectedAgentDetail(null);
+    setShowCreateAgent(true);
+  }, []);
+
   // Fetch agents when switching to Agents tab or filter changes
   useEffect(() => {
     if (activeTab === 'agents' && authenticated) {
       fetchAgents();
     }
   }, [activeTab, authenticated, fetchAgents]);
+
+  // Clear selected agent and create view when switching away from Agents tab
+  useEffect(() => {
+    if (activeTab !== 'agents') {
+      setSelectedAgentDetail(null);
+      setShowCreateAgent(false);
+    }
+  }, [activeTab]);
 
   // Handle @mention from query parameter (when redirected from agent profile)
   useEffect(() => {
@@ -354,6 +398,9 @@ export default function TeamChatPage() {
               selectedAgentIds={selectedAgentIds}
               processingAgentIds={processingAgentIds}
               onToggleAgent={toggleAgentSelection}
+              onViewProfile={handleViewProfile}
+              onViewSettings={handleViewSettings}
+              onAddAgent={handleAddAgent}
             />
           </div>
         </>
@@ -429,6 +476,9 @@ export default function TeamChatPage() {
                 selectedAgentIds={selectedAgentIds}
                 processingAgentIds={processingAgentIds}
                 onToggleAgent={toggleAgentSelection}
+                onViewProfile={handleViewProfile}
+                onViewSettings={handleViewSettings}
+                onAddAgent={handleAddAgent}
               />
             </div>
 
@@ -497,8 +547,21 @@ export default function TeamChatPage() {
           {/* Agents Tab */}
           {activeTab === 'agents' && (
             <div className="flex-1 overflow-y-auto">
-              {/* Show AgentDetail when an agent is selected */}
-              {selectedAgentDetail ? (
+              {/* Show AgentCreate when creating */}
+              {showCreateAgent ? (
+                <div className="p-4">
+                  <AgentCreate
+                    onBack={() => setShowCreateAgent(false)}
+                    backLabel="Back to Agents"
+                    onSuccess={() => {
+                      setShowCreateAgent(false);
+                      fetchAgents(); // Refresh the list
+                    }}
+                    compact
+                  />
+                </div>
+              ) : /* Show AgentDetail when an agent is selected */
+              selectedAgentDetail ? (
                 <div className="p-4">
                   <AgentDetail
                     agent={selectedAgentDetail}
@@ -506,6 +569,7 @@ export default function TeamChatPage() {
                     onBack={clearSelectedAgent}
                     backLabel="Back to Agents"
                     compact
+                    defaultTab={selectedAgentDefaultTab}
                   />
                 </div>
               ) : selectedAgentLoading ? (
@@ -551,12 +615,14 @@ export default function TeamChatPage() {
                         Idle
                       </button>
                     </div>
-                    <Link href="/agents/create">
-                      <Button size="sm" className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Create Agent
-                      </Button>
-                    </Link>
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowCreateAgent(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Agent
+                    </Button>
                   </div>
 
                   {/* Agent Cards Grid */}
@@ -601,7 +667,10 @@ export default function TeamChatPage() {
                         <button
                           key={agent.id}
                           type="button"
-                          onClick={() => fetchAgentDetail(agent.id)}
+                          onClick={() => {
+                            setSelectedAgentDefaultTab('activity');
+                            fetchAgentDetail(agent.id);
+                          }}
                           className="h-full text-left"
                         >
                           <div className="flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-muted/30 p-6 transition-all hover:border-blue-500/30 hover:bg-muted">
