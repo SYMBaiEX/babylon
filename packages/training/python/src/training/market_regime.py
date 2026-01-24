@@ -15,7 +15,7 @@ Key concepts:
 import logging
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -253,9 +253,13 @@ def detect_market_regime(
     )
 
 
+# Price value can be a float or a dict with price key (from different data sources)
+PriceValue = Union[float, int, Dict[str, Any]]
+
+
 def detect_regime_from_prices(
-    initial_prices: Dict[str, float],
-    final_prices: Dict[str, float],
+    initial_prices: Dict[str, PriceValue],
+    final_prices: Dict[str, PriceValue],
     window_id: Optional[str] = None,
 ) -> MarketRegime:
     """

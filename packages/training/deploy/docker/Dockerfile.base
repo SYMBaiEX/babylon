@@ -55,7 +55,8 @@ RUN python3 -c "import vllm; print(f'vLLM {vllm.__version__}')"
 # Set environment defaults
 ENV PYTHONPATH=/app/python
 ENV HF_HOME="/app/.cache/huggingface"
-ENV CUDA_VISIBLE_DEVICES="0,1,2,3"
+# Note: CUDA_VISIBLE_DEVICES should be set at runtime (docker run --gpus or env var)
+# to allow flexibility across different GPU configurations
 
 # FlashInfer is the default attention backend in vLLM - no need to set explicitly
 # But we document it here for clarity

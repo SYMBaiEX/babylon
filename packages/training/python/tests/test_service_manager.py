@@ -272,8 +272,8 @@ class TestServiceManagerStatus:
 class TestServiceManagerSkipBehavior:
     """Tests for skip service behavior"""
     
-    def test_skip_atropos_only(self):
-        """Test skipping only Atropos"""
+    def test_skip_all_atropos_not_in_processes(self):
+        """Test that atropos is not in processes when skipped"""
         config = ServiceConfig(skip_atropos=True, skip_vllm=True)
         manager = ServiceManager(config)
         
@@ -282,8 +282,8 @@ class TestServiceManagerSkipBehavior:
         assert result is True
         assert "atropos" not in manager._processes
     
-    def test_skip_vllm_only(self):
-        """Test skipping only vLLM"""
+    def test_skip_all_vllm_not_in_processes(self):
+        """Test that vllm is not in processes when skipped"""
         config = ServiceConfig(skip_atropos=True, skip_vllm=True)
         manager = ServiceManager(config)
         

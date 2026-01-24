@@ -12,16 +12,16 @@ Output formats:
 
 Usage:
     # Export to local parquet files
-    python scripts/trajectories_to_hf_dataset.py --output ./hf_dataset
+    python scripts/hf/trajectories_to_hf_dataset.py --output ./hf_dataset
     
     # Export and push to HuggingFace Hub
-    python scripts/trajectories_to_hf_dataset.py --push-to-hub babylonlabs/babylon-trading-v1
+    python scripts/hf/trajectories_to_hf_dataset.py --push-to-hub babylonlabs/babylon-trading-v1
     
     # Export only preference pairs
-    python scripts/trajectories_to_hf_dataset.py --format preferences --output ./preferences
+    python scripts/hf/trajectories_to_hf_dataset.py --format preferences --output ./preferences
     
     # Limit export size
-    python scripts/trajectories_to_hf_dataset.py --max-pairs 10000 --output ./subset
+    python scripts/hf/trajectories_to_hf_dataset.py --max-pairs 10000 --output ./subset
 
 Environment:
     DATABASE_URL: PostgreSQL connection string
@@ -168,8 +168,12 @@ def format_step_as_message(step: Dict[str, Any]) -> Tuple[str, str]:
         response_parts.append(f"- Asset: {asset}")
         response_parts.append(f"- Amount: {amount}")
     elif action_type in ["POST", "post"]:
-        content = parameters.get("content", parameters.get("message", ""))
-        response_parts.append(f"- Content: {content[:200]}...")
+        content = parameters.get("content") or parameters.get("message") or ""
+        content = str(content)
+        if len(content) > 200:
+            response_parts.append(f"- Content: {content[:200]}...")
+        else:
+            response_parts.append(f"- Content: {content}")
     elif action_type in ["HOLD", "hold", "WAIT", "wait"]:
         response_parts.append("- Waiting for better opportunity")
     
@@ -197,7 +201,7 @@ def trajectory_to_conversation(traj: TrajectoryData, max_steps: int = 10) -> Lis
     }
     
     system_prompt = archetype_prompts.get(traj.archetype.lower(), archetype_prompts["default"])
-    system_prompt += f"\n\nYour goal is to make profitable trading decisions based on market conditions."
+    system_prompt += "\n\nYour goal is to make profitable trading decisions based on market conditions."
     
     messages.append({
         "role": "system",
@@ -254,7 +258,7 @@ def conversation_to_text(messages: List[Dict[str, str]]) -> Tuple[str, str]:
         prompt_parts.append(f"{role_prefix}: {m['content']}")
     
     prompt = "\n\n".join(prompt_parts)
-    if messages[last_assistant_idx - 1]["role"] == "user":
+    if last_assistant_idx > 0 and messages[last_assistant_idx - 1]["role"] == "user":
         prompt += "\n\n[Assistant]:"
     
     completion = messages[last_assistant_idx]["content"]

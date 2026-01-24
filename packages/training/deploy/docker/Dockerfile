@@ -31,7 +31,8 @@ COPY python/requirements.txt ./requirements.txt
 
 # Install any additional requirements not in base
 # This should be fast - most deps are already in base
-RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
+# Note: Fails loudly if requirements.txt has issues - this is intentional
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy scripts
 COPY deploy/docker/scripts/ /app/scripts/
