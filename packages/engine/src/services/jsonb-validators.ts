@@ -317,3 +317,186 @@ export function validatePriceModifier(
 ): asserts modifier is PriceModifier {
   PriceModifierSchema.parse(modifier);
 }
+
+// =============================================================================
+// STRING ARRAY VALIDATORS (for actors, tags, etc.)
+// =============================================================================
+
+/**
+ * String array schema - validates arrays of strings
+ */
+export const StringArraySchema = z.array(z.string());
+
+/**
+ * Safely parse a string array from JSONB with fallback to empty array.
+ * Common use case: actors, tags, mentions, etc.
+ */
+export function parseStringArraySafe(
+  data: unknown,
+  context?: { field?: string }
+): string[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  // Fast path: already a valid string array
+  if (Array.isArray(data) && data.every((item) => typeof item === 'string')) {
+    return data as string[];
+  }
+
+  const result = StringArraySchema.safeParse(data);
+  if (result.success) {
+    return result.data;
+  }
+
+  // Log warning and try to salvage valid strings
+  logger.warn(
+    'Invalid string array JSONB data',
+    {
+      field: context?.field,
+      issues: result.error.issues.slice(0, 3),
+    },
+    'JSONBValidation'
+  );
+
+  // Salvage valid strings from array
+  if (Array.isArray(data)) {
+    return data.filter((item): item is string => typeof item === 'string');
+  }
+
+  return [];
+}
+
+/**
+ * Type guard to check if a value is a valid string array
+ */
+export function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
+}
+
+// =============================================================================
+// NARRATIVE ARC VALIDATORS (PendingTransition, ScheduledEvent)
+// =============================================================================
+
+import type { PendingTransition, ScheduledEvent } from '@babylon/db';
+
+/**
+ * PendingTransition schema for arc state transitions
+ */
+export const PendingTransitionSchema = z.object({
+  targetState: z.string(),
+  triggerDay: z.number(),
+  triggerEventType: z.string().optional(),
+  probability: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Array of pending transitions
+ */
+export const PendingTransitionsSchema = z.array(PendingTransitionSchema);
+
+/**
+ * ScheduledEvent schema for deterministic narrative firing
+ */
+export const ScheduledEventSchema = z.object({
+  baseDay: z.number(),
+  jitterHours: z.number(),
+  eventType: z.enum([
+    'leak',
+    'rumor',
+    'scandal',
+    'confirmation',
+    'red_herring',
+  ]),
+  description: z.string(),
+  signalDirection: z.enum(['YES', 'NO', 'NEUTRAL']),
+  fired: z.boolean(),
+  firedAt: z.string().optional(),
+});
+
+/**
+ * Array of scheduled events
+ */
+export const ScheduledEventsSchema = z.array(ScheduledEventSchema);
+
+/**
+ * Safely parse pending transitions from JSONB with fallback to empty array.
+ */
+export function parsePendingTransitionsSafe(
+  data: unknown,
+  context?: { arcId?: string }
+): PendingTransition[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  const result = PendingTransitionsSchema.safeParse(data);
+  if (result.success) {
+    return result.data as PendingTransition[];
+  }
+
+  logger.warn(
+    'Invalid pendingTransitions JSONB data',
+    {
+      arcId: context?.arcId,
+      issues: result.error.issues.slice(0, 3),
+    },
+    'JSONBValidation'
+  );
+
+  // Try to salvage valid transitions
+  if (Array.isArray(data)) {
+    const valid: PendingTransition[] = [];
+    for (const item of data) {
+      const itemResult = PendingTransitionSchema.safeParse(item);
+      if (itemResult.success) {
+        valid.push(itemResult.data as PendingTransition);
+      }
+    }
+    return valid;
+  }
+
+  return [];
+}
+
+/**
+ * Safely parse scheduled events from JSONB with fallback to empty array.
+ */
+export function parseScheduledEventsSafe(
+  data: unknown,
+  context?: { questionId?: string }
+): ScheduledEvent[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  const result = ScheduledEventsSchema.safeParse(data);
+  if (result.success) {
+    return result.data as ScheduledEvent[];
+  }
+
+  logger.warn(
+    'Invalid eventSchedule JSONB data',
+    {
+      questionId: context?.questionId,
+      issues: result.error.issues.slice(0, 3),
+    },
+    'JSONBValidation'
+  );
+
+  // Try to salvage valid events
+  if (Array.isArray(data)) {
+    const valid: ScheduledEvent[] = [];
+    for (const item of data) {
+      const itemResult = ScheduledEventSchema.safeParse(item);
+      if (itemResult.success) {
+        valid.push(itemResult.data as ScheduledEvent);
+      }
+    }
+    return valid;
+  }
+
+  return [];
+}
