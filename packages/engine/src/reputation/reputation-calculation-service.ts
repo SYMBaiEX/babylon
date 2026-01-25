@@ -15,6 +15,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { clamp01, clampPercent } from '../utils/math-utils';
 import {
   calculateConfidenceScore,
   calculateWinRate,
@@ -38,6 +39,34 @@ export interface ReputationScoreBreakdown {
     totalFeedbackCount: number;
     winRate: number;
   };
+}
+
+/**
+ * Updated reputation metrics after recalculation
+ */
+export interface RecalculatedReputation {
+  userId: string;
+  reputationScore: number;
+  trustLevel: string;
+  confidenceScore: number;
+}
+
+/**
+ * Leaderboard entry for reputation rankings
+ */
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username: string | null | undefined;
+  displayName: string | null | undefined;
+  profileImageUrl: string | null | undefined;
+  isActor: boolean | null | undefined;
+  reputationScore: number;
+  trustLevel: string;
+  confidenceScore: number;
+  gamesPlayed: number;
+  winRate: number | null;
+  normalizedPnL: number;
 }
 
 /**
@@ -112,7 +141,7 @@ export function calculateReputationScore(
     activityComponent * activityWeight;
 
   // Clamp to [0, 100]
-  return Math.max(0, Math.min(100, score));
+  return clampPercent(score);
 }
 
 /**
@@ -425,7 +454,9 @@ export async function updateFeedbackMetrics(
  * @param userId - User/agent ID
  * @returns Updated metrics with new reputation score
  */
-export async function recalculateReputation(userId: string) {
+export async function recalculateReputation(
+  userId: string
+): Promise<RecalculatedReputation | null> {
   const [metrics] = await db
     .select()
     .from(agentPerformanceMetrics)
@@ -468,14 +499,12 @@ export async function recalculateReputation(userId: string) {
     'ReputationService'
   );
 
-  // Return updated metrics
-  const [updated] = await db
-    .select()
-    .from(agentPerformanceMetrics)
-    .where(eq(agentPerformanceMetrics.userId, userId))
-    .limit(1);
-
-  return updated;
+  return {
+    userId,
+    reputationScore,
+    trustLevel,
+    confidenceScore,
+  };
 }
 
 /**
@@ -542,7 +571,10 @@ export async function getReputationBreakdown(
  * @param minGames - Minimum games played to qualify
  * @returns Array of agents sorted by reputation score
  */
-export async function getReputationLeaderboard(limit = 100, minGames = 5) {
+export async function getReputationLeaderboard(
+  limit = 100,
+  minGames = 5
+): Promise<LeaderboardEntry[]> {
   const topAgents = await db
     .select({
       userId: agentPerformanceMetrics.userId,
@@ -629,7 +661,7 @@ export function calculateGameScore(metrics: GameMetrics): number {
   const totalScore = pnlScore + decisionScore + riskScore + outcomeBonus;
 
   // Clamp to [0, 100]
-  return Math.max(0, Math.min(100, totalScore));
+  return clampPercent(totalScore);
 }
 
 /**
@@ -646,7 +678,7 @@ export function calculateGameScore(metrics: GameMetrics): number {
 export function calculateTradeScore(metrics: TradeMetrics): number {
   // ROI component (50%) - normalize ROI to 0-1 scale
   // Assume -50% to +100% ROI range maps to 0-100 score
-  const normalizedRoi = Math.max(0, Math.min(1, (metrics.roi + 0.5) / 1.5));
+  const normalizedRoi = clamp01((metrics.roi + 0.5) / 1.5);
   const roiScore = normalizedRoi * 100 * 0.5;
 
   // Timing component (25%)
@@ -659,7 +691,7 @@ export function calculateTradeScore(metrics: TradeMetrics): number {
   const totalScore = roiScore + timingScore + riskScore;
 
   // Clamp to [0, 100]
-  return Math.max(0, Math.min(100, totalScore));
+  return clampPercent(totalScore);
 }
 
 /**
