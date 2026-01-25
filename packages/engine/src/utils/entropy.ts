@@ -16,15 +16,32 @@ import { randomBytes } from 'crypto';
 // Core Random
 // =============================================================================
 
-/** Cryptographically secure random [0, 1) */
+/**
+ * Generate a cryptographically secure random number in [0, 1).
+ * Use for game-critical fairness requirements where Math.random() is insufficient.
+ *
+ * @returns Random number between 0 (inclusive) and 1 (exclusive)
+ */
 export const secureRandom = (): number =>
   randomBytes(4).readUInt32BE(0) / 0xffffffff;
 
-/** Secure random integer [min, max] inclusive */
+/**
+ * Generate a cryptographically secure random integer in [min, max] (inclusive).
+ *
+ * @param min - Minimum value (inclusive)
+ * @param max - Maximum value (inclusive)
+ * @returns Random integer in the specified range
+ */
 export const secureRandomInt = (min: number, max: number): number =>
   Math.floor(secureRandom() * (max - min + 1)) + min;
 
-/** Secure Fisher-Yates shuffle */
+/**
+ * Cryptographically secure Fisher-Yates shuffle.
+ * Returns a new array with elements randomly reordered.
+ *
+ * @param array - Array to shuffle (not modified)
+ * @returns New shuffled array
+ */
 export function secureShuffle<T>(array: readonly T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
@@ -34,11 +51,24 @@ export function secureShuffle<T>(array: readonly T[]): T[] {
   return result;
 }
 
-/** Pick N random items */
+/**
+ * Pick N random items from an array using secure randomness.
+ *
+ * @param array - Source array
+ * @param n - Number of items to pick
+ * @returns Array of N randomly selected items
+ */
 export const securePickN = <T>(array: readonly T[], n: number): T[] =>
   n >= array.length ? secureShuffle(array) : secureShuffle(array).slice(0, n);
 
-/** Bell-curve biased count */
+/**
+ * Generate a random count with a bell-curve distribution.
+ * Values near the middle of the range are more likely than extremes.
+ *
+ * @param min - Minimum count (inclusive)
+ * @param max - Maximum count (inclusive)
+ * @returns Random count biased toward the middle of the range
+ */
 export const biasedRandomCount = (min: number, max: number): number =>
   Math.floor(((secureRandom() + secureRandom()) / 2) * (max - min + 1)) + min;
 
@@ -46,7 +76,21 @@ export const biasedRandomCount = (min: number, max: number): number =>
 // Weighted Selection
 // =============================================================================
 
-/** Weighted random pick */
+/**
+ * Pick a random item from an array with weighted probability.
+ * Items with higher weights are more likely to be selected.
+ *
+ * @param items - Array of items to pick from
+ * @param weight - Function that returns the weight for each item
+ * @returns A randomly selected item, weighted by the weight function
+ * @throws Error if items array is empty
+ *
+ * @example
+ * ```typescript
+ * const questions = [{ priority: 'high' }, { priority: 'low' }];
+ * const picked = weightedPick(questions, q => q.priority === 'high' ? 10 : 1);
+ * ```
+ */
 export function weightedPick<T>(items: T[], weight: (item: T) => number): T {
   if (items.length === 0) throw new Error('Empty array');
   if (items.length === 1) return items[0]!;
@@ -63,8 +107,22 @@ export function weightedPick<T>(items: T[], weight: (item: T) => number): T {
   return items[items.length - 1]!;
 }
 
-/** Weight by resolution urgency (higher = closer to resolution) */
-export const urgencyWeight = (multiplier = 5) => {
+/**
+ * Create a weight function based on resolution urgency.
+ * Items closer to resolution get higher weights.
+ *
+ * @param multiplier - How much to multiply the base urgency weight (default: 5)
+ * @returns A weight function that can be used with weightedPick
+ *
+ * @example
+ * ```typescript
+ * const questions = [{ resolutionDate: new Date() }, { resolutionDate: null }];
+ * const picked = weightedPick(questions, urgencyWeight(3));
+ * ```
+ */
+export const urgencyWeight = (
+  multiplier = 5
+): (<T extends { resolutionDate?: Date | string | null }>(q: T) => number) => {
   const now = Date.now();
   return <T extends { resolutionDate?: Date | string | null }>(
     q: T

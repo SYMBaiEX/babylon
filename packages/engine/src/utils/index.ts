@@ -37,6 +37,8 @@ export {
   extractDayFromEvent,
   extractDayFromPost,
   extractDayFromTimestamp,
+  getTodayDateString,
+  toDateString,
 } from './date-utils';
 // Entropy utilities (secure random, weighted picks, cooldowns)
 export {
@@ -52,6 +54,18 @@ export {
   urgencyWeight,
   weightedPick,
 } from './entropy';
+// Error utilities for consistent error handling
+export {
+  formatError,
+  formatErrorWithStack,
+  hasErrorCode,
+  isTransientError,
+  logAndRethrow,
+  logError,
+  logWarning,
+  safeExecute,
+  withRetry,
+} from './error-utils';
 // Rich game context builder for game generation prompts
 export {
   buildCharacterRoster,
@@ -66,6 +80,19 @@ export {
   generateAntiLoopContext,
   type RichGameContext,
 } from './game-context-builder';
+// Math utilities (clamp, lerp, etc.)
+export {
+  clamp,
+  clamp01,
+  clampPercent,
+  clampSentiment,
+  inRange,
+  lerp,
+  normalize,
+  percentChange,
+  roundTo,
+  safeDivide,
+} from './math-utils';
 // Prompt logging utilities
 export {
   isPromptLoggingEnabled,
