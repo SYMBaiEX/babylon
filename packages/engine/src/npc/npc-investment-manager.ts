@@ -28,6 +28,7 @@ import type {
   TradingDecision,
   TradingExecutionResult,
 } from '../types/market-decisions';
+import { formatError } from '../utils/error-utils';
 
 export interface PortfolioPosition {
   id: string;
@@ -891,7 +892,7 @@ export class NPCInvestmentManager {
           {
             npcUserId,
             action,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
           },
           'NPCInvestmentManager'
         );

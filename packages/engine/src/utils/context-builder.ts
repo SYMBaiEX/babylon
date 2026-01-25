@@ -14,6 +14,7 @@
 
 import { and, db, desc, gte, lte, worldEvents } from '@babylon/db';
 import { RelationshipEvolutionEngine } from '../RelationshipEvolutionEngine';
+import { parseStringArraySafe } from '../services/jsonb-validators';
 import { MarketContextService } from '../services/market-context-service';
 import { isSimulationMode } from '../storage-bridge';
 import type { Actor, FeedPost, Question, WorldEvent } from '../types/shared';
@@ -155,7 +156,7 @@ export async function buildComprehensiveNPCContext(
       ),
       timestamp: e.timestamp.toISOString(),
       actors: truncateArray(
-        (e.actors as string[]) || [],
+        parseStringArraySafe(e.actors, { field: 'worldEvents.actors' }),
         CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT
       ),
       pointsToward: e.pointsToward || undefined,

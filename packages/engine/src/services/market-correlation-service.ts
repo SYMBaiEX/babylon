@@ -21,6 +21,7 @@ import {
   type MarketCorrelation,
   type OrganizationRelationType,
 } from '../data/organization-correlations';
+import { formatError } from '../utils/error-utils';
 import { PriceUpdateService } from './price-update-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -149,7 +150,7 @@ export async function applyCascadeEffects(
         'Failed to apply cascade effects',
         {
           primaryOrgId,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'MarketCorrelationService'
       );
@@ -251,7 +252,7 @@ export function getAllCorrelationsWithDerived(): MarketCorrelation[] {
 /**
  * Market Correlation Service class
  */
-export class MarketCorrelationServiceClass {
+export class MarketCorrelationService {
   async applyCascade(
     primaryOrgId: string,
     priceChangePercent: number,
@@ -273,5 +274,9 @@ export class MarketCorrelationServiceClass {
   }
 }
 
-// Singleton instance
-export const MarketCorrelationService = new MarketCorrelationServiceClass();
+// Singleton instance (camelCase for consistency with other services)
+export const marketCorrelationService = new MarketCorrelationService();
+
+// Backward-compatible alias (PascalCase) - deprecated
+/** @deprecated Use marketCorrelationService instead */
+export { marketCorrelationService as MarketCorrelationServiceInstance };

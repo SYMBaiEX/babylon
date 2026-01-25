@@ -104,6 +104,9 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
+import { toDateString } from './utils/date-utils';
+import { formatError } from './utils/error-utils';
+import { clamp } from './utils/math-utils';
 import { shuffleArray } from './utils/randomization';
 import { worldFactsService } from './world-facts-service';
 
@@ -340,8 +343,7 @@ export class QuestionManager {
       .map((q, index) => {
         const resolutionDate = new Date(currentDateObj);
         resolutionDate.setDate(
-          resolutionDate.getDate() +
-            Math.max(1, Math.min(7, q.daysUntilResolution || 3))
+          resolutionDate.getDate() + clamp(q.daysUntilResolution || 3, 1, 7)
         );
 
         return {
@@ -351,7 +353,7 @@ export class QuestionManager {
           outcome: q.expectedOutcome,
           rank: 1,
           createdDate: currentDate,
-          resolutionDate: resolutionDate.toISOString().split('T')[0]!,
+          resolutionDate: toDateString(resolutionDate),
           status: 'active',
         };
       });
@@ -568,7 +570,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         'Failed to fetch world facts context for proof content - proceeding without',
         {
           questionId: question.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'QuestionManager'
       );
@@ -1806,7 +1808,7 @@ XML: <response><question><text>Your question here</text><resolutionCriteria>How 
       logger.error(
         'Failed to generate timeframe question',
         {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
           timeframe,
         },
         'QuestionManager'

@@ -41,6 +41,8 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
+import { clamp01 } from '../utils/math-utils';
 import {
   getCurrentArcState,
   getEventCooldownMs,
@@ -224,7 +226,7 @@ export class TimeframeArcProcessor {
               }
             }
           } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error);
+            const msg = formatError(error);
             result.errors.push(`Market ${market.id}: ${msg}`);
             logger.error(
               `Error processing market`,
@@ -249,8 +251,7 @@ export class TimeframeArcProcessor {
         'TimeframeArcProcessor'
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = formatError(error);
       logger.error(
         `Tick failed`,
         { error: errorMessage },
@@ -439,7 +440,7 @@ export class TimeframeArcProcessor {
         `Failed to spawn sub-market`,
         {
           marketId: market.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'TimeframeArcProcessor'
       );
@@ -494,7 +495,7 @@ export class TimeframeArcProcessor {
   getArcProgress(market: TimeframedMarket, now: Date = new Date()): number {
     const totalDuration = market.endTime.getTime() - market.startTime.getTime();
     const elapsed = now.getTime() - market.startTime.getTime();
-    return Math.max(0, Math.min(1, elapsed / totalDuration));
+    return clamp01(elapsed / totalDuration);
   }
 
   /**

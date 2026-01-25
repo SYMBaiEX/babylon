@@ -162,4 +162,4 @@ export {
 // Token Statistics Service
 // =============================================================================
 
-export { TokenStatsService } from './token-stats-service';
+export { TokenStatsService, tokenStatsService } from './token-stats-service';

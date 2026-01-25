@@ -36,6 +36,7 @@ import {
   withTransaction,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import {
   calculateEndTime,
   type SubMarketTrigger,
@@ -172,7 +173,7 @@ export class SubMarketService {
     } catch (error) {
       logger.error(
         `Failed to spawn sub-market`,
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'SubMarketService'
       );
       return { spawned: false, reason: 'error' };

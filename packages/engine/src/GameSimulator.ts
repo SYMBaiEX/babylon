@@ -36,6 +36,7 @@ import {
   SIMULATION_STRATEGIES,
 } from './config/simulation';
 import { SeededRandom } from './utils/entropy';
+import { clamp } from './utils/math-utils';
 
 /**
  * Configuration for game simulation
@@ -369,8 +370,8 @@ export class GameSimulator extends EventEmitter {
     this.market.noOdds = 100 - this.market.yesOdds;
 
     // Clamp odds
-    this.market.yesOdds = Math.max(5, Math.min(95, this.market.yesOdds));
-    this.market.noOdds = Math.max(5, Math.min(95, this.market.noOdds));
+    this.market.yesOdds = clamp(this.market.yesOdds, 5, 95);
+    this.market.noOdds = clamp(this.market.noOdds, 5, 95);
 
     this.market.totalVolume += amount;
     agent.balance -= amount;

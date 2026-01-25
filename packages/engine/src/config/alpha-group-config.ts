@@ -37,6 +37,7 @@
  */
 
 import { logger } from '@babylon/shared';
+import { clamp01 } from '../utils/math-utils';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -81,7 +82,7 @@ function envProbability(key: string, defaultValue: number): number {
       'alpha-group-config'
     );
   }
-  return Math.max(0, Math.min(1, value));
+  return clamp01(value);
 }
 
 /**

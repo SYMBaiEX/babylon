@@ -19,6 +19,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { getGameDayNumber } from '../utils/date-utils';
+import { formatError } from '../utils/error-utils';
 import { parseMemoriesSafe, parseRelationshipsSafe } from './jsonb-validators';
 
 /**
@@ -176,7 +177,7 @@ export class NpcMemoryService {
         // Log the error but allow retries for transient DB errors
         logger.error(
           `Failed to add memory for ${actorId} (attempt ${attempt + 1}/${MAX_RETRIES})`,
-          { error: error instanceof Error ? error.message : String(error) },
+          { error: formatError(error) },
           'NpcMemoryService'
         );
 
@@ -236,7 +237,7 @@ export class NpcMemoryService {
     } catch (error) {
       logger.error(
         `Failed to get memories for ${actorId}`,
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'NpcMemoryService'
       );
       return [];
@@ -274,7 +275,7 @@ export class NpcMemoryService {
         {
           actorId,
           otherActorId,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'NpcMemoryService'
       );
@@ -410,7 +411,7 @@ export class NpcMemoryService {
             actorId,
             otherActorId,
             attempt: attempt + 1,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
           },
           'NpcMemoryService'
         );
@@ -555,7 +556,7 @@ export class NpcMemoryService {
             `Transient error updating activity state for ${actorId}, retrying (attempt ${attempt + 1})`,
             {
               actorId,
-              error: error instanceof Error ? error.message : String(error),
+              error: formatError(error),
             },
             'NpcMemoryService'
           );
@@ -566,7 +567,7 @@ export class NpcMemoryService {
         logger.error(
           `Failed to update activity state for ${actorId}`,
           {
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
             attempt: attempt + 1,
             isTransient,
           },

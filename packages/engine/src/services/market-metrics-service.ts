@@ -24,6 +24,7 @@ import {
   stockPrices,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -369,8 +370,7 @@ export class MarketMetricsService {
       } catch (error) {
         // Only swallow "missing table" errors (Postgres error code 42P01)
         // Other errors (connection, permission, query issues) should propagate
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = formatError(error);
         const errorCode =
           error && typeof error === 'object' && 'code' in error
             ? (error as { code?: string }).code

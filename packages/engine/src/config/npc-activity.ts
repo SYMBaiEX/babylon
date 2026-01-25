@@ -34,6 +34,7 @@
  */
 
 import { logger } from '@babylon/shared';
+import { clamp01 } from '../utils/math-utils';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -82,7 +83,7 @@ function envProbability(key: string, defaultValue: number): number {
       'npc-activity'
     );
   }
-  return Math.max(0, Math.min(1, value));
+  return clamp01(value);
 }
 
 /**
@@ -99,7 +100,7 @@ function envScore(key: string, defaultValue: number): number {
       'npc-activity'
     );
   }
-  return Math.max(0, Math.min(1, value));
+  return clamp01(value);
 }
 
 /**

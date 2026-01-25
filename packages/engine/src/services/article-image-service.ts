@@ -15,6 +15,7 @@
 import { logger } from '@babylon/shared';
 import { fal } from '@fal-ai/client';
 import { articleCover, getRandomTwist, renderPrompt } from '../prompts';
+import { formatError } from '../utils/error-utils';
 
 interface FalImage {
   url: string;
@@ -128,7 +129,7 @@ export async function generateArticleImage(
       'fal.ai image generation failed (non-critical, continuing)',
       {
         title: params.title,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'ArticleImageService'
     );

@@ -222,6 +222,8 @@ async function analyzeAndSummarizeTags(
   if (!openai) {
     return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() };
   }
+  // Store in local const after null check to help TypeScript narrow the type
+  const client = openai;
 
   const tagList = tags
     .map(
@@ -309,7 +311,7 @@ Return ONLY valid XML. No markdown, no explanations.`;
 
   const response = await withRetry(
     async () =>
-      await openai!.chat.completions.create({
+      await client.chat.completions.create({
         model: GROUPING_MODEL,
         messages: [
           {
@@ -444,6 +446,8 @@ export async function generateTrendingSummary(
   if (!openai) {
     return `Trending topic in ${category || 'general'} discussions`;
   }
+  // Store in local const after null check to help TypeScript narrow the type
+  const client = openai;
 
   const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
 
@@ -468,7 +472,7 @@ One sentence summary:`;
 
   const response = await withRetry(
     async () =>
-      await openai!.chat.completions.create({
+      await client.chat.completions.create({
         model: SUMMARY_MODEL,
         messages: [
           {

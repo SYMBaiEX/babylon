@@ -75,6 +75,7 @@ import {
   NPCGroupDynamicsService,
   npcSocialEngagementService,
   PriceUpdateService,
+  parseStringArraySafe,
   processArcTick,
   processNPCSocialEngagements,
   ReputationService,
@@ -98,6 +99,7 @@ import type {
 } from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
+import { formatError } from './utils/error-utils';
 import { deriveStrategyFromPersonality } from './utils/shared-utils';
 import { worldFactsService } from './world-facts-service';
 // Note: Event-market pipeline is called from within narrative-event-processor
@@ -425,6 +427,7 @@ export async function executeGameTick(
     };
 
     // Convert to DayTimeline format for QuestionManager
+    // Use type guards for eventType/visibility and safe parsing for actors array
     const mappedEvents: WorldEvent[] = recentDbEvents
       .filter(
         (e) => isValidEventType(e.eventType) && isValidVisibility(e.visibility)
@@ -434,7 +437,7 @@ export async function executeGameTick(
         day: e.dayNumber || 0,
         type: e.eventType as WorldEvent['type'],
         description: e.description,
-        actors: e.actors as string[],
+        actors: parseStringArraySafe(e.actors, { field: 'worldEvents.actors' }),
         relatedQuestion: e.relatedQuestion || undefined,
         pointsToward: isValidPointsToward(e.pointsToward)
           ? e.pointsToward
@@ -603,7 +606,7 @@ export async function executeGameTick(
           {
             questionId: question.id,
             questionNumber: question.questionNumber,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
           },
           'GameTick'
         );
@@ -786,7 +789,7 @@ export async function executeGameTick(
     } catch (error) {
       logger.error(
         'NPC social engagement failed',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'GameTick'
       );
     }
@@ -816,7 +819,7 @@ export async function executeGameTick(
     } catch (error) {
       logger.error(
         'NPC social actions failed',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'GameTick'
       );
     }
@@ -848,7 +851,7 @@ export async function executeGameTick(
       logger.error(
         'NPC proactive following failed',
         {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
           stack: error instanceof Error ? error.stack : undefined,
         },
         'GameTick'
@@ -864,7 +867,7 @@ export async function executeGameTick(
       logger.error(
         'NPC unfollow checks failed',
         {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
           stack: error instanceof Error ? error.stack : undefined,
         },
         'GameTick'
@@ -991,7 +994,7 @@ export async function executeGameTick(
     } catch (error) {
       logger.error(
         'NPC portfolio rebalancing failed',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'GameTick'
       );
     }
@@ -1390,7 +1393,7 @@ export async function executeGameTick(
   } catch (error) {
     logger.warn(
       'Volatility simulation failed',
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: formatError(error) },
       'GameTick'
     );
   }
@@ -2648,8 +2651,8 @@ export async function updateWorldFactsIfNeeded(): Promise<{
     return { updated: false };
   }
 
-  // Generate a unique process ID for this run
-  const processId = `game-tick-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  // Generate a unique process ID for this run using cryptographically secure randomness
+  const processId = `game-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
   // Acquire distributed lock to prevent concurrent generation
   const lockAcquired = await DistributedLockService.acquireLock({
@@ -3050,7 +3053,7 @@ export async function simulateMarketVolatility(options?: {
   } catch (error) {
     logger.error(
       'Failed to simulate market volatility',
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: formatError(error) },
       'MarketVolatility'
     );
     return 0;
@@ -3182,7 +3185,7 @@ async function processNarrativeArcs(
     } catch (error) {
       logger.error(
         `Failed to process narrative arc for question ${question.id}`,
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'GameTick'
       );
     }

@@ -100,6 +100,8 @@ import { isSimulationMode } from './storage-bridge';
 import type { JsonValue } from './types/common';
 import type { NPCMarketContext, NPCPosition } from './types/market-context';
 import type { TradingDecision } from './types/market-decisions';
+import { formatError } from './utils/error-utils';
+import { clamp01 } from './utils/math-utils';
 
 /**
  * Token management configuration
@@ -2064,7 +2066,7 @@ ${prompt}`
 
       // Validate confidence
       if (decision.confidence < 0 || decision.confidence > 1) {
-        decision.confidence = Math.max(0, Math.min(1, decision.confidence));
+        decision.confidence = clamp01(decision.confidence);
       }
 
       // Add timestamp
@@ -2354,7 +2356,7 @@ ${prompt}`
     } catch (error) {
       logger.warn(
         'Failed to fetch event-market signals, using fallback',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'MarketDecisionEngine'
       );
       signals = FALLBACK_SIGNALS;

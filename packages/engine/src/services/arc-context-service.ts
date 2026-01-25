@@ -14,6 +14,7 @@ import {
   questions,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import { StaticDataRegistry } from './static-data-registry';
 
 export interface ArcContext {
@@ -116,7 +117,7 @@ export class ArcContextService {
         'Failed to get arc context for NPC',
         {
           npcId,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'ArcContextService'
       );

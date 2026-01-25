@@ -13,6 +13,8 @@
  * use the functions in `entropy.ts` instead.
  */
 
+import { clamp01 } from './math-utils';
+
 /**
  * Type alias for a random number generator function.
  * Returns a number in [0, 1) range.
@@ -124,7 +126,7 @@ export function randomChance(
   rng: RngFunction = Math.random
 ): boolean {
   // Clamp probability to [0, 1] range (handles NaN by coercing to 0)
-  const clampedProbability = Math.max(0, Math.min(1, probability || 0));
+  const clampedProbability = clamp01(probability || 0);
   return rng() < clampedProbability;
 }
 
