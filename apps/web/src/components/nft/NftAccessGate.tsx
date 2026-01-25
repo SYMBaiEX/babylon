@@ -4,7 +4,7 @@ import { isNftGatingAllowlistedPath } from '@babylon/shared';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import type { EligibilityApiResponse } from '@/types/nft';
+import type { NftAccessResponse } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
 
 function buildNftRedirectUrl(searchParams: URLSearchParams): string {
@@ -14,9 +14,7 @@ function buildNftRedirectUrl(searchParams: URLSearchParams): string {
   return qs ? `/nft?${qs}` : '/nft';
 }
 
-function isEligibilityApiResponse(
-  value: unknown
-): value is EligibilityApiResponse {
+function isNftAccessResponse(value: unknown): value is NftAccessResponse {
   if (typeof value !== 'object' || value === null) return false;
   if (
     !('success' in value) ||
@@ -27,7 +25,7 @@ function isEligibilityApiResponse(
   if (!('data' in value)) return false;
   const data = (value as { data: unknown }).data;
   if (typeof data !== 'object' || data === null) return false;
-  return 'hasMinted' in data;
+  return 'hasAccess' in data;
 }
 export function NftAccessGate({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
@@ -59,7 +57,7 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
 
     const run = async () => {
       try {
-        const response = await apiFetch('/api/nft/eligibility', {
+        const response = await apiFetch('/api/nft/access', {
           cache: 'no-store',
           signal: controller.signal,
         });
@@ -70,7 +68,7 @@ export function NftAccessGate({ enabled }: { enabled: boolean }) {
         }
 
         const json = (await response.json()) as unknown;
-        if (!isEligibilityApiResponse(json) || json.data.hasMinted !== true) {
+        if (!isNftAccessResponse(json) || json.data.hasAccess !== true) {
           router.replace(targetUrl);
         }
       } catch {
