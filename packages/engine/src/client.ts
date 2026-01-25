@@ -10,6 +10,7 @@
  */
 
 // Prediction Pricing (pure math, no server dependencies)
+// IMPORTANT: Use /client path to avoid pulling in PredictionDbAdapter which imports @babylon/db
 export {
   calculateExpectedPayout,
   PredictionPricing,

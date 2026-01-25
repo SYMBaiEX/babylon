@@ -5,7 +5,14 @@
  * Uses sigmoid function to map unbounded ROI to bounded reputation score.
  */
 
-import type { Decimal } from '@babylon/db/types';
+/**
+ * Interface for decimal-like values that can be converted to numbers.
+ * Used to accept both native numbers and Decimal objects from the database.
+ * Defined locally to avoid importing from @babylon/db in client-safe code.
+ */
+interface DecimalLike {
+  toNumber(): number;
+}
 
 /**
  * Normalize PNL to 0-1 scale using sigmoid function
@@ -24,8 +31,8 @@ import type { Decimal } from '@babylon/db/types';
  * @returns Normalized score from 0 to 1
  */
 export function normalizePnL(
-  pnl: number | Decimal,
-  totalInvested: number | Decimal
+  pnl: number | DecimalLike,
+  totalInvested: number | DecimalLike
 ): number {
   const pnlNum = typeof pnl === 'number' ? pnl : pnl.toNumber();
   const investedNum =

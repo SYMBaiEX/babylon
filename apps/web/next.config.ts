@@ -202,9 +202,10 @@ const nextConfig: NextConfig = {
     // CRITICAL: For client builds, completely ignore server-only packages
     if (!isServer) {
       config.plugins.push(
-        // Ignore server-only Babylon packages in client builds
+        // Ignore server-only Babylon packages in client builds (including subpaths)
         new webpack.IgnorePlugin({
-          resourceRegExp: /^@babylon\/(api|db|contracts|training|agents)$/,
+          resourceRegExp:
+            /^@babylon\/(api|db|contracts|training|agents)(\/.*)?$/,
         }),
         // Ignore server-only npm packages
         new webpack.IgnorePlugin({
