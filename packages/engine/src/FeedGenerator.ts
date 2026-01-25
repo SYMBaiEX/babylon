@@ -2598,8 +2598,17 @@ ${voiceContext}
       ...(this.worldContext || {}),
     });
 
+    if (!this.llm) {
+      logger.warn(
+        'LLM not available for reply generation',
+        undefined,
+        'FeedGenerator'
+      );
+      return 'Interesting point.';
+    }
+
     const params = getPromptParams(reply);
-    const rawResponse = await this.llm!.generateJSON<
+    const rawResponse = await this.llm.generateJSON<
       { post: string } | { response: { post: string } }
     >(prompt, undefined, {
       ...params,
@@ -4045,8 +4054,21 @@ ${voiceContext}
       currentTime: formattedTime,
     });
 
+    if (!this.llm) {
+      logger.warn(
+        'LLM not available for ambient post generation',
+        undefined,
+        'FeedGenerator'
+      );
+      return {
+        content: 'Interesting day in the markets.',
+        sentiment: 0,
+        energy: 0.5,
+      };
+    }
+
     const params = getPromptParams(minuteAmbient);
-    const rawResponse = await this.llm!.generateJSON<
+    const rawResponse = await this.llm.generateJSON<
       | {
           post: string;
           sentiment: number;

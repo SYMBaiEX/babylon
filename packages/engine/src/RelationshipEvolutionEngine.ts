@@ -250,7 +250,13 @@ Also determine:
 
 Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
 
-    const response = await this.llm!.generateJSON<{
+    if (!this.llm) {
+      throw new Error(
+        'LLM client required for generateRelationshipDescription'
+      );
+    }
+
+    const response = await this.llm.generateJSON<{
       description: string;
       type: string;
       sentiment: number;
