@@ -1021,9 +1021,7 @@ export class TeamChatService {
         const [fallbackChat] = await tx
           .select({ id: chats.id })
           .from(chats)
-          .where(
-            and(eq(chats.groupId, teamChat.groupId), ne(chats.id, chatId))
-          )
+          .where(and(eq(chats.groupId, teamChat.groupId), ne(chats.id, chatId)))
           .orderBy(desc(chats.createdAt))
           .limit(1);
 
