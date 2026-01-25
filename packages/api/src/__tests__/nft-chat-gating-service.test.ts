@@ -131,6 +131,7 @@ describe('NFT Chat Gating Service', () => {
     mockLogger.error.mockReset();
 
     // Reset environment variables
+    delete process.env.NFT_GATING_ENABLED;
     delete process.env.NFT_CHAT_GATING_ENABLED;
     delete process.env.NFT_CHAT_GATING_CHAT_ID;
   });

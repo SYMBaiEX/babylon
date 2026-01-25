@@ -26,6 +26,7 @@ export * from './moderation';
 export * from './nft-access-service';
 export * from './nft-chat-gating-service';
 export * from './nft-group-service';
+export * from './nft-indexer-service';
 export * from './nft-mint-service';
 export * from './nft-verification-service';
 export * from './notification-service';

@@ -110,23 +110,22 @@ export default function ChatsPage() {
 
   // Detect if the current chat is with the user's own agent
   // If so, redirect to team chat (Command Center) instead of this DM
-  const ownAgentUsername = useMemo(() => {
+  const ownAgentId = useMemo(() => {
     if (!chatDetails?.chat.otherUser || chatDetails.chat.isGroup) return null;
     const other = chatDetails.chat.otherUser;
     // Check if the other user is an agent managed by the current user
     if (other.isAgent && other.managedBy === user?.id) {
-      return other.username || other.id;
+      return other.id;
     }
     return null;
   }, [chatDetails, user?.id]);
 
-  // Redirect owned agent DMs to team chat
+  // Redirect owned agent DMs to team chat and select the agent
   useEffect(() => {
-    if (ownAgentUsername) {
-      const mention = `${ownAgentUsername} `;
-      router.replace(`/agents/team?mention=${encodeURIComponent(mention)}`);
+    if (ownAgentId) {
+      router.replace(`/agents/team?selectAgent=${encodeURIComponent(ownAgentId)}`);
     }
-  }, [ownAgentUsername, router]);
+  }, [ownAgentId, router]);
 
   // Auth required state
   if (ready && !authenticated) {
@@ -209,7 +208,7 @@ export default function ChatsPage() {
               selectedChatId ? 'block' : 'hidden xl:block'
             )}
           >
-            {ownAgentUsername ? (
+            {ownAgentId ? (
               // Redirecting to team chat...
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

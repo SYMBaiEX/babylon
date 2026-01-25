@@ -48,7 +48,6 @@ import {
   type GeneratedTag,
   generateTagsFromPost,
   invalidateAfterPredictionTrade,
-  notifyOwnerOfAgentTrade,
   PredictionPricing,
   StaticDataRegistry,
   storeTagsForPost,
@@ -681,26 +680,6 @@ async function executePredictionTrade(params: {
     'DirectExecutors'
   );
 
-  // Notify agent owner of the trade (only for non-NPC agents)
-  if (!isNpc) {
-    notifyOwnerOfAgentTrade({
-      agentUserId,
-      marketType: 'prediction',
-      marketId,
-      action: 'open',
-      side: isBuyYes ? 'yes' : 'no',
-      amount,
-      price: result.avgPrice,
-      reasoning,
-    }).catch((error: Error) => {
-      logger.warn(
-        `Failed to send trade notification: ${error.message}`,
-        { agentUserId, marketId },
-        'DirectExecutors'
-      );
-    });
-  }
-
   return {
     success: true,
     marketId,
@@ -844,27 +823,6 @@ async function executePredictionSell(params: {
     'DirectExecutors'
   );
 
-  // Notify agent owner of the trade (only for non-NPC agents)
-  if (!isNpc) {
-    notifyOwnerOfAgentTrade({
-      agentUserId,
-      marketType: 'prediction',
-      marketId,
-      action: 'close',
-      side: isSellYes ? 'yes' : 'no',
-      amount: sellResult.netProceeds ?? 0,
-      price: sellResult.avgPrice,
-      pnl: sellResult.pnl,
-      reasoning,
-    }).catch((error: Error) => {
-      logger.warn(
-        `Failed to send trade notification: ${error.message}`,
-        { agentUserId, marketId },
-        'DirectExecutors'
-      );
-    });
-  }
-
   return {
     success: true,
     marketId,
@@ -947,26 +905,6 @@ async function executePerpTrade(params: {
     undefined,
     'DirectExecutors'
   );
-
-  // Notify agent owner of the trade (only for non-NPC agents)
-  if (!isNpc) {
-    notifyOwnerOfAgentTrade({
-      agentUserId,
-      marketType: 'perp',
-      ticker,
-      action: 'open',
-      side: perpSide,
-      amount,
-      price: currentPrice,
-      reasoning,
-    }).catch((error: Error) => {
-      logger.warn(
-        `Failed to send trade notification: ${error.message}`,
-        { agentUserId, ticker },
-        'DirectExecutors'
-      );
-    });
-  }
 
   return {
     success: true,
@@ -1068,27 +1006,6 @@ async function executeClosePerpPosition(params: {
     undefined,
     'DirectExecutors'
   );
-
-  // Notify agent owner of the trade (only for non-NPC agents)
-  if (!isNpc) {
-    notifyOwnerOfAgentTrade({
-      agentUserId,
-      marketType: 'perp',
-      ticker,
-      action: 'close',
-      side: existingPosition.side as 'long' | 'short',
-      amount: size,
-      price: exitPrice,
-      pnl: realizedPnL,
-      reasoning,
-    }).catch((error: Error) => {
-      logger.warn(
-        `Failed to send trade notification: ${error.message}`,
-        { agentUserId, ticker },
-        'DirectExecutors'
-      );
-    });
-  }
 
   return {
     success: true,
@@ -1390,6 +1307,21 @@ export async function executeDirectMessage(
 
   // If chatId not provided, resolve it from recipientId
   if (!chatId && recipientId) {
+    // Check if agent is trying to DM their owner - not allowed
+    // Agents should communicate with owners through Command Center (team chat)
+    const [agent] = await db
+      .select({ managedBy: users.managedBy })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+
+    if (agent?.managedBy === recipientId) {
+      return {
+        success: false,
+        error: 'Agent-owner DMs are not allowed - use Command Center instead',
+      };
+    }
+
     // Check if recipient exists
     const [recipient] = await db
       .select({ id: users.id })

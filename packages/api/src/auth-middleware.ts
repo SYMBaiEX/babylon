@@ -20,7 +20,7 @@ import {
   AuthorizationError,
   isAuthenticationError,
 } from './errors';
-import { hasNftAccess } from './services/nft-access-service';
+import { hasNftAccessForAuthUser } from './services/nft-access-service';
 
 // Re-export types from shared for backwards compatibility
 export type { AuthenticatedUser } from '@babylon/shared';
@@ -208,7 +208,7 @@ export async function authenticate(
           });
         }
 
-        const allowed = await hasNftAccess(authedUser.dbUserId);
+        const allowed = await hasNftAccessForAuthUser(authedUser);
         if (!allowed) {
           throw new AuthorizationError('NFT access required', 'nft', 'access', {
             pathname,

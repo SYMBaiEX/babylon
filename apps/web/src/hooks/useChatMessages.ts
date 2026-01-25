@@ -1,8 +1,7 @@
 import { logger } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MessageType } from '@/components/chats/types';
-import { MessageTypeEnum } from '@/components/chats/types';
+import { type MessageType, MessageTypeEnum } from '@/components/chats/types';
 import { CHAT_PAGE_SIZE } from '@/lib/constants';
 import { useSSEChannel } from './useSSE';
 

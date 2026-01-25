@@ -15,20 +15,55 @@ import {
   eq,
   messages,
   type Transaction,
+  users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 
 /**
  * Get or create a DM chat between two users.
  *
+ * NOTE: This function should NOT be used for agent-owner communication.
+ * Agents should communicate with their owners through the Command Center (team chat).
+ *
  * @param userA - First user ID
  * @param userB - Second user ID
  * @returns The chat ID
+ * @throws Error if trying to create DM between agent and owner
  */
 export async function getOrCreateDMChat(
   userA: string,
   userB: string
 ): Promise<string> {
+  // Check if either user is an agent trying to DM their owner
+  // Agents should use Command Center instead
+  const [userAInfo, userBInfo] = await Promise.all([
+    db
+      .select({ isAgent: users.isAgent, managedBy: users.managedBy })
+      .from(users)
+      .where(eq(users.id, userA))
+      .limit(1),
+    db
+      .select({ isAgent: users.isAgent, managedBy: users.managedBy })
+      .from(users)
+      .where(eq(users.id, userB))
+      .limit(1),
+  ]);
+
+  const userAData = userAInfo[0];
+  const userBData = userBInfo[0];
+
+  // Block agent-owner DMs (both directions)
+  if (userAData?.isAgent && userAData?.managedBy === userB) {
+    throw new Error(
+      'Agent-owner DMs are not allowed - use Command Center instead'
+    );
+  }
+  if (userBData?.isAgent && userBData?.managedBy === userA) {
+    throw new Error(
+      'Agent-owner DMs are not allowed - use Command Center instead'
+    );
+  }
+
   // Find existing DM chat using a single query with self-join
   const otherParticipants = aliasedTable(chatParticipants, 'cp2');
 

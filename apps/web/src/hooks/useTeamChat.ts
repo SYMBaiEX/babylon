@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { toast } from 'sonner';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
@@ -47,6 +48,8 @@ interface TeamChatAgent {
   displayName: string | null;
   profileImageUrl: string | null;
   isAgent: boolean;
+  modelTier: 'free' | 'pro';
+  virtualBalance: number;
 }
 
 /** Team chat info from API */
@@ -58,6 +61,15 @@ interface TeamChatInfo {
   updatedAt: string;
   agents: TeamChatAgent[];
   agentCount: number;
+}
+
+/** Conversation info for fresh chat feature */
+interface ConversationInfo {
+  id: string;
+  name: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
 }
 
 /** Hook return type */
@@ -89,10 +101,29 @@ interface UseTeamChatReturn {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
+  // Agent selection (for parallel task execution)
+  selectedAgentIds: Set<string>;
+  processingAgentIds: Set<string>;
+  toggleAgentSelection: (agentId: string) => void;
+  selectAgent: (agentId: string) => void;
+  selectAllAgents: () => void;
+  deselectAllAgents: () => void;
+  stopAgent: (agentId: string) => void;
+
   // Actions
   sendMessage: () => Promise<void>;
   refresh: () => Promise<void>;
   handleScroll: (container: HTMLDivElement) => void;
+  scrollToBottom: (behavior?: 'instant' | 'smooth') => void;
+
+  // Conversations (fresh chat feature)
+  conversations: ConversationInfo[];
+  conversationsLoading: boolean;
+  createConversation: (title?: string) => Promise<void>;
+  switchConversation: (chatId: string) => Promise<void>;
+  renameConversation: (chatId: string, newTitle: string) => Promise<void>;
+  deleteConversation: (chatId: string) => Promise<void>;
+  refreshConversations: () => Promise<void>;
 }
 
 export function useTeamChat(): UseTeamChatReturn {
@@ -117,12 +148,26 @@ export function useTeamChat(): UseTeamChatReturn {
   // Thinking indicator state (for complex queries)
   const [thinkingAgents, setThinkingAgents] = useState<ThinkingAgent[]>([]);
 
+  // Agent selection state (for parallel task execution)
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [processingAgentIds, setProcessingAgentIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Conversations state (fresh chat feature)
+  const [conversations, setConversations] = useState<ConversationInfo[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const wasNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  // Store AbortControllers for each processing agent (for stop functionality)
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   // SSE for real-time messages
   const {
@@ -133,6 +178,7 @@ export function useTeamChat(): UseTeamChatReturn {
     hasMore,
     addMessage,
     removeMessage,
+    clearMessages,
   } = useChatMessages(teamChat?.chatId ?? null);
 
   // Helper to find scroll container from messagesEndRef
@@ -467,12 +513,6 @@ export function useTeamChat(): UseTeamChatReturn {
         },
       });
 
-      if (response.status === 404) {
-        // No team chat exists - user has no agents
-        setTeamChat(null);
-        return;
-      }
-
       if (!response.ok) {
         const data = await response.json();
         setError(data.message || data.error || 'Failed to load Command Center');
@@ -496,6 +536,74 @@ export function useTeamChat(): UseTeamChatReturn {
       fetchTeamChat();
     }
   }, [user?.id, fetchTeamChat]);
+
+  // Auto-select first agent on initial load
+  const hasAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (
+      teamChat?.agents &&
+      teamChat.agents.length > 0 &&
+      !hasAutoSelectedRef.current &&
+      selectedAgentIds.size === 0
+    ) {
+      hasAutoSelectedRef.current = true;
+      const firstAgent = teamChat.agents[0];
+      if (firstAgent) {
+        setSelectedAgentIds(new Set([firstAgent.id]));
+      }
+    }
+  }, [teamChat?.agents, selectedAgentIds.size]);
+
+  // Agent selection methods
+  const toggleAgentSelection = useCallback(
+    (agentId: string) => {
+      setSelectedAgentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(agentId)) {
+          // Always allow removing from selection (even if processing)
+          next.delete(agentId);
+        } else {
+          // Can't select if agent is processing
+          if (processingAgentIds.has(agentId)) return prev;
+          next.add(agentId);
+        }
+        return next;
+      });
+    },
+    [processingAgentIds]
+  );
+
+  // Select a specific agent (non-toggling - use after agent creation)
+  const selectAgent = useCallback((agentId: string) => {
+    setSelectedAgentIds(new Set([agentId]));
+  }, []);
+
+  const selectAllAgents = useCallback(() => {
+    if (!teamChat?.agents) return;
+    const allIds = teamChat.agents
+      .filter((a) => !processingAgentIds.has(a.id))
+      .map((a) => a.id);
+    setSelectedAgentIds(new Set(allIds));
+  }, [teamChat?.agents, processingAgentIds]);
+
+  const deselectAllAgents = useCallback(() => {
+    setSelectedAgentIds(new Set());
+  }, []);
+
+  // Stop a processing agent (aborts the fetch request)
+  const stopAgent = useCallback((agentId: string) => {
+    const controller = abortControllersRef.current.get(agentId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(agentId);
+    }
+    // Remove from processing immediately
+    setProcessingAgentIds((prev) => {
+      const next = new Set(prev);
+      next.delete(agentId);
+      return next;
+    });
+  }, []);
 
   // Build chat details from team chat info and realtime messages
   const chatDetails: ChatDetails | null = teamChat
@@ -534,7 +642,7 @@ export function useTeamChat(): UseTeamChatReturn {
       }
     : null;
 
-  // Send message with optimistic update (iMessage-style)
+  // Send message with optimistic update and parallel agent execution
   const sendMessage = useCallback(async () => {
     // Guard: require valid user, teamChat, content, and not already sending
     if (!teamChat || !messageInput.trim() || sending || !user?.id) return;
@@ -546,6 +654,18 @@ export function useTeamChat(): UseTeamChatReturn {
     }
 
     const content = messageInput.trim();
+
+    // Use selected agents, or fall back to all agents if none selected
+    let agentsToCall = Array.from(selectedAgentIds);
+    if (agentsToCall.length === 0 && teamChat?.agents) {
+      agentsToCall = teamChat.agents.map((a) => a.id);
+    }
+
+    // Filter out any agents that are already processing
+    const availableAgents = agentsToCall.filter(
+      (id) => !processingAgentIds.has(id)
+    );
+    if (availableAgents.length === 0) return;
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -560,6 +680,9 @@ export function useTeamChat(): UseTeamChatReturn {
       stableKey: optimisticId,
     });
 
+    // Scroll to bottom after DOM updates with new message
+    setTimeout(() => scrollToBottom('instant'), 50);
+
     setMessageInput('');
     setSending(true);
     setSendError(null);
@@ -573,6 +696,7 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
+      // First, save user message to team chat (happens once for all agents)
       const response = await fetch('/api/agents/team-chat/message', {
         method: 'POST',
         headers: {
@@ -587,7 +711,127 @@ export function useTeamChat(): UseTeamChatReturn {
         removeMessage(optimisticId);
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
+        return;
       }
+
+      // Call available agents in parallel (skip any that are already processing)
+      // Mark agents as processing
+      // Note: We keep the selection so user can continue chatting with same agents
+      // They can remove processing agents via X button if they want to unblock
+      setProcessingAgentIds((prev) => {
+        const next = new Set(prev);
+        for (const id of availableAgents) {
+          next.add(id);
+        }
+        return next;
+      });
+
+      // Get user info for team chat context
+      const ownerName = user.displayName || user.username || 'User';
+      const ownerUsername = user.username || '';
+
+      // Call each available agent in parallel
+      const agentCalls = availableAgents.map(async (agentId) => {
+        // Create AbortController for this agent (for stop functionality)
+        const controller = new AbortController();
+        abortControllersRef.current.set(agentId, controller);
+
+        // Look up agent to get their modelTier for pro mode
+        const agent = teamChat.agents.find((a) => a.id === agentId);
+        const usePro = agent?.modelTier === 'pro';
+
+        try {
+          const agentResponse = await fetch(`/api/agents/${agentId}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              message: content,
+              usePro,
+              teamChatId: teamChat.chatId,
+              teamChatOwnerName: ownerName,
+              teamChatOwnerUsername: ownerUsername,
+            }),
+            signal: controller.signal,
+          });
+
+          if (agentResponse.ok) {
+            // Parse response to get points info
+            const data = (await agentResponse.json()) as {
+              success?: boolean;
+              pointsCost?: number;
+              balanceAfter?: number;
+            };
+
+            // Show toast if points were deducted
+            if (data.pointsCost && data.pointsCost > 0) {
+              toast.success(
+                `Message sent to ${agent?.displayName} (-${data.pointsCost} point${data.pointsCost > 1 ? 's' : ''})`
+              );
+            }
+
+            // Update agent balance in local state
+            if (typeof data.balanceAfter === 'number') {
+              setTeamChat((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId
+                      ? { ...a, virtualBalance: data.balanceAfter as number }
+                      : a
+                  ),
+                };
+              });
+            }
+          } else {
+            // Handle error response from backend
+            try {
+              const errorData = (await agentResponse.json()) as {
+                error?: string;
+                message?: string;
+              };
+              const errorMessage =
+                errorData.error || errorData.message || 'Failed to respond';
+
+              // Check for insufficient balance error
+              if (errorMessage.toLowerCase().includes('insufficient')) {
+                toast.error(
+                  `${agent?.displayName}: Insufficient points. Deposit to continue.`
+                );
+              } else {
+                console.error(`Agent ${agentId} error:`, errorMessage);
+              }
+            } catch {
+              console.error(`Agent ${agentId} failed to respond`);
+            }
+          }
+        } catch (err) {
+          // Don't log abort errors - they're expected when user stops
+          if (err instanceof Error && err.name === 'AbortError') {
+            console.log(`Agent ${agentId} request was cancelled`);
+          } else {
+            console.error(`Error calling agent ${agentId}:`, err);
+          }
+        } finally {
+          // Clean up AbortController
+          abortControllersRef.current.delete(agentId);
+          // Remove from processing when done
+          setProcessingAgentIds((prev) => {
+            const next = new Set(prev);
+            next.delete(agentId);
+            return next;
+          });
+        }
+      });
+
+      // Don't await - let agents process in background
+      // Responses will come through SSE/broadcast
+      Promise.all(agentCalls).catch((err) => {
+        console.error('Error in parallel agent calls:', err);
+      });
     } catch (err) {
       // Rollback optimistic message on network error
       removeMessage(optimisticId);
@@ -601,12 +845,243 @@ export function useTeamChat(): UseTeamChatReturn {
     teamChat,
     messageInput,
     sending,
-    user?.id,
+    user,
+    selectedAgentIds,
+    processingAgentIds,
     getAccessToken,
     addMessage,
     removeMessage,
     sendTypingIndicator,
+    scrollToBottom,
   ]);
+
+  // =========================================================================
+  // CONVERSATION MANAGEMENT (Fresh Chat Feature)
+  // =========================================================================
+
+  /**
+   * Fetch list of conversations
+   */
+  const refreshConversations = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      setConversationsLoading(true);
+      const token = await getAccessToken();
+      const response = await fetch('/api/agents/team-chat/conversations', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as {
+          conversations: ConversationInfo[];
+        };
+        setConversations(data.conversations);
+      }
+    } catch (err) {
+      console.error('Failed to fetch conversations:', err);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, [user, getAccessToken]);
+
+  /**
+   * Create a new conversation (New Chat)
+   */
+  const createConversation = useCallback(
+    async (title?: string) => {
+      if (!user) return;
+
+      try {
+        const token = await getAccessToken();
+        const response = await fetch('/api/agents/team-chat/conversations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ title }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as {
+            conversation: ConversationInfo;
+            activeChatId: string;
+          };
+
+          // Add new conversation to list and mark as active
+          setConversations((prev) => [
+            data.conversation,
+            ...prev.map((c) => ({ ...c, isActive: false })),
+          ]);
+
+          // Update team chat with new chatId
+          setTeamChat((prev) =>
+            prev ? { ...prev, chatId: data.activeChatId } : prev
+          );
+
+          // Clear messages for fresh start (useChatMessages will refetch)
+          clearMessages();
+
+          toast.success('New conversation created');
+        } else {
+          const errorData = (await response.json()) as { error?: string };
+          toast.error(errorData.error || 'Failed to create conversation');
+        }
+      } catch (err) {
+        console.error('Failed to create conversation:', err);
+        toast.error('Failed to create conversation');
+      }
+    },
+    [user, getAccessToken, clearMessages]
+  );
+
+  /**
+   * Switch to a different conversation
+   */
+  const switchConversation = useCallback(
+    async (chatId: string) => {
+      if (!user || !teamChat) return;
+      if (chatId === teamChat.chatId) return; // Already on this conversation
+
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(
+          `/api/agents/team-chat/conversations/${chatId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ action: 'switch' }),
+          }
+        );
+
+        if (response.ok) {
+          const data = (await response.json()) as { activeChatId: string };
+
+          // Update active state in conversations list
+          setConversations((prev) =>
+            prev.map((c) => ({ ...c, isActive: c.id === chatId }))
+          );
+
+          // Update team chat with new chatId
+          setTeamChat((prev) =>
+            prev ? { ...prev, chatId: data.activeChatId } : prev
+          );
+
+          // Clear messages (useChatMessages will refetch for new chatId)
+          clearMessages();
+        } else {
+          const errorData = (await response.json()) as { error?: string };
+          toast.error(errorData.error || 'Failed to switch conversation');
+        }
+      } catch (err) {
+        console.error('Failed to switch conversation:', err);
+        toast.error('Failed to switch conversation');
+      }
+    },
+    [user, teamChat, getAccessToken, clearMessages]
+  );
+
+  /**
+   * Rename a conversation
+   */
+  const renameConversation = useCallback(
+    async (chatId: string, newTitle: string) => {
+      if (!user) return;
+
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(
+          `/api/agents/team-chat/conversations/${chatId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ action: 'rename', title: newTitle }),
+          }
+        );
+
+        if (response.ok) {
+          // Update name in conversations list
+          setConversations((prev) =>
+            prev.map((c) => (c.id === chatId ? { ...c, name: newTitle } : c))
+          );
+          toast.success('Conversation renamed');
+        } else {
+          const errorData = (await response.json()) as { error?: string };
+          toast.error(errorData.error || 'Failed to rename conversation');
+        }
+      } catch (err) {
+        console.error('Failed to rename conversation:', err);
+        toast.error('Failed to rename conversation');
+      }
+    },
+    [user, getAccessToken]
+  );
+
+  /**
+   * Delete a conversation
+   */
+  const deleteConversation = useCallback(
+    async (chatId: string) => {
+      if (!user) return;
+
+      try {
+        const token = await getAccessToken();
+        const response = await fetch(
+          `/api/agents/team-chat/conversations/${chatId}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          const data = (await response.json()) as {
+            newActiveChatId: string | null;
+          };
+
+          // Remove from conversations list
+          setConversations((prev) => prev.filter((c) => c.id !== chatId));
+
+          // If we switched to a new active chat, update state
+          if (data.newActiveChatId) {
+            setConversations((prev) =>
+              prev.map((c) => ({
+                ...c,
+                isActive: c.id === data.newActiveChatId,
+              }))
+            );
+            setTeamChat((prev) =>
+              prev ? { ...prev, chatId: data.newActiveChatId! } : prev
+            );
+            clearMessages();
+          }
+
+          toast.success('Conversation deleted');
+        } else {
+          const errorData = (await response.json()) as { error?: string };
+          toast.error(errorData.error || 'Failed to delete conversation');
+        }
+      } catch (err) {
+        console.error('Failed to delete conversation:', err);
+        toast.error('Failed to delete conversation');
+      }
+    },
+    [user, getAccessToken, clearMessages]
+  );
+
+  // Fetch conversations when team chat loads
+  useEffect(() => {
+    if (teamChat && user) {
+      refreshConversations();
+    }
+  }, [teamChat?.id, user, refreshConversations]);
 
   return {
     teamChat,
@@ -626,8 +1101,26 @@ export function useTeamChat(): UseTeamChatReturn {
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
+    // Agent selection
+    selectedAgentIds,
+    processingAgentIds,
+    toggleAgentSelection,
+    selectAgent,
+    selectAllAgents,
+    deselectAllAgents,
+    stopAgent,
+    // Actions
     sendMessage,
     refresh: fetchTeamChat,
     handleScroll,
+    scrollToBottom,
+    // Conversations (fresh chat feature)
+    conversations,
+    conversationsLoading,
+    createConversation,
+    switchConversation,
+    renameConversation,
+    deleteConversation,
+    refreshConversations,
   };
 }

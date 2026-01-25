@@ -1,3 +1,8 @@
+import type { MessageType } from '@babylon/shared';
+
+export { MessageTypeEnum } from '@babylon/shared';
+export type { MessageType };
+
 export type ChatFilter = 'all' | 'dms' | 'groups';
 
 export interface Chat {
@@ -30,18 +35,6 @@ export interface Chat {
     chainName: string;
   };
 }
-
-/**
- * Message type for chat messages.
- * Defined locally to avoid importing from @babylon/db in client code.
- */
-export type MessageType = 'user' | 'system';
-
-// Enum for runtime checks
-export const MessageTypeEnum = {
-  USER: 'user' as const satisfies MessageType,
-  SYSTEM: 'system' as const satisfies MessageType,
-} as const;
 
 export interface Message {
   id: string;

@@ -71,6 +71,7 @@ class ServiceConfig:
     # Multi-GPU settings (Phase 4)
     tensor_parallel_size: int = 1  # Number of GPUs for tensor parallelism
     use_flash_attention: bool = False  # Enable flash attention for performance
+    enforce_eager: bool = True  # Disable CUDA graphs - safer for compatibility
     
     # GPU assignment - separate vLLM and training to avoid OOM conflicts
     # vllm_gpu: Comma-separated GPU IDs for vLLM (e.g., "0" or "0,1" for tensor parallel)
@@ -79,7 +80,7 @@ class ServiceConfig:
     training_gpu: Optional[str] = None  # If None, falls back to auto-assignment
     
     # Timeouts
-    startup_timeout: int = 180  # 3 minutes for vLLM to load model
+    startup_timeout: int = 600  # 10 minutes for large models (30B needs ~6 min)
     health_check_interval: float = 2.0
     shutdown_timeout: int = 10
     
@@ -356,11 +357,22 @@ class ServiceManager:
         if cfg.tensor_parallel_size > 1:
             cmd.extend(["--tensor-parallel-size", str(cfg.tensor_parallel_size)])
         
+        # Enforce eager mode to avoid CUDA graph compilation issues
+        # This is safer and more compatible across GPU types
+        if cfg.enforce_eager:
+            cmd.append("--enforce-eager")
+            logger.info("  Eager mode: enabled (safer compatibility)")
+        
         env = os.environ.copy()
         
-        # Set attention backend if flash attention is configured
+        # Set attention backend - prefer FLASHINFER (works out of the box in vLLM V1)
+        # FLASH_ATTN requires separate flash-attn package which often has compatibility issues
         if cfg.use_flash_attention:
             env["VLLM_ATTENTION_BACKEND"] = "FLASH_ATTN"
+        else:
+            # Default to FLASHINFER - built into vLLM, no extra deps needed
+            env["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
+            logger.info("  Attention backend: FLASHINFER")
         
         # Set CUDA devices for vLLM based on explicit configuration or tensor parallel size
         if cfg.vllm_gpu:

@@ -16,7 +16,7 @@ export {
   PredictionPricing,
   type ShareCalculation,
   type ShareCalculationWithFees,
-} from '@babylon/core/markets/prediction/client';
+} from '@babylon/core/markets/prediction/pricing';
 // Fee Configuration (pure constants, no dependencies)
 export {
   FEE_CONFIG,

@@ -28,6 +28,11 @@ const nftSnapshotTable = {
   hasMinted: 'hasMinted',
 };
 
+const nftOwnershipTable = {
+  tokenId: 'tokenId',
+  userId: 'userId',
+};
+
 // Mock the local agent-auth module
 mock.module('../agent-auth', () => ({
   verifyAgentSession: mockVerifyAgentSession,
@@ -41,6 +46,7 @@ mock.module('@babylon/db', () => ({
   eq: (field: unknown, value: unknown) => ({ field, value }),
   users: usersTable,
   nftSnapshot: nftSnapshotTable,
+  nftOwnership: nftOwnershipTable,
 }));
 
 // Mock @privy-io/server-auth - PrivyClient is a class that gets instantiated
@@ -56,6 +62,7 @@ import { authenticate } from '../auth-middleware';
 let usersRows: Array<{ id: string; walletAddress: string; isAdmin?: boolean }> =
   [];
 let snapshotRows: Array<{ hasMinted: boolean }> = [];
+let ownershipRows: Array<{ tokenId: number }> = [];
 
 const createRequest = (token: string, pathname: string): NextRequest =>
   ({
@@ -79,6 +86,7 @@ describe('authenticate middleware', () => {
     process.env.NFT_GATING_ENABLED = 'false';
     usersRows = [];
     snapshotRows = [];
+    ownershipRows = [];
 
     // Default mock chain for db.select().from().where().limit()
     mockSelect.mockImplementation(() => ({
@@ -88,6 +96,8 @@ describe('authenticate middleware', () => {
             if (table === usersTable) return Promise.resolve(usersRows);
             if (table === nftSnapshotTable)
               return Promise.resolve(snapshotRows);
+            if (table === nftOwnershipTable)
+              return Promise.resolve(ownershipRows);
             return Promise.resolve([]);
           },
         }),

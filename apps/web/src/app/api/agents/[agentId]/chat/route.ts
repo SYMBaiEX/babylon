@@ -10,10 +10,23 @@
  * Uses runtime.composeState() for providers and runtime.processActions() for execution.
  */
 
-import { agentRuntimeManager, agentService } from '@babylon/agents';
-import { authenticateUser, withErrorHandling } from '@babylon/api';
-import { db, eq, userAgentConfigs, users } from '@babylon/db';
-import { checkUserInput, GROQ_MODELS, logger } from '@babylon/shared';
+import {
+  agentRuntimeManager,
+  agentService,
+  teamChatService,
+} from '@babylon/agents';
+import {
+  authenticateUser,
+  broadcastChatMessage,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, messages, userAgentConfigs, users } from '@babylon/db';
+import {
+  checkUserInput,
+  GROQ_MODELS,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
 import {
   type ActionResult,
   composePromptFromState,
@@ -50,9 +63,22 @@ Determine the next step to take in this conversation.
 
 ---
 
+{{#if isTeamChatMode}}
+# Team Chat Context
+You are in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+Other agents may also be working on this task. Focus on YOUR contribution - do your best work independently.
+You can use the CHECK_TEAM_CHAT action if you want to see what other agents have said.
+
+# Your Identity  
+You are **{{agentName}}** (@{{agentUsername}}).
+
+## Team Members
+{{teamMembers}}
+{{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}.
 You are currently chatting with your creator/owner. Address them by name when appropriate.
+{{/if}}
 
 ---
 
@@ -169,7 +195,7 @@ YOUR FINAL OUTPUT MUST BE IN THIS XML FORMAT:
 </response>
 </output>`;
 
-const multiStepSummaryTemplate = `You are responding to your creator/owner after completing actions. Generate a helpful response.
+const multiStepSummaryTemplate = `You are responding after completing actions. Generate a helpful response.
 
 # Your Character
 {{system}}
@@ -178,11 +204,26 @@ const multiStepSummaryTemplate = `You are responding to your creator/owner after
 Personality: {{personality}}
 {{/if}}
 
+{{#if isTeamChatMode}}
+# Team Chat Context
+You are **{{agentName}}** (@{{agentUsername}}) in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+Other agents may also be responding. Focus on YOUR findings and contribution.
+
+## Team Members
+{{teamMembers}}
+{{else}}
 # Your Creator/Owner
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}. You are chatting with them now.
+{{/if}}
 
 # Conversation History
 {{recentMessages}}
+
+---
+
+{{actionsWithParams}}
+
+---
 
 # Current Message from {{ownerName}}
 {{currentMessage}}
@@ -216,9 +257,34 @@ export const POST = withErrorHandling(
     const { agentId } = await params;
     logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat');
 
-    const body = (await req.json()) as { message: string; usePro?: boolean };
+    const body = (await req.json()) as {
+      message: string;
+      usePro?: boolean;
+      /** Optional team chat ID - if provided, agent response goes to the shared team chat */
+      teamChatId?: string;
+      /** Owner display name for team chat context */
+      teamChatOwnerName?: string;
+      /** Owner username for team chat context */
+      teamChatOwnerUsername?: string;
+    };
     const message = body.message;
     const usePro = body.usePro ?? false;
+    const teamChatId = body.teamChatId;
+    const teamChatOwnerName = body.teamChatOwnerName;
+    const teamChatOwnerUsername = body.teamChatOwnerUsername;
+    const isTeamChatMode = !!teamChatId;
+
+    // Get abort signal from request for cancellation support
+    const { signal } = req;
+
+    // Helper to check if request was cancelled
+    const checkCancelled = () => {
+      if (signal.aborted) {
+        logger.info('Request cancelled by client', { agentId }, 'AgentChat');
+        return true;
+      }
+      return false;
+    };
 
     // Validate input
     const inputCheck = checkUserInput(message);
@@ -235,6 +301,26 @@ export const POST = withErrorHandling(
     }
 
     const user = await authenticateUser(req);
+
+    // Validate team chat ownership (security check)
+    // Prevents users from writing to other users' team chats
+    if (teamChatId) {
+      const isValidTeamChat = await teamChatService.validateTeamChatOwnership(
+        user.id,
+        teamChatId
+      );
+      if (!isValidTeamChat) {
+        logger.warn(
+          'Invalid team chat ID - user does not own this chat',
+          { userId: user.id, teamChatId, agentId },
+          'AgentChat'
+        );
+        return NextResponse.json(
+          { success: false, error: 'Invalid team chat' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Verify ownership
     const agentWithConfig = await agentService.getAgentWithConfig(
@@ -257,8 +343,19 @@ export const POST = withErrorHandling(
       ? GROQ_MODELS.PRO.displayName
       : GROQ_MODELS.FREE.displayName;
 
-    // Only deduct points for pro mode (from virtualBalance)
+    // Check balance BEFORE deducting (to return clear error in production)
     let newBalance = Number(agentWithConfig.virtualBalance ?? 0);
+    if (pointsCost > 0 && newBalance < pointsCost) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Insufficient balance. Have: ${newBalance.toFixed(2)}, Need: ${pointsCost.toFixed(2)}`,
+        },
+        { status: 402 }
+      );
+    }
+
+    // Deduct points for pro mode (from virtualBalance)
     if (pointsCost > 0) {
       newBalance = await agentService.deductPoints(
         agentId,
@@ -303,6 +400,14 @@ export const POST = withErrorHandling(
     let finalResponse: string | null = null;
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      // Check if client cancelled the request
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 } // Client Closed Request
+        );
+      }
+
       logger.info(
         `[MultiStep] Iteration ${iteration}/${MAX_ITERATIONS}`,
         { agentId, actionsCompleted: traceActionResults.length },
@@ -312,9 +417,13 @@ export const POST = withErrorHandling(
       // Compose state with providers
       // Use strict filtering (3rd param = true) to ONLY run the specified providers
       // This prevents all Babylon A2A providers from running unnecessarily
+      // Include TEAM_MEMBERS provider when in team chat mode
+      const providers = isTeamChatMode
+        ? ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS', 'TEAM_MEMBERS']
+        : ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS'];
       const state: State = await runtime.composeState(
         elizaMessage,
-        ['RECENT_MESSAGES', 'ACTION_STATE', 'ACTIONS'],
+        providers,
         true
       );
 
@@ -330,8 +439,16 @@ export const POST = withErrorHandling(
         maxIterations: MAX_ITERATIONS,
         actionCount: traceActionResults.length,
         // Owner info for personalized conversation
+        ownerId: user.id, // For RECENT_MESSAGES provider to filter team chat messages
         ownerName,
         ownerUsername,
+        // Team chat context
+        isTeamChatMode,
+        teamChatId,
+        teamChatOwnerName: teamChatOwnerName || ownerName,
+        teamChatOwnerUsername: teamChatOwnerUsername || ownerUsername,
+        agentName: agentWithConfig.displayName || 'Agent',
+        agentUsername: agentWithConfig.username || '',
       };
 
       // Add action results to state data
@@ -355,6 +472,14 @@ export const POST = withErrorHandling(
           prompt,
           temperature: attempt > 1 ? 0.5 : 0.7,
         });
+
+        // Check cancellation after LLM call
+        if (checkCancelled()) {
+          return NextResponse.json(
+            { success: false, cancelled: true, error: 'Request cancelled' },
+            { status: 499 }
+          );
+        }
 
         parsedStep = parseKeyValueXml(response);
 
@@ -388,6 +513,14 @@ export const POST = withErrorHandling(
       // No action - go to summary phase
       if (!action || action === '') {
         break;
+      }
+
+      // Check cancellation before action execution
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 }
+        );
       }
 
       // Execute action via runtime.processActions
@@ -528,9 +661,13 @@ export const POST = withErrorHandling(
 
     // Generate summary/response - always run to get proper user-facing message
     {
+      // Include TEAM_MEMBERS provider when in team chat mode
+      const summaryProviders = isTeamChatMode
+        ? ['RECENT_MESSAGES', 'ACTION_STATE', 'TEAM_MEMBERS']
+        : ['RECENT_MESSAGES', 'ACTION_STATE'];
       const state = await runtime.composeState(
         elizaMessage,
-        ['RECENT_MESSAGES', 'ACTION_STATE'],
+        summaryProviders,
         true
       );
       state.values = {
@@ -541,13 +678,29 @@ export const POST = withErrorHandling(
         tradingStrategy: agentConfig?.tradingStrategy ?? '',
         currentMessage: message,
         // Owner info for personalized conversation
+        ownerId: user.id, // For RECENT_MESSAGES provider to filter team chat messages
         ownerName,
         ownerUsername,
+        // Team chat context
+        isTeamChatMode,
+        teamChatId,
+        teamChatOwnerName: teamChatOwnerName || ownerName,
+        teamChatOwnerUsername: teamChatOwnerUsername || ownerUsername,
+        agentName: agentWithConfig.displayName || 'Agent',
+        agentUsername: agentWithConfig.username || '',
       };
       state.data = {
         ...state.data,
         actionResults: traceActionResults,
       };
+
+      // Check cancellation before summary generation
+      if (checkCancelled()) {
+        return NextResponse.json(
+          { success: false, cancelled: true, error: 'Request cancelled' },
+          { status: 499 }
+        );
+      }
 
       const summaryPrompt = composePromptFromState({
         state,
@@ -601,42 +754,81 @@ export const POST = withErrorHandling(
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
 
-    // Save messages
-    const userMessageId = uuidv4();
-    const assistantMessageId = uuidv4();
     const userMessageTime = new Date();
     const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
+    let responseMessageId: string;
 
-    await db.agentMessage.createMany({
-      data: [
-        {
-          id: userMessageId,
-          agentUserId: agentId,
-          role: 'user',
-          content: message,
-          pointsCost: 0,
-          metadata: {},
-          createdAt: userMessageTime,
-        },
-        {
-          id: assistantMessageId,
-          agentUserId: agentId,
-          role: 'assistant',
-          content: responseText,
-          modelUsed,
-          pointsCost,
-          createdAt: assistantMessageTime,
-          metadata: {
-            multiStep: true,
-            actionsExecuted: traceActionResults.length,
-            actions: traceActionResults.map((a) => ({
-              type: a.actionType,
-              success: a.success,
-            })),
+    if (isTeamChatMode && teamChatId) {
+      // Team chat mode: Write only to messages table (not agentMessages)
+      // User message is written by frontend (once) before calling multiple agents
+      responseMessageId = await generateSnowflakeId();
+
+      // Write agent response to team chat
+      await db.insert(messages).values({
+        id: responseMessageId,
+        chatId: teamChatId,
+        senderId: agentId,
+        content: responseText,
+        createdAt: assistantMessageTime,
+      });
+
+      // Broadcast agent response to team chat
+      broadcastChatMessage(teamChatId, {
+        id: responseMessageId,
+        content: responseText,
+        chatId: teamChatId,
+        senderId: agentId,
+        type: 'user',
+        createdAt: assistantMessageTime.toISOString(),
+      }).catch((err) => {
+        logger.warn(
+          `Failed to broadcast agent message to team chat: ${err}`,
+          { teamChatId, agentId },
+          'AgentChat'
+        );
+      });
+
+      logger.info(
+        `Agent response written to team chat ${teamChatId}`,
+        { agentMessageId: responseMessageId, agentId },
+        'AgentChat'
+      );
+    } else {
+      // Legacy DM mode: Write to agentMessages table
+      const userMessageId = uuidv4();
+      responseMessageId = uuidv4();
+
+      await db.agentMessage.createMany({
+        data: [
+          {
+            id: userMessageId,
+            agentUserId: agentId,
+            role: 'user',
+            content: message,
+            pointsCost: 0,
+            metadata: {},
+            createdAt: userMessageTime,
           },
-        },
-      ],
-    });
+          {
+            id: responseMessageId,
+            agentUserId: agentId,
+            role: 'assistant',
+            content: responseText,
+            modelUsed,
+            pointsCost,
+            createdAt: assistantMessageTime,
+            metadata: {
+              multiStep: true,
+              actionsExecuted: traceActionResults.length,
+              actions: traceActionResults.map((a) => ({
+                type: a.actionType,
+                success: a.success,
+              })),
+            },
+          },
+        ],
+      });
+    }
 
     // Update lastChatAt
     await db
@@ -671,7 +863,7 @@ export const POST = withErrorHandling(
 
     return NextResponse.json({
       success: true,
-      messageId: assistantMessageId,
+      messageId: responseMessageId,
       response: responseText,
       pointsCost,
       modelUsed,

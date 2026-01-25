@@ -175,6 +175,7 @@ import {
 import {
   canAccessNftChatGate,
   getNftChatGatingConfig,
+  reconcileNftChatMembershipForUser,
 } from '@babylon/api/services/nft-chat-gating-service';
 // Import from new Drizzle client
 import {
@@ -188,9 +189,9 @@ import {
   desc,
   eq,
   groupMembers,
+  groups,
   inArray,
   messages,
-  userAgentTeamChats,
   users,
 } from '@babylon/db';
 import {
@@ -310,6 +311,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const user = await authenticate(request);
+
+  // Best-effort reconciliation: grant/revoke gated chat membership based on the
+  // latest access check (on-chain when available; falls back when degraded).
+  if (user.dbUserId) {
+    try {
+      await reconcileNftChatMembershipForUser({
+        dbUserId: user.dbUserId,
+        isAgent: user.isAgent,
+      });
+    } catch (error) {
+      logger.warn(
+        'NFT chat reconciliation failed',
+        { error, userId: user.userId, dbUserId: user.dbUserId },
+        'GET /api/chats'
+      );
+    }
+  }
   const nftChatGatingConfig = getNftChatGatingConfig();
   const gatedChatId = nftChatGatingConfig.chatId;
   const canAccessNftGatedChat =
@@ -331,14 +349,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get user's Command Center chat ID to exclude from regular chat list
+    // Get ALL user's Command Center groups to exclude from regular chat list
+    // (handles edge case of duplicate team groups from race conditions)
     // Command Center is managed separately at /agents/team
-    const [teamChat] = await dbClient
-      .select({ chatId: userAgentTeamChats.chatId })
-      .from(userAgentTeamChats)
-      .where(eq(userAgentTeamChats.userId, user.userId))
-      .limit(1);
-    const teamChatId = teamChat?.chatId;
+    const teamGroups = await dbClient
+      .select({ id: groups.id })
+      .from(groups)
+      .where(and(eq(groups.type, 'team'), eq(groups.ownerId, user.userId)));
+    const teamGroupIds = new Set(teamGroups.map((g) => g.id));
 
     // Get user's group memberships
     const memberships = await dbClient
@@ -377,10 +395,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .where(inArray(chats.groupId, groupIds))
         : [];
 
-    // Filter out Command Center from group chats
-    const filteredGroupChats = teamChatId
-      ? groupChatsWithGroupId.filter((c) => c.id !== teamChatId)
-      : groupChatsWithGroupId;
+    // Filter out Command Center chats (all chats linked to any team group)
+    const filteredGroupChats =
+      teamGroupIds.size > 0
+        ? groupChatsWithGroupId.filter(
+            (c) => !c.groupId || !teamGroupIds.has(c.groupId)
+          )
+        : groupChatsWithGroupId;
     const filteredGroupChatsForAccess =
       gatedChatId && canAccessNftGatedChat === false
         ? filteredGroupChats.filter((c) => c.id !== gatedChatId)

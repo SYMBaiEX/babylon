@@ -61,16 +61,15 @@
 import { teamChatService } from '@babylon/agents';
 import { authenticateUser } from '@babylon/api';
 import {
-  and,
   chatParticipants,
   chats,
   db,
   eq,
   groupMembers,
   groups,
+  inArray,
   messages,
-  userAgentTeamChats,
-  users,
+  userAgentConfigs,
   withTransaction,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
@@ -105,6 +104,24 @@ export async function GET(req: NextRequest) {
     'TeamChatAPI'
   );
 
+  // Fetch modelTier for each agent from userAgentConfigs
+  const agentIds = teamChatWithMembers.agents.map((a) => a.id);
+  const agentConfigs =
+    agentIds.length > 0
+      ? await db
+          .select({
+            userId: userAgentConfigs.userId,
+            modelTier: userAgentConfigs.modelTier,
+          })
+          .from(userAgentConfigs)
+          .where(inArray(userAgentConfigs.userId, agentIds))
+      : [];
+
+  // Create a map for quick lookup
+  const modelTierMap = new Map(
+    agentConfigs.map((c) => [c.userId, c.modelTier])
+  );
+
   return NextResponse.json({
     success: true,
     teamChat: {
@@ -119,6 +136,8 @@ export async function GET(req: NextRequest) {
         displayName: agent.displayName,
         profileImageUrl: agent.profileImageUrl,
         isAgent: agent.isAgent,
+        modelTier: modelTierMap.get(agent.id) ?? 'free',
+        virtualBalance: Number(agent.virtualBalance ?? 0),
       })),
       agentCount: teamChatWithMembers.agents.length,
     },
@@ -132,25 +151,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
-  // Per spec: Command Center is created when the user has at least one agent.
-  // Avoid creating empty Command Centers for users without agents.
-  const [agentExists] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.managedBy, user.id), eq(users.isAgent, true)))
-    .limit(1);
-
-  if (!agentExists) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'No agents found',
-        message: 'Create your first agent to initialize your Command Center.',
-      },
-      { status: 404 }
-    );
-  }
-
+  // Always create Command Center - even with 0 agents
+  // This allows users to see the Command Center UI before creating their first agent
   const teamChat = await teamChatService.ensureTeamChat(user.id);
 
   // Sync any existing agents that aren't in the team chat yet
@@ -168,6 +170,24 @@ export async function POST(req: NextRequest) {
     'TeamChatAPI'
   );
 
+  // Fetch modelTier for each agent from userAgentConfigs
+  const agentIds = agents.map((a) => a.id);
+  const agentConfigs =
+    agentIds.length > 0
+      ? await db
+          .select({
+            userId: userAgentConfigs.userId,
+            modelTier: userAgentConfigs.modelTier,
+          })
+          .from(userAgentConfigs)
+          .where(inArray(userAgentConfigs.userId, agentIds))
+      : [];
+
+  // Create a map for quick lookup
+  const modelTierMap = new Map(
+    agentConfigs.map((c) => [c.userId, c.modelTier])
+  );
+
   return NextResponse.json({
     success: true,
     teamChat: {
@@ -182,6 +202,8 @@ export async function POST(req: NextRequest) {
         displayName: agent.displayName,
         profileImageUrl: agent.profileImageUrl,
         isAgent: agent.isAgent,
+        modelTier: modelTierMap.get(agent.id) ?? 'free',
+        virtualBalance: Number(agent.virtualBalance ?? 0),
       })),
       agentCount: agents.length,
     },
@@ -236,19 +258,31 @@ export async function DELETE(req: NextRequest) {
   );
 
   // Delete all related data in a transaction for atomicity
+  // Need to delete all chats in the group, not just the active one
   await withTransaction(async (tx) => {
-    await tx.delete(messages).where(eq(messages.chatId, teamChat.chatId));
-    await tx
-      .delete(chatParticipants)
-      .where(eq(chatParticipants.chatId, teamChat.chatId));
-    await tx.delete(chats).where(eq(chats.id, teamChat.chatId));
+    // Get all chats in this group
+    const allChatsInGroup = await tx
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.groupId, teamChat.groupId));
+    const chatIds = allChatsInGroup.map((c) => c.id);
+
+    if (chatIds.length > 0) {
+      // Delete messages for all chats
+      await tx.delete(messages).where(inArray(messages.chatId, chatIds));
+      // Delete participants for all chats
+      await tx
+        .delete(chatParticipants)
+        .where(inArray(chatParticipants.chatId, chatIds));
+      // Delete all chats
+      await tx.delete(chats).where(inArray(chats.id, chatIds));
+    }
+
+    // Delete group members and the group itself
     await tx
       .delete(groupMembers)
       .where(eq(groupMembers.groupId, teamChat.groupId));
     await tx.delete(groups).where(eq(groups.id, teamChat.groupId));
-    await tx
-      .delete(userAgentTeamChats)
-      .where(eq(userAgentTeamChats.userId, user.id));
   });
 
   logger.info(

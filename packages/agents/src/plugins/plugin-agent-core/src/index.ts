@@ -39,6 +39,7 @@ import { checkPredictionsAction } from './actions/check-predictions';
 import { checkRecentCommentsAction } from './actions/check-recent-comments';
 import { checkRecentMarketTradesAction } from './actions/check-recent-market-trades';
 import { checkRecentPostsAction } from './actions/check-recent-posts';
+import { checkTeamChatAction } from './actions/check-team-chat';
 import { closePerpAction } from './actions/close-perp';
 import { createCommentAction } from './actions/create-comment';
 import { createPostAction } from './actions/create-post';
@@ -50,7 +51,7 @@ import {
   actionStateProvider,
   actionsProvider,
   recentMessagesProvider,
-  teamChatMessagesProvider,
+  teamMembersProvider,
 } from './providers';
 
 /**
@@ -76,6 +77,8 @@ export const agentCorePlugin: Plugin = {
     checkPerpsAction,
     checkPredictionsAction,
     checkRecentMarketTradesAction,
+    // Team chat
+    checkTeamChatAction,
     // User lookup
     lookupUserAction,
     // Social actions
@@ -91,8 +94,8 @@ export const agentCorePlugin: Plugin = {
   providers: [
     actionsProvider,
     recentMessagesProvider,
-    teamChatMessagesProvider,
     actionStateProvider,
+    teamMembersProvider,
   ],
 };
 

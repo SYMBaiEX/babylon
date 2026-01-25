@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
@@ -9,10 +9,20 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 // Enum for group types
-export const groupTypeEnum = pgEnum('group_type', ['user', 'npc', 'agent']);
+// - 'user': User-created groups
+// - 'npc': NPC-managed groups (tiered alpha groups)
+// - 'agent': Agent-created groups
+// - 'team': User's Command Center (team chat with their agents)
+export const groupTypeEnum = pgEnum('group_type', [
+  'user',
+  'npc',
+  'agent',
+  'team',
+]);
 
 // Enum for message types
 export const messageTypeEnum = pgEnum('message_type', ['user', 'system']);
@@ -188,6 +198,8 @@ export const groups = pgTable(
     tier: integer('tier'), // 1 = Inner Circle, 2 = Community, 3 = Followers (null for user/agent groups)
     maxMembers: integer('maxMembers'), // Tier-specific member limit (null uses default)
     parentGroupId: text('parentGroupId'), // Links tier groups to same NPC's group family
+    // Team chat active conversation (team groups only)
+    activeChatId: text('activeChatId'), // Currently active Chat for team groups (null for other types)
   },
   (table) => [
     index('Group_type_idx').on(table.type),
@@ -197,6 +209,11 @@ export const groups = pgTable(
     index('Group_tier_idx').on(table.tier),
     index('Group_ownerId_tier_idx').on(table.ownerId, table.tier),
     index('Group_parentGroupId_idx').on(table.parentGroupId),
+    // Ensure only ONE team group (Command Center) per owner
+    // This prevents race conditions from creating duplicate team chats
+    uniqueIndex('Group_team_ownerId_unique')
+      .on(table.ownerId)
+      .where(sql`${table.type} = 'team'`),
   ]
 );
 
@@ -312,55 +329,8 @@ export const groupInvites = pgTable(
 );
 
 // ============================================================================
-// USER AGENT TEAM CHAT (Command Center)
-// ============================================================================
-
-/**
- * UserAgentTeamChat - Links users to their agent "Command Center"
- *
- * Each user has exactly ONE team chat containing all their agents.
- * The team chat is auto-created when the user creates their first agent.
- * Agents are automatically added/removed as they are created/deleted.
- *
- * Relationship:
- * - userId is UNIQUE (one team chat per user)
- * - groupId links to Group (type='agent')
- * - chatId links to Chat (quick access, denormalized for performance)
- */
-export const userAgentTeamChats = pgTable(
-  'UserAgentTeamChat',
-  {
-    id: text('id').primaryKey(),
-    userId: text('userId').notNull().unique(), // Human user who owns the agents
-    groupId: text('groupId').notNull().unique(), // Links to Group (1:1)
-    chatId: text('chatId').notNull().unique(), // Links to Chat (1:1)
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-  },
-  (table) => [
-    // userId, groupId, chatId already have unique indexes from .unique() constraints
-    index('UserAgentTeamChat_groupId_idx').on(table.groupId),
-    index('UserAgentTeamChat_chatId_idx').on(table.chatId),
-  ]
-);
-
-// ============================================================================
 // RELATIONS
 // ============================================================================
-
-export const userAgentTeamChatsRelations = relations(
-  userAgentTeamChats,
-  ({ one }) => ({
-    group: one(groups, {
-      fields: [userAgentTeamChats.groupId],
-      references: [groups.id],
-    }),
-    chat: one(chats, {
-      fields: [userAgentTeamChats.chatId],
-      references: [chats.id],
-    }),
-  })
-);
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
   ChatParticipant: many(chatParticipants),
@@ -431,15 +401,12 @@ export type NewGroupMember = typeof groupMembers.$inferInsert;
 export type GroupInvite = typeof groupInvites.$inferSelect;
 export type NewGroupInvite = typeof groupInvites.$inferInsert;
 
-// User agent team chat types
-export type UserAgentTeamChat = typeof userAgentTeamChats.$inferSelect;
-export type NewUserAgentTeamChat = typeof userAgentTeamChats.$inferInsert;
-
 // Type enums (for type safety)
-export type GroupType = 'user' | 'npc' | 'agent';
+export type GroupType = 'user' | 'npc' | 'agent' | 'team';
 export type GroupMemberRole = 'owner' | 'admin' | 'member';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
-export type MessageType = 'user' | 'system';
+// MessageType is exported from @babylon/shared - use that canonical definition
+export type { MessageType } from '@babylon/shared';
 // TierLevel is exported from @babylon/shared - use that canonical definition
 
 // Alpha group enhancement types (for grandfathering and invite decay)
