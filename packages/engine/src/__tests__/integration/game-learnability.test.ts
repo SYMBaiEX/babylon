@@ -42,6 +42,7 @@ import { logger } from '@babylon/shared';
 import { existsSync, readFileSync } from 'fs';
 // import { GameGenerator } from '@/engine/GameGenerator'; // Removed static import
 import type { FeedPost, GeneratedGame, WorldEvent } from '../../types/shared';
+import { formatError } from '../../utils/error-utils';
 
 // Set timeout to 10 minutes for LLM-based generation
 setDefaultTimeout(600000);
@@ -183,8 +184,7 @@ describe('Game Learnability Integration Tests', () => {
       game = await generator.generateCompleteGame();
       logger.info('Game generated successfully', undefined, 'LearnabilityTest');
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = formatError(error);
       console.log(
         '⏭️  Game generation failed - tests will skip:',
         errorMessage.substring(0, 100)

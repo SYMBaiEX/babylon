@@ -37,12 +37,8 @@ describe('NPC Voice Diversity Integration', () => {
   it('should have API key detection working', () => {
     // This test just documents whether API key is available
     // LLM tests will be skipped if no key is present
-    console.log('API key available:', hasApiKey);
-    console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'set' : 'not set');
-    console.log(
-      'OPENAI_API_KEY:',
-      process.env.OPENAI_API_KEY ? 'set' : 'not set'
-    );
+    // Note: Never log actual API key values, only whether they are configured
+    expect(typeof hasApiKey).toBe('boolean');
   });
 
   it('should have character configs for key NPCs', () => {

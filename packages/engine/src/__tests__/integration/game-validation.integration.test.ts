@@ -8,6 +8,7 @@
  */
 
 import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
+import { formatError } from '../../utils/error-utils';
 import type { GeneratedGame } from '../GameGenerator';
 import { GameGenerator } from '../GameGenerator';
 
@@ -24,8 +25,7 @@ describe('Game Output Validation', () => {
       const generator = new GameGenerator();
       game = await generator.generateCompleteGame();
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = formatError(error);
       if (
         errorMessage.includes('429') ||
         errorMessage.includes('rate_limit') ||
