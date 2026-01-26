@@ -377,7 +377,8 @@ export const POST = withErrorHandling(
       ? GROQ_MODELS.PRO.displayName
       : GROQ_MODELS.FREE.displayName;
 
-    // Check balance BEFORE deducting (to return clear error in production)
+    // Check balance BEFORE processing (to return clear error upfront)
+    // Points will be deducted AFTER successful response generation
     let newBalance = Number(agentWithConfig.virtualBalance ?? 0);
     if (pointsCost > 0 && newBalance < pointsCost) {
       return NextResponse.json(
@@ -386,16 +387,6 @@ export const POST = withErrorHandling(
           error: `Insufficient balance. Have: ${newBalance.toFixed(2)}, Need: ${pointsCost.toFixed(2)}`,
         },
         { status: 402 }
-      );
-    }
-
-    // Deduct points for pro mode (from virtualBalance)
-    if (pointsCost > 0) {
-      newBalance = await agentService.deductPoints(
-        agentId,
-        pointsCost,
-        `Chat message (pro mode)`,
-        undefined
       );
     }
 
@@ -888,6 +879,27 @@ export const POST = withErrorHandling(
         },
       },
     });
+
+    // Deduct points ONLY after successful response generation and DB save
+    // This ensures users don't lose points on failed/cancelled requests
+    if (pointsCost > 0) {
+      try {
+        newBalance = await agentService.deductPoints(
+          agentId,
+          pointsCost,
+          `Chat message (${usePro ? 'pro' : 'free'} mode)`,
+          undefined
+        );
+      } catch (err) {
+        // Log but don't fail - response already saved, points can be reconciled
+        logger.error(
+          'Failed to deduct points after successful response',
+          { agentId, pointsCost, error: err },
+          'AgentChat'
+        );
+        // Keep original balance in response (will be slightly incorrect but safe)
+      }
+    }
 
     logger.info(
       `Chat completed for agent ${agentId}`,
