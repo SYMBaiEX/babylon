@@ -51,6 +51,20 @@ export {
   type NPCActivityPresetName,
 } from './npc-activity';
 
+// Runtime Configuration (environment variables)
+export {
+  BLOCKCHAIN_CONFIG,
+  createDeadline,
+  ENV_CONFIG,
+  GAME_TICK_CONFIG,
+  getTimeRemaining,
+  hasTimeRemaining,
+  MARKET_DECISION_CONFIG,
+  ORACLE_CONFIG,
+  RUNTIME_CONFIG,
+  WORLD_FACTS_CONFIG,
+} from './runtime-config';
+
 // Simulation Configuration
 export {
   DEFAULT_SIMULATION_CONFIG,
