@@ -37,11 +37,13 @@
   "crons": [
     {
       "path": "/api/cron/game-tick",
-      "schedule": "* * * * *"
+      "schedule": "* * * * *",
+      "_comment": "World simulation only (events, question creation). Resolution handled by markets-tick."
     },
     {
       "path": "/api/cron/markets-tick",
-      "schedule": "* * * * *"
+      "schedule": "* * * * *",
+      "_comment": "Market lifecycle owner (resolution, payouts, oracle reveals). Uses distributed locks."
     },
     {
       "path": "/api/cron/npc-tick",
