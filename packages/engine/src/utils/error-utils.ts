@@ -164,7 +164,7 @@ export async function safeExecute<T>(
 /**
  * Handle non-critical operations that should not break the main flow.
  * Logs errors and returns null on failure, allowing the caller to continue.
- * 
+ *
  * DRY pattern for game-tick.ts and other orchestrators with many non-critical operations.
  *
  * @param operation - The async operation to execute

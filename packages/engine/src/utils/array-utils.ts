@@ -125,9 +125,7 @@ export function assertNonEmpty<T>(
  * }
  * ```
  */
-export function isNonEmpty<T>(
-  arr: readonly T[]
-): arr is readonly [T, ...T[]] {
+export function isNonEmpty<T>(arr: readonly T[]): arr is readonly [T, ...T[]] {
   return arr.length > 0;
 }
 
@@ -169,8 +167,14 @@ export function atOrThrow<T>(
   message?: string
 ): T {
   const result = at(arr, index);
-  if (result === undefined && (index < 0 ? arr.length + index : index) >= arr.length) {
-    throw new Error(message ?? `Index ${index} out of bounds for array of length ${arr.length}`);
+  if (
+    result === undefined &&
+    (index < 0 ? arr.length + index : index) >= arr.length
+  ) {
+    throw new Error(
+      message ??
+        `Index ${index} out of bounds for array of length ${arr.length}`
+    );
   }
   return result as T;
 }

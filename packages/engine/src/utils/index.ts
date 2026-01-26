@@ -4,17 +4,6 @@
  * Re-exports all utility functions from the engine package
  */
 
-// Array utilities (safe array access)
-export {
-  assertNonEmpty,
-  at,
-  atOrThrow,
-  first,
-  firstOrThrow,
-  isNonEmpty,
-  last,
-  lastOrThrow,
-} from './array-utils';
 // Content analysis utilities
 // Content safety utilities
 export {
@@ -29,6 +18,17 @@ export {
   hasInsiderLanguage,
   sanitizeContent,
 } from '@babylon/shared';
+// Array utilities (safe array access)
+export {
+  assertNonEmpty,
+  at,
+  atOrThrow,
+  first,
+  firstOrThrow,
+  isNonEmpty,
+  last,
+  lastOrThrow,
+} from './array-utils';
 // Comprehensive context builder for rich NPC context
 export {
   buildComprehensiveNPCContext,
