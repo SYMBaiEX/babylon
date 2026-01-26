@@ -28,15 +28,23 @@
  */
 'use client';
 
-import { Ban, Flag, Loader2, MoreHorizontal, UserMinus, UserPlus, VolumeX } from 'lucide-react';
+import {
+  Ban,
+  Flag,
+  Loader2,
+  MoreHorizontal,
+  UserMinus,
+  UserPlus,
+  VolumeX,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { BlockUserModal } from './BlockUserModal';
-import { MuteUserModal } from './MuteUserModal';
-import { ReportModal } from './ReportModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useSocialTracking } from '@/hooks/usePostHog';
 import { getAuthToken } from '@/lib/auth';
+import { BlockUserModal } from './BlockUserModal';
+import { MuteUserModal } from './MuteUserModal';
+import { ReportModal } from './ReportModal';
 
 interface ModerationMenuProps {
   targetUserId: string;
@@ -138,7 +146,11 @@ export function ModerationMenu({
 
       if (response.ok) {
         trackFollow(targetUserId, newFollowingState);
-        toast.success(newFollowingState ? `Following ${displayName}` : `Unfollowed ${displayName}`);
+        toast.success(
+          newFollowingState
+            ? `Following ${displayName}`
+            : `Unfollowed ${displayName}`
+        );
         setShowMenu(false);
       } else {
         // Revert optimistic update
