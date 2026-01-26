@@ -100,6 +100,7 @@ import { isSimulationMode } from './storage-bridge';
 import type { JsonValue } from './types/common';
 import type { NPCMarketContext, NPCPosition } from './types/market-context';
 import type { TradingDecision } from './types/market-decisions';
+import { first, firstOrThrow } from './utils/array-utils';
 import { formatError } from './utils/error-utils';
 import { clamp01 } from './utils/math-utils';
 
@@ -1425,7 +1426,7 @@ ${prompt}`
         const tokens = rawNpcId.split(/\s+/).filter((t) => t.length > 0);
         if (tokens.length > 1 && tokens[0] === tokens[1]) {
           // Duplicate detected, use just the first one
-          rawNpcId = tokens[0]!;
+          rawNpcId = first(tokens) ?? '';
           logger.debug(
             `Detected duplicate npcId, using first occurrence: "${decision.npcId}" -> "${rawNpcId}"`,
             undefined,
@@ -1433,7 +1434,7 @@ ${prompt}`
           );
         } else if (tokens.length > 0) {
           // Use first token if multiple tokens exist
-          rawNpcId = tokens[0]!;
+          rawNpcId = first(tokens) ?? '';
         }
       }
 
@@ -2011,14 +2012,14 @@ ${prompt}`
 
         if (parts.length > 1) {
           // Multiple IDs detected - take the first one
-          marketIdStr = parts[0]!;
+          marketIdStr = first(parts) ?? '';
           logger.debug(
             `Extracted first marketId from multi-value: "${decision.marketId}" -> "${marketIdStr}"`,
             undefined,
             'MarketDecisionEngine'
           );
         } else if (parts.length === 1) {
-          marketIdStr = parts[0]!;
+          marketIdStr = first(parts) ?? '';
         }
 
         // Remove "Q" prefix if present and clean up
@@ -2034,7 +2035,7 @@ ${prompt}`
           // Extract only numeric characters (in case LLM added extra text)
           const numericMatch = marketIdStr.match(/^\d+/);
           if (numericMatch) {
-            decision.marketId = numericMatch[0]!;
+            decision.marketId = first(numericMatch) ?? '';
             if (decision.marketId !== marketIdStr) {
               logger.debug(
                 `Extracted numeric marketId: "${marketIdStr}" -> "${decision.marketId}"`,
@@ -2110,7 +2111,7 @@ ${prompt}`
       };
     }
 
-    return decisions[0]!;
+    return firstOrThrow(decisions, 'No decisions generated');
   }
 
   /**

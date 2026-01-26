@@ -104,6 +104,7 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
+import { firstOrThrow } from './utils/array-utils';
 import { toDateString } from './utils/date-utils';
 import { formatError } from './utils/error-utils';
 import { clamp } from './utils/math-utils';
@@ -1405,7 +1406,10 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
           updatedAt: now,
         })
         .returning();
-      const question = questionResults[0]!;
+      const question = firstOrThrow(
+        questionResults,
+        'Question insert returned empty'
+      );
 
       // Ensure market exists via core service (keeps creation logic portable)
       const market = await marketService.ensureMarketExists({

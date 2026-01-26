@@ -35,7 +35,6 @@ import {
   tickTokenStats,
   trendingTags,
   widgetCaches,
-  worldEvents,
   worldFacts,
 } from '@babylon/db';
 import {
@@ -49,13 +48,11 @@ import {
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
 import { BabylonLLMClient } from './llm/openai-client';
-import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
 // Services - using barrel exports from services/index.ts
 import {
-  ActorSocialActions,
   AlphaGroupInviteService,
   bootstrapGameIfNeeded,
   calculateTrendingIfNeeded,
@@ -63,45 +60,31 @@ import {
   createArcState,
   createParodyHeadlineGenerator,
   DistributedLockService,
-  FollowingMechanics,
   generateArcPulseEventsIfNeeded,
   generateEvents,
-  generateOrgPost,
   getOracleService,
-  getTrendingPromptContext,
   initFalClient,
   invalidateAfterPredictionTrade,
-  MarketContextService,
   NPCGroupDynamicsService,
-  npcSocialEngagementService,
   PriceUpdateService,
-  parseStringArraySafe,
   processArcTick,
-  processNPCSocialEngagements,
   ReputationService,
   rssFeedService,
   StaticDataRegistry,
   syncReputationIfAvailable,
   TokenStatsService,
-  TradeExecutionService,
   timeframeArcProcessor,
   WalletService,
   worldFactsGenerator,
 } from './services';
+// Note: ActorSocialActions, FollowingMechanics, processNPCSocialEngagements,
+// npcSocialEngagementService moved to npc-tick
 import { broadcastToChannel } from './services/realtime-broadcaster';
 import type { TradingExecutionResult } from './types/market-decisions';
-import type {
-  DayTimeline,
-  Organization,
-  Question,
-  SelectedActor,
-  WorldEvent,
-} from './types/shared';
 import { calculateEstimatedCost } from './types/token-stats';
 import { getGameDayNumber, toSafeDayNumber } from './utils/date-utils';
 import { formatError } from './utils/error-utils';
 import { deriveStrategyFromPersonality } from './utils/shared-utils';
-import { worldFactsService } from './world-facts-service';
 // Note: Event-market pipeline is called from within narrative-event-processor
 
 // Services that are still in the web app (Web3/Oracle specific - use dynamic imports)
@@ -194,10 +177,6 @@ export async function executeGameTick(
   const startedAt = Date.now();
   const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 180000); // 3 minutes default
   const deadline = startedAt + budgetMs;
-
-  // Reserve 60 seconds for critical operations (market decisions, widget updates)
-  const criticalOpsReserveMs = 60000;
-  const criticalOpsDeadline = startedAt + budgetMs - criticalOpsReserveMs;
 
   // Start token usage collection for this tick
   const tokenStatsTickId = TokenStatsService.startTick(`tick-${startedAt}`);
@@ -338,310 +317,32 @@ export async function executeGameTick(
     }
   }
 
-  const questionsToResolve = currentActiveQuestions.filter(
-    (q: { resolutionDate: Date | null }) => {
-      if (!q.resolutionDate) return false;
-      const resolutionDate = new Date(q.resolutionDate);
-      return resolutionDate <= timestamp;
-    }
-  );
+  // ==========================================================================
+  // QUESTION RESOLUTION - HANDLED BY markets-tick (DEDUPLICATION)
+  // ==========================================================================
+  // Question resolution (proof generation, payouts, oracle reveals) is now
+  // exclusively handled by /api/cron/markets-tick to prevent race conditions
+  // and duplicate operations. This follows the single-responsibility principle:
+  //
+  // - game-tick: World simulation (events, question CREATION, oracle commits)
+  // - markets-tick: Market lifecycle (resolution, payouts, oracle reveals)
+  //
+  // See: apps/web/src/app/api/cron/markets-tick/route.ts::resolveMarket()
+  // ==========================================================================
 
-  if (questionsToResolve.length > 0) {
-    logger.info(
-      `Resolving ${questionsToResolve.length} questions`,
-      { count: questionsToResolve.length },
-      'GameTick'
-    );
+  // ==========================================================================
+  // ORGANIZATION CONTENT - HANDLED BY organization-tick + article-tick (DEDUPLICATION)
+  // ==========================================================================
+  // Organization posts are handled by /api/cron/organization-tick
+  // Article generation is handled by /api/cron/article-tick
+  // NPC posts are handled by /api/cron/npc-tick
+  //
+  // game-tick now focuses ONLY on world events (below) which drive the narrative.
+  // ==========================================================================
 
-    // Load required data for proof generation using StaticDataRegistry (preferred over loadActorsData)
-    const staticActors = StaticDataRegistry.getAllActors();
-    // Map StaticActor to SelectedActor, ensuring required fields are present
-    const allActors: SelectedActor[] = staticActors
-      .filter((actor) => actor.tier !== null)
-      .map((actor) => ({
-        id: actor.id,
-        name: actor.name,
-        description: actor.description,
-        domain: actor.domain,
-        personality: actor.personality,
-        affiliations: actor.affiliations,
-        postStyle: actor.postStyle,
-        postExample: actor.postExample,
-        tier: actor.tier!,
-        role: actor.role ?? 'unknown',
-        initialLuck:
-          (actor.initialLuck as 'low' | 'medium' | 'high') ?? 'medium',
-        initialMood: actor.initialMood ?? 0,
-      }));
-    // Map StaticOrganization to Organization type
-    const organizations: Organization[] =
-      StaticDataRegistry.getAllOrganizations().map((o) => ({
-        id: o.id,
-        name: o.name,
-        ticker: o.ticker,
-        description: o.description,
-        type: o.type,
-        canBeInvolved: o.canBeInvolved,
-        initialPrice: o.initialPrice ?? undefined,
-      }));
-
-    // Get recent events for context
-    const recentDbEvents = await db
-      .select()
-      .from(worldEvents)
-      .where(
-        gte(
-          worldEvents.timestamp,
-          new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        )
-      )
-      .orderBy(desc(worldEvents.timestamp));
-
-    // Type guards for WorldEvent fields
-    const isValidEventType = (type: string): type is WorldEvent['type'] => {
-      return [
-        'announcement',
-        'meeting',
-        'leak',
-        'development',
-        'scandal',
-        'rumor',
-        'deal',
-        'conflict',
-        'revelation',
-        'development:occurred',
-        'news:published',
-      ].includes(type);
-    };
-
-    const isValidVisibility = (
-      vis: string
-    ): vis is WorldEvent['visibility'] => {
-      return ['public', 'leaked', 'secret', 'private', 'group'].includes(vis);
-    };
-
-    const isValidPointsToward = (
-      pt: string | null | undefined
-    ): pt is WorldEvent['pointsToward'] => {
-      return pt === null || pt === undefined || pt === 'YES' || pt === 'NO';
-    };
-
-    // Convert to DayTimeline format for QuestionManager
-    // Use type guards for eventType/visibility and safe parsing for actors array
-    const mappedEvents: WorldEvent[] = recentDbEvents
-      .filter(
-        (e) => isValidEventType(e.eventType) && isValidVisibility(e.visibility)
-      )
-      .map((e) => ({
-        id: e.id,
-        day: e.dayNumber || 0,
-        type: e.eventType as WorldEvent['type'],
-        description: e.description,
-        actors: parseStringArraySafe(e.actors, { field: 'worldEvents.actors' }),
-        relatedQuestion: e.relatedQuestion || undefined,
-        pointsToward: isValidPointsToward(e.pointsToward)
-          ? e.pointsToward
-          : undefined,
-        visibility: e.visibility as WorldEvent['visibility'],
-      }));
-
-    const recentTimelines: DayTimeline[] = [
-      {
-        day: 0,
-        events: mappedEvents,
-        summary: 'Recent events context',
-        groupChats: {},
-        feedPosts: [],
-        luckChanges: [],
-        moodChanges: [],
-      },
-    ];
-
-    const questionManager = new QuestionManager(llmClient);
-    const questionsToReveal: Array<{ id: string; outcome: boolean }> = [];
-
-    // Resolve payouts
-    // Each question resolution is wrapped in try/catch to prevent partial failures
-    // from breaking the entire tick. Failed resolutions will be retried next tick.
-    for (const question of questionsToResolve) {
-      try {
-        const isApproved = question.resolutionReviewStatus === 'approved';
-        const isPendingManualReview =
-          question.requiresManualReview && !isApproved;
-        const hasStoredProof =
-          Boolean(question.resolutionProofUrl) &&
-          Boolean(question.resolutionDescription);
-
-        if (isPendingManualReview && hasStoredProof) {
-          logger.info(
-            'Skipping question resolution (pending manual review)',
-            {
-              questionId: question.id,
-              questionNumber: question.questionNumber,
-              confidence: question.resolutionConfidence ?? null,
-              reviewStatus: question.resolutionReviewStatus ?? 'pending',
-            },
-            'GameTick'
-          );
-          continue;
-        }
-
-        // Generate resolution proof content
-        // We cast question to Question type - database question fields are compatible
-        const questionForManager: Question = {
-          id: question.questionNumber,
-          text: question.text,
-          scenario: question.scenarioId || 1,
-          outcome: question.outcome,
-          rank: question.rank || 1,
-          status: 'active',
-        };
-
-        // Only generate proof if we don't have one stored
-        // Avoids regenerating existing proofs when only confidence is missing
-        const shouldGenerateProof = !hasStoredProof;
-
-        let generatedProof: Awaited<
-          ReturnType<QuestionManager['generateResolutionWithProof']>
-        > | null = null;
-
-        if (shouldGenerateProof) {
-          const proofResult = await questionManager.generateResolutionWithProof(
-            questionForManager,
-            allActors,
-            organizations,
-            recentTimelines
-          );
-
-          generatedProof = proofResult;
-
-          const reviewStatus = proofResult.requiresManualReview
-            ? 'pending'
-            : null;
-
-          // Save proof article (if any) and update question atomically.
-          // NOTE: Proof articles are inserted inline (not via article-persistence service)
-          // because they must be atomic with the question update within this database
-          // transaction. Proof articles intentionally bypass rate limiting since
-          // they're essential for resolution and must always be created.
-          await db.transaction(async (tx) => {
-            if (proofResult.proof?.type === 'article') {
-              await tx.insert(posts).values({
-                id: proofResult.proof.article.id,
-                type: 'article',
-                content: proofResult.proof.article.summary,
-                fullContent: proofResult.proof.article.content,
-                articleTitle: proofResult.proof.article.title,
-                authorId: proofResult.proof.article.authorOrgId,
-                gameId: 'continuous',
-                timestamp: new Date(),
-                category: proofResult.proof.article.category,
-                sentiment: proofResult.proof.article.sentiment,
-                slant: proofResult.proof.article.slant,
-                biasScore: proofResult.proof.article.biasScore,
-              });
-            }
-
-            await tx
-              .update(questionsSchema)
-              .set({
-                resolutionDescription: proofResult.description,
-                resolutionProofUrl: proofResult.proof?.url ?? null,
-                resolutionConfidence: proofResult.confidence,
-                requiresManualReview: proofResult.requiresManualReview,
-                resolutionReviewStatus: reviewStatus,
-                updatedAt: new Date(),
-              })
-              .where(eq(questionsSchema.id, question.id));
-          });
-
-          if (proofResult.proof?.type === 'article') {
-            logger.info(
-              `Generated resolution proof for Q${question.questionNumber}`,
-              {
-                proofUrl: proofResult.proof.url,
-                articleId: proofResult.proof.article.id,
-                confidence: proofResult.confidence,
-                requiresManualReview: proofResult.requiresManualReview,
-                confidenceSignals: proofResult.confidenceSignals,
-              },
-              'GameTick'
-            );
-          }
-        }
-
-        const requiresManualReview =
-          generatedProof?.requiresManualReview ?? question.requiresManualReview;
-        const reviewStatus =
-          generatedProof?.requiresManualReview === true
-            ? 'pending'
-            : question.resolutionReviewStatus;
-
-        // If low-confidence, queue for manual review instead of resolving now.
-        if (requiresManualReview && reviewStatus !== 'approved') {
-          logger.warn(
-            'Queued question for manual resolution review',
-            {
-              questionId: question.id,
-              questionNumber: question.questionNumber,
-              confidence:
-                generatedProof?.confidence ?? question.resolutionConfidence,
-              reviewStatus: reviewStatus ?? 'pending',
-            },
-            'GameTick'
-          );
-          continue;
-        }
-
-        // resolveQuestionPayouts has its own internal transaction for payout operations
-        // and updates question status to 'resolved' atomically
-        await resolveQuestionPayouts(question.questionNumber);
-        result.questionsResolved++;
-        questionsToReveal.push({ id: question.id, outcome: question.outcome });
-      } catch (error) {
-        // Log error but continue with other questions
-        // Failed question will remain in 'active' status and be retried next tick
-        logger.error(
-          `Question resolution failed - will retry next tick`,
-          {
-            questionId: question.id,
-            questionNumber: question.questionNumber,
-            error: formatError(error),
-          },
-          'GameTick'
-        );
-      }
-    }
-
-    // Publish reveals to blockchain oracle
-    const oracleResult = await publishOracleReveals(questionsToReveal);
-    result.oracleReveals += oracleResult.revealed;
-    result.oracleErrors += oracleResult.errors;
-  }
-
-  // Organization content generation (media news articles) and world events
-  // NPC posts and replies are now handled by /api/cron/npc-tick
+  // Generate world events based on active questions (KEPT - game-tick owns world state)
   // Skip if buffer is sufficient (content generation handled by lookahead service)
   if (!skipContentGeneration) {
-    if (Date.now() < criticalOpsDeadline) {
-      // Generate organization content only (news articles from media orgs)
-      const { posts, articles } = await generateOrganizationContent(
-        currentActiveQuestions.slice(0, 3),
-        timestamp,
-        llmClient,
-        criticalOpsDeadline,
-        dayNumberForTimestamp
-      );
-      result.postsCreated = posts;
-      result.articlesCreated = articles;
-    } else {
-      logger.warn(
-        'Skipping organization content generation – tick budget exceeded',
-        { budgetMs },
-        'GameTick'
-      );
-    }
-
     // Generate world events based on active questions
     // Pass llmClient to enable breaking article generation for high-impact events
     const eventsGenerated = await generateEvents(
@@ -656,9 +357,6 @@ export async function executeGameTick(
       dayNumberForTimestamp(timestamp)
     );
     result.eventsCreated = eventsGenerated + pulseEventsGenerated;
-
-    // NPC posts and replies are now handled by /api/cron/npc-tick
-    // This removes the old generateMixedPosts and generateNPCRepliesFromPreviousTicks calls
   } else {
     logger.info(
       'Skipping content generation (buffer sufficient)',
@@ -667,213 +365,36 @@ export async function executeGameTick(
     );
   }
 
-  // CRITICAL PRIORITY: Generate and execute NPC trading decisions
-  // This ALWAYS runs - uses the full deadline, not the critical ops deadline
-  // Market decisions are essential for game economy and must always execute
-  logger.info(
-    'Starting critical market decision operations',
-    {
-      timeRemaining: deadline - Date.now(),
-    },
-    'GameTick'
-  );
+  // ==========================================================================
+  // NPC TRADING - HANDLED BY npc-tick (DEDUPLICATION)
+  // ==========================================================================
+  // NPC trading (MarketDecisionEngine, batch decisions, trade execution) is now
+  // exclusively handled by /api/cron/npc-tick to prevent race conditions
+  // and duplicate trades. npc-tick has per-agent locking for safe execution.
+  //
+  // - game-tick: World simulation (events, question creation, oracle commits)
+  // - npc-tick: NPC trading, NPC posts, social engagement
+  //
+  // See: apps/web/src/app/api/cron/npc-tick/route.ts::NPC BATCH TRADING section
+  // ==========================================================================
 
-  const baselineResult =
-    await NPCInvestmentManager.executeBaselineInvestments(timestamp);
+  // ==========================================================================
+  // NPC SOCIAL ENGAGEMENT - HANDLED BY npc-tick (DEDUPLICATION)
+  // ==========================================================================
+  // NPC social engagement (likes, shares, comments) and social actions
+  // (DMs, group invites) are now exclusively handled by /api/cron/npc-tick.
+  //
+  // See: apps/web/src/app/api/cron/npc-tick/route.ts
+  // ==========================================================================
 
-  if (baselineResult) {
-    const baselineUpdates = await updateMarketPricesFromTrades(
-      timestamp,
-      baselineResult
-    );
-    result.marketsUpdated += baselineUpdates;
-  }
-
-  const contextService = new MarketContextService();
-
-  // Create LLM client for market decisions
-  // Priority: Groq > Claude > OpenAI
-  const marketDecisionLLM = BabylonLLMClient.forGameTick();
-  const marketLLMStats = marketDecisionLLM.getStats();
-  logger.info(
-    `Using ${marketLLMStats.provider} for market decisions`,
-    { model: marketLLMStats.model },
-    'GameTick'
-  );
-
-  // Configure decision engine with model and token limits from environment
-  // Use qwen/qwen3-32b on Groq for background trading operations
-  const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-
-  // Model-aware output token limits:
-  // Input and output are SEPARATE limits on modern models
-  // - Kimi models: 260k INPUT + 16k OUTPUT (separate)
-  // - qwen3-32b: 130k INPUT + 32k OUTPUT (separate)
-  const isKimiModel = modelName.toLowerCase().includes('kimi');
-  const defaultMaxOutput = isKimiModel ? 16000 : 32000;
-  const maxOutputTokens = Number.parseInt(
-    process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
-      defaultMaxOutput.toString(),
-    10
-  );
-
-  const decisionEngine = new MarketDecisionEngine(
-    marketDecisionLLM,
-    contextService,
-    {
-      model: modelName,
-      maxOutputTokens,
-    }
-  );
-  const executionService = new TradeExecutionService();
-
-  const marketDecisions = await decisionEngine.generateBatchDecisions();
-
-  if (marketDecisions.length === 0) {
-    logger.info('No NPC market trades generated this tick', {}, 'GameTick');
-  } else {
-    const executionResult =
-      await executionService.executeDecisionBatch(marketDecisions);
-
-    logger.info(
-      `NPC Trading: ${executionResult.successfulTrades} trades executed`,
-      {
-        successful: executionResult.successfulTrades,
-        failed: executionResult.failedTrades,
-        holds: executionResult.holdDecisions,
-      },
-      'GameTick'
-    );
-
-    // Update prices based on NPC trades
-    const marketsUpdated = await updateMarketPricesFromTrades(
-      timestamp,
-      executionResult
-    );
-    result.marketsUpdated += marketsUpdated;
-  }
-
-  // =========================================================================
-  // NPC SOCIAL ENGAGEMENT (likes, shares, comments)
-  // Creates organic social activity to make the feed feel alive
-  // =========================================================================
-  if (Date.now() < deadline) {
-    try {
-      // Set LLM client for NPC comment generation
-      npcSocialEngagementService.setLLMClient(llmClient);
-
-      const socialEngagementResult = await processNPCSocialEngagements({
-        now: timestamp,
-        currentDay: dayNumberForTimestamp(timestamp) ?? undefined,
-      });
-      result.npcLikesCreated = socialEngagementResult.likesCreated;
-      result.npcSharesCreated = socialEngagementResult.sharesCreated;
-      result.npcCommentsCreated = socialEngagementResult.commentsCreated;
-
-      if (
-        socialEngagementResult.likesCreated > 0 ||
-        socialEngagementResult.sharesCreated > 0 ||
-        socialEngagementResult.commentsCreated > 0
-      ) {
-        logger.info(
-          'NPC social engagements processed',
-          {
-            likes: socialEngagementResult.likesCreated,
-            shares: socialEngagementResult.sharesCreated,
-            comments: socialEngagementResult.commentsCreated,
-            actors: socialEngagementResult.actorsEngaged,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC social engagement failed',
-        { error: formatError(error) },
-        'GameTick'
-      );
-    }
-  }
-
-  // =========================================================================
-  // NPC SOCIAL ACTIONS (DMs, group invites based on interactions)
-  // =========================================================================
-  if (Date.now() < deadline) {
-    try {
-      const socialActions =
-        await ActorSocialActions.processRandomSocialActions();
-      result.npcSocialActionsProcessed = socialActions.length;
-
-      if (socialActions.length > 0) {
-        logger.info(
-          'NPC social actions processed',
-          {
-            total: socialActions.length,
-            invites: socialActions.filter((a) => a.type === 'group_chat_invite')
-              .length,
-            dms: socialActions.filter((a) => a.type === 'dm').length,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC social actions failed',
-        { error: formatError(error) },
-        'GameTick'
-      );
-    }
-  }
-
-  // =========================================================================
-  // NPC FOLLOWING (proactive follows and unfollow checks)
-  // NPCs follow active players and unfollow inactive ones
-  // FollowingMechanics enforces its own time-slicing using the passed-in deadline
-  // =========================================================================
-  if (Date.now() < criticalOpsDeadline) {
-    // Process proactive following of active players
-    try {
-      const followResult =
-        await FollowingMechanics.processProactiveFollowing(criticalOpsDeadline);
-      result.npcFollowsCreated = followResult.followsCreated;
-
-      if (followResult.followsCreated > 0) {
-        logger.info(
-          'NPC proactive follows processed',
-          {
-            followsCreated: followResult.followsCreated,
-            playersConsidered: followResult.playersConsidered,
-          },
-          'GameTick'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'NPC proactive following failed',
-        {
-          error: formatError(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'GameTick'
-      );
-    }
-
-    // Process unfollow checks (runs probabilistically) - separate try/catch so a failure doesn't hide follow progress
-    try {
-      const unfollowCount =
-        await FollowingMechanics.processUnfollowChecks(criticalOpsDeadline);
-      result.npcUnfollows = unfollowCount;
-    } catch (error) {
-      logger.error(
-        'NPC unfollow checks failed',
-        {
-          error: formatError(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'GameTick'
-      );
-    }
-  }
+  // ==========================================================================
+  // NPC FOLLOWING - HANDLED BY npc-tick (DEDUPLICATION)
+  // ==========================================================================
+  // NPC following (processProactiveFollowing, processUnfollowChecks) is now
+  // exclusively handled by /api/cron/npc-tick.
+  //
+  // See: apps/web/src/app/api/cron/npc-tick/route.ts
+  // ==========================================================================
 
   // =========================================================================
   // NPC PORTFOLIO REBALANCING
@@ -1139,17 +660,14 @@ export async function executeGameTick(
     }
   }
 
-  // Update world facts if needed (checks 24-hour interval internally)
-  const worldFactsResult = await updateWorldFactsIfNeeded();
-  result.worldFactsUpdated = worldFactsResult.updated;
-  if (worldFactsResult.updated && worldFactsResult.stats) {
-    result.worldFactsStats = worldFactsResult.stats;
-    logger.info(
-      'World facts update completed',
-      worldFactsResult.stats,
-      'GameTick'
-    );
-  }
+  // ==========================================================================
+  // WORLD FACTS - HANDLED BY world-facts cron (DEDUPLICATION)
+  // ==========================================================================
+  // World facts (RSS feeds, parody headlines, game activity facts) are now
+  // exclusively handled by /api/cron/world-facts which runs twice daily.
+  //
+  // See: apps/web/src/app/api/cron/world-facts/route.ts
+  // ==========================================================================
 
   // Process alpha group invites (small chance for highly engaged users)
   const invites = await AlphaGroupInviteService.processTickInvites();
@@ -1221,13 +739,7 @@ export async function executeGameTick(
   // Validation: Quality checks after game tick
   const validationWarnings: string[] = [];
 
-  // Verify markets were updated if NPC trading ran
-  // Check both baseline investments and market decisions
-  const hadNPCTrading =
-    baselineResult || (marketDecisions && marketDecisions.length > 0);
-  if (result.marketsUpdated === 0 && hadNPCTrading) {
-    validationWarnings.push('NPC trading executed but no markets were updated');
-  }
+  // Note: NPC trading validation moved to npc-tick (single responsibility)
 
   // Verify content was generated if buffer was low and not skipped
   if (
@@ -1644,124 +1156,8 @@ async function bootstrapTrending(): Promise<void> {
   );
 }
 
-/**
- * Generate organization content (news articles and posts from media orgs)
- * NPC posts are now handled by /api/cron/npc-tick
- */
-async function generateOrganizationContent(
-  questions: Array<{ id: string; text: string; questionNumber: number }>,
-  timestamp: Date,
-  llm: BabylonLLMClient,
-  deadlineMs: number,
-  dayNumberForTimestamp: (t: Date) => number | undefined
-): Promise<{ posts: number; articles: number }> {
-  const postsToGenerate = 1; // Organization posts/articles per tick (reduced from 4)
-
-  if (questions.length === 0) {
-    logger.warn(
-      'No questions available for org content generation',
-      {},
-      'GameTick'
-    );
-    return { posts: 0, articles: 0 };
-  }
-
-  // Get organizations and world context
-  const [worldFactsBase, trendingContext] = await Promise.all([
-    worldFactsService.generatePromptContext(),
-    getTrendingPromptContext(),
-  ]);
-
-  const worldFactsContext = worldFactsBase + trendingContext;
-
-  // Get media organizations from static registry
-  const orgsList = StaticDataRegistry.getAllOrganizations()
-    .filter((org) => org.type === 'media')
-    .slice(0, 8);
-
-  if (orgsList.length === 0) {
-    logger.warn(
-      'No media organizations found for content generation',
-      {},
-      'GameTick'
-    );
-    return { posts: 0, articles: 0 };
-  }
-
-  // Shuffle orgs for variety
-  const shuffledOrgs = [...orgsList].sort(() => Math.random() - 0.5);
-  const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
-
-  logger.info(
-    `Generating ${postsToGenerate} organization posts/articles`,
-    {
-      orgsAvailable: orgsList.length,
-      uniqueQuestions: shuffledQuestions.length,
-    },
-    'GameTick'
-  );
-
-  // Generate posts with timestamps spread across the tick interval
-  const tickDurationMs = 60000;
-  const timeSlotMs = tickDurationMs / postsToGenerate;
-
-  // Articles are now centralized in article-tick cron job.
-  // This function generates organization posts only.
-  const postPromises = Array.from(
-    { length: Math.min(postsToGenerate, shuffledOrgs.length) },
-    async (_, i) => {
-      if (Date.now() > deadlineMs) {
-        return 0;
-      }
-
-      const org = shuffledOrgs[i];
-      if (!org) return 0;
-
-      const question = shuffledQuestions[i % shuffledQuestions.length];
-      if (!question?.text) return 0;
-
-      const slotOffset = i * timeSlotMs;
-      const randomJitter = Math.random() * timeSlotMs * 0.8;
-      const timestampWithOffset = new Date(
-        timestamp.getTime() + slotOffset + randomJitter
-      );
-      const postDayNumber = dayNumberForTimestamp(timestampWithOffset);
-
-      const success = await generateOrgPost(
-        llm,
-        org,
-        question,
-        worldFactsContext,
-        timestampWithOffset,
-        postDayNumber
-      );
-      return success ? 1 : 0;
-    }
-  );
-
-  const results = await Promise.allSettled(postPromises);
-
-  let postsCreated = 0;
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      postsCreated += result.value;
-    }
-  }
-
-  logger.info(
-    'Organization post generation complete',
-    {
-      postsCreated,
-      orgsAvailable: orgsList.length,
-      attempted: postPromises.length,
-    },
-    'GameTick'
-  );
-
-  return { posts: postsCreated, articles: 0 };
-}
-
 // generateEvents moved to services/event-generation-helpers.ts
+// generateOrganizationContent removed - now handled by organization-tick and article-tick
 
 /** Update market prices based on NPC trading activity (investment-based pricing). */
 export async function updateMarketPricesFromTrades(
@@ -2628,9 +2024,10 @@ async function shouldUpdateWorldFacts(): Promise<boolean> {
 }
 
 /**
- * Updates world facts if 8+ hours since last update.
- * Uses distributed locking to prevent concurrent generation across multiple processes.
- * Inserts a last-run marker to prevent re-triggers when generation produces no facts.
+ * @deprecated This function is no longer called from game-tick.
+ * World facts are now handled by /api/cron/world-facts which runs twice daily.
+ *
+ * Kept for reference during migration. TODO: Remove after confirming no regressions.
  */
 export async function updateWorldFactsIfNeeded(): Promise<{
   updated: boolean;

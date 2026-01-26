@@ -20,6 +20,7 @@ import { characterMappingService } from './services/character-mapping-service';
 import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { JsonValue } from './types/common';
 import type { FeedPost } from './types/shared';
+import { firstOrThrow } from './utils/array-utils';
 import {
   type EventCooldownState,
   generateSentimentSignal,
@@ -894,7 +895,9 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the merger between MegaCorp and TechGiant close?',
     ];
     const index = Math.floor(Math.random() * questions.length);
-    return questions[index] ?? questions[0]!;
+    return (
+      questions[index] ?? firstOrThrow(questions, 'No questions available')
+    );
   }
 
   private generatePersonality(): string {
@@ -906,7 +909,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'contrarian',
     ];
     const index = Math.floor(Math.random() * personalities.length);
-    return personalities[index] ?? personalities[0]!;
+    return (
+      personalities[index] ??
+      firstOrThrow(personalities, 'No personalities available')
+    );
   }
 
   private async generateNewsReport(
@@ -982,7 +988,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
             'Rumor: Key stakeholders expressing doubts',
           ];
       const index = Math.floor(Math.random() * rumors.length);
-      return rumors[index] ?? rumors[0]!;
+      return rumors[index] ?? firstOrThrow(rumors, 'No rumors available');
     }
 
     const outcomeHint = this.config.outcome

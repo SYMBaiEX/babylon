@@ -26,6 +26,7 @@ import type { BabylonLLMClient } from './llm/openai-client';
 import { StaticDataRegistry } from './services/static-data-registry';
 import { isSimulationMode } from './storage-bridge';
 import type { Actor, ActorRelationship, Organization } from './types/shared';
+import { first } from './utils/array-utils';
 
 export interface RelationshipChange {
   actor1Id: string;
@@ -113,7 +114,8 @@ export class RelationshipEvolutionEngine {
 
           if (this.llm && sharedOrgs.length > 0) {
             // LLM-DRIVEN: Generate relationship from context
-            const org = orgMap.get(sharedOrgs[0]!);
+            const orgId = first(sharedOrgs);
+            const org = orgId ? orgMap.get(orgId) : undefined;
             const context = `both affiliated with ${org?.name || 'same organization'}`;
 
             // Check if relationship already exists
@@ -148,7 +150,8 @@ export class RelationshipEvolutionEngine {
             sentiment = llmResult.sentiment;
           } else if (sharedOrgs.length > 0) {
             // Fallback: Simple template
-            const org = orgMap.get(sharedOrgs[0]!);
+            const fallbackOrgId = first(sharedOrgs);
+            const org = fallbackOrgId ? orgMap.get(fallbackOrgId) : undefined;
             const orgName = org?.name.toLowerCase() || 'same company';
             history = `both work at ${orgName}`;
             type = 'acquaintances';
@@ -286,8 +289,7 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
 
     // Sort IDs to ensure consistency
     const sorted = [interaction.actor1Id, interaction.actor2Id].sort();
-    const id1 = sorted[0]!;
-    const id2 = sorted[1]!;
+    const [id1, id2] = sorted as [string, string];
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
