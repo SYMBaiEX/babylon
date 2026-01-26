@@ -47,7 +47,9 @@ export const VALID_MARKET_TYPES = ['perp', 'prediction'] as const;
 export function isValidMarketType(
   type: string
 ): type is (typeof VALID_MARKET_TYPES)[number] {
-  return VALID_MARKET_TYPES.includes(type as (typeof VALID_MARKET_TYPES)[number]);
+  return VALID_MARKET_TYPES.includes(
+    type as (typeof VALID_MARKET_TYPES)[number]
+  );
 }
 
 export const VALID_TRADE_ACTIONS = [

@@ -60,10 +60,7 @@ describe('Randomness Boundaries', () => {
 
       // Should NOT use Math.random for its core functions (excluding comments)
       // First, remove multi-line comment blocks (/* ... */)
-      const withoutBlockComments = entropy.replace(
-        /\/\*[\s\S]*?\*\//g,
-        ''
-      );
+      const withoutBlockComments = entropy.replace(/\/\*[\s\S]*?\*\//g, '');
 
       // Filter out lines that are single-line comments (start with // or *)
       const codeLines = withoutBlockComments
@@ -200,8 +197,7 @@ describe('Randomness Boundaries', () => {
       const hardcodedSaltPattern = /['"]0x[a-fA-F0-9]{64,}['"]/;
 
       // No hardcoded base64 blobs (long base64 strings, 32+ chars)
-      const hardcodedBase64Pattern =
-        /['"][A-Za-z0-9+/]{32,}(?:={0,2})?['"]/;
+      const hardcodedBase64Pattern = /['"][A-Za-z0-9+/]{32,}(?:={0,2})?['"]/;
 
       // No hardcoded hex strings without 0x prefix (64+ hex chars)
       const hardcodedHexPattern = /['"][a-fA-F0-9]{64,}['"]/;
