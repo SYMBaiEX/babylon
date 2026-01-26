@@ -1,11 +1,12 @@
 /**
  * Moderation menu component for user moderation actions.
  *
- * Provides a dropdown menu with options to mute, block, and report users.
+ * Provides a dropdown menu with options to follow, mute, block, and report users.
  * Opens corresponding modals for each action. Hides report option for NPCs
  * (can only block/mute NPCs). Includes overlay to close menu on outside click.
  *
  * Features:
+ * - Follow/unfollow user option
  * - Mute user option
  * - Block user option
  * - Report user option (hidden for NPCs)
@@ -27,11 +28,15 @@
  */
 'use client';
 
-import { Ban, Flag, MoreHorizontal, VolumeX } from 'lucide-react';
-import { useState } from 'react';
+import { Ban, Flag, Loader2, MoreHorizontal, UserMinus, UserPlus, VolumeX } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { BlockUserModal } from './BlockUserModal';
 import { MuteUserModal } from './MuteUserModal';
 import { ReportModal } from './ReportModal';
+import { useAuth } from '@/hooks/useAuth';
+import { useSocialTracking } from '@/hooks/usePostHog';
+import { getAuthToken } from '@/lib/auth';
 
 interface ModerationMenuProps {
   targetUserId: string;
@@ -52,12 +57,107 @@ export function ModerationMenu({
   isNPC = false,
   onActionComplete,
 }: ModerationMenuProps) {
+  const { authenticated, user } = useAuth();
+  const { trackFollow } = useSocialTracking();
   const [showMenu, setShowMenu] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showMuteModal, setShowMuteModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [isCheckingFollow, setIsCheckingFollow] = useState(true);
 
   const displayName = targetDisplayName || targetUsername || 'User';
+
+  // Check follow status when menu opens
+  useEffect(() => {
+    if (!showMenu || !authenticated || !user) {
+      setIsCheckingFollow(false);
+      return;
+    }
+
+    const checkFollowStatus = async () => {
+      setIsCheckingFollow(true);
+      const token = getAuthToken();
+      if (!token) {
+        setIsCheckingFollow(false);
+        return;
+      }
+
+      try {
+        const encodedIdentifier = encodeURIComponent(targetUserId);
+        const response = await fetch(`/api/users/${encodedIdentifier}/follow`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setIsFollowing(data.isFollowing || false);
+        } else {
+          setIsFollowing(false);
+        }
+      } catch {
+        setIsFollowing(false);
+      }
+      setIsCheckingFollow(false);
+    };
+
+    checkFollowStatus();
+  }, [showMenu, authenticated, user, targetUserId]);
+
+  const handleFollow = async () => {
+    if (!authenticated || !user) {
+      toast.error('Please sign in to follow users');
+      return;
+    }
+
+    setIsFollowLoading(true);
+    const token = getAuthToken();
+    if (!token) {
+      toast.error('Authentication required');
+      setIsFollowLoading(false);
+      return;
+    }
+
+    const newFollowingState = !isFollowing;
+    const method = newFollowingState ? 'POST' : 'DELETE';
+
+    // Optimistic update
+    setIsFollowing(newFollowingState);
+
+    try {
+      const encodedIdentifier = encodeURIComponent(targetUserId);
+      const response = await fetch(`/api/users/${encodedIdentifier}/follow`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        trackFollow(targetUserId, newFollowingState);
+        toast.success(newFollowingState ? `Following ${displayName}` : `Unfollowed ${displayName}`);
+        setShowMenu(false);
+      } else {
+        // Revert optimistic update
+        setIsFollowing(!newFollowingState);
+        const errorData = await response.json();
+        const errorMessage =
+          typeof errorData?.error === 'string'
+            ? errorData.error
+            : errorData?.error?.message || 'Failed to update follow status';
+        toast.error(errorMessage);
+      }
+    } catch {
+      // Revert optimistic update
+      setIsFollowing(!newFollowingState);
+      toast.error('Network error. Please try again.');
+    }
+
+    setIsFollowLoading(false);
+  };
 
   const handleAction = () => {
     setShowMenu(false);
@@ -87,6 +187,30 @@ export function ModerationMenu({
           {/* Menu */}
           <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-card shadow-lg">
             <div className="py-1">
+              {/* Follow/Unfollow option */}
+              {authenticated && (
+                <button
+                  onClick={handleFollow}
+                  disabled={isFollowLoading || isCheckingFollow}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  {isFollowLoading || isCheckingFollow ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : isFollowing ? (
+                    <UserMinus className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span>
+                    {isCheckingFollow
+                      ? 'Loading...'
+                      : isFollowing
+                        ? `Unfollow ${displayName}`
+                        : `Follow ${displayName}`}
+                  </span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   setShowMenu(false);
