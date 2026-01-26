@@ -209,7 +209,7 @@ export async function isQuestionLocked(
   questionNumber: number
 ): Promise<boolean> {
   const lockId = `question-resolve-${questionNumber}`;
-  // Try to acquire with 0 duration - will fail if locked
+  // Try to acquire with short duration (100ms) - will fail if locked
   const acquired = await DistributedLockService.acquireLock({
     lockId,
     durationMs: 100, // Very short duration

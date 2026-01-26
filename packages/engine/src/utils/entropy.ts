@@ -23,7 +23,7 @@ import { randomBytes } from 'crypto';
  * @returns Random number between 0 (inclusive) and 1 (exclusive)
  */
 export const secureRandom = (): number =>
-  randomBytes(4).readUInt32BE(0) / 0xffffffff;
+  randomBytes(4).readUInt32BE(0) / 0x100000000;
 
 /**
  * Generate a cryptographically secure random integer in [min, max] (inclusive).

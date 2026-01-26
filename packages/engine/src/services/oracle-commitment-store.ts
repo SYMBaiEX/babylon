@@ -38,24 +38,20 @@ function getEncryptionKey(): Buffer {
 
   // Check if key is a 64-character hex string
   if (/^[a-fA-F0-9]{64}$/.test(key)) {
-    const buffer = Buffer.from(key, 'hex');
-    if (buffer.length !== 32) {
-      throw new Error(
-        'ORACLE_ENCRYPTION_KEY hex decoding failed - expected 32 bytes'
-      );
-    }
-    return buffer;
+    // Regex already guarantees 64 hex chars = 32 bytes, no need for redundant check
+    return Buffer.from(key, 'hex');
   }
 
-  // Treat as UTF-8 passphrase - must be exactly 32 characters
-  if (key.length !== 32) {
+  // Treat as UTF-8 passphrase - must be exactly 32 bytes
+  const buffer = Buffer.from(key, 'utf8');
+  if (buffer.length !== 32) {
     throw new Error(
-      `ORACLE_ENCRYPTION_KEY must be either a 64-character hex string or exactly 32 UTF-8 characters. ` +
-        `Received ${key.length} characters. Do not use padding or truncation for security.`
+      `ORACLE_ENCRYPTION_KEY must be either a 64-character hex string or exactly 32 UTF-8 bytes. ` +
+        `Received ${buffer.length} bytes. Do not use padding or truncation for security.`
     );
   }
 
-  return Buffer.from(key, 'utf8');
+  return buffer;
 }
 
 export class CommitmentStore {

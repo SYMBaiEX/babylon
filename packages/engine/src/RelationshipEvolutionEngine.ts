@@ -114,8 +114,7 @@ export class RelationshipEvolutionEngine {
 
           if (this.llm && sharedOrgs.length > 0) {
             // LLM-DRIVEN: Generate relationship from context
-            const orgId = first(sharedOrgs);
-            const org = orgId ? orgMap.get(orgId) : undefined;
+            const org = orgMap.get(first(sharedOrgs)!);
             const context = `both affiliated with ${org?.name || 'same organization'}`;
 
             // Check if relationship already exists
@@ -150,8 +149,8 @@ export class RelationshipEvolutionEngine {
             sentiment = llmResult.sentiment;
           } else if (sharedOrgs.length > 0) {
             // Fallback: Simple template
-            const fallbackOrgId = first(sharedOrgs);
-            const org = fallbackOrgId ? orgMap.get(fallbackOrgId) : undefined;
+            const fallbackOrgId = first(sharedOrgs)!;
+            const org = orgMap.get(fallbackOrgId);
             const orgName = org?.name.toLowerCase() || 'same company';
             history = `both work at ${orgName}`;
             type = 'acquaintances';

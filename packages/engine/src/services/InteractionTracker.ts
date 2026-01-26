@@ -9,7 +9,6 @@ import type { InputJsonValue } from '@babylon/db';
 import { db, npcInteractions } from '@babylon/db';
 import type { Actor } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { first, last } from '../utils/array-utils';
 
 export class InteractionTracker {
   /**
@@ -21,11 +20,15 @@ export class InteractionTracker {
     postContent: string,
     sentiment: number
   ): Promise<void> {
-    // Sort IDs for consistency
+    // Sort IDs for consistency - fail fast if invalid IDs provided
+    if (!authorId || !mentionedId) {
+      throw new Error(
+        `Invalid actor IDs in trackPostMention: authorId=${authorId}, mentionedId=${mentionedId}`
+      );
+    }
     const sorted = [authorId, mentionedId].sort();
-    const id1 = first(sorted);
-    const id2 = last(sorted);
-    if (!id1 || !id2) return;
+    const id1 = sorted[0]!;
+    const id2 = sorted[1]!;
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
@@ -56,10 +59,15 @@ export class InteractionTracker {
     replyContent: string,
     sentiment: number
   ): Promise<void> {
+    // Fail fast if invalid IDs provided
+    if (!replierId || !originalAuthorId) {
+      throw new Error(
+        `Invalid actor IDs in trackReply: replierId=${replierId}, originalAuthorId=${originalAuthorId}`
+      );
+    }
     const sorted = [replierId, originalAuthorId].sort();
-    const id1 = first(sorted);
-    const id2 = last(sorted);
-    if (!id1 || !id2) return;
+    const id1 = sorted[0]!;
+    const id2 = sorted[1]!;
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
@@ -94,16 +102,19 @@ export class InteractionTracker {
       for (let j = i + 1; j < actorIds.length; j++) {
         const actor1 = actorIds[i];
         const actor2 = actorIds[j];
-        if (!actor1 || !actor2) continue;
-        const sorted = [actor1, actor2].sort();
-        const id1 = first(sorted);
-        const id2 = last(sorted);
-        if (!id1 || !id2) continue;
+        if (!actor1 || !actor2) {
+          throw new Error(
+            `Invalid actor IDs in trackArticleMention at indices [${i}, ${j}]: actor1=${actor1}, actor2=${actor2}`
+          );
+        }
+        // Skip self-interaction
+        if (actor1 === actor2) continue;
+        const [id1, id2] = [actor1, actor2].sort();
 
         await db.insert(npcInteractions).values({
           id: await generateSnowflakeId(),
-          actor1Id: id1,
-          actor2Id: id2,
+          actor1Id: id1!,
+          actor2Id: id2!,
           interactionType: 'article',
           sentiment: articleSentiment,
           context: `both mentioned in article: "${articleTitle}"`,
@@ -139,16 +150,19 @@ export class InteractionTracker {
       for (let j = i + 1; j < actorIds.length; j++) {
         const actor1 = actorIds[i];
         const actor2 = actorIds[j];
-        if (!actor1 || !actor2) continue;
-        const sorted = [actor1, actor2].sort();
-        const id1 = first(sorted);
-        const id2 = last(sorted);
-        if (!id1 || !id2) continue;
+        if (!actor1 || !actor2) {
+          throw new Error(
+            `Invalid actor IDs in trackEventInvolvement at indices [${i}, ${j}]: actor1=${actor1}, actor2=${actor2}`
+          );
+        }
+        // Skip self-interaction
+        if (actor1 === actor2) continue;
+        const [id1, id2] = [actor1, actor2].sort();
 
         await db.insert(npcInteractions).values({
           id: await generateSnowflakeId(),
-          actor1Id: id1,
-          actor2Id: id2,
+          actor1Id: id1!,
+          actor2Id: id2!,
           interactionType: 'event',
           sentiment: sentimentMap[eventOutcome],
           context: `both involved in: ${eventDescription.substring(0, 100)}`,

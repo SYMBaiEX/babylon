@@ -136,6 +136,24 @@ describe('Randomness Boundaries', () => {
         }
       }
 
+      // Collect unsafe usages and fail if any exist
+      const unsafeUsages = mathRandomUsages.filter((usage) => {
+        return !(
+          usage.includes('score') ||
+          usage.includes('sort') ||
+          usage.includes('Jitter') ||
+          usage.includes('jitter') ||
+          usage.includes('volatility') ||
+          usage.includes('momentum') ||
+          usage.includes('fatTail') ||
+          usage.includes('move') ||
+          usage.includes('direction') ||
+          usage.includes('Direction')
+        );
+      });
+
+      expect(unsafeUsages).toEqual([]);
+
       // Should have some Math.random usages (for content variety)
       expect(mathRandomUsages.length).toBeGreaterThan(0);
     });

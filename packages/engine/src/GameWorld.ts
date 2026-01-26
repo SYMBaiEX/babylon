@@ -894,10 +894,9 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the climate summit reach an agreement?',
       'Will the merger between MegaCorp and TechGiant close?',
     ];
-    // Ensure questions is non-empty before computing index
-    firstOrThrow(questions, 'No questions available');
-    const index = Math.floor(Math.random() * questions.length);
-    return questions[index] as string;
+    const validatedQuestions = firstOrThrow(questions, 'No questions available');
+    const index = Math.floor(secureRandom() * validatedQuestions.length);
+    return validatedQuestions[index]!;
   }
 
   private generatePersonality(): string {
@@ -908,11 +907,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'emotional',
       'contrarian',
     ];
-    const index = Math.floor(Math.random() * personalities.length);
-    return (
-      personalities[index] ??
-      firstOrThrow(personalities, 'No personalities available')
-    );
+    if (personalities.length === 0) {
+      firstOrThrow(personalities, 'No personalities available');
+    }
+    const index = Math.floor(secureRandom() * personalities.length);
+    return personalities[index]!;
   }
 
   private async generateNewsReport(
@@ -987,8 +986,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
             'Unconfirmed: Internal memos show concerns',
             'Rumor: Key stakeholders expressing doubts',
           ];
-      const index = Math.floor(Math.random() * rumors.length);
-      return rumors[index] ?? firstOrThrow(rumors, 'No rumors available');
+      if (rumors.length === 0) {
+        firstOrThrow(rumors, 'No rumors available');
+      }
+      const index = Math.floor(secureRandom() * rumors.length);
+      return rumors[index]!;
     }
 
     const outcomeHint = this.config.outcome

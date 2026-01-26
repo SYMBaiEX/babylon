@@ -81,7 +81,6 @@ const CACHE_TTLS = {
   GAME_STATE: 60_000, // 1 minute
   ACTIVE_QUESTIONS: 60_000, // 1 minute
   WORLD_EVENTS: 120_000, // 2 minutes
-  WORLD_FACTS: 300_000, // 5 minutes
 } as const;
 
 /**
