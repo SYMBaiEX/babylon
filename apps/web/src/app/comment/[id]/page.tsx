@@ -134,7 +134,9 @@ function OriginalPostCard({ post }: { post: PostData }) {
               >
                 {post.authorName}
               </Link>
-              {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+              {showVerifiedBadge && (
+                <VerifiedBadge size="sm" className="-ml-1" />
+              )}
               <Link
                 href={getProfileUrl(post.authorId, post.authorUsername)}
                 className="truncate text-muted-foreground text-xs hover:underline"
@@ -156,7 +158,9 @@ function OriginalPostCard({ post }: { post: PostData }) {
                   targetUserId={post.authorId}
                   targetUsername={post.authorUsername || undefined}
                   targetDisplayName={post.authorName}
-                  targetProfileImageUrl={post.authorProfileImageUrl || undefined}
+                  targetProfileImageUrl={
+                    post.authorProfileImageUrl || undefined
+                  }
                   postId={post.id}
                   isNPC={authorIsNPC}
                 />
@@ -228,7 +232,9 @@ function ParentCommentCard({
               >
                 {parent.authorName}
               </Link>
-              {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+              {showVerifiedBadge && (
+                <VerifiedBadge size="sm" className="-ml-1" />
+              )}
               <Link
                 href={getProfileUrl(parent.authorId, parent.authorUsername)}
                 className="truncate text-muted-foreground text-xs hover:underline"
@@ -250,7 +256,9 @@ function ParentCommentCard({
                   targetUserId={parent.authorId}
                   targetUsername={parent.authorUsername || undefined}
                   targetDisplayName={parent.authorName}
-                  targetProfileImageUrl={parent.authorProfileImageUrl || undefined}
+                  targetProfileImageUrl={
+                    parent.authorProfileImageUrl || undefined
+                  }
                   isNPC={authorIsNPC}
                 />
               </div>
@@ -488,7 +496,9 @@ export default function CommentPage({ params }: CommentPageProps) {
   const { user } = useAuth();
   const showVerifiedBadge = comment ? isNpcIdentifier(comment.authorId) : false;
   const isOwnComment = comment ? user?.id === comment.authorId : false;
-  const mainCommentAuthorIsNPC = comment ? isNpcIdentifier(comment.authorId) : false;
+  const mainCommentAuthorIsNPC = comment
+    ? isNpcIdentifier(comment.authorId)
+    : false;
 
   if (isLoading) {
     return (
@@ -628,7 +638,9 @@ export default function CommentPage({ params }: CommentPageProps) {
                         targetUserId={comment.authorId}
                         targetUsername={comment.authorUsername || undefined}
                         targetDisplayName={comment.authorName}
-                        targetProfileImageUrl={comment.authorProfileImageUrl || undefined}
+                        targetProfileImageUrl={
+                          comment.authorProfileImageUrl || undefined
+                        }
                         isNPC={mainCommentAuthorIsNPC}
                       />
                     )}
