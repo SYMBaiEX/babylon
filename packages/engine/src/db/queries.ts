@@ -165,12 +165,21 @@ export async function getRecentWorldEvents(since: Date, limit?: number) {
 
 /**
  * Get world events for a specific question.
+ *
+ * @param questionId - The question ID as a string (will be parsed to number)
+ * @throws Error if questionId cannot be parsed to a valid number
  */
 export async function getWorldEventsForQuestion(questionId: string) {
+  const numericId = Number(questionId);
+  if (Number.isNaN(numericId)) {
+    throw new Error(
+      `getWorldEventsForQuestion: Invalid questionId "${questionId}" - must be a numeric string for worldEvents.relatedQuestion`
+    );
+  }
   return db
     .select()
     .from(worldEvents)
-    .where(eq(worldEvents.relatedQuestion, Number(questionId)))
+    .where(eq(worldEvents.relatedQuestion, numericId))
     .orderBy(desc(worldEvents.timestamp));
 }
 
@@ -207,6 +216,10 @@ export async function getArcStatesByQuestionIds(questionIds: string[]) {
 
 /**
  * Get actor by ID.
+ *
+ * Note: Input actor IDs are normalized to lowercase via toLowerCase() before querying.
+ * The actorState.id column is stored and compared in lowercase, so callers can pass
+ * IDs in any case and they will be matched correctly.
  */
 export async function getActorById(actorId: string) {
   const [actor] = await db
@@ -219,6 +232,10 @@ export async function getActorById(actorId: string) {
 
 /**
  * Get multiple actors by IDs (batch query).
+ *
+ * Note: Input actor IDs are normalized to lowercase via toLowerCase() before querying.
+ * The actorState.id column is stored and compared in lowercase, so callers can pass
+ * IDs in any case and they will be matched correctly via the inArray comparison.
  */
 export async function getActorsByIds(actorIds: string[]) {
   if (actorIds.length === 0) return [];

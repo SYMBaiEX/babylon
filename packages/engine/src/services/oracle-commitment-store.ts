@@ -19,18 +19,43 @@ const ALGORITHM = 'aes-256-cbc';
 
 /**
  * Get the encryption key from environment.
- * Throws on first use if not configured - fail fast for security.
+ * Throws on first use if not configured or invalid - fail fast for security.
+ *
+ * Accepts either:
+ * - A 64-character hex string (produces 32 bytes via hex decoding)
+ * - A 32-character UTF-8 passphrase (produces 32 bytes directly)
+ *
+ * @throws Error if key is missing or does not produce exactly 32 bytes
  */
 function getEncryptionKey(): Buffer {
   const key = process.env.ORACLE_ENCRYPTION_KEY;
   if (!key) {
     throw new Error(
       'ORACLE_ENCRYPTION_KEY environment variable is required. ' +
-        'Generate a 32-character key for AES-256 encryption.'
+        'Provide either a 64-character hex string or a 32-character UTF-8 passphrase.'
     );
   }
-  // Ensure exactly 32 bytes for AES-256
-  return Buffer.from(key.padEnd(32).slice(0, 32));
+
+  // Check if key is a 64-character hex string
+  if (/^[a-fA-F0-9]{64}$/.test(key)) {
+    const buffer = Buffer.from(key, 'hex');
+    if (buffer.length !== 32) {
+      throw new Error(
+        'ORACLE_ENCRYPTION_KEY hex decoding failed - expected 32 bytes'
+      );
+    }
+    return buffer;
+  }
+
+  // Treat as UTF-8 passphrase - must be exactly 32 characters
+  if (key.length !== 32) {
+    throw new Error(
+      `ORACLE_ENCRYPTION_KEY must be either a 64-character hex string or exactly 32 UTF-8 characters. ` +
+        `Received ${key.length} characters. Do not use padding or truncation for security.`
+    );
+  }
+
+  return Buffer.from(key, 'utf8');
 }
 
 export class CommitmentStore {

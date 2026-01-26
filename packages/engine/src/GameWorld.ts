@@ -894,10 +894,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the climate summit reach an agreement?',
       'Will the merger between MegaCorp and TechGiant close?',
     ];
+    // Ensure questions is non-empty before computing index
+    firstOrThrow(questions, 'No questions available');
     const index = Math.floor(Math.random() * questions.length);
-    return (
-      questions[index] ?? firstOrThrow(questions, 'No questions available')
-    );
+    return questions[index] as string;
   }
 
   private generatePersonality(): string {

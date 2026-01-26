@@ -59,8 +59,14 @@ describe('Randomness Boundaries', () => {
       expect(entropy).toContain('randomBytes');
 
       // Should NOT use Math.random for its core functions (excluding comments)
-      // Filter out lines that are comments (start with // or *)
-      const codeLines = entropy
+      // First, remove multi-line comment blocks (/* ... */)
+      const withoutBlockComments = entropy.replace(
+        /\/\*[\s\S]*?\*\//g,
+        ''
+      );
+
+      // Filter out lines that are single-line comments (start with // or *)
+      const codeLines = withoutBlockComments
         .split('\n')
         .filter(
           (line) =>
@@ -105,6 +111,11 @@ describe('Randomness Boundaries', () => {
 
       // Document each usage for audit trail
       for (const usage of mathRandomUsages) {
+        // HEURISTIC AUDIT NOTE: This is a heuristic-based check that matches by keyword.
+        // Simple keyword matching may be insufficient to detect all unsafe usages or may
+        // produce false positives. Usages flagged via console.warn below require periodic
+        // manual review by an engineer to verify they are truly non-critical.
+        //
         // Each usage should be in acceptable context:
         // - Score calculations (trending)
         // - Array shuffling (content variety)
@@ -185,11 +196,27 @@ describe('Randomness Boundaries', () => {
       const oracleService = readSourceFile('services/oracle/oracle-service.ts');
       const oracleStore = readSourceFile('services/oracle-commitment-store.ts');
 
-      // No hardcoded hex strings that could be salts (64+ chars)
+      // No hardcoded hex strings that could be salts (64+ chars with 0x prefix)
       const hardcodedSaltPattern = /['"]0x[a-fA-F0-9]{64,}['"]/;
 
+      // No hardcoded base64 blobs (long base64 strings, 32+ chars)
+      const hardcodedBase64Pattern =
+        /['"][A-Za-z0-9+/]{32,}(?:={0,2})?['"]/;
+
+      // No hardcoded hex strings without 0x prefix (64+ hex chars)
+      const hardcodedHexPattern = /['"][a-fA-F0-9]{64,}['"]/;
+
+      // Check 0x-prefixed hex salts
       expect(hardcodedSaltPattern.test(oracleService)).toBe(false);
       expect(hardcodedSaltPattern.test(oracleStore)).toBe(false);
+
+      // Check base64 blobs
+      expect(hardcodedBase64Pattern.test(oracleService)).toBe(false);
+      expect(hardcodedBase64Pattern.test(oracleStore)).toBe(false);
+
+      // Check non-0x hex strings
+      expect(hardcodedHexPattern.test(oracleService)).toBe(false);
+      expect(hardcodedHexPattern.test(oracleStore)).toBe(false);
     });
   });
 });

@@ -375,8 +375,13 @@ WORLD RULES:
               });
 
             const contChoice = first(continuationResponse.choices);
-            const continuationContent = contChoice?.message.content ?? '';
-            finishReason = contChoice?.finish_reason ?? 'stop';
+            if (!contChoice?.message.content) {
+              throw new Error(
+                'LLM continuation response missing choices or content - invalid API response'
+              );
+            }
+            const continuationContent = contChoice.message.content;
+            finishReason = contChoice.finish_reason ?? 'stop';
 
             // Append continuation to content
             content += continuationContent;

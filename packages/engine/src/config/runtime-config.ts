@@ -5,15 +5,15 @@
 const DEFAULT_BUDGET_MS = 180000;
 const DEFAULT_RESERVE_MS = 60000;
 
+// Parse budgetMs once to avoid re-reading process.env in getters
+const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS) || DEFAULT_BUDGET_MS;
+
 export const GAME_TICK_CONFIG = {
-  budgetMs: Number(process.env.GAME_TICK_BUDGET_MS) || DEFAULT_BUDGET_MS,
+  budgetMs,
   criticalOpsReserveMs: DEFAULT_RESERVE_MS,
   getContentDeadline: (startedAt: number) =>
-    startedAt +
-    (Number(process.env.GAME_TICK_BUDGET_MS) || DEFAULT_BUDGET_MS) -
-    DEFAULT_RESERVE_MS,
-  getDeadline: (startedAt: number) =>
-    startedAt + (Number(process.env.GAME_TICK_BUDGET_MS) || DEFAULT_BUDGET_MS),
+    startedAt + budgetMs - DEFAULT_RESERVE_MS,
+  getDeadline: (startedAt: number) => startedAt + budgetMs,
 } as const;
 
 export const MARKET_DECISION_CONFIG = {
@@ -32,15 +32,17 @@ export const ORACLE_CONFIG = {
     ),
 } as const;
 
+// Parse values once to avoid re-reading process.env
+const updateIntervalHours =
+  Number(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS) || 8;
+const lockDurationMinutes =
+  Number(process.env.WORLD_FACTS_LOCK_DURATION_MINUTES) || 30;
+
 export const WORLD_FACTS_CONFIG = {
-  updateIntervalHours:
-    Number(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS) || 8,
-  updateIntervalMs:
-    (Number(process.env.WORLD_FACTS_UPDATE_INTERVAL_HOURS) || 8) * 3600000,
-  lockDurationMinutes:
-    Number(process.env.WORLD_FACTS_LOCK_DURATION_MINUTES) || 30,
-  lockDurationMs:
-    (Number(process.env.WORLD_FACTS_LOCK_DURATION_MINUTES) || 30) * 60000,
+  updateIntervalHours,
+  updateIntervalMs: updateIntervalHours * 3600000,
+  lockDurationMinutes,
+  lockDurationMs: lockDurationMinutes * 60000,
 } as const;
 
 export const BLOCKCHAIN_CONFIG = {

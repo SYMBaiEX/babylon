@@ -166,15 +166,13 @@ export function atOrThrow<T>(
   index: number,
   message?: string
 ): T {
-  const result = at(arr, index);
-  if (
-    result === undefined &&
-    (index < 0 ? arr.length + index : index) >= arr.length
-  ) {
+  // Normalize negative indices
+  const normalized = index < 0 ? arr.length + index : index;
+  if (normalized < 0 || normalized >= arr.length) {
     throw new Error(
       message ??
         `Index ${index} out of bounds for array of length ${arr.length}`
     );
   }
-  return result as T;
+  return arr[normalized] as T;
 }

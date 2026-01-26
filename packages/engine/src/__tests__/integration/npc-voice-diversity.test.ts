@@ -34,11 +34,47 @@ describe('NPC Voice Diversity Integration', () => {
     }
   });
 
-  it('should have API key detection working', () => {
-    // This test just documents whether API key is available
-    // LLM tests will be skipped if no key is present
-    // Note: Never log actual API key values, only whether they are configured
-    expect(typeof hasApiKey).toBe('boolean');
+  it('should correctly detect API key presence from environment', () => {
+    // Store original env values
+    const originalGroqKey = process.env.GROQ_API_KEY;
+    const originalOpenaiKey = process.env.OPENAI_API_KEY;
+
+    try {
+      // Test with both keys absent
+      delete process.env.GROQ_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+      const hasApiKeyWhenAbsent = !!(
+        process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+      );
+      expect(hasApiKeyWhenAbsent).toBe(false);
+
+      // Test with GROQ key present
+      process.env.GROQ_API_KEY = 'test-groq-key';
+      const hasApiKeyWithGroq = !!(
+        process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+      );
+      expect(hasApiKeyWithGroq).toBe(true);
+
+      // Test with only OpenAI key present
+      delete process.env.GROQ_API_KEY;
+      process.env.OPENAI_API_KEY = 'test-openai-key';
+      const hasApiKeyWithOpenai = !!(
+        process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+      );
+      expect(hasApiKeyWithOpenai).toBe(true);
+    } finally {
+      // Restore original env values
+      if (originalGroqKey !== undefined) {
+        process.env.GROQ_API_KEY = originalGroqKey;
+      } else {
+        delete process.env.GROQ_API_KEY;
+      }
+      if (originalOpenaiKey !== undefined) {
+        process.env.OPENAI_API_KEY = originalOpenaiKey;
+      } else {
+        delete process.env.OPENAI_API_KEY;
+      }
+    }
   });
 
   it('should have character configs for key NPCs', () => {

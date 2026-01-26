@@ -8,7 +8,13 @@
  * Zod schemas for runtime validation.
  */
 
-import type { NpcMemory, PriceModifier, RelationshipState } from '@babylon/db';
+import type {
+  NpcMemory,
+  PendingTransition,
+  PriceModifier,
+  RelationshipState,
+  ScheduledEvent,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { z } from 'zod';
 
@@ -380,10 +386,14 @@ export function isStringArray(value: unknown): value is string[] {
 // NARRATIVE ARC VALIDATORS (PendingTransition, ScheduledEvent)
 // =============================================================================
 
-import type { PendingTransition, ScheduledEvent } from '@babylon/db';
-
 /**
- * PendingTransition schema for arc state transitions
+ * PendingTransition schema for arc state transitions.
+ *
+ * Note: targetState accepts any string rather than validating against the concrete
+ * ArcStateType union. This is intentional for future-proofing - new arc states can
+ * be added without requiring schema updates. The PendingTransition interface in
+ * @babylon/db defines the canonical ArcStateType constraint; this schema provides
+ * looser runtime validation for flexibility.
  */
 export const PendingTransitionSchema = z.object({
   targetState: z.string(),

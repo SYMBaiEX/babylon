@@ -57,10 +57,10 @@ export interface RecalculatedReputation {
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
-  username: string | null | undefined;
-  displayName: string | null | undefined;
-  profileImageUrl: string | null | undefined;
-  isActor: boolean | null | undefined;
+  username: string | null;
+  displayName: string | null;
+  profileImageUrl: string | null;
+  isActor: boolean | null;
   reputationScore: number;
   trustLevel: string;
   confidenceScore: number;
@@ -608,10 +608,10 @@ export async function getReputationLeaderboard(
       return {
         rank: index + 1,
         userId: agent.userId,
-        username: user?.username,
-        displayName: user?.displayName,
-        profileImageUrl: user?.profileImageUrl,
-        isActor: user?.isActor,
+        username: user?.username ?? null,
+        displayName: user?.displayName ?? null,
+        profileImageUrl: user?.profileImageUrl ?? null,
+        isActor: user?.isActor ?? null,
         reputationScore: agent.reputationScore,
         trustLevel: agent.trustLevel,
         confidenceScore: agent.confidenceScore,

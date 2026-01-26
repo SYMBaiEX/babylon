@@ -262,5 +262,9 @@ export async function withRetry<T>(
     }
   }
 
+  // TypeScript exhaustiveness safeguard: This throw is unreachable in practice
+  // because non-transient or final-attempt errors are thrown inside the loop.
+  // Kept as a defensive measure to satisfy the return type and ensure lastError
+  // is always thrown if control flow somehow escapes the loop.
   throw lastError;
 }

@@ -84,11 +84,18 @@ export function roundTo(value: number, decimals = 2): number {
 
 /**
  * Calculate percentage change between two values.
- * Returns 0 if the original value is 0 to avoid division by zero.
+ *
+ * When original is 0:
+ * - Returns 0 if current is also 0 (no change from zero to zero)
+ * - Returns 100 if current is non-zero (arbitrary sentinel indicating "from zero")
+ *
+ * Note: The 100 return value for original === 0 && current !== 0 is a convention,
+ * not a mathematically meaningful percentage. Callers should handle this case
+ * explicitly if they need different semantics (e.g., Infinity or NaN).
  *
  * @param original - Original value
  * @param current - Current value
- * @returns Percentage change (e.g., 50 for 50% increase)
+ * @returns Percentage change (e.g., 50 for 50% increase), or sentinel values when original is 0
  */
 export function percentChange(original: number, current: number): number {
   if (original === 0) return current === 0 ? 0 : 100;
@@ -98,23 +105,31 @@ export function percentChange(original: number, current: number): number {
 /**
  * Normalize a value from one range to another.
  *
+ * By default, if value is outside [fromMin, fromMax], the result will extrapolate
+ * beyond [toMin, toMax]. Set clamp = true to constrain the result to [toMin, toMax].
+ *
  * @param value - Value to normalize
  * @param fromMin - Original range minimum
  * @param fromMax - Original range maximum
  * @param toMin - Target range minimum (default: 0)
  * @param toMax - Target range maximum (default: 1)
- * @returns Normalized value in target range
+ * @param shouldClamp - If true, clamp the result to [toMin, toMax] (default: false)
+ * @returns Normalized value in target range (or clamped if shouldClamp is true)
  */
 export function normalize(
   value: number,
   fromMin: number,
   fromMax: number,
   toMin = 0,
-  toMax = 1
+  toMax = 1,
+  shouldClamp = false
 ): number {
   if (fromMax === fromMin) return toMin;
-  const normalized = (value - fromMin) / (fromMax - fromMin);
-  return toMin + normalized * (toMax - toMin);
+  let ratio = (value - fromMin) / (fromMax - fromMin);
+  if (shouldClamp) {
+    ratio = clamp01(ratio);
+  }
+  return toMin + ratio * (toMax - toMin);
 }
 
 /**

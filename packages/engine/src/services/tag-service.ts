@@ -447,16 +447,14 @@ export async function storeTagsForPost(
 /**
  * Get tags for a post
  */
-export async function getTagsForPost(
-  postId: string
-): Promise<PostTagWithTag[]> {
-  return (await db.query.postTags.findMany({
+export async function getTagsForPost(postId: string) {
+  return db.query.postTags.findMany({
     where: eq(postTags.postId, postId),
     with: {
       tag: true,
     },
     orderBy: asc(postTags.createdAt),
-  })) as PostTagWithTag[];
+  });
 }
 
 /**

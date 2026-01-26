@@ -7,10 +7,19 @@
  *
  * Uses in-memory caching with appropriate TTLs. Each cache entry expires
  * after its TTL to ensure fresh data while reducing database load.
+ *
+ * **IMPORTANT: Per-Process Cache Limitation**
+ * This cache is in-memory and per-process. It will NOT deduplicate queries
+ * across multiple worker instances (e.g., multiple cron job containers or
+ * serverless function invocations). Each process maintains its own independent
+ * cache with its own TTL timers. If cross-instance deduplication is required,
+ * consider migrating to a shared cache solution (e.g., Redis, Memcached) and
+ * update callers to use the shared client.
  */
 
 import {
   db,
+  desc,
   eq,
   games,
   gte,
@@ -177,7 +186,7 @@ export class GameContextCache {
   /**
    * Get recent world events (last 3 days)
    *
-   * @returns Array of recent world events
+   * @returns Array of recent world events, ordered by timestamp descending (newest first)
    */
   static async getRecentWorldEvents(): Promise<RecentWorldEvent[]> {
     return this.getOrFetch(
@@ -197,6 +206,7 @@ export class GameContextCache {
           })
           .from(worldEvents)
           .where(gte(worldEvents.timestamp, threeDaysAgo))
+          .orderBy(desc(worldEvents.timestamp))
           .limit(100);
 
         return events;
