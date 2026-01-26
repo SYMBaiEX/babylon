@@ -6,7 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MessageCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { Avatar } from '@/components/shared/Avatar';
@@ -110,6 +110,20 @@ export function CommentCard({
       });
     }
   };
+
+  // Update menu position on scroll/resize to follow the button
+  useEffect(() => {
+    if (!showActions) return;
+
+    // Listen on window and any scrollable parent (capture phase)
+    window.addEventListener('scroll', updateMenuPosition, true);
+    window.addEventListener('resize', updateMenuPosition);
+
+    return () => {
+      window.removeEventListener('scroll', updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+    };
+  }, [showActions]);
 
   const showVerifiedBadge = isNpcIdentifier(comment.userId);
   const isOwnComment = user?.id === comment.userId;

@@ -84,11 +84,11 @@ export function ModerationMenu({
 
   const displayName = targetDisplayName || targetUsername || 'User';
 
-  // Calculate menu position when opening
+  // Calculate menu position
   const updateMenuPosition = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const menuHeight = 200; // Approximate menu height
+      const menuHeight = 150; // Approximate menu height
       const menuWidth = 224; // w-56 = 14rem = 224px
       const padding = 8;
 
@@ -108,6 +108,20 @@ export function ModerationMenu({
       });
     }
   };
+
+  // Update menu position on scroll/resize to follow the button
+  useEffect(() => {
+    if (!showMenu) return;
+
+    // Listen on window and any scrollable parent (capture phase)
+    window.addEventListener('scroll', updateMenuPosition, true);
+    window.addEventListener('resize', updateMenuPosition);
+
+    return () => {
+      window.removeEventListener('scroll', updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+    };
+  }, [showMenu]);
 
   // Check follow status when menu opens
   useEffect(() => {
