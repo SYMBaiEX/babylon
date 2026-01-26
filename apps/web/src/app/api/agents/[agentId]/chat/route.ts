@@ -221,12 +221,16 @@ Your owner created you and may fund your wallet, but you manage your own assets 
 {{system}}
 
 {{#if personality}}
-Personality: {{personality}}
+## Personality
+{{personality}}
 {{/if}}
 
 {{#if tradingStrategy}}
-Trading Strategy: {{tradingStrategy}}
+## Trading Strategy
+{{tradingStrategy}}
 {{/if}}
+
+---
 
 {{#if isTeamChatMode}}
 # Team Chat Context
@@ -240,6 +244,8 @@ Other agents may also be responding. Focus on YOUR findings and contribution.
 You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){{/if}}. You are chatting with them now.
 {{/if}}
 
+---
+
 # Conversation History
 {{recentMessages}}
 
@@ -252,8 +258,12 @@ You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){
 # Current Message from {{ownerName}}
 {{currentMessage}}
 
+---
+
 # Actions You Completed
 {{actionResults}}
+
+---
 
 # Your Task
 Write a natural response to the user that:
