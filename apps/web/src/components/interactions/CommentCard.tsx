@@ -6,7 +6,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MessageCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
@@ -71,13 +72,40 @@ export function CommentCard({
 }: CommentCardProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
   const [showActions, setShowActions] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, openUpward: false });
 
   const hasReplies = comment.replies && comment.replies.length > 0;
   const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
+
+  // Calculate menu position when opening
+  const updateMenuPosition = () => {
+    if (actionButtonRef.current) {
+      const rect = actionButtonRef.current.getBoundingClientRect();
+      const menuHeight = 100; // Approximate menu height for edit/delete
+      const menuWidth = 120; // min-w-[120px]
+      const padding = 4;
+      
+      // Check if there's enough space below
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpward = spaceBelow < menuHeight + padding;
+      
+      // Calculate left position (align right edge of menu with right edge of button)
+      let left = rect.right - menuWidth;
+      // Ensure menu doesn't go off-screen left
+      if (left < padding) left = padding;
+      
+      setMenuPosition({
+        top: openUpward ? rect.top - padding : rect.bottom + padding,
+        left,
+        openUpward,
+      });
+    }
+  };
 
   const showVerifiedBadge = isNpcIdentifier(comment.userId);
   const isOwnComment = user?.id === comment.userId;
@@ -170,43 +198,58 @@ export function CommentCard({
               // Own comment: Show Edit/Delete
               <div className="relative">
                 <button
+                  ref={actionButtonRef}
                   type="button"
-                  onClick={() => setShowActions(!showActions)}
+                  onClick={() => {
+                    if (!showActions) {
+                      updateMenuPosition();
+                    }
+                    setShowActions(!showActions);
+                  }}
                   className="rounded-lg p-2 transition-colors hover:bg-muted"
                   aria-label="More options"
                 >
                   <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
                 </button>
 
-                {showActions && (
-                  <>
-                    {/* Backdrop */}
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowActions(false)}
-                    />
+                {showActions &&
+                  createPortal(
+                    <>
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowActions(false)}
+                      />
 
-                    {/* Dropdown */}
-                    <div className="fade-in slide-in-from-top-2 absolute top-full right-0 z-20 mt-1 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150">
-                      <button
-                        type="button"
-                        onClick={handleEdit}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                      {/* Dropdown */}
+                      <div
+                        className="fade-in slide-in-from-top-2 fixed z-50 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150"
+                        style={{
+                          top: menuPosition.openUpward ? 'auto' : menuPosition.top,
+                          bottom: menuPosition.openUpward ? window.innerHeight - menuPosition.top : 'auto',
+                          left: menuPosition.left,
+                        }}
                       >
-                        <Edit2 size={14} />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDelete}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive text-sm transition-colors hover:bg-muted"
-                      >
-                        <Trash2 size={14} />
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                )}
+                        <button
+                          type="button"
+                          onClick={handleEdit}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                        >
+                          <Edit2 size={14} />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDelete}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive text-sm transition-colors hover:bg-muted"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </div>
+                    </>,
+                    document.body
+                  )}
               </div>
             ) : user ? (
               // Other user's comment: Show ModerationMenu (Follow/Mute/Block/Report)
