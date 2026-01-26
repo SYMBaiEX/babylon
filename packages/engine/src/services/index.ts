@@ -116,6 +116,13 @@ export {
   type GameBootstrapResult,
   GameBootstrapService,
 } from './game-bootstrap-service';
+// Game Context Cache for shared cron data
+export {
+  type ActiveQuestion,
+  GameContextCache,
+  type GameState,
+  type RecentWorldEvent,
+} from './game-context-cache';
 export * from './group-chat-invite-notifier';
 export * from './market-context-service';
 export * from './market-impact-service';
