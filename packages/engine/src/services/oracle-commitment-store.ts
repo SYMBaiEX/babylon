@@ -6,17 +6,32 @@
  * SECURITY NOTE:
  * - Salts are encrypted before storage
  * - In production, use KMS or secure key vault
- * - This implementation uses simple encryption for demonstration
+ * - ORACLE_ENCRYPTION_KEY must be set in environment (no default)
  */
 
 import { asc, db, eq, oracleCommitments } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { first } from '../utils/array-utils';
 import type { StoredCommitment } from './oracle/types';
 
-const ENCRYPTION_KEY =
-  process.env.ORACLE_ENCRYPTION_KEY || 'default-key-change-in-production-32';
 const ALGORITHM = 'aes-256-cbc';
+
+/**
+ * Get the encryption key from environment.
+ * Throws on first use if not configured - fail fast for security.
+ */
+function getEncryptionKey(): Buffer {
+  const key = process.env.ORACLE_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      'ORACLE_ENCRYPTION_KEY environment variable is required. ' +
+        'Generate a 32-character key for AES-256 encryption.'
+    );
+  }
+  // Ensure exactly 32 bytes for AES-256
+  return Buffer.from(key.padEnd(32).slice(0, 32));
+}
 
 export class CommitmentStore {
   /**
@@ -31,11 +46,7 @@ export class CommitmentStore {
    */
   private static encryptSalt(salt: string): string {
     const iv = randomBytes(16);
-    const cipher = createCipheriv(
-      ALGORITHM,
-      Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)),
-      iv
-    );
+    const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
     let encrypted = cipher.update(salt, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -48,14 +59,15 @@ export class CommitmentStore {
    */
   private static decryptSalt(encryptedSalt: string): string {
     const parts = encryptedSalt.split(':');
-    const iv = Buffer.from(parts[0]!, 'hex');
-    const encrypted = parts[1]!;
+    const ivHex = first(parts);
+    const encrypted = parts[1];
 
-    const decipher = createDecipheriv(
-      ALGORITHM,
-      Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)),
-      iv
-    );
+    if (!ivHex || !encrypted) {
+      throw new Error('Invalid encrypted salt format');
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -96,7 +108,13 @@ export class CommitmentStore {
           questionId: oracleCommitments.questionId,
         });
 
-      result = updated[0]!;
+      const updatedRecord = first(updated);
+      if (!updatedRecord) {
+        throw new Error(
+          `Failed to update commitment for question ${commitment.questionId}`
+        );
+      }
+      result = updatedRecord;
     } else {
       // Create new
       const created = await db
@@ -114,7 +132,13 @@ export class CommitmentStore {
           questionId: oracleCommitments.questionId,
         });
 
-      result = created[0]!;
+      const createdRecord = first(created);
+      if (!createdRecord) {
+        throw new Error(
+          `Failed to create commitment for question ${commitment.questionId}`
+        );
+      }
+      result = createdRecord;
     }
 
     logger.info(
