@@ -76,7 +76,11 @@ export function ModerationMenu({
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [isCheckingFollow, setIsCheckingFollow] = useState(true);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, openUpward: false });
+  const [menuPosition, setMenuPosition] = useState({
+    top: 0,
+    left: 0,
+    openUpward: false,
+  });
 
   const displayName = targetDisplayName || targetUsername || 'User';
 
@@ -87,16 +91,16 @@ export function ModerationMenu({
       const menuHeight = 200; // Approximate menu height
       const menuWidth = 224; // w-56 = 14rem = 224px
       const padding = 8;
-      
+
       // Check if there's enough space below
       const spaceBelow = window.innerHeight - rect.bottom;
       const openUpward = spaceBelow < menuHeight + padding;
-      
+
       // Calculate left position (align right edge of menu with right edge of button)
       let left = rect.right - menuWidth;
       // Ensure menu doesn't go off-screen left
       if (left < padding) left = padding;
-      
+
       setMenuPosition({
         top: openUpward ? rect.top - padding : rect.bottom + padding,
         left,
@@ -236,7 +240,9 @@ export function ModerationMenu({
               className="fixed z-50 w-56 rounded-lg border border-border bg-card shadow-lg"
               style={{
                 top: menuPosition.openUpward ? 'auto' : menuPosition.top,
-                bottom: menuPosition.openUpward ? window.innerHeight - menuPosition.top : 'auto',
+                bottom: menuPosition.openUpward
+                  ? window.innerHeight - menuPosition.top
+                  : 'auto',
                 left: menuPosition.left,
               }}
             >

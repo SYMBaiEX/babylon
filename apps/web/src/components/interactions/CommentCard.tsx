@@ -77,7 +77,11 @@ export function CommentCard({
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, openUpward: false });
+  const [menuPosition, setMenuPosition] = useState({
+    top: 0,
+    left: 0,
+    openUpward: false,
+  });
 
   const hasReplies = comment.replies && comment.replies.length > 0;
   const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
@@ -89,16 +93,16 @@ export function CommentCard({
       const menuHeight = 100; // Approximate menu height for edit/delete
       const menuWidth = 120; // min-w-[120px]
       const padding = 4;
-      
+
       // Check if there's enough space below
       const spaceBelow = window.innerHeight - rect.bottom;
       const openUpward = spaceBelow < menuHeight + padding;
-      
+
       // Calculate left position (align right edge of menu with right edge of button)
       let left = rect.right - menuWidth;
       // Ensure menu doesn't go off-screen left
       if (left < padding) left = padding;
-      
+
       setMenuPosition({
         top: openUpward ? rect.top - padding : rect.bottom + padding,
         left,
@@ -225,8 +229,12 @@ export function CommentCard({
                       <div
                         className="fade-in slide-in-from-top-2 fixed z-50 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150"
                         style={{
-                          top: menuPosition.openUpward ? 'auto' : menuPosition.top,
-                          bottom: menuPosition.openUpward ? window.innerHeight - menuPosition.top : 'auto',
+                          top: menuPosition.openUpward
+                            ? 'auto'
+                            : menuPosition.top,
+                          bottom: menuPosition.openUpward
+                            ? window.innerHeight - menuPosition.top
+                            : 'auto',
                           left: menuPosition.left,
                         }}
                       >
