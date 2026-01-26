@@ -758,17 +758,35 @@ export function useTeamChat(): UseTeamChatReturn {
           });
 
           if (agentResponse.ok) {
-            // Parse response to get points info
+            // Parse response to get points info and message content
             const data = (await agentResponse.json()) as {
               success?: boolean;
+              messageId?: string;
+              response?: string;
               pointsCost?: number;
               balanceAfter?: number;
             };
 
+            // Add agent response message IMMEDIATELY from JSON response
+            // This prevents the delay from waiting for SSE broadcast
+            // stableKey prevents duplicate if SSE also delivers the same message
+            // Note: Auto-scroll is handled by the realtimeMessages.length effect
+            if (data.response && data.messageId) {
+              addMessage({
+                id: data.messageId,
+                chatId: teamChat.chatId,
+                content: data.response,
+                senderId: agentId,
+                type: 'user',
+                createdAt: new Date().toISOString(),
+                stableKey: data.messageId,
+              });
+            }
+
             // Show toast if points were deducted
             if (data.pointsCost && data.pointsCost > 0) {
               toast.success(
-                `Message sent to ${agent?.displayName} (-${data.pointsCost} point${data.pointsCost > 1 ? 's' : ''})`
+                `Response from ${agent?.displayName} (-${data.pointsCost} point${data.pointsCost > 1 ? 's' : ''})`
               );
             }
 
