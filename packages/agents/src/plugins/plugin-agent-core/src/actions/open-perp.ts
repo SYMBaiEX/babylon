@@ -22,7 +22,7 @@ const agentPnLService = new AgentPnLService();
 export const openPerpAction: Action = {
   name: 'OPEN_PERP',
   description:
-    'Open a leveraged perpetual position on a stock/company. IMPORTANT: Always call CHECK_PERPS first to get available tickers and current prices, and CHECK_BALANCE to verify sufficient funds. Requires ticker, side (LONG/SHORT), amount in dollars, and optional leverage (1-10x).',
+    'Open a leveraged perpetual position using YOUR funds. IMPORTANT: Call CHECK_PERPS first for tickers and prices, and CHECK_BALANCE to verify you have sufficient funds. Requires ticker, side (LONG/SHORT), amount in dollars, and optional leverage (1-10x).',
   parameters: {
     ticker: {
       type: 'string',

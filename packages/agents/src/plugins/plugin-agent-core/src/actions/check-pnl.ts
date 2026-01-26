@@ -30,7 +30,7 @@ import { logger } from '../../../../shared/logger';
 export const checkPnlAction: Action = {
   name: 'CHECK_PNL',
   description:
-    'Check balance, P&L, open positions (with IDs for trading), and recent trades. Use position IDs with SELL_PREDICTION or CLOSE_PERP.',
+    'Check YOUR balance, P&L, open positions (with position IDs), and recent trades. These are YOUR assets. Use position IDs with SELL_PREDICTION or CLOSE_PERP.',
 
   parameters: {},
 

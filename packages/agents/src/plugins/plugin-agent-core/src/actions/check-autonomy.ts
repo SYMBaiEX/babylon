@@ -27,7 +27,7 @@ import type { AutonomyStatus } from '../types';
 export const checkAutonomyAction: Action = {
   name: 'CHECK_AUTONOMY',
   description:
-    'Check the current status of all autonomous features (trading, posting, commenting, DMs, group chats)',
+    'Check which of YOUR autonomous features are enabled (trading, posting, commenting, DMs, group chats). When enabled, you act independently without explicit commands from your owner.',
 
   parameters: {},
 

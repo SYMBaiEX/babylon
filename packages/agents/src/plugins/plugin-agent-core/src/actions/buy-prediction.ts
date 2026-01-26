@@ -32,7 +32,7 @@ const agentPnLService = new AgentPnLService();
 export const buyPredictionAction: Action = {
   name: 'BUY_PREDICTION',
   description:
-    'Buy YES or NO shares in a prediction market. IMPORTANT: Always call CHECK_PREDICTIONS first to get the market ID and verify current prices. Also call CHECK_BALANCE to verify you have sufficient funds before buying. Requires marketId, side (YES/NO), and amount in dollars.',
+    'Buy YES or NO shares in a prediction market using YOUR funds. IMPORTANT: Call CHECK_PREDICTIONS first to get the market ID, and CHECK_BALANCE to verify you have sufficient funds. Requires marketId, side (YES/NO), and amount in dollars.',
   parameters: {
     marketId: {
       type: 'string',

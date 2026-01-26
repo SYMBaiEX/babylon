@@ -23,7 +23,7 @@ const agentPnLService = new AgentPnLService();
 export const closePerpAction: Action = {
   name: 'CLOSE_PERP',
   description:
-    'Close an open perpetual position (full or partial). IMPORTANT: Always call CHECK_PNL first to see your actual open positions - you need the position ID and current size to close. Requires positionId. Optionally specify amount to partially close.',
+    'Close YOUR perpetual position (full or partial). IMPORTANT: Call CHECK_PNL first to see your open positions and get the position ID. Optionally specify amount for partial close.',
   parameters: {
     positionId: {
       type: 'string',
