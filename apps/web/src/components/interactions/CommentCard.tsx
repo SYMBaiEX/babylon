@@ -10,13 +10,13 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { Avatar } from '@/components/shared/Avatar';
-import { useMenuPosition } from '@/hooks/useMenuPosition';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
 import { useAuth } from '@/hooks/useAuth';
+import { useMenuPosition } from '@/hooks/useMenuPosition';
 import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
