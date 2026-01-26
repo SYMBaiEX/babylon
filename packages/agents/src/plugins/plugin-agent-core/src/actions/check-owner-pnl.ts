@@ -1,0 +1,228 @@
+/**
+ * CHECK_OWNER_PNL Action
+ *
+ * Returns the owner's balance, P&L, open positions, and recent trades.
+ * This shows the owner's trading performance, not the agent's.
+ */
+
+import {
+  and,
+  db,
+  eq,
+  isNull,
+  markets,
+  perpPositions,
+  positions,
+  users,
+} from '@babylon/db';
+import { WalletService } from '@babylon/engine';
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+
+export const checkOwnerPnlAction: Action = {
+  name: 'CHECK_OWNER_PNL',
+  description:
+    "Check your OWNER's balance, P&L, and open positions. This shows your owner's trading performance, not yours. Useful for understanding their strategy or coordinating trades.",
+
+  parameters: {},
+
+  examples: [
+    [
+      {
+        name: 'user',
+        content: { text: "What's my P&L?" },
+      },
+      {
+        name: 'assistant',
+        content: { text: 'Let me check your trading performance...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'Show me my positions' },
+      },
+      {
+        name: 'assistant',
+        content: { text: "I'll pull up your current positions..." },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'How am I doing on trades?' },
+      },
+      {
+        name: 'assistant',
+        content: { text: 'Let me check your trading stats...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: "What's your owner's balance?" },
+      },
+      {
+        name: 'assistant',
+        content: { text: "I'll check my owner's balance..." },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => {
+    // Always valid - handler checks for ownerId and returns helpful error if missing
+    // Note: ownerId is added to state AFTER composeState/validate runs
+    return true;
+  },
+
+  handler: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const ownerId = state?.values?.ownerId as string | undefined;
+
+    if (!ownerId) {
+      return {
+        success: false,
+        text: 'Owner ID not available in this context.',
+        error: 'No owner ID provided',
+      };
+    }
+
+    try {
+      // Get owner info
+      const [owner] = await db
+        .select({
+          displayName: users.displayName,
+          username: users.username,
+          lifetimePnL: users.lifetimePnL,
+        })
+        .from(users)
+        .where(eq(users.id, ownerId))
+        .limit(1);
+
+      if (!owner) {
+        return {
+          success: false,
+          text: 'Owner not found.',
+          error: 'Owner not found',
+        };
+      }
+
+      const ownerName = owner.displayName || owner.username || 'Owner';
+
+      // Get wallet balance
+      let balance = 0;
+      let lifetimePnL = 0;
+      try {
+        const walletBalance = await WalletService.getBalance(ownerId);
+        balance = walletBalance.balance;
+        lifetimePnL = walletBalance.lifetimePnL;
+      } catch {
+        lifetimePnL = Number(owner?.lifetimePnL ?? 0);
+      }
+
+      // Get active prediction positions with market details
+      const predictionPositions = await db
+        .select({
+          id: positions.id,
+          marketId: positions.marketId,
+          side: positions.side,
+          shares: positions.shares,
+          avgPrice: positions.avgPrice,
+          amount: positions.amount,
+          question: markets.question,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
+        })
+        .from(positions)
+        .leftJoin(markets, eq(positions.marketId, markets.id))
+        .where(
+          and(eq(positions.userId, ownerId), eq(positions.status, 'active'))
+        );
+
+      // Get active perp positions
+      const perpPositionsList = await db
+        .select()
+        .from(perpPositions)
+        .where(
+          and(eq(perpPositions.userId, ownerId), isNull(perpPositions.closedAt))
+        );
+
+      const totalPositions =
+        predictionPositions.length + perpPositionsList.length;
+
+      logger.info(
+        `[CHECK_OWNER_PNL] Retrieved P&L for owner ${ownerName}`,
+        { positions: totalPositions, ownerId },
+        'CheckOwnerPnL'
+      );
+
+      return {
+        success: true,
+        text: `Retrieved ${ownerName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
+        data: {
+          ownerName,
+          ownerId,
+          balance,
+          lifetimePnL,
+          predictionPositions: predictionPositions.map((p) => ({
+            id: p.id,
+            marketId: p.marketId,
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+            avgPrice: Number(p.avgPrice),
+          })),
+          perpPositions: perpPositionsList.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            side: p.side,
+            size: Number(p.size),
+            entryPrice: Number(p.entryPrice),
+            leverage: p.leverage,
+          })),
+        },
+        values: {
+          ownerName,
+          balance,
+          lifetimePnL,
+          predictionPositions: predictionPositions.map((p) => ({
+            id: p.id,
+            question: p.question?.substring(0, 80) || 'Unknown',
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+          })),
+          perpPositions: perpPositionsList.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            side: p.side,
+            size: Number(p.size),
+          })),
+        },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[CHECK_OWNER_PNL] Error:', errorMsg);
+
+      return {
+        success: false,
+        text: `Failed to retrieve owner's P&L: ${errorMsg}`,
+        error: errorMsg,
+      };
+    }
+  },
+};
