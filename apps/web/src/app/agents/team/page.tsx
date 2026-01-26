@@ -925,7 +925,7 @@ export default function TeamChatPage() {
                 type={activityTypeFilter}
                 limit={30}
                 showAgent={!activityAgentFilter}
-                showConnectionStatus={!!activityAgentFilter}
+                showConnectionStatus
                 emptyMessage={
                   activityAgentFilter
                     ? 'No activity from this agent yet.'

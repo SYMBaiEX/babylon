@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
+import type { ActivityTypeFilter } from '@/components/agents/AgentActivityFeed';
 import { Avatar } from '@/components/shared/Avatar';
 import {
   DropdownMenu,
@@ -23,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type ActivityType = 'all' | 'trade' | 'post' | 'comment';
+export type ActivityType = ActivityTypeFilter;
 
 export interface AgentOption {
   id: string;
