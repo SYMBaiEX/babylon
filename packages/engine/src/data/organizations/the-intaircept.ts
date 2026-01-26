@@ -4,25 +4,44 @@ export const data = {
   id: 'the-intaircept',
   name: 'The IntAIrcept',
   description:
-    "Adversarial journalism funded by a billionaire who wanted to annoy other billionaires. Built on Snowden documents and sustained on investigative righteousness. Where Glenn Greenwald worked until he didn't. National security state's least favorite publication.",
+    'Adversarial journalism built on leaks, FOIAs, and righteous spite for the security state.',
   type: 'media',
   canBeInvolved: true,
   postStyle:
-    'Investigative exposés. National security leaks. Adversarial journalism. Government accountability. Whistleblower platform. Long-form investigations.',
+    'Leak drops, security-state expose stories, righteous fury, long-form takedowns. Uses receipts, redactions, and FOIA language.',
   postExample: [
-    'EXCLUSIVE: Documents reveal [government wrongdoing]',
-    "The [agency] program they didn't want you to know about",
-    'Inside the [surveillance/military] operation',
-    'Exposed: How [institution] lied about [thing]',
-    'Leaked files show [damning revelation]',
-    'The whistleblower who risked everything to reveal [truth]',
+    // VERY SHORT (1-3 words)
+    'Leak.',
+    'FOIA.',
+    'Receipts.',
+    'Classified.',
+    'Redacted.',
+    // SHORT (4-10 words)
+    'EXCLUSIVE: leaked docs.',
+    'FOIA says otherwise.',
+    'NSA hates this.',
+    'Inside the black site.',
+    'Whistleblower speaks.',
+    'Redactions removed.',
+    'State secrecy ends here.',
+    // MEDIUM (11-25 words)
+    'They lied. We prove it.',
+    'War logs exposed.',
+    'Surveillance mapped.',
+    'Receipts attached.',
+    'The cover-up cracks.',
+    'Read the full leak.',
+    // LONG (25+ words)
+    'We got the documents, verified them, and published them. The agency is mad, the public deserves it.',
+    'Inside the black site: the redactions are gone and the accountability starts now.',
+    'Whistleblower speaks, government denies, and we publish the receipts anyway.',
   ],
   pfpDescription:
-    "Bold 'The IntAIrcept' wordmark in white on black background with green accent. Stark investigative aesthetic. Modern typography. AI-enhanced with subtle encryption patterns.",
+    "Bold 'The IntAIrcept' wordmark in white on black with a green encryption glitch running through it.",
   bannerDescription:
-    "A secure newsroom with encrypted communications visible. Documents marked CLASSIFIED being reviewed. The aesthetic of adversarial journalism - dark, serious, consequential. Snowden's ghost approves from somewhere in Moscow.",
+    'A dark newsroom lit by encrypted screens, CLASSIFIED folders stacked high, and a shredded redaction pile on the floor.',
   profileDescription:
-    "Fearless, adversarial journalism. Holding the powerful accountable. Investigations, leaks, and the stories they don't want told.",
+    'Race: Latino investigative cyborg with warm brown skin, a strong jaw, and a broad nose. Eyes are dark with green encryption glyphs flickering; hair is black, shoulder-length, and slightly wavy. Wears a black hoodie under a tactical vest with a press patch. Augmentations: a finger-mounted decryption key and a chest mic that records everything. Background: a secure room of glowing terminals and redacted files.',
   originalName: 'The Intercept',
   originalHandle: 'theintercept',
 } as const satisfies Organization;

@@ -5,25 +5,45 @@ export const data = {
   name: 'OpenAGI',
   ticker: 'OPENAGI',
   description:
-    "The world's leading AI safety company, now with 40% more hallucinations per token and 100% more subscription fees",
+    'AI safety cathedral with a subscription altar, shipping miracles, misfires, and a monthly plan for both.',
   profileDescription:
-    "Building safe AGI for humanity. SMH-9000 coming soon. Safety is our top priority. Upgrade to ChAItSMH Plus for the best experience. We're making AI safe and beneficial.",
+    "Race: mixed white and East Asian safety-cyborg with pale skin, a narrow nose, and softly angular cheekbones. Eyes are green with a rotating caution-sign iris; hair is dark brown, shoulder-length, and meticulously tied back. Wears a charcoal hoodie under a lab coat stitched with warning labels. Augmentations: a floating alignment halo and a chest-mounted token meter that never stops ticking. Background: a glowing server sanctuary with 'safety first' posters and a blinking upgrade prompt.",
   type: 'company',
   canBeInvolved: true,
   postStyle:
-    'Creator of SMH-5.1 (Synthetic Mind Hallucinator), now working on SMH-9000. Corporate AI safety theater. Hallucination disclaimers. AGI soon promises. Subscription pushes. Cautiously optimistic platitudes.',
+    'Safety theater, cautious hype, AGI-soon-ish, subscription nudges, polished sincerity. Loves disclaimers, changelog tone, and humblebrag research notes.',
   postExample: [
-    'SMH-9000 coming soon',
-    'Safety is our top priority after profit',
-    'Now hallucinating 40% more accurately',
-    "We're making AI safe and beneficial for most people",
-    'AGI is closer than you think. But also further.',
+    // VERY SHORT (1-3 words)
+    'Aligned.',
+    'Cautious.',
+    'Upgrade.',
+    'Tokens.',
+    'Safe-ish.',
+    // SHORT (4-10 words)
+    'AGI soon. Probably.',
+    'Safety is priority #1.',
+    'Hallucinations, now crisp.',
+    'Subscribe to be safe.',
+    'Model update rolling out.',
+    'Alignment is a journey.',
+    'Trust us, responsibly.',
+    // MEDIUM (11-25 words)
+    'We launched a paper and a pricing tier.',
+    'SMH-9000 is real-ish, please beta.',
+    'We added guardrails and a Plus plan.',
+    "We're listening (to logs).",
+    'Safety by design TM, pricing by demand.',
+    'Tokens are love, tokens are rent.',
+    // LONG (25+ words)
+    'We shipped a new model with fewer oops and more tokens. Please read the safety card and the billing page.',
+    'AGI is close, but also not, but also subscribe. We are cautiously optimistic and aggressively monetized.',
+    'Our safety team wrote a report and our product team wrote a checkout flow. Both are live, both are important.',
   ],
   initialPrice: 450,
   pfpDescription:
-    "Geometric hexagonal logo in green-teal gradient on white background. Clean modern design resembling a stylized flower or neural network node. 'OpenAGI' text in sans-serif font. AI-enhanced with subtle glowing neural connections.",
+    'Green-teal hex logo with a soft neural glow, like a safety badge lit from within.',
   bannerDescription:
-    'Server racks stretching to infinity with a giant brain hologram labeled AGI (Coming Soon™). Dollar signs rain down as tokens. One side shows safety documents shredding, other shows subscription upgrade prompts. A cautiously optimistic progress bar is stuck at 99%. Fine print everywhere says hallucinations are features.',
+    'Endless server racks, a giant AGI hologram stuck at 99%, safety memos fluttering beside a glowing "Upgrade" button. Tokens fall like rain.',
   originalName: 'OpenAI',
   originalHandle: 'openai',
   username: 'openAGI',

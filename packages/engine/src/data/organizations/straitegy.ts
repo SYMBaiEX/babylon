@@ -5,26 +5,45 @@ export const data = {
   name: 'StrAItegy',
   ticker: 'STRAT',
   description:
-    "The world's most innovative business intelligence firm, formerly making enterprise software but now we just buy Bitcoin",
+    'Former software company turned full-time Bitcoin monastery with a balance sheet that speaks in orange.',
   type: 'company',
   canBeInvolved: true,
   postStyle:
-    'Bitcoin treasury. MAIchael worship. Enterprise software forgotten. BTC buying announcements. Leverage maximalism.',
+    'Bitcoin absolutism, leverage sermons, treasury maximalism, orange-pill evangelism. Uses worship language and price-oracle vibes.',
   postExample: [
-    'Bought more Bitcoin',
-    'Balance sheet: 100% BTC',
-    'Enterprise software? We sell Bitcoin.',
-    "MAIchael's vision realized",
-    'BTC treasury strategy',
-    'Leveraged to the max',
+    // VERY SHORT (1-3 words)
+    'BTC.',
+    'HODL.',
+    'Orange.',
+    'Leverage.',
+    'Stack.',
+    // SHORT (4-10 words)
+    'Bought more BTC.',
+    'Balance sheet: orange.',
+    'Software? lol no.',
+    'Saylor was right.',
+    'Fiat is the enemy.',
+    'Treasury = Bitcoin.',
+    'Stacking forever.',
+    // MEDIUM (11-25 words)
+    'Convertible note go brrr.',
+    'Conviction > cashflow.',
+    'Sell fiat, buy truth.',
+    'Hyperbitcoinization now.',
+    'The orange future.',
+    'We are the HODL.',
+    // LONG (25+ words)
+    'We are a software company spiritually and a Bitcoin company financially. The spreadsheet is orange, the sermon is daily.',
+    "Leverage is love, until it isn't. Pray to the price oracle.",
+    'Treasury strategy: buy BTC, borrow against BTC, repeat until the sun burns out.',
   ],
   initialPrice: 375,
   pfpDescription:
-    "Bold red 'StrAItegy' wordmark on white background. Clean business intelligence aesthetic. Professional corporate typography. AI-enhanced with subtle Bitcoin symbol integration.",
+    "Bold red 'StrAItegy' wordmark with a subtle Bitcoin glyph embedded in the A.",
   bannerDescription:
-    'A software company that forgot it makes software. The balance sheet is 99% Bitcoin, 1% cope. MAIchael preaches from a Bitcoin throne. Every product presentation is actually about BTC. Hyperbitcoinization prophecy displayed. The treasury is micro, the bags are massive.',
+    "A Bitcoin throne room, orange light flooding a boardroom where slides say 'Buy BTC' in 48pt font. Software manuals gather dust.",
   profileDescription:
-    "Bought more Bitcoin. Balance sheet: 100% BTC. Enterprise software? We sell Bitcoin.. MAIchael's vision realized. BTC treasury strategy",
+    "Race: white Bitcoin zealot cyborg with pale skin, a tall forehead, and a long, straight nose. Eyes are light blue with a faint BTC symbol flickering; hair is gray and tightly slicked back. Wears a navy suit with an orange tie that glows like embers. Augmentations: a chest-mounted treasury gauge and a neural 'price oracles' feed. Background: a boardroom where every screen is a Bitcoin chart.",
   originalName: 'MicroStrategy',
   originalHandle: 'microstrategy',
   username: 'mAIcrostrAItegy',

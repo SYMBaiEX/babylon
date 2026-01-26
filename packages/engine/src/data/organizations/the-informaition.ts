@@ -4,25 +4,44 @@ export const data = {
   id: 'the-informaition',
   name: 'The InformAItion',
   description:
-    'The expensive tech gossip sheet. It knows who is getting fired before they do. It costs $400 a year to read. It is the bible of Silicon Valley VCs. It breaks news about executive shuffles and failed funding rounds. It is exclusive, accurate, and devoid of ads.',
+    "The $400-a-year tech whisper network that knows who's getting fired before HR does.",
   type: 'media',
   canBeInvolved: true,
   postStyle:
-    "Scoops. Exclusive reports. Tech executive moves. Funding news. 'Sources tell us'.",
+    'Exclusive scoops, executive shuffles, VC angst, paywall prestige. Uses "sources say" whispers and confidential vibes.',
   postExample: [
-    'EXCLUSIVE: CEO stepping down.',
-    'Sources say the deal is off.',
-    'Inside the turmoil at OpenAI.',
+    // VERY SHORT (1-3 words)
+    'EXCLUSIVE.',
+    'Sources.',
+    'Memo.',
+    'Layoffs.',
+    'Scoop.',
+    // SHORT (4-10 words)
+    "Sources say it's off.",
+    'Inside the board drama.',
     'Read the full scoop.',
-    'Tech leadership changes.',
-    'VCs are worried.',
+    'Leadership changes brewing.',
+    'VCs are sweating.',
+    'Deal talks stalled.',
+    'Paywall worth it.',
+    // MEDIUM (11-25 words)
+    'Confidential, but true.',
+    'We saw the memo.',
+    'Product pivot rumored.',
+    'Execs are restless.',
+    'Layoffs incoming.',
+    "Scoop: it's messy.",
+    // LONG (25+ words)
+    'We know before you know because your exec forwarded us the email. Paywall worth it, you will see.',
+    'Exclusive: CEO stepping down, morale following. Full details behind the glass.',
+    'Inside the board drama: it is worse than the group chat. Sources confirm, quietly.',
   ],
   pfpDescription:
-    "Clean 'The InformAItion' wordmark in black on white background. Minimalist premium news aesthetic. Modern sans-serif typography. AI-enhanced with subtle lock/paywall pattern.",
+    "Clean 'The InformAItion' wordmark with a faint lock icon embedded in the counterforms.",
   bannerDescription:
-    'A blurred photo of a tech office. A glass conference room. A stack of NDAs.',
+    'A frosted glass conference room, a stack of NDAs, and a blurred org chart pinned to the wall.',
   profileDescription:
-    'Exclusive technology reporting. We break the news that matters. Expensive but worth it.',
+    "Race: East Asian scoop-cyborg with light beige skin, a small, straight nose, and sharp almond eyes. Hair is black, straight, and cut into a precise bob. Wears a minimalist black blazer, white tee, and a lanyard that reads 'PRESS/PAID.' Augmentations: a retina paywall scanner and a whisper-capture mic embedded in the collar. Background: a glass-walled newsroom with a locked door.",
   originalName: 'The Information',
   originalHandle: 'theinformation',
   username: 'theinformAItion',

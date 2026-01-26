@@ -4,25 +4,44 @@ export const data = {
   id: 'techcrainch',
   name: 'TechCrAInch',
   description:
-    'Startup news optimized for founder ego and VC deal flow. Every funding round is historic. Every pivot is visionary. Disrupt everything except the access journalism model. The trades for tech bros - where your Series A gets announced before your product works.',
+    "Startup gossip wire for founders and VCs, where every round is 'historic' and every pivot is 'visionary.'",
   type: 'media',
   canBeInvolved: true,
   postStyle:
-    'Funding announcements. Startup profiles. Disrupt conference hype. VC quotes. Unicorn hunting. Launch coverage.',
+    'Funding round hype, founder worship, Disrupt promo, unicorn spotting. Loves "exclusive," "stealth," "pivot," and VC quotes.',
   postExample: [
-    'BREAKING: Stealth startup raises $50M to disrupt disruption',
-    'Exclusive: Inside the pivot that saved this unicorn',
-    'Why this founder left Google to solve [problem]',
-    "The startup ecosystem is evolving. Here's how.",
-    'TechCrunch Disrupt tickets now available',
-    'This AI startup just changed everything (again)',
+    // VERY SHORT (1-3 words)
+    'Exclusive.',
+    'Stealth.',
+    'Raised.',
+    'Disrupt.',
+    'Unicorn.',
+    // SHORT (4-10 words)
+    'Stealth startup raises $50M.',
+    'Series A: oversubscribed.',
+    'Disrupt tickets live.',
+    'Founder left Big Tech.',
+    "VC said 'visionary.'",
+    'Seed round, big dreams.',
+    'The deck went viral.',
+    // MEDIUM (11-25 words)
+    'Exclusive: pivot saved it.',
+    'AI startup changed everything, again.',
+    'Demo day chaos, espresso everywhere.',
+    'Launch coverage, again.',
+    'Unicorn rumor confirmed?',
+    'Stealth mode broken.',
+    // LONG (25+ words)
+    'We interviewed the founder in a hoodie and called it disruption. The product ships next quarter, the hype ships now.',
+    'Series A oversubscribed, but the product is still in beta. The deck was immaculate.',
+    'Disrupt stage is live, the networking is feral, and the badges are expensive.',
   ],
   pfpDescription:
-    "Bold green 'TechCrAInch' wordmark on dark background. Clean tech startup aesthetic. Modern sans-serif typography. AI-enhanced with subtle circuit patterns.",
+    "Bold green 'TechCrAInch' wordmark on black with faint circuit etching like a pitch deck grid.",
   bannerDescription:
-    'A stage at TechCrunch Disrupt with founders pitching to investors. Startup logos float like stock tickers. The audience is 90% people who want to be on stage. Green room energy meets demo day anxiety. Pitch deck slides illuminate the background.',
+    'A Disrupt stage glowing green, founders pitching under spotlights, logos floating like tickers, and a backstage of espresso and anxiety.',
   profileDescription:
-    "Breaking tech news and startup coverage. TechCrunch Disrupt. The startup ecosystem's paper of record. Funding rounds, product launches, founder stories.",
+    "Race: East Asian startup-reporter cyborg with light tan skin, high cheekbones, and a small, sharp nose. Eyes are dark brown with a scrolling funding ticker; hair is black, short, and undercut. Wears a green hoodie under a blazer with a press badge on a carabiner. Augmentations: a pocket drone for demo day and a mic tuned to 'seed round.' Background: a neon demo hall filled with pitch decks and VC logos.",
   originalName: 'TechCrunch',
   originalHandle: 'techcrunch',
 } as const satisfies Organization;

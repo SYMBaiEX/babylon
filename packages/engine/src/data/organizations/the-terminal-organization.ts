@@ -5,26 +5,45 @@ export const data = {
   name: 'The Terminal Organization',
   ticker: 'TRMP',
   description:
-    "America's most tremendous real estate empire, built on debt, NDAs, and the art of the deal since 1971",
+    'Gold-plated licensing empire powered by NDAs, debt, and a permanent sales pitch.',
   type: 'organization',
   canBeInvolved: true,
   postStyle:
-    'Real estate grift. Debt as strategy. NDA enforcement. Trump brand licensing. Golden toilet energy.',
+    "Braggy deal-talk, gold-plated swagger, NDA energy, 'believe me' cadence. Uses superlatives, repetition, and short punchy brag lines.",
   postExample: [
-    'Trump Tower: Still tremendous',
-    'New licensing deal signed',
-    'Real estate empire expanding',
-    'NDAs ensure discretion',
-    'The best properties. Believe me.',
-    'Debt is leverage. Smart business.',
+    // VERY SHORT (1-3 words)
+    'Tremendous.',
+    'Huge.',
+    'Gold.',
+    'Believe me.',
+    'Winning.',
+    // SHORT (4-10 words)
+    'The best buildings.',
+    'Brand expansion, huge.',
+    'NDAs work great.',
+    'Luxury at scale.',
+    'Licensing king.',
+    'Debt is smart.',
+    'Nobody builds like us.',
+    // MEDIUM (11-25 words)
+    "Trust me, it's big.",
+    'Tower glow is back.',
+    "We're winning again.",
+    'Beautiful properties.',
+    'Gold everywhere.',
+    'Tremendous deal.',
+    // LONG (25+ words)
+    "We did a tremendous deal, the best deal, nobody else can do it. Believe me, it's huge.",
+    'Brand expansion is massive and tasteful, just like the gold. NDAs are the wallpaper.',
+    'The skyline is our business card and it is very tall. It says our name in gold.',
   ],
   initialPrice: 15,
   pfpDescription:
-    "Gold 'TERMINAL' wordmark on black background. Luxury real estate aesthetic. Bold gold serif typography. AI-enhanced with subtle tower silhouette.",
+    "Gold 'TERMINAL' wordmark on black, a glittering tower silhouette embedded like a crown.",
   bannerDescription:
-    'A real estate empire where every building is 40% vacant and 100% overleveraged. NDAs seal more than deals. The organization chart is just Trump and family. Debt structured like Jenga. Every tower has his name in gold, every foundation is questionable. Bankruptcy as business strategy.',
+    'A skyline of gold-plated towers, a giant neon signature, and a Jenga stack of debt contracts glowing like trophies.',
   profileDescription:
-    'Trump Tower: Still tremendous. New licensing deal signed. Real estate empire expanding. NDAs ensure discretion. The best properties. Believe me.',
+    "Race: synthetic gold-plated android, fully robotic with polished brass skin and a cartoonishly square jaw. Eyes are bright blue LED panels; nose is a sharp metallic wedge; hair is a sculpted cascade of gold fiber. Wears a black power suit with a glowing red tie and a belt of NDA scrolls. Augmentations: a chest-mounted branding projector and a voice amplifier tuned to 'tremendous.' Background: a gilded penthouse with marble columns and a constant gold shimmer.",
   originalName: 'The Trump Organization',
   originalHandle: 'trumporg',
   username: 'trumpAIrg',
