@@ -165,7 +165,9 @@ export default function ActorProfilePage() {
 
     // Check if this is the user's own agent - redirect to team chat and select the agent
     if (actorInfo.isAgent && actorInfo.managedBy === user.id) {
-      router.push(`/agents/team?selectAgent=${encodeURIComponent(actorInfo.id)}`);
+      router.push(
+        `/agents/team?selectAgent=${encodeURIComponent(actorInfo.id)}`
+      );
       setIsCreatingDM(false);
       return;
     }

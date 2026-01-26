@@ -123,7 +123,9 @@ export default function ChatsPage() {
   // Redirect owned agent DMs to team chat and select the agent
   useEffect(() => {
     if (ownAgentId) {
-      router.replace(`/agents/team?selectAgent=${encodeURIComponent(ownAgentId)}`);
+      router.replace(
+        `/agents/team?selectAgent=${encodeURIComponent(ownAgentId)}`
+      );
     }
   }, [ownAgentId, router]);
 

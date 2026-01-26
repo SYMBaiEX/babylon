@@ -39,7 +39,9 @@ export default function CreateAgentPage() {
         backLabel="Back"
         onSuccess={(agent) => {
           // Redirect to team chat and select the new agent
-          router.push(`/agents/team?selectAgent=${encodeURIComponent(agent.id)}`);
+          router.push(
+            `/agents/team?selectAgent=${encodeURIComponent(agent.id)}`
+          );
         }}
       />
     </PageContainer>
