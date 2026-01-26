@@ -24,6 +24,7 @@ import {
   stockPrices,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { first, last } from '../utils/array-utils';
 import { formatError } from '../utils/error-utils';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -413,8 +414,12 @@ export class MarketMetricsService {
       // Sort by timestamp descending
       prices.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-      const currentPrice = prices[0]!.price;
-      const oldestPrice = prices[prices.length - 1]!.price;
+      const currentPriceEntry = first(prices);
+      const oldestPriceEntry = last(prices);
+      if (!currentPriceEntry || !oldestPriceEntry) continue;
+
+      const currentPrice = currentPriceEntry.price;
+      const oldestPrice = oldestPriceEntry.price;
 
       // Use 24h ago price from snapshot if available and fresh (more accurate)
       // Explicit null check to ensure TypeScript narrows snapshot from T | undefined

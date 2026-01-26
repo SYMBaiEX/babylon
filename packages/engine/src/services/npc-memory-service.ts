@@ -18,6 +18,7 @@ import {
   type RelationshipState,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { first } from '../utils/array-utils';
 import { getGameDayNumber } from '../utils/date-utils';
 import { formatError } from '../utils/error-utils';
 import { parseMemoriesSafe, parseRelationshipsSafe } from './jsonb-validators';
@@ -597,8 +598,9 @@ export class NpcMemoryService {
     }
 
     // For single actor, delegate to single method
-    if (actorIds.length === 1) {
-      const success = await this.addMemory(actorIds[0]!, memory);
+    const singleActorId = first(actorIds);
+    if (actorIds.length === 1 && singleActorId) {
+      const success = await this.addMemory(singleActorId, memory);
       return success ? 1 : 0;
     }
 

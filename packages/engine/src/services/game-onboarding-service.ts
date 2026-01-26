@@ -21,6 +21,7 @@ import {
   ONBOARDING_STEP_ORDER,
   ONBOARDING_STEP_POINTS,
 } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import { EarnedPointsService } from './earned-points-service';
 
 /**
@@ -306,8 +307,7 @@ export async function completeOnboardingStep(
           step,
           points,
           reason: `onboarding_${step}`,
-          error:
-            lastError instanceof Error ? lastError.message : String(lastError),
+          error: formatError(lastError),
           failedAt: new Date().toISOString(),
           retriesAttempted: maxPointsRetries,
         },

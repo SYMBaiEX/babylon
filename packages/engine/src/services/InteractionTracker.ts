@@ -9,6 +9,7 @@ import type { InputJsonValue } from '@babylon/db';
 import { db, npcInteractions } from '@babylon/db';
 import type { Actor } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { first, last } from '../utils/array-utils';
 
 export class InteractionTracker {
   /**
@@ -22,8 +23,9 @@ export class InteractionTracker {
   ): Promise<void> {
     // Sort IDs for consistency
     const sorted = [authorId, mentionedId].sort();
-    const id1 = sorted[0]!;
-    const id2 = sorted[1]!;
+    const id1 = first(sorted);
+    const id2 = last(sorted);
+    if (!id1 || !id2) return;
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
@@ -55,8 +57,9 @@ export class InteractionTracker {
     sentiment: number
   ): Promise<void> {
     const sorted = [replierId, originalAuthorId].sort();
-    const id1 = sorted[0]!;
-    const id2 = sorted[1]!;
+    const id1 = first(sorted);
+    const id2 = last(sorted);
+    if (!id1 || !id2) return;
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
@@ -89,11 +92,13 @@ export class InteractionTracker {
     // Create interactions for all pairs
     for (let i = 0; i < actorIds.length; i++) {
       for (let j = i + 1; j < actorIds.length; j++) {
-        const actor1 = actorIds[i]!;
-        const actor2 = actorIds[j]!;
+        const actor1 = actorIds[i];
+        const actor2 = actorIds[j];
+        if (!actor1 || !actor2) continue;
         const sorted = [actor1, actor2].sort();
-        const id1 = sorted[0]!;
-        const id2 = sorted[1]!;
+        const id1 = first(sorted);
+        const id2 = last(sorted);
+        if (!id1 || !id2) continue;
 
         await db.insert(npcInteractions).values({
           id: await generateSnowflakeId(),
@@ -132,11 +137,13 @@ export class InteractionTracker {
     // Create interactions for all pairs
     for (let i = 0; i < actorIds.length; i++) {
       for (let j = i + 1; j < actorIds.length; j++) {
-        const actor1 = actorIds[i]!;
-        const actor2 = actorIds[j]!;
+        const actor1 = actorIds[i];
+        const actor2 = actorIds[j];
+        if (!actor1 || !actor2) continue;
         const sorted = [actor1, actor2].sort();
-        const id1 = sorted[0]!;
-        const id2 = sorted[1]!;
+        const id1 = first(sorted);
+        const id2 = last(sorted);
+        if (!id1 || !id2) continue;
 
         await db.insert(npcInteractions).values({
           id: await generateSnowflakeId(),

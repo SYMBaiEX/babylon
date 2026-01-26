@@ -41,6 +41,7 @@ import {
   getMinimalRealityGrounding,
   getRealityGrounding,
 } from './reality-grounding';
+import { validateNoRealNames } from './validate-output';
 
 /**
  * Options for configuring world context generation.
@@ -479,30 +480,7 @@ export function getForbiddenRealNames(): string[] {
   return actors.map((actor) => actor.realName);
 }
 
-/**
- * Validate that generated content doesn't use real names.
- *
- * Checks if the text contains any forbidden real names. Returns
- * an array of validation errors if any are found.
- *
- * @param text - The generated content to check
- * @returns Array of validation error messages (empty if valid)
- */
-export function validateNoRealNames(text: string): string[] {
-  const forbiddenNames = getForbiddenRealNames();
-  const violations: string[] = [];
-
-  // Check if text contains any forbidden real names
-  forbiddenNames.forEach((realName) => {
-    if (text.includes(realName)) {
-      violations.push(
-        `FORBIDDEN: Found real name "${realName}" - must use parody names only`
-      );
-    }
-  });
-
-  return violations;
-}
+// validateNoRealNames is imported from validate-output.ts (single source of truth)
 
 /**
  * Complete validation of generated content.

@@ -9,6 +9,7 @@
 
 import { logger } from '@babylon/shared';
 import OpenAI from 'openai';
+import { first } from '../utils/array-utils';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // Configuration
@@ -627,7 +628,8 @@ export async function groupTrendingTags(
 
     // Sort by post count to pick primary tag
     groupTags.sort((a, b) => b.postCount - a.postCount);
-    const primaryTag = groupTags[0]!;
+    const primaryTag = first(groupTags);
+    if (!primaryTag) continue;
 
     // Use pre-generated summary from combined LLM call, or fallback
     const summary =
