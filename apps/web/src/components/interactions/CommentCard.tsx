@@ -6,9 +6,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { Edit2, MessageCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
+import { useMenuPosition } from '@/hooks/useMenuPosition';
+
+// Menu dimensions for edit/delete dropdown
+const MENU_HEIGHT = 100;
+const MENU_WIDTH = 120;
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
@@ -72,58 +77,25 @@ export function CommentCard({
 }: CommentCardProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const actionButtonRef = useRef<HTMLButtonElement>(null);
   const [showActions, setShowActions] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
-  const [menuPosition, setMenuPosition] = useState({
-    top: 0,
-    left: 0,
-    openUpward: false,
+
+  // Use custom hook for menu positioning
+  const {
+    buttonRef: actionButtonRef,
+    menuPosition,
+    updatePosition,
+    mounted,
+  } = useMenuPosition(showActions, {
+    menuHeight: MENU_HEIGHT,
+    menuWidth: MENU_WIDTH,
+    padding: 4,
   });
 
   const hasReplies = comment.replies && comment.replies.length > 0;
   const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
-
-  // Calculate menu position when opening
-  const updateMenuPosition = () => {
-    if (actionButtonRef.current) {
-      const rect = actionButtonRef.current.getBoundingClientRect();
-      const menuHeight = 100; // Approximate menu height for edit/delete
-      const menuWidth = 120; // min-w-[120px]
-      const padding = 4;
-
-      // Check if there's enough space below
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const openUpward = spaceBelow < menuHeight + padding;
-
-      // Calculate left position (align right edge of menu with right edge of button)
-      let left = rect.right - menuWidth;
-      // Ensure menu doesn't go off-screen left
-      if (left < padding) left = padding;
-
-      setMenuPosition({
-        top: openUpward ? rect.top - padding : rect.bottom + padding,
-        left,
-        openUpward,
-      });
-    }
-  };
-
-  // Update menu position on scroll/resize to follow the button
-  useEffect(() => {
-    if (!showActions) return;
-
-    // Listen on window and any scrollable parent (capture phase)
-    window.addEventListener('scroll', updateMenuPosition, true);
-    window.addEventListener('resize', updateMenuPosition);
-
-    return () => {
-      window.removeEventListener('scroll', updateMenuPosition, true);
-      window.removeEventListener('resize', updateMenuPosition);
-    };
-  }, [showActions]);
 
   const showVerifiedBadge = isNpcIdentifier(comment.userId);
   const isOwnComment = user?.id === comment.userId;
@@ -220,7 +192,7 @@ export function CommentCard({
                   type="button"
                   onClick={() => {
                     if (!showActions) {
-                      updateMenuPosition();
+                      updatePosition();
                     }
                     setShowActions(!showActions);
                   }}
@@ -230,7 +202,9 @@ export function CommentCard({
                   <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
                 </button>
 
+                {/* Only render portal on client side (mounted check for SSR compatibility) */}
                 {showActions &&
+                  mounted &&
                   createPortal(
                     <>
                       {/* Backdrop */}

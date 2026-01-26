@@ -37,15 +37,20 @@ import {
   UserPlus,
   VolumeX,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useMenuPosition } from '@/hooks/useMenuPosition';
 import { useSocialTracking } from '@/hooks/usePostHog';
 import { getAuthToken } from '@/lib/auth';
 import { BlockUserModal } from './BlockUserModal';
 import { MuteUserModal } from './MuteUserModal';
 import { ReportModal } from './ReportModal';
+
+// Menu dimensions - keep in sync with CSS classes (w-56 = 14rem = 224px)
+const MENU_HEIGHT = 200;
+const MENU_WIDTH = 224;
 
 interface ModerationMenuProps {
   targetUserId: string;
@@ -68,7 +73,6 @@ export function ModerationMenu({
 }: ModerationMenuProps) {
   const { authenticated, user } = useAuth();
   const { trackFollow } = useSocialTracking();
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showMuteModal, setShowMuteModal] = useState(false);
@@ -76,59 +80,23 @@ export function ModerationMenu({
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [isCheckingFollow, setIsCheckingFollow] = useState(true);
-  const [menuPosition, setMenuPosition] = useState({
-    top: 0,
-    left: 0,
-    openUpward: false,
-  });
+
+  // Use custom hook for menu positioning
+  const { buttonRef, menuPosition, updatePosition, mounted } = useMenuPosition(
+    showMenu,
+    { menuHeight: MENU_HEIGHT, menuWidth: MENU_WIDTH }
+  );
 
   const displayName = targetDisplayName || targetUsername || 'User';
 
-  // Calculate menu position
-  const updateMenuPosition = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const menuHeight = 150; // Approximate menu height
-      const menuWidth = 224; // w-56 = 14rem = 224px
-      const padding = 8;
-
-      // Check if there's enough space below
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const openUpward = spaceBelow < menuHeight + padding;
-
-      // Calculate left position (align right edge of menu with right edge of button)
-      let left = rect.right - menuWidth;
-      // Ensure menu doesn't go off-screen left
-      if (left < padding) left = padding;
-
-      setMenuPosition({
-        top: openUpward ? rect.top - padding : rect.bottom + padding,
-        left,
-        openUpward,
-      });
-    }
-  };
-
-  // Update menu position on scroll/resize to follow the button
-  useEffect(() => {
-    if (!showMenu) return;
-
-    // Listen on window and any scrollable parent (capture phase)
-    window.addEventListener('scroll', updateMenuPosition, true);
-    window.addEventListener('resize', updateMenuPosition);
-
-    return () => {
-      window.removeEventListener('scroll', updateMenuPosition, true);
-      window.removeEventListener('resize', updateMenuPosition);
-    };
-  }, [showMenu]);
-
-  // Check follow status when menu opens
+  // Check follow status when menu opens (with AbortController to prevent race conditions)
   useEffect(() => {
     if (!showMenu || !authenticated || !user) {
       setIsCheckingFollow(false);
       return;
     }
+
+    const abortController = new AbortController();
 
     const checkFollowStatus = async () => {
       setIsCheckingFollow(true);
@@ -144,6 +112,7 @@ export function ModerationMenu({
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: abortController.signal,
         });
 
         if (response.ok) {
@@ -152,13 +121,22 @@ export function ModerationMenu({
         } else {
           setIsFollowing(false);
         }
-      } catch {
-        setIsFollowing(false);
+      } catch (error) {
+        // Ignore abort errors, only handle network errors
+        if (error instanceof Error && error.name !== 'AbortError') {
+          setIsFollowing(false);
+        }
       }
-      setIsCheckingFollow(false);
+      if (!abortController.signal.aborted) {
+        setIsCheckingFollow(false);
+      }
     };
 
     checkFollowStatus();
+
+    return () => {
+      abortController.abort();
+    };
   }, [showMenu, authenticated, user, targetUserId]);
 
   const handleFollow = async () => {
@@ -229,7 +207,7 @@ export function ModerationMenu({
         ref={buttonRef}
         onClick={() => {
           if (!showMenu) {
-            updateMenuPosition();
+            updatePosition();
           }
           setShowMenu(!showMenu);
         }}
@@ -240,7 +218,9 @@ export function ModerationMenu({
       </button>
 
       {/* Dropdown Menu - rendered via portal to avoid overflow clipping */}
+      {/* Only render portal on client side (mounted check for SSR compatibility) */}
       {showMenu &&
+        mounted &&
         createPortal(
           <>
             {/* Overlay to close menu */}

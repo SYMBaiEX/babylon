@@ -346,13 +346,15 @@ function ReplyCard({
           </div>
           {/* Moderation menu for other users' comments */}
           {user && !isOwnComment && (
-            <ModerationMenu
-              targetUserId={reply.authorId}
-              targetUsername={reply.authorUsername || undefined}
-              targetDisplayName={reply.authorName}
-              targetProfileImageUrl={reply.authorProfileImageUrl || undefined}
-              isNPC={authorIsNPC}
-            />
+            <div onClick={(e) => e.stopPropagation()}>
+              <ModerationMenu
+                targetUserId={reply.authorId}
+                targetUsername={reply.authorUsername || undefined}
+                targetDisplayName={reply.authorName}
+                targetProfileImageUrl={reply.authorProfileImageUrl || undefined}
+                isNPC={authorIsNPC}
+              />
+            </div>
           )}
         </div>
 
