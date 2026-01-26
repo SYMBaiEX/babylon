@@ -3,16 +3,18 @@
 import type { CommentCardProps, CommentData } from '@babylon/shared';
 import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
-import { Edit2, MessageCircle, MoreVertical, Trash2 } from 'lucide-react';
+import { Edit2, MessageCircle, MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
+import { useAuth } from '@/hooks/useAuth';
 import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
@@ -68,6 +70,7 @@ export function CommentCard({
   className,
 }: CommentCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [showActions, setShowActions] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -77,6 +80,8 @@ export function CommentCard({
   const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
 
   const showVerifiedBadge = isNpcIdentifier(comment.userId);
+  const isOwnComment = user?.id === comment.userId;
+  const authorIsNPC = isNpcIdentifier(comment.userId);
 
   const handleReply = () => {
     setIsReplying(true);
@@ -160,50 +165,59 @@ export function CommentCard({
               })}
             </span>
 
-            {/* Actions menu */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowActions(!showActions)}
-                className={cn(
-                  'rounded-md p-1',
-                  'text-muted-foreground hover:text-foreground',
-                  'transition-colors hover:bg-muted'
+            {/* Actions menu - different for own vs others' comments */}
+            {isOwnComment ? (
+              // Own comment: Show Edit/Delete
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowActions(!showActions)}
+                  className="rounded-lg p-2 transition-colors hover:bg-muted"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+                </button>
+
+                {showActions && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowActions(false)}
+                    />
+
+                    {/* Dropdown */}
+                    <div className="fade-in slide-in-from-top-2 absolute top-full right-0 z-20 mt-1 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150">
+                      <button
+                        type="button"
+                        onClick={handleEdit}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                      >
+                        <Edit2 size={14} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive text-sm transition-colors hover:bg-muted"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
+                  </>
                 )}
-              >
-                <MoreVertical size={16} />
-              </button>
-
-              {showActions && (
-                <>
-                  {/* Backdrop */}
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowActions(false)}
-                  />
-
-                  {/* Dropdown */}
-                  <div className="fade-in slide-in-from-top-2 absolute top-full right-0 z-20 mt-1 min-w-[120px] animate-in rounded-md border border-border bg-popover py-1 shadow-lg duration-150">
-                    <button
-                      type="button"
-                      onClick={handleEdit}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
-                    >
-                      <Edit2 size={14} />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive text-sm transition-colors hover:bg-muted"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+              </div>
+            ) : user ? (
+              // Other user's comment: Show ModerationMenu (Follow/Mute/Block/Report)
+              <ModerationMenu
+                targetUserId={comment.userId}
+                targetUsername={comment.userUsername || undefined}
+                targetDisplayName={comment.userName}
+                targetProfileImageUrl={comment.userAvatar || undefined}
+                isNPC={authorIsNPC}
+              />
+            ) : null}
           </div>
         </div>
 

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { LikeButton } from '@/components/interactions/LikeButton';
+import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { Avatar } from '@/components/shared/Avatar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -18,6 +19,7 @@ import {
   isNpcIdentifier,
   VerifiedBadge,
 } from '@/components/shared/VerifiedBadge';
+import { useAuth } from '@/hooks/useAuth';
 import { MAX_REPLY_COUNT } from '@/lib/constants';
 
 interface CommentPageProps {
@@ -92,7 +94,10 @@ interface PostData {
  */
 function OriginalPostCard({ post }: { post: PostData }) {
   const router = useRouter();
+  const { user } = useAuth();
   const showVerifiedBadge = isNpcIdentifier(post.authorId);
+  const isOwnPost = user?.id === post.authorId;
+  const authorIsNPC = isNpcIdentifier(post.authorId);
 
   return (
     <div className="relative">
@@ -120,28 +125,43 @@ function OriginalPostCard({ post }: { post: PostData }) {
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center gap-2">
-            <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="truncate font-semibold text-sm hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {post.authorName}
-            </Link>
-            {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="truncate text-muted-foreground text-xs hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{post.authorUsername || post.authorName}
-            </Link>
-            <span className="text-muted-foreground text-xs">·</span>
-            <span className="text-muted-foreground text-xs">
-              {formatDistanceToNow(new Date(post.createdAt), {
-                addSuffix: true,
-              })}
-            </span>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="truncate font-semibold text-sm hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.authorName}
+              </Link>
+              {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="truncate text-muted-foreground text-xs hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{post.authorUsername || post.authorName}
+              </Link>
+              <span className="text-muted-foreground text-xs">·</span>
+              <span className="text-muted-foreground text-xs">
+                {formatDistanceToNow(new Date(post.createdAt), {
+                  addSuffix: true,
+                })}
+              </span>
+            </div>
+            {/* Moderation menu for other users' posts */}
+            {user && !isOwnPost && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ModerationMenu
+                  targetUserId={post.authorId}
+                  targetUsername={post.authorUsername || undefined}
+                  targetDisplayName={post.authorName}
+                  targetProfileImageUrl={post.authorProfileImageUrl || undefined}
+                  postId={post.id}
+                  isNPC={authorIsNPC}
+                />
+              </div>
+            )}
           </div>
 
           {/* Content - truncated */}
@@ -166,7 +186,10 @@ function ParentCommentCard({
   showConnector: boolean;
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const showVerifiedBadge = isNpcIdentifier(parent.authorId);
+  const isOwnComment = user?.id === parent.authorId;
+  const authorIsNPC = isNpcIdentifier(parent.authorId);
 
   return (
     <div className="relative">
@@ -196,28 +219,42 @@ function ParentCommentCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center gap-2">
-            <Link
-              href={getProfileUrl(parent.authorId, parent.authorUsername)}
-              className="truncate font-semibold text-sm hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {parent.authorName}
-            </Link>
-            {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-            <Link
-              href={getProfileUrl(parent.authorId, parent.authorUsername)}
-              className="truncate text-muted-foreground text-xs hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{parent.authorUsername || parent.authorName}
-            </Link>
-            <span className="text-muted-foreground text-xs">·</span>
-            <span className="text-muted-foreground text-xs">
-              {formatDistanceToNow(new Date(parent.createdAt), {
-                addSuffix: true,
-              })}
-            </span>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Link
+                href={getProfileUrl(parent.authorId, parent.authorUsername)}
+                className="truncate font-semibold text-sm hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {parent.authorName}
+              </Link>
+              {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+              <Link
+                href={getProfileUrl(parent.authorId, parent.authorUsername)}
+                className="truncate text-muted-foreground text-xs hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{parent.authorUsername || parent.authorName}
+              </Link>
+              <span className="text-muted-foreground text-xs">·</span>
+              <span className="text-muted-foreground text-xs">
+                {formatDistanceToNow(new Date(parent.createdAt), {
+                  addSuffix: true,
+                })}
+              </span>
+            </div>
+            {/* Moderation menu for other users' comments */}
+            {user && !isOwnComment && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ModerationMenu
+                  targetUserId={parent.authorId}
+                  targetUsername={parent.authorUsername || undefined}
+                  targetDisplayName={parent.authorName}
+                  targetProfileImageUrl={parent.authorProfileImageUrl || undefined}
+                  isNPC={authorIsNPC}
+                />
+              </div>
+            )}
           </div>
 
           {/* Content - truncated for parent chain */}
@@ -245,9 +282,12 @@ function ReplyCard({
   onReplySubmit: () => void;
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const showVerifiedBadge = isNpcIdentifier(reply.authorId);
   const hasReplies = reply.replyCount > 0;
   const [isReplying, setIsReplying] = useState(false);
+  const isOwnComment = user?.id === reply.authorId;
+  const authorIsNPC = isNpcIdentifier(reply.authorId);
 
   const handleNavigateToReply = () => {
     router.push(`/comment/${reply.id}`);
@@ -272,28 +312,40 @@ function ReplyCard({
       {/* Content */}
       <div className="min-w-0 flex-1">
         {/* Header */}
-        <div className="mb-1 flex items-center gap-2">
-          <Link
-            href={getProfileUrl(reply.authorId, reply.authorUsername)}
-            className="truncate font-semibold text-sm hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {reply.authorName}
-          </Link>
-          {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
-          <Link
-            href={getProfileUrl(reply.authorId, reply.authorUsername)}
-            className="truncate text-muted-foreground text-xs hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            @{reply.authorUsername || reply.authorName}
-          </Link>
-          <span className="text-muted-foreground text-xs">·</span>
-          <span className="text-muted-foreground text-xs">
-            {formatDistanceToNow(new Date(reply.createdAt), {
-              addSuffix: true,
-            })}
-          </span>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Link
+              href={getProfileUrl(reply.authorId, reply.authorUsername)}
+              className="truncate font-semibold text-sm hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {reply.authorName}
+            </Link>
+            {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
+            <Link
+              href={getProfileUrl(reply.authorId, reply.authorUsername)}
+              className="truncate text-muted-foreground text-xs hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{reply.authorUsername || reply.authorName}
+            </Link>
+            <span className="text-muted-foreground text-xs">·</span>
+            <span className="text-muted-foreground text-xs">
+              {formatDistanceToNow(new Date(reply.createdAt), {
+                addSuffix: true,
+              })}
+            </span>
+          </div>
+          {/* Moderation menu for other users' comments */}
+          {user && !isOwnComment && (
+            <ModerationMenu
+              targetUserId={reply.authorId}
+              targetUsername={reply.authorUsername || undefined}
+              targetDisplayName={reply.authorName}
+              targetProfileImageUrl={reply.authorProfileImageUrl || undefined}
+              isNPC={authorIsNPC}
+            />
+          )}
         </div>
 
         {/* Reply content - clickable to navigate to thread */}
@@ -433,7 +485,10 @@ export default function CommentPage({ params }: CommentPageProps) {
     await loadComment();
   };
 
+  const { user } = useAuth();
   const showVerifiedBadge = comment ? isNpcIdentifier(comment.authorId) : false;
+  const isOwnComment = comment ? user?.id === comment.authorId : false;
+  const mainCommentAuthorIsNPC = comment ? isNpcIdentifier(comment.authorId) : false;
 
   if (isLoading) {
     return (
@@ -543,28 +598,40 @@ export default function CommentPage({ params }: CommentPageProps) {
                 {/* Content */}
                 <div className="min-w-0 flex-1">
                   {/* Author info */}
-                  <div className="mb-2 flex items-center gap-2">
-                    <Link
-                      href={getProfileUrl(
-                        comment.authorId,
-                        comment.authorUsername
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Link
+                        href={getProfileUrl(
+                          comment.authorId,
+                          comment.authorUsername
+                        )}
+                        className="font-semibold hover:underline"
+                      >
+                        {comment.authorName}
+                      </Link>
+                      {showVerifiedBadge && (
+                        <VerifiedBadge size="sm" className="-ml-1" />
                       )}
-                      className="font-semibold hover:underline"
-                    >
-                      {comment.authorName}
-                    </Link>
-                    {showVerifiedBadge && (
-                      <VerifiedBadge size="sm" className="-ml-1" />
+                      <Link
+                        href={getProfileUrl(
+                          comment.authorId,
+                          comment.authorUsername
+                        )}
+                        className="text-muted-foreground text-sm hover:underline"
+                      >
+                        @{comment.authorUsername || comment.authorName}
+                      </Link>
+                    </div>
+                    {/* Moderation menu for other users' comments */}
+                    {user && !isOwnComment && (
+                      <ModerationMenu
+                        targetUserId={comment.authorId}
+                        targetUsername={comment.authorUsername || undefined}
+                        targetDisplayName={comment.authorName}
+                        targetProfileImageUrl={comment.authorProfileImageUrl || undefined}
+                        isNPC={mainCommentAuthorIsNPC}
+                      />
                     )}
-                    <Link
-                      href={getProfileUrl(
-                        comment.authorId,
-                        comment.authorUsername
-                      )}
-                      className="text-muted-foreground text-sm hover:underline"
-                    >
-                      @{comment.authorUsername || comment.authorName}
-                    </Link>
                   </div>
 
                   {/* Comment content - larger for main comment */}
