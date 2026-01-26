@@ -786,7 +786,7 @@ export function useTeamChat(): UseTeamChatReturn {
             // Show toast if points were deducted
             if (data.pointsCost && data.pointsCost > 0) {
               toast.success(
-                `Response from ${agent?.displayName} (-${data.pointsCost} point${data.pointsCost > 1 ? 's' : ''})`
+                `Response from ${agent?.displayName} (-${data.pointsCost} points)`
               );
             }
 
