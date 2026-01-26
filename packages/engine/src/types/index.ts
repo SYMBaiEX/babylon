@@ -14,3 +14,4 @@ export * from './market-decisions';
 export * from './perps';
 // Shared game types (Actor, Organization, FeedPost, etc.)
 export * from './shared';
+export * from "./guards";
