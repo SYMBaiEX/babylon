@@ -235,7 +235,7 @@ export function ModerationMenu({
               style={{
                 top: menuPosition.openUpward ? 'auto' : menuPosition.top,
                 bottom: menuPosition.openUpward
-                  ? window.innerHeight - menuPosition.top
+                  ? menuPosition.windowHeight - menuPosition.top
                   : 'auto',
                 left: menuPosition.left,
               }}

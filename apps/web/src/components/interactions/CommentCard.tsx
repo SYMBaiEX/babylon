@@ -9,12 +9,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
-import { useMenuPosition } from '@/hooks/useMenuPosition';
-
-// Menu dimensions for edit/delete dropdown
-const MENU_HEIGHT = 100;
-const MENU_WIDTH = 120;
 import { Avatar } from '@/components/shared/Avatar';
+import { useMenuPosition } from '@/hooks/useMenuPosition';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
   isNpcIdentifier,
@@ -24,6 +20,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { MAX_REPLY_COUNT } from '@/lib/constants';
 import { CommentInput } from './CommentInput';
 import { LikeButton } from './LikeButton';
+
+// Menu dimensions for edit/delete dropdown
+const MENU_HEIGHT = 100;
+const MENU_WIDTH = 120;
 
 /**
  * Recursive reply type for counting
@@ -221,7 +221,7 @@ export function CommentCard({
                             ? 'auto'
                             : menuPosition.top,
                           bottom: menuPosition.openUpward
-                            ? window.innerHeight - menuPosition.top
+                            ? menuPosition.windowHeight - menuPosition.top
                             : 'auto',
                           left: menuPosition.left,
                         }}

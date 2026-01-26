@@ -6,6 +6,7 @@ interface MenuPosition {
   top: number;
   left: number;
   openUpward: boolean;
+  windowHeight: number;
 }
 
 interface UseMenuPositionOptions {
@@ -34,6 +35,7 @@ export function useMenuPosition(
     top: 0,
     left: 0,
     openUpward: false,
+    windowHeight: 0,
   });
 
   // Track mounted state for SSR compatibility
@@ -59,6 +61,7 @@ export function useMenuPosition(
         top: openUpward ? rect.top - padding : rect.bottom + padding,
         left,
         openUpward,
+        windowHeight: window.innerHeight,
       });
     }
   }, [menuHeight, menuWidth, padding]);
@@ -84,4 +87,3 @@ export function useMenuPosition(
     mounted,
   };
 }
-
