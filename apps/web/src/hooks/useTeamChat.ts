@@ -1078,9 +1078,10 @@ export function useTeamChat(): UseTeamChatReturn {
 
   // Fetch conversations when team chat loads
   useEffect(() => {
-    if (teamChat && user) {
+    if (teamChat?.id && user) {
       refreshConversations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally depend on id only
   }, [teamChat?.id, user, refreshConversations]);
 
   return {
