@@ -894,7 +894,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the climate summit reach an agreement?',
       'Will the merger between MegaCorp and TechGiant close?',
     ];
-    const validatedQuestions = firstOrThrow(questions, 'No questions available');
+    const validatedQuestions = firstOrThrow(
+      questions,
+      'No questions available'
+    );
     const index = Math.floor(secureRandom() * validatedQuestions.length);
     return validatedQuestions[index]!;
   }
