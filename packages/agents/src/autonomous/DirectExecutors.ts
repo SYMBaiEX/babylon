@@ -457,7 +457,8 @@ export interface DirectRepostResult {
 
 /**
  * Execute a trade directly without LLM decision-making.
- * Validates balance - cannot trade more than you have.
+ * Validates balance for entry trades; exit trades (sell_yes/sell_no/close_position)
+ * can close positions even when balance is $0.
  */
 export async function executeDirectTrade(
   params: DirectTradeParams
@@ -465,11 +466,23 @@ export async function executeDirectTrade(
   const { agentUserId, marketType, marketId, side, reasoning } = params;
   let { amount } = params;
 
+  if (!Number.isFinite(amount)) {
+    return {
+      success: false,
+      error: 'Invalid trade amount. Must be a finite number.',
+    };
+  }
+
   // Check if this is an NPC (system-defined actor from static data files).
   // User-created agents are NOT in StaticDataRegistry, so they won't match.
   // This ensures only system NPCs skip broadcasting - user agents always broadcast.
   const npcActor = StaticDataRegistry.getActor(agentUserId);
   const isNpc = !!npcActor;
+
+  const isExitTrade =
+    (marketType === 'prediction' &&
+      (side === 'sell_yes' || side === 'sell_no')) ||
+    (marketType === 'perp' && side === 'close_position');
 
   // Get current balance
   let balance = 0;
@@ -485,39 +498,46 @@ export async function executeDirectTrade(
     balance = walletBalance.balance;
   }
 
-  const looksLikeShareCount =
-    Number.isInteger(amount) &&
-    amount >= 1 &&
-    amount <= SHARE_LIKE_MAX_INTEGER &&
-    balance > 0 &&
-    amount / balance < SHARE_LIKE_RATIO_THRESHOLD;
-  if (looksLikeShareCount) {
-    logger.warn(
-      `[DirectExecutor] Trade amount $${amount.toFixed(
-        2
-      )} looks like a share count relative to $${balance.toFixed(
-        2
-      )} balance. Expected Babylon Points.`,
-      { agentUserId, marketType, side, balance },
-      'DirectExecutors'
-    );
-  }
+  if (!isExitTrade) {
+    const looksLikeShareCount =
+      Number.isInteger(amount) &&
+      amount >= 1 &&
+      amount <= SHARE_LIKE_MAX_INTEGER &&
+      balance > 0 &&
+      amount / balance < SHARE_LIKE_RATIO_THRESHOLD;
+    if (looksLikeShareCount) {
+      logger.warn(
+        `[DirectExecutor] Trade amount $${amount.toFixed(
+          2
+        )} looks like a share count relative to $${balance.toFixed(
+          2
+        )} balance. Expected Babylon Points.`,
+        { agentUserId, marketType, side, balance },
+        'DirectExecutors'
+      );
+    }
 
-  // Cannot trade more than balance
-  if (amount > balance) {
-    logger.warn(
-      `[DirectExecutor] Trade capped to balance: $${amount} -> $${balance}`,
-      { agentUserId, isNpc },
-      'DirectExecutors'
-    );
-    amount = balance;
-  }
+    // Cannot trade more than balance
+    if (amount > balance) {
+      logger.warn(
+        `[DirectExecutor] Trade capped to balance: $${amount} -> $${balance}`,
+        { agentUserId, isNpc },
+        'DirectExecutors'
+      );
+      amount = balance;
+    }
 
-  // Reject if insufficient funds
-  if (amount < 1) {
+    // Reject if insufficient funds
+    if (amount < 1) {
+      return {
+        success: false,
+        error: `Insufficient balance: $${balance.toFixed(2)}`,
+      };
+    }
+  } else if (amount < 0) {
     return {
       success: false,
-      error: `Insufficient balance: $${balance.toFixed(2)}`,
+      error: 'Amount must be 0 or greater for exit trades',
     };
   }
 
