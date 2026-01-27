@@ -273,7 +273,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Check for gaps in data
   // Calculate expected snapshots based on granularity
-  const expectedSnapshots = granularity === 'hourly' ? daysDiff * 24 : daysDiff;
+  // For hourly: calculate actual hours in range (not daysDiff * 24, which overestimates sub-day ranges)
+  const hoursDiff = Math.max(
+    1,
+    Math.ceil((endDate.getTime() - startDate.getTime()) / (60 * 60 * 1000))
+  );
+  const expectedSnapshots = granularity === 'hourly' ? hoursDiff : daysDiff;
 
   // Handle edge cases: division by zero, exceeding 100%
   let coverage: number;

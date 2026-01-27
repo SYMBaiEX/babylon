@@ -248,6 +248,7 @@ async function collectMetrics(snapshotTime: Date) {
   // Note: Drizzle's $queryRaw uses tagged template literals for safe parameterization.
   // The syntax `${value}::timestamp` produces `$1::timestamp` with the value bound separately,
   // NOT string concatenation. This is safe from SQL injection.
+  const snapshotTimeStr = snapshotTime.toISOString();
   const oneHourAgoStr = new Date(
     snapshotTime.getTime() - 60 * 60 * 1000
   ).toISOString();
@@ -256,6 +257,8 @@ async function collectMetrics(snapshotTime: Date) {
   ).toISOString();
 
   // Run all queries in parallel for efficiency
+  // All time-filtered queries use both lower bound (>= oneHourAgo/oneDayAgo) AND
+  // upper bound (< snapshotTime) to prevent overlap if cron job runs late
   const [
     userStats,
     activeUserStats,
@@ -270,7 +273,10 @@ async function collectMetrics(snapshotTime: Date) {
     }>`
         SELECT 
           COUNT(*)::text as total,
-          COUNT(*) FILTER (WHERE "createdAt" >= ${oneHourAgoStr}::timestamp)::text as "newSignups"
+          COUNT(*) FILTER (
+            WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+            AND "createdAt" < ${snapshotTimeStr}::timestamp
+          )::text as "newSignups"
         FROM "User"
         WHERE "isActor" = false
       `,
@@ -281,12 +287,15 @@ async function collectMetrics(snapshotTime: Date) {
         SELECT COUNT(DISTINCT user_id)::text as active FROM (
           SELECT "authorId" as user_id FROM "Post" 
             WHERE "createdAt" >= ${oneDayAgoStr}::timestamp
+            AND "createdAt" < ${snapshotTimeStr}::timestamp
           UNION
           SELECT "authorId" as user_id FROM "Comment" 
             WHERE "createdAt" >= ${oneDayAgoStr}::timestamp
+            AND "createdAt" < ${snapshotTimeStr}::timestamp
           UNION
           SELECT "userId" as user_id FROM "BalanceTransaction" 
             WHERE "createdAt" >= ${oneDayAgoStr}::timestamp
+            AND "createdAt" < ${snapshotTimeStr}::timestamp
         ) active_users
       `,
 
@@ -302,6 +311,7 @@ async function collectMetrics(snapshotTime: Date) {
           COALESCE(
             (SELECT ABS(SUM(amount::numeric)) FROM "BalanceTransaction" 
              WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+             AND "createdAt" < ${snapshotTimeStr}::timestamp
              AND type IN ('prediction_buy', 'prediction_sell')), 0
           )::text as volume,
           (SELECT COUNT(*) FROM "Market" WHERE resolved = false)::text as "activeMarkets",
@@ -309,6 +319,7 @@ async function collectMetrics(snapshotTime: Date) {
           COALESCE(
             (SELECT ABS(SUM(amount::numeric)) FROM "BalanceTransaction" 
              WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+             AND "createdAt" < ${snapshotTimeStr}::timestamp
              AND type IN ('perp_open', 'perp_close')), 0
           )::text as "perpVolume",
           (SELECT COUNT(*) FROM "PerpPosition" WHERE "closedAt" IS NULL)::text as "activePerpPositions"
@@ -321,9 +332,15 @@ async function collectMetrics(snapshotTime: Date) {
       reactions: string;
     }>`
         SELECT
-          (SELECT COUNT(*) FROM "Post" WHERE "createdAt" >= ${oneHourAgoStr}::timestamp)::text as posts,
-          (SELECT COUNT(*) FROM "Comment" WHERE "createdAt" >= ${oneHourAgoStr}::timestamp)::text as comments,
-          (SELECT COUNT(*) FROM "Reaction" WHERE "createdAt" >= ${oneHourAgoStr}::timestamp)::text as reactions
+          (SELECT COUNT(*) FROM "Post" 
+           WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+           AND "createdAt" < ${snapshotTimeStr}::timestamp)::text as posts,
+          (SELECT COUNT(*) FROM "Comment" 
+           WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+           AND "createdAt" < ${snapshotTimeStr}::timestamp)::text as comments,
+          (SELECT COUNT(*) FROM "Reaction" 
+           WHERE "createdAt" >= ${oneHourAgoStr}::timestamp 
+           AND "createdAt" < ${snapshotTimeStr}::timestamp)::text as reactions
       `,
 
     // Financial metrics
@@ -335,7 +352,8 @@ async function collectMetrics(snapshotTime: Date) {
           COALESCE(SUM("virtualBalance"::numeric), 0)::text as "totalBalance",
           COALESCE(
             (SELECT SUM("feeAmount"::numeric) FROM "TradingFee" 
-             WHERE "createdAt" >= ${oneHourAgoStr}::timestamp), 0
+             WHERE "createdAt" >= ${oneHourAgoStr}::timestamp
+             AND "createdAt" < ${snapshotTimeStr}::timestamp), 0
           )::text as "feesCollected"
         FROM "User"
         WHERE "isActor" = false
@@ -376,12 +394,18 @@ async function collectMetrics(snapshotTime: Date) {
  *
  * Uses cronMetrics.getDashboardMetrics() for cron job stats
  * and a simple SELECT 1 query for database health check.
+ *
+ * NOTE: Current metrics are placeholders. For production monitoring:
+ * - Integrate with Vercel Analytics or external APM for real uptime/response metrics
+ * - See TODOs below for specific improvements needed
  */
 async function collectSystemHealth() {
   // Get cron job stats from in-memory metrics
   const cronStats = cronMetrics.getDashboardMetrics();
 
   // Database health check with uptime tracking
+  // TODO: apiUptime is a point-in-time DB connectivity check (100.0 = responding, 0.0 = down).
+  // For true API uptime monitoring, integrate with Vercel Analytics or external APM.
   let apiUptime = 100.0;
   let avgResponseTime = 0;
   let errorRate = 0;
@@ -389,7 +413,8 @@ async function collectSystemHealth() {
 
   const healthStart = Date.now();
   try {
-    // Simple health check - verify DB responds
+    // TODO: avgResponseTime only measures DB ping latency at snapshot time, not actual API response times.
+    // For representative API response metrics, aggregate from request logs or APM (e.g., Vercel Analytics).
     await db.$queryRaw`SELECT 1`;
     avgResponseTime = Date.now() - healthStart;
     // DB responded successfully = uptime maintained at 100%
@@ -410,9 +435,8 @@ async function collectSystemHealth() {
     );
   }
 
-  // Calculate error rate from cron metrics (if we have data)
-  // This reflects cron job errors, not API errors
-  // errorRate = 100 - successRate (e.g., 95% success = 5% error rate)
+  // TODO: errorRate reflects cron job errors (from cronStats.summary.overallSuccessRate), not API errors.
+  // For actual API error rate, integrate with request logs or APM that tracks HTTP 4xx/5xx responses.
   if (cronStats.summary.totalExecutions > 0) {
     errorRate = 100 - cronStats.summary.overallSuccessRate;
   }
