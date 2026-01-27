@@ -218,12 +218,9 @@ export default function TeamChatPage() {
   // Handle sidebar "View Profile" - switch to Agents tab and show detail
   const handleViewProfile = useCallback(
     (agentId: string) => {
-      setActiveTab('agents');
-      setShowCreateAgent(false);
-      setSelectedAgentDefaultTab('activity');
-      fetchAgentDetail(agentId);
+      router.push(`/profile/${agentId}`);
     },
-    [fetchAgentDetail]
+    [router]
   );
 
   // Handle sidebar "Settings" - switch to Agents tab and show detail with Settings tab
