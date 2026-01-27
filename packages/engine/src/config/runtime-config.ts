@@ -54,13 +54,14 @@ export const BLOCKCHAIN_CONFIG = {
   isConfigured: () => !!deployerPrivateKey,
 } as const;
 
-// Cache nodeEnv once and derive all flags from the cached value
+// Cache nodeEnv and bunEnv once and derive all flags from cached values
 const nodeEnv = process.env.NODE_ENV || 'development';
+const bunEnv = process.env.BUN_ENV;
 
 export const ENV_CONFIG = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
-  isTest: nodeEnv === 'test' || process.env.BUN_ENV === 'test',
+  isTest: nodeEnv === 'test' || bunEnv === 'test',
   isDevelopment: nodeEnv === 'development',
 } as const;
 
