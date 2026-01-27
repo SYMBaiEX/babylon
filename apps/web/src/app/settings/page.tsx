@@ -1,18 +1,35 @@
 'use client';
 
 import { cn, logger } from '@babylon/shared';
-import { ArrowLeft, Key, Palette, Save, Shield, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  Key,
+  Palette,
+  Receipt,
+  Save,
+  Shield,
+  User,
+} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
+import { BillingTab } from '@/components/settings/BillingTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+
+/**
+ * Check if billing feature is enabled
+ * Feature flag: NEXT_PUBLIC_BILLING_ENABLED
+ */
+function isBillingEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -51,6 +68,33 @@ export default function SettingsPage() {
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+
+  // Check if billing is enabled via feature flag
+  // Must be before any early returns to satisfy Rules of Hooks
+  const billingEnabled = isBillingEnabled();
+
+  // Build tabs array - billing is feature-flagged
+  // Must be before any early returns to satisfy Rules of Hooks
+  const tabs = useMemo(() => {
+    const baseTabs = [
+      { id: 'profile', label: 'Profile', icon: User },
+      { id: 'theme', label: 'Theme', icon: Palette },
+    ];
+
+    // Add billing tab if feature flag is enabled
+    if (billingEnabled) {
+      baseTabs.push({ id: 'billing', label: 'Billing', icon: Receipt });
+    }
+
+    // Add remaining tabs
+    baseTabs.push(
+      { id: 'security', label: 'Security', icon: Shield },
+      { id: 'privacy', label: 'Privacy', icon: Shield },
+      { id: 'api', label: 'API Keys', icon: Key }
+    );
+
+    return baseTabs;
+  }, [billingEnabled]);
 
   // Wait for hydration to avoid SSR mismatch
   useEffect(() => {
@@ -212,14 +256,6 @@ export default function SettingsPage() {
     );
   }
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'theme', label: 'Theme', icon: Palette },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'privacy', label: 'Privacy', icon: Shield },
-    { id: 'api', label: 'API Keys', icon: Key },
-  ];
-
   return (
     <PageContainer>
       <div className="mx-auto max-w-4xl pb-24">
@@ -369,6 +405,9 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Billing Tab - Feature Flagged */}
+          {activeTab === 'billing' && billingEnabled && <BillingTab />}
 
           {/* Security Tab */}
           {activeTab === 'security' && <SecurityTab />}
