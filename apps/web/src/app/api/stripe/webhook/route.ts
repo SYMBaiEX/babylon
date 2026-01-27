@@ -254,7 +254,10 @@ async function handleCheckoutSessionCompleted(
         'StripeWebhook'
       );
       // Return failure so Stripe retries the webhook
-      return { success: false, error: `Failed to retrieve session: ${message}` };
+      return {
+        success: false,
+        error: `Failed to retrieve session: ${message}`,
+      };
     }
   }
 

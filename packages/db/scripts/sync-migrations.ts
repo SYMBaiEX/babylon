@@ -46,7 +46,10 @@ async function main() {
   }
 
   // Read the journal file
-  const journalPath = join(__dirname, '../drizzle/migrations/meta/_journal.json');
+  const journalPath = join(
+    __dirname,
+    '../drizzle/migrations/meta/_journal.json'
+  );
   const journalContent = readFileSync(journalPath, 'utf-8');
   const journal: Journal = JSON.parse(journalContent);
 
