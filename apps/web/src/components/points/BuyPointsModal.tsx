@@ -5,8 +5,10 @@ import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
   CheckCircle2,
+  CreditCard,
   DollarSign,
   Sparkles,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -17,19 +19,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useWalletFunding } from '@/hooks/useWalletFunding';
 import { getAuthToken } from '@/lib/auth';
+import { isStripeEnabled } from '@/lib/stripe';
 
 /**
- * Buy points modal component for purchasing points with ETH.
+ * Buy points modal component for purchasing points with ETH or credit card.
  *
- * Provides a multi-step payment flow for buying points using ETH from
- * smart wallet. Handles wallet funding, payment processing, and point
- * award verification. Includes balance checking and automatic wallet
- * funding if needed.
+ * Provides a multi-step payment flow for buying points using either:
+ * - ETH from smart wallet (crypto)
+ * - Credit card via Stripe Checkout
  *
  * Features:
+ * - Payment method selection (crypto vs card)
  * - USD amount input
- * - ETH conversion
+ * - ETH conversion (for crypto)
  * - Smart wallet funding (if needed)
+ * - Stripe Checkout redirect (for card)
  * - Payment processing
  * - Point award verification
  * - Multi-step flow (input → payment → verifying → success/error)
@@ -62,6 +66,11 @@ interface BuyPointsModalProps {
 type PaymentStep = 'input' | 'payment' | 'verifying' | 'success' | 'error';
 
 /**
+ * Payment method type.
+ */
+type PaymentMethod = 'crypto' | 'stripe';
+
+/**
  * Payment request structure for point purchase.
  */
 interface PaymentRequest {
@@ -88,6 +97,53 @@ export function BuyPointsModal({
   const [error, setError] = useState<string | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
   const [walletInitializing, setWalletInitializing] = useState(false);
+
+  // Check if Stripe is available
+  const stripeAvailable = isStripeEnabled();
+
+  // Debug: Log payment options state
+  useEffect(() => {
+    console.log('[BuyPointsModal] Payment options:', {
+      stripeAvailable,
+      smartWalletAddress: !!smartWalletAddress,
+      user: !!user,
+      smartWalletReady,
+    });
+  }, [stripeAvailable, smartWalletAddress, user, smartWalletReady]);
+
+  // Determine available payment methods
+  const canUseCrypto = !!smartWalletAddress;
+  const canUseStripe = stripeAvailable;
+  const hasAnyPaymentMethod = canUseCrypto || canUseStripe;
+
+  // Track if user has manually selected a payment method
+  const [userSelectedMethod, setUserSelectedMethod] = useState(false);
+
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => {
+    // Default to Stripe if available and user has no wallet, otherwise crypto
+    if (stripeAvailable && !smartWalletAddress) {
+      return 'stripe';
+    }
+    return 'crypto';
+  });
+
+  // Handle user selecting a payment method
+  const handlePaymentMethodChange = (method: PaymentMethod) => {
+    setUserSelectedMethod(true);
+    setPaymentMethod(method);
+  };
+
+  // Only auto-switch if user hasn't manually selected AND no payment methods available
+  // Don't auto-switch away from user's choice - let them see the "no wallet" message
+  useEffect(() => {
+    // Only auto-switch on initial mount if user hasn't made a selection
+    if (!userSelectedMethod) {
+      // If currently on crypto but no wallet, switch to stripe if available
+      if (paymentMethod === 'crypto' && !canUseCrypto && canUseStripe) {
+        setPaymentMethod('stripe');
+      }
+    }
+  }, [canUseCrypto, canUseStripe, paymentMethod, userSelectedMethod]);
 
   // AbortController for canceling async operations
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -130,6 +186,9 @@ export function BuyPointsModal({
           setError(null);
           setPointsAwarded(0);
           setWalletInitializing(false);
+          // Reset payment method selection - stripe preferred if available
+          setPaymentMethod(stripeAvailable ? 'stripe' : 'crypto');
+          setUserSelectedMethod(false);
         }
       }, 300);
 
@@ -137,7 +196,7 @@ export function BuyPointsModal({
       return () => clearTimeout(timeoutId);
     }
     return undefined;
-  }, [isOpen]);
+  }, [isOpen, stripeAvailable]);
 
   // Handle escape key and body scroll lock
   useEffect(() => {
@@ -233,6 +292,69 @@ export function BuyPointsModal({
         { once: true }
       );
     });
+  };
+
+  /**
+   * Handle Stripe Checkout - redirects to Stripe hosted checkout
+   */
+  const handleStripeCheckout = async () => {
+    if (!user) {
+      toast.error('Please sign in to continue');
+      return;
+    }
+
+    if (amountNum < 1) {
+      toast.error('Minimum purchase is $1');
+      return;
+    }
+
+    if (amountNum > 1000) {
+      toast.error('Maximum purchase is $1000');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const token = await getAccessToken();
+
+    if (!token) {
+      logger.error('Authentication required', undefined, 'BuyPointsModal');
+      setError('Authentication required');
+      setStep('error');
+      toast.error('Please sign in to continue');
+      setLoading(false);
+      return;
+    }
+
+    const response = await fetch('/api/stripe/checkout/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amountUSD: amountNum }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || 'Failed to create checkout session';
+      logger.error(
+        'Failed to create Stripe checkout',
+        { error: errorMessage },
+        'BuyPointsModal'
+      );
+      setError(errorMessage);
+      setStep('error');
+      toast.error('Failed to start checkout');
+      setLoading(false);
+      return;
+    }
+
+    // Redirect to Stripe Checkout
+    // Points will be credited via webhook after successful payment
+    window.location.href = data.url;
   };
 
   const handleCreatePayment = async () => {
@@ -425,13 +547,13 @@ export function BuyPointsModal({
         paymentRequest,
         signal
       );
-    } catch (error) {
+    } catch (err) {
       // Don't show error if operation was cancelled
-      if (error instanceof Error && error.message === 'Operation cancelled') {
+      if (err instanceof Error && err.message === 'Operation cancelled') {
         setLoading(false);
         return;
       }
-      throw error;
+      throw err;
     }
   };
 
@@ -538,12 +660,57 @@ export function BuyPointsModal({
     onClose();
   };
 
+  const handleSubmit = () => {
+    if (paymentMethod === 'stripe') {
+      handleStripeCheckout();
+    } else {
+      handleCreatePayment();
+    }
+  };
+
   const renderContent = () => {
     switch (step) {
       case 'input':
         return (
           <>
             <div className="space-y-4">
+              {/* Payment Method Selector */}
+              {stripeAvailable && (
+                <div>
+                  <label className="mb-2 block font-medium text-sm">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handlePaymentMethodChange('crypto')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-lg border px-4 py-3 transition-colors',
+                        paymentMethod === 'crypto'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-sidebar hover:border-primary/50'
+                      )}
+                      disabled={loading}
+                    >
+                      <Wallet className="h-4 w-4" />
+                      <span className="font-medium text-sm">Crypto</span>
+                    </button>
+                    <button
+                      onClick={() => handlePaymentMethodChange('stripe')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-lg border px-4 py-3 transition-colors',
+                        paymentMethod === 'stripe'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-sidebar hover:border-primary/50'
+                      )}
+                      disabled={loading}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      <span className="font-medium text-sm">Card</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Amount Input */}
               <div>
                 <label className="mb-2 block font-medium text-sm">
@@ -553,12 +720,25 @@ export function BuyPointsModal({
                   <DollarSign className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
                   <input
                     data-testid="points-amount-input"
-                    type="number"
-                    min="1"
-                    max="1000"
-                    step="1"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={amountUSD}
-                    onChange={(e) => setAmountUSD(e.target.value)}
+                    onChange={(e) => {
+                      // Only allow digits, filter out everything else
+                      const sanitized = e.target.value.replace(/[^0-9]/g, '');
+                      // Remove leading zeros (except for empty string)
+                      const noLeadingZeros = sanitized.replace(/^0+/, '') || '';
+                      // Clamp to max 1000
+                      const num = parseInt(noLeadingZeros, 10);
+                      if (noLeadingZeros === '' || isNaN(num)) {
+                        setAmountUSD('');
+                      } else if (num > 1000) {
+                        setAmountUSD('1000');
+                      } else {
+                        setAmountUSD(noLeadingZeros);
+                      }
+                    }}
                     className="w-full rounded-lg border border-border bg-sidebar py-3 pr-4 pl-10 focus:border-border focus:outline-none"
                     placeholder="10"
                     disabled={loading}
@@ -612,6 +792,41 @@ export function BuyPointsModal({
                 </div>
               </div>
 
+              {/* Crypto selected but no wallet */}
+              {paymentMethod === 'crypto' && !canUseCrypto && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+                  <div className="flex items-start gap-2">
+                    <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    <div className="text-amber-700 text-xs dark:text-amber-300">
+                      <p className="mb-1 font-medium">Wallet not connected</p>
+                      <p>
+                        {smartWalletReady
+                          ? 'No wallet found. Please connect a wallet to pay with crypto.'
+                          : 'Your wallet is still initializing. Please wait a moment or switch to card payment.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No Payment Methods Warning */}
+              {!hasAnyPaymentMethod && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                    <div className="text-red-700 text-xs dark:text-red-300">
+                      <p className="mb-1 font-medium">
+                        No payment methods available
+                      </p>
+                      <p>
+                        Your wallet is still initializing. Please wait a moment
+                        and try again.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Info Box */}
               <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
                 <div className="flex items-start gap-2">
@@ -627,6 +842,24 @@ export function BuyPointsModal({
                   </div>
                 </div>
               </div>
+
+              {/* Stripe Info */}
+              {paymentMethod === 'stripe' && (
+                <div className="rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
+                  <div className="flex items-start gap-2">
+                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-purple-500" />
+                    <div className="text-purple-700 text-xs dark:text-purple-300">
+                      <p className="mb-1 font-medium">
+                        Secure checkout via Stripe
+                      </p>
+                      <p>
+                        You'll be redirected to Stripe to complete your payment
+                        securely. Points will be credited immediately.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -640,24 +873,33 @@ export function BuyPointsModal({
               </button>
               <button
                 data-testid="buy-points-submit-button"
-                onClick={handleCreatePayment}
+                onClick={handleSubmit}
                 disabled={
                   loading ||
                   walletInitializing ||
                   amountNum < 1 ||
-                  amountNum > 1000
+                  amountNum > 1000 ||
+                  !user ||
+                  !hasAnyPaymentMethod ||
+                  (paymentMethod === 'crypto' && !canUseCrypto) ||
+                  (paymentMethod === 'stripe' && !canUseStripe)
                 }
                 className={cn(
-                  'flex-1 rounded-lg px-4 py-3 font-medium transition-colors',
+                  'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition-colors',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
                   'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
+                {paymentMethod === 'stripe' ? (
+                  <CreditCard className="h-4 w-4" />
+                ) : (
+                  <Wallet className="h-4 w-4" />
+                )}
                 {walletInitializing
                   ? 'Initializing wallet...'
                   : loading
                     ? 'Processing...'
-                    : `Buy ${pointsAmount} Points`}
+                    : `Buy ${pointsAmount.toLocaleString()} Points`}
               </button>
             </div>
           </>

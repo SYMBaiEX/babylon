@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
@@ -100,6 +101,32 @@ export default function MarketsPage() {
       });
     }
   }, [searchParams]);
+
+  // Handle Stripe Checkout success/cancel redirects
+  // When user returns from Stripe, show appropriate toast and clean URL
+  useEffect(() => {
+    const stripeSuccess = searchParams.get('stripe_success');
+    const stripeCancelled = searchParams.get('stripe_cancelled');
+
+    if (stripeSuccess === 'true') {
+      // Payment successful - points credited via webhook
+      toast.success('Payment successful! Your points have been credited.', {
+        duration: 5000,
+      });
+      // Clean up URL params after showing toast
+      const url = new URL(window.location.href);
+      url.searchParams.delete('stripe_success');
+      url.searchParams.delete('session_id');
+      router.replace(url.pathname + url.search, { scroll: false });
+    } else if (stripeCancelled === 'true') {
+      // User cancelled checkout
+      toast.info('Checkout cancelled. No payment was made.');
+      // Clean up URL params
+      const url = new URL(window.location.href);
+      url.searchParams.delete('stripe_cancelled');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Handle tab change with URL update - uses startTransition for smooth UX
   const handleTabChange = useCallback(
