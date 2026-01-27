@@ -213,6 +213,23 @@ async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   eventId: string
 ): Promise<WebhookHandlerResult> {
+  // Check payment status first - for async payment methods (bank debits, SEPA, etc.),
+  // checkout.session.completed may fire before payment is actually confirmed.
+  // We should only credit points when payment_status is 'paid'.
+  // For async methods, checkout.session.async_payment_succeeded will fire when paid.
+  if (session.payment_status !== 'paid') {
+    logger.info(
+      'Checkout session completed but payment not yet confirmed, waiting for async_payment_succeeded',
+      {
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+      },
+      'StripeWebhook'
+    );
+    // Return success - don't retry, async_payment_succeeded will fire when paid
+    return { success: true };
+  }
+
   // Retrieve the full session to ensure we have all metadata
   // Webhook events may not include all fields
   let fullSession = session;

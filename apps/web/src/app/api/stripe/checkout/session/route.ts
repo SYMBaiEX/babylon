@@ -108,7 +108,16 @@ export async function POST(req: NextRequest) {
   const userId = authUser.dbUserId;
   const userEmail = authUser.email;
 
-  const body: CreateCheckoutSessionBody = await req.json();
+  // Parse request body with error handling for malformed JSON
+  let body: CreateCheckoutSessionBody;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, error: 'Invalid JSON body' },
+      { status: 400 }
+    );
+  }
   const { amountUSD } = body;
 
   // Validate amount

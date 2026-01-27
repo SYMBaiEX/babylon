@@ -857,7 +857,8 @@ export function BuyPointsModal({
                       </p>
                       <p>
                         You'll be redirected to Stripe to complete your payment
-                        securely. Points will be credited immediately.
+                        securely. Points will be credited after payment
+                        confirmation.
                       </p>
                     </div>
                   </div>

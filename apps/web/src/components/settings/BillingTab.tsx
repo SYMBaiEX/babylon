@@ -55,6 +55,7 @@ function getReasonLabel(reason: string): string {
     purchase_refund: 'Refund',
     purchase_dispute: 'Dispute Deduction',
     purchase_dispute_won: 'Dispute Won (Re-credited)',
+    trading_pnl: 'Trading P&L',
     transfer_sent: 'Points Sent',
     transfer_received: 'Points Received',
     referral_signup: 'Referral Bonus',
@@ -106,6 +107,11 @@ function getPaymentProviderLabel(provider: string | null): string {
 function PurchaseTransactionRow({ tx }: { tx: PointsTransaction }) {
   const isPurchase = tx.reason === 'purchase';
   const isPositive = tx.amount > 0;
+  // Pre-compute explorer URL to avoid duplicate function calls
+  const explorerUrl =
+    tx.paymentTxHash && tx.paymentProvider === 'crypto'
+      ? getExplorerTxUrl(tx.paymentTxHash)
+      : null;
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/30 p-4 transition-all hover:bg-muted/50">
@@ -150,19 +156,17 @@ function PurchaseTransactionRow({ tx }: { tx: PointsTransaction }) {
               Paid: ${parseFloat(tx.paymentAmount).toFixed(2)} USD
             </div>
           )}
-          {tx.paymentTxHash &&
-            tx.paymentProvider === 'crypto' &&
-            getExplorerTxUrl(tx.paymentTxHash) && (
-              <a
-                href={getExplorerTxUrl(tx.paymentTxHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-[#0066FF] text-xs hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                View on {getExplorerName()}
-              </a>
-            )}
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-[#0066FF] text-xs hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />
+              View on {getExplorerName()}
+            </a>
+          )}
         </div>
       </div>
       <div className="shrink-0 text-right">
@@ -386,30 +390,27 @@ export function BillingTab() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Reasons considered purchase-related for billing display
+  const PURCHASE_REASONS = [
+    'purchase',
+    'purchase_refund',
+    'purchase_dispute',
+    'purchase_dispute_won',
+  ] as const;
+
   // Filter to only show purchase-related transactions
   const purchaseTransactions = transactions.filter((tx) =>
-    [
-      'purchase',
-      'purchase_refund',
-      'purchase_dispute',
-      'purchase_dispute_won',
-    ].includes(tx.reason)
+    PURCHASE_REASONS.includes(tx.reason as (typeof PURCHASE_REASONS)[number])
   );
 
   // All other transactions
   const otherTransactions = transactions.filter(
     (tx) =>
-      ![
-        'purchase',
-        'purchase_refund',
-        'purchase_dispute',
-        'purchase_dispute_won',
-      ].includes(tx.reason)
+      !PURCHASE_REASONS.includes(tx.reason as (typeof PURCHASE_REASONS)[number])
   );
 
   const handleBuyPointsSuccess = async () => {
-    await refreshBalance();
-    await fetchTransactions();
+    await Promise.all([refreshBalance(), fetchTransactions()]);
   };
 
   return (
