@@ -155,11 +155,20 @@ describe('Stripe Server Helpers', () => {
       expect(result).toBe('http://localhost:3001');
     });
 
-    it('should use requestOrigin if STRIPE_REDIRECT_BASE_URL not set', () => {
+    it('should use requestOrigin if in allowlist and STRIPE_REDIRECT_BASE_URL not set', () => {
       process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
 
-      const result = getBaseUrl('https://request-origin.com');
-      expect(result).toBe('https://request-origin.com');
+      // Use an origin from the allowlist (localhost:3000)
+      const result = getBaseUrl('http://localhost:3000');
+      expect(result).toBe('http://localhost:3000');
+    });
+
+    it('should reject untrusted origins and fall back to NEXT_PUBLIC_APP_URL', () => {
+      process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
+
+      // Untrusted origin should be rejected for security
+      const result = getBaseUrl('https://malicious-site.com');
+      expect(result).toBe('https://app.example.com');
     });
 
     it('should fall back to NEXT_PUBLIC_APP_URL if no requestOrigin', () => {
