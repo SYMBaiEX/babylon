@@ -203,6 +203,8 @@ class TrainingOrchestrator:
         use_flash_attention: bool = False,
         vllm_gpu: Optional[str] = None,  # Explicit GPU assignment for vLLM
         training_gpu: Optional[str] = None,  # Explicit GPU assignment for training
+        # HuggingFace dataset source
+        hf_dataset: Optional[str] = None,
     ):
         self.model_name = model_name
         self.training_steps = training_steps
@@ -239,6 +241,8 @@ class TrainingOrchestrator:
         self.use_flash_attention = use_flash_attention
         self.vllm_gpu = vllm_gpu
         self.training_gpu = training_gpu
+        # HuggingFace dataset source
+        self.hf_dataset = hf_dataset
         
         self.env_process: Optional[subprocess.Popen] = None
         self.trainer_process: Optional[subprocess.Popen] = None
@@ -395,12 +399,21 @@ class TrainingOrchestrator:
         log_handle = open(log_file, "w")
         self._log_handles.append(log_handle)
         
+        # Set up environment variables
+        env_vars = os.environ.copy()
+        
+        # If HF dataset is specified, use it instead of database
+        if self.hf_dataset:
+            env_vars["TRAJECTORY_SOURCE"] = "huggingface"
+            env_vars["HF_TRAJECTORY_DATASET"] = self.hf_dataset
+            logger.info(f"Using HuggingFace dataset: {self.hf_dataset}")
+        
         self.env_process = subprocess.Popen(
             env_cmd,
             cwd=str(Path(__file__).parent.parent),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
-            env=os.environ.copy(),  # Pass environment variables including DATABASE_URL
+            env=env_vars,
         )
         
         time.sleep(5)  # Wait for environment to initialize
@@ -887,6 +900,13 @@ def main():
         help="Maximum steps to include from each trajectory"
     )
     
+    # HuggingFace dataset source
+    parser.add_argument(
+        "--hf-dataset",
+        default=None,
+        help="HuggingFace dataset to use instead of database (e.g., elizaos/enkidu-trajectories-test)"
+    )
+    
     # Training Mode (Phase 3)
     parser.add_argument(
         "--mode",
@@ -996,6 +1016,8 @@ def main():
         use_flash_attention=args.use_flash_attention,
         vllm_gpu=args.vllm_gpu,
         training_gpu=args.training_gpu,
+        # HuggingFace dataset source
+        hf_dataset=args.hf_dataset,
     )
     
     sys.exit(orchestrator.run())
