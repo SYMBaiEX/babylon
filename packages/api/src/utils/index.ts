@@ -6,10 +6,6 @@
  */
 
 export {
-  type DeploymentEnvironment,
-  getDeploymentEnvironment,
-} from './environment';
-export {
   clearApiKeyCache,
   generateApiKey,
   generateTestApiKey,
@@ -28,6 +24,10 @@ export {
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
 } from './duplicate-detector';
+export {
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
+} from './environment';
 export {
   getClientIp,
   getHashedClientIp,
