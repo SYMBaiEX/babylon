@@ -397,119 +397,122 @@ export default function MarketsPage() {
       noPadding
       className="flex h-[calc(100vh-theme(spacing.16))] flex-col"
     >
-      {/* Desktop Layout (Terminal) */}
-      <div className="hidden flex-1 overflow-hidden bg-background/20 xl:flex">
-        {activeTab === 'perps' ? (
+      {activeTab === 'perps' ? (
+        <div className="flex flex-1 overflow-hidden bg-background/20">
           <PerpsTradingTerminal
             activeTab={activeTab}
             onTabChange={handleTabChange}
           />
-        ) : (
-          <>
-            {/* Left Panel: Navigation & Table */}
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-white/5 border-r">
-              {/* Header */}
-              <div className="sticky top-0 z-10 flex-shrink-0 bg-background/80 backdrop-blur-md">
-                <div className="flex items-center justify-between border-white/5 border-b px-4 py-3">
-                  <MarketsToggle
-                    activeTab={activeTab}
-                    onTabChange={handleTabChange}
-                    balance={data.portfolioPnL?.available}
-                    authenticated={data.authenticated}
-                    loading={data.portfolioLoading}
-                  />
-                  {activeTab !== 'dashboard' && (
-                    <div className="w-[300px]">
-                      <MarketsSearchInput
-                        value={data.searchQuery}
-                        onChange={data.setSearchQuery}
-                        activeTab={activeTab}
-                      />
+        </div>
+      ) : (
+        <>
+          {/* Desktop Layout (Terminal) */}
+          <div className="hidden flex-1 overflow-hidden bg-background/20 xl:flex">
+            <>
+              {/* Left Panel: Navigation & Table */}
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-white/5 border-r">
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex-shrink-0 bg-background/80 backdrop-blur-md">
+                  <div className="flex items-center justify-between border-white/5 border-b px-4 py-3">
+                    <MarketsToggle
+                      activeTab={activeTab}
+                      onTabChange={handleTabChange}
+                      balance={data.portfolioPnL?.available}
+                      authenticated={data.authenticated}
+                      loading={data.portfolioLoading}
+                    />
+                    {activeTab !== 'dashboard' && (
+                      <div className="w-[300px]">
+                        <MarketsSearchInput
+                          value={data.searchQuery}
+                          onChange={data.setSearchQuery}
+                          activeTab={activeTab}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content (Table) */}
+                <div
+                  className={`flex-1 overflow-y-auto p-4 transition-opacity duration-150 ${
+                    isPending ? 'opacity-80' : 'opacity-100'
+                  }`}
+                >
+                  {renderTabContent(false)}
+
+                  {!data.authenticated && activeTab !== 'dashboard' && (
+                    <div className="flex justify-center p-8">
+                      <LoginPrompt onLogin={data.login} />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Content (Table) */}
-              <div
-                className={`flex-1 overflow-y-auto p-4 transition-opacity duration-150 ${
-                  isPending ? 'opacity-80' : 'opacity-100'
-                }`}
-              >
-                {renderTabContent(false)}
-
-                {!data.authenticated && activeTab !== 'dashboard' && (
-                  <div className="flex justify-center p-8">
-                    <LoginPrompt onLogin={data.login} />
+              {/* Right Panel: Order Entry & Aux (Positions later) */}
+              {activeTab !== 'dashboard' && selectedMarket && (
+                <div className="flex w-[380px] flex-col border-white/5 border-l bg-background/30 backdrop-blur-sm">
+                  <OrderEntryPanel
+                    selectedMarket={selectedMarket}
+                    onTradeClick={handleOrderEntryTrade}
+                    onClose={() => setSelectedMarket(null)}
+                    className="flex-1"
+                  />
+                  {/* Positions Panel (Bottom Right) */}
+                  <div className="min-h-[250px] flex-1 overflow-hidden border-white/5 border-t bg-background/30">
+                    <PositionsPanel
+                      activeTab={activeTab}
+                      perpPositions={data.perpPositions}
+                      predictionPositions={data.predictionPositions}
+                      onPositionClosed={data.handlePositionsRefresh}
+                      onPositionSold={data.handlePositionsRefresh}
+                      className="h-full"
+                    />
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
+          </div>
 
-            {/* Right Panel: Order Entry & Aux (Positions later) */}
-            {activeTab !== 'dashboard' && selectedMarket && (
-              <div className="flex w-[380px] flex-col border-white/5 border-l bg-background/30 backdrop-blur-sm">
-                <OrderEntryPanel
-                  selectedMarket={selectedMarket}
-                  onTradeClick={handleOrderEntryTrade}
-                  onClose={() => setSelectedMarket(null)}
-                  className="flex-1"
+          {/* Mobile/Tablet Layout (Stack) */}
+          <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
+            {/* Original Mobile Header */}
+            <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+              <div className="px-3 sm:px-4">
+                <MarketsToggle
+                  activeTab={activeTab}
+                  onTabChange={handleTabChange}
+                  balance={data.portfolioPnL?.available}
+                  authenticated={data.authenticated}
+                  loading={data.portfolioLoading}
                 />
-                {/* Positions Panel (Bottom Right) */}
-                <div className="min-h-[250px] flex-1 overflow-hidden border-white/5 border-t bg-background/30">
-                  <PositionsPanel
+              </div>
+              {activeTab !== 'dashboard' && (
+                <div className="px-3 pb-3 sm:px-4">
+                  <MarketsSearchInput
+                    value={data.searchQuery}
+                    onChange={data.setSearchQuery}
                     activeTab={activeTab}
-                    perpPositions={data.perpPositions}
-                    predictionPositions={data.predictionPositions}
-                    onPositionClosed={data.handlePositionsRefresh}
-                    onPositionSold={data.handlePositionsRefresh}
-                    className="h-full"
                   />
                 </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Mobile/Tablet Layout */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-          <div className="px-3 sm:px-4">
-            <MarketsToggle
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              balance={data.portfolioPnL?.available}
-              authenticated={data.authenticated}
-              loading={data.portfolioLoading}
-            />
-          </div>
-          {activeTab !== 'dashboard' && (
-            <div className="px-3 pb-3 sm:px-4">
-              <MarketsSearchInput
-                value={data.searchQuery}
-                onChange={data.setSearchQuery}
-                activeTab={activeTab}
-              />
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Content */}
-        <div
-          className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
-            isPending ? 'opacity-80' : 'opacity-100'
-          }`}
-        >
-          {renderTabContent(true)}
-        </div>
+            {/* Content */}
+            <div
+              className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+                isPending ? 'opacity-80' : 'opacity-100'
+              }`}
+            >
+              {renderTabContent(true)}
+            </div>
 
-        {/* Login prompt for non-dashboard tabs */}
-        {!data.authenticated && activeTab !== 'dashboard' && (
-          <LoginPrompt onLogin={data.login} />
-        )}
-      </div>
+            {!data.authenticated && activeTab !== 'dashboard' && (
+              <LoginPrompt onLogin={data.login} />
+            )}
+          </div>
+        </>
+      )}
 
       {/* Lazy loaded modals */}
       {showPnLShareModal && (

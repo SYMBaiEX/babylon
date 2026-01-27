@@ -59,10 +59,29 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
     );
   }, [perpPositions, market]);
 
-  const existingPosition = useMemo(
-    () => activePositions.find((p) => !p.closedAt) ?? null,
-    [activePositions]
-  );
+  const existingPosition = useMemo(() => {
+    const openPositions = activePositions.filter((p) => !p.closedAt);
+    if (openPositions.length === 0) return null;
+
+    return openPositions.reduce<(typeof openPositions)[number]>((best, pos) => {
+      const bestTs = Number.isFinite(Date.parse(best.openedAt))
+        ? Date.parse(best.openedAt)
+        : 0;
+      const posTs = Number.isFinite(Date.parse(pos.openedAt))
+        ? Date.parse(pos.openedAt)
+        : 0;
+
+      if (posTs !== bestTs) {
+        return posTs > bestTs ? pos : best;
+      }
+
+      if (pos.size !== best.size) {
+        return pos.size > best.size ? pos : best;
+      }
+
+      return best;
+    }, openPositions[0]);
+  }, [activePositions]);
 
   const sizeNum = Number.parseFloat(size) || 0;
   const effectiveMaxLeverage = market?.maxLeverage ?? 100;
@@ -118,6 +137,21 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
       newSize: flipSize,
     };
   }, [existingPosition, market, side, sizeNum]);
+
+  const submitLabel = useMemo(() => {
+    if (submitting) return 'Processing…';
+    if (!authenticated) return 'Log In to Trade';
+    if (rebalanceInfo) {
+      const labels = {
+        add: 'ADD TO POSITION',
+        reduce: 'REDUCE POSITION',
+        close: 'CLOSE POSITION',
+        flip: 'FLIP POSITION',
+      } as const;
+      return labels[rebalanceInfo.type];
+    }
+    return `PLACE ${side.toUpperCase()} ORDER`;
+  }, [authenticated, rebalanceInfo, side, submitting]);
 
   const handleSubmit = () => {
     if (!market) return;
@@ -272,7 +306,7 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
       </div>
 
       {/* Order form */}
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
         <div className="flex items-center justify-between">
           <div className="font-semibold text-sm">Place Order</div>
           <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -397,6 +431,22 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
           )}
         </div>
 
+        {rebalanceInfo && (
+          <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-muted-foreground">
+                {rebalanceInfo.label}
+              </span>
+              <span className="font-mono text-foreground tabular-nums">
+                {formatPrice(rebalanceInfo.newSize)}
+              </span>
+            </div>
+            <div className="mt-1 text-[10px] text-muted-foreground">
+              {rebalanceInfo.description}
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={handleSubmit}
@@ -410,11 +460,7 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
               'cursor-not-allowed opacity-50'
           )}
         >
-          {submitting
-            ? 'Processing…'
-            : !authenticated
-              ? 'Log In to Trade'
-              : `PLACE ${side.toUpperCase()} ORDER`}
+          {submitLabel}
         </button>
       </div>
 
