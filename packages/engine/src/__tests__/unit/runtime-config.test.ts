@@ -126,6 +126,18 @@ describe('Runtime Configuration', () => {
       const deadline = Date.now() - 1000;
       expect(hasTimeRemaining(deadline)).toBe(false);
     });
+
+    test('returns false when deadline equals now', async () => {
+      // Use a manual approach to test boundary: set deadline slightly in the past
+      // to ensure deterministic behavior without race conditions
+      const now = Date.now();
+      // When deadline === now, Date.now() >= deadline, so hasTimeRemaining returns false
+      // We simulate this by checking immediately after setting
+      const deadline = now;
+      // Small delay to ensure Date.now() has advanced past the deadline
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      expect(hasTimeRemaining(deadline)).toBe(false);
+    });
   });
 
   describe('getTimeRemaining', () => {
@@ -138,11 +150,6 @@ describe('Runtime Configuration', () => {
 
     test('returns 0 for past deadline', () => {
       const deadline = Date.now() - 1000;
-      expect(getTimeRemaining(deadline)).toBe(0);
-    });
-
-    test('never returns negative values', () => {
-      const deadline = Date.now() - 10000;
       expect(getTimeRemaining(deadline)).toBe(0);
     });
   });

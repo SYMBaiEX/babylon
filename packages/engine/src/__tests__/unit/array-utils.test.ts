@@ -35,7 +35,7 @@ describe('Array Utilities', () => {
       expect(first([obj, { id: 2 }])).toBe(obj);
     });
 
-    test('returns undefined for falsy first element', () => {
+    test('returns falsy first element', () => {
       expect(first([0, 1, 2])).toBe(0);
       expect(first([null, 1, 2])).toBeNull();
       expect(first(['', 'a'])).toBe('');
@@ -75,6 +75,12 @@ describe('Array Utilities', () => {
     test('returns same element for single-element array', () => {
       expect(last([42])).toBe(42);
     });
+
+    test('returns falsy elements correctly', () => {
+      expect(last([0])).toBe(0);
+      expect(last([null])).toBeNull();
+      expect(last([''])).toBe('');
+    });
   });
 
   describe('lastOrThrow', () => {
@@ -88,6 +94,12 @@ describe('Array Utilities', () => {
 
     test('throws for empty array with custom message', () => {
       expect(() => lastOrThrow([], 'No items')).toThrow('No items');
+    });
+
+    test('returns falsy last element', () => {
+      expect(lastOrThrow([0, null, false])).toBe(false);
+      expect(lastOrThrow(['x', 0])).toBe(0);
+      expect(lastOrThrow([true, ''])).toBe('');
     });
   });
 

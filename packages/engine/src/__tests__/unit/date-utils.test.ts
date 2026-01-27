@@ -144,6 +144,12 @@ describe('Date Utilities', () => {
     test('returns max INT value when at boundary', () => {
       expect(toSafeDayNumber(2147483647)).toBe(2147483647);
     });
+
+    test('accepts floating-point values', () => {
+      // Documents current behavior: floats are accepted (not rejected)
+      expect(toSafeDayNumber(1.5)).toBe(1.5);
+      expect(toSafeDayNumber(99.9)).toBe(99.9);
+    });
   });
 
   describe('toDateString', () => {
@@ -167,7 +173,7 @@ describe('Date Utilities', () => {
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
-    test('returns todays date', () => {
+    test("returns today's date", () => {
       const today = new Date();
       const expected = today.toISOString().split('T')[0];
       expect(getTodayDateString()).toBe(expected);
