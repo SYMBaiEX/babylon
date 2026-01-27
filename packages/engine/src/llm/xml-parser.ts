@@ -12,6 +12,7 @@
 
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
+import { formatError } from '../utils/error-utils';
 
 export interface XMLParseResult {
   success: boolean;
@@ -231,7 +232,8 @@ function parseXMLContent(content: string): JsonValue {
     if (trimmed === 'false') return false;
     if (trimmed === 'null') return null;
     const num = Number(trimmed);
-    if (!isNaN(num) && trimmed === String(num)) return num;
+    // Check for finite numbers only (excludes NaN, Infinity, -Infinity)
+    if (Number.isFinite(num) && trimmed === String(num)) return num;
     return trimmed;
   }
 
@@ -341,7 +343,7 @@ export function parseXML(content: string): XMLParseResult {
     logger.error(
       'Failed to parse XML',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
         contentPreview: content.substring(0, 200),
       },
       'XMLParser'
@@ -350,7 +352,7 @@ export function parseXML(content: string): XMLParseResult {
     return {
       success: false,
       data: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: formatError(error),
     };
   }
 }
@@ -417,7 +419,7 @@ function parseContinuationXML(content: string): XMLParseResult {
           logger.warn(
             'Failed to parse XML fragment',
             {
-              error: error instanceof Error ? error.message : String(error),
+              error: formatError(error),
               fragment: doc.substring(0, 100),
             },
             'XMLParser'
@@ -454,7 +456,7 @@ function parseContinuationXML(content: string): XMLParseResult {
     return {
       success: false,
       data: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: formatError(error),
     };
   }
 }

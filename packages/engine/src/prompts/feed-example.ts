@@ -8,7 +8,6 @@
 import {
   ambientPosts,
   generateWorldContext,
-  getForbiddenRealNames,
   getParodyActorNames,
   newsPosts,
   reactions,
@@ -72,22 +71,13 @@ export async function generateReactionsWithContext() {
 
 /**
  * Example 3: Validate no real names are used
+ *
+ * Import validateNoRealNames from validate-output.ts (single source of truth):
+ * import { validateNoRealNames } from './validate-output';
+ *
+ * Usage: const violations = validateNoRealNames(generatedText);
  */
-export function validateNoRealNames(text: string): string[] {
-  const forbiddenNames = getForbiddenRealNames();
-  const violations: string[] = [];
-
-  // Check if text contains any forbidden real names
-  forbiddenNames.forEach((realName: string) => {
-    if (text.includes(realName)) {
-      violations.push(
-        `FORBIDDEN: Found real name "${realName}" - must use parody names only`
-      );
-    }
-  });
-
-  return violations;
-}
+export { validateNoRealNames } from './validate-output';
 
 /**
  * Example 3b: Get list of valid parody names

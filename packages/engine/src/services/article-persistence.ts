@@ -17,6 +17,7 @@
 import { db, eq, posts } from '@babylon/db';
 import type { ArticlePersistInput } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import { generateArticleImageWithRetry } from './article-image-service';
 import { articleRateLimiter } from './article-rate-limiter';
 import { generateTagsFromPost, storeTagsForPost } from './tag-service';
@@ -187,10 +188,7 @@ export async function persistArticle(
                 'Failed to update article with image URL',
                 {
                   articleId,
-                  error:
-                    updateError instanceof Error
-                      ? updateError.message
-                      : String(updateError),
+                  error: formatError(updateError),
                 },
                 'ArticlePersistence'
               );
@@ -202,7 +200,7 @@ export async function persistArticle(
             'Image generation failed (non-blocking)',
             {
               articleId,
-              error: err instanceof Error ? err.message : String(err),
+              error: formatError(err),
             },
             'ArticlePersistence'
           );
@@ -226,8 +224,7 @@ export async function persistArticle(
           'Failed to generate/store article tags (non-blocking)',
           {
             articleId,
-            error:
-              tagError instanceof Error ? tagError.message : String(tagError),
+            error: formatError(tagError),
           },
           'ArticlePersistence'
         );
@@ -235,7 +232,7 @@ export async function persistArticle(
 
     return { success: true, articleId };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatError(error);
     logger.error(
       'Failed to persist article',
       {

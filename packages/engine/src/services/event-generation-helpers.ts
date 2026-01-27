@@ -14,8 +14,9 @@ import {
   type ArcEventStatus,
   NewsArticlePacingEngine,
 } from '../NewsArticlePacingEngine';
-import { toSafeDayNumber } from '../utils/date-utils';
+import { toDateString, toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom, weightedPick } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
 import { worldFactsService } from '../world-facts-service';
 import { persistArticle } from './article-persistence';
 import {
@@ -405,7 +406,7 @@ export async function generateEvents(
             eventId,
             eventType: eventConfig.type,
             safeDayNumber,
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
           },
           'EventGeneration'
         );
@@ -622,7 +623,7 @@ export async function generateArticlesForArcEvent(
       'Failed to fetch world facts context for arc event articles - proceeding without',
       {
         arcEventId,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'EventGeneration'
     );
@@ -681,7 +682,7 @@ export async function generateArticlesForArcEvent(
           scenario: 1,
           outcome: question.outcome ?? false,
           rank: 1,
-          createdDate: new Date().toISOString().split('T')[0]!,
+          createdDate: toDateString(new Date()),
           resolutionDate: '',
           status: 'active',
         },
@@ -792,7 +793,7 @@ export async function generateArticlesForArcEvent(
           eventStatus,
           orgId: org.id,
           orgName: org.name,
-          error: error instanceof Error ? error.message : String(error),
+          error: formatError(error),
         },
         'EventGeneration'
       );

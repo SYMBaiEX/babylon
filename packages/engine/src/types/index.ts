@@ -6,6 +6,7 @@
 
 // Common types (JsonValue, LogData, etc.)
 export * from './common';
+export * from './guards';
 // Market context types
 export * from './market-context';
 // Market decision types

@@ -88,17 +88,19 @@ export async function saveArcPlan(
   );
 }
 
+/** Type for the database arc plan record */
+export type DatabaseArcPlan = NonNullable<
+  Awaited<ReturnType<typeof db.questionArcPlan.findFirst>>
+>;
+
 /** Get arc plan for a question */
-export async function getArcPlan(questionId: string) {
+export async function getArcPlan(
+  questionId: string
+): Promise<DatabaseArcPlan | null> {
   return db.questionArcPlan.findFirst({
     where: { questionId },
   });
 }
-
-/** Type for the database arc plan record */
-export type DatabaseArcPlan = NonNullable<
-  Awaited<ReturnType<typeof getArcPlan>>
->;
 
 /**
  * Determine the narrative phase for a given day based on arc plan timing

@@ -19,6 +19,7 @@ import {
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_SOCIAL_ACTIONS_CONFIG } from '../config/npc-activity';
+import { clamp01 } from '../utils/math-utils';
 import { GroupChatService } from './group-chat-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -29,13 +30,6 @@ export interface SocialAction {
   chatId?: string;
   chatName?: string;
   dmContent?: string;
-}
-
-/**
- * Clamp a probability value to the valid [0, 1] range.
- */
-function clampProbability(value: number): number {
-  return Math.max(0, Math.min(1, value));
 }
 
 export class ActorSocialActions {
@@ -170,12 +164,12 @@ export class ActorSocialActions {
           2.0
         );
 
-        const inviteProbability = clampProbability(
+        const inviteProbability = clamp01(
           NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
             qualityFactor *
             countFactor
         );
-        const dmProbability = clampProbability(
+        const dmProbability = clamp01(
           NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
             qualityFactor *
             countFactor

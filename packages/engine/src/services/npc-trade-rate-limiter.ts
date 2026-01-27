@@ -57,6 +57,7 @@ import {
   getMaxTradesPerDay,
   getMinMinutesBetweenTrades,
 } from '../config/npc-activity';
+import { getTodayDateString } from '../utils/date-utils';
 
 // =============================================================================
 // TYPES
@@ -146,7 +147,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
     }
 
     // Check daily trade limit
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = getTodayDateString();
     const dailyData = this.dailyTradeCount.get(npcId);
 
     if (
@@ -164,7 +165,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
     const now = Date.now();
     this.lastTradeTime.set(npcId, now);
 
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = getTodayDateString();
     const dailyData = this.dailyTradeCount.get(npcId);
 
     if (dailyData !== undefined && dailyData.date === today) {
@@ -191,7 +192,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
       return null;
     }
 
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = getTodayDateString();
 
     return {
       lastTradeTime: lastTrade ?? 0,
@@ -220,7 +221,7 @@ class InMemoryNpcTradeRateLimitProvider implements NpcTradeRateLimitProvider {
     }
 
     // Clean up dailyTradeCount entries from previous days
-    const today = new Date().toISOString().split('T')[0]!;
+    const today = getTodayDateString();
     for (const [npcId, data] of this.dailyTradeCount) {
       if (data.date !== today) {
         this.dailyTradeCount.delete(npcId);

@@ -31,6 +31,7 @@ import {
   questions as questionsTable,
   worldEvents,
 } from '@babylon/db';
+import { parseStringArraySafe } from '../services/jsonb-validators';
 import type {
   Actor,
   FeedPost,
@@ -142,7 +143,9 @@ export async function buildRichGameContext(
                 day,
                 type: e.eventType as WorldEvent['type'],
                 actors: truncateArray(
-                  (e.actors as string[]) || [],
+                  parseStringArraySafe(e.actors, {
+                    field: 'worldEvents.actors',
+                  }),
                   CONTEXT_LIMITS.MAX_ACTORS_PER_EVENT
                 ),
                 description: truncateText(

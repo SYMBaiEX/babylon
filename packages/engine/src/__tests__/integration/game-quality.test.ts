@@ -25,6 +25,7 @@ import { logger } from '@babylon/shared';
 import { existsSync, readFileSync } from 'fs';
 import { GameGenerator } from '../../GameGenerator';
 import type { GeneratedGame } from '../../types/shared';
+import { formatError } from '../../utils/error-utils';
 
 // Set timeout to 10 minutes for LLM-based generation
 setDefaultTimeout(600000);
@@ -86,8 +87,7 @@ describe('Game Quality Integration Tests', () => {
       game = await generator.generateCompleteGame();
       logger.info('Game generated successfully', undefined, 'QualityTest');
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = formatError(error);
       // Game generation failure is a test failure, not a skip
       throw new Error(`Game generation failed: ${errorMessage}`);
     }

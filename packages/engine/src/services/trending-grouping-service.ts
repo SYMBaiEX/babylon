@@ -9,6 +9,7 @@
 
 import { logger } from '@babylon/shared';
 import OpenAI from 'openai';
+import { first } from '../utils/array-utils';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // Configuration
@@ -222,6 +223,8 @@ async function analyzeAndSummarizeTags(
   if (!openai) {
     return { tagToGroup: fallbackGrouping(tags), groupSummaries: new Map() };
   }
+  // Store in local const after null check to help TypeScript narrow the type
+  const client = openai;
 
   const tagList = tags
     .map(
@@ -309,7 +312,7 @@ Return ONLY valid XML. No markdown, no explanations.`;
 
   const response = await withRetry(
     async () =>
-      await openai!.chat.completions.create({
+      await client.chat.completions.create({
         model: GROUPING_MODEL,
         messages: [
           {
@@ -444,6 +447,8 @@ export async function generateTrendingSummary(
   if (!openai) {
     return `Trending topic in ${category || 'general'} discussions`;
   }
+  // Store in local const after null check to help TypeScript narrow the type
+  const client = openai;
 
   const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
 
@@ -468,7 +473,7 @@ One sentence summary:`;
 
   const response = await withRetry(
     async () =>
-      await openai!.chat.completions.create({
+      await client.chat.completions.create({
         model: SUMMARY_MODEL,
         messages: [
           {
@@ -623,7 +628,8 @@ export async function groupTrendingTags(
 
     // Sort by post count to pick primary tag
     groupTags.sort((a, b) => b.postCount - a.postCount);
-    const primaryTag = groupTags[0]!;
+    const primaryTag = first(groupTags);
+    if (!primaryTag) continue;
 
     // Use pre-generated summary from combined LLM call, or fallback
     const summary =

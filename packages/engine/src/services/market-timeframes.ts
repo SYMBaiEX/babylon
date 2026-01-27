@@ -58,6 +58,7 @@ import type {
   MarketTimeframe,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { clamp01 } from '../utils/math-utils';
 
 // Re-export types from DB schema for consumers of this module
 // Arc state types are canonical in @babylon/db/schema/narrative.ts
@@ -514,7 +515,7 @@ export function getCurrentArcState(
   }
 
   const elapsed = now.getTime() - startTime.getTime();
-  const progress = Math.max(0, Math.min(1, elapsed / totalDuration));
+  const progress = clamp01(elapsed / totalDuration);
 
   // Map progress to state index
   const stateIndex = Math.min(

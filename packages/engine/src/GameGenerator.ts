@@ -71,10 +71,12 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
+import { toDateString } from './utils/date-utils';
 import {
   buildRichGameContext,
   formatRichGameContext,
 } from './utils/game-context-builder';
+import { clamp } from './utils/math-utils';
 import { shuffleArray } from './utils/randomization';
 import { toQuestionIdNumberOrNull } from './utils/shared-utils';
 
@@ -605,7 +607,7 @@ export class GameGenerator {
     for (let day = 1; day <= 30; day++) {
       const currentDate = new Date(gameStartDate);
       currentDate.setDate(gameStartDate.getDate() + (day - 1));
-      const dateStr = currentDate.toISOString().split('T')[0]!;
+      const dateStr = toDateString(currentDate);
 
       const phase = this.getPhase(day);
       process.stdout.write(`  [${dateStr}] ${phase.padEnd(12)} `);
@@ -751,7 +753,7 @@ export class GameGenerator {
     for (let day = 1; day <= 30; day++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(startDate.getDate() + (day - 1));
-      const dateStr = currentDate.toISOString().split('T')[0]!;
+      const dateStr = toDateString(currentDate);
 
       process.stdout.write(`  [${dateStr}] `);
 
@@ -3033,7 +3035,7 @@ ${req.members
               change = Math.random() > 0.5 ? 1 : -1;
             }
 
-            const newIdx = Math.max(0, Math.min(2, currentIdx + change));
+            const newIdx = clamp(currentIdx + change, 0, 2);
             const newLuck = luckLevels[newIdx] as 'low' | 'medium' | 'high';
 
             if (newLuck !== current.luck) {
@@ -3142,7 +3144,7 @@ ${req.members
           const isLargeSwing = Math.random() > 0.95;
           const range = isLargeSwing ? 0.4 : 0.2; // Large: ±0.2, Normal: ±0.1
           const drift = (Math.random() - 0.5) * range;
-          const newMood = Math.max(-1, Math.min(1, current.mood + drift));
+          const newMood = clamp(current.mood + drift, -1, 1);
           current.mood = newMood;
         }
 
@@ -3158,7 +3160,7 @@ ${req.members
           );
           // 50/50 chance to go up or down
           const change = Math.random() > 0.5 ? 1 : -1;
-          const newIdx = Math.max(0, Math.min(2, currentIdx + change));
+          const newIdx = clamp(currentIdx + change, 0, 2);
           // Type assertion safe because newIdx is clamped to [0, 2]
           current.luck = luckLevels[newIdx] as 'low' | 'medium' | 'high';
         }

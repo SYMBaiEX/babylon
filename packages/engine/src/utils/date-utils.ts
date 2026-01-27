@@ -106,3 +106,30 @@ export function toSafeDayNumber(dayNumber: number): number | undefined {
     ? dayNumber
     : undefined;
 }
+
+/**
+ * Extract the date portion (YYYY-MM-DD) from a Date object.
+ * Avoids the duplicate pattern: `.toISOString().split('T')[0]`
+ *
+ * @param date - Date object or ISO string
+ * @returns Date string in YYYY-MM-DD format
+ *
+ * @example
+ * ```typescript
+ * const today = toDateString(new Date()); // "2025-01-25"
+ * ```
+ */
+export function toDateString(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toISOString().split('T')[0] ?? '';
+}
+
+/**
+ * Get today's date as YYYY-MM-DD string.
+ * Convenience wrapper for common pattern.
+ *
+ * @returns Today's date in YYYY-MM-DD format
+ */
+export function getTodayDateString(): string {
+  return toDateString(new Date());
+}

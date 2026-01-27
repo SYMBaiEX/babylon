@@ -8,12 +8,8 @@ mock.module('../services/price-update-service', () => ({
   },
 }));
 
-mock.module('../services/static-data-registry', () => ({
-  StaticDataRegistry: {
-    getAllOrganizations: () => [],
-    getOrganization: () => null,
-  },
-}));
+// Note: StaticDataRegistry is NOT mocked to avoid polluting other test files.
+// Organization methods are not needed for this specific test.
 
 mock.module('@babylon/shared', () => ({
   logger: {
@@ -97,7 +93,10 @@ describe('EventMarketPipeline.applyEventToMarkets', () => {
     });
 
     expect(mockApplyUpdates).toHaveBeenCalledTimes(1);
-    const [updates] = mockApplyUpdates.mock.calls[0] ?? [];
+    const calls = mockApplyUpdates.mock.calls as unknown[][];
+    const [updates] = (calls[0] ?? []) as [
+      Array<{ organizationId: string; source: string; newPrice: number }>,
+    ];
     expect(Array.isArray(updates)).toBe(true);
     expect(updates).toHaveLength(1);
     expect(updates?.[0]).toMatchObject({

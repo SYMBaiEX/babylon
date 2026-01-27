@@ -20,6 +20,7 @@ import { characterMappingService } from './services/character-mapping-service';
 import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { JsonValue } from './types/common';
 import type { FeedPost } from './types/shared';
+import { firstOrThrow } from './utils/array-utils';
 import {
   type EventCooldownState,
   generateSentimentSignal,
@@ -893,8 +894,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the climate summit reach an agreement?',
       'Will the merger between MegaCorp and TechGiant close?',
     ];
-    const index = Math.floor(Math.random() * questions.length);
-    return questions[index] ?? questions[0]!;
+    // Validate that questions array is non-empty
+    firstOrThrow(questions, 'No questions available');
+    const index = Math.floor(secureRandom() * questions.length);
+    return questions[index]!;
   }
 
   private generatePersonality(): string {
@@ -905,8 +908,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'emotional',
       'contrarian',
     ];
-    const index = Math.floor(Math.random() * personalities.length);
-    return personalities[index] ?? personalities[0]!;
+    // Validate non-empty (compile-time guarantee, but explicit for safety)
+    firstOrThrow(personalities, 'No personalities available');
+    const index = Math.floor(secureRandom() * personalities.length);
+    return personalities[index]!;
   }
 
   private async generateNewsReport(
@@ -981,8 +986,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
             'Unconfirmed: Internal memos show concerns',
             'Rumor: Key stakeholders expressing doubts',
           ];
-      const index = Math.floor(Math.random() * rumors.length);
-      return rumors[index] ?? rumors[0]!;
+      // Validate non-empty (compile-time guarantee, but explicit for safety)
+      firstOrThrow(rumors, 'No rumors available');
+      const index = Math.floor(secureRandom() * rumors.length);
+      return rumors[index]!;
     }
 
     const outcomeHint = this.config.outcome

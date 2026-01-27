@@ -2,7 +2,7 @@
  * Activity Pattern Service Test Suite
  *
  * Tests for simplified NPC activity patterns based on ID hash rotation.
- * Each actor is active for 8 hours per day, rotating based on ID hash + game day.
+ * Each actor is active for ACTIVE_HOURS_PER_DAY hours per day, rotating based on ID hash + game day.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -60,11 +60,11 @@ describe('Activity Pattern Service - Pattern Derivation', () => {
     expect(patternDay1.peakHours).not.toEqual(patternDay2.peakHours);
   });
 
-  test('deriveActivityPattern always returns 8 consecutive hours', () => {
+  test('deriveActivityPattern always returns ACTIVE_HOURS_PER_DAY consecutive hours', () => {
     const actor: ActivityActor = { id: 'test-actor-xyz' };
     const pattern = deriveActivityPattern(actor);
 
-    expect(pattern.peakHours.length).toBe(8);
+    expect(pattern.peakHours.length).toBe(ACTIVE_HOURS_PER_DAY);
     // Hours should be consecutive (modulo 24)
     for (let i = 1; i < pattern.peakHours.length; i++) {
       const expected = (pattern.peakHours[i - 1]! + 1) % 24;
@@ -201,7 +201,7 @@ describe('Activity Pattern Service - Activity Multiplier', () => {
 
     const pattern = activityPatternService.derivePattern(actor);
     expect(pattern.timezone).toBe('UTC');
-    expect(pattern.peakHours.length).toBe(8);
+    expect(pattern.peakHours.length).toBe(ACTIVE_HOURS_PER_DAY);
 
     const isActive = activityPatternService.isActiveHour(actor, 12);
     expect(typeof isActive).toBe('boolean');
@@ -217,7 +217,7 @@ describe('Activity Pattern Service - Edge Cases', () => {
     const pattern = deriveActivityPattern(actor);
 
     expect(pattern.timezone).toBe('UTC');
-    expect(pattern.peakHours.length).toBe(8);
+    expect(pattern.peakHours.length).toBe(ACTIVE_HOURS_PER_DAY);
   });
 
   test('different actor IDs produce different activity windows', () => {
@@ -234,7 +234,7 @@ describe('Activity Pattern Service - Edge Cases', () => {
       const testActor: ActivityActor = { id: `test-actor-${i}-${i * 7919}` }; // Use prime multiplier for variety
       const testPattern = deriveActivityPattern(testActor);
 
-      // Compare the starting peak hour (determines the 8-hour window)
+      // Compare the starting peak hour (determines the activity window)
       if (testPattern.peakHours[0] !== referencePattern.peakHours[0]) {
         differentCount++;
       }
@@ -250,7 +250,7 @@ describe('Activity Pattern Service - Edge Cases', () => {
     const actor: ActivityActor = { id: 'test-1' };
     const pattern = deriveActivityPattern(actor, 1000);
 
-    expect(pattern.peakHours.length).toBe(8);
+    expect(pattern.peakHours.length).toBe(ACTIVE_HOURS_PER_DAY);
     // Hours should still be valid (0-23)
     for (const hour of pattern.peakHours) {
       expect(hour).toBeGreaterThanOrEqual(0);
