@@ -116,6 +116,9 @@ export async function POST(req: NextRequest) {
   const baseUrl = getBaseUrl(requestOrigin || undefined);
 
   // Create Stripe Checkout Session
+  // Use Math.round to avoid floating-point errors (e.g., 1.1 * 100 = 110.00000000000001)
+  const amountCents = Math.round(amountUSD * 100);
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
@@ -123,7 +126,7 @@ export async function POST(req: NextRequest) {
       {
         price_data: {
           currency: POINTS_CONFIG.CURRENCY,
-          unit_amount: amountUSD * 100, // Stripe uses cents
+          unit_amount: amountCents, // Stripe uses cents
           product_data: {
             name: `${pointsAmount.toLocaleString()} Babylon Points`,
             description: `Purchase ${pointsAmount.toLocaleString()} points for $${amountUSD}`,
