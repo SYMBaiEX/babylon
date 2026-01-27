@@ -59,7 +59,7 @@ const VALID_TABS: MarketTab[] = ['dashboard', 'perps', 'predictions'];
  * Parse tab from URL search params.
  */
 function parseTabFromParams(params: URLSearchParams): MarketTab {
-  const tab = params.get('tab');
+  const tab = params.get('tab') ?? params.get('tabs');
   if (tab && VALID_TABS.includes(tab as MarketTab)) {
     return tab as MarketTab;
   }

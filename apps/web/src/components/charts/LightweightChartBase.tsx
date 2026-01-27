@@ -184,10 +184,15 @@ export function useLightweightChart(
       }
 
       try {
+        // NOTE: Do not rely on `autoSize` here.
+        // Our repo pins lightweight-charts ~5.0.x in some environments, and `autoSize`
+        // support can be inconsistent. We instead pass explicit dimensions and handle
+        // resizing via ResizeObserver below.
         const chartInstance = createChart(container, {
           ...DARK_CHART_THEME,
           ...initialOptionsRef.current,
-          autoSize: true,
+          width: Math.floor(width),
+          height: Math.floor(height),
         });
 
         chartInstanceRef.current = chartInstance;
@@ -215,7 +220,29 @@ export function useLightweightChart(
     // listen for size changes and retry initialization when dimensions become available.
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
-        scheduleCreate();
+        const container = chartContainerRef.current;
+        if (!container) return;
+
+        const instance = chartInstanceRef.current;
+        if (!instance) {
+          scheduleCreate();
+          return;
+        }
+
+        const { width, height } = container.getBoundingClientRect();
+        if (width === 0 || height === 0) return;
+        try {
+          instance.applyOptions({
+            width: Math.floor(width),
+            height: Math.floor(height),
+          });
+        } catch (error) {
+          logger.warn(
+            'Failed to resize chart',
+            { error },
+            'useLightweightChart'
+          );
+        }
       });
       if (chartContainerRef.current) {
         resizeObserver.observe(chartContainerRef.current);
