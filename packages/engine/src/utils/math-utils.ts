@@ -74,10 +74,22 @@ export function lerp(a: number, b: number, t: number): number {
  * Round a number to a specified number of decimal places.
  *
  * @param value - The value to round
- * @param decimals - Number of decimal places (default: 2)
+ * @param decimals - Number of decimal places (default: 2). Must be a non-negative integer.
  * @returns Rounded value
+ * @throws RangeError if decimals is negative or not an integer
+ *
+ * @example
+ * ```typescript
+ * roundTo(3.14159, 2); // 3.14
+ * roundTo(3.14159, 0); // 3
+ * ```
  */
 export function roundTo(value: number, decimals = 2): number {
+  if (decimals < 0 || !Number.isInteger(decimals)) {
+    throw new RangeError(
+      `decimals must be a non-negative integer, got ${decimals}`
+    );
+  }
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }

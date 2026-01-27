@@ -345,9 +345,9 @@ export function parseStringArraySafe(
     return [];
   }
 
-  // Fast path: already a valid string array
-  if (Array.isArray(data) && data.every((item) => typeof item === 'string')) {
-    return data as string[];
+  // Fast path: already a valid string array using type guard
+  if (isStringArray(data)) {
+    return data;
   }
 
   const result = StringArraySchema.safeParse(data);
@@ -456,15 +456,34 @@ export function parsePendingTransitionsSafe(
     'JSONBValidation'
   );
 
-  // Try to salvage valid transitions
+  // Try to salvage valid transitions with metrics logging
   if (Array.isArray(data)) {
     const valid: PendingTransition[] = [];
+    let total = 0;
+    let invalid = 0;
     for (const item of data) {
+      total++;
       const itemResult = PendingTransitionSchema.safeParse(item);
       if (itemResult.success) {
         valid.push(itemResult.data as PendingTransition);
+      } else {
+        invalid++;
       }
     }
+
+    // Log salvage metrics
+    logger.info(
+      'Salvaged partial PendingTransition data',
+      {
+        parser: 'PendingTransition',
+        arcId: context?.arcId,
+        total,
+        valid: valid.length,
+        invalid,
+      },
+      'JSONBValidation'
+    );
+
     return valid;
   }
 
@@ -496,15 +515,34 @@ export function parseScheduledEventsSafe(
     'JSONBValidation'
   );
 
-  // Try to salvage valid events
+  // Try to salvage valid events with metrics logging
   if (Array.isArray(data)) {
     const valid: ScheduledEvent[] = [];
+    let total = 0;
+    let invalid = 0;
     for (const item of data) {
+      total++;
       const itemResult = ScheduledEventSchema.safeParse(item);
       if (itemResult.success) {
         valid.push(itemResult.data as ScheduledEvent);
+      } else {
+        invalid++;
       }
     }
+
+    // Log salvage metrics
+    logger.info(
+      'Salvaged partial ScheduledEvent data',
+      {
+        parser: 'ScheduledEvent',
+        questionId: context?.questionId,
+        total,
+        valid: valid.length,
+        invalid,
+      },
+      'JSONBValidation'
+    );
+
     return valid;
   }
 

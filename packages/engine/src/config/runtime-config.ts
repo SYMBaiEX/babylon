@@ -23,13 +23,14 @@ export const MARKET_DECISION_CONFIG = {
   strictValidation: process.env.STRICT_LLM_VALIDATION === 'true',
 } as const;
 
+// Cache oracle config values once to avoid re-reading process.env
+const oracleAddress = process.env.NEXT_PUBLIC_BABYLON_ORACLE;
+const oraclePrivateKey = process.env.ORACLE_PRIVATE_KEY;
+
 export const ORACLE_CONFIG = {
-  address: process.env.NEXT_PUBLIC_BABYLON_ORACLE,
-  privateKey: process.env.ORACLE_PRIVATE_KEY,
-  isConfigured: () =>
-    !!(
-      process.env.NEXT_PUBLIC_BABYLON_ORACLE && process.env.ORACLE_PRIVATE_KEY
-    ),
+  address: oracleAddress,
+  privateKey: oraclePrivateKey,
+  isConfigured: () => !!(oracleAddress && oraclePrivateKey),
 } as const;
 
 // Parse values once to avoid re-reading process.env
@@ -45,17 +46,22 @@ export const WORLD_FACTS_CONFIG = {
   lockDurationMs: lockDurationMinutes * 60000,
 } as const;
 
+// Cache deployer private key once to avoid re-reading process.env
+const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+
 export const BLOCKCHAIN_CONFIG = {
-  deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
-  isConfigured: () => !!process.env.DEPLOYER_PRIVATE_KEY,
+  deployerPrivateKey,
+  isConfigured: () => !!deployerPrivateKey,
 } as const;
 
+// Cache nodeEnv once and derive all flags from the cached value
+const nodeEnv = process.env.NODE_ENV || 'development';
+
 export const ENV_CONFIG = {
-  nodeEnv: process.env.NODE_ENV || 'development',
-  isProduction: process.env.NODE_ENV === 'production',
-  isTest: process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test',
-  isDevelopment:
-    process.env.NODE_ENV === 'development' || !process.env.NODE_ENV,
+  nodeEnv,
+  isProduction: nodeEnv === 'production',
+  isTest: nodeEnv === 'test' || process.env.BUN_ENV === 'test',
+  isDevelopment: nodeEnv === 'development',
 } as const;
 
 export function hasTimeRemaining(deadline: number): boolean {

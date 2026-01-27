@@ -297,7 +297,7 @@ WORLD RULES:
         const callDurationMs = Date.now() - callStartTime;
 
         const firstChoice = first(response.choices);
-        if (!firstChoice?.message.content) {
+        if (!firstChoice || !firstChoice.message.content) {
           throw new Error('LLM response missing content');
         }
         let content = firstChoice.message.content;
@@ -375,7 +375,7 @@ WORLD RULES:
               });
 
             const contChoice = first(continuationResponse.choices);
-            if (!contChoice?.message.content) {
+            if (!contChoice || !contChoice.message.content) {
               throw new Error(
                 'LLM continuation response missing choices or content - invalid API response'
               );

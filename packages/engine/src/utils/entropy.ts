@@ -55,11 +55,15 @@ export function secureShuffle<T>(array: readonly T[]): T[] {
  * Pick N random items from an array using secure randomness.
  *
  * @param array - Source array
- * @param n - Number of items to pick
- * @returns Array of N randomly selected items
+ * @param n - Number of items to pick (must be >= 0)
+ * @returns Array of N randomly selected items (empty if n <= 0)
  */
-export const securePickN = <T>(array: readonly T[], n: number): T[] =>
-  n >= array.length ? secureShuffle(array) : secureShuffle(array).slice(0, n);
+export function securePickN<T>(array: readonly T[], n: number): T[] {
+  // Handle invalid or edge cases
+  if (n <= 0) return [];
+  if (n >= array.length) return secureShuffle(array);
+  return secureShuffle(array).slice(0, n);
+}
 
 /**
  * Generate a random count with a bell-curve distribution.

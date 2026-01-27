@@ -213,7 +213,7 @@ export async function isQuestionLocked(
   const acquired = await DistributedLockService.acquireLock({
     lockId,
     durationMs: 100, // Very short duration
-    operation: 'check-lock',
+    operation: `check-lock-${questionNumber}`,
     processId: 'check-only',
   });
 

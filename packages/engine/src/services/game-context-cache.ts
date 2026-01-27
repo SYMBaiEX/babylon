@@ -145,7 +145,7 @@ export class GameContextCache {
             updatedAt: games.updatedAt,
           })
           .from(games)
-          .where(eq(games.id, 'continuous'))
+          .where(eq(games.isContinuous, true))
           .limit(1);
 
         return game ?? null;

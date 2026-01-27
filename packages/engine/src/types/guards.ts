@@ -83,7 +83,12 @@ export function isValidQuestionStatus(
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  // Ensure plain-object semantics: prototype must be Object.prototype or null
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 export function isString(value: unknown): value is string {

@@ -40,6 +40,18 @@ export interface GeneratedTag {
 }
 
 /**
+ * Tag details shared between PostTagWithTag and TrendingTagWithTag
+ */
+export interface TagDetails {
+  id: string;
+  name: string;
+  displayName: string;
+  category: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
  * Post tag with tag details
  */
 export interface PostTagWithTag {
@@ -47,14 +59,7 @@ export interface PostTagWithTag {
   postId: string;
   tagId: string;
   createdAt: Date;
-  tag: {
-    id: string;
-    name: string;
-    displayName: string;
-    category: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  tag: TagDetails;
 }
 
 /**
@@ -70,14 +75,7 @@ export interface TrendingTagWithTag {
   windowEnd: Date;
   calculatedAt: Date;
   relatedContext: string | null;
-  tag: {
-    id: string;
-    name: string;
-    displayName: string;
-    category: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  tag: TagDetails;
 }
 
 // =============================================================================
