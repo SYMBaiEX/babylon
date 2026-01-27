@@ -34,14 +34,26 @@ function readSourceFile(relativePath: string): string {
 }
 
 /**
- * Find all usages of a pattern in source files
+ * Find all usages of a pattern in source files.
+ * Includes surrounding context lines to handle multiline expressions.
  */
-function findUsages(pattern: RegExp, content: string): string[] {
+function findUsages(
+  pattern: RegExp,
+  content: string,
+  contextLines = 3
+): string[] {
   const matches: string[] = [];
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     if (pattern.test(lines[i] ?? '')) {
-      matches.push(`Line ${i + 1}: ${lines[i]?.trim()}`);
+      // Include context from surrounding lines to handle multiline expressions
+      const startLine = Math.max(0, i - contextLines);
+      const endLine = Math.min(lines.length - 1, i + contextLines);
+      const contextText = lines
+        .slice(startLine, endLine + 1)
+        .map((l) => l.trim())
+        .join(' ');
+      matches.push(`Line ${i + 1}: ${contextText}`);
     }
   }
   return matches;

@@ -908,9 +908,8 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'emotional',
       'contrarian',
     ];
-    if (personalities.length === 0) {
-      firstOrThrow(personalities, 'No personalities available');
-    }
+    // Validate non-empty (compile-time guarantee, but explicit for safety)
+    firstOrThrow(personalities, 'No personalities available');
     const index = Math.floor(secureRandom() * personalities.length);
     return personalities[index]!;
   }
@@ -987,9 +986,8 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
             'Unconfirmed: Internal memos show concerns',
             'Rumor: Key stakeholders expressing doubts',
           ];
-      if (rumors.length === 0) {
-        firstOrThrow(rumors, 'No rumors available');
-      }
+      // Validate non-empty (compile-time guarantee, but explicit for safety)
+      firstOrThrow(rumors, 'No rumors available');
       const index = Math.floor(secureRandom() * rumors.length);
       return rumors[index]!;
     }

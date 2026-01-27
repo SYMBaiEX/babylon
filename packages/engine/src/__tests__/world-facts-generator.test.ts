@@ -16,15 +16,34 @@ const mockSelectResult: Record<string, unknown>[] = [];
 const mockInsertResult: Record<string, unknown>[] = [];
 const mockUpdateResult: Record<string, unknown>[] = [];
 
+// Create a thenable that also supports method chaining for fluent API
+function createChainableThenable<T>(
+  result: T[],
+  methods: Record<string, () => unknown> = {}
+) {
+  const thenable = {
+    ...methods,
+    then: (resolve: (value: T[]) => void) => {
+      resolve(result);
+      return Promise.resolve(result);
+    },
+  };
+  return thenable;
+}
+
 const mockDb = {
   select: mock(() => ({
-    from: mock(() => ({
-      where: mock(() => ({
-        orderBy: mock(() => ({
-          limit: mock(() => Promise.resolve(mockSelectResult)),
-        })),
-      })),
-    })),
+    from: mock(() =>
+      createChainableThenable(mockSelectResult, {
+        where: mock(() =>
+          createChainableThenable(mockSelectResult, {
+            orderBy: mock(() => ({
+              limit: mock(() => Promise.resolve(mockSelectResult)),
+            })),
+          })
+        ),
+      })
+    ),
   })),
   insert: mock(() => ({
     values: mock(() => Promise.resolve(mockInsertResult)),
@@ -95,15 +114,8 @@ mock.module('@babylon/shared', () => ({
   },
 }));
 
-// Mock the StaticDataRegistry
-mock.module('../services/static-data-registry', () => ({
-  StaticDataRegistry: {
-    getAllActors: mock(() => [
-      { id: 'actor1', role: 'main', tier: 'S_TIER' },
-      { id: 'actor2', role: 'main', tier: 'A_TIER' },
-    ]),
-  },
-}));
+// Note: StaticDataRegistry is NOT mocked here to avoid polluting other test files.
+// It uses static TypeScript data files and doesn't require database access.
 
 // Mock LLM client - uses unknown cast since we're mocking the interface
 const mockLlm = {
@@ -119,6 +131,7 @@ mock.module('../llm/openai-client', () => ({
     forGameTick: mock(() => mockLlm),
   },
 }));
+
 
 describe('WorldFactsGeneratorService', () => {
   beforeEach(() => {
