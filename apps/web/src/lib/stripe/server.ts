@@ -70,26 +70,54 @@ export function validatePurchaseAmount(amountUSD: number): {
 }
 
 /**
+ * Allowed origins for Stripe redirect URLs
+ *
+ * Only these origins are trusted for post-checkout redirects.
+ * This prevents attackers from spoofing the Origin header to redirect
+ * users to malicious sites after checkout.
+ */
+const ALLOWED_REDIRECT_ORIGINS = [
+  'https://babylon.market',
+  'https://www.babylon.market',
+  'https://staging.babylon.market',
+  'http://localhost:3000',
+  'http://localhost:3001',
+];
+
+/**
  * Get the base URL for redirects based on environment
  *
+ * SECURITY: Origin header is validated against an allowlist to prevent
+ * open redirect attacks where a malicious Origin could redirect users
+ * to phishing sites after checkout.
+ *
  * Priority:
- * 1. Explicit override via STRIPE_REDIRECT_BASE_URL (for local dev)
- * 2. Request origin header (passed from API route)
+ * 1. Explicit override via STRIPE_REDIRECT_BASE_URL (for local dev/staging)
+ * 2. Request origin (if in allowlist)
  * 3. NEXT_PUBLIC_APP_URL
  * 4. VERCEL_URL
  * 5. Fallback to localhost
  */
 export function getBaseUrl(requestOrigin?: string): string {
-  // Allow explicit override for local development
+  // Allow explicit override for local development or specific environments
   if (process.env.STRIPE_REDIRECT_BASE_URL) {
     return process.env.STRIPE_REDIRECT_BASE_URL;
   }
 
-  // Use request origin if provided (most accurate for current request)
-  if (requestOrigin) {
+  // Validate origin against allowlist before trusting it
+  if (requestOrigin && ALLOWED_REDIRECT_ORIGINS.includes(requestOrigin)) {
     return requestOrigin;
   }
 
+  // Also allow Vercel preview URLs if they match the origin
+  if (requestOrigin && process.env.VERCEL_URL) {
+    const vercelUrl = `https://${process.env.VERCEL_URL}`;
+    if (requestOrigin === vercelUrl) {
+      return requestOrigin;
+    }
+  }
+
+  // Fall back to configured app URL
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }

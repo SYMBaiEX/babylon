@@ -860,6 +860,9 @@ export class PointsService {
    * NOTE: This adds to virtualBalance (trading balance), NOT reputationPoints.
    * Users buy trading points to trade on the platform.
    *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks paymentRequestId inside transaction to prevent duplicates.
+   *
    * @param userId - User ID to credit points to
    * @param amountUSD - Amount paid in USD
    * @param paymentRequestId - Unique payment identifier (x402 request ID or Stripe session ID)
@@ -875,34 +878,59 @@ export class PointsService {
   ): Promise<AwardPointsResult> {
     const pointsAmount = Math.floor(amountUSD * 100);
 
-    // Get current user state
-    const userResult = await db
-      .select({ virtualBalance: users.virtualBalance })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this payment already been processed?
+      const existingTransaction = await tx
+        .select({ id: pointsTransactions.id })
+        .from(pointsTransactions)
+        .where(eq(pointsTransactions.paymentRequestId, paymentRequestId))
+        .limit(1);
 
-    const user = userResult[0];
+      if (existingTransaction.length > 0) {
+        logger.info(
+          `Purchase already processed for paymentRequestId ${paymentRequestId}`,
+          { userId, paymentRequestId, paymentProvider },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
 
-    if (!user) {
-      return {
-        success: false,
-        pointsAwarded: 0,
-        newTotal: 0,
-        error: 'User not found',
-      };
-    }
+      // Get current balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const balanceBefore = Number(user.virtualBalance ?? 0);
-    const balanceAfter = balanceBefore + pointsAmount;
+      const user = userResult[0];
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
+      if (!user) {
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
+
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      const balanceAfter = balanceBefore + pointsAmount;
+
+      // Atomic balance update
       await tx
         .update(users)
-        .set({ virtualBalance: balanceAfter.toFixed(2) })
+        .set({
+          virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) + ${pointsAmount}`,
+        })
         .where(eq(users.id, userId));
 
+      // Record the transaction
       await tx.insert(pointsTransactions).values({
         id: await generateSnowflakeId(),
         userId,
@@ -922,19 +950,23 @@ export class PointsService {
         paymentVerified: true,
         paymentProvider,
       });
+
+      return {
+        success: true,
+        pointsAwarded: pointsAmount,
+        newTotal: balanceAfter,
+      };
     });
 
-    logger.info(
-      `User ${userId} purchased ${pointsAmount} trading points for $${amountUSD} via ${paymentProvider}`,
-      { userId, pointsAmount, amountUSD, paymentRequestId, paymentProvider },
-      'PointsService'
-    );
+    if (result.success && !result.alreadyAwarded) {
+      logger.info(
+        `User ${userId} purchased ${pointsAmount} trading points for $${amountUSD} via ${paymentProvider}`,
+        { userId, pointsAmount, amountUSD, paymentRequestId, paymentProvider },
+        'PointsService'
+      );
+    }
 
-    return {
-      success: true,
-      pointsAwarded: pointsAmount,
-      newTotal: balanceAfter,
-    };
+    return result;
   }
 
   /**
@@ -947,6 +979,9 @@ export class PointsService {
    *
    * NOTE: Points are deducted from virtualBalance, floored at 0.
    * If user has already spent the points, they will have a 0 balance.
+   *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks stripeEventId inside transaction to prevent duplicates.
    *
    * @param userId - User ID to deduct points from
    * @param paymentIntentId - Stripe Payment Intent ID to find original transaction
@@ -965,62 +1000,66 @@ export class PointsService {
     const transactionReason =
       reason === 'refund' ? 'purchase_refund' : 'purchase_dispute';
 
-    // Check if this reversal was already processed (idempotency)
-    const existingReversal = await db
-      .select({ id: pointsTransactions.id })
-      .from(pointsTransactions)
-      .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
-      .limit(1);
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this event already been processed?
+      const existingReversal = await tx
+        .select({ id: pointsTransactions.id })
+        .from(pointsTransactions)
+        .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+        .limit(1);
 
-    if (existingReversal.length > 0) {
-      logger.info(
-        `Reversal already processed for event ${stripeEventId}`,
-        { userId, stripeEventId, reason },
-        'PointsService'
-      );
-      return {
-        success: true,
-        pointsAwarded: 0,
-        newTotal: 0,
-        alreadyAwarded: true,
-      };
-    }
+      if (existingReversal.length > 0) {
+        logger.info(
+          `Reversal already processed for event ${stripeEventId}`,
+          { userId, stripeEventId, reason },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
 
-    // Get current user balance
-    const userResult = await db
-      .select({ virtualBalance: users.virtualBalance })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+      // Get current user balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const user = userResult[0];
+      const user = userResult[0];
 
-    if (!user) {
-      logger.error(
-        `Cannot reverse points: user not found`,
-        { userId, paymentIntentId, reason },
-        'PointsService'
-      );
-      return {
-        success: false,
-        pointsAwarded: 0,
-        newTotal: 0,
-        error: 'User not found',
-      };
-    }
+      if (!user) {
+        logger.error(
+          `Cannot reverse points: user not found`,
+          { userId, paymentIntentId, reason },
+          'PointsService'
+        );
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
 
-    const balanceBefore = Number(user.virtualBalance ?? 0);
-    // Floor at 0 - we don't allow negative trading balance
-    const balanceAfter = Math.max(0, balanceBefore - pointsToDeduct);
-    const actualDeduction = balanceBefore - balanceAfter;
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      // Floor at 0 - we don't allow negative trading balance
+      const balanceAfter = Math.max(0, balanceBefore - pointsToDeduct);
+      const actualDeduction = balanceBefore - balanceAfter;
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
+      // Atomic balance update - deduct but floor at 0
       await tx
         .update(users)
-        .set({ virtualBalance: balanceAfter.toFixed(2) })
+        .set({
+          virtualBalance: sql`GREATEST(0, COALESCE(CAST("virtualBalance" AS NUMERIC), 0) - ${pointsToDeduct})`,
+        })
         .where(eq(users.id, userId));
 
+      // Record the transaction
       await tx.insert(pointsTransactions).values({
         id: await generateSnowflakeId(),
         userId,
@@ -1043,28 +1082,30 @@ export class PointsService {
         paymentVerified: true,
         paymentProvider: 'stripe',
       });
+
+      logger.info(
+        `Reversed ${actualDeduction} trading points from user ${userId} due to ${reason}`,
+        {
+          userId,
+          paymentIntentId,
+          reason,
+          pointsRequested: pointsToDeduct,
+          pointsDeducted: actualDeduction,
+          balanceBefore,
+          balanceAfter,
+          stripeEventId,
+        },
+        'PointsService'
+      );
+
+      return {
+        success: true,
+        pointsAwarded: -actualDeduction,
+        newTotal: balanceAfter,
+      };
     });
 
-    logger.info(
-      `Reversed ${actualDeduction} trading points from user ${userId} due to ${reason}`,
-      {
-        userId,
-        paymentIntentId,
-        reason,
-        pointsRequested: pointsToDeduct,
-        pointsDeducted: actualDeduction,
-        balanceBefore,
-        balanceAfter,
-        stripeEventId,
-      },
-      'PointsService'
-    );
-
-    return {
-      success: true,
-      pointsAwarded: -actualDeduction,
-      newTotal: balanceAfter,
-    };
+    return result;
   }
 
   /**
@@ -1072,6 +1113,9 @@ export class PointsService {
    *
    * When a merchant wins a chargeback dispute, re-credit the points
    * that were previously deducted.
+   *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks stripeEventId inside transaction to prevent duplicates.
    *
    * @param userId - User ID to credit points to
    * @param disputeId - Stripe Dispute ID
@@ -1086,60 +1130,64 @@ export class PointsService {
   ): Promise<AwardPointsResult> {
     const pointsToCredit = Math.floor(amountUSD * 100);
 
-    // Check if this credit was already processed (idempotency)
-    const existingCredit = await db
-      .select({ id: pointsTransactions.id })
-      .from(pointsTransactions)
-      .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
-      .limit(1);
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this event already been processed?
+      const existingCredit = await tx
+        .select({ id: pointsTransactions.id })
+        .from(pointsTransactions)
+        .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+        .limit(1);
 
-    if (existingCredit.length > 0) {
-      logger.info(
-        `Dispute win credit already processed for event ${stripeEventId}`,
-        { userId, stripeEventId, disputeId },
-        'PointsService'
-      );
-      return {
-        success: true,
-        pointsAwarded: 0,
-        newTotal: 0,
-        alreadyAwarded: true,
-      };
-    }
+      if (existingCredit.length > 0) {
+        logger.info(
+          `Dispute win credit already processed for event ${stripeEventId}`,
+          { userId, stripeEventId, disputeId },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
 
-    // Get current user balance
-    const userResult = await db
-      .select({ virtualBalance: users.virtualBalance })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+      // Get current user balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const user = userResult[0];
+      const user = userResult[0];
 
-    if (!user) {
-      logger.error(
-        `Cannot credit dispute win: user not found`,
-        { userId, disputeId },
-        'PointsService'
-      );
-      return {
-        success: false,
-        pointsAwarded: 0,
-        newTotal: 0,
-        error: 'User not found',
-      };
-    }
+      if (!user) {
+        logger.error(
+          `Cannot credit dispute win: user not found`,
+          { userId, disputeId },
+          'PointsService'
+        );
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
 
-    const balanceBefore = Number(user.virtualBalance ?? 0);
-    const balanceAfter = balanceBefore + pointsToCredit;
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      const balanceAfter = balanceBefore + pointsToCredit;
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
+      // Atomic balance update
       await tx
         .update(users)
-        .set({ virtualBalance: balanceAfter.toFixed(2) })
+        .set({
+          virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) + ${pointsToCredit}`,
+        })
         .where(eq(users.id, userId));
 
+      // Record the transaction
       await tx.insert(pointsTransactions).values({
         id: await generateSnowflakeId(),
         userId,
@@ -1160,26 +1208,28 @@ export class PointsService {
         paymentVerified: true,
         paymentProvider: 'stripe',
       });
+
+      logger.info(
+        `Re-credited ${pointsToCredit} trading points to user ${userId} after winning dispute`,
+        {
+          userId,
+          disputeId,
+          pointsCredited: pointsToCredit,
+          balanceBefore,
+          balanceAfter,
+          stripeEventId,
+        },
+        'PointsService'
+      );
+
+      return {
+        success: true,
+        pointsAwarded: pointsToCredit,
+        newTotal: balanceAfter,
+      };
     });
 
-    logger.info(
-      `Re-credited ${pointsToCredit} trading points to user ${userId} after winning dispute`,
-      {
-        userId,
-        disputeId,
-        pointsCredited: pointsToCredit,
-        balanceBefore,
-        balanceAfter,
-        stripeEventId,
-      },
-      'PointsService'
-    );
-
-    return {
-      success: true,
-      pointsAwarded: pointsToCredit,
-      newTotal: balanceAfter,
-    };
+    return result;
   }
 
   /**
