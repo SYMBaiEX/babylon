@@ -245,6 +245,9 @@ export async function POST(request: NextRequest) {
  */
 async function collectMetrics(snapshotTime: Date) {
   // Convert dates to ISO strings for proper PostgreSQL timestamp handling
+  // Note: Drizzle's $queryRaw uses tagged template literals for safe parameterization.
+  // The syntax `${value}::timestamp` produces `$1::timestamp` with the value bound separately,
+  // NOT string concatenation. This is safe from SQL injection.
   const oneHourAgoStr = new Date(
     snapshotTime.getTime() - 60 * 60 * 1000
   ).toISOString();
@@ -409,12 +412,9 @@ async function collectSystemHealth() {
 
   // Calculate error rate from cron metrics (if we have data)
   // This reflects cron job errors, not API errors
+  // errorRate = 100 - successRate (e.g., 95% success = 5% error rate)
   if (cronStats.summary.totalExecutions > 0) {
-    errorRate =
-      ((cronStats.summary.totalExecutions *
-        (1 - cronStats.summary.overallSuccessRate / 100)) /
-        cronStats.summary.totalExecutions) *
-      100;
+    errorRate = 100 - cronStats.summary.overallSuccessRate;
   }
 
   return {

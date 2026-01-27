@@ -184,9 +184,14 @@ export const systemMetricsSnapshots = pgTable(
     // ===============================
     // System Health Metrics
     // ===============================
-    apiUptime: doublePrecision('apiUptime').notNull(), // 0.0 to 100.0 percentage
-    avgResponseTime: doublePrecision('avgResponseTime').notNull(), // milliseconds
-    errorRate: doublePrecision('errorRate').notNull(), // 0.0 to 100.0 percentage
+    // Note: apiUptime is a point-in-time database health check at snapshot time.
+    // 100.0 = database responding, 0.0 = database unreachable.
+    // For true uptime monitoring, integrate with external APM (e.g., Vercel Analytics).
+    apiUptime: doublePrecision('apiUptime').notNull(),
+    // avgResponseTime measures DB ping latency in milliseconds at snapshot time
+    avgResponseTime: doublePrecision('avgResponseTime').notNull(),
+    // errorRate derived from cron job success rate (100 - overallSuccessRate)
+    errorRate: doublePrecision('errorRate').notNull(),
 
     // ===============================
     // Cron Job Health

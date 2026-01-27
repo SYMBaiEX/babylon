@@ -103,9 +103,14 @@ const VALID_ENVIRONMENTS = ['production', 'staging', 'development'] as const;
 type Granularity = (typeof VALID_GRANULARITIES)[number];
 type Environment = (typeof VALID_ENVIRONMENTS)[number];
 
+/**
+ * Get current deployment environment
+ * Matches pattern from cron/metrics-snapshot route for consistency
+ */
 function getCurrentEnvironment(): Environment {
   if (process.env.VERCEL_ENV === 'production') return 'production';
   if (process.env.VERCEL_ENV === 'preview') return 'staging';
+  if (process.env.NODE_ENV === 'production') return 'production';
   return 'development';
 }
 
@@ -463,9 +468,15 @@ function calculateSummary(
   const avgErrorRate =
     snapshots.reduce((sum, s) => sum + s.errorRate, 0) / snapshots.length;
 
-  // Calculate hours for averaging (avoid division by zero)
-  const hoursInRange = Math.max(1, snapshots.length);
-  const daysInRange = Math.max(1, hoursInRange / 24);
+  // Calculate actual time span from first to last snapshot for accurate averaging
+  // This is more accurate than using snapshot count when there are gaps in data
+  const actualHoursSpan = Math.max(
+    1,
+    Math.ceil(
+      (last.timestamp.getTime() - first.timestamp.getTime()) / (60 * 60 * 1000)
+    )
+  );
+  const daysInRange = Math.max(1, actualHoursSpan / 24);
 
   return {
     period: {
@@ -490,7 +501,7 @@ function calculateSummary(
     },
     social: {
       totalPosts,
-      avgHourlyPosts: Math.round((totalPosts / hoursInRange) * 100) / 100,
+      avgHourlyPosts: Math.round((totalPosts / actualHoursSpan) * 100) / 100,
     },
     system: {
       avgUptime: Math.round(avgUptime * 100) / 100,
