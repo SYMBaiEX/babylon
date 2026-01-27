@@ -92,7 +92,7 @@ export async function gatherPendingCommentReplies(
         columns: { id: true, username: true, displayName: true },
       },
       post: {
-        columns: { id: true, content: true, authorId: true },
+        columns: { id: true, content: true, authorId: true, deletedAt: true },
         with: {
           User: {
             columns: { id: true, username: true, displayName: true },
@@ -122,6 +122,9 @@ export async function gatherPendingCommentReplies(
   for (const comment of allCommentsRaw) {
     if (comment.authorId === agentUserId) continue;
     if (!comment.post) continue;
+    if (comment.post.deletedAt) continue;
+    if (comment.parentCommentId && !commentMap.has(comment.parentCommentId))
+      continue;
 
     // Skip if agent already replied
     const replies = childrenMap.get(comment.id) || [];
