@@ -86,7 +86,11 @@ export function PerpPriceChart({
   > | null>(null);
   const seriesInitialized = useRef(false);
 
-  const { chartContainerRef, chart } = useLightweightChart({
+  const {
+    chartContainerRef,
+    chart,
+    error: chartBaseError,
+  } = useLightweightChart({
     crosshair: {
       mode: CrosshairMode.Normal,
     },
@@ -295,6 +299,17 @@ export function PerpPriceChart({
         <div className="text-center">
           <div className="text-sm">Chart unavailable</div>
           <div className="mt-1 text-xs">{chartInitError}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (chartBaseError) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="text-sm">Chart unavailable</div>
+          <div className="mt-1 text-xs">{chartBaseError}</div>
         </div>
       </div>
     );

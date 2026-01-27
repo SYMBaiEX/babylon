@@ -138,6 +138,7 @@ export const LINE_STYLES = {
 interface UseLightweightChartResult {
   chartContainerRef: React.RefObject<HTMLDivElement | null>;
   chart: IChartApi | null;
+  error: string | null;
 }
 
 /**
@@ -158,6 +159,7 @@ export function useLightweightChart(
 ): UseLightweightChartResult {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [chart, setChart] = useState<IChartApi | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const chartInstanceRef = useRef<IChartApi | null>(null);
   // Capture initial options to avoid re-creating chart on every render
   const initialOptionsRef = useRef(options);
@@ -184,6 +186,7 @@ export function useLightweightChart(
       }
 
       try {
+        setError(null);
         // NOTE: Do not rely on `autoSize` here.
         // Our repo pins lightweight-charts ~5.0.x in some environments, and `autoSize`
         // support can be inconsistent. We instead pass explicit dimensions and handle
@@ -200,6 +203,12 @@ export function useLightweightChart(
           setChart(chartInstance);
         }
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to create chart';
+        setError(message);
+        // Ensure we always surface this in devtools; logger output can be filtered.
+        // eslint-disable-next-line no-console
+        console.error('[useLightweightChart] createChart failed:', error);
         logger.error(
           'Failed to create chart',
           { error },
@@ -237,6 +246,9 @@ export function useLightweightChart(
             height: Math.floor(height),
           });
         } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Failed to resize chart';
+          setError(message);
           logger.warn(
             'Failed to resize chart',
             { error },
@@ -272,7 +284,7 @@ export function useLightweightChart(
     };
   }, []);
 
-  return { chartContainerRef, chart };
+  return { chartContainerRef, chart, error };
 }
 
 /**
