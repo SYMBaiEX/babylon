@@ -134,21 +134,29 @@ export function PerpsMarketDetailPanel({
 
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-            aria-label="Compare (coming soon)"
+            className="inline-flex cursor-not-allowed items-center gap-1 rounded px-2 py-1 text-muted-foreground/60"
+            aria-label="Compare (soon)"
+            disabled
           >
             <Plus size={14} />
             <span className="font-medium">Compare</span>
+            <span className="ml-1 rounded bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground">
+              soon
+            </span>
           </button>
         </div>
 
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-          aria-label="Indicators (coming soon)"
+          className="inline-flex cursor-not-allowed items-center gap-1 rounded px-2 py-1 text-muted-foreground/60"
+          aria-label="Indicators (soon)"
+          disabled
         >
           <BarChart2 size={14} />
           <span className="hidden font-medium sm:inline">Indicators</span>
+          <span className="ml-1 hidden rounded bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground sm:inline">
+            soon
+          </span>
         </button>
       </div>
 
