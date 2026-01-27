@@ -1,5 +1,15 @@
 import { relations } from 'drizzle-orm';
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  decimal,
+  doublePrecision,
+  index,
+  integer,
+  json,
+  pgTable,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import type { JsonValue } from '../types';
 import { users } from './users';
 
 /**
@@ -105,3 +115,111 @@ export const adminRolesRelations = relations(adminRoles, ({ one }) => ({
 // Type exports
 export type AdminRole = typeof adminRoles.$inferSelect;
 export type NewAdminRole = typeof adminRoles.$inferInsert;
+
+/**
+ * SystemMetricsSnapshot - Hourly platform metrics snapshots
+ *
+ * Stores aggregated metrics every hour for efficient time-series queries.
+ * Complements AnalyticsDailySnapshot (daily) with finer granularity
+ * and additional system health metrics.
+ *
+ * Used by:
+ * - GET /api/admin/stats/timeseries - Returns historical metrics
+ * - POST /api/cron/metrics-snapshot - Creates hourly snapshots
+ *
+ * Retention strategy: Keep 90 days of hourly data, then aggregate to daily.
+ */
+export const systemMetricsSnapshots = pgTable(
+  'SystemMetricsSnapshot',
+  {
+    id: text('id').primaryKey(),
+    timestamp: timestamp('timestamp', { mode: 'date' }).notNull(),
+    environment: text('environment').notNull(), // 'production' | 'staging' | 'development'
+
+    // ===============================
+    // User Metrics
+    // ===============================
+    totalUsers: integer('totalUsers').notNull(),
+    activeUsers: integer('activeUsers').notNull(), // Active in last 24h (posted, commented, or traded)
+    newSignups: integer('newSignups').notNull(), // New since last snapshot
+
+    // ===============================
+    // Trading Metrics (Prediction Markets)
+    // ===============================
+    tradingVolume: decimal('tradingVolume', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
+    activeMarkets: integer('activeMarkets').notNull(),
+    openPositions: integer('openPositions').notNull(),
+
+    // ===============================
+    // Trading Metrics (Perpetuals)
+    // ===============================
+    perpVolume: decimal('perpVolume', { precision: 18, scale: 2 })
+      .notNull()
+      .default('0'),
+    activePerpPositions: integer('activePerpPositions').notNull().default(0),
+
+    // ===============================
+    // Social Metrics
+    // ===============================
+    postsCreated: integer('postsCreated').notNull().default(0), // Since last snapshot
+    commentsCreated: integer('commentsCreated').notNull().default(0),
+    reactionsCreated: integer('reactionsCreated').notNull().default(0),
+
+    // ===============================
+    // Financial Metrics
+    // ===============================
+    totalVirtualBalance: decimal('totalVirtualBalance', {
+      precision: 20,
+      scale: 2,
+    }).notNull(),
+    totalFeesCollected: decimal('totalFeesCollected', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
+
+    // ===============================
+    // System Health Metrics
+    // ===============================
+    apiUptime: doublePrecision('apiUptime').notNull(), // 0.0 to 100.0 percentage
+    avgResponseTime: doublePrecision('avgResponseTime').notNull(), // milliseconds
+    errorRate: doublePrecision('errorRate').notNull(), // 0.0 to 100.0 percentage
+
+    // ===============================
+    // Cron Job Health
+    // ===============================
+    cronJobsHealthy: integer('cronJobsHealthy').notNull().default(0),
+    cronJobsUnhealthy: integer('cronJobsUnhealthy').notNull().default(0),
+
+    // ===============================
+    // Extended Metrics (JSON for flexibility)
+    // ===============================
+    extendedMetrics: json('extendedMetrics').$type<JsonValue>(),
+
+    // ===============================
+    // Metadata
+    // ===============================
+    snapshotDurationMs: integer('snapshotDurationMs').notNull(), // How long snapshot took
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Primary lookup: timestamp + environment (for specific snapshot)
+    index('SystemMetricsSnapshot_timestamp_environment_idx').on(
+      table.timestamp,
+      table.environment
+    ),
+    // Time range queries for single environment
+    index('SystemMetricsSnapshot_environment_timestamp_idx').on(
+      table.environment,
+      table.timestamp
+    ),
+    // Cleanup/retention queries
+    index('SystemMetricsSnapshot_createdAt_idx').on(table.createdAt),
+  ]
+);
+
+export type SystemMetricsSnapshot = typeof systemMetricsSnapshots.$inferSelect;
+export type NewSystemMetricsSnapshot =
+  typeof systemMetricsSnapshots.$inferInsert;
