@@ -27,7 +27,8 @@
     "db:push": "tsx ../../node_modules/drizzle-kit/bin.cjs push",
     "db:pull": "tsx ../../node_modules/drizzle-kit/bin.cjs pull",
     "db:studio": "tsx ../../node_modules/drizzle-kit/bin.cjs studio",
-    "db:check": "tsx ../../node_modules/drizzle-kit/bin.cjs check"
+    "db:check": "tsx ../../node_modules/drizzle-kit/bin.cjs check",
+    "db:sync-migrations": "tsx scripts/sync-migrations.ts"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",

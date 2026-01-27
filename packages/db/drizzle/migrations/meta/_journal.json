@@ -57,6 +57,13 @@
       "when": 1767100000000,
       "tag": "0015_add_nft_gating_to_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1738002000000,
+      "tag": "0026_add_points_payment_provider",
+      "breakpoints": true
     }
   ]
 }
