@@ -39,6 +39,7 @@
     "dotenv": "^16.4.5",
     "nanoid": "^5.1.6",
     "next": "16.0.7",
-    "playwright": "^1.56.1"
+    "playwright": "^1.56.1",
+    "stripe": "^20.2.0"
   }
 }

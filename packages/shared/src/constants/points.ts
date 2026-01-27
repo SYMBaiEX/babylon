@@ -58,6 +58,10 @@ export type PointsReason =
   | 'admin_award'
   | 'admin_deduction'
   | 'purchase'
+  | 'purchase_refund' // Points deducted due to Stripe refund
+  | 'purchase_dispute' // Points deducted due to chargeback/dispute
+  | 'purchase_dispute_won' // Points re-credited after winning dispute
   | 'transfer_sent'
   | 'transfer_received'
-  | 'report_reward'; // Reward for successful reporting of CSAM/scammer
+  | 'report_reward' // Reward for successful reporting of CSAM/scammer
+  | 'trading_pnl'; // Points from trading profit/loss
