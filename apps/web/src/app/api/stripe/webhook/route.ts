@@ -50,8 +50,22 @@ import { trackServerEvent } from '@/lib/posthog/server';
 import { constructWebhookEvent, stripe } from '@/lib/stripe/server';
 
 /**
+ * Result from webhook event handlers
+ */
+interface WebhookHandlerResult {
+  success: boolean;
+  alreadyProcessed?: boolean;
+  error?: string;
+}
+
+/**
  * Stripe webhook requires raw body for signature verification.
  * Next.js App Router provides request body as a stream.
+ *
+ * ERROR HANDLING:
+ * - Return 200 for successfully processed events (including idempotent duplicates)
+ * - Return 200 for events we intentionally skip (non-points purchases, etc.)
+ * - Return 500 for unexpected errors so Stripe will retry
  */
 export async function POST(req: Request) {
   const body = await req.text();
@@ -93,47 +107,99 @@ export async function POST(req: Request) {
     'StripeWebhook'
   );
 
-  // Handle events
-  switch (event.type) {
-    case 'checkout.session.completed':
-      await handleCheckoutSessionCompleted(event.data.object, event.id);
-      break;
+  // Handle events - each handler returns a result indicating success/failure
+  let result: WebhookHandlerResult = { success: true };
 
-    case 'checkout.session.async_payment_succeeded':
-      // Same handling as completed - async payment methods (bank debits, etc.)
-      await handleCheckoutSessionCompleted(event.data.object, event.id);
-      break;
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        result = await handleCheckoutSessionCompleted(
+          event.data.object,
+          event.id
+        );
+        break;
 
-    case 'checkout.session.expired':
-      await handleCheckoutSessionExpired(event.data.object);
-      break;
+      case 'checkout.session.async_payment_succeeded':
+        // Same handling as completed - async payment methods (bank debits, etc.)
+        result = await handleCheckoutSessionCompleted(
+          event.data.object,
+          event.id
+        );
+        break;
 
-    case 'checkout.session.async_payment_failed':
-      await handleCheckoutSessionFailed(event.data.object);
-      break;
+      case 'checkout.session.expired':
+        await handleCheckoutSessionExpired(event.data.object);
+        break;
 
-    case 'charge.dispute.created':
-      await handleDisputeCreated(event.data.object as Stripe.Dispute, event.id);
-      break;
+      case 'checkout.session.async_payment_failed':
+        await handleCheckoutSessionFailed(event.data.object);
+        break;
 
-    case 'charge.dispute.closed':
-      await handleDisputeClosed(event.data.object as Stripe.Dispute, event.id);
-      break;
+      case 'charge.dispute.created':
+        result = await handleDisputeCreated(
+          event.data.object as Stripe.Dispute,
+          event.id
+        );
+        break;
 
-    case 'charge.refunded':
-      await handleChargeRefunded(event.data.object as Stripe.Charge, event.id);
-      break;
+      case 'charge.dispute.closed':
+        result = await handleDisputeClosed(
+          event.data.object as Stripe.Dispute,
+          event.id
+        );
+        break;
 
-    default:
-      logger.info(
-        `Unhandled Stripe event type: ${event.type}`,
-        { eventId: event.id },
-        'StripeWebhook'
-      );
+      case 'charge.refunded':
+        result = await handleChargeRefunded(
+          event.data.object as Stripe.Charge,
+          event.id
+        );
+        break;
+
+      default:
+        logger.info(
+          `Unhandled Stripe event type: ${event.type}`,
+          { eventId: event.id },
+          'StripeWebhook'
+        );
+    }
+  } catch (err) {
+    // Unexpected error - return 500 so Stripe retries
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    logger.error(
+      'Webhook handler threw unexpected error',
+      {
+        eventId: event.id,
+        eventType: event.type,
+        error: message,
+        stack: err instanceof Error ? err.stack : undefined,
+      },
+      'StripeWebhook'
+    );
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 
-  // Always return 200 to acknowledge receipt
-  // Even if processing fails, we don't want Stripe to retry indefinitely
+  // Return 500 for processing failures so Stripe retries
+  // (but NOT for idempotent duplicates or intentional skips)
+  if (!result.success && !result.alreadyProcessed) {
+    logger.error(
+      'Webhook handler returned failure, requesting retry',
+      {
+        eventId: event.id,
+        eventType: event.type,
+        error: result.error,
+      },
+      'StripeWebhook'
+    );
+    return NextResponse.json(
+      { error: result.error || 'Processing failed' },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({ received: true });
 }
 
@@ -141,11 +207,12 @@ export async function POST(req: Request) {
  * Handle successful checkout session completion
  *
  * This is the critical path for crediting points after payment.
+ * Returns a result indicating success/failure for proper error handling.
  */
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   eventId: string
-): Promise<void> {
+): Promise<WebhookHandlerResult> {
   // Retrieve the full session to ensure we have all metadata
   // Webhook events may not include all fields
   let fullSession = session;
@@ -172,12 +239,13 @@ async function handleCheckoutSessionCompleted(
   );
 
   if (!metadata || Object.keys(metadata).length === 0) {
-    logger.error(
+    // No metadata - can't process, but don't retry (likely not our checkout)
+    logger.warn(
       'Checkout session completed without metadata',
       { sessionId: session.id },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - intentional skip
   }
 
   const { userId, pointsAmount, amountUSD, purchaseType } = metadata;
@@ -189,7 +257,7 @@ async function handleCheckoutSessionCompleted(
       { sessionId: session.id, purchaseType },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Intentional skip
   }
 
   if (!userId || !pointsAmount || !amountUSD) {
@@ -198,7 +266,7 @@ async function handleCheckoutSessionCompleted(
       { sessionId: session.id, metadata },
       'StripeWebhook'
     );
-    return;
+    return { success: false, error: 'Missing required metadata fields' };
   }
 
   // Extract payment intent ID for tracking
@@ -223,55 +291,40 @@ async function handleCheckoutSessionCompleted(
   // Credit points to user
   // Uses session.id as paymentRequestId for idempotency
   // The PointsService will reject if this session ID was already processed
-  let result;
-  try {
-    logger.info(
-      'Calling PointsService.purchasePoints',
-      {
-        userId,
-        amountUSD: parseFloat(amountUSD),
-        sessionId: fullSession.id,
-        paymentIntentId,
-      },
-      'StripeWebhook'
-    );
-
-    result = await PointsService.purchasePoints(
+  logger.info(
+    'Calling PointsService.purchasePoints',
+    {
       userId,
-      parseFloat(amountUSD),
-      fullSession.id, // paymentRequestId - unique, ensures idempotency
-      paymentIntentId, // paymentTxHash - Stripe payment intent ID
-      'stripe' // paymentProvider
-    );
+      amountUSD: parseFloat(amountUSD),
+      sessionId: fullSession.id,
+      paymentIntentId,
+    },
+    'StripeWebhook'
+  );
 
-    logger.info(
-      'PointsService.purchasePoints result',
-      { result },
-      'StripeWebhook'
-    );
-  } catch (err) {
-    logger.error(
-      'Exception calling PointsService.purchasePoints',
-      {
-        sessionId: fullSession.id,
-        userId,
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      },
-      'StripeWebhook'
-    );
-    return;
-  }
+  const result = await PointsService.purchasePoints(
+    userId,
+    parseFloat(amountUSD),
+    fullSession.id, // paymentRequestId - unique, ensures idempotency
+    paymentIntentId, // paymentTxHash - Stripe payment intent ID
+    'stripe' // paymentProvider
+  );
+
+  logger.info(
+    'PointsService.purchasePoints result',
+    { result },
+    'StripeWebhook'
+  );
 
   if (!result.success) {
     // Check if this is a duplicate (already processed)
-    if (result.error?.includes('duplicate') || result.alreadyAwarded) {
+    if (result.alreadyAwarded) {
       logger.info(
         'Points purchase already processed (idempotency check passed)',
         { sessionId: fullSession.id, userId },
         'StripeWebhook'
       );
-      return;
+      return { success: true, alreadyProcessed: true };
     }
 
     logger.error(
@@ -283,7 +336,7 @@ async function handleCheckoutSessionCompleted(
       },
       'StripeWebhook'
     );
-    return;
+    return { success: false, error: result.error };
   }
 
   logger.info(
@@ -305,6 +358,8 @@ async function handleCheckoutSessionCompleted(
     sessionId: fullSession.id,
     ...(paymentIntentId ? { paymentIntentId } : {}),
   });
+
+  return { success: true };
 }
 
 /**
@@ -378,7 +433,7 @@ async function handleCheckoutSessionFailed(
 async function handleDisputeCreated(
   dispute: Stripe.Dispute,
   eventId: string
-): Promise<void> {
+): Promise<WebhookHandlerResult> {
   // Get the charge to find the original payment
   const chargeId =
     typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
@@ -389,7 +444,7 @@ async function handleDisputeCreated(
       { disputeId: dispute.id },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - can't process without charge ID
   }
 
   // Retrieve the charge to get payment intent
@@ -406,7 +461,7 @@ async function handleDisputeCreated(
       { disputeId: dispute.id, chargeId },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - can't process without payment intent
   }
 
   // Find the original transaction to get the userId
@@ -433,7 +488,7 @@ async function handleDisputeCreated(
       { disputeId: dispute.id, paymentIntentId },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - not our transaction
   }
 
   const amountUSD = dispute.amount / 100; // Stripe uses cents
@@ -479,17 +534,20 @@ async function handleDisputeCreated(
       pointsDeducted: Math.abs(result.pointsAwarded),
       reason: dispute.reason,
     });
-  } else {
-    logger.error(
-      'Failed to deduct points for dispute',
-      {
-        disputeId: dispute.id,
-        userId: originalTx.userId,
-        error: result.error,
-      },
-      'StripeWebhook'
-    );
+
+    return { success: true, alreadyProcessed: result.alreadyAwarded };
   }
+
+  logger.error(
+    'Failed to deduct points for dispute',
+    {
+      disputeId: dispute.id,
+      userId: originalTx.userId,
+      error: result.error,
+    },
+    'StripeWebhook'
+  );
+  return { success: false, error: result.error };
 }
 
 /**
@@ -501,7 +559,7 @@ async function handleDisputeCreated(
 async function handleDisputeClosed(
   dispute: Stripe.Dispute,
   eventId: string
-): Promise<void> {
+): Promise<WebhookHandlerResult> {
   // Determine outcome
   const merchantWon = dispute.status === 'won';
 
@@ -517,7 +575,7 @@ async function handleDisputeClosed(
   // Only take action if merchant won - re-credit the points
   if (!merchantWon) {
     // Customer won or dispute was lost - points stay deducted
-    return;
+    return { success: true }; // Intentional skip
   }
 
   // Get the charge to find the original payment
@@ -530,7 +588,7 @@ async function handleDisputeClosed(
       { disputeId: dispute.id },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - can't process without charge ID
   }
 
   // Retrieve the charge to get payment intent
@@ -547,7 +605,7 @@ async function handleDisputeClosed(
       { disputeId: dispute.id, chargeId },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - can't process without payment intent
   }
 
   // Find the dispute deduction transaction to get the userId
@@ -574,7 +632,7 @@ async function handleDisputeClosed(
       { disputeId: dispute.id, paymentIntentId },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - no deduction to reverse
   }
 
   const amountUSD = dispute.amount / 100; // Stripe uses cents
@@ -614,17 +672,20 @@ async function handleDisputeClosed(
       amountUSD,
       pointsCredited: result.pointsAwarded,
     });
-  } else {
-    logger.error(
-      'Failed to re-credit points after dispute won',
-      {
-        disputeId: dispute.id,
-        userId: deductionTx.userId,
-        error: result.error,
-      },
-      'StripeWebhook'
-    );
+
+    return { success: true, alreadyProcessed: result.alreadyAwarded };
   }
+
+  logger.error(
+    'Failed to re-credit points after dispute won',
+    {
+      disputeId: dispute.id,
+      userId: deductionTx.userId,
+      error: result.error,
+    },
+    'StripeWebhook'
+  );
+  return { success: false, error: result.error };
 }
 
 /**
@@ -632,13 +693,17 @@ async function handleDisputeClosed(
  *
  * A refund was processed. Deduct the corresponding points from user's balance.
  * Handles both full and partial refunds.
+ *
+ * NOTE: charge.amount_refunded is CUMULATIVE, not incremental.
+ * For partial refunds, we calculate the incremental amount by checking
+ * how many points we've already deducted for this payment.
  */
 async function handleChargeRefunded(
   charge: Stripe.Charge,
   eventId: string
-): Promise<void> {
-  const refundedAmountCents = charge.amount_refunded;
-  const refundedAmountUSD = refundedAmountCents / 100;
+): Promise<WebhookHandlerResult> {
+  const totalRefundedCents = charge.amount_refunded;
+  const totalRefundedUSD = totalRefundedCents / 100;
   const paymentIntentId =
     typeof charge.payment_intent === 'string'
       ? charge.payment_intent
@@ -650,7 +715,7 @@ async function handleChargeRefunded(
       { chargeId: charge.id },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - can't process without payment intent
   }
 
   // Find the original transaction to get the userId
@@ -677,27 +742,73 @@ async function handleChargeRefunded(
       { chargeId: charge.id, paymentIntentId },
       'StripeWebhook'
     );
-    return;
+    return { success: true }; // Don't retry - not our transaction
   }
+
+  // Calculate incremental refund amount
+  // charge.amount_refunded is CUMULATIVE, so we need to check how much we've already deducted
+  const existingRefundsResult = await db
+    .select({
+      amount: pointsTransactions.amount,
+    })
+    .from(pointsTransactions)
+    .where(
+      and(
+        eq(pointsTransactions.paymentTxHash, paymentIntentId),
+        eq(pointsTransactions.reason, 'purchase_refund')
+      )
+    );
+
+  // Sum already deducted points (amounts are negative for deductions)
+  const alreadyDeductedPoints = existingRefundsResult.reduce(
+    (sum, tx) => sum + Math.abs(tx.amount),
+    0
+  );
+
+  // Calculate total refunded points based on cumulative USD
+  const totalRefundedPoints = Math.floor(totalRefundedUSD * 100);
+
+  // Incremental = total cumulative - already processed
+  const incrementalPointsToDeduct = totalRefundedPoints - alreadyDeductedPoints;
+
+  if (incrementalPointsToDeduct <= 0) {
+    logger.info(
+      'Refund already fully processed (incremental calculation)',
+      {
+        chargeId: charge.id,
+        eventId,
+        totalRefundedPoints,
+        alreadyDeductedPoints,
+      },
+      'StripeWebhook'
+    );
+    return { success: true, alreadyProcessed: true };
+  }
+
+  // Convert back to USD for the service call
+  const incrementalAmountUSD = incrementalPointsToDeduct / 100;
 
   logger.info(
     'Processing refund - deducting points',
     {
       chargeId: charge.id,
       userId: originalTx.userId,
-      refundedAmountUSD,
+      totalRefundedUSD,
+      incrementalAmountUSD,
+      incrementalPointsToDeduct,
+      alreadyDeductedPoints,
       fullRefund: charge.refunded,
       paymentIntentId,
     },
     'StripeWebhook'
   );
 
-  // Deduct points from user
+  // Deduct the incremental amount
   const result = await PointsService.reversePointsPurchase(
     originalTx.userId,
     paymentIntentId,
     'refund',
-    refundedAmountUSD,
+    incrementalAmountUSD,
     eventId
   );
 
@@ -708,7 +819,7 @@ async function handleChargeRefunded(
         { chargeId: charge.id, eventId },
         'StripeWebhook'
       );
-      return;
+      return { success: true, alreadyProcessed: true };
     }
 
     logger.info(
@@ -725,19 +836,22 @@ async function handleChargeRefunded(
 
     trackServerEvent(originalTx.userId, 'stripe_refund_points_deducted', {
       chargeId: charge.id,
-      amountUSD: refundedAmountUSD,
+      amountUSD: incrementalAmountUSD,
       pointsDeducted: Math.abs(result.pointsAwarded),
       fullRefund: charge.refunded,
     });
-  } else {
-    logger.error(
-      'Failed to deduct points for refund',
-      {
-        chargeId: charge.id,
-        userId: originalTx.userId,
-        error: result.error,
-      },
-      'StripeWebhook'
-    );
+
+    return { success: true };
   }
+
+  logger.error(
+    'Failed to deduct points for refund',
+    {
+      chargeId: charge.id,
+      userId: originalTx.userId,
+      error: result.error,
+    },
+    'StripeWebhook'
+  );
+  return { success: false, error: result.error };
 }
