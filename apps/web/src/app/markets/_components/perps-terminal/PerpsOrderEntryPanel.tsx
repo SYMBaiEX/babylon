@@ -317,7 +317,11 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
             />
             Market
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-muted-foreground hover:text-foreground">
+          <label
+            className="flex cursor-not-allowed items-center gap-2 text-muted-foreground/60"
+            aria-disabled="true"
+            title="Coming soon"
+          >
             <input
               type="radio"
               checked={orderType === 'limit'}
