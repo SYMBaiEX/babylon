@@ -92,7 +92,20 @@ interface CreateCheckoutSessionBody {
 
 export async function POST(req: NextRequest) {
   const authUser = await authenticate(req);
-  const userId = authUser.dbUserId!;
+
+  // Ensure user has a database record
+  if (!authUser.dbUserId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          'User account not fully set up. Please complete your profile first.',
+      },
+      { status: 401 }
+    );
+  }
+
+  const userId = authUser.dbUserId;
   const userEmail = authUser.email;
 
   const body: CreateCheckoutSessionBody = await req.json();

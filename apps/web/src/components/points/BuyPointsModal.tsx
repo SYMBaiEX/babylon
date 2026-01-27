@@ -1,6 +1,6 @@
 'use client';
 
-import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useWalletFunding } from '@/hooks/useWalletFunding';
 import { getAuthToken } from '@/lib/auth';
+import { getExplorerTxUrl } from '@/lib/chain';
 import { isStripeEnabled } from '@/lib/stripe';
 
 /**
@@ -78,28 +79,6 @@ interface PaymentRequest {
   to: string;
   from: string;
   amount: string;
-}
-
-/**
- * Get the block explorer URL for a transaction hash based on the current chain.
- */
-function getExplorerTxUrl(txHash: string): string {
-  const chainId = CHAIN.id;
-  switch (chainId) {
-    case 1: // Mainnet
-      return `https://etherscan.io/tx/${txHash}`;
-    case 11155111: // Sepolia
-      return `https://sepolia.etherscan.io/tx/${txHash}`;
-    case 8453: // Base Mainnet
-      return `https://basescan.org/tx/${txHash}`;
-    case 84532: // Base Sepolia
-      return `https://sepolia.basescan.org/tx/${txHash}`;
-    case 31337: // Hardhat/Local - no explorer
-      return '';
-    default:
-      // Fallback to Base Sepolia
-      return `https://sepolia.basescan.org/tx/${txHash}`;
-  }
 }
 
 export function BuyPointsModal({

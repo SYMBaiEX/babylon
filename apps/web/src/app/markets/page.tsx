@@ -120,12 +120,16 @@ export default function MarketsPage() {
 
     if (stripeSuccess === 'true') {
       stripeHandledRef.current = true;
-      // Payment successful - points are credited via webhook (usually very fast)
-      // Use a short delay before showing toast to allow webhook to process
+      // Payment received - points are credited via webhook asynchronously
+      // Message is conservative since webhook timing is not guaranteed
       const showToast = () => {
-        toast.success('Payment successful! Your points have been credited.', {
-          duration: 5000,
-        });
+        toast.success(
+          'Payment received! Your points will be credited shortly.',
+          {
+            duration: 5000,
+            description: 'Your balance will update automatically.',
+          }
+        );
         // Trigger balance refresh to update UI
         data.triggerBalanceRefresh();
       };

@@ -19,6 +19,7 @@ import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { getExplorerName, getExplorerTxUrl } from '@/lib/chain';
 import { useAuthStore } from '@/stores/authStore';
 
 /** Number of transactions to show in collapsed view */
@@ -136,7 +137,7 @@ function PurchaseTransactionRow({ tx }: { tx: PointsTransaction }) {
             )}
           </div>
           <div className="mt-1 text-muted-foreground text-sm">
-            {new Date(tx.createdAt).toLocaleDateString('en-US', {
+            {new Date(tx.createdAt).toLocaleString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
@@ -149,17 +150,19 @@ function PurchaseTransactionRow({ tx }: { tx: PointsTransaction }) {
               Paid: ${parseFloat(tx.paymentAmount).toFixed(2)} USD
             </div>
           )}
-          {tx.paymentTxHash && tx.paymentProvider === 'crypto' && (
-            <a
-              href={`https://basescan.org/tx/${tx.paymentTxHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-[#0066FF] text-xs hover:underline"
-            >
-              <ExternalLink className="h-3 w-3" />
-              View on BaseScan
-            </a>
-          )}
+          {tx.paymentTxHash &&
+            tx.paymentProvider === 'crypto' &&
+            getExplorerTxUrl(tx.paymentTxHash) && (
+              <a
+                href={getExplorerTxUrl(tx.paymentTxHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-[#0066FF] text-xs hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on {getExplorerName()}
+              </a>
+            )}
         </div>
       </div>
       <div className="shrink-0 text-right">

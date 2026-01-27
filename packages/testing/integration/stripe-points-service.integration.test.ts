@@ -63,18 +63,6 @@ describe('PointsService Stripe Integration', () => {
   }
 
   /**
-   * Get user's transaction count (reserved for future use)
-   */
-  async function _getTransactionCount(userId: string): Promise<number> {
-    const transactions = await db
-      .select()
-      .from(pointsTransactions)
-      .where(eq(pointsTransactions.userId, userId));
-
-    return transactions.length;
-  }
-
-  /**
    * Clean up test data after all tests
    */
   afterAll(async () => {
