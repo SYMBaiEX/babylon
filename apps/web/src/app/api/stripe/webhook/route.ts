@@ -239,7 +239,23 @@ async function handleCheckoutSessionCompleted(
       { sessionId: session.id },
       'StripeWebhook'
     );
-    fullSession = await stripe.checkout.sessions.retrieve(session.id);
+    try {
+      fullSession = await stripe.checkout.sessions.retrieve(session.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      logger.error(
+        'Failed to retrieve full session from Stripe API',
+        {
+          sessionId: session.id,
+          eventId,
+          error: message,
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+        'StripeWebhook'
+      );
+      // Return failure so Stripe retries the webhook
+      return { success: false, error: `Failed to retrieve session: ${message}` };
+    }
   }
 
   const metadata = fullSession.metadata;

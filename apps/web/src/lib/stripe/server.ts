@@ -7,9 +7,12 @@
 
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY environment variable is required');
-}
+/**
+ * Lazily initialized Stripe instance
+ * This allows helper functions to be imported without requiring STRIPE_SECRET_KEY
+ * (useful for testing pure functions like calculatePointsFromUSD)
+ */
+let _stripe: Stripe | null = null;
 
 /**
  * Server-side Stripe instance
@@ -18,11 +21,36 @@ if (!process.env.STRIPE_SECRET_KEY) {
  * - Creating Checkout Sessions
  * - Verifying webhook signatures
  * - Retrieving payment information
+ *
+ * @throws Error if STRIPE_SECRET_KEY is not set
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-12-15.clover',
-  typescript: true,
-});
+export function getStripeInstance(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY environment variable is required');
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-12-15.clover',
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
+
+/**
+ * Convenience export for direct access (throws if STRIPE_SECRET_KEY not set)
+ */
+export const stripe = {
+  get checkout() {
+    return getStripeInstance().checkout;
+  },
+  get webhooks() {
+    return getStripeInstance().webhooks;
+  },
+  get charges() {
+    return getStripeInstance().charges;
+  },
+};
 
 /**
  * Points pricing configuration
