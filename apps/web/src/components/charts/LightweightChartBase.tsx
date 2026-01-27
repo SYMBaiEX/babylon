@@ -166,10 +166,9 @@ export function useLightweightChart(
     // Skip during SSR
     if (typeof window === 'undefined') return;
 
-    let rafId: number | null = null;
     let mounted = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 60; // ~1 second at 60fps
+    let rafId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const createChartInstance = () => {
       const container = chartContainerRef.current;
@@ -181,17 +180,6 @@ export function useLightweightChart(
       // Check if container has dimensions
       const { width, height } = container.getBoundingClientRect();
       if (width === 0 || height === 0) {
-        retryCount++;
-        if (retryCount >= MAX_RETRIES) {
-          logger.warn(
-            'Chart container never acquired dimensions after max retries',
-            { retryCount },
-            'useLightweightChart'
-          );
-          return;
-        }
-        // Container not ready yet, retry on next frame
-        rafId = requestAnimationFrame(createChartInstance);
         return;
       }
 
@@ -215,14 +203,40 @@ export function useLightweightChart(
       }
     };
 
+    const scheduleCreate = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(createChartInstance);
+    };
+
     // Use RAF to ensure DOM is ready after hydration
-    rafId = requestAnimationFrame(createChartInstance);
+    scheduleCreate();
+
+    // If the chart initially mounts into a zero-sized container (common with tabs/panels),
+    // listen for size changes and retry initialization when dimensions become available.
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleCreate();
+      });
+      if (chartContainerRef.current) {
+        resizeObserver.observe(chartContainerRef.current);
+      }
+    }
+
+    const handleVisibility = () => {
+      scheduleCreate();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       mounted = false;
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
       }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (chartInstanceRef.current) {
         chartInstanceRef.current.remove();
         chartInstanceRef.current = null;
