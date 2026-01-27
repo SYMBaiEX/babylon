@@ -354,21 +354,29 @@ export function BillingTab() {
     setLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
-    const response = await fetch(`/api/users/${user.id}/points-history`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/users/${user.id}/points-history`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error || 'Failed to load transaction history');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || 'Failed to load transaction history');
+        return;
+      }
+
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load transaction history'
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const data = await response.json();
-    setTransactions(data.transactions || []);
-    setLoading(false);
   }, [user?.id, getAccessToken]);
 
   useEffect(() => {

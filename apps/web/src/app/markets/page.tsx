@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { MarketsToggle } from '@/components/shared/MarketsToggle';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -88,6 +88,13 @@ export default function MarketsPage() {
     'perps' | 'predictions' | null
   >(null);
 
+  // Ref guard to prevent Stripe redirect effect from firing multiple times
+  const stripeHandledRef = useRef(false);
+
+  // All data and computed values from centralized hook
+  // Must be declared before effects that use it
+  const data = useMarketsPageData();
+
   // Sync URL params with tab state (only when URL changes externally)
   // Intentionally excludes activeTab from deps to avoid feedback loop:
   // - URL change → state update (this effect)
@@ -105,20 +112,35 @@ export default function MarketsPage() {
   // Handle Stripe Checkout success/cancel redirects
   // When user returns from Stripe, show appropriate toast and clean URL
   useEffect(() => {
+    // Prevent re-entry if already handled (can happen before router.replace completes)
+    if (stripeHandledRef.current) return;
+
     const stripeSuccess = searchParams.get('stripe_success');
     const stripeCancelled = searchParams.get('stripe_cancelled');
 
     if (stripeSuccess === 'true') {
-      // Payment successful - points credited via webhook
-      toast.success('Payment successful! Your points have been credited.', {
-        duration: 5000,
-      });
+      stripeHandledRef.current = true;
+      // Payment successful - points are credited via webhook (usually very fast)
+      // Use a short delay before showing toast to allow webhook to process
+      const showToast = () => {
+        toast.success('Payment successful! Your points have been credited.', {
+          duration: 5000,
+        });
+        // Trigger balance refresh to update UI
+        data.triggerBalanceRefresh();
+      };
+      // Small delay to allow webhook to complete (typically < 1 second)
+      const timeout = setTimeout(showToast, 1000);
+
       // Clean up URL params after showing toast
       const url = new URL(window.location.href);
       url.searchParams.delete('stripe_success');
       url.searchParams.delete('session_id');
       router.replace(url.pathname + url.search, { scroll: false });
+
+      return () => clearTimeout(timeout);
     } else if (stripeCancelled === 'true') {
+      stripeHandledRef.current = true;
       // User cancelled checkout
       toast.info('Checkout cancelled. No payment was made.');
       // Clean up URL params
@@ -126,7 +148,8 @@ export default function MarketsPage() {
       url.searchParams.delete('stripe_cancelled');
       router.replace(url.pathname + url.search, { scroll: false });
     }
-  }, [searchParams, router]);
+    return undefined;
+  }, [searchParams, router, data]);
 
   // Handle tab change with URL update - uses startTransition for smooth UX
   const handleTabChange = useCallback(
@@ -142,9 +165,6 @@ export default function MarketsPage() {
     },
     [router]
   );
-
-  // All data and computed values from centralized hook
-  const data = useMarketsPageData();
 
   // Navigation handlers - memoized to prevent child re-renders
   const handleMarketClick = useCallback(

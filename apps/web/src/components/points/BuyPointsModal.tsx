@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { CHAIN, cn, logger, WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
@@ -80,6 +80,28 @@ interface PaymentRequest {
   amount: string;
 }
 
+/**
+ * Get the block explorer URL for a transaction hash based on the current chain.
+ */
+function getExplorerTxUrl(txHash: string): string {
+  const chainId = CHAIN.id;
+  switch (chainId) {
+    case 1: // Mainnet
+      return `https://etherscan.io/tx/${txHash}`;
+    case 11155111: // Sepolia
+      return `https://sepolia.etherscan.io/tx/${txHash}`;
+    case 8453: // Base Mainnet
+      return `https://basescan.org/tx/${txHash}`;
+    case 84532: // Base Sepolia
+      return `https://sepolia.basescan.org/tx/${txHash}`;
+    case 31337: // Hardhat/Local - no explorer
+      return '';
+    default:
+      // Fallback to Base Sepolia
+      return `https://sepolia.basescan.org/tx/${txHash}`;
+  }
+}
+
 export function BuyPointsModal({
   isOpen,
   onClose,
@@ -100,16 +122,6 @@ export function BuyPointsModal({
 
   // Check if Stripe is available
   const stripeAvailable = isStripeEnabled();
-
-  // Debug: Log payment options state
-  useEffect(() => {
-    console.log('[BuyPointsModal] Payment options:', {
-      stripeAvailable,
-      smartWalletAddress: !!smartWalletAddress,
-      user: !!user,
-      smartWalletReady,
-    });
-  }, [stripeAvailable, smartWalletAddress, user, smartWalletReady]);
 
   // Determine available payment methods
   const canUseCrypto = !!smartWalletAddress;
@@ -316,45 +328,57 @@ export function BuyPointsModal({
     setLoading(true);
     setError(null);
 
-    const token = await getAccessToken();
+    try {
+      const token = await getAccessToken();
 
-    if (!token) {
-      logger.error('Authentication required', undefined, 'BuyPointsModal');
-      setError('Authentication required');
-      setStep('error');
-      toast.error('Please sign in to continue');
-      setLoading(false);
-      return;
-    }
+      if (!token) {
+        logger.error('Authentication required', undefined, 'BuyPointsModal');
+        setError('Authentication required');
+        setStep('error');
+        toast.error('Please sign in to continue');
+        return;
+      }
 
-    const response = await fetch('/api/stripe/checkout/session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ amountUSD: amountNum }),
-    });
+      const response = await fetch('/api/stripe/checkout/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amountUSD: amountNum }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok || !data.success) {
-      const errorMessage = data.error || 'Failed to create checkout session';
+      if (!response.ok || !data.success) {
+        const errorMessage = data.error || 'Failed to create checkout session';
+        logger.error(
+          'Failed to create Stripe checkout',
+          { error: errorMessage },
+          'BuyPointsModal'
+        );
+        setError(errorMessage);
+        setStep('error');
+        toast.error('Failed to start checkout');
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      // Points will be credited via webhook after successful payment
+      window.location.href = data.url;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Network error';
       logger.error(
-        'Failed to create Stripe checkout',
+        'Stripe checkout failed',
         { error: errorMessage },
         'BuyPointsModal'
       );
       setError(errorMessage);
       setStep('error');
-      toast.error('Failed to start checkout');
+      toast.error('Failed to connect to payment server');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Redirect to Stripe Checkout
-    // Points will be credited via webhook after successful payment
-    window.location.href = data.url;
   };
 
   const handleCreatePayment = async () => {
@@ -922,10 +946,10 @@ export function BuyPointsModal({
                 ? 'Preparing your payment transaction...'
                 : 'Confirming your payment on the blockchain'}
             </p>
-            {txHash && (
+            {txHash && getExplorerTxUrl(txHash) && (
               <a
                 data-testid="transaction-hash-link"
-                href={`https://sepolia.basescan.org/tx/${txHash}`}
+                href={getExplorerTxUrl(txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary text-xs hover:underline"
@@ -956,9 +980,9 @@ export function BuyPointsModal({
                 added to your account
               </p>
             </div>
-            {txHash && (
+            {txHash && getExplorerTxUrl(txHash) && (
               <a
-                href={`https://sepolia.basescan.org/tx/${txHash}`}
+                href={getExplorerTxUrl(txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mb-4 inline-block text-primary text-xs hover:underline"
