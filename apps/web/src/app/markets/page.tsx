@@ -12,7 +12,6 @@ import {
   DashboardTabContent,
   LoginPrompt,
   MarketsSearchInput,
-  PerpsTabContent,
   PredictionsTabContent,
 } from './_components';
 import { useMarketsPageData } from './_hooks';
@@ -42,6 +41,14 @@ const BuyPointsModal = dynamic(
   { ssr: false }
 );
 
+const PerpsTradingTerminal = dynamic(
+  () =>
+    import('./_components/perps-terminal/PerpsTradingTerminal').then((m) => ({
+      default: m.PerpsTradingTerminal,
+    })),
+  { ssr: false }
+);
+
 /**
  * Valid tab values from URL params.
  */
@@ -51,7 +58,7 @@ const VALID_TABS: MarketTab[] = ['dashboard', 'perps', 'predictions'];
  * Parse tab from URL search params.
  */
 function parseTabFromParams(params: URLSearchParams): MarketTab {
-  const tab = params.get('tab');
+  const tab = params.get('tab') ?? params.get('tabs');
   if (tab && VALID_TABS.includes(tab as MarketTab)) {
     return tab as MarketTab;
   }
@@ -185,6 +192,13 @@ export default function MarketsPage() {
     [router]
   );
 
+  const handlePredictionNavigation = useCallback(
+    (prediction: PredictionMarket) => {
+      router.push(`/markets/predictions/${prediction.id}?from=predictions`);
+    },
+    [router]
+  );
+
   // Modal handlers - memoized to prevent child re-renders
   const handleShowPnLShare = useCallback(() => setShowPnLShareModal(true), []);
   const handleClosePnLShare = useCallback(
@@ -199,10 +213,6 @@ export default function MarketsPage() {
     () => setShowBuyPointsModal(false),
     []
   );
-  const handleShowPerpsPnLShare = useCallback(
-    () => setShowCategoryPnLShareModal('perps'),
-    []
-  );
   const handleShowPredictionsPnLShare = useCallback(
     () => setShowCategoryPnLShareModal('predictions'),
     []
@@ -212,7 +222,6 @@ export default function MarketsPage() {
     []
   );
 
-  // Loading state
   if (data.loading) {
     return (
       <PageContainer noPadding className="flex flex-col">
@@ -257,21 +266,7 @@ export default function MarketsPage() {
           />
         );
       case 'perps':
-        return (
-          <PerpsTabContent
-            authenticated={data.authenticated}
-            perpPnLData={data.perpPnLData}
-            portfolioLoading={data.portfolioLoading}
-            portfolioError={data.portfolioError}
-            portfolioUpdatedAt={data.portfolioUpdatedAt}
-            onShowCategoryPnLShare={handleShowPerpsPnLShare}
-            onRefreshPortfolio={data.refreshPortfolio}
-            perpPositions={data.perpPositions}
-            onPositionClosed={data.handlePositionsRefresh}
-            filteredMarkets={data.filteredPerpMarkets}
-            onMarketClick={handleMarketClick}
-          />
-        );
+        return null;
       case 'predictions':
         return (
           <PredictionsTabContent
@@ -288,95 +283,105 @@ export default function MarketsPage() {
             onSortChange={data.setPredictionSort}
             activePredictions={data.activePredictions}
             resolvedPredictions={data.resolvedPredictions}
-            onPredictionClick={handlePredictionClick}
+            onPredictionClick={
+              isMobile ? handlePredictionNavigation : handlePredictionClick
+            }
             predictionsError={data.predictionsError}
             compact={isMobile}
           />
         );
+      default:
+        return null;
     }
   };
 
   return (
-    <PageContainer noPadding className="flex flex-col">
-      {/* Desktop Layout */}
-      <div className="hidden flex-1 overflow-hidden xl:flex">
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
-          {/* Header */}
-          <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-            <div className="px-3 sm:px-4 lg:px-6">
-              <MarketsToggle
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                balance={data.portfolioPnL?.available}
-                authenticated={data.authenticated}
-                loading={data.portfolioLoading}
-              />
+    <PageContainer
+      noPadding
+      className="flex h-[calc(100vh-theme(spacing.16))] flex-col"
+    >
+      {activeTab === 'perps' ? (
+        <div className="flex flex-1 overflow-hidden bg-background/20">
+          <PerpsTradingTerminal
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="hidden flex-1 overflow-hidden xl:flex">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
+              <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+                <div className="px-3 sm:px-4 lg:px-6">
+                  <MarketsToggle
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
+                    balance={data.portfolioPnL?.available}
+                    authenticated={data.authenticated}
+                    loading={data.portfolioLoading}
+                  />
+                </div>
+                {activeTab !== 'dashboard' && (
+                  <div className="px-3 pb-3 sm:px-4 lg:px-6">
+                    <MarketsSearchInput
+                      value={data.searchQuery}
+                      onChange={data.setSearchQuery}
+                      activeTab={activeTab}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+                  isPending ? 'opacity-80' : 'opacity-100'
+                }`}
+              >
+                {renderTabContent(false)}
+              </div>
+
+              {!data.authenticated && activeTab !== 'dashboard' && (
+                <LoginPrompt onLogin={data.login} />
+              )}
             </div>
-            {activeTab !== 'dashboard' && (
-              <div className="px-3 pb-3 sm:px-4 lg:px-6">
-                <MarketsSearchInput
-                  value={data.searchQuery}
-                  onChange={data.setSearchQuery}
+          </div>
+
+          <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
+            <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+              <div className="px-3 sm:px-4">
+                <MarketsToggle
                   activeTab={activeTab}
+                  onTabChange={handleTabChange}
+                  balance={data.portfolioPnL?.available}
+                  authenticated={data.authenticated}
+                  loading={data.portfolioLoading}
                 />
               </div>
+              {activeTab !== 'dashboard' && (
+                <div className="px-3 pb-3 sm:px-4">
+                  <MarketsSearchInput
+                    value={data.searchQuery}
+                    onChange={data.setSearchQuery}
+                    activeTab={activeTab}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div
+              className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+                isPending ? 'opacity-80' : 'opacity-100'
+              }`}
+            >
+              {renderTabContent(true)}
+            </div>
+
+            {!data.authenticated && activeTab !== 'dashboard' && (
+              <LoginPrompt onLogin={data.login} />
             )}
           </div>
-
-          {/* Content */}
-          <div
-            className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
-              isPending ? 'opacity-80' : 'opacity-100'
-            }`}
-          >
-            {renderTabContent(false)}
-          </div>
-
-          {/* Login prompt for non-dashboard tabs */}
-          {!data.authenticated && activeTab !== 'dashboard' && (
-            <LoginPrompt onLogin={data.login} />
-          )}
-        </div>
-      </div>
-
-      {/* Mobile/Tablet Layout */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-          <div className="px-3 sm:px-4">
-            <MarketsToggle
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              balance={data.portfolioPnL?.available}
-              authenticated={data.authenticated}
-              loading={data.portfolioLoading}
-            />
-          </div>
-          {activeTab !== 'dashboard' && (
-            <div className="px-3 pb-3 sm:px-4">
-              <MarketsSearchInput
-                value={data.searchQuery}
-                onChange={data.setSearchQuery}
-                activeTab={activeTab}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div
-          className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
-            isPending ? 'opacity-80' : 'opacity-100'
-          }`}
-        >
-          {renderTabContent(true)}
-        </div>
-
-        {/* Login prompt for non-dashboard tabs */}
-        {!data.authenticated && activeTab !== 'dashboard' && (
-          <LoginPrompt onLogin={data.login} />
-        )}
-      </div>
+        </>
+      )}
 
       {/* Lazy loaded modals */}
       {showPnLShareModal && (

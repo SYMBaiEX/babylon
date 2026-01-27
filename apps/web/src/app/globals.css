@@ -121,6 +121,10 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
 }
 
+.writing-vertical-lr {
+  writing-mode: vertical-lr;
+}
+
 /* @tailwind-css v4 theme block */
 /* stylelint-disable-next-line at-rule-no-unknown */
 @theme inline {
