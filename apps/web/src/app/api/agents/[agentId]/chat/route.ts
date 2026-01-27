@@ -423,6 +423,8 @@ export const POST = withErrorHandling(
       }
     > = [];
     let finalResponse: string | null = null;
+    // Track if response is due to LLM failure (don't charge points)
+    let isLLMFailure = false;
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       // Check if client cancelled the request
@@ -527,6 +529,7 @@ export const POST = withErrorHandling(
       if (!parsedStep) {
         finalResponse =
           "I'm having trouble processing your request. Could you try rephrasing?";
+        isLLMFailure = true; // Don't charge points for LLM parse failures
         break;
       }
 
@@ -779,6 +782,10 @@ export const POST = withErrorHandling(
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
 
+    // Calculate actual points cost early - skip charging for LLM failures
+    // This needs to happen before DB writes so stored pointsCost is accurate
+    const actualPointsCost = isLLMFailure ? 0 : pointsCost;
+
     const userMessageTime = new Date();
     const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
     let responseMessageId: string;
@@ -840,7 +847,7 @@ export const POST = withErrorHandling(
             role: 'assistant',
             content: responseText,
             modelUsed,
-            pointsCost,
+            pointsCost: actualPointsCost, // Use actual cost (0 for LLM failures)
             createdAt: assistantMessageTime,
             metadata: {
               multiStep: true,
@@ -849,6 +856,7 @@ export const POST = withErrorHandling(
                 type: a.actionType,
                 success: a.success,
               })),
+              isLLMFailure, // Track if this was a fallback response
             },
           },
         ],
@@ -866,27 +874,30 @@ export const POST = withErrorHandling(
         id: uuidv4(),
         agentUserId: agentId,
         type: 'chat',
-        level: 'info',
-        message: 'Chat interaction completed',
+        level: isLLMFailure ? 'warn' : 'info',
+        message: isLLMFailure
+          ? 'Chat interaction completed with LLM failure'
+          : 'Chat interaction completed',
         prompt: message,
         completion: responseText,
         metadata: {
           usePro,
-          pointsCost,
+          pointsCost: actualPointsCost,
           modelUsed,
           multiStep: true,
           actionsExecuted: traceActionResults.length,
+          isLLMFailure,
         },
       },
     });
 
     // Deduct points ONLY after successful response generation and DB save
     // This ensures users don't lose points on failed/cancelled requests
-    if (pointsCost > 0) {
+    if (actualPointsCost > 0) {
       try {
         newBalance = await agentService.deductPoints(
           agentId,
-          pointsCost,
+          actualPointsCost,
           `Chat message (${usePro ? 'pro' : 'free'} mode)`,
           undefined
         );
@@ -894,7 +905,7 @@ export const POST = withErrorHandling(
         // Log but don't fail - response already saved, points can be reconciled
         logger.error(
           'Failed to deduct points after successful response',
-          { agentId, pointsCost, error: err },
+          { agentId, pointsCost: actualPointsCost, error: err },
           'AgentChat'
         );
         // Keep original balance in response (will be slightly incorrect but safe)
@@ -911,9 +922,10 @@ export const POST = withErrorHandling(
       success: true,
       messageId: responseMessageId,
       response: responseText,
-      pointsCost,
+      pointsCost: actualPointsCost,
       modelUsed,
       balanceAfter: newBalance,
+      isLLMFailure, // Let frontend know if this was a fallback response
       multiStep: {
         actionsExecuted: traceActionResults.length,
         actions: traceActionResults.map((a) => ({

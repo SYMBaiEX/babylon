@@ -765,6 +765,7 @@ export function useTeamChat(): UseTeamChatReturn {
               response?: string;
               pointsCost?: number;
               balanceAfter?: number;
+              isLLMFailure?: boolean;
             };
 
             // Add agent response message IMMEDIATELY from JSON response
@@ -783,8 +784,14 @@ export function useTeamChat(): UseTeamChatReturn {
               });
             }
 
-            // Show toast if points were deducted
-            if (data.pointsCost && data.pointsCost > 0) {
+            // Show toast based on response type
+            if (data.isLLMFailure) {
+              // LLM failed to parse - no points charged, show warning
+              toast.warning(
+                `${agent?.displayName} had trouble understanding. No points charged.`
+              );
+            } else if (data.pointsCost && data.pointsCost > 0) {
+              // Successful response with points deducted
               toast.success(
                 `Response from ${agent?.displayName} (-${data.pointsCost} points)`
               );
@@ -820,18 +827,22 @@ export function useTeamChat(): UseTeamChatReturn {
                   `${agent?.displayName}: Insufficient points. Deposit to continue.`
                 );
               } else {
-                console.error(`Agent ${agentId} error:`, errorMessage);
+                // Show toast for other errors instead of just logging
+                toast.error(`${agent?.displayName}: ${errorMessage}`);
               }
             } catch {
-              console.error(`Agent ${agentId} failed to respond`);
+              toast.error(`${agent?.displayName} failed to respond`);
             }
           }
         } catch (err) {
-          // Don't log abort errors - they're expected when user stops
+          // Don't show toast for abort errors - they're expected when user stops
           if (err instanceof Error && err.name === 'AbortError') {
-            console.log(`Agent ${agentId} request was cancelled`);
+            // User cancelled, no need to notify
           } else {
-            console.error(`Error calling agent ${agentId}:`, err);
+            // Network or other unexpected errors - show toast
+            toast.error(
+              `${agent?.displayName}: Connection error. Please try again.`
+            );
           }
         } finally {
           // Clean up AbortController
