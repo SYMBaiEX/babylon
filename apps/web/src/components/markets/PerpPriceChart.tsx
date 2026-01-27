@@ -73,7 +73,7 @@ interface PerpPriceChartProps {
 export function PerpPriceChart({
   data,
   currentPrice,
-  ticker,
+  ticker: _ticker,
   timeRange,
   onTimeRangeChange,
   showHeader = true,
