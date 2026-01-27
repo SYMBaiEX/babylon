@@ -782,6 +782,10 @@ export const POST = withErrorHandling(
     // Ensure finalResponse is never null
     const responseText = finalResponse ?? "I'm here to help!";
 
+    // Calculate actual points cost early - skip charging for LLM failures
+    // This needs to happen before DB writes so stored pointsCost is accurate
+    const actualPointsCost = isLLMFailure ? 0 : pointsCost;
+
     const userMessageTime = new Date();
     const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
     let responseMessageId: string;
@@ -843,7 +847,7 @@ export const POST = withErrorHandling(
             role: 'assistant',
             content: responseText,
             modelUsed,
-            pointsCost,
+            pointsCost: actualPointsCost, // Use actual cost (0 for LLM failures)
             createdAt: assistantMessageTime,
             metadata: {
               multiStep: true,
@@ -852,6 +856,7 @@ export const POST = withErrorHandling(
                 type: a.actionType,
                 success: a.success,
               })),
+              isLLMFailure, // Track if this was a fallback response
             },
           },
         ],
@@ -863,9 +868,6 @@ export const POST = withErrorHandling(
       .update(userAgentConfigs)
       .set({ lastChatAt: new Date(), updatedAt: new Date() })
       .where(eq(userAgentConfigs.userId, agentId));
-
-    // Calculate actual points cost - skip charging for LLM failures
-    const actualPointsCost = isLLMFailure ? 0 : pointsCost;
 
     await db.agentLog.create({
       data: {
