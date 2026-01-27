@@ -301,21 +301,16 @@ def export_adapter(config: ModelExportConfig):
     
     logger.info(f"Exporting adapter from {adapter_path} to {config.repo_id}")
     
-    # Create repo
+    # Create repo (or use existing)
     api = HfApi(token=hf_token)
-    try:
-        create_repo(
-            repo_id=config.repo_id,
-            repo_type="model",
-            private=config.private,
-            token=hf_token,
-        )
-        logger.info(f"Created repo: {config.repo_id}")
-    except Exception as e:
-        if "already exists" in str(e).lower():
-            logger.info(f"Repo already exists: {config.repo_id}")
-        else:
-            raise
+    create_repo(
+        repo_id=config.repo_id,
+        repo_type="model",
+        private=config.private,
+        token=hf_token,
+        exist_ok=True,  # Don't fail if repo already exists
+    )
+    logger.info(f"Using repo: {config.repo_id}")
     
     # Generate model card
     model_card = create_model_card(config, adapter_config, training_args)
