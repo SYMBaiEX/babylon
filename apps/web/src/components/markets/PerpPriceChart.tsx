@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import type { ISeriesApi, Time } from 'lightweight-charts';
 import { AreaSeries, CrosshairMode } from 'lightweight-charts';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -45,6 +46,10 @@ interface PerpPriceChartProps {
   onTimeRangeChange: (range: MarketTimeRange) => void;
   /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
+  /** Whether to show the header (price + range controls). Defaults to true. */
+  showHeader?: boolean;
+  /** Optional className for the container */
+  className?: string;
 }
 
 /**
@@ -71,6 +76,8 @@ export function PerpPriceChart({
   ticker,
   timeRange,
   onTimeRangeChange,
+  showHeader = true,
+  className,
 }: PerpPriceChartProps) {
   const [chartInitError, setChartInitError] = useState<string | null>(null);
   const priceSeries = useRef<ISeriesApi<'Area'> | null>(null);
@@ -294,42 +301,54 @@ export function PerpPriceChart({
   }
 
   return (
-    <div className="w-full space-y-3" key={ticker}>
+    <div
+      className={cn(
+        'flex h-full w-full flex-col',
+        showHeader ? 'space-y-3' : '',
+        className
+      )}
+    >
       {/* Header with price info and time range selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="font-bold text-2xl">
-              {formatChartPrice(currentPrice, true)}
-            </div>
-            <div
-              className={`font-medium text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}
-            >
-              {isPositive ? '↑' : '↓'}{' '}
-              {formatChartPrice(Math.abs(priceChange), true)} (
-              {priceChangePercent >= 0 ? '+' : ''}
-              {priceChangePercent.toFixed(2)}%)
+      {showHeader && (
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="font-bold text-2xl">
+                {formatChartPrice(currentPrice, true)}
+              </div>
+              <div
+                className={cn(
+                  'font-medium text-sm',
+                  isPositive ? 'text-green-600' : 'text-red-600'
+                )}
+              >
+                {isPositive ? '↑' : '↓'}{' '}
+                {formatChartPrice(Math.abs(priceChange), true)} (
+                {priceChangePercent >= 0 ? '+' : ''}
+                {priceChangePercent.toFixed(2)}%)
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Time range selector */}
-        <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
-          {MARKET_TIME_RANGES.map((range) => (
-            <button
-              key={range}
-              onClick={() => onTimeRangeChange(range)}
-              className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
-                timeRange === range
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {range}
-            </button>
-          ))}
+          {/* Time range selector */}
+          <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
+            {MARKET_TIME_RANGES.map((range) => (
+              <button
+                key={range}
+                onClick={() => onTimeRangeChange(range)}
+                className={cn(
+                  'cursor-pointer rounded px-2 py-1 text-xs transition-colors',
+                  timeRange === range
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Chart container */}
       <div className="relative">
