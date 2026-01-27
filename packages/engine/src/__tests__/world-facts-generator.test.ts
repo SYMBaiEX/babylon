@@ -132,7 +132,6 @@ mock.module('../llm/openai-client', () => ({
   },
 }));
 
-
 describe('WorldFactsGeneratorService', () => {
   beforeEach(() => {
     // Clear mocks
