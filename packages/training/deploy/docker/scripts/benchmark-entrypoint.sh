@@ -200,7 +200,7 @@ if [ -n "$HF_MODEL" ]; then
     fi
     
     # Download using huggingface-cli
-    HF_DOWNLOAD_PATH="/models/hf-$(echo $HF_MODEL | tr '/' '-')"
+    export HF_DOWNLOAD_PATH="/models/hf-$(echo $HF_MODEL | tr '/' '-')"
     
     python3 -c "
 from huggingface_hub import snapshot_download
@@ -245,6 +245,7 @@ VLLM_CMD="$VLLM_CMD --enable-prefix-caching"
 # Add model/adapter if specified
 ADAPTER_NAME=""
 IS_MERGED_MODEL=false
+EFFECTIVE_MODEL="$BASE_MODEL"
 if [ -n "$MODEL_PATH" ] && [ -d "$MODEL_PATH" ]; then
     # Check if it's a LoRA adapter (has adapter_config.json) or a full model
     if [ -f "$MODEL_PATH/adapter_config.json" ]; then
@@ -257,6 +258,7 @@ if [ -n "$MODEL_PATH" ] && [ -d "$MODEL_PATH" ]; then
         # Override the base model with the merged model path
         VLLM_CMD=$(echo "$VLLM_CMD" | sed "s|--model $BASE_MODEL|--model $MODEL_PATH|")
         IS_MERGED_MODEL=true
+        EFFECTIVE_MODEL="$MODEL_PATH"
     fi
 fi
 
@@ -326,7 +328,7 @@ echo ""
 # Build benchmark command
 BENCH_CMD="bun run scripts/run-vllm-benchmark.ts"
 BENCH_CMD="$BENCH_CMD --vllm-url http://localhost:$VLLM_PORT"
-BENCH_CMD="$BENCH_CMD --base-model $BASE_MODEL"
+BENCH_CMD="$BENCH_CMD --base-model $EFFECTIVE_MODEL"
 BENCH_CMD="$BENCH_CMD --archetype $BENCHMARK_ARCHETYPE"
 BENCH_CMD="$BENCH_CMD --baseline $BENCHMARK_BASELINE"
 BENCH_CMD="$BENCH_CMD --output $BENCHMARK_OUTPUT"
