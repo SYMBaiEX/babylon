@@ -171,6 +171,7 @@ export function useLightweightChart(
     let mounted = true;
     let rafId: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let initTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const createChartInstance = () => {
       const container = chartContainerRef.current;
@@ -225,6 +226,43 @@ export function useLightweightChart(
     // Use RAF to ensure DOM is ready after hydration
     scheduleCreate();
 
+    // If we still haven't created a chart shortly after mount, surface a concrete error.
+    // This prevents "Initializing chart..." from hanging forever when the container never
+    // gets real dimensions (a common layout bug).
+    initTimeoutId = setTimeout(() => {
+      if (!mounted) return;
+      if (chartInstanceRef.current) return;
+
+      const container = chartContainerRef.current;
+      if (!container) {
+        setError('Chart container ref was not attached.');
+        // eslint-disable-next-line no-console
+        console.error('[useLightweightChart] container ref missing');
+        return;
+      }
+
+      const { width, height } = container.getBoundingClientRect();
+      if (width === 0 || height === 0) {
+        const message = `Chart container has zero size (${Math.floor(width)}x${Math.floor(height)}).`;
+        setError(message);
+        // eslint-disable-next-line no-console
+        console.error('[useLightweightChart]', message, container);
+        return;
+      }
+
+      // We have dimensions but still no chart; try once more and then error.
+      scheduleCreate();
+      setTimeout(() => {
+        if (!mounted) return;
+        if (chartInstanceRef.current) return;
+        const retryRect = container.getBoundingClientRect();
+        const message = `Chart failed to initialize (container ${Math.floor(retryRect.width)}x${Math.floor(retryRect.height)}).`;
+        setError(message);
+        // eslint-disable-next-line no-console
+        console.error('[useLightweightChart]', message, container);
+      }, 250);
+    }, 1500);
+
     // If the chart initially mounts into a zero-sized container (common with tabs/panels),
     // listen for size changes and retry initialization when dimensions become available.
     if (typeof ResizeObserver !== 'undefined') {
@@ -270,6 +308,10 @@ export function useLightweightChart(
       mounted = false;
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
+      }
+      if (initTimeoutId) {
+        clearTimeout(initTimeoutId);
+        initTimeoutId = null;
       }
       if (resizeObserver) {
         resizeObserver.disconnect();
