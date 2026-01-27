@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import { ActivityFilters, type ActivityType } from './ActivityFilters';
 import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
 
@@ -149,6 +150,13 @@ export default function TeamChatPage() {
 
   // Create agent view state
   const [showCreateAgent, setShowCreateAgent] = useState(false);
+
+  // Activity tab filter state
+  const [activityTypeFilter, setActivityTypeFilter] =
+    useState<ActivityType>('all');
+  const [activityAgentFilter, setActivityAgentFilter] = useState<string | null>(
+    null
+  );
 
   // Fetch agents for Agents tab
   const fetchAgents = useCallback(async () => {
@@ -879,20 +887,49 @@ export default function TeamChatPage() {
           {/* Activity Tab */}
           {activeTab === 'activity' && (
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="mb-4">
+              <div className="mb-6">
                 <h2 className="flex items-center gap-2 font-bold text-xl">
                   <Activity className="h-5 w-5 text-blue-500" />
                   Recent Activity
                 </h2>
                 <p className="mt-1 text-muted-foreground text-sm">
-                  Recent trades, posts, and comments from all your agents
+                  {activityAgentFilter
+                    ? `Activity from ${teamChat?.agents.find((a) => a.id === activityAgentFilter)?.displayName || 'selected agent'}`
+                    : 'Recent trades, posts, and comments from all your agents'}
                 </p>
               </div>
+
+              {/* Activity Filters */}
+              <ActivityFilters
+                activityType={activityTypeFilter}
+                onActivityTypeChange={setActivityTypeFilter}
+                selectedAgentId={activityAgentFilter}
+                onAgentChange={setActivityAgentFilter}
+                agents={
+                  teamChat?.agents.map((agent) => ({
+                    id: agent.id,
+                    name: agent.displayName || agent.username || 'Agent',
+                    username: agent.username || undefined,
+                    profileImageUrl: agent.profileImageUrl,
+                  })) || []
+                }
+                agentsLoading={loading}
+                className="mb-6"
+              />
+
               <AgentActivityFeed
-                limit={20}
-                showAgent={true}
-                showConnectionStatus={false}
-                emptyMessage="No agent activity yet. Your agents' trades, posts, and comments will appear here."
+                agentId={activityAgentFilter || undefined}
+                type={activityTypeFilter}
+                limit={30}
+                showAgent={!activityAgentFilter}
+                showConnectionStatus
+                emptyMessage={
+                  activityAgentFilter
+                    ? 'No activity from this agent yet.'
+                    : activityTypeFilter !== 'all'
+                      ? `No ${activityTypeFilter} activity yet.`
+                      : "No agent activity yet. Your agents' trades, posts, and comments will appear here."
+                }
               />
             </div>
           )}

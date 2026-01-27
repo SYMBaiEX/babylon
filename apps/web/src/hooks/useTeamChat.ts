@@ -1107,7 +1107,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
   // Fetch conversations when team chat loads
   useEffect(() => {
-    if (teamChat && user) {
+    if (teamChat?.id && user) {
       refreshConversations();
     }
   }, [teamChat?.id, user, refreshConversations]);

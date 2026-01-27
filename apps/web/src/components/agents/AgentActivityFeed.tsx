@@ -6,10 +6,12 @@ import { memo } from 'react';
 import { useAgentActivity } from '@/hooks/useAgentActivity';
 import { AgentActivityCard } from './AgentActivityCard';
 
+export type ActivityTypeFilter = 'all' | 'trade' | 'post' | 'comment';
+
 interface AgentActivityFeedProps {
   agentId?: string;
   limit?: number;
-  type?: 'all' | 'trade' | 'post' | 'comment';
+  type?: ActivityTypeFilter;
   showAgent?: boolean;
   showConnectionStatus?: boolean;
   emptyMessage?: string;
