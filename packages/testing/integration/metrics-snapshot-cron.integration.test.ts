@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
-import { db, eq, systemMetricsSnapshots } from '@babylon/db';
+import { db, eq, inArray, systemMetricsSnapshots } from '@babylon/db';
 
 const BASE_URL =
   process.env.TEST_API_URL ||
@@ -80,14 +80,12 @@ describe('Metrics Snapshot Cron Job', () => {
   });
 
   afterAll(async () => {
-    // Cleanup test snapshots
+    // Batch cleanup of test snapshots (more efficient than individual deletes)
     if (testSnapshotIds.length > 0) {
       try {
-        for (const id of testSnapshotIds) {
-          await db
-            .delete(systemMetricsSnapshots)
-            .where(eq(systemMetricsSnapshots.id, id));
-        }
+        await db
+          .delete(systemMetricsSnapshots)
+          .where(inArray(systemMetricsSnapshots.id, testSnapshotIds));
         console.log(`Cleaned up ${testSnapshotIds.length} test snapshots`);
       } catch (error) {
         console.error('Error cleaning up test snapshots:', error);
@@ -243,6 +241,13 @@ describe('Metrics Snapshot Cron Job', () => {
           const statsData = await statsResponse.json();
           // Cron metrics should include metrics-snapshot
           expect(statsData.data?.cronJobs?.allJobs).toBeDefined();
+
+          // Specifically verify metrics-snapshot job is recorded
+          const allJobs = statsData.data?.cronJobs?.allJobs || [];
+          const metricsJob = allJobs.find(
+            (job: { name?: string }) => job.name === 'metrics-snapshot'
+          );
+          expect(metricsJob).toBeDefined();
         }
       }
     });

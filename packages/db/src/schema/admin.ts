@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
 import { users } from './users';
@@ -205,12 +206,12 @@ export const systemMetricsSnapshots = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
-    // Primary lookup: timestamp + environment (for specific snapshot)
-    index('SystemMetricsSnapshot_timestamp_environment_idx').on(
+    // Unique constraint: one snapshot per hour per environment (prevents duplicates)
+    uniqueIndex('SystemMetricsSnapshot_timestamp_environment_unique_idx').on(
       table.timestamp,
       table.environment
     ),
-    // Time range queries for single environment
+    // Time range queries for single environment (environment first for filtering)
     index('SystemMetricsSnapshot_environment_timestamp_idx').on(
       table.environment,
       table.timestamp

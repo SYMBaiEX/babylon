@@ -55,13 +55,7 @@
  */
 
 import { cronMetrics, recordCronExecution, verifyCronAuth } from '@babylon/api';
-import {
-  and,
-  db,
-  eq,
-  generateSnowflakeId,
-  systemMetricsSnapshots,
-} from '@babylon/db';
+import { db, generateSnowflakeId, systemMetricsSnapshots } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -121,25 +115,43 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    // Check if snapshot already exists for this hour/environment
-    const existing = await db
-      .select({ id: systemMetricsSnapshots.id })
-      .from(systemMetricsSnapshots)
-      .where(
-        and(
-          eq(systemMetricsSnapshots.timestamp, snapshotTimestamp),
-          eq(systemMetricsSnapshots.environment, environment)
-        )
-      )
-      .limit(1);
+    // Collect metrics first (before insert to avoid wasted work on conflict)
+    const metrics = await collectMetrics(snapshotTimestamp);
 
-    if (existing.length > 0) {
+    // Collect system health metrics
+    const systemHealth = await collectSystemHealth();
+
+    // Generate snapshot ID and calculate duration
+    const snapshotId = await generateSnowflakeId();
+    const snapshotDurationMs = Date.now() - startTime;
+
+    // Attempt insert with conflict handling (atomic, race-condition safe)
+    // The unique index on (timestamp, environment) prevents duplicates
+    const insertResult = await db
+      .insert(systemMetricsSnapshots)
+      .values({
+        id: snapshotId,
+        timestamp: snapshotTimestamp,
+        environment,
+        ...metrics,
+        ...systemHealth,
+        snapshotDurationMs,
+      })
+      .onConflictDoNothing({
+        target: [
+          systemMetricsSnapshots.timestamp,
+          systemMetricsSnapshots.environment,
+        ],
+      })
+      .returning({ id: systemMetricsSnapshots.id });
+
+    // If no rows returned, conflict occurred (snapshot already exists)
+    if (insertResult.length === 0) {
       logger.info(
         'Snapshot already exists, skipping',
         {
           timestamp: snapshotTimestamp.toISOString(),
           environment,
-          existingId: existing[0]!.id,
         },
         'MetricsSnapshot'
       );
@@ -156,32 +168,15 @@ export async function POST(request: NextRequest) {
         reason: 'Snapshot already exists',
         timestamp: snapshotTimestamp.toISOString(),
         environment,
-        existingId: existing[0]!.id,
+        durationMs: Date.now() - startTime,
       });
     }
 
-    // Collect metrics in parallel
-    const metrics = await collectMetrics(snapshotTimestamp);
-
-    // Collect system health metrics
-    const systemHealth = await collectSystemHealth();
-
-    // Store snapshot
-    const snapshotId = await generateSnowflakeId();
-    const snapshotDurationMs = Date.now() - startTime;
-
-    await db.insert(systemMetricsSnapshots).values({
-      id: snapshotId,
-      timestamp: snapshotTimestamp,
-      environment,
-      ...metrics,
-      ...systemHealth,
-      snapshotDurationMs,
-    });
-
+    // Snapshot created successfully
+    const insertedId = insertResult[0]!.id;
     const result = {
       success: true,
-      snapshotId,
+      snapshotId: insertedId,
       timestamp: snapshotTimestamp.toISOString(),
       environment,
       durationMs: snapshotDurationMs,
@@ -383,22 +378,43 @@ async function collectSystemHealth() {
   // Get cron job stats from in-memory metrics
   const cronStats = cronMetrics.getDashboardMetrics();
 
-  // Calculate uptime based on database connectivity
-  const apiUptime = 100.0;
+  // Database health check with uptime tracking
+  let apiUptime = 100.0;
   let avgResponseTime = 0;
   let errorRate = 0;
+  let dbHealthy = true;
 
   const healthStart = Date.now();
-  // Simple health check - verify DB responds
-  await db.$queryRaw`SELECT 1`;
-  avgResponseTime = Date.now() - healthStart;
+  try {
+    // Simple health check - verify DB responds
+    await db.$queryRaw`SELECT 1`;
+    avgResponseTime = Date.now() - healthStart;
+    // DB responded successfully = uptime maintained at 100%
+  } catch (healthError) {
+    // DB failed to respond = mark as down
+    dbHealthy = false;
+    apiUptime = 0.0;
+    avgResponseTime = Date.now() - healthStart;
+    logger.warn(
+      'Database health check failed',
+      {
+        error:
+          healthError instanceof Error
+            ? healthError.message
+            : String(healthError),
+      },
+      'MetricsSnapshot'
+    );
+  }
 
   // Calculate error rate from cron metrics (if we have data)
+  // This reflects cron job errors, not API errors
   if (cronStats.summary.totalExecutions > 0) {
-    const failedExecutions =
-      cronStats.summary.totalExecutions *
-      (1 - cronStats.summary.overallSuccessRate / 100);
-    errorRate = (failedExecutions / cronStats.summary.totalExecutions) * 100;
+    errorRate =
+      ((cronStats.summary.totalExecutions *
+        (1 - cronStats.summary.overallSuccessRate / 100)) /
+        cronStats.summary.totalExecutions) *
+      100;
   }
 
   return {
@@ -411,6 +427,7 @@ async function collectSystemHealth() {
       cronAlerts: cronStats.alerts,
       avgCronDurationMs: cronStats.summary.avgDurationMs,
       totalCronExecutions: cronStats.summary.totalExecutions,
+      dbHealthy,
     },
   };
 }

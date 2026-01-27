@@ -267,11 +267,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .orderBy(systemMetricsSnapshots.timestamp);
 
   // Check for gaps in data
+  // Calculate expected snapshots based on granularity
   const expectedSnapshots = granularity === 'hourly' ? daysDiff * 24 : daysDiff;
-  const coverage =
-    snapshots.length > 0 && expectedSnapshots > 0
-      ? (snapshots.length / expectedSnapshots) * 100
-      : 0;
+
+  // Handle edge cases: division by zero, exceeding 100%
+  let coverage: number;
+  if (expectedSnapshots <= 0) {
+    // Edge case: very short or invalid range
+    coverage = snapshots.length > 0 ? 100 : 0;
+  } else {
+    // Normal case: clamp to 0-100 range (can exceed if more snapshots than expected)
+    coverage = Math.min(100, (snapshots.length / expectedSnapshots) * 100);
+  }
+  coverage = Math.round(coverage * 10) / 10; // Round to 1 decimal place
+
   const hasGaps = coverage < 90; // Less than 90% coverage indicates gaps
 
   // Format or aggregate data based on granularity
@@ -295,7 +304,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       granularity,
       snapshotCount: snapshots.length,
       expectedSnapshots,
-      coverage: Math.round(coverage * 10) / 10,
+      coverage,
       hasGaps,
     },
     // If gaps exist, client can request real-time fallback
@@ -351,6 +360,10 @@ function aggregateToDaily(
   }
 
   return Array.from(dailyMap.entries()).map(([date, daySnapshots]) => {
+    // Sort by timestamp to ensure last element is chronologically last
+    // (query ordering is by timestamp, but explicit sort is safer)
+    daySnapshots.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
     // Use last snapshot of day for point-in-time metrics
     const lastSnapshot = daySnapshots[daySnapshots.length - 1]!;
 

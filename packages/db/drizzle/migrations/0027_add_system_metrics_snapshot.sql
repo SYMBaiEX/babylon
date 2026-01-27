@@ -56,10 +56,6 @@ CREATE TABLE IF NOT EXISTS "SystemMetricsSnapshot" (
 );
 
 -- Indexes for efficient queries
--- Primary lookup: specific snapshot by timestamp + environment
-CREATE INDEX IF NOT EXISTS "SystemMetricsSnapshot_timestamp_environment_idx" 
-  ON "SystemMetricsSnapshot" ("timestamp", "environment");
-
 -- Time range queries for single environment (most common query pattern)
 CREATE INDEX IF NOT EXISTS "SystemMetricsSnapshot_environment_timestamp_idx" 
   ON "SystemMetricsSnapshot" ("environment", "timestamp");
@@ -69,7 +65,8 @@ CREATE INDEX IF NOT EXISTS "SystemMetricsSnapshot_createdAt_idx"
   ON "SystemMetricsSnapshot" ("createdAt");
 
 -- Unique constraint to prevent duplicate snapshots for same hour/environment
--- This allows the cron job to safely skip if already processed
+-- This allows the cron job to safely use onConflictDoNothing for atomic upserts
+-- Also serves as the primary lookup index (timestamp + environment)
 CREATE UNIQUE INDEX IF NOT EXISTS "SystemMetricsSnapshot_timestamp_environment_unique_idx"
   ON "SystemMetricsSnapshot" ("timestamp", "environment");
 

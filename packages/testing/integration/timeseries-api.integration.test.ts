@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { getDevCredentials } from '@babylon/api';
-import { db, eq, systemMetricsSnapshots } from '@babylon/db';
+import { db, inArray, systemMetricsSnapshots } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -162,14 +162,12 @@ describe('Time-Series API', () => {
   });
 
   afterAll(async () => {
-    // Cleanup test snapshots
+    // Batch cleanup of test snapshots (more efficient than individual deletes)
     if (testSnapshotIds.length > 0) {
       try {
-        for (const id of testSnapshotIds) {
-          await db
-            .delete(systemMetricsSnapshots)
-            .where(eq(systemMetricsSnapshots.id, id));
-        }
+        await db
+          .delete(systemMetricsSnapshots)
+          .where(inArray(systemMetricsSnapshots.id, testSnapshotIds));
         console.log(`Cleaned up ${testSnapshotIds.length} test snapshots`);
       } catch (error) {
         console.error('Error cleaning up test snapshots:', error);
