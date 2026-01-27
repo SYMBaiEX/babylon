@@ -52,7 +52,9 @@ describe('Array Utilities', () => {
     });
 
     test('throws for empty array with custom message', () => {
-      expect(() => firstOrThrow([], 'No users found')).toThrow('No users found');
+      expect(() => firstOrThrow([], 'No users found')).toThrow(
+        'No users found'
+      );
     });
 
     test('returns falsy first elements without throwing', () => {
