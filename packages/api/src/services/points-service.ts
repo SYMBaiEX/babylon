@@ -851,19 +851,33 @@ export class PointsService {
   }
 
   /**
-   * Purchase points via x402 payment (100 points = $1)
+   * Purchase trading points (virtual balance) via payment (100 points = $1)
+   *
+   * Supports multiple payment providers:
+   * - 'crypto': On-chain ETH payment via x402
+   * - 'stripe': Credit card payment via Stripe Checkout
+   *
+   * NOTE: This adds to virtualBalance (trading balance), NOT reputationPoints.
+   * Users buy trading points to trade on the platform.
+   *
+   * @param userId - User ID to credit points to
+   * @param amountUSD - Amount paid in USD
+   * @param paymentRequestId - Unique payment identifier (x402 request ID or Stripe session ID)
+   * @param paymentTxHash - Optional transaction hash (blockchain tx or Stripe payment intent ID)
+   * @param paymentProvider - Payment provider used ('crypto' or 'stripe')
    */
   static async purchasePoints(
     userId: string,
     amountUSD: number,
     paymentRequestId: string,
-    paymentTxHash?: string
+    paymentTxHash?: string,
+    paymentProvider: 'crypto' | 'stripe' = 'crypto'
   ): Promise<AwardPointsResult> {
     const pointsAmount = Math.floor(amountUSD * 100);
 
     // Get current user state
     const userResult = await db
-      .select({ reputationPoints: users.reputationPoints })
+      .select({ virtualBalance: users.virtualBalance })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
@@ -879,45 +893,292 @@ export class PointsService {
       };
     }
 
-    const pointsBefore = user.reputationPoints;
-    const pointsAfter = pointsBefore + pointsAmount;
+    const balanceBefore = Number(user.virtualBalance ?? 0);
+    const balanceAfter = balanceBefore + pointsAmount;
 
     // Execute in transaction
     await db.transaction(async (tx) => {
       await tx
         .update(users)
-        .set({ reputationPoints: pointsAfter })
+        .set({ virtualBalance: balanceAfter.toFixed(2) })
         .where(eq(users.id, userId));
 
       await tx.insert(pointsTransactions).values({
         id: await generateSnowflakeId(),
         userId,
         amount: pointsAmount,
-        pointsBefore,
-        pointsAfter,
+        pointsBefore: balanceBefore,
+        pointsAfter: balanceAfter,
         reason: 'purchase',
         metadata: JSON.stringify({
           amountUSD,
           pointsPerDollar: 100,
           purchasedAt: new Date().toISOString(),
+          paymentProvider,
         }),
         paymentRequestId,
         paymentTxHash,
         paymentAmount: amountUSD.toFixed(2),
         paymentVerified: true,
+        paymentProvider,
       });
     });
 
     logger.info(
-      `User ${userId} purchased ${pointsAmount} points for $${amountUSD}`,
-      { userId, pointsAmount, amountUSD, paymentRequestId },
+      `User ${userId} purchased ${pointsAmount} trading points for $${amountUSD} via ${paymentProvider}`,
+      { userId, pointsAmount, amountUSD, paymentRequestId, paymentProvider },
       'PointsService'
     );
 
     return {
       success: true,
       pointsAwarded: pointsAmount,
-      newTotal: pointsAfter,
+      newTotal: balanceAfter,
+    };
+  }
+
+  /**
+   * Reverse a points purchase due to refund or dispute
+   *
+   * Deducts points from the user's trading balance (virtualBalance).
+   * Used by Stripe webhook handlers for:
+   * - charge.refunded: Full or partial refund processed
+   * - charge.dispute.created: Customer initiated chargeback
+   *
+   * NOTE: Points are deducted from virtualBalance, floored at 0.
+   * If user has already spent the points, they will have a 0 balance.
+   *
+   * @param userId - User ID to deduct points from
+   * @param paymentIntentId - Stripe Payment Intent ID to find original transaction
+   * @param reason - 'refund' or 'dispute'
+   * @param amountUSD - Amount being refunded/disputed in USD
+   * @param stripeEventId - Stripe event ID for idempotency
+   */
+  static async reversePointsPurchase(
+    userId: string,
+    paymentIntentId: string,
+    reason: 'refund' | 'dispute',
+    amountUSD: number,
+    stripeEventId: string
+  ): Promise<AwardPointsResult> {
+    const pointsToDeduct = Math.floor(amountUSD * 100);
+    const transactionReason =
+      reason === 'refund' ? 'purchase_refund' : 'purchase_dispute';
+
+    // Check if this reversal was already processed (idempotency)
+    const existingReversal = await db
+      .select({ id: pointsTransactions.id })
+      .from(pointsTransactions)
+      .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+      .limit(1);
+
+    if (existingReversal.length > 0) {
+      logger.info(
+        `Reversal already processed for event ${stripeEventId}`,
+        { userId, stripeEventId, reason },
+        'PointsService'
+      );
+      return {
+        success: true,
+        pointsAwarded: 0,
+        newTotal: 0,
+        alreadyAwarded: true,
+      };
+    }
+
+    // Get current user balance
+    const userResult = await db
+      .select({ virtualBalance: users.virtualBalance })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
+
+    if (!user) {
+      logger.error(
+        `Cannot reverse points: user not found`,
+        { userId, paymentIntentId, reason },
+        'PointsService'
+      );
+      return {
+        success: false,
+        pointsAwarded: 0,
+        newTotal: 0,
+        error: 'User not found',
+      };
+    }
+
+    const balanceBefore = Number(user.virtualBalance ?? 0);
+    // Floor at 0 - we don't allow negative trading balance
+    const balanceAfter = Math.max(0, balanceBefore - pointsToDeduct);
+    const actualDeduction = balanceBefore - balanceAfter;
+
+    // Execute in transaction
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ virtualBalance: balanceAfter.toFixed(2) })
+        .where(eq(users.id, userId));
+
+      await tx.insert(pointsTransactions).values({
+        id: await generateSnowflakeId(),
+        userId,
+        amount: -actualDeduction, // Negative for deduction
+        pointsBefore: balanceBefore,
+        pointsAfter: balanceAfter,
+        reason: transactionReason,
+        metadata: JSON.stringify({
+          amountUSD,
+          pointsRequested: pointsToDeduct,
+          pointsActuallyDeducted: actualDeduction,
+          originalPaymentIntentId: paymentIntentId,
+          stripeEventId,
+          reversalReason: reason,
+          reversedAt: new Date().toISOString(),
+        }),
+        paymentRequestId: stripeEventId, // Use event ID for idempotency
+        paymentTxHash: paymentIntentId,
+        paymentAmount: amountUSD.toFixed(2),
+        paymentVerified: true,
+        paymentProvider: 'stripe',
+      });
+    });
+
+    logger.info(
+      `Reversed ${actualDeduction} trading points from user ${userId} due to ${reason}`,
+      {
+        userId,
+        paymentIntentId,
+        reason,
+        pointsRequested: pointsToDeduct,
+        pointsDeducted: actualDeduction,
+        balanceBefore,
+        balanceAfter,
+        stripeEventId,
+      },
+      'PointsService'
+    );
+
+    return {
+      success: true,
+      pointsAwarded: -actualDeduction,
+      newTotal: balanceAfter,
+    };
+  }
+
+  /**
+   * Re-credit points after winning a dispute
+   *
+   * When a merchant wins a chargeback dispute, re-credit the points
+   * that were previously deducted.
+   *
+   * @param userId - User ID to credit points to
+   * @param disputeId - Stripe Dispute ID
+   * @param amountUSD - Original dispute amount in USD
+   * @param stripeEventId - Stripe event ID for idempotency
+   */
+  static async creditDisputeWon(
+    userId: string,
+    disputeId: string,
+    amountUSD: number,
+    stripeEventId: string
+  ): Promise<AwardPointsResult> {
+    const pointsToCredit = Math.floor(amountUSD * 100);
+
+    // Check if this credit was already processed (idempotency)
+    const existingCredit = await db
+      .select({ id: pointsTransactions.id })
+      .from(pointsTransactions)
+      .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+      .limit(1);
+
+    if (existingCredit.length > 0) {
+      logger.info(
+        `Dispute win credit already processed for event ${stripeEventId}`,
+        { userId, stripeEventId, disputeId },
+        'PointsService'
+      );
+      return {
+        success: true,
+        pointsAwarded: 0,
+        newTotal: 0,
+        alreadyAwarded: true,
+      };
+    }
+
+    // Get current user balance
+    const userResult = await db
+      .select({ virtualBalance: users.virtualBalance })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const user = userResult[0];
+
+    if (!user) {
+      logger.error(
+        `Cannot credit dispute win: user not found`,
+        { userId, disputeId },
+        'PointsService'
+      );
+      return {
+        success: false,
+        pointsAwarded: 0,
+        newTotal: 0,
+        error: 'User not found',
+      };
+    }
+
+    const balanceBefore = Number(user.virtualBalance ?? 0);
+    const balanceAfter = balanceBefore + pointsToCredit;
+
+    // Execute in transaction
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ virtualBalance: balanceAfter.toFixed(2) })
+        .where(eq(users.id, userId));
+
+      await tx.insert(pointsTransactions).values({
+        id: await generateSnowflakeId(),
+        userId,
+        amount: pointsToCredit,
+        pointsBefore: balanceBefore,
+        pointsAfter: balanceAfter,
+        reason: 'purchase_dispute_won',
+        metadata: JSON.stringify({
+          amountUSD,
+          pointsCredited: pointsToCredit,
+          disputeId,
+          stripeEventId,
+          creditedAt: new Date().toISOString(),
+        }),
+        paymentRequestId: stripeEventId, // Use event ID for idempotency
+        paymentTxHash: disputeId,
+        paymentAmount: amountUSD.toFixed(2),
+        paymentVerified: true,
+        paymentProvider: 'stripe',
+      });
+    });
+
+    logger.info(
+      `Re-credited ${pointsToCredit} trading points to user ${userId} after winning dispute`,
+      {
+        userId,
+        disputeId,
+        pointsCredited: pointsToCredit,
+        balanceBefore,
+        balanceAfter,
+        stripeEventId,
+      },
+      'PointsService'
+    );
+
+    return {
+      success: true,
+      pointsAwarded: pointsToCredit,
+      newTotal: balanceAfter,
     };
   }
 
