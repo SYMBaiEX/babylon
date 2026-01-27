@@ -6,6 +6,10 @@
  */
 
 export {
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
+} from './environment';
+export {
   clearApiKeyCache,
   generateApiKey,
   generateTestApiKey,

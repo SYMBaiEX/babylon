@@ -264,6 +264,9 @@ export {
   budgetTokens,
   // Cached user API key validation
   clearApiKeyCache,
+  // Deployment environment detection
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
   // Token counter utilities (moved from @babylon/shared)
   countTokens,
   countTokensSync,

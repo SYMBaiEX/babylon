@@ -75,6 +75,7 @@
 import {
   applyRateLimit,
   errorResponse,
+  getDeploymentEnvironment,
   MAX_DATE_RANGE_DAYS,
   parseDateParam,
   RATE_LIMIT_CONFIGS,
@@ -101,18 +102,6 @@ const VALID_GRANULARITIES = ['hourly', 'daily'] as const;
 const VALID_ENVIRONMENTS = ['production', 'staging', 'development'] as const;
 
 type Granularity = (typeof VALID_GRANULARITIES)[number];
-type Environment = (typeof VALID_ENVIRONMENTS)[number];
-
-/**
- * Get current deployment environment
- * Matches pattern from cron/metrics-snapshot route for consistency
- */
-function getCurrentEnvironment(): Environment {
-  if (process.env.VERCEL_ENV === 'production') return 'production';
-  if (process.env.VERCEL_ENV === 'preview') return 'staging';
-  if (process.env.NODE_ENV === 'production') return 'production';
-  return 'development';
-}
 
 interface FormattedSnapshot {
   timestamp: string;
@@ -224,7 +213,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const environment = validateEnum(
     searchParams.get('environment'),
     VALID_ENVIRONMENTS,
-    getCurrentEnvironment()
+    getDeploymentEnvironment()
   );
 
   // Auto-select granularity based on date range

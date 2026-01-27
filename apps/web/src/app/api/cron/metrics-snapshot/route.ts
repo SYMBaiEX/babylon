@@ -54,7 +54,13 @@
  *         description: Snapshot collection failed
  */
 
-import { cronMetrics, recordCronExecution, verifyCronAuth } from '@babylon/api';
+import {
+  cronMetrics,
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
+  recordCronExecution,
+  verifyCronAuth,
+} from '@babylon/api';
 import { db, generateSnowflakeId, systemMetricsSnapshots } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -63,27 +69,23 @@ import { NextResponse } from 'next/server';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-type Environment = 'production' | 'staging' | 'development';
-
-/**
- * Get current deployment environment
- * Matches pattern from apps/web/src/app/api/admin/environment/route.ts
- */
-function getEnvironment(): Environment {
-  if (process.env.VERCEL_ENV === 'production') return 'production';
-  if (process.env.VERCEL_ENV === 'preview') return 'staging';
-  if (process.env.NODE_ENV === 'production') return 'production';
-  return 'development';
-}
-
 /**
  * Truncate date to hour boundary for consistent timestamps
- * All snapshots are aligned to the start of the hour
+ * All snapshots are aligned to the start of the hour in UTC
+ * Using UTC ensures consistent hour boundaries regardless of server timezone or DST
  */
 function getHourBoundary(date: Date = new Date()): Date {
-  const d = new Date(date);
-  d.setMinutes(0, 0, 0);
-  return d;
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      date.getUTCHours(),
+      0,
+      0,
+      0
+    )
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
 
   const startTime = Date.now();
   const snapshotTimestamp = getHourBoundary();
-  const environment = getEnvironment();
+  const environment: DeploymentEnvironment = getDeploymentEnvironment();
 
   logger.info(
     'Metrics snapshot started',
