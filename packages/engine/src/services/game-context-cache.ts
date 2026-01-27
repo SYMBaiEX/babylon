@@ -91,9 +91,13 @@ const CACHE_TTLS = {
  */
 export class GameContextCache {
   private static cache = new Map<string, CacheEntry<unknown>>();
+  private static inFlight = new Map<string, Promise<unknown>>();
 
   /**
    * Get or fetch data from cache
+   *
+   * Uses an in-flight tracker to prevent cache stampede - when multiple
+   * callers request the same key simultaneously, only one fetch executes.
    */
   private static async getOrFetch<T>(
     key: string,
@@ -112,19 +116,40 @@ export class GameContextCache {
       return entry.data;
     }
 
+    // Check for in-flight request to prevent stampede
+    const existingRequest = this.inFlight.get(key) as Promise<T> | undefined;
+    if (existingRequest) {
+      logger.debug(
+        `GameContextCache awaiting in-flight: ${key}`,
+        undefined,
+        'GameContextCache'
+      );
+      return existingRequest;
+    }
+
     logger.debug(
       `GameContextCache miss: ${key}`,
       undefined,
       'GameContextCache'
     );
-    const data = await fetchFn();
 
-    this.cache.set(key, {
-      data,
-      expiresAt: now + ttlMs,
-    });
+    // Create and track the fetch promise
+    const fetchPromise = (async (): Promise<T> => {
+      const data = await fetchFn();
+      this.cache.set(key, {
+        data,
+        expiresAt: Date.now() + ttlMs,
+      });
+      return data;
+    })();
 
-    return data;
+    this.inFlight.set(key, fetchPromise);
+
+    try {
+      return await fetchPromise;
+    } finally {
+      this.inFlight.delete(key);
+    }
   }
 
   /**

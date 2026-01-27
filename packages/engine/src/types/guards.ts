@@ -39,7 +39,7 @@ export function isValidVisibility(
 export function isValidPointsToward(
   pt: string | null | undefined
 ): pt is WorldEvent['pointsToward'] {
-  return pt === null || pt === undefined || pt === 'YES' || pt === 'NO';
+  return pt === null || pt === 'YES' || pt === 'NO';
 }
 
 export const VALID_MARKET_TYPES = ['perp', 'prediction'] as const;

@@ -365,9 +365,30 @@ export function parseStringArraySafe(
     'JSONBValidation'
   );
 
-  // Salvage valid strings from array
+  // Salvage valid strings from array with metrics
   if (Array.isArray(data)) {
-    return data.filter((item): item is string => typeof item === 'string');
+    const originalCount = data.length;
+    const filtered = data.filter(
+      (item): item is string => typeof item === 'string'
+    );
+    const keptCount = filtered.length;
+    const droppedCount = originalCount - keptCount;
+
+    // Log salvage metrics for observability
+    if (droppedCount > 0) {
+      logger.info(
+        'JSONBSalvage: salvaged partial string array data',
+        {
+          field: context?.field,
+          originalCount,
+          keptCount,
+          droppedCount,
+        },
+        'JSONBValidation'
+      );
+    }
+
+    return filtered;
   }
 
   return [];
