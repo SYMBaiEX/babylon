@@ -186,9 +186,23 @@ export default function MarketsPage() {
     [router]
   );
 
+  const handlePerpsTabMarketNavigation = useCallback(
+    (market: PerpMarket) => {
+      router.push(`/markets/perps/${market.ticker}?from=perps`);
+    },
+    [router]
+  );
+
   const handlePredictionClick = useCallback(
     (prediction: PredictionMarket) => {
       router.push(`/markets/predictions/${prediction.id}?from=dashboard`);
+    },
+    [router]
+  );
+
+  const handlePredictionNavigation = useCallback(
+    (prediction: PredictionMarket) => {
+      router.push(`/markets/predictions/${prediction.id}?from=predictions`);
     },
     [router]
   );
@@ -220,7 +234,68 @@ export default function MarketsPage() {
     []
   );
 
-  // Loading state
+  // Quick Trade Handler
+  const handleTradeAction = useCallback(
+    (market: PerpMarket | PredictionMarketWithPosition, side: string) => {
+      // 1. Select the market
+      if ('ticker' in market) {
+        setSelectedMarket({
+          type: 'perp',
+          market,
+          side: side as 'long' | 'short',
+        });
+      } else {
+        setSelectedMarket({
+          type: 'prediction',
+          market,
+          side: side as 'yes' | 'no',
+        });
+      }
+      // 2. Ensure we are in Order Entry mode (if we had hidden it, though layout is persistent on Desktop)
+      // On mobile, this should navigate to detail page with side param ideally.
+      // For this task, we assume Desktop usage mainly or simple navigation.
+    },
+    []
+  );
+
+  const handlePerpsQuickTradeMobile = useCallback(
+    (market: PerpMarket, side: 'long' | 'short') => {
+      router.push(
+        `/markets/perps/${market.ticker}?from=perps&side=${encodeURIComponent(side)}`
+      );
+    },
+    [router]
+  );
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle Favorites Filter (Future)
+
+      // Search Focus (/)
+      if (
+        e.key === '/' &&
+        !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)
+      ) {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[type="text"]');
+        if (searchInput instanceof HTMLInputElement) {
+          searchInput.focus();
+        }
+      }
+
+      // Clear Selection / Blur (Esc)
+      if (e.key === 'Escape') {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        setSelectedMarket(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   if (data.loading) {
     return (
       <PageContainer noPadding className="flex flex-col">
@@ -277,7 +352,18 @@ export default function MarketsPage() {
             perpPositions={data.perpPositions}
             onPositionClosed={data.handlePositionsRefresh}
             filteredMarkets={data.filteredPerpMarkets}
-            onMarketClick={handleMarketClick}
+            onMarketClick={
+              isMobile ? handlePerpsTabMarketNavigation : handleMarketSelect
+            }
+            selectedMarketTicker={
+              selectedMarket?.type === 'perp'
+                ? selectedMarket.market.ticker
+                : null
+            }
+            onMarketSelect={handleMarketSelect}
+            onTradeAction={
+              isMobile ? handlePerpsQuickTradeMobile : handleTradeAction
+            }
           />
         );
       case 'predictions':
@@ -296,7 +382,9 @@ export default function MarketsPage() {
             onSortChange={data.setPredictionSort}
             activePredictions={data.activePredictions}
             resolvedPredictions={data.resolvedPredictions}
-            onPredictionClick={handlePredictionClick}
+            onPredictionClick={
+              isMobile ? handlePredictionNavigation : handlePredictionClick
+            }
             predictionsError={data.predictionsError}
             compact={isMobile}
           />
