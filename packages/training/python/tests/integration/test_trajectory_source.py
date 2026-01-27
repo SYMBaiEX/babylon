@@ -56,7 +56,7 @@ class TestBabylonEnvConfig:
         """Test loading HuggingFace dataset config from environment."""
         env_vars = {
             "TRAJECTORY_SOURCE": "huggingface",
-            "HF_TRAJECTORY_DATASET": "elizalabs/test-dataset",
+            "HF_TRAJECTORY_DATASET": "elizaos/test-dataset",
             "HF_TRAJECTORY_SPLIT": "preferences",
         }
         
@@ -66,7 +66,7 @@ class TestBabylonEnvConfig:
             )
         
         assert config.trajectory_source == "huggingface"
-        assert config.hf_trajectory_dataset == "elizalabs/test-dataset"
+        assert config.hf_trajectory_dataset == "elizaos/test-dataset"
         assert config.hf_trajectory_split == "preferences"
     
     def test_default_hf_split(self):
@@ -190,7 +190,7 @@ class TestHuggingFaceSourceSetup:
         """Test that HF setup loads the trajectory reader."""
         mock_config = MagicMock(spec=BabylonEnvConfig)
         mock_config.trajectory_source = "huggingface"
-        mock_config.hf_trajectory_dataset = "elizalabs/test-dataset"
+        mock_config.hf_trajectory_dataset = "elizaos/test-dataset"
         mock_config.hf_trajectory_split = "raw"
         mock_config.max_trajectories = 1000
         mock_config.min_actions_per_trajectory = 3

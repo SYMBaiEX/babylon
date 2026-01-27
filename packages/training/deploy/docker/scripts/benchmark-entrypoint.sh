@@ -95,7 +95,7 @@ Examples:
 
   # Benchmark with HuggingFace model
   docker run --gpus all \\
-    -e HF_MODEL=elizalabs/ishtar-v0.1 \\
+    -e HF_MODEL=elizaos/ishtar-v0.1 \\
     -e HF_TOKEN=hf_xxx \\
     babylon-benchmark:latest
 

@@ -86,7 +86,7 @@ The script automatically mounts:
 Set these environment variables before training:
 
 ```bash
-export HF_PUSH_REPO=elizalabs/ishtar-qwen3-4b-grpo-v0.1
+export HF_PUSH_REPO=elizaos/ishtar-qwen3-4b-grpo-v0.1
 export HF_MODEL_CODENAME=ishtar
 export HF_TOKEN=your-hf-token
 

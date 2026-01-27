@@ -9,7 +9,7 @@ Usage:
     python setup.py train --gpu h100 --image user/babylon-training:latest --env-file ../.env
     
     # Benchmark with HuggingFace model
-    python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1
+    python setup.py benchmark --gpu h100 --hf-model elizaos/ishtar-v0.1
     
     # Benchmark with local model (must be accessible via volume or pre-baked in image)
     python setup.py benchmark --gpu h100 --model /models/final_model
@@ -276,13 +276,13 @@ Training Examples:
 
 Benchmark Examples:
   # Benchmark HuggingFace model
-  python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1 --quick
+  python setup.py benchmark --gpu h100 --hf-model elizaos/ishtar-v0.1 --quick
   
   # Specific scenario
-  python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --scenario bear-market
+  python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --scenario bear-market
   
   # Spot instance for cost savings
-  python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --spot --community
+  python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --spot --community
 """
     )
     sub = p.add_subparsers(dest="cmd")

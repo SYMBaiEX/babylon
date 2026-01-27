@@ -123,7 +123,7 @@ Instead of a live database, you can train on frozen HuggingFace datasets:
 ```bash
 # Set trajectory source to HuggingFace
 export TRAJECTORY_SOURCE=huggingface
-export HF_TRAJECTORY_DATASET=elizalabs/babylon-trajectories-simulation-v1
+export HF_TRAJECTORY_DATASET=elizaos/babylon-trajectories-simulation-v1
 export HF_TRAJECTORY_SPLIT=raw
 
 # Run training
@@ -136,7 +136,7 @@ After training, push your model to HuggingFace Hub:
 
 ```bash
 # Set push configuration
-export HF_PUSH_REPO=elizalabs/ishtar-qwen3-4b-grpo-v0.1
+export HF_PUSH_REPO=elizaos/ishtar-qwen3-4b-grpo-v0.1
 export HF_MODEL_CODENAME=ishtar
 export HF_TOKEN=your-token
 

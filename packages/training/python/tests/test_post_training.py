@@ -71,7 +71,7 @@ class TestPostTrainingConfig:
     def test_from_env_loads_variables(self):
         """Test creating config from environment variables."""
         env_vars = {
-            "HF_PUSH_REPO": "elizalabs/test-model",
+            "HF_PUSH_REPO": "elizaos/test-model",
             "HF_MODEL_CODENAME": "marduk",
             "HF_MODEL_PRIVATE": "true",
             "HF_PUSH_CHECKPOINTS": "true",
@@ -79,7 +79,7 @@ class TestPostTrainingConfig:
             "BENCHMARK_MODE": "full",
             "BENCHMARK_SCENARIOS": "bear-market,bull-market",
             "BENCHMARK_OUTPUT_DIR": "/tmp/results",
-            "HF_TRAJECTORY_DATASET": "elizalabs/dataset",
+            "HF_TRAJECTORY_DATASET": "elizaos/dataset",
             "WANDB_RUN_ID": "run-123",
         }
         
@@ -90,7 +90,7 @@ class TestPostTrainingConfig:
                 final_reward=0.75,
             )
         
-        assert config.hf_push_repo == "elizalabs/test-model"
+        assert config.hf_push_repo == "elizaos/test-model"
         assert config.hf_model_codename == "marduk"
         assert config.hf_model_private is True
         assert config.hf_push_checkpoints is True
@@ -98,7 +98,7 @@ class TestPostTrainingConfig:
         assert config.benchmark_mode == "full"
         assert config.benchmark_scenarios == "bear-market,bull-market"
         assert config.benchmark_output_dir == "/tmp/results"
-        assert config.dataset_id == "elizalabs/dataset"
+        assert config.dataset_id == "elizaos/dataset"
         assert config.wandb_run_id == "run-123"
     
     def test_from_env_with_false_values(self):
@@ -221,11 +221,11 @@ class TestPushModelToHub:
                 model_path=str(model_path),
                 training_steps=1000,
                 final_reward=0.75,
-                hf_push_repo="elizalabs/test-model",
+                hf_push_repo="elizaos/test-model",
                 hf_model_codename="ishtar",
                 base_model="Qwen/Qwen3-4B",
                 wandb_run_id="run-123",
-                dataset_id="elizalabs/dataset",
+                dataset_id="elizaos/dataset",
                 hf_model_private=True,
             )
             
@@ -245,7 +245,7 @@ class TestPushModelToHub:
             assert "--adapter-path" in call_args
             assert str(model_path) in call_args
             assert "--repo-id" in call_args
-            assert "elizalabs/test-model" in call_args
+            assert "elizaos/test-model" in call_args
             assert "--codename" in call_args
             assert "ishtar" in call_args
             assert "--training-steps" in call_args
@@ -388,8 +388,8 @@ class TestGenerateTrainingSummary:
             base_model="Qwen/Qwen3-4B",
             hf_model_codename="ishtar",
             wandb_run_id="run-abc123",
-            dataset_id="elizalabs/dataset-v1",
-            hf_push_repo="elizalabs/ishtar-v0.1",
+            dataset_id="elizaos/dataset-v1",
+            hf_push_repo="elizaos/ishtar-v0.1",
             benchmark_enabled=True,
         )
         
@@ -402,7 +402,7 @@ class TestGenerateTrainingSummary:
         assert "1000" in summary
         assert "0.75" in summary
         assert "run-abc123" in summary
-        assert "elizalabs/dataset-v1" in summary
+        assert "elizaos/dataset-v1" in summary
         assert "HuggingFace Push:" in summary
         assert "Benchmark:" in summary
     

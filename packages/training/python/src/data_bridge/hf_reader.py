@@ -11,7 +11,7 @@ Usage:
     from data_bridge.hf_reader import HuggingFaceTrajectoryReader, HFReaderConfig
     
     config = HFReaderConfig(
-        dataset_id="elizalabs/babylon-trajectories-simulation-v1",
+        dataset_id="elizaos/babylon-trajectories-simulation-v1",
         split="raw",
     )
     
@@ -366,7 +366,7 @@ async def create_trajectory_reader_from_hf(
     Factory function to create and connect a HuggingFace trajectory reader.
     
     Args:
-        dataset_id: HuggingFace dataset ID (e.g., "elizalabs/babylon-trajectories-v1")
+        dataset_id: HuggingFace dataset ID (e.g., "elizaos/babylon-trajectories-v1")
         split: Dataset split to use (raw, preferences, sft)
         max_trajectories: Maximum trajectories to load
         min_actions: Minimum actions per trajectory

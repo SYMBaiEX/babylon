@@ -26,13 +26,13 @@ python setup.py logs <pod-id>
 
 ```bash
 # Benchmark a HuggingFace model
-python setup.py benchmark --gpu h100 --hf-model elizalabs/ishtar-v0.1 --quick
+python setup.py benchmark --gpu h100 --hf-model elizaos/ishtar-v0.1 --quick
 
 # Benchmark with specific scenario
-python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --scenario bear-market
+python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --scenario bear-market
 
 # Use spot instance (cheaper)
-python setup.py benchmark --gpu 4090 --hf-model elizalabs/ishtar-v0.1 --spot --community
+python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --spot --community
 ```
 
 ## Usage
@@ -121,7 +121,7 @@ python setup.py logs <pod-id>
 
 ```
 --gpu         GPU type (required): 4090, l40s, a100, h100, h200
---hf-model    HuggingFace model ID to benchmark (e.g., elizalabs/ishtar-v0.1)
+--hf-model    HuggingFace model ID to benchmark (e.g., elizaos/ishtar-v0.1)
 --model       Path to model inside container (alternative to --hf-model)
 --image       Docker image (default: revlentless/babylon-benchmark:latest)
 --env-file    Path to .env file
@@ -175,18 +175,18 @@ python setup.py stop <pod-id>
 # 1. Benchmark a freshly trained model on HuggingFace
 python setup.py benchmark \
   --gpu 4090 \
-  --hf-model elizalabs/ishtar-v0.1 \
+  --hf-model elizaos/ishtar-v0.1 \
   --quick
 
 # 2. Run full benchmark suite (all scenarios)
 python setup.py benchmark \
   --gpu h100 \
-  --hf-model elizalabs/ishtar-v0.1
+  --hf-model elizaos/ishtar-v0.1
 
 # 3. Run specific scenario
 python setup.py benchmark \
   --gpu 4090 \
-  --hf-model elizalabs/ishtar-v0.1 \
+  --hf-model elizaos/ishtar-v0.1 \
   --scenario bear-market \
   --spot
 

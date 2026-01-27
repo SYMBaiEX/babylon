@@ -88,7 +88,7 @@ class BabylonEnvConfig(BaseEnvConfig):
     # HuggingFace settings (used when trajectory_source='huggingface')
     hf_trajectory_dataset: str = Field(
         default_factory=lambda: os.getenv("HF_TRAJECTORY_DATASET", ""),
-        description="HuggingFace dataset ID (e.g., 'elizalabs/babylon-trajectories-v1')"
+        description="HuggingFace dataset ID (e.g., 'elizaos/babylon-trajectories-v1')"
     )
     hf_trajectory_split: str = Field(
         default_factory=lambda: os.getenv("HF_TRAJECTORY_SPLIT", "raw"),
