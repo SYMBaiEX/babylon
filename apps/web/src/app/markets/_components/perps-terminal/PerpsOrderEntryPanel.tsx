@@ -63,6 +63,9 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
     const openPositions = activePositions.filter((p) => !p.closedAt);
     if (openPositions.length === 0) return null;
 
+    const first = openPositions[0];
+    if (!first) return null;
+
     return openPositions.reduce<(typeof openPositions)[number]>((best, pos) => {
       const bestTs = Number.isFinite(Date.parse(best.openedAt))
         ? Date.parse(best.openedAt)
@@ -80,7 +83,7 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
       }
 
       return best;
-    }, openPositions[0]);
+    }, first);
   }, [activePositions]);
 
   const sizeNum = Number.parseFloat(size) || 0;

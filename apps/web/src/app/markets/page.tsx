@@ -12,7 +12,6 @@ import {
   DashboardTabContent,
   LoginPrompt,
   MarketsSearchInput,
-  PerpsTabContent,
   PredictionsTabContent,
 } from './_components';
 import { useMarketsPageData } from './_hooks';
@@ -186,13 +185,6 @@ export default function MarketsPage() {
     [router]
   );
 
-  const handlePerpsTabMarketNavigation = useCallback(
-    (market: PerpMarket) => {
-      router.push(`/markets/perps/${market.ticker}?from=perps`);
-    },
-    [router]
-  );
-
   const handlePredictionClick = useCallback(
     (prediction: PredictionMarket) => {
       router.push(`/markets/predictions/${prediction.id}?from=dashboard`);
@@ -221,10 +213,6 @@ export default function MarketsPage() {
     () => setShowBuyPointsModal(false),
     []
   );
-  const handleShowPerpsPnLShare = useCallback(
-    () => setShowCategoryPnLShareModal('perps'),
-    []
-  );
   const handleShowPredictionsPnLShare = useCallback(
     () => setShowCategoryPnLShareModal('predictions'),
     []
@@ -234,68 +222,6 @@ export default function MarketsPage() {
     []
   );
 
-  // Quick Trade Handler
-  const handleTradeAction = useCallback(
-    (market: PerpMarket | PredictionMarketWithPosition, side: string) => {
-      // 1. Select the market
-      if ('ticker' in market) {
-        setSelectedMarket({
-          type: 'perp',
-          market,
-          side: side as 'long' | 'short',
-        });
-      } else {
-        setSelectedMarket({
-          type: 'prediction',
-          market,
-          side: side as 'yes' | 'no',
-        });
-      }
-      // 2. Ensure we are in Order Entry mode (if we had hidden it, though layout is persistent on Desktop)
-      // On mobile, this should navigate to detail page with side param ideally.
-      // For this task, we assume Desktop usage mainly or simple navigation.
-    },
-    []
-  );
-
-  const handlePerpsQuickTradeMobile = useCallback(
-    (market: PerpMarket, side: 'long' | 'short') => {
-      router.push(
-        `/markets/perps/${market.ticker}?from=perps&side=${encodeURIComponent(side)}`
-      );
-    },
-    [router]
-  );
-
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle Favorites Filter (Future)
-
-      // Search Focus (/)
-      if (
-        e.key === '/' &&
-        !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)
-      ) {
-        e.preventDefault();
-        const searchInput = document.querySelector('input[type="text"]');
-        if (searchInput instanceof HTMLInputElement) {
-          searchInput.focus();
-        }
-      }
-
-      // Clear Selection / Blur (Esc)
-      if (e.key === 'Escape') {
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        setSelectedMarket(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
   if (data.loading) {
     return (
       <PageContainer noPadding className="flex flex-col">
@@ -340,32 +266,7 @@ export default function MarketsPage() {
           />
         );
       case 'perps':
-        return (
-          <PerpsTabContent
-            authenticated={data.authenticated}
-            perpPnLData={data.perpPnLData}
-            portfolioLoading={data.portfolioLoading}
-            portfolioError={data.portfolioError}
-            portfolioUpdatedAt={data.portfolioUpdatedAt}
-            onShowCategoryPnLShare={handleShowPerpsPnLShare}
-            onRefreshPortfolio={data.refreshPortfolio}
-            perpPositions={data.perpPositions}
-            onPositionClosed={data.handlePositionsRefresh}
-            filteredMarkets={data.filteredPerpMarkets}
-            onMarketClick={
-              isMobile ? handlePerpsTabMarketNavigation : handleMarketSelect
-            }
-            selectedMarketTicker={
-              selectedMarket?.type === 'perp'
-                ? selectedMarket.market.ticker
-                : null
-            }
-            onMarketSelect={handleMarketSelect}
-            onTradeAction={
-              isMobile ? handlePerpsQuickTradeMobile : handleTradeAction
-            }
-          />
-        );
+        return null;
       case 'predictions':
         return (
           <PredictionsTabContent
@@ -389,6 +290,8 @@ export default function MarketsPage() {
             compact={isMobile}
           />
         );
+      default:
+        return null;
     }
   };
 
@@ -406,77 +309,44 @@ export default function MarketsPage() {
         </div>
       ) : (
         <>
-          {/* Desktop Layout (Terminal) */}
-          <div className="hidden flex-1 overflow-hidden bg-background/20 xl:flex">
-            <>
-              {/* Left Panel: Navigation & Table */}
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-white/5 border-r">
-                {/* Header */}
-                <div className="sticky top-0 z-10 flex-shrink-0 bg-background/80 backdrop-blur-md">
-                  <div className="flex items-center justify-between border-white/5 border-b px-4 py-3">
-                    <MarketsToggle
+          <div className="hidden flex-1 overflow-hidden xl:flex">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
+              <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+                <div className="px-3 sm:px-4 lg:px-6">
+                  <MarketsToggle
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
+                    balance={data.portfolioPnL?.available}
+                    authenticated={data.authenticated}
+                    loading={data.portfolioLoading}
+                  />
+                </div>
+                {activeTab !== 'dashboard' && (
+                  <div className="px-3 pb-3 sm:px-4 lg:px-6">
+                    <MarketsSearchInput
+                      value={data.searchQuery}
+                      onChange={data.setSearchQuery}
                       activeTab={activeTab}
-                      onTabChange={handleTabChange}
-                      balance={data.portfolioPnL?.available}
-                      authenticated={data.authenticated}
-                      loading={data.portfolioLoading}
                     />
-                    {activeTab !== 'dashboard' && (
-                      <div className="w-[300px]">
-                        <MarketsSearchInput
-                          value={data.searchQuery}
-                          onChange={data.setSearchQuery}
-                          activeTab={activeTab}
-                        />
-                      </div>
-                    )}
                   </div>
-                </div>
-
-                {/* Content (Table) */}
-                <div
-                  className={`flex-1 overflow-y-auto p-4 transition-opacity duration-150 ${
-                    isPending ? 'opacity-80' : 'opacity-100'
-                  }`}
-                >
-                  {renderTabContent(false)}
-
-                  {!data.authenticated && activeTab !== 'dashboard' && (
-                    <div className="flex justify-center p-8">
-                      <LoginPrompt onLogin={data.login} />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Right Panel: Order Entry & Aux (Positions later) */}
-              {activeTab !== 'dashboard' && selectedMarket && (
-                <div className="flex w-[380px] flex-col border-white/5 border-l bg-background/30 backdrop-blur-sm">
-                  <OrderEntryPanel
-                    selectedMarket={selectedMarket}
-                    onTradeClick={handleOrderEntryTrade}
-                    onClose={() => setSelectedMarket(null)}
-                    className="flex-1"
-                  />
-                  {/* Positions Panel (Bottom Right) */}
-                  <div className="min-h-[250px] flex-1 overflow-hidden border-white/5 border-t bg-background/30">
-                    <PositionsPanel
-                      activeTab={activeTab}
-                      perpPositions={data.perpPositions}
-                      predictionPositions={data.predictionPositions}
-                      onPositionClosed={data.handlePositionsRefresh}
-                      onPositionSold={data.handlePositionsRefresh}
-                      className="h-full"
-                    />
-                  </div>
-                </div>
+              <div
+                className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
+                  isPending ? 'opacity-80' : 'opacity-100'
+                }`}
+              >
+                {renderTabContent(false)}
+              </div>
+
+              {!data.authenticated && activeTab !== 'dashboard' && (
+                <LoginPrompt onLogin={data.login} />
               )}
-            </>
+            </div>
           </div>
 
-          {/* Mobile/Tablet Layout (Stack) */}
           <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-            {/* Original Mobile Header */}
             <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
               <div className="px-3 sm:px-4">
                 <MarketsToggle
@@ -498,7 +368,6 @@ export default function MarketsPage() {
               )}
             </div>
 
-            {/* Content */}
             <div
               className={`flex-1 overflow-y-auto transition-opacity duration-150 ${
                 isPending ? 'opacity-80' : 'opacity-100'
