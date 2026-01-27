@@ -63,6 +63,8 @@ export const pointsTransactions = pgTable(
     paymentRequestId: text('paymentRequestId').unique(),
     paymentTxHash: text('paymentTxHash'),
     paymentVerified: boolean('paymentVerified').notNull().default(false),
+    // Payment provider: 'crypto' for on-chain payments, 'stripe' for card payments
+    paymentProvider: text('paymentProvider'),
   },
   (table) => [
     index('PointsTransaction_createdAt_idx').on(table.createdAt),
@@ -72,6 +74,7 @@ export const pointsTransactions = pgTable(
       table.userId,
       table.createdAt
     ),
+    index('PointsTransaction_paymentProvider_idx').on(table.paymentProvider),
   ]
 );
 
