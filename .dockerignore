@@ -68,6 +68,7 @@ packages/training/python/trained_models
 packages/training/data/*.csv
 packages/training/data/**/*.parquet
 packages/training/data/**/*.json
+!packages/training/data/benchmarks/scenarios/*.json
 !packages/training/data/**/.gitkeep
 packages/training/rollout_dumps
 packages/training/benchmark-results

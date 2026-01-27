@@ -242,11 +242,22 @@ VLLM_CMD="$VLLM_CMD --max-model-len $VLLM_MAX_LEN"
 VLLM_CMD="$VLLM_CMD --trust-remote-code"
 VLLM_CMD="$VLLM_CMD --enable-prefix-caching"
 
-# Add LoRA adapter if specified
+# Add model/adapter if specified
+ADAPTER_NAME=""
+IS_MERGED_MODEL=false
 if [ -n "$MODEL_PATH" ] && [ -d "$MODEL_PATH" ]; then
-    log_info "Loading LoRA adapter: $MODEL_PATH"
-    VLLM_CMD="$VLLM_CMD --enable-lora"
-    VLLM_CMD="$VLLM_CMD --lora-modules trained-adapter=$MODEL_PATH"
+    # Check if it's a LoRA adapter (has adapter_config.json) or a full model
+    if [ -f "$MODEL_PATH/adapter_config.json" ]; then
+        log_info "Loading LoRA adapter: $MODEL_PATH"
+        VLLM_CMD="$VLLM_CMD --enable-lora"
+        VLLM_CMD="$VLLM_CMD --lora-modules trained-adapter=$MODEL_PATH"
+        ADAPTER_NAME="trained-adapter"
+    else
+        log_info "Loading merged model: $MODEL_PATH"
+        # Override the base model with the merged model path
+        VLLM_CMD=$(echo "$VLLM_CMD" | sed "s|--model $BASE_MODEL|--model $MODEL_PATH|")
+        IS_MERGED_MODEL=true
+    fi
 fi
 
 # Start vLLM in background
@@ -290,11 +301,18 @@ fi
 
 # Show available models
 log_info "Available models:"
-curl -s http://localhost:$VLLM_PORT/v1/models | python3 -c "
+MODELS_RESPONSE=$(curl -s http://localhost:$VLLM_PORT/v1/models || echo "{}")
+if echo "$MODELS_RESPONSE" | python3 -c "
 import json, sys
-data = json.load(sys.stdin)
-for m in data.get('data', []):
-    print(f'  - {m[\"id\"]}')"
+try:
+    data = json.load(sys.stdin)
+    for m in data.get('data', []):
+        print(f'  - {m[\"id\"]}')
+except json.JSONDecodeError:
+    print('  (Could not fetch models list)')
+"; then
+    :
+fi
 
 echo ""
 
@@ -313,9 +331,9 @@ BENCH_CMD="$BENCH_CMD --archetype $BENCHMARK_ARCHETYPE"
 BENCH_CMD="$BENCH_CMD --baseline $BENCHMARK_BASELINE"
 BENCH_CMD="$BENCH_CMD --output $BENCHMARK_OUTPUT"
 
-if [ -n "$MODEL_PATH" ]; then
+if [ -n "$ADAPTER_NAME" ]; then
     # Use the LoRA module name if adapter is loaded
-    BENCH_CMD="$BENCH_CMD --model trained-adapter"
+    BENCH_CMD="$BENCH_CMD --model $ADAPTER_NAME"
 fi
 
 if [ "$BENCHMARK_QUICK" = true ] || [ "$BENCHMARK_QUICK" = "true" ]; then
