@@ -18,6 +18,7 @@
  */
 
 import {
+  asc,
   db,
   desc,
   eq,
@@ -199,7 +200,11 @@ export class GameContextCache {
             rank: questionsSchema.rank,
           })
           .from(questionsSchema)
-          .where(inArray(questionsSchema.status, ['active', 'traded']));
+          .where(inArray(questionsSchema.status, ['active', 'traded']))
+          .orderBy(
+            asc(questionsSchema.questionNumber),
+            asc(questionsSchema.id)
+          );
 
         return results;
       },

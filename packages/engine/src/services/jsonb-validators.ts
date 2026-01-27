@@ -346,13 +346,10 @@ export function parseStringArraySafe(
   }
 
   // Fast path: already a valid string array using type guard
+  // Note: isStringArray validates the same shape as StringArraySchema.safeParse,
+  // so we skip the redundant safeParse and fall through directly to salvage logic
   if (isStringArray(data)) {
     return data;
-  }
-
-  const result = StringArraySchema.safeParse(data);
-  if (result.success) {
-    return result.data;
   }
 
   // Log warning and try to salvage valid strings
@@ -360,7 +357,8 @@ export function parseStringArraySafe(
     'Invalid string array JSONB data',
     {
       field: context?.field,
-      issues: result.error.issues.slice(0, 3),
+      dataType: typeof data,
+      isArray: Array.isArray(data),
     },
     'JSONBValidation'
   );
@@ -492,18 +490,20 @@ export function parsePendingTransitionsSafe(
       }
     }
 
-    // Log salvage metrics
-    logger.info(
-      'Salvaged partial PendingTransition data',
-      {
-        parser: 'PendingTransition',
-        arcId: context?.arcId,
-        total,
-        valid: valid.length,
-        invalid,
-      },
-      'JSONBValidation'
-    );
+    // Log salvage metrics only when there are actually invalid entries
+    if (invalid > 0) {
+      logger.info(
+        'Salvaged partial PendingTransition data',
+        {
+          parser: 'PendingTransition',
+          arcId: context?.arcId,
+          total,
+          valid: valid.length,
+          invalid,
+        },
+        'JSONBValidation'
+      );
+    }
 
     return valid;
   }
@@ -551,18 +551,20 @@ export function parseScheduledEventsSafe(
       }
     }
 
-    // Log salvage metrics
-    logger.info(
-      'Salvaged partial ScheduledEvent data',
-      {
-        parser: 'ScheduledEvent',
-        questionId: context?.questionId,
-        total,
-        valid: valid.length,
-        invalid,
-      },
-      'JSONBValidation'
-    );
+    // Log salvage metrics only when there are actually invalid entries
+    if (invalid > 0) {
+      logger.info(
+        'Salvaged partial ScheduledEvent data',
+        {
+          parser: 'ScheduledEvent',
+          questionId: context?.questionId,
+          total,
+          valid: valid.length,
+          invalid,
+        },
+        'JSONBValidation'
+      );
+    }
 
     return valid;
   }
