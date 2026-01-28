@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS "SystemMetricsSnapshot" (
   
   -- Financial metrics
   "totalVirtualBalance" DECIMAL(20, 2) NOT NULL,
-  "totalFeesCollected" DECIMAL(18, 2) NOT NULL,
+  "feesCollectedHourly" DECIMAL(18, 2) NOT NULL,
   
   -- System health metrics
   "apiUptime" DOUBLE PRECISION NOT NULL,

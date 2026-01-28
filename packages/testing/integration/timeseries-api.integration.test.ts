@@ -90,7 +90,7 @@ async function createTestSnapshot(
     commentsCreated: 50,
     reactionsCreated: 100,
     totalVirtualBalance: '1000000.00',
-    totalFeesCollected: '5000.00',
+    feesCollectedHourly: '5000.00',
     apiUptime: 99.9,
     avgResponseTime: 50,
     errorRate: 0.1,

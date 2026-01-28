@@ -333,7 +333,7 @@ function formatSnapshot(snapshot: SystemMetricsSnapshot): FormattedSnapshot {
     },
     financial: {
       totalBalance: Number(snapshot.totalVirtualBalance),
-      feesCollected: Number(snapshot.totalFeesCollected),
+      feesCollected: Number(snapshot.feesCollectedHourly),
     },
     system: {
       uptime: snapshot.apiUptime,
@@ -389,7 +389,7 @@ function aggregateToDaily(
       0
     );
     const totalFees = daySnapshots.reduce(
-      (sum, s) => sum + Number(s.totalFeesCollected),
+      (sum, s) => sum + Number(s.feesCollectedHourly),
       0
     );
 

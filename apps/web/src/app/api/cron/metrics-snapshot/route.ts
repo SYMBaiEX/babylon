@@ -387,7 +387,7 @@ async function collectMetrics(snapshotTime: Date) {
     commentsCreated: Number(socialRow?.comments ?? 0),
     reactionsCreated: Number(socialRow?.reactions ?? 0),
     totalVirtualBalance: financialRow?.totalBalance ?? '0',
-    totalFeesCollected: financialRow?.feesCollected ?? '0',
+    feesCollectedHourly: financialRow?.feesCollected ?? '0',
   };
 }
 

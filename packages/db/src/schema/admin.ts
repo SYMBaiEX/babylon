@@ -176,7 +176,7 @@ export const systemMetricsSnapshots = pgTable(
       precision: 20,
       scale: 2,
     }).notNull(),
-    totalFeesCollected: decimal('totalFeesCollected', {
+    feesCollectedHourly: decimal('feesCollectedHourly', {
       precision: 18,
       scale: 2,
     }).notNull(),
