@@ -215,9 +215,9 @@ export function MarketsTradingTerminal({
 
     const nextPerpSide = parsePerpSide(searchParams);
     const nextPredSide = parsePredictionSide(searchParams);
+    setPerpSideFromUrl(nextPerpSide);
     if (nextPerpSide) {
       // Perps order entry manages its own side; we only use this to open the trade sheet.
-      setPerpSideFromUrl(nextPerpSide);
       setIsMobileTradeSheetOpen(true);
     }
     if (nextPredSide) setPredictionSide(nextPredSide);
@@ -362,30 +362,50 @@ export function MarketsTradingTerminal({
     }
   );
 
-  const predictionSeed = useMemo(() => {
-    if (!predictionState) return undefined;
+  const predictionEffectiveShares = useMemo(() => {
+    if (!predictionState) return null;
+
     const yes = Number(predictionState.yesShares ?? 0);
     const no = Number(predictionState.noShares ?? 0);
-    const total = yes + no;
-    if (total <= 0) {
-      const seeded = PredictionPricing.initializeMarket();
+
+    if (yes > 0 && no > 0) {
       return {
-        yesShares: seeded.yesShares,
-        noShares: seeded.noShares,
-        liquidity: seeded.yesShares + seeded.noShares,
+        yesShares: yes,
+        noShares: no,
+        liquidity: Number(predictionState.liquidity ?? yes + no),
       };
     }
+
+    const seeded = PredictionPricing.initializeMarket();
     return {
-      yesShares: yes,
-      noShares: no,
-      liquidity: Number(predictionState.liquidity ?? total),
+      yesShares: seeded.yesShares,
+      noShares: seeded.noShares,
+      liquidity: seeded.yesShares + seeded.noShares,
     };
-  }, [predictionState]);
+  }, [
+    predictionState?.id,
+    predictionState?.yesShares,
+    predictionState?.noShares,
+    predictionState?.liquidity,
+    predictionState,
+  ]);
+
+  const predictionHistorySeed = useMemo(
+    () =>
+      predictionEffectiveShares
+        ? {
+            yesShares: predictionEffectiveShares.yesShares,
+            noShares: predictionEffectiveShares.noShares,
+            liquidity: predictionEffectiveShares.liquidity,
+          }
+        : undefined,
+    [predictionEffectiveShares]
+  );
 
   const { history: predictionHistory, refresh: refreshPredictionHistory } =
     usePredictionHistory(selected?.kind === 'prediction' ? selected.id : null, {
       limit: 1000,
-      seed: predictionSeed,
+      seed: predictionHistorySeed,
       range: predictionTimeRange,
     });
 
@@ -424,13 +444,6 @@ export function MarketsTradingTerminal({
   );
 
   const predictionAmountNum = Number.parseFloat(predictionAmount) || 0;
-  const predictionEffectiveShares = useMemo(() => {
-    if (!predictionSeed) return null;
-    return {
-      yesShares: predictionSeed.yesShares ?? 0,
-      noShares: predictionSeed.noShares ?? 0,
-    };
-  }, [predictionSeed]);
 
   const predictionCalculation = useMemo(() => {
     if (!predictionEffectiveShares) return null;
@@ -476,53 +489,70 @@ export function MarketsTradingTerminal({
     setPredictionSubmitting(true);
     setConfirmDialogOpen(false);
 
-    const token = await getAccessToken();
-    if (!token) {
-      toast.error('Authentication required. Please log in.');
-      setPredictionSubmitting(false);
-      return;
-    }
-
-    const response = await fetch(
-      `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side: predictionSide,
-          amount: predictionAmountNum,
-        }),
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error('Authentication required. Please log in.');
+        return;
       }
-    );
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMessage =
-        typeof data.error === 'object'
-          ? data.error.message || 'Failed to buy shares'
-          : data.error || data.message || 'Failed to buy shares';
-      toast.error(errorMessage);
+      const response = await fetch(
+        `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            side: predictionSide,
+            amount: predictionAmountNum,
+          }),
+        }
+      );
+
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const maybeError = data as {
+          error?: unknown;
+          message?: unknown;
+        } | null;
+        const errorMessage =
+          typeof maybeError?.error === 'object'
+            ? ((maybeError.error as { message?: unknown })
+                ?.message as string) || 'Failed to buy shares'
+            : (maybeError?.error as string) ||
+              (maybeError?.message as string) ||
+              'Failed to buy shares';
+        toast.error(errorMessage);
+        return;
+      }
+
+      toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
+        description: `${predictionCalculation.sharesBought.toFixed(2)} shares at ${predictionCalculation.avgPrice.toFixed(3)} each`,
+      });
+
+      invalidateUserPositions();
+      invalidateWalletBalance();
+      await Promise.all([
+        refreshPredictionPositions(),
+        refreshPerpPositions(),
+        refreshWalletBalance(),
+        refreshPredictionHistory(),
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to buy shares';
+      toast.error(message);
+    } finally {
       setPredictionSubmitting(false);
-      return;
     }
-
-    toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
-      description: `${predictionCalculation.sharesBought.toFixed(2)} shares at ${predictionCalculation.avgPrice.toFixed(3)} each`,
-    });
-
-    invalidateUserPositions();
-    invalidateWalletBalance();
-    await Promise.all([
-      refreshPredictionPositions(),
-      refreshPerpPositions(),
-      refreshWalletBalance(),
-      refreshPredictionHistory(),
-    ]);
-
-    setPredictionSubmitting(false);
   };
 
   const selectedPredictionId =
@@ -676,10 +706,10 @@ export function MarketsTradingTerminal({
                     <td className="px-2 py-2">
                       <div className="flex min-w-0 flex-col">
                         <div className="truncate font-bold text-foreground">
-                          {row.kind === 'perp' ? row.title : row.title}
+                          {row.title}
                         </div>
                         <div className="truncate text-[10px] text-muted-foreground">
-                          {row.kind === 'perp' ? row.subtitle : row.subtitle}
+                          {row.subtitle}
                         </div>
                       </div>
                     </td>

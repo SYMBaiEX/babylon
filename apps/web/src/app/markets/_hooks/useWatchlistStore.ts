@@ -15,15 +15,26 @@ export function useWatchlistStore() {
   const isFavoriteKey = useMarketWatchlistStore((s) => s.isFavorite);
   const clear = useMarketWatchlistStore((s) => s.clear);
 
+  const perpFavorites = useMemo(
+    () =>
+      favorites.flatMap((key) => {
+        const [kind, id] = key.split(':');
+        if (kind !== 'perp') return [];
+        if (!id) return [];
+        return [id];
+      }),
+    [favorites]
+  );
+
   return useMemo(
     () => ({
-      favorites,
+      favorites: perpFavorites,
       toggleFavorite: (ticker: string) =>
         toggleFavoriteKey({ kind: 'perp', id: ticker }),
       isFavorite: (ticker: string) =>
         isFavoriteKey({ kind: 'perp', id: ticker }),
       clear,
     }),
-    [favorites, toggleFavoriteKey, isFavoriteKey, clear]
+    [perpFavorites, toggleFavoriteKey, isFavoriteKey, clear]
   );
 }

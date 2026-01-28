@@ -11,6 +11,7 @@ export type MarketKey =
 
 interface MarketWatchlistState {
   favorites: string[];
+  favoritesSet: Set<string>;
   toggleFavorite: (key: MarketKey) => void;
   isFavorite: (key: MarketKey) => boolean;
   clear: () => void;
@@ -18,6 +19,7 @@ interface MarketWatchlistState {
 
 function serializeKey(key: MarketKey): string {
   const id = key.id.trim();
+  if (!id) return '';
   return `${key.kind}:${key.kind === 'perp' ? id.toUpperCase() : id}`;
 }
 
@@ -25,26 +27,31 @@ export const useMarketWatchlistStore = create<MarketWatchlistState>()(
   persist(
     (set, get) => ({
       favorites: [],
+      favoritesSet: new Set<string>(),
       toggleFavorite: (key) => {
         const serialized = serializeKey(key);
         if (!serialized) return;
 
-        const next = new Set(get().favorites);
+        const next = new Set(get().favoritesSet);
         if (next.has(serialized)) next.delete(serialized);
         else next.add(serialized);
-        set({ favorites: Array.from(next) });
+        set({ favorites: Array.from(next), favoritesSet: next });
       },
       isFavorite: (key) => {
         const serialized = serializeKey(key);
         if (!serialized) return false;
-        return get().favorites.includes(serialized);
+        return get().favoritesSet.has(serialized);
       },
-      clear: () => set({ favorites: [] }),
+      clear: () => set({ favorites: [], favoritesSet: new Set<string>() }),
     }),
     {
       name: 'markets.watchlist.v2',
       version: 2,
       partialize: (state) => ({ favorites: state.favorites }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        state.favoritesSet = new Set(state.favorites ?? []);
+      },
     }
   )
 );
