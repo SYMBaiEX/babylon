@@ -258,6 +258,7 @@ import {
   posts,
   reactions,
   shares,
+  sql,
   userActorFollows,
   users,
 } from '@babylon/db';
@@ -782,9 +783,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
   const shareMap = new Map(shareCounts.map((s) => [s.postId, Number(s.count)]));
 
-  // Fetch comment previews for posts with comments (top 2-3 per post)
-  // Only fetch for posts that have at least 1 comment to avoid unnecessary queries
-  const postsWithComments = postIds.filter(
+  // Fetch comment previews for posts with comments (top 1-2 per post based on engagement)
+  // Include original post IDs for reposts so their previews can be shown
+  const postsWithComments = allPostIds.filter(
     (id) => (commentMap.get(id) ?? 0) > 0
   );
   const commentPreviewMap = new Map<
@@ -802,29 +803,58 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   >();
 
   if (postsWithComments.length > 0) {
-    // Fetch top 3 comments per post (ordered by likes desc, then recency)
-    // Using a subquery approach to get top N per group
-    const topComments = await db
-      .select({
-        id: comments.id,
-        postId: comments.postId,
-        content: comments.content,
-        createdAt: comments.createdAt,
-        authorId: comments.authorId,
-        userName: users.displayName,
-        userUsername: users.username,
-        userAvatar: users.profileImageUrl,
-      })
-      .from(comments)
-      .leftJoin(users, eq(comments.authorId, users.id))
-      .where(
-        and(
-          inArray(comments.postId, postsWithComments),
-          isNull(comments.parentCommentId) // Only top-level comments
-        )
+    // Fetch top 3 comments per post using window function for true per-post limiting
+    // This ensures each post gets up to 3 comments regardless of global distribution
+    const postIdsParam = postsWithComments.map((id) => `'${id}'`).join(',');
+
+    // Type for raw SQL result rows
+    interface CommentRow {
+      id: string;
+      post_id: string;
+      content: string;
+      created_at: Date;
+      author_id: string;
+      user_name: string | null;
+      user_username: string | null;
+      user_avatar: string | null;
+    }
+
+    const rawComments = await db.execute(sql`
+      WITH ranked_comments AS (
+        SELECT 
+          c.id,
+          c.post_id,
+          c.content,
+          c.created_at,
+          c.author_id,
+          u.display_name as user_name,
+          u.username as user_username,
+          u.profile_image_url as user_avatar,
+          ROW_NUMBER() OVER (
+            PARTITION BY c.post_id 
+            ORDER BY c.created_at DESC
+          ) as rn
+        FROM comments c
+        LEFT JOIN users u ON c.author_id = u.id
+        WHERE c.post_id IN (${sql.raw(postIdsParam)})
+          AND c.parent_comment_id IS NULL
       )
-      .orderBy(desc(comments.createdAt))
-      .limit(postsWithComments.length * 3); // Fetch up to 3 per post
+      SELECT id, post_id, content, created_at, author_id, user_name, user_username, user_avatar
+      FROM ranked_comments
+      WHERE rn <= 3
+    `);
+
+    // Map raw results to typed structure
+    const topComments = (rawComments as unknown as CommentRow[]).map((row) => ({
+      id: row.id,
+      postId: row.post_id,
+      content: row.content,
+      createdAt: row.created_at,
+      authorId: row.author_id,
+      userName: row.user_name,
+      userUsername: row.user_username,
+      userAvatar: row.user_avatar,
+    }));
 
     // Get like counts for these comments
     const commentIds = topComments.map((c) => c.id);
@@ -987,13 +1017,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           originalAuthorProfileImageUrl = originalUser.profileImageUrl;
         }
 
-        // For simple reposts (not quotes), use the original post's interaction counts
-        // For quote posts, keep the quote post's interaction counts
+        // For simple reposts (not quotes), use the original post's interaction counts and previews
+        // For quote posts, keep the quote post's interaction counts and previews
         const interactionCounts = !isQuote
           ? {
               likeCount: reactionMap.get(originalPost.id) ?? 0,
               commentCount: commentMap.get(originalPost.id) ?? 0,
               shareCount: shareMap.get(originalPost.id) ?? 0,
+              // Use original post's comment previews for simple reposts
+              commentPreviews:
+                commentPreviewMap.get(originalPost.id) ?? undefined,
             }
           : {
               likeCount: basePost.likeCount,

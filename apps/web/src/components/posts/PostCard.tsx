@@ -542,14 +542,13 @@ export const PostCard = memo(function PostCard({
         </div>
       )}
 
-      {/* Row 4: Comment Previews - Shows top 2-3 comments inline */}
+      {/* Row 4: Comment Previews - Shows top 1-2 comments inline based on engagement */}
       {showCommentPreviews &&
         !isDetail &&
         post.commentPreviews &&
         post.commentPreviews.length > 0 && (
           <CommentPreview
             comments={post.commentPreviews}
-            postId={post.id}
             totalCommentCount={post.commentCount ?? 0}
             onViewAllClick={onCommentClick}
           />

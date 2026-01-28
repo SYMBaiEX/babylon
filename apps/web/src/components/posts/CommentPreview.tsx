@@ -16,7 +16,6 @@ export type { CommentPreviewData } from '@babylon/shared';
 
 interface CommentPreviewProps {
   comments: CommentPreviewData[];
-  postId: string;
   totalCommentCount: number;
   onViewAllClick?: () => void;
   className?: string;
@@ -25,8 +24,9 @@ interface CommentPreviewProps {
 /**
  * Inline comment preview component for post cards.
  *
- * Displays 3 recent comments with full layout directly on the feed,
+ * Displays 1-2 top comments based on engagement directly on the feed,
  * similar to how social platforms show engagement context.
+ * High-engagement posts (50+ comments) show 2 previews, others show 1.
  *
  * Features:
  * - Avatar + name/handle + timestamp layout
@@ -39,7 +39,6 @@ interface CommentPreviewProps {
  * ```tsx
  * <CommentPreview
  *   comments={topComments}
- *   postId="post-123"
  *   totalCommentCount={15}
  *   onViewAllClick={() => openComments()}
  * />
@@ -47,7 +46,6 @@ interface CommentPreviewProps {
  */
 export const CommentPreview = memo(function CommentPreview({
   comments,
-  postId: _postId,
   totalCommentCount,
   onViewAllClick,
   className,
@@ -149,9 +147,11 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
               </span>
             )}
           </div>
-          <span className="shrink-0 text-muted-foreground text-xs">
-            {timeAgo} ago
-          </span>
+          {timeAgo && (
+            <span className="shrink-0 text-muted-foreground text-xs">
+              {timeAgo}
+            </span>
+          )}
         </div>
 
         {/* Comment content */}
@@ -164,7 +164,7 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
 });
 
 /**
- * Format timestamp to relative time (e.g., "55m", "2h", "3d")
+ * Format timestamp to relative time with suffix (e.g., "5m ago", "2h ago", "just now")
  */
 function formatTimeAgo(timestamp: string): string {
   try {
@@ -174,13 +174,15 @@ function formatTimeAgo(timestamp: string): string {
     const diffMinutes = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
+    const diffWeeks = Math.floor(diffDays / 7);
 
-    if (diffMinutes < 1) return 'now';
-    if (diffMinutes < 60) return `${diffMinutes}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
+    if (diffMinutes < 1) return 'just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffWeeks < 4) return `${diffWeeks}w ago`;
 
-    return formatDistanceToNow(date, { addSuffix: false });
+    return formatDistanceToNow(date, { addSuffix: true });
   } catch {
     return '';
   }
