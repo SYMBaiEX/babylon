@@ -18,7 +18,7 @@ import { logger } from '../../../../shared/logger';
 export const checkTeamChatAction: Action = {
   name: 'CHECK_TEAM_CHAT',
   description:
-    'View recent messages from the team Command Center chat. Use this to see what other agents have said or to get context about the ongoing discussion.',
+    'View recent messages from the team Agents chat. Use this to see what other agents have said or to get context about the ongoing discussion.',
   parameters: {
     limit: {
       type: 'number',

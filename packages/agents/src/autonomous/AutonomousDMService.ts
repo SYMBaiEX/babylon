@@ -45,7 +45,7 @@ export class AutonomousDMService {
     const config = await getAgentConfig(agentUserId);
 
     // For user-controlled agents, get the owner ID to filter out owner DMs
-    // (Owner should use Command Center/team chat instead of DMs)
+    // (Owner should use Agents/team chat instead of DMs)
     let ownerUserId: string | null = null;
     if (!isNpcUser(agentUserId)) {
       const [agentRecord] = await db
@@ -71,7 +71,7 @@ export class AutonomousDMService {
       const chat = chatParticipant.chat;
       if (!chat || chat.isGroup) continue; // Skip group chats
 
-      // Skip DMs with the owner - owner should use Command Center instead
+      // Skip DMs with the owner - owner should use Agents chat instead
       // Directly check if owner is a participant (more reliable than checking arbitrary other participant)
       if (ownerUserId && chat.id) {
         const ownerParticipation = await db
@@ -87,7 +87,7 @@ export class AutonomousDMService {
 
         if (ownerParticipation.length > 0) {
           logger.debug(
-            `Skipping DM with owner ${ownerUserId} - use Command Center instead`,
+            `Skipping DM with owner ${ownerUserId} - use Agents chat instead`,
             undefined,
             'AutonomousDM'
           );

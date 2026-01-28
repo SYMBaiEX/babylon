@@ -2,7 +2,7 @@
  * Team Members Provider
  *
  * Provides information about team chat members for agent context.
- * Allows agents to know who else is in the Command Center and
+ * Allows agents to know who else is in the Agents chat and
  * properly @mention other agents.
  *
  * Requires `teamChatId` to be set in state.values.
@@ -33,7 +33,7 @@ interface TeamMember {
  */
 export const teamMembersProvider: Provider = {
   name: 'TEAM_MEMBERS',
-  description: 'List of team members in the Command Center chat',
+  description: 'List of team members in the Agents chat',
 
   get: async (
     runtime: IAgentRuntime,
