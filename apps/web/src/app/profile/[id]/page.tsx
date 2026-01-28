@@ -845,7 +845,7 @@ export default function ActorProfilePage() {
                             title={
                               actorInfo.isAgent &&
                               actorInfo.managedBy === user.id
-                                ? 'Message in Command Center'
+                                ? 'Message in Agents'
                                 : 'Send message'
                             }
                           >
