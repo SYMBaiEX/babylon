@@ -36,7 +36,6 @@ export default function CreateAgentPage() {
     <PageContainer>
       <AgentCreate
         onBack={() => router.push('/agents')}
-        backLabel="Back"
         onSuccess={(agent) => {
           // Redirect to team chat and select the new agent
           router.push(
