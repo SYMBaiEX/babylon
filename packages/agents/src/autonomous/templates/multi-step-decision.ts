@@ -644,6 +644,30 @@ ${numberedList}
 ${antiPostingGuidance}
 `;
 
+  const actionabilityTotal =
+    context.predictionMarkets.length +
+    context.perpMarkets.length +
+    context.openPositions +
+    context.recentPosts.length +
+    context.pendingCommentReplies.length +
+    context.pendingChatMessages.length +
+    (context.groupChats?.length ?? 0);
+  const actionabilitySection = `
+# Actionability Summary
+- Prediction markets: ${context.predictionMarkets.length}
+- Perp markets: ${context.perpMarkets.length}
+- Open positions: ${context.openPositions}
+- Recent posts: ${context.recentPosts.length}
+- Pending comment replies: ${context.pendingCommentReplies.length}
+- Pending chats: ${context.pendingChatMessages.length}
+- Group chats: ${context.groupChats?.length ?? 0}
+${
+  actionabilityTotal > 0
+    ? 'You MUST take at least one action before FINISH.'
+    : 'No actionable items found. FINISH is acceptable.'
+}
+`;
+
   // Build conditional sections (only show context for enabled features)
   const tradingSection = canTrade
     ? `
@@ -709,6 +733,7 @@ ${creatorSection}${npcContextSection}${tradePostEncouragement}# Current Executio
 - Open Positions: ${context.openPositions}
 - Pending Comments: ${context.pendingCommentReplies.length}
 - Pending Chats: ${context.pendingChatMessages.length}
+${actionabilitySection}
 
 # Your Open Positions
 ${formatAgentPositions(context.agentPositions)}
@@ -736,16 +761,17 @@ ${context.diversityInstructions ? `${context.diversityInstructions}` : ''}
 ${context.assignedMarketId && canTrade ? `# YOUR FOCUS MARKET: ${context.assignedMarketId}\nConsider this market for trades or posts. Bring your ${context.personality || 'unique'} perspective.\n` : ''}
 
 # Decision Rules
-1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content
-2. **One Action**: Choose ONE action per iteration
-3. **No Duplicates**: Don't repeat the same action on the same target
-4. **Know When to Stop**: Set isFinish=true after 1-2 meaningful actions or when done
-5. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use REPLY_CHAT for DMs.
-${canTrade && !isNpc ? '6. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
-${canTrade && isNpc ? '6. **BALANCED ACTIONS**: Trading, posting, and engaging are all valuable. Follow your intuitions.' : ''}
-${canComment && !isNpc ? '7. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
-${hasPostedThisTick ? `8. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
-${!isNpc && canPost && !hasPostedThisTick ? '9. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
+1. **Be Specific**: Provide exact IDs (from "id: xxx") in parameters, amounts, and content. Never invent IDs.
+2. **Act When Possible**: If any actionable items are available, take at least one action before FINISH.
+3. **One Action**: Choose ONE action per iteration
+4. **No Duplicates**: Don't repeat the same action on the same target
+5. **Know When to Stop**: Set isFinish=true after 1-2 meaningful actions or when done
+6. **PRIVACY**: NEVER use POST to reply to a private message (DM). Use REPLY_CHAT for DMs.
+${canTrade && !isNpc ? '7. **TRADE FIRST**: If you have not traded this tick, strongly consider TRADE before anything else!' : ''}
+${canTrade && isNpc ? '7. **BALANCED ACTIONS**: Trading, posting, and engaging are all valuable. Follow your intuitions.' : ''}
+${canComment && !isNpc ? '8. **COMMENT > POST**: Engaging with others via COMMENT is more valuable than creating your own POST!' : ''}
+${hasPostedThisTick ? `9. **NO MORE POSTS**: You already posted. Choose ${[canTrade ? 'TRADE' : '', canComment ? 'COMMENT' : '', canEngage ? 'LIKE' : '', canEngage ? 'REPOST' : '', 'FINISH'].filter(Boolean).join(', ')} instead.` : ''}
+${!isNpc && canPost && !hasPostedThisTick ? '10. **AVOID POSTING**: As a player agent, you should almost NEVER post. Trade, comment, like, or repost instead!' : ''}
 
 # Action Ideas (in order of priority)
 ${canTrade && !isNpc ? '- 🔥 **TRADE**: Take a position on a market (HIGH PRIORITY - do this!)' : ''}

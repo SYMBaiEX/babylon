@@ -230,6 +230,7 @@ export class MultiStepExecutor {
         effectiveFeatures,
         isNpc
       );
+      const actionability = this.getActionabilitySummary(context);
 
       // Build decision prompt (systemPrompt passed separately to LLM system role)
       // For NPCs, get name from StaticDataRegistry; for users, use displayName
@@ -276,6 +277,13 @@ export class MultiStepExecutor {
 
       // Check if we should finish
       if (decision.isFinish || !decision.action) {
+        if (trace.length === 0 && actionability.hasAny) {
+          logger.warn(
+            `[MultiStep] Finished without actions despite actionable context`,
+            { agentUserId, actionability },
+            'MultiStepExecutor'
+          );
+        }
         logger.info(
           `[MultiStep] Agent decided to finish at iteration ${iteration}`,
           { thought: decision.thought },
@@ -441,6 +449,46 @@ export class MultiStepExecutor {
       postStyle: assignment?.postStyle,
       agentOwnPosts,
       creator,
+    };
+  }
+
+  private getActionabilitySummary(context: AgentTickContext): {
+    predictionMarkets: number;
+    perpMarkets: number;
+    openPositions: number;
+    recentPosts: number;
+    pendingCommentReplies: number;
+    pendingChatMessages: number;
+    groupChats: number;
+    actionableTotal: number;
+    hasAny: boolean;
+  } {
+    const predictionMarkets = context.predictionMarkets.length;
+    const perpMarkets = context.perpMarkets.length;
+    const openPositions = context.openPositions;
+    const recentPosts = context.recentPosts.length;
+    const pendingCommentReplies = context.pendingCommentReplies.length;
+    const pendingChatMessages = context.pendingChatMessages.length;
+    const groupChats = context.groupChats?.length ?? 0;
+    const actionableTotal =
+      predictionMarkets +
+      perpMarkets +
+      openPositions +
+      recentPosts +
+      pendingCommentReplies +
+      pendingChatMessages +
+      groupChats;
+
+    return {
+      predictionMarkets,
+      perpMarkets,
+      openPositions,
+      recentPosts,
+      pendingCommentReplies,
+      pendingChatMessages,
+      groupChats,
+      actionableTotal,
+      hasAny: actionableTotal > 0,
     };
   }
 
