@@ -109,7 +109,7 @@ export default function ChatsPage() {
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
-  // If so, redirect to team chat (Command Center) instead of this DM
+  // If so, redirect to team chat (Agents) instead of this DM
   const ownAgentId = useMemo(() => {
     if (!chatDetails?.chat.otherUser || chatDetails.chat.isGroup) return null;
     const other = chatDetails.chat.otherUser;

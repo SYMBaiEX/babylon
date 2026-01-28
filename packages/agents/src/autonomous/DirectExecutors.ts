@@ -1328,7 +1328,7 @@ export async function executeDirectMessage(
   // If chatId not provided, resolve it from recipientId
   if (!chatId && recipientId) {
     // Check if agent is trying to DM their owner - not allowed
-    // Agents should communicate with owners through Command Center (team chat)
+    // Agents should communicate with owners through Agents (team chat)
     const [agent] = await db
       .select({ managedBy: users.managedBy })
       .from(users)
@@ -1338,7 +1338,7 @@ export async function executeDirectMessage(
     if (agent?.managedBy === recipientId) {
       return {
         success: false,
-        error: 'Agent-owner DMs are not allowed - use Command Center instead',
+        error: 'Agent-owner DMs are not allowed - use Agents chat instead',
       };
     }
 

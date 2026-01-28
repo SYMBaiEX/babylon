@@ -1,7 +1,7 @@
 /**
  * useTeamChat Hook
  *
- * Manages the user's Command Center team chat - a unified group chat
+ * Manages the user's Agents team chat - a unified group chat
  * containing all their agents.
  */
 
@@ -515,16 +515,14 @@ export function useTeamChat(): UseTeamChatReturn {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.message || data.error || 'Failed to load Command Center');
+        setError(data.message || data.error || 'Failed to load Agents');
         return;
       }
 
       const data = await response.json();
       setTeamChat(data.teamChat);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load Command Center'
-      );
+      setError(err instanceof Error ? err.message : 'Failed to load Agents');
     } finally {
       setLoading(false);
     }
@@ -610,7 +608,7 @@ export function useTeamChat(): UseTeamChatReturn {
     ? {
         chat: {
           id: teamChat.chatId,
-          name: 'Command Center',
+          name: 'Agents',
           isGroup: true,
           createdAt: teamChat.createdAt,
           updatedAt: teamChat.updatedAt,

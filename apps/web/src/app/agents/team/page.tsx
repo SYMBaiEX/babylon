@@ -60,7 +60,7 @@ const AgentActivityFeed = dynamic(
   }
 );
 
-/** Tab type for Command Center */
+/** Tab type for Agents */
 type TabType = 'chat' | 'agents' | 'activity';
 
 /** Agent data for agents tab */
@@ -84,7 +84,7 @@ interface AgentData {
 }
 
 /**
- * Agent Team Chat Page (Command Center)
+ * Agent Team Chat Page (Agents)
  *
  * A unified group chat containing all the user's agents.
  * Users can @mention specific agents to direct tasks.
@@ -141,7 +141,7 @@ export default function TeamChatPage() {
     'all'
   );
 
-  // Selected agent detail state (for viewing agent within Command Center)
+  // Selected agent detail state (for viewing agent within Agents page)
   const [selectedAgentDetail, setSelectedAgentDetail] =
     useState<AgentDetailData | null>(null);
   const [selectedAgentLoading, setSelectedAgentLoading] = useState(false);
@@ -360,7 +360,7 @@ export default function TeamChatPage() {
           <div className="max-w-md text-center">
             <Users className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
             <h2 className="mb-2 font-bold text-foreground text-xl">
-              Log in to access Command Center
+              Log in to access Agents
             </h2>
             <p className="mb-6 text-muted-foreground">
               Sign in to coordinate your agents
@@ -409,7 +409,7 @@ export default function TeamChatPage() {
           <div className="max-w-md text-center">
             <Users className="mx-auto mb-4 h-16 w-16 text-red-500" />
             <h2 className="mb-2 font-bold text-foreground text-xl">
-              Failed to load Command Center
+              Failed to load Agents
             </h2>
             <p className="mb-6 text-muted-foreground">{error}</p>
           </div>
@@ -440,7 +440,7 @@ export default function TeamChatPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4">
               <h3 id="drawer-title" className="font-semibold text-foreground">
-                Command Center
+                Agents
               </h3>
               <button
                 onClick={() => setShowMemberDrawer(false)}

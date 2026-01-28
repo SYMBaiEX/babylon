@@ -146,7 +146,7 @@ function SidebarContent() {
       active: pathname === '/leaderboard',
     },
     {
-      name: 'Markets',
+      name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
       color: '#0066FF',
@@ -160,7 +160,7 @@ function SidebarContent() {
       active: pathname === '/chats',
     },
     {
-      name: 'Command Center',
+      name: 'Agents',
       href: '/agents/team',
       icon: Users,
       color: '#0066FF',

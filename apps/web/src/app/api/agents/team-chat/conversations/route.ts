@@ -1,7 +1,7 @@
 /**
  * Team Chat Conversations API
  *
- * Manages conversation sessions within the team chat (Command Center).
+ * Manages conversation sessions within the team chat (Agents).
  * Supports "New Chat" feature like ChatGPT.
  *
  * @route GET /api/agents/team-chat/conversations - List all conversations

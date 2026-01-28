@@ -25,7 +25,7 @@ interface ConversationListProps {
 }
 
 /**
- * Conversation list component for Command Center sidebar
+ * Conversation list component for Agents sidebar
  *
  * Shows all conversations in the team chat.
  * Allows creating new conversations (fresh chat).

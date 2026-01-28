@@ -148,7 +148,7 @@ export default function AgentsPage() {
           </Link>
         </div>
 
-        {/* Command Center Card - shown when user has agents */}
+        {/* Agents Chat Card - shown when user has agents */}
         {agents.length > 0 && (
           <div className="mb-4">
             <Link href="/agents/team" className="block">
@@ -160,7 +160,7 @@ export default function AgentsPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground text-lg">
-                        Command Center
+                        Agents Chat
                       </h3>
                       <p className="text-muted-foreground text-sm">
                         Coordinate all {agents.length} agent
