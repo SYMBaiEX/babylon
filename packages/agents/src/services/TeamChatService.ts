@@ -1,7 +1,7 @@
 /**
- * Team Chat Service - Agent Command Center
+ * Team Chat Service - Agents
  *
- * Manages the unified "Command Center" group chat for each user's agents.
+ * Manages the unified "Agents" group chat for each user's agents.
  * Each user has exactly ONE team chat containing ALL their agents.
  *
  * Lifecycle:
@@ -33,8 +33,8 @@ import {
 } from '@babylon/db';
 import { logger } from '../shared/logger';
 
-/** Constants for Command Center */
-const TEAM_CHAT_NAME = 'Command Center';
+/** Constants for Agents */
+const TEAM_CHAT_NAME = 'Agents';
 const TEAM_CHAT_DESCRIPTION = 'Coordinate all your agents in one place';
 
 /**
@@ -64,7 +64,7 @@ export interface TeamChatWithMembers extends TeamChatInfo {
 }
 
 /**
- * Service for managing user agent team chats (Command Center)
+ * Service for managing user agent team chats (Agents)
  */
 export class TeamChatService {
   /**
@@ -112,7 +112,7 @@ export class TeamChatService {
           generateSnowflakeId(),
         ]);
 
-        // 1. Create the Group (type='team' for Command Center)
+        // 1. Create the Group (type='team' for Agents)
         // activeChatId will be set after creating the first Chat
         await tx.insert(groups).values({
           id: groupId,

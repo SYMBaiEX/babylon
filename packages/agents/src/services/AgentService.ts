@@ -336,19 +336,19 @@ export class AgentServiceV2 {
       void this.setupAgentIdentity(agentUserId);
     }
 
-    // Add agent to Command Center (team chat)
+    // Add agent to Agents (team chat)
     // This creates the team chat if it doesn't exist (first agent)
     try {
       await teamChatService.addAgentToTeamChat(managerUserId, agentUserId);
       logger.info(
-        `Agent ${agentUserId} added to Command Center`,
+        `Agent ${agentUserId} added to Agents`,
         undefined,
         'AgentService'
       );
     } catch (error) {
       // Log but don't fail agent creation - team chat can be synced later
       logger.error(
-        `Failed to add agent ${agentUserId} to Command Center: ${error}`,
+        `Failed to add agent ${agentUserId} to Agents: ${error}`,
         { managerUserId, agentUserId },
         'AgentService'
       );
@@ -522,10 +522,10 @@ export class AgentServiceV2 {
     );
     if (!agentWithConfig) throw new Error('Agent not found');
 
-    // Remove agent from Command Center BEFORE deleting (so we can still get agent info)
+    // Remove agent from Agents BEFORE deleting (so we can still get agent info)
     await teamChatService.removeAgentFromTeamChat(managerUserId, agentUserId);
     logger.info(
-      `Agent ${agentUserId} removed from Command Center`,
+      `Agent ${agentUserId} removed from Agents`,
       undefined,
       'AgentService'
     );
