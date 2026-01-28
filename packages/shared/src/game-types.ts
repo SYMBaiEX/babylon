@@ -262,6 +262,22 @@ export interface FeedPost {
   originalAuthorUsername?: string | null;
   originalAuthorProfileImageUrl?: string | null;
   originalContent?: string | null;
+  // Inline comment previews for feed display
+  commentPreviews?: CommentPreviewData[];
+}
+
+/**
+ * Comment preview data for inline display on post cards
+ */
+export interface CommentPreviewData {
+  id: string;
+  content: string;
+  createdAt: string;
+  userId: string;
+  userName: string;
+  userUsername?: string | null;
+  userAvatar?: string | null;
+  likeCount?: number;
 }
 
 /**

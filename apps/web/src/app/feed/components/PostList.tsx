@@ -1,6 +1,6 @@
 'use client';
 
-import type { FeedPost } from '@babylon/shared';
+import type { CommentPreviewData, FeedPost } from '@babylon/shared';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import type { PostCardProps } from '@/components/posts/PostCard';
@@ -133,6 +133,10 @@ export const PostList = memo(function PostList({
             ('originalPost' in post
               ? (post.originalPost as PostCardProps['post']['originalPost'])
               : null) || null,
+          commentPreviews:
+            'commentPreviews' in post
+              ? (post.commentPreviews as CommentPreviewData[])
+              : undefined,
         };
 
         return (
