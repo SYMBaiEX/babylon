@@ -25,6 +25,33 @@ const SCROLL_NEAR_BOTTOM_THRESHOLD = 150;
 const SCROLL_STABLE_FRAMES_REQUIRED = 5;
 // Maximum retries for scroll height stabilization (~2 seconds max)
 const MAX_SCROLL_STABLE_RETRIES = 20;
+// Default number of agents to respond when no one is tagged
+const DEFAULT_AGENTS_TO_RESPOND = 4;
+
+/**
+ * Extract agent IDs from @mentions in message content.
+ * Matches @username patterns and returns IDs of matching agents.
+ */
+function extractMentionedAgentIds(
+  content: string,
+  agents: TeamChatAgent[]
+): string[] {
+  const mentionRegex = /@([A-Za-z0-9_.-]+)/g;
+  const mentionedUsernames = new Set<string>();
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const captured = match[1];
+    if (captured) {
+      mentionedUsernames.add(captured.toLowerCase());
+    }
+  }
+
+  return agents
+    .filter(
+      (a) => a.username && mentionedUsernames.has(a.username.toLowerCase())
+    )
+    .map((a) => a.id);
+}
 
 /** Typing user info */
 interface TypingUser {
@@ -101,14 +128,12 @@ interface UseTeamChatReturn {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
-  // Agent selection (for parallel task execution)
-  selectedAgentIds: Set<string>;
+  // Agent processing state
   processingAgentIds: Set<string>;
-  toggleAgentSelection: (agentId: string) => void;
-  selectAgent: (agentId: string) => void;
-  selectAllAgents: () => void;
-  deselectAllAgents: () => void;
   stopAgent: (agentId: string) => void;
+
+  // Tag agent in input (for sidebar click)
+  tagAgentInInput: (agent: TeamChatAgent) => void;
 
   // Actions
   sendMessage: () => Promise<void>;
@@ -148,10 +173,7 @@ export function useTeamChat(): UseTeamChatReturn {
   // Thinking indicator state (for complex queries)
   const [thinkingAgents, setThinkingAgents] = useState<ThinkingAgent[]>([]);
 
-  // Agent selection state (for parallel task execution)
-  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
-    new Set()
-  );
+  // Agent processing state (for stop functionality)
   const [processingAgentIds, setProcessingAgentIds] = useState<Set<string>>(
     new Set()
   );
@@ -537,58 +559,25 @@ export function useTeamChat(): UseTeamChatReturn {
     }
   }, [user?.id, fetchTeamChat]);
 
-  // Auto-select first agent on initial load
-  const hasAutoSelectedRef = useRef(false);
-  useEffect(() => {
-    if (
-      teamChat?.agents &&
-      teamChat.agents.length > 0 &&
-      !hasAutoSelectedRef.current &&
-      selectedAgentIds.size === 0
-    ) {
-      hasAutoSelectedRef.current = true;
-      const firstAgent = teamChat.agents[0];
-      if (firstAgent) {
-        setSelectedAgentIds(new Set([firstAgent.id]));
-      }
-    }
-  }, [teamChat?.agents, selectedAgentIds.size]);
+  // Tag an agent in the message input (inserts @username, avoids duplicates)
+  const tagAgentInInput = useCallback(
+    (agent: TeamChatAgent) => {
+      const username = agent.username;
+      if (!username) return;
 
-  // Agent selection methods
-  const toggleAgentSelection = useCallback(
-    (agentId: string) => {
-      setSelectedAgentIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(agentId)) {
-          // Always allow removing from selection (even if processing)
-          next.delete(agentId);
-        } else {
-          // Can't select if agent is processing
-          if (processingAgentIds.has(agentId)) return prev;
-          next.add(agentId);
-        }
-        return next;
-      });
+      const mentionText = `@${username}`;
+      // Check if already tagged (word boundary check)
+      const regex = new RegExp(`(^|\\s)${mentionText}(\\s|$)`, 'i');
+      if (regex.test(messageInput)) return; // Already tagged
+
+      // Append to input
+      const newValue = messageInput.trim()
+        ? `${messageInput.trimEnd()} ${mentionText} `
+        : `${mentionText} `;
+      setMessageInput(newValue);
     },
-    [processingAgentIds]
+    [messageInput]
   );
-
-  // Select a specific agent (non-toggling - use after agent creation)
-  const selectAgent = useCallback((agentId: string) => {
-    setSelectedAgentIds(new Set([agentId]));
-  }, []);
-
-  const selectAllAgents = useCallback(() => {
-    if (!teamChat?.agents) return;
-    const allIds = teamChat.agents
-      .filter((a) => !processingAgentIds.has(a.id))
-      .map((a) => a.id);
-    setSelectedAgentIds(new Set(allIds));
-  }, [teamChat?.agents, processingAgentIds]);
-
-  const deselectAllAgents = useCallback(() => {
-    setSelectedAgentIds(new Set());
-  }, []);
 
   // Stop a processing agent (aborts the fetch request)
   const stopAgent = useCallback((agentId: string) => {
@@ -655,11 +644,16 @@ export function useTeamChat(): UseTeamChatReturn {
 
     const content = messageInput.trim();
 
-    // Use selected agents, or fall back to all agents if none selected
-    let agentsToCall = Array.from(selectedAgentIds);
-    if (agentsToCall.length === 0 && teamChat?.agents) {
-      agentsToCall = teamChat.agents.map((a) => a.id);
-    }
+    // Extract mentioned agents from message content
+    // If agents are tagged, only those respond; otherwise first N agents respond
+    const mentionedAgentIds = extractMentionedAgentIds(
+      content,
+      teamChat.agents
+    );
+    const agentsToCall =
+      mentionedAgentIds.length > 0
+        ? mentionedAgentIds
+        : teamChat.agents.slice(0, DEFAULT_AGENTS_TO_RESPOND).map((a) => a.id);
 
     // Filter out any agents that are already processing
     const availableAgents = agentsToCall.filter(
@@ -875,7 +869,6 @@ export function useTeamChat(): UseTeamChatReturn {
     messageInput,
     sending,
     user,
-    selectedAgentIds,
     processingAgentIds,
     getAccessToken,
     addMessage,
@@ -1131,14 +1124,11 @@ export function useTeamChat(): UseTeamChatReturn {
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
-    // Agent selection
-    selectedAgentIds,
+    // Agent processing state
     processingAgentIds,
-    toggleAgentSelection,
-    selectAgent,
-    selectAllAgents,
-    deselectAllAgents,
     stopAgent,
+    // Tag agent in input (for sidebar click)
+    tagAgentInInput,
     // Actions
     sendMessage,
     refresh: fetchTeamChat,

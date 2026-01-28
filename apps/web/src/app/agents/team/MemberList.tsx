@@ -1,14 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Check,
-  MoreVertical,
-  Plus,
-  Settings,
-  Square,
-  User,
-} from 'lucide-react';
+import { MoreVertical, Plus, Settings, Square, User } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
@@ -16,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -26,7 +18,9 @@ interface TeamChatAgent {
   username: string | null;
   displayName: string | null;
   profileImageUrl: string | null;
+  isAgent: boolean;
   modelTier: 'free' | 'pro';
+  virtualBalance: number;
 }
 
 /** Team chat info for member list */
@@ -39,12 +33,10 @@ interface MemberListProps {
   teamChat: TeamChatInfo | null | undefined;
   /** Called when a link is clicked (for closing drawer on mobile) */
   onClose?: () => void;
-  /** IDs of currently selected agents */
-  selectedAgentIds?: Set<string>;
   /** IDs of agents currently processing */
   processingAgentIds?: Set<string>;
-  /** Called when an agent is toggled for selection */
-  onToggleAgent?: (agentId: string) => void;
+  /** Called when an agent is clicked (to tag in input) */
+  onTagAgent?: (agent: TeamChatAgent) => void;
   /** Called when "Stop" is clicked on a processing agent */
   onStopAgent?: (agentId: string) => void;
   /** Called when "View Profile" is clicked */
@@ -59,15 +51,14 @@ interface MemberListProps {
  * Member list component for Command Center sidebar/drawer
  *
  * Shows all agents in the team chat.
- * Supports agent selection for parallel task execution.
+ * Click on an agent to tag them in the message input.
  * Used by both desktop sidebar and mobile drawer.
  */
 export function MemberList({
   teamChat,
   onClose,
-  selectedAgentIds = new Set(),
   processingAgentIds = new Set(),
-  onToggleAgent,
+  onTagAgent,
   onStopAgent,
   onViewProfile,
   onViewSettings,
@@ -82,22 +73,14 @@ export function MemberList({
       <div>
         <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
           Agents ({teamChat?.agentCount ?? 0})
-          {selectedAgentIds.size > 0 ? (
-            <span className="ml-2 text-blue-500">
-              · {selectedAgentIds.size} selected
-            </span>
-          ) : (
-            <span className="ml-2 font-normal normal-case opacity-70">
-              · Click to select
-            </span>
-          )}
+          <span className="ml-2 font-normal normal-case opacity-70">
+            · Click to tag
+          </span>
         </p>
         {teamChat?.agents.length ? (
           <nav role="list" aria-label="Team agents" className="space-y-1">
             {teamChat.agents.map((agent) => {
-              const isSelected = selectedAgentIds.has(agent.id);
               const isProcessing = processingAgentIds.has(agent.id);
-              const canSelect = !isProcessing && onToggleAgent;
               const agentName = agent.displayName || agent.username || 'Agent';
 
               return (
@@ -105,26 +88,20 @@ export function MemberList({
                   key={agent.id}
                   className={cn(
                     'group flex min-w-0 items-center gap-2 rounded-lg p-2 transition-colors',
-                    isSelected
-                      ? 'bg-blue-500/15 ring-1 ring-blue-500/30'
-                      : 'hover:bg-muted/50',
+                    'hover:bg-muted/50',
                     isProcessing && 'opacity-70'
                   )}
                 >
-                  {/* Agent info - clickable to toggle selection */}
+                  {/* Agent info - clickable to tag in input */}
                   <button
                     type="button"
-                    onClick={() => canSelect && onToggleAgent(agent.id)}
+                    onClick={() => onTagAgent?.(agent)}
                     disabled={isProcessing}
                     className={cn(
                       'flex min-w-0 flex-1 items-center gap-3 text-left',
                       isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}
-                    aria-label={
-                      isSelected
-                        ? `Deselect ${agentName}`
-                        : `Select ${agentName}`
-                    }
+                    aria-label={`Tag ${agentName}`}
                   >
                     <div className="relative">
                       <Avatar
@@ -132,11 +109,6 @@ export function MemberList({
                         name={agentName}
                         size="sm"
                       />
-                      {isSelected && !isProcessing && (
-                        <div className="-right-1 -bottom-1 absolute rounded-full bg-blue-500 p-0.5">
-                          <Check className="h-2.5 w-2.5 text-white" />
-                        </div>
-                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -192,19 +164,6 @@ export function MemberList({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        {/* Select/Unselect */}
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (canSelect) onToggleAgent(agent.id);
-                            setOpenDropdown(null);
-                          }}
-                        >
-                          <Check className="mr-2 h-4 w-4" />
-                          {isSelected ? 'Unselect' : 'Select'}
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSeparator />
-
                         {/* View Profile */}
                         <DropdownMenuItem
                           onClick={() => {

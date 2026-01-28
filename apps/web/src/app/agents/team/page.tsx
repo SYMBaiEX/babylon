@@ -114,12 +114,11 @@ export default function TeamChatPage() {
     handleScroll,
     scrollToBottom,
     refresh: refreshTeamChat,
-    // Agent selection
-    selectedAgentIds,
+    // Agent processing state
     processingAgentIds,
-    toggleAgentSelection,
-    selectAgent,
     stopAgent,
+    // Tag agent in input (for sidebar click)
+    tagAgentInInput,
     // Conversations (fresh chat)
     conversations,
     conversationsLoading,
@@ -265,15 +264,19 @@ export default function TeamChatPage() {
   }, [activeTab]);
 
   // Handle selectAgent from query parameter (when redirected from agent profile)
+  // Tags the agent in the input instead of selecting
   useEffect(() => {
     const agentIdToSelect = searchParams.get('selectAgent');
     if (agentIdToSelect && !loading && teamChat) {
-      // Select the agent in the sidebar
-      selectAgent(agentIdToSelect);
+      // Find the agent and tag them in the input
+      const agent = teamChat.agents.find((a) => a.id === agentIdToSelect);
+      if (agent) {
+        tagAgentInInput(agent);
+      }
       // Clean up URL by removing the query parameter
       router.replace('/agents/team', { scroll: false });
     }
-  }, [searchParams, loading, teamChat, selectAgent, router]);
+  }, [searchParams, loading, teamChat, tagAgentInInput, router]);
 
   // Scroll to bottom when switching to chat tab or on initial load
   // Uses MutationObserver to keep scrolling as images/content load
@@ -480,9 +483,8 @@ export default function TeamChatPage() {
             <MemberList
               teamChat={teamChat}
               onClose={() => setShowMemberDrawer(false)}
-              selectedAgentIds={selectedAgentIds}
               processingAgentIds={processingAgentIds}
-              onToggleAgent={toggleAgentSelection}
+              onTagAgent={tagAgentInInput}
               onStopAgent={stopAgent}
               onViewProfile={handleViewProfile}
               onViewSettings={handleViewSettings}
@@ -562,9 +564,8 @@ export default function TeamChatPage() {
               {/* Member list - extracted component */}
               <MemberList
                 teamChat={teamChat}
-                selectedAgentIds={selectedAgentIds}
                 processingAgentIds={processingAgentIds}
-                onToggleAgent={toggleAgentSelection}
+                onTagAgent={tagAgentInInput}
                 onStopAgent={stopAgent}
                 onViewProfile={handleViewProfile}
                 onViewSettings={handleViewSettings}
@@ -619,25 +620,6 @@ export default function TeamChatPage() {
               thinkingAgents={thinkingAgents}
               onShowMembers={() => setShowMemberDrawer(true)}
               onScroll={handleScroll}
-              // Selected agents - persists after send, shows processing state
-              selectedAgents={
-                teamChat?.agents
-                  .filter((a) => selectedAgentIds.has(a.id))
-                  .map((a) => ({
-                    id: a.id,
-                    displayName: a.displayName || a.username || 'Agent',
-                    profileImageUrl: a.profileImageUrl,
-                    isProcessing: processingAgentIds.has(a.id),
-                  })) || []
-              }
-              onRemoveSelectedAgent={toggleAgentSelection}
-              // Disable input if any selected agent is processing
-              hasProcessingSelected={
-                selectedAgentIds.size > 0 &&
-                Array.from(selectedAgentIds).some((id) =>
-                  processingAgentIds.has(id)
-                )
-              }
             />
           )}
 
@@ -656,8 +638,17 @@ export default function TeamChatPage() {
                       await refreshTeamChat();
                       // Switch to chat tab
                       setActiveTab('chat');
-                      // Select only the new agent (use selectAgent to avoid toggle issues)
-                      selectAgent(agent.id);
+                      // Tag the new agent in the input using just the username
+                      // (full agent data will be in teamChat.agents after refresh)
+                      if (agent.username) {
+                        // Find the full agent from teamChat after refresh
+                        const fullAgent = teamChat?.agents.find(
+                          (a) => a.id === agent.id
+                        );
+                        if (fullAgent) {
+                          tagAgentInInput(fullAgent);
+                        }
+                      }
                     }}
                     compact
                   />
