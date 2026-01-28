@@ -1,46 +1,28 @@
 'use client';
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { useMemo } from 'react';
+import { useMarketWatchlistStore } from '@/stores/marketWatchlistStore';
 
-interface WatchlistState {
-  favorites: string[];
-  toggleFavorite: (ticker: string) => void;
-  isFavorite: (ticker: string) => boolean;
-  clear: () => void;
-}
+/**
+ * Backwards-compatible perps-only watchlist hook.
+ *
+ * Legacy perps UI expects a ticker-only API. The unified terminal uses a
+ * cross-market watchlist store; this hook wraps it for perps.
+ */
+export function useWatchlistStore() {
+  const favorites = useMarketWatchlistStore((s) => s.favorites);
+  const toggleFavoriteKey = useMarketWatchlistStore((s) => s.toggleFavorite);
+  const isFavoriteKey = useMarketWatchlistStore((s) => s.isFavorite);
+  const clear = useMarketWatchlistStore((s) => s.clear);
 
-function normalizeTicker(ticker: string): string {
-  return ticker.trim().toUpperCase();
-}
-
-export const useWatchlistStore = create<WatchlistState>()(
-  persist(
-    (set, get) => ({
-      favorites: [],
-      toggleFavorite: (ticker: string) => {
-        const normalized = normalizeTicker(ticker);
-        if (!normalized) return;
-
-        const existing = new Set(get().favorites.map(normalizeTicker));
-        if (existing.has(normalized)) {
-          existing.delete(normalized);
-        } else {
-          existing.add(normalized);
-        }
-        set({ favorites: Array.from(existing) });
-      },
-      isFavorite: (ticker: string) => {
-        const normalized = normalizeTicker(ticker);
-        if (!normalized) return false;
-        return get().favorites.map(normalizeTicker).includes(normalized);
-      },
-      clear: () => set({ favorites: [] }),
+  return useMemo(
+    () => ({
+      favorites,
+      toggleFavorite: (ticker: string) =>
+        toggleFavoriteKey({ kind: 'perp', id: ticker }),
+      isFavorite: (ticker: string) => isFavoriteKey({ kind: 'perp', id: ticker }),
+      clear,
     }),
-    {
-      name: 'markets.watchlist.v1',
-      version: 1,
-      partialize: (state) => ({ favorites: state.favorites }),
-    }
-  )
-);
+    [favorites, toggleFavoriteKey, isFavoriteKey, clear]
+  );
+}
