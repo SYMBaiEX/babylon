@@ -29,6 +29,8 @@ interface RightSidebarProps {
   onWidthChange: (width: number) => void;
   onClose: () => void;
   leftSidebarCollapsed?: boolean;
+  /** Height of the bottom panel (to shrink right sidebar accordingly) */
+  bottomPanelHeight?: number;
   children: React.ReactNode;
 }
 
@@ -45,6 +47,7 @@ export function RightSidebar({
   onWidthChange,
   onClose,
   leftSidebarCollapsed = false,
+  bottomPanelHeight = 0,
   children,
 }: RightSidebarProps) {
   const [isResizing, setIsResizing] = useState(false);
@@ -148,11 +151,17 @@ export function RightSidebar({
       <div
         ref={sidebarRef}
         className={cn(
-          'fixed top-0 right-0 z-50 flex h-full flex-col border-border border-l bg-background',
+          'fixed top-0 right-0 z-50 flex flex-col border-border border-l bg-background',
           'shadow-xl lg:absolute lg:z-40 lg:shadow-none',
           isResizing && 'select-none'
         )}
-        style={{ width: clampedWidth }}
+        style={{
+          width: clampedWidth,
+          height:
+            bottomPanelHeight > 0
+              ? `calc(100% - ${bottomPanelHeight}px)`
+              : '100%',
+        }}
       >
         {/* Resize Handle - desktop only */}
         <div

@@ -31,7 +31,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
 import { ActivityFilters, type ActivityType } from './ActivityFilters';
+import { AgentPortfolio } from './AgentPortfolio';
 import { AgentSettingsPanel } from './AgentSettingsPanel';
+import {
+  BOTTOM_PANEL_COLLAPSED_HEIGHT,
+  BOTTOM_PANEL_DEFAULT_HEIGHT,
+  BottomPanel,
+  type BottomPanelTab,
+} from './BottomPanel';
 import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
 import {
@@ -39,6 +46,22 @@ import {
   RightSidebar,
   type RightSidebarTab,
 } from './RightSidebar';
+
+// Lazy load AgentLogs for performance
+const AgentLogs = dynamic(
+  () =>
+    import('@/components/agents/AgentLogs').then((m) => ({
+      default: m.AgentLogs,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    ),
+  }
+);
 
 // Lazy load activity feed for performance
 const AgentActivityFeed = dynamic(
@@ -175,6 +198,30 @@ export default function TeamChatPage() {
   const [activityAgentFilter, setActivityAgentFilter] = useState<string | null>(
     null
   );
+
+  // Bottom panel state
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+  const [bottomPanelTab, setBottomPanelTab] =
+    useState<BottomPanelTab>('activity');
+  const [bottomPanelAgentId, setBottomPanelAgentId] = useState<string | null>(
+    null
+  );
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(
+    BOTTOM_PANEL_DEFAULT_HEIGHT
+  );
+
+  // Calculate current bottom panel height for RightSidebar
+  const currentBottomPanelHeight = bottomPanelOpen
+    ? bottomPanelHeight
+    : BOTTOM_PANEL_COLLAPSED_HEIGHT;
+
+  // Set default agent for bottom panel when agents load
+  useEffect(() => {
+    const firstAgent = teamChat?.agents[0];
+    if (firstAgent && !bottomPanelAgentId) {
+      setBottomPanelAgentId(firstAgent.id);
+    }
+  }, [teamChat?.agents, bottomPanelAgentId]);
 
   // Fetch agents for Agents tab
   const fetchAgents = useCallback(async () => {
@@ -489,7 +536,7 @@ export default function TeamChatPage() {
   return (
     <div
       data-command-center-container
-      className="relative flex h-[calc(100dvh-112px)] flex-col md:h-dvh"
+      className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh"
     >
       {/* Mobile Member Drawer - only for Chat tab */}
       {showMemberDrawer && activeTab === 'chat' && (
@@ -1011,6 +1058,57 @@ export default function TeamChatPage() {
         )}
       </div>
 
+      {/* Bottom Panel - spans full width */}
+      <BottomPanel
+        isOpen={bottomPanelOpen}
+        onToggle={() => setBottomPanelOpen((prev) => !prev)}
+        activeTab={bottomPanelTab}
+        onTabChange={setBottomPanelTab}
+        selectedAgentId={bottomPanelAgentId}
+        onAgentChange={setBottomPanelAgentId}
+        agents={
+          teamChat?.agents.map((a) => ({
+            id: a.id,
+            name: a.displayName || a.username || 'Agent',
+          })) || []
+        }
+        height={bottomPanelHeight}
+        onHeightChange={setBottomPanelHeight}
+      >
+        {bottomPanelAgentId && (
+          <>
+            {bottomPanelTab === 'activity' && (
+              <div className="p-4">
+                <AgentActivityFeed
+                  agentId={bottomPanelAgentId}
+                  limit={20}
+                  showAgent={false}
+                  showConnectionStatus={false}
+                  emptyMessage="No activity from this agent yet."
+                />
+              </div>
+            )}
+            {bottomPanelTab === 'portfolio' && (
+              <AgentPortfolio
+                agentId={bottomPanelAgentId}
+                agentName={
+                  teamChat?.agents.find((a) => a.id === bottomPanelAgentId)
+                    ?.displayName ||
+                  teamChat?.agents.find((a) => a.id === bottomPanelAgentId)
+                    ?.username ||
+                  'Agent'
+                }
+              />
+            )}
+            {bottomPanelTab === 'logs' && (
+              <div className="p-4">
+                <AgentLogs agentId={bottomPanelAgentId} />
+              </div>
+            )}
+          </>
+        )}
+      </BottomPanel>
+
       {/* Right Sidebar - Fixed position overlay, doesn't squeeze chat */}
       {rightSidebarOpen && (
         <RightSidebar
@@ -1022,6 +1120,7 @@ export default function TeamChatPage() {
           onWidthChange={setRightSidebarWidth}
           onClose={() => setRightSidebarOpen(false)}
           leftSidebarCollapsed={leftSidebarCollapsed}
+          bottomPanelHeight={currentBottomPanelHeight}
         >
           {rightSidebarTabs
             .filter((tab) => tab.id === activeRightTabId)
