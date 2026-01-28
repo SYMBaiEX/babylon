@@ -3,7 +3,7 @@
 import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import { Wallet } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   type OpenPerpDetails,
@@ -26,9 +26,13 @@ import { formatPrice } from '../../_lib/formatters';
 
 interface PerpsOrderEntryPanelProps {
   market: PerpMarket | null;
+  initialSide?: 'long' | 'short';
 }
 
-export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
+export function PerpsOrderEntryPanel({
+  market,
+  initialSide,
+}: PerpsOrderEntryPanelProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
   const userId = authenticated ? (user?.id ?? null) : null;
 
@@ -45,12 +49,17 @@ export function PerpsOrderEntryPanel({ market }: PerpsOrderEntryPanelProps) {
 
   const { openPosition } = usePerpTrade({ getAccessToken });
 
-  const [side, setSide] = useState<'long' | 'short'>('long');
+  const [side, setSide] = useState<'long' | 'short'>(initialSide ?? 'long');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!initialSide) return;
+    setSide(initialSide);
+  }, [initialSide]);
 
   const activePositions = useMemo(() => {
     if (!market) return [];
