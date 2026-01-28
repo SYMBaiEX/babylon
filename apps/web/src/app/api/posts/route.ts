@@ -258,6 +258,7 @@ import {
   posts,
   reactions,
   shares,
+  sql,
   userActorFollows,
   users,
 } from '@babylon/db';
@@ -782,6 +783,157 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
   const shareMap = new Map(shareCounts.map((s) => [s.postId, Number(s.count)]));
 
+  // Fetch comment previews for posts with comments (top 1-2 per post based on engagement)
+  // Include original post IDs for reposts so their previews can be shown
+  const postsWithComments = allPostIds.filter(
+    (id) => (commentMap.get(id) ?? 0) > 0
+  );
+  const commentPreviewMap = new Map<
+    string,
+    Array<{
+      id: string;
+      content: string;
+      createdAt: string;
+      userId: string;
+      userName: string;
+      userUsername: string | null;
+      userAvatar: string | null;
+      likeCount: number;
+    }>
+  >();
+
+  if (postsWithComments.length > 0) {
+    // Fetch top 3 comments per post using window function for true per-post limiting
+    // This ensures each post gets up to 3 comments regardless of global distribution
+    const postIdsParam = postsWithComments.map((id) => `'${id}'`).join(',');
+
+    // Type for raw SQL result rows
+    interface CommentRow {
+      id: string;
+      post_id: string;
+      content: string;
+      created_at: Date;
+      author_id: string;
+      user_name: string | null;
+      user_username: string | null;
+      user_avatar: string | null;
+    }
+
+    const rawComments = await db.execute(sql`
+      WITH ranked_comments AS (
+        SELECT 
+          c.id,
+          c.post_id,
+          c.content,
+          c.created_at,
+          c.author_id,
+          u.display_name as user_name,
+          u.username as user_username,
+          u.profile_image_url as user_avatar,
+          ROW_NUMBER() OVER (
+            PARTITION BY c.post_id 
+            ORDER BY c.created_at DESC
+          ) as rn
+        FROM comments c
+        LEFT JOIN users u ON c.author_id = u.id
+        WHERE c.post_id IN (${sql.raw(postIdsParam)})
+          AND c.parent_comment_id IS NULL
+      )
+      SELECT id, post_id, content, created_at, author_id, user_name, user_username, user_avatar
+      FROM ranked_comments
+      WHERE rn <= 3
+    `);
+
+    // Map raw results to typed structure
+    const topComments = (rawComments as unknown as CommentRow[]).map((row) => ({
+      id: row.id,
+      postId: row.post_id,
+      content: row.content,
+      createdAt: row.created_at,
+      authorId: row.author_id,
+      userName: row.user_name,
+      userUsername: row.user_username,
+      userAvatar: row.user_avatar,
+    }));
+
+    // Get like counts for these comments
+    const commentIds = topComments.map((c) => c.id);
+    const commentLikeCounts =
+      commentIds.length > 0
+        ? await db
+            .select({
+              commentId: reactions.commentId,
+              count: count(),
+            })
+            .from(reactions)
+            .where(
+              and(
+                inArray(reactions.commentId, commentIds),
+                eq(reactions.type, 'like')
+              )
+            )
+            .groupBy(reactions.commentId)
+        : [];
+    const commentLikeMap = new Map(
+      commentLikeCounts.map((c) => [c.commentId, Number(c.count)])
+    );
+
+    // Sort comments by likes (trending) first, then recency
+    const sortedComments = [...topComments].sort((a, b) => {
+      const aLikes = commentLikeMap.get(a.id) ?? 0;
+      const bLikes = commentLikeMap.get(b.id) ?? 0;
+      if (bLikes !== aLikes) return bLikes - aLikes; // Higher likes first
+      // If same likes, prefer more recent
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    // Group comments by post, keeping 1-2 per post based on engagement
+    // High engagement posts (50+ comments) show 2 top comments
+    // Regular posts show 1 comment
+    const postPreviewLimits = new Map<string, number>();
+    for (const comment of sortedComments) {
+      const previews = commentPreviewMap.get(comment.postId) ?? [];
+      // Determine limit based on post engagement (cached per post)
+      if (!postPreviewLimits.has(comment.postId)) {
+        const postCommentCount = commentMap.get(comment.postId) ?? 0;
+        const isHighEngagement = postCommentCount >= 50;
+        postPreviewLimits.set(comment.postId, isHighEngagement ? 2 : 1);
+      }
+      const limit = postPreviewLimits.get(comment.postId) ?? 1;
+      if (previews.length < limit) {
+        // Show top comments based on engagement level
+        // Get actor info if not a regular user
+        const actor = StaticDataRegistry.getActor(comment.authorId);
+        const org = StaticDataRegistry.getOrganization(comment.authorId);
+
+        let userName = comment.userName || comment.authorId;
+        let userAvatar = comment.userAvatar;
+
+        if (actor) {
+          userName = actor.name;
+          userAvatar = actor.profileImageUrl || null;
+        } else if (org) {
+          userName = org.name;
+          userAvatar = org.imageUrl || null;
+        }
+
+        previews.push({
+          id: comment.id,
+          content: comment.content || '',
+          createdAt: toISOStringSafe(comment.createdAt),
+          userId: comment.authorId,
+          userName,
+          userUsername: comment.userUsername,
+          userAvatar,
+          likeCount: commentLikeMap.get(comment.id) ?? 0,
+        });
+        commentPreviewMap.set(comment.postId, previews);
+      }
+    }
+  }
+
   // Format posts - simple transformation, no async queries needed!
   const formattedPosts = validPosts.map((post) => {
     const user = userMap.get(post.authorId!);
@@ -833,6 +985,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       shareCount: shareMap.get(post.id) ?? 0,
       isLiked: false,
       isShared: false,
+      // Comment previews for inline display on feed
+      commentPreviews: commentPreviewMap.get(post.id) ?? undefined,
     };
 
     // Check if this is a repost/quote by presence of originalPostId
@@ -863,13 +1017,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           originalAuthorProfileImageUrl = originalUser.profileImageUrl;
         }
 
-        // For simple reposts (not quotes), use the original post's interaction counts
-        // For quote posts, keep the quote post's interaction counts
+        // For simple reposts (not quotes), use the original post's interaction counts and previews
+        // For quote posts, keep the quote post's interaction counts and previews
         const interactionCounts = !isQuote
           ? {
               likeCount: reactionMap.get(originalPost.id) ?? 0,
               commentCount: commentMap.get(originalPost.id) ?? 0,
               shareCount: shareMap.get(originalPost.id) ?? 0,
+              // Use original post's comment previews for simple reposts
+              commentPreviews:
+                commentPreviewMap.get(originalPost.id) ?? undefined,
             }
           : {
               likeCount: basePost.likeCount,

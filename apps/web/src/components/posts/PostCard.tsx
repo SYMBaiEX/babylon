@@ -14,6 +14,10 @@ import {
 } from 'react';
 import { InteractionBar } from '@/components/interactions';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
+import {
+  CommentPreview,
+  type CommentPreviewData,
+} from '@/components/posts/CommentPreview';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
@@ -87,10 +91,13 @@ export interface PostCardProps {
       authorProfileImageUrl: string | null;
       timestamp: string;
     } | null;
+    // Comment previews for inline display
+    commentPreviews?: CommentPreviewData[];
   };
   className?: string;
   onCommentClick?: () => void;
   showInteractions?: boolean;
+  showCommentPreviews?: boolean;
   isDetail?: boolean;
 }
 
@@ -99,6 +106,7 @@ export const PostCard = memo(function PostCard({
   className,
   onCommentClick,
   showInteractions = true,
+  showCommentPreviews = true,
   isDetail = false,
 }: PostCardProps) {
   const router = useRouter();
@@ -533,6 +541,18 @@ export const PostCard = memo(function PostCard({
           />
         </div>
       )}
+
+      {/* Row 4: Comment Previews - Shows top 1-2 comments inline based on engagement */}
+      {showCommentPreviews &&
+        !isDetail &&
+        post.commentPreviews &&
+        post.commentPreviews.length > 0 && (
+          <CommentPreview
+            comments={post.commentPreviews}
+            totalCommentCount={post.commentCount ?? 0}
+            onViewAllClick={onCommentClick}
+          />
+        )}
     </article>
   );
 });
