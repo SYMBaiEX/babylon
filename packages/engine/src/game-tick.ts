@@ -48,6 +48,7 @@ import {
   REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
 import { BabylonLLMClient } from './llm/openai-client';
+import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { QuestionManager } from './QuestionManager';
 import { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
@@ -65,6 +66,7 @@ import {
   getOracleService,
   initFalClient,
   invalidateAfterPredictionTrade,
+  MarketContextService,
   NPCGroupDynamicsService,
   PriceUpdateService,
   processArcTick,
@@ -73,6 +75,7 @@ import {
   StaticDataRegistry,
   syncReputationIfAvailable,
   TokenStatsService,
+  TradeExecutionService,
   timeframeArcProcessor,
   WalletService,
   worldFactsGenerator,
@@ -365,18 +368,93 @@ export async function executeGameTick(
     );
   }
 
-  // ==========================================================================
-  // NPC TRADING - HANDLED BY npc-tick (DEDUPLICATION)
-  // ==========================================================================
-  // NPC trading (MarketDecisionEngine, batch decisions, trade execution) is now
-  // exclusively handled by /api/cron/npc-tick to prevent race conditions
-  // and duplicate trades. npc-tick has per-agent locking for safe execution.
-  //
-  // - game-tick: World simulation (events, question creation, oracle commits)
-  // - npc-tick: NPC trading, NPC posts, social engagement
-  //
-  // See: apps/web/src/app/api/cron/npc-tick/route.ts::NPC BATCH TRADING section
-  // ==========================================================================
+  // =========================================================================
+  // CRITICAL PRIORITY: Generate and execute NPC trading decisions
+  // This ALWAYS runs - uses the full deadline, not the critical ops deadline
+  // Market decisions are essential for game economy and must always execute
+  // =========================================================================
+  logger.info(
+    'Starting critical market decision operations',
+    {
+      timeRemaining: deadline - Date.now(),
+    },
+    'GameTick'
+  );
+
+  const baselineResult =
+    await NPCInvestmentManager.executeBaselineInvestments(timestamp);
+
+  if (baselineResult) {
+    const baselineUpdates = await updateMarketPricesFromTrades(
+      timestamp,
+      baselineResult
+    );
+    result.marketsUpdated += baselineUpdates;
+  }
+
+  const contextService = new MarketContextService();
+
+  // Create LLM client for market decisions
+  // Priority: Groq > Claude > OpenAI
+  const marketDecisionLLM = BabylonLLMClient.forGameTick();
+  const marketLLMStats = marketDecisionLLM.getStats();
+  logger.info(
+    `Using ${marketLLMStats.provider} for market decisions`,
+    { model: marketLLMStats.model },
+    'GameTick'
+  );
+
+  // Configure decision engine with model and token limits from environment
+  // Use qwen/qwen3-32b on Groq for background trading operations
+  const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
+
+  // Model-aware output token limits:
+  // Input and output are SEPARATE limits on modern models
+  // - Kimi models: 260k INPUT + 16k OUTPUT (separate)
+  // - qwen3-32b: 130k INPUT + 32k OUTPUT (separate)
+  const isKimiModel = modelName.toLowerCase().includes('kimi');
+  const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+  const maxOutputTokens = Number.parseInt(
+    process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
+      defaultMaxOutput.toString(),
+    10
+  );
+
+  const decisionEngine = new MarketDecisionEngine(
+    marketDecisionLLM,
+    contextService,
+    {
+      model: modelName,
+      maxOutputTokens,
+    }
+  );
+  const executionService = new TradeExecutionService();
+
+  const marketDecisions = await decisionEngine.generateBatchDecisions();
+
+  if (marketDecisions.length === 0) {
+    logger.info('No NPC market trades generated this tick', {}, 'GameTick');
+  } else {
+    const executionResult =
+      await executionService.executeDecisionBatch(marketDecisions);
+
+    logger.info(
+      `NPC Trading: ${executionResult.successfulTrades} trades executed`,
+      {
+        successful: executionResult.successfulTrades,
+        failed: executionResult.failedTrades,
+        holds: executionResult.holdDecisions,
+      },
+      'GameTick'
+    );
+
+    // Update prices based on NPC trades
+    const marketsUpdated = await updateMarketPricesFromTrades(
+      timestamp,
+      executionResult
+    );
+    result.marketsUpdated += marketsUpdated;
+  }
 
   // ==========================================================================
   // NPC SOCIAL ENGAGEMENT - HANDLED BY npc-tick (DEDUPLICATION)
