@@ -538,40 +538,42 @@ export default function CommentPage({ params }: CommentPageProps) {
   }
 
   return (
-    <PageContainer>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background shadow-sm">
-          <div className="px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => {
-                  // Navigate to parent: immediate parent comment > post > feed
-                  if (parentChain.length > 0) {
-                    router.push(
-                      `/comment/${parentChain[parentChain.length - 1]?.id}`
-                    );
-                  } else if (post) {
-                    router.push(`/post/${post.id}`);
-                  } else {
-                    router.push('/feed');
-                  }
-                }}
-                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-[#0066FF]" />
-                <h1 className="font-semibold text-lg">Thread</h1>
+    <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
+      <div className="relative flex flex-1">
+        {/* Content area with same borders as feed */}
+        <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
+          {/* Header */}
+          <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
+            <div className="px-3 sm:px-4 lg:px-6">
+              <div className="flex items-center gap-4 py-3">
+                <button
+                  onClick={() => {
+                    // Navigate to parent: immediate parent comment > post > feed
+                    if (parentChain.length > 0) {
+                      router.push(
+                        `/comment/${parentChain[parentChain.length - 1]?.id}`
+                      );
+                    } else if (post) {
+                      router.push(`/post/${post.id}`);
+                    } else {
+                      router.push('/feed');
+                    }
+                  }}
+                  className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5 text-[#0066FF]" />
+                  <h1 className="font-semibold text-lg">Thread</h1>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-feed">
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto bg-background">
+            <div className="w-full lg:mx-auto lg:max-w-[700px]">
             {/* Original post */}
             {post && <OriginalPostCard post={post} />}
 
@@ -753,6 +755,7 @@ export default function CommentPage({ params }: CommentPageProps) {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </PageContainer>
   );

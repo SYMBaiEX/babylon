@@ -44,6 +44,9 @@ const globalForDb = globalThis as typeof globalThis & {
   postgresClient: ReturnType<typeof postgres> | undefined;
   drizzleDb: Database | undefined;
   db: DrizzleClient | undefined;
+  // Read replica support for high-scale deployments
+  readReplicaClient: ReturnType<typeof postgres> | undefined;
+  readReplicaDrizzle: Database | undefined;
 };
 
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
@@ -58,6 +61,24 @@ function isTestEnvironment(): boolean {
 
 function getConnectionUrl(): string {
   return process.env.DATABASE_URL || 'postgresql://localhost:5432/babylon';
+}
+
+/**
+ * Get read replica connection URL
+ * Falls back to primary if not configured
+ */
+function getReadReplicaUrl(): string {
+  return process.env.DATABASE_READ_REPLICA_URL || getConnectionUrl();
+}
+
+/**
+ * Check if a dedicated read replica is configured
+ */
+function hasReadReplica(): boolean {
+  return (
+    !!process.env.DATABASE_READ_REPLICA_URL &&
+    process.env.DATABASE_READ_REPLICA_URL !== getConnectionUrl()
+  );
 }
 
 function createPostgresClient(): ReturnType<typeof postgres> {
@@ -142,6 +163,87 @@ function getDrizzleInstance(): Database | null {
   }
 
   return globalForDb.drizzleDb;
+}
+
+/**
+ * Create a read replica postgres client
+ * Uses separate connection pool for read-heavy operations
+ */
+function createReadReplicaClient(): ReturnType<typeof postgres> | null {
+  const url = getReadReplicaUrl();
+  const isTest = isTestEnvironment();
+  const isProd = process.env.NODE_ENV === 'production';
+
+  // Determine if this is a local database connection
+  const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
+
+  // Check if SSL is already specified in the URL
+  const hasExplicitSSL =
+    url.includes('sslmode=require') || url.includes('ssl=true');
+
+  // Check for cloud database providers
+  const isCloudProvider =
+    url.includes('neon.tech') ||
+    url.includes('supabase.co') ||
+    url.includes('pooler.supabase') ||
+    url.includes('db.bit.io') ||
+    url.includes('.postgres.database.azure.com') ||
+    url.includes('.rds.amazonaws.com');
+
+  const sslMode: 'require' | false =
+    hasExplicitSSL || (!isLocalhost && (isProd || isCloudProvider))
+      ? 'require'
+      : false;
+
+  logger.debug('[Drizzle] Creating read replica client', {
+    isProd,
+    isLocalhost,
+    isCloudProvider,
+    hasExplicitSSL,
+    sslMode,
+    urlHost: url.split('@')[1]?.split('/')[0] || 'unknown',
+  });
+
+  return postgres(url, {
+    // Read replicas can have larger pools since they only handle reads
+    max: isProd ? 75 : isTest ? 5 : 15,
+    idle_timeout: isProd ? 30 : 20,
+    connect_timeout: 10,
+    ssl: sslMode,
+    transform: { undefined: null },
+    onnotice: () => {},
+  });
+}
+
+/**
+ * Get read replica Drizzle instance
+ * Falls back to primary if read replica not configured
+ */
+function getReadReplicaDrizzle(): Database | null {
+  // If no dedicated read replica, use primary
+  if (!hasReadReplica()) {
+    return getDrizzleInstance();
+  }
+
+  if (!globalForDb.readReplicaDrizzle) {
+    if (!globalForDb.readReplicaClient) {
+      const client = createReadReplicaClient();
+      if (client) {
+        globalForDb.readReplicaClient = client;
+      }
+    }
+
+    if (!globalForDb.readReplicaClient) return getDrizzleInstance();
+
+    globalForDb.readReplicaDrizzle = drizzle(globalForDb.readReplicaClient, {
+      schema,
+      logger: process.env.NODE_ENV === 'development',
+    });
+
+    logger.info('[Drizzle] Read replica connection created');
+  }
+
+  return globalForDb.readReplicaDrizzle;
 }
 
 function getDbClient(): DrizzleClient | null {
@@ -454,8 +556,56 @@ export async function checkDatabaseHealth(): Promise<boolean> {
   return true;
 }
 
+// ============================================================================
+// Read Replica Support
+// ============================================================================
+
+/**
+ * Execute read-only query on read replica
+ *
+ * @description Routes read-heavy queries to a read replica to reduce load
+ * on the primary database. Automatically falls back to primary if no replica
+ * is configured.
+ *
+ * PERFORMANCE OPTIMIZATION: Use this for feed queries, search results, and
+ * other read-heavy operations that don't require real-time consistency.
+ *
+ * @example
+ * ```typescript
+ * const posts = await onReadReplica(async (db) => {
+ *   return db.select().from(posts).limit(100);
+ * });
+ * ```
+ */
+export async function onReadReplica<T>(
+  operation: (database: Database) => Promise<T>
+): Promise<T> {
+  const replica = getReadReplicaDrizzle();
+  if (!replica) {
+    throw new Error('Database not initialized');
+  }
+
+  return withRetryInternal(() => operation(replica));
+}
+
+/**
+ * Check if a read replica is configured and available
+ */
+export function isReadReplicaAvailable(): boolean {
+  return hasReadReplica();
+}
+
 /** Graceful shutdown */
 export async function closeDatabase(): Promise<void> {
+  // Close read replica first
+  if (globalForDb.readReplicaClient) {
+    await globalForDb.readReplicaClient.end();
+    globalForDb.readReplicaClient = undefined;
+    globalForDb.readReplicaDrizzle = undefined;
+    logger.info('[Drizzle] Read replica connection closed');
+  }
+
+  // Close primary connection
   if (globalForDb.postgresClient) {
     await globalForDb.postgresClient.end();
     globalForDb.postgresClient = undefined;

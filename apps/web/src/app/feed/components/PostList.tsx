@@ -144,7 +144,13 @@ export const PostList = memo(function PostList({
             {postData.type === 'article' ? (
               <ArticleCard post={postData} />
             ) : (
-              <PostCard post={postData} />
+              <PostCard
+                post={postData}
+                showCommentInputBar={false}
+                onCommentClick={() => {
+                  window.location.href = `/post/${post.id}`;
+                }}
+              />
             )}
             {showBannerAfterThisPost && (
               <InviteFriendsBanner

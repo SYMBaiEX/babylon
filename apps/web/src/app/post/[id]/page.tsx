@@ -205,15 +205,15 @@ export default function PostPage({ params }: PostPageProps) {
   }
 
   return (
-    <PageContainer>
-      {/* Desktop: Multi-column layout */}
-      <div className="hidden flex-1 overflow-hidden lg:flex">
-        {/* Left: Post content area */}
-        <div className="flex min-w-0 flex-1 flex-col">
+    <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
+      {/* Desktop: Multi-column layout matching feed */}
+      <div className="relative hidden flex-1 lg:flex">
+        {/* Content area with same borders as feed */}
+        <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
           {/* Desktop: Top bar with back button */}
-          <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background shadow-sm">
-            <div className="px-6 py-4">
-              <div className="flex items-center gap-4">
+          <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
+            <div className="px-3 sm:px-4 lg:px-6">
+              <div className="flex items-center gap-4 py-3">
                 <button
                   onClick={() => router.push('/feed')}
                   className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -229,8 +229,8 @@ export default function PostPage({ params }: PostPageProps) {
           </div>
 
           {/* Post content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-feed">
+          <div className="flex-1 overflow-y-auto bg-background">
+            <div className="w-full lg:mx-auto lg:max-w-[700px]">
               {/* Post */}
               <div className="border-border border-b">
                 {post.type === 'article' &&

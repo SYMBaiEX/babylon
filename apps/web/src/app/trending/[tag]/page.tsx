@@ -197,7 +197,12 @@ export default function TrendingTagPage() {
             ) : (
               <div className="mx-auto max-w-feed space-y-0 px-6 py-4">
                 {posts.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    showCommentInputBar={false}
+                    onCommentClick={() => router.push(`/post/${post.id}`)}
+                  />
                 ))}
 
                 {hasMore && (
@@ -247,7 +252,12 @@ export default function TrendingTagPage() {
         ) : (
           <div className="w-full px-4 py-4">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard
+                key={post.id}
+                post={post}
+                showCommentInputBar={false}
+                onCommentClick={() => router.push(`/post/${post.id}`)}
+              />
             ))}
 
             {hasMore && (

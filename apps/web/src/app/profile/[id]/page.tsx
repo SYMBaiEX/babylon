@@ -1121,6 +1121,10 @@ export default function ActorProfilePage() {
                         key={`${item.post.id}-${i}`}
                         post={postData}
                         showInteractions={true}
+                        showCommentInputBar={false}
+                        onCommentClick={() =>
+                          router.push(`/post/${item.post.id}`)
+                        }
                       />
                     );
                   })}
