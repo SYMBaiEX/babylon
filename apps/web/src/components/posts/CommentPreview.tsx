@@ -50,7 +50,8 @@ export const CommentPreview = memo(function CommentPreview({
   onViewAllClick,
   className,
 }: CommentPreviewProps) {
-  const hasComments = comments && comments.length > 0;
+  // Type-safe check: comments is always an array (required prop)
+  const hasComments = comments.length > 0;
 
   return (
     <div

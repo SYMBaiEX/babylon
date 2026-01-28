@@ -89,6 +89,10 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
   /**
    * Simulates the conditional logic used in CommentPreview component.
    * Returns what sections should be rendered based on input.
+   *
+   * Note: The actual component requires comments as CommentPreviewData[],
+   * and PostCard always passes `post.commentPreviews ?? []`, so comments
+   * is always a valid array. This test reflects that type-safe behavior.
    */
   interface CommentPreviewData {
     id: string;
@@ -103,24 +107,25 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
   }
 
   function getCommentPreviewRenderDecision(
-    comments: CommentPreviewData[] | undefined | null,
+    comments: CommentPreviewData[],
     totalCommentCount: number
   ): RenderDecision {
-    const hasComments = comments && comments.length > 0;
+    // Type-safe: comments is always an array (required prop)
+    const hasComments = comments.length > 0;
 
     return {
       // Comment list only shown if there are comments
-      showCommentList: hasComments ?? false,
+      showCommentList: hasComments,
       // View all link only shown if there are more comments than previewed
-      showViewAllLink: hasComments ? totalCommentCount > comments.length : false,
+      showViewAllLink: hasComments && totalCommentCount > comments.length,
       // Input bar is ALWAYS shown (this is the new behavior)
       showInputBar: true,
       // Input bar has margin-top only when there are comments above it
-      inputBarMarginTop: hasComments ?? false,
+      inputBarMarginTop: hasComments,
     };
   }
 
-  describe('with no comments', () => {
+  describe('with no comments (empty array)', () => {
     it('should show input bar but not comment list', () => {
       const result = getCommentPreviewRenderDecision([], 0);
 
@@ -130,15 +135,10 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
       expect(result.inputBarMarginTop).toBe(false);
     });
 
-    it('should show input bar when comments is undefined', () => {
-      const result = getCommentPreviewRenderDecision(undefined, 0);
-
-      expect(result.showCommentList).toBe(false);
-      expect(result.showInputBar).toBe(true);
-    });
-
-    it('should show input bar when comments is null', () => {
-      const result = getCommentPreviewRenderDecision(null, 0);
+    it('should handle empty array correctly (PostCard always passes [])', () => {
+      // PostCard always passes `post.commentPreviews ?? []`
+      // so this is the expected input for posts without comments
+      const result = getCommentPreviewRenderDecision([], 0);
 
       expect(result.showCommentList).toBe(false);
       expect(result.showInputBar).toBe(true);
