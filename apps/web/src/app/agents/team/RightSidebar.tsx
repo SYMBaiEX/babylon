@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Bot, Settings, X } from 'lucide-react';
+import { Bot, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Tab data for right sidebar */
@@ -130,14 +130,8 @@ export function RightSidebar({
 
   // Empty state
   const emptyState = (
-    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-      <div className="mb-4 rounded-full bg-muted/50 p-4">
-        <Settings className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="mb-2 font-medium text-foreground">No panels open</h3>
-      <p className="max-w-[200px] text-muted-foreground text-sm">
-        Click &quot;Settings&quot; on an agent to open their settings here
-      </p>
+    <div className="flex flex-1 items-center justify-center">
+      <span className="text-muted-foreground text-sm">No panels open</span>
     </div>
   );
 

@@ -2,8 +2,8 @@
 
 import { Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { AgentSettings } from '@/components/agents/AgentSettings';
 import { useAuth } from '@/hooks/useAuth';
+import { AgentSettingsSidebar } from './AgentSettingsSidebar';
 
 interface AgentSettingsData {
   id: string;
@@ -97,9 +97,5 @@ export function AgentSettingsPanel({
     );
   }
 
-  return (
-    <div className="p-4">
-      <AgentSettings agent={agent} onUpdate={handleUpdate} />
-    </div>
-  );
+  return <AgentSettingsSidebar agent={agent} onUpdate={handleUpdate} />;
 }
