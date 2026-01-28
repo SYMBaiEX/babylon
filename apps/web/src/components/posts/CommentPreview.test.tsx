@@ -1,6 +1,5 @@
-'use client';
-
 import { describe, expect, it } from 'bun:test';
+import { formatTimeAgo } from './CommentPreview';
 
 /**
  * Tests for CommentPreview component logic.
@@ -8,32 +7,6 @@ import { describe, expect, it } from 'bun:test';
  * Note: These tests verify the conditional rendering logic and utility functions.
  * Full component rendering tests would require @testing-library/react.
  */
-
-/**
- * Replicated formatTimeAgo logic from CommentPreview for unit testing.
- */
-function formatTimeAgo(timestamp: string): string {
-  try {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    const diffWeeks = Math.floor(diffDays / 7);
-
-    if (diffMinutes < 1) return 'just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    if (diffWeeks < 4) return `${diffWeeks}w ago`;
-
-    // For older dates, fall back to a general format
-    return 'over a month ago';
-  } catch {
-    return '';
-  }
-}
 
 describe('CommentPreview - formatTimeAgo', () => {
   it('should return "just now" for timestamps less than 1 minute ago', () => {
@@ -73,15 +46,43 @@ describe('CommentPreview - formatTimeAgo', () => {
       Date.now() - 14 * 24 * 60 * 60 * 1000
     ).toISOString();
     expect(formatTimeAgo(twoWeeksAgo)).toBe('2w ago');
+
+    // 3 weeks (21 days) - still under 4 weeks boundary
+    const threeWeeksAgo = new Date(
+      Date.now() - 21 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    expect(formatTimeAgo(threeWeeksAgo)).toBe('3w ago');
   });
 
-  it('should handle edge case timestamps gracefully', () => {
-    // Invalid dates result in NaN calculations, which produces unexpected output
-    // The actual component uses try/catch which handles this
-    // For truly invalid input that throws, empty string is returned
-    const result = formatTimeAgo('');
-    // Empty string creates Invalid Date, NaN diff, returns fallback
-    expect(typeof result).toBe('string');
+  it('should handle 4-week boundary and older timestamps', () => {
+    // Exactly 4 weeks (28 days) - at the boundary, should use formatDistanceToNow
+    const fourWeeksAgo = new Date(
+      Date.now() - 28 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const fourWeeksResult = formatTimeAgo(fourWeeksAgo);
+    // formatDistanceToNow returns strings like "about 1 month ago"
+    expect(fourWeeksResult).toContain('ago');
+    expect(fourWeeksResult).not.toBe('4w ago'); // Should NOT be weeks format
+
+    // 60 days - well past the 4-week boundary
+    const sixtyDaysAgo = new Date(
+      Date.now() - 60 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const sixtyDaysResult = formatTimeAgo(sixtyDaysAgo);
+    expect(sixtyDaysResult).toContain('ago');
+    expect(sixtyDaysResult).not.toMatch(/^\d+w ago$/); // Should NOT be weeks format
+  });
+
+  it('should return empty string for invalid timestamps', () => {
+    // Empty string creates Invalid Date with NaN time
+    // The try/catch in formatTimeAgo handles this gracefully
+    expect(formatTimeAgo('')).toBe('');
+
+    // Completely invalid date string
+    expect(formatTimeAgo('not-a-date')).toBe('');
+
+    // Invalid format that can't be parsed
+    expect(formatTimeAgo('invalid')).toBe('');
   });
 });
 
@@ -93,6 +94,13 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
    * Note: The actual component requires comments as CommentPreviewData[],
    * and PostCard always passes `post.commentPreviews ?? []`, so comments
    * is always a valid array. This test reflects that type-safe behavior.
+   */
+
+  /**
+   * Intentionally minimal subset of CommentPreviewData from @babylon/shared.
+   * The render-decision logic only checks comments.length, not individual
+   * comment properties, so we use a minimal shape for test clarity.
+   * See: packages/shared/src/game-types.ts for the full CommentPreviewData type.
    */
   interface CommentPreviewData {
     id: string;
@@ -114,14 +122,14 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
     const hasComments = comments.length > 0;
 
     return {
-      // Comment list only shown if there are comments
-      showCommentList: hasComments,
-      // View all link only shown if there are more comments than previewed
-      showViewAllLink: hasComments && totalCommentCount > comments.length,
+      // Comment list only shown if there are comments - explicit boolean
+      showCommentList: !!hasComments,
+      // View all link only shown if there are more comments than previewed - explicit boolean
+      showViewAllLink: !!hasComments && totalCommentCount > comments.length,
       // Input bar is ALWAYS shown (this is the new behavior)
       showInputBar: true,
-      // Input bar has margin-top only when there are comments above it
-      inputBarMarginTop: hasComments,
+      // Input bar has margin-top only when there are comments above it - explicit boolean
+      inputBarMarginTop: !!hasComments,
     };
   }
 

@@ -167,8 +167,9 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
 
 /**
  * Format timestamp to relative time with suffix (e.g., "5m ago", "2h ago", "just now")
+ * Exported for unit testing.
  */
-function formatTimeAgo(timestamp: string): string {
+export function formatTimeAgo(timestamp: string): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();
