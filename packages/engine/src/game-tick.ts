@@ -75,8 +75,8 @@ import {
   StaticDataRegistry,
   syncReputationIfAvailable,
   TokenStatsService,
-  timeframeArcProcessor,
   TradeExecutionService,
+  timeframeArcProcessor,
   WalletService,
   worldFactsGenerator,
 } from './services';
