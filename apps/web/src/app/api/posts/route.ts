@@ -497,7 +497,21 @@ async function fetchPostMetadataConsolidated(postIds: string[]): Promise<{
     comment_row_num: number | null;
   }
 
-  for (const row of result as unknown as RawResultRow[]) {
+  // Type guard to validate raw SQL results have expected shape
+  function isRawResultRow(row: unknown): row is RawResultRow {
+    if (!row || typeof row !== 'object') return false;
+    const r = row as Record<string, unknown>;
+    return (
+      typeof r.result_type === 'string' &&
+      typeof r.post_id === 'string' &&
+      (r.result_type === 'metadata' || r.result_type === 'comment')
+    );
+  }
+
+  // Process results with type guard validation
+  const rows = Array.isArray(result) ? result : [];
+  for (const row of rows) {
+    if (!isRawResultRow(row)) continue;
     if (row.result_type === 'metadata') {
       reactionMap.set(row.post_id, Number(row.like_count));
       commentMap.set(row.post_id, Number(row.comment_count));
@@ -1010,8 +1024,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const postLikeCount = reactionMap.get(postId) ?? 0;
     const topCommentLikes = rawPreviews[0]?.likeCount ?? 0;
 
-    // Determine preview visibility with variability for organic feel
-    const hashValue =
+    // Determine preview visibility with consistent bucketing per post
+    // Uses character code sum to create deterministic bucket (0-99) for each post
+    const engagementBucket =
       postId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 100;
 
     let showPreview = true;
@@ -1031,27 +1046,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_LOW
     ) {
       previewLimit = 1;
-      showPreview = hashValue < ENGAGEMENT_THRESHOLDS.VISIBILITY_HIGH;
+      showPreview = engagementBucket < ENGAGEMENT_THRESHOLDS.VISIBILITY_HIGH;
     } else if (
       postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_MINIMAL ||
       postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_MINIMAL
     ) {
       previewLimit = 1;
-      showPreview = hashValue < ENGAGEMENT_THRESHOLDS.VISIBILITY_MEDIUM;
+      showPreview = engagementBucket < ENGAGEMENT_THRESHOLDS.VISIBILITY_MEDIUM;
     } else if (
       postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_VERY_LOW ||
       postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_VERY_LOW
     ) {
       previewLimit = 1;
       showPreview =
-        hashValue <
+        engagementBucket <
         (topCommentLikes > 0
           ? ENGAGEMENT_THRESHOLDS.VISIBILITY_LOW_WITH_LIKES
           : ENGAGEMENT_THRESHOLDS.VISIBILITY_LOW_NO_LIKES);
     } else {
       previewLimit = 1;
       showPreview =
-        hashValue <
+        engagementBucket <
         (topCommentLikes >= ENGAGEMENT_THRESHOLDS.TOP_COMMENT_LIKES_BOOST
           ? ENGAGEMENT_THRESHOLDS.VISIBILITY_MINIMAL_WITH_LIKES
           : ENGAGEMENT_THRESHOLDS.VISIBILITY_MINIMAL_NO_LIKES);
