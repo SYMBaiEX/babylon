@@ -162,9 +162,7 @@ export function TeamChatView({
       <div className="flex h-full flex-1 items-center justify-center">
         <div className="max-w-md p-8 text-center text-muted-foreground">
           <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
-          <h3 className="mb-2 font-bold text-foreground text-xl">
-            Command Center
-          </h3>
+          <h3 className="mb-2 font-bold text-foreground text-xl">Chat</h3>
           <p className="text-sm">Loading your team chat...</p>
         </div>
       </div>
@@ -202,12 +200,8 @@ export function TeamChatView({
             )}
             <div>
               <h2 className="font-semibold text-foreground text-lg">
-                Command Center
+                {chatDetails.chat.name || 'Chat'}
               </h2>
-              <p className="text-muted-foreground text-sm">
-                {chatDetails.participants.length} member
-                {chatDetails.participants.length !== 1 ? 's' : ''}
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">

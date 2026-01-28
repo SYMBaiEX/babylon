@@ -594,12 +594,15 @@ export function useTeamChat(): UseTeamChatReturn {
     });
   }, []);
 
+  // Get active conversation name
+  const activeConversation = conversations.find((c) => c.isActive);
+
   // Build chat details from team chat info and realtime messages
   const chatDetails: ChatDetails | null = teamChat
     ? {
         chat: {
           id: teamChat.chatId,
-          name: 'Command Center',
+          name: activeConversation?.name || 'New Chat',
           isGroup: true,
           createdAt: teamChat.createdAt,
           updatedAt: teamChat.updatedAt,
