@@ -67,6 +67,10 @@ import {
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+import {
+  isInternalCronSchedulerEnabled,
+  triggerScheduledCrons,
+} from '@/lib/cron-scheduler';
 import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 export const maxDuration = 800;
@@ -308,6 +312,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         'Cron'
       );
 
+      // Trigger additional crons on non-production environments
+      let internalCrons:
+        | { triggered: string[]; failed: string[]; skipped: string[] }
+        | undefined;
+      if (isInternalCronSchedulerEnabled()) {
+        internalCrons = await triggerScheduledCrons();
+      }
+
       return successResponse({
         success: true,
         skipped: false,
@@ -315,6 +327,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         bufferMinutes: bufferStatus.minutesAhead,
         duration,
         result,
+        internalCrons,
       });
     }
 
@@ -371,6 +384,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       marketsUpdated: result.marketsUpdated,
     });
 
+    // Trigger additional crons on non-production environments
+    // This ensures staging/preview gets all cron jobs running
+    let internalCrons:
+      | { triggered: string[]; failed: string[]; skipped: string[] }
+      | undefined;
+    if (isInternalCronSchedulerEnabled()) {
+      logger.info(
+        'Triggering internal cron scheduler (non-production)',
+        undefined,
+        'Cron'
+      );
+      internalCrons = await triggerScheduledCrons();
+    }
+
     return successResponse({
       success: true,
       duration,
@@ -380,6 +407,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         windowsGenerated: lookaheadResult.windowsGenerated,
       },
       result,
+      internalCrons,
     });
   } finally {
     // Always release lock, even on error
