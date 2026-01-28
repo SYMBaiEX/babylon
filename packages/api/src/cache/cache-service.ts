@@ -100,8 +100,43 @@ export const DEFAULT_TTLS = {
  * Thundering herd protection beta factor
  * Higher values = more aggressive early expiration
  * Recommended range: 0.5 to 2.0
+ *
+ * Configurable via CACHE_THUNDERING_HERD_BETA environment variable.
+ * Values outside the recommended range are clamped.
  */
-const THUNDERING_HERD_BETA = 1.0;
+function getThunderingHerdBeta(): number {
+  const envValue = process.env.CACHE_THUNDERING_HERD_BETA;
+  const DEFAULT_BETA = 1.0;
+  const MIN_BETA = 0.5;
+  const MAX_BETA = 2.0;
+
+  if (!envValue) return DEFAULT_BETA;
+
+  const parsed = Number.parseFloat(envValue);
+  if (Number.isNaN(parsed)) {
+    logger.warn(
+      'Invalid CACHE_THUNDERING_HERD_BETA value, using default',
+      { envValue, default: DEFAULT_BETA },
+      'CacheService'
+    );
+    return DEFAULT_BETA;
+  }
+
+  // Clamp to recommended range
+  const clamped = Math.min(MAX_BETA, Math.max(MIN_BETA, parsed));
+  if (clamped !== parsed) {
+    logger.warn(
+      'CACHE_THUNDERING_HERD_BETA clamped to recommended range',
+      { original: parsed, clamped, range: `${MIN_BETA}-${MAX_BETA}` },
+      'CacheService'
+    );
+  }
+
+  return clamped;
+}
+
+// Cache the beta value to avoid repeated env lookups
+const THUNDERING_HERD_BETA = getThunderingHerdBeta();
 
 /**
  * Clean expired entries from memory cache
@@ -369,7 +404,11 @@ export async function getCacheOrFetch<T>(
       client.ttl(fullKey),
     ]);
 
-    if (valueResult !== null && valueResult !== undefined && valueResult.trim() !== '') {
+    if (
+      valueResult !== null &&
+      valueResult !== undefined &&
+      valueResult.trim() !== ''
+    ) {
       cached = JSON.parse(valueResult) as T;
       remainingTtl = ttlResult > 0 ? ttlResult : 0;
     }
@@ -384,13 +423,15 @@ export async function getCacheOrFetch<T>(
 
   // If we have cached data, apply thundering herd protection
   if (cached !== null && remainingTtl > 0) {
-    // Probabilistic early expiration formula:
-    // probability = beta * ln(random) * -1 > remainingTtl / ttl
-    // This gives increasing probability of refresh as expiration approaches
+    // Probabilistic early expiration formula (adapted from academic research):
+    // shouldRefreshEarly = THUNDERING_HERD_BETA * -Math.log(random) > (remainingTtl / ttl) * 5
+    // The *5 multiplier reduces aggressive early refreshes for better cache efficiency.
+    // THUNDERING_HERD_BETA is configurable via CACHE_THUNDERING_HERD_BETA env (0.5-2.0, default 1.0)
     const random = Math.random();
     const earlyExpirationThreshold = remainingTtl / ttl;
     const shouldRefreshEarly =
-      THUNDERING_HERD_BETA * Math.log(random) * -1 > earlyExpirationThreshold * 5;
+      THUNDERING_HERD_BETA * Math.log(random) * -1 >
+      earlyExpirationThreshold * 5;
 
     if (shouldRefreshEarly) {
       logger.debug(
@@ -750,3 +791,21 @@ export async function clearAllCache(): Promise<void> {
     );
   }
 }
+
+{
+  logger.warn('Clearing all cache', undefined, 'CacheService');
+
+  // Clear memory cache
+  memoryCache.clear();
+
+  // Clear Redis cache (if available and safe to do)
+  if (isRedisAvailable()) {
+    // Only clear our namespaced keys, not the entire Redis instance
+    logger.warn(
+      'Redis cache clear requested but not implemented for safety',
+      undefined,
+      'CacheService'
+    );
+  }
+}
+

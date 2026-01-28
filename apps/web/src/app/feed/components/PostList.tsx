@@ -1,6 +1,7 @@
 'use client';
 
 import type { CommentPreviewData, FeedPost } from '@babylon/shared';
+import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import type { PostCardProps } from '@/components/posts/PostCard';
@@ -32,6 +33,7 @@ export const PostList = memo(function PostList({
   loadingMore,
   onLoadMore,
 }: PostListProps) {
+  const router = useRouter();
   const { user } = useAuthStore();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -148,7 +150,7 @@ export const PostList = memo(function PostList({
                 post={postData}
                 showCommentInputBar={false}
                 onCommentClick={() => {
-                  window.location.href = `/post/${post.id}`;
+                  router.push(`/post/${post.id}`);
                 }}
               />
             )}

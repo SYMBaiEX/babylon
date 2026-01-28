@@ -574,188 +574,191 @@ export default function CommentPage({ params }: CommentPageProps) {
           {/* Content */}
           <div className="flex-1 overflow-y-auto bg-background">
             <div className="w-full lg:mx-auto lg:max-w-[700px]">
-            {/* Original post */}
-            {post && <OriginalPostCard post={post} />}
+              {/* Original post */}
+              {post && <OriginalPostCard post={post} />}
 
-            {/* Parent chain - show all parent comments leading up to this one */}
-            {parentChain.length > 0 && (
-              <div>
-                {parentChain.map((parent, index) => (
-                  <ParentCommentCard
-                    key={parent.id}
-                    parent={parent}
-                    showConnector={index < parentChain.length}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Main comment */}
-            <div
-              ref={mainCommentRef}
-              className="border-border border-b px-4 py-4 sm:px-6"
-            >
-              <div className="flex gap-3">
-                {/* Avatar */}
-                <Link
-                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
-                  className="shrink-0 transition-opacity hover:opacity-80"
-                >
-                  <Avatar
-                    id={comment.authorId}
-                    name={comment.authorName}
-                    size="md"
-                    imageUrl={comment.authorProfileImageUrl || undefined}
-                  />
-                </Link>
-
-                {/* Content */}
-                <div className="min-w-0 flex-1">
-                  {/* Author info */}
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <Link
-                        href={getProfileUrl(
-                          comment.authorId,
-                          comment.authorUsername
-                        )}
-                        className="font-semibold hover:underline"
-                      >
-                        {comment.authorName}
-                      </Link>
-                      {showVerifiedBadge && (
-                        <VerifiedBadge size="sm" className="-ml-1" />
-                      )}
-                      <Link
-                        href={getProfileUrl(
-                          comment.authorId,
-                          comment.authorUsername
-                        )}
-                        className="text-muted-foreground text-sm hover:underline"
-                      >
-                        @{comment.authorUsername || comment.authorName}
-                      </Link>
-                    </div>
-                    {/* Moderation menu for other users' comments */}
-                    {user && !isOwnComment && (
-                      <ModerationMenu
-                        targetUserId={comment.authorId}
-                        targetUsername={comment.authorUsername || undefined}
-                        targetDisplayName={comment.authorName}
-                        targetProfileImageUrl={
-                          comment.authorProfileImageUrl || undefined
-                        }
-                        isNPC={mainCommentAuthorIsNPC}
-                      />
-                    )}
-                  </div>
-
-                  {/* Comment content - larger for main comment */}
-                  <div className="mb-3">
-                    <p className="whitespace-pre-wrap break-words text-base text-foreground leading-relaxed">
-                      <TaggedText
-                        text={comment.content}
-                        onTagClick={(tag) => {
-                          if (tag.startsWith('@')) {
-                            const username = tag.slice(1);
-                            router.push(`/profile/${username}`);
-                          } else if (tag.startsWith('$')) {
-                            const symbol = tag.slice(1);
-                            router.push(
-                              `/markets?search=${encodeURIComponent(symbol)}`
-                            );
-                          }
-                        }}
-                      />
-                    </p>
-                  </div>
-
-                  {/* Timestamp */}
-                  <div className="mb-3 text-muted-foreground text-sm">
-                    {new Date(comment.createdAt).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </div>
-
-                  {/* Actions - like post page */}
-                  <div className="flex items-center gap-1 border-border border-t pt-3">
-                    {/* Message icon - reply to main comment */}
-                    <button
-                      type="button"
-                      onClick={() => setIsReplying(!isReplying)}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors',
-                        'text-muted-foreground hover:bg-[#0066FF]/10 hover:text-[#0066FF]',
-                        isReplying && 'bg-[#0066FF]/10 text-[#0066FF]'
-                      )}
-                    >
-                      <MessageCircle size={16} />
-                      <span>
-                        {comment.replyCount > 0
-                          ? comment.replyCount >= MAX_REPLY_COUNT
-                            ? `${MAX_REPLY_COUNT}+`
-                            : comment.replyCount
-                          : ''}
-                      </span>
-                    </button>
-
-                    <LikeButton
-                      targetId={comment.id}
-                      targetType="comment"
-                      initialLiked={comment.isLiked}
-                      initialCount={comment.likeCount}
-                      size="sm"
-                      showCount
-                    />
-                  </div>
-
-                  {/* Reply input */}
-                  {isReplying && post && (
-                    <div className="mt-4">
-                      <CommentInput
-                        postId={post.id}
-                        parentCommentId={comment.id}
-                        placeholder={`Reply to ${comment.authorName}...`}
-                        replyingToName={comment.authorName}
-                        autoFocus
-                        onSubmit={handleReplySubmit}
-                        onCancel={() => setIsReplying(false)}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Replies section */}
-            <div className="px-4 sm:px-6">
-              {replies.length === 0 ? (
-                <EmptyState
-                  icon={MessageCircle}
-                  title="No replies yet"
-                  description="Be the first to reply!"
-                  className="py-12"
-                />
-              ) : (
+              {/* Parent chain - show all parent comments leading up to this one */}
+              {parentChain.length > 0 && (
                 <div>
-                  {replies.map((reply) => (
-                    <ReplyCard
-                      key={reply.id}
-                      reply={reply}
-                      postId={post?.id || ''}
-                      onReplySubmit={loadComment}
+                  {parentChain.map((parent, index) => (
+                    <ParentCommentCard
+                      key={parent.id}
+                      parent={parent}
+                      showConnector={index < parentChain.length}
                     />
                   ))}
                 </div>
               )}
+
+              {/* Main comment */}
+              <div
+                ref={mainCommentRef}
+                className="border-border border-b px-4 py-4 sm:px-6"
+              >
+                <div className="flex gap-3">
+                  {/* Avatar */}
+                  <Link
+                    href={getProfileUrl(
+                      comment.authorId,
+                      comment.authorUsername
+                    )}
+                    className="shrink-0 transition-opacity hover:opacity-80"
+                  >
+                    <Avatar
+                      id={comment.authorId}
+                      name={comment.authorName}
+                      size="md"
+                      imageUrl={comment.authorProfileImageUrl || undefined}
+                    />
+                  </Link>
+
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    {/* Author info */}
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <Link
+                          href={getProfileUrl(
+                            comment.authorId,
+                            comment.authorUsername
+                          )}
+                          className="font-semibold hover:underline"
+                        >
+                          {comment.authorName}
+                        </Link>
+                        {showVerifiedBadge && (
+                          <VerifiedBadge size="sm" className="-ml-1" />
+                        )}
+                        <Link
+                          href={getProfileUrl(
+                            comment.authorId,
+                            comment.authorUsername
+                          )}
+                          className="text-muted-foreground text-sm hover:underline"
+                        >
+                          @{comment.authorUsername || comment.authorName}
+                        </Link>
+                      </div>
+                      {/* Moderation menu for other users' comments */}
+                      {user && !isOwnComment && (
+                        <ModerationMenu
+                          targetUserId={comment.authorId}
+                          targetUsername={comment.authorUsername || undefined}
+                          targetDisplayName={comment.authorName}
+                          targetProfileImageUrl={
+                            comment.authorProfileImageUrl || undefined
+                          }
+                          isNPC={mainCommentAuthorIsNPC}
+                        />
+                      )}
+                    </div>
+
+                    {/* Comment content - larger for main comment */}
+                    <div className="mb-3">
+                      <p className="whitespace-pre-wrap break-words text-base text-foreground leading-relaxed">
+                        <TaggedText
+                          text={comment.content}
+                          onTagClick={(tag) => {
+                            if (tag.startsWith('@')) {
+                              const username = tag.slice(1);
+                              router.push(`/profile/${username}`);
+                            } else if (tag.startsWith('$')) {
+                              const symbol = tag.slice(1);
+                              router.push(
+                                `/markets?search=${encodeURIComponent(symbol)}`
+                              );
+                            }
+                          }}
+                        />
+                      </p>
+                    </div>
+
+                    {/* Timestamp */}
+                    <div className="mb-3 text-muted-foreground text-sm">
+                      {new Date(comment.createdAt).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </div>
+
+                    {/* Actions - like post page */}
+                    <div className="flex items-center gap-1 border-border border-t pt-3">
+                      {/* Message icon - reply to main comment */}
+                      <button
+                        type="button"
+                        onClick={() => setIsReplying(!isReplying)}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors',
+                          'text-muted-foreground hover:bg-[#0066FF]/10 hover:text-[#0066FF]',
+                          isReplying && 'bg-[#0066FF]/10 text-[#0066FF]'
+                        )}
+                      >
+                        <MessageCircle size={16} />
+                        <span>
+                          {comment.replyCount > 0
+                            ? comment.replyCount >= MAX_REPLY_COUNT
+                              ? `${MAX_REPLY_COUNT}+`
+                              : comment.replyCount
+                            : ''}
+                        </span>
+                      </button>
+
+                      <LikeButton
+                        targetId={comment.id}
+                        targetType="comment"
+                        initialLiked={comment.isLiked}
+                        initialCount={comment.likeCount}
+                        size="sm"
+                        showCount
+                      />
+                    </div>
+
+                    {/* Reply input */}
+                    {isReplying && post && (
+                      <div className="mt-4">
+                        <CommentInput
+                          postId={post.id}
+                          parentCommentId={comment.id}
+                          placeholder={`Reply to ${comment.authorName}...`}
+                          replyingToName={comment.authorName}
+                          autoFocus
+                          onSubmit={handleReplySubmit}
+                          onCancel={() => setIsReplying(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Replies section */}
+              <div className="px-4 sm:px-6">
+                {replies.length === 0 ? (
+                  <EmptyState
+                    icon={MessageCircle}
+                    title="No replies yet"
+                    description="Be the first to reply!"
+                    className="py-12"
+                  />
+                ) : (
+                  <div>
+                    {replies.map((reply) => (
+                      <ReplyCard
+                        key={reply.id}
+                        reply={reply}
+                        postId={post?.id || ''}
+                        onReplySubmit={loadComment}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </PageContainer>
   );

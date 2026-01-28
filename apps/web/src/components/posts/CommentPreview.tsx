@@ -61,10 +61,7 @@ export const CommentPreview = memo(function CommentPreview({
   const showViewAll = hasComments && totalCommentCount > comments.length;
 
   return (
-    <div
-      className={cn('mt-3', className)}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className={cn('mt-3', className)} onClick={(e) => e.stopPropagation()}>
       {/* Comment list - only show if there are comments */}
       {hasComments && (
         <div className="space-y-3">
@@ -93,9 +90,7 @@ export const CommentPreview = memo(function CommentPreview({
       )}
 
       {/* Line separator - shown under comments/view all when there are comments */}
-      {hasComments && (
-        <div className="mt-3 border-muted border-b" />
-      )}
+      {hasComments && <div className="mt-3 border-muted border-b" />}
 
       {/* Comment input bar - shown when showInputBar is true */}
       {showInputBar && (

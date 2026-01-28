@@ -7,12 +7,24 @@
 -- 3. Test in staging environment first
 --
 -- Rollback: See 0028_rollback_posts_comments_partitioning.sql
+--
+-- ORM COMPATIBILITY NOTE:
+-- The partitioned tables use a composite primary key (id, timestamp) as required by PostgreSQL.
+-- A UNIQUE constraint on id is added to maintain ORM relationship compatibility.
+-- Drizzle ORM and other ORMs can reference Post by id alone for joins/FKs.
+--
+-- FOREIGN KEY NOTE:
+-- Foreign keys are NOT enforced at the database level on partitioned tables due to PostgreSQL
+-- limitations with partitioned FK constraints. Referential integrity must be enforced at the
+-- application level. The ORM schema should validate postId/authorId references before inserts.
 
 -- ============================================================================
 -- Step 1: Create partitioned Post table
 -- ============================================================================
 
 -- Create the new partitioned table structure
+-- Note: PRIMARY KEY (id, timestamp) is required for PostgreSQL partitioning
+-- UNIQUE (id) is added for ORM compatibility and FK references
 CREATE TABLE IF NOT EXISTS "Post_partitioned" (
     id text NOT NULL,
     content text NOT NULL,
@@ -30,11 +42,18 @@ CREATE TABLE IF NOT EXISTS "Post_partitioned" (
     "deletedAt" timestamp,
     "articleImageUrl" text,
     "lastActivityAt" timestamp DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id, timestamp)
+    PRIMARY KEY (id, timestamp),
+    UNIQUE (id)  -- Enables ORM relationships and FK references by id alone
 ) PARTITION BY RANGE (timestamp);
 
 -- Create partitions for historical and future data
--- Historical partitions (covering existing data)
+-- Historical partitions for pre-2024 data (prevents default partition hotspot)
+CREATE TABLE IF NOT EXISTS "Post_2023" PARTITION OF "Post_partitioned"
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+CREATE TABLE IF NOT EXISTS "Post_pre_2023" PARTITION OF "Post_partitioned"
+    FOR VALUES FROM ('2000-01-01') TO ('2023-01-01');
+
+-- 2024 partitions (monthly granularity for recent data)
 CREATE TABLE IF NOT EXISTS "Post_2024_01" PARTITION OF "Post_partitioned"
     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 CREATE TABLE IF NOT EXISTS "Post_2024_02" PARTITION OF "Post_partitioned"
@@ -131,6 +150,11 @@ CREATE INDEX IF NOT EXISTS "Post_partitioned_deletedAt_idx" ON "Post_partitioned
 -- Step 3: Create partitioned Comment table
 -- ============================================================================
 
+-- Note: PRIMARY KEY (id, createdAt) required for PostgreSQL partitioning
+-- UNIQUE (id) added for ORM compatibility
+-- FOREIGN KEY constraints are NOT added due to PostgreSQL partitioning limitations
+-- Application-level validation must ensure postId references valid Post.id and
+-- authorId references valid User.id before insert
 CREATE TABLE IF NOT EXISTS "Comment_partitioned" (
     id text NOT NULL,
     content text NOT NULL,
@@ -140,8 +164,15 @@ CREATE TABLE IF NOT EXISTS "Comment_partitioned" (
     "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" timestamp,
-    PRIMARY KEY (id, "createdAt")
+    PRIMARY KEY (id, "createdAt"),
+    UNIQUE (id)  -- Enables ORM relationships and FK references by id alone
 ) PARTITION BY RANGE ("createdAt");
+
+-- Historical partitions for pre-2024 data
+CREATE TABLE IF NOT EXISTS "Comment_2023" PARTITION OF "Comment_partitioned"
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+CREATE TABLE IF NOT EXISTS "Comment_pre_2023" PARTITION OF "Comment_partitioned"
+    FOR VALUES FROM ('2000-01-01') TO ('2023-01-01');
 
 -- Create Comment partitions (similar to Post)
 -- 2024 partitions
@@ -303,5 +334,67 @@ $$ LANGUAGE plpgsql;
 -- BEGIN;
 -- ALTER TABLE "Post" RENAME TO "Post_unpartitioned";
 -- ALTER TABLE "Post_partitioned" RENAME TO "Post";
--- -- Update any foreign key constraints
+-- ALTER TABLE "Comment" RENAME TO "Comment_unpartitioned";
+-- ALTER TABLE "Comment_partitioned" RENAME TO "Comment";
 -- COMMIT;
+
+-- ============================================================================
+-- Step 8: Post-Migration Verification (REQUIRED before table swap)
+-- ============================================================================
+
+-- Run these verification queries AFTER data migration and BEFORE renaming tables:
+
+-- 8.1 Row count comparison
+-- SELECT 'Original Post count' as table_name, COUNT(*) as row_count FROM "Post"
+-- UNION ALL
+-- SELECT 'Partitioned Post count', COUNT(*) FROM "Post_partitioned"
+-- UNION ALL
+-- SELECT 'Original Comment count', COUNT(*) FROM "Comment"
+-- UNION ALL
+-- SELECT 'Partitioned Comment count', COUNT(*) FROM "Comment_partitioned";
+
+-- 8.2 Partition distribution check (verify no excessive data in default partition)
+-- SELECT 
+--     c.relname as partition_name,
+--     pg_size_pretty(pg_relation_size(c.oid)) as size,
+--     (SELECT COUNT(*) FROM ONLY c.relname::regclass) as row_count
+-- FROM pg_class c
+-- JOIN pg_inherits i ON c.oid = i.inhrelid
+-- WHERE i.inhparent = '"Post_partitioned"'::regclass
+-- ORDER BY c.relname;
+
+-- 8.3 Spot-check recent rows
+-- SELECT id, timestamp, content FROM "Post_partitioned" 
+-- ORDER BY timestamp DESC LIMIT 10;
+-- 
+-- SELECT id, "createdAt", content FROM "Comment_partitioned"
+-- ORDER BY "createdAt" DESC LIMIT 10;
+
+-- 8.4 Verify default partition is empty or minimal
+-- SELECT COUNT(*) as default_partition_rows FROM ONLY "Post_default";
+-- SELECT COUNT(*) as default_partition_rows FROM ONLY "Comment_default";
+
+-- ONLY proceed with ALTER TABLE RENAME after all verification passes!
+
+-- ============================================================================
+-- Step 9: Scheduling create_future_partitions()
+-- ============================================================================
+
+-- The create_future_partitions() function must be called regularly to ensure
+-- new partitions exist before data arrives. Options:
+
+-- OPTION A: pg_cron (recommended for PostgreSQL)
+-- Requires pg_cron extension: CREATE EXTENSION pg_cron;
+-- Schedule monthly on the 1st at midnight:
+-- SELECT cron.schedule('create-future-partitions', '0 0 1 * *', 'SELECT create_future_partitions()');
+
+-- OPTION B: Application bootstrap
+-- Call from application startup or deployment hooks:
+-- await db.execute(sql`SELECT create_future_partitions()`);
+
+-- OPTION C: External cron job
+-- Add to system crontab or CI/CD pipeline:
+-- 0 0 1 * * psql -c "SELECT create_future_partitions()" your_database
+
+-- WARNING: If partitions are not created in advance, new data will go to
+-- Post_default/Comment_default, causing a performance hotspot.

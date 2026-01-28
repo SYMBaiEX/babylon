@@ -156,6 +156,10 @@ WHERE p."deletedAt" IS NULL
 ORDER BY trending_score DESC
 LIMIT 1000;  -- Top 1000 trending posts
 
+-- REQUIRED: Unique index on post_id for REFRESH MATERIALIZED VIEW CONCURRENTLY
+CREATE UNIQUE INDEX IF NOT EXISTS mv_trending_posts_post_id_idx 
+    ON mv_trending_posts (post_id);
+
 -- Index for trending score ordering
 CREATE INDEX IF NOT EXISTS mv_trending_posts_score_idx 
     ON mv_trending_posts (trending_score DESC);
@@ -209,7 +213,8 @@ $$ LANGUAGE plpgsql;
 -- Note: This requires pg_cron extension to be installed
 -- If pg_cron is not available, use external scheduler (e.g., cron job calling SQL)
 
--- Schedule interaction views refresh every 30 seconds
+-- Schedule interaction views refresh every minute (*/1 = every 1 minute in cron syntax)
+-- Note: pg_cron minimum granularity is 1 minute. For 30-second refresh, use application-level scheduler.
 -- SELECT cron.schedule('refresh-interaction-views', '*/1 * * * *', 'SELECT refresh_interaction_views()');
 
 -- Schedule trending views refresh every 5 minutes  

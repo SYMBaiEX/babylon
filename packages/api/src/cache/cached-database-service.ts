@@ -239,7 +239,7 @@ class CachedDatabaseService {
     // Return users in the same order as requested, filtering nulls
     return userIds
       .map((id) => usersMap.get(id))
-      .filter((u): u is NonNullable<typeof u> => u !== undefined);
+      .filter((u): u is NonNullable<typeof u> => u != null);
   }
 
   /**
