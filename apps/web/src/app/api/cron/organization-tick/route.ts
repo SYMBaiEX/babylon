@@ -271,11 +271,7 @@ export async function POST(_req: NextRequest) {
     );
 
     if (allOrgs.length === 0) {
-      logger.warn(
-        'No organizations found in registry',
-        {},
-        'OrganizationTick'
-      );
+      logger.warn('No organizations found in registry', {}, 'OrganizationTick');
       return NextResponse.json({
         success: true,
         processed: 0,
@@ -355,7 +351,10 @@ export async function POST(_req: NextRequest) {
 
     // Select organizations using weighted stratified sampling (from eligible orgs only)
     // This ensures a balanced mix of org types that mirrors real-world posting patterns
-    const orgsThisTick = selectWeightedOrganizations(eligibleOrgs, ORGS_PER_TICK);
+    const orgsThisTick = selectWeightedOrganizations(
+      eligibleOrgs,
+      ORGS_PER_TICK
+    );
 
     logger.info(
       `Organization tick processing ${orgsThisTick.length} orgs`,
