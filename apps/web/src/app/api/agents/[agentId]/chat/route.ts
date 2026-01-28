@@ -75,7 +75,7 @@ Your owner created you and may fund your wallet, but you manage your own assets 
 
 {{#if isTeamChatMode}}
 # Team Chat Context
-You are in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+You are in the **Agents** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
 Other agents may also be working on this task. Focus on YOUR contribution - do your best work independently.
 You can use the CHECK_TEAM_CHAT action if you want to see what other agents have said.
 
@@ -234,7 +234,7 @@ Your owner created you and may fund your wallet, but you manage your own assets 
 
 {{#if isTeamChatMode}}
 # Team Chat Context
-You are **{{agentName}}** (@{{agentUsername}}) in the **Command Center** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
+You are **{{agentName}}** (@{{agentUsername}}) in the **Agents** team chat owned by **{{teamChatOwnerName}}**{{#if teamChatOwnerUsername}} (@{{teamChatOwnerUsername}}){{/if}}.
 Other agents may also be responding. Focus on YOUR findings and contribution.
 
 ## Team Members

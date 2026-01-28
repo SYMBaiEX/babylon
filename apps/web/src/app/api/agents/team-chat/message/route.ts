@@ -5,7 +5,7 @@
  * @access Authenticated
  *
  * @description
- * Sends a message to the user's Command Center team chat.
+ * Sends a message to the user's Agents team chat.
  * Agent responses are triggered separately by the frontend calling /api/agents/[agentId]/chat
  * for each selected agent (parallel execution model).
  *
@@ -16,7 +16,7 @@
  *       - Agents
  *     summary: Send team chat message
  *     description: |
- *       Sends a message to Command Center.
+ *       Sends a message to Agents.
  *       Agent responses are triggered separately via /api/agents/[agentId]/chat.
  *     security:
  *       - PrivyAuth: []
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: 'No team chat exists',
-        message: 'Create your first agent to initialize your Command Center.',
+        message: 'Create your first agent to initialize your Agents chat.',
       },
       { status: 404 }
     );

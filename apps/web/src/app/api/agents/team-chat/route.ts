@@ -1,12 +1,12 @@
 /**
- * Agent Team Chat (Command Center) API
+ * Agent Team Chat (Agents) API
  *
  * @route GET /api/agents/team-chat - Get user's team chat info
  * @route POST /api/agents/team-chat - Ensure team chat exists (creates if needed)
  * @access Authenticated
  *
  * @description
- * Manages the unified "Command Center" group chat for a user's agents.
+ * Manages the unified "Agents" group chat for a user's agents.
  * Each user has exactly ONE team chat containing ALL their agents.
  *
  * The team chat is automatically created when the first agent is created,
@@ -18,7 +18,7 @@
  *     tags:
  *       - Agents
  *     summary: Get team chat info
- *     description: Returns the user's Command Center team chat with member list.
+ *     description: Returns the user's Agents team chat with member list.
  *     security:
  *       - PrivyAuth: []
  *     responses:
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: 'No team chat exists',
-        message: 'Create your first agent to initialize your Command Center.',
+        message: 'Create your first agent to initialize your Agents chat.',
       },
       { status: 404 }
     );
@@ -151,8 +151,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
 
-  // Always create Command Center - even with 0 agents
-  // This allows users to see the Command Center UI before creating their first agent
+  // Always create Agents chat - even with 0 agents
+  // This allows users to see the Agents UI before creating their first agent
   const teamChat = await teamChatService.ensureTeamChat(user.id);
 
   // Sync any existing agents that aren't in the team chat yet
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
  * ⚠️ DESTRUCTIVE OPERATION - DEVELOPMENT ONLY:
  * Disabled in production. Use only for development/testing.
  *
- * This permanently deletes all Command Center data including:
+ * This permanently deletes all Agents data including:
  * - All messages and conversation history
  * - Group membership records
  * - Chat participant records
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
  * - Development/testing reset
  *
  * The team chat will be recreated automatically when the user
- * visits Command Center again or when an agent is created.
+ * visits Agents again or when an agent is created.
  */
 export async function DELETE(req: NextRequest) {
   // Gate destructive endpoint to development only
@@ -293,7 +293,6 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    message:
-      'Team chat deleted. Visit Command Center again to create a fresh one.',
+    message: 'Team chat deleted. Visit Agents again to create a fresh one.',
   });
 }
