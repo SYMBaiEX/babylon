@@ -1,6 +1,5 @@
 'use client';
 
-import { cn } from '@babylon/shared';
 import {
   Brain,
   MessageCircle,
@@ -179,23 +178,12 @@ export function TeamChatView({
             {onToggleLeftSidebar && (
               <button
                 onClick={onToggleLeftSidebar}
-                className={cn(
-                  'hidden rounded-lg p-2 transition-colors hover:bg-muted lg:block',
-                  !leftSidebarCollapsed && 'bg-muted'
-                )}
+                className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
                 aria-label={
                   leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
                 }
               >
-                <PanelLeft
-                  className={cn(
-                    'h-4 w-4',
-                    !leftSidebarCollapsed
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                  strokeWidth={1.5}
-                />
+                <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
               </button>
             )}
             <div>
@@ -232,21 +220,10 @@ export function TeamChatView({
             {onToggleRightSidebar && (
               <button
                 onClick={onToggleRightSidebar}
-                className={cn(
-                  'rounded-lg p-2 transition-colors hover:bg-muted',
-                  rightSidebarOpen && 'bg-muted'
-                )}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
               >
-                <PanelRight
-                  className={cn(
-                    'h-4 w-4',
-                    rightSidebarOpen
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                  strokeWidth={1.5}
-                />
+                <PanelRight className="h-4 w-4" strokeWidth={1.5} />
               </button>
             )}
           </div>
