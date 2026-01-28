@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { MarketsTradingTerminal } from './_components/terminal/MarketsTradingTerminal';
 import { invalidateWalletBalance } from '@/stores/walletBalanceStore';
+import { MarketsTradingTerminal } from './_components/terminal/MarketsTradingTerminal';
 
 const BuyPointsModal = dynamic(
   () =>
@@ -82,7 +82,9 @@ export default function MarketsPage() {
       className="flex h-[calc(100vh-theme(spacing.16))] flex-col"
     >
       <div className="flex flex-1 overflow-hidden bg-background/20">
-        <MarketsTradingTerminal onRequestBuyPoints={() => setShowBuyPointsModal(true)} />
+        <MarketsTradingTerminal
+          onRequestBuyPoints={() => setShowBuyPointsModal(true)}
+        />
       </div>
 
       {showBuyPointsModal && (

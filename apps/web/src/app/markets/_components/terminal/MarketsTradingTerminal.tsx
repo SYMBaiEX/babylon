@@ -1,34 +1,45 @@
 'use client';
 
+import {
+  calculateExpectedPayout,
+  PredictionPricing,
+} from '@babylon/core/markets/prediction/client';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import { PredictionPricing } from '@babylon/core/markets/prediction/client';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Star, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { calculateExpectedPayout } from '@babylon/core/markets/prediction/client';
-import { Skeleton } from '@/components/shared/Skeleton';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { toast } from 'sonner';
+import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
+import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
+import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
+import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import {
   type BuyPredictionDetails,
   TradeConfirmationDialog,
 } from '@/components/markets/TradeConfirmationDialog';
-import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed';
-import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { usePerpHistory } from '@/hooks/usePerpHistory';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type {
   PredictionResolutionSSE,
   PredictionTradeSSE,
 } from '@/hooks/usePredictionMarketStream';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import { usePerpHistory } from '@/hooks/usePerpHistory';
-import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
-import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
-import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
-import { usePredictionMarkets, usePredictionMarketsPolling } from '@/stores/predictionMarketsStore';
-import { usePerpMarkets, usePerpMarketsRealtime } from '@/stores/perpMarketsStore';
+import {
+  type MarketKey,
+  useMarketWatchlistStore,
+} from '@/stores/marketWatchlistStore';
+import {
+  usePerpMarkets,
+  usePerpMarketsRealtime,
+} from '@/stores/perpMarketsStore';
+import {
+  usePredictionMarkets,
+  usePredictionMarketsPolling,
+} from '@/stores/predictionMarketsStore';
 import {
   invalidateUserPositions,
   usePerpPositions,
@@ -40,9 +51,14 @@ import {
   useWalletBalance,
   useWalletBalancePolling,
 } from '@/stores/walletBalanceStore';
-import { useMarketWatchlistStore, type MarketKey } from '@/stores/marketWatchlistStore';
-import type { MarketTimeRange, PerpMarket, PredictionMarket, TradeSide } from '@/types/markets';
+import type {
+  MarketTimeRange,
+  PerpMarket,
+  PredictionMarket,
+  TradeSide,
+} from '@/types/markets';
 import { MARKET_TIME_RANGES } from '@/types/markets';
+import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
 
 type MarketsFilter = 'all' | 'perp' | 'prediction';
 
@@ -105,11 +121,14 @@ function parsePredictionSide(params: URLSearchParams): 'yes' | 'no' | null {
 
 function formatYesPct(raw: number): string {
   const clamped = Math.min(100, Math.max(0, raw));
-  const rounded = clamped >= 10 ? Math.round(clamped) : Math.round(clamped * 10) / 10;
+  const rounded =
+    clamped >= 10 ? Math.round(clamped) : Math.round(clamped * 10) / 10;
   return `${rounded.toFixed(clamped >= 10 ? 0 : 1)}%`;
 }
 
-function computeYesPctFromShares(market: PredictionMarketTerminalState): number {
+function computeYesPctFromShares(
+  market: PredictionMarketTerminalState
+): number {
   const yes = Number(market.yesShares ?? 0);
   const no = Number(market.noShares ?? 0);
   const total = yes + no;
@@ -117,37 +136,58 @@ function computeYesPctFromShares(market: PredictionMarketTerminalState): number 
   return (yes / total) * 100;
 }
 
-export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTerminalProps) {
+export function MarketsTradingTerminal({
+  onRequestBuyPoints,
+}: MarketsTradingTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const { user, authenticated, login, getAccessToken } = useAuth();
   const userId = authenticated ? (user?.id ?? null) : null;
 
-  const { markets: perpMarkets, loading: perpLoading, error: perpError } = usePerpMarkets();
+  const {
+    markets: perpMarkets,
+    loading: perpLoading,
+    error: perpError,
+  } = usePerpMarkets();
   usePerpMarketsRealtime();
 
-  const { markets: predictionMarkets, loading: predictionLoading, error: predictionError } =
-    usePredictionMarkets(userId ?? undefined);
+  const {
+    markets: predictionMarkets,
+    loading: predictionLoading,
+    error: predictionError,
+  } = usePredictionMarkets(userId ?? undefined);
   usePredictionMarketsPolling(30_000, userId ?? undefined);
 
   useUserPositionsPolling(userId);
   useWalletBalancePolling(userId);
-  const { balance, loading: balanceLoading, refresh: refreshWalletBalance } =
-    useWalletBalance(userId);
+  const {
+    balance,
+    loading: balanceLoading,
+    refresh: refreshWalletBalance,
+  } = useWalletBalance(userId);
 
-  const { positions: perpPositions, refresh: refreshPerpPositions } = usePerpPositions(userId);
-  const { positions: predictionPositions, refresh: refreshPredictionPositions } =
-    usePredictionPositions(userId);
+  const { positions: perpPositions, refresh: refreshPerpPositions } =
+    usePerpPositions(userId);
+  const {
+    positions: predictionPositions,
+    refresh: refreshPredictionPositions,
+  } = usePredictionPositions(userId);
 
-  const [filter, setFilter] = useState<MarketsFilter>(() => parseFilter(searchParams));
+  const [filter, setFilter] = useState<MarketsFilter>(() =>
+    parseFilter(searchParams)
+  );
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<MarketKey | null>(() => parseSelected(searchParams));
+  const [selected, setSelected] = useState<MarketKey | null>(() =>
+    parseSelected(searchParams)
+  );
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
-  const [bottomTab, setBottomTab] = useState<'positions' | 'trades'>('positions');
+  const [bottomTab, setBottomTab] = useState<'positions' | 'trades'>(
+    'positions'
+  );
 
   const [predictionSide, setPredictionSide] = useState<'yes' | 'no'>(
     () => parsePredictionSide(searchParams) ?? 'yes'
@@ -157,7 +197,8 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const [perpTimeRange, setPerpTimeRange] = useState<MarketTimeRange>('1D');
-  const [predictionTimeRange, setPredictionTimeRange] = useState<MarketTimeRange>('ALL');
+  const [predictionTimeRange, setPredictionTimeRange] =
+    useState<MarketTimeRange>('ALL');
   const [perpSideFromUrl, setPerpSideFromUrl] = useState<TradeSide | null>(() =>
     parsePerpSide(searchParams)
   );
@@ -203,7 +244,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
     }));
 
     const preds: UnifiedRow[] = predictionMarkets.map((m) => {
-      const yesPct = computeYesPctFromShares(m as PredictionMarketTerminalState);
+      const yesPct = computeYesPctFromShares(
+        m as PredictionMarketTerminalState
+      );
       const vol = Number(m.yesShares ?? 0) + Number(m.noShares ?? 0);
       return {
         key: { kind: 'prediction', id: m.id.toString() },
@@ -211,7 +254,8 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
         title: m.text,
         subtitle: `Scenario ${m.scenario}`,
         valuePrimary: `YES ${formatYesPct(yesPct)}`,
-        valueSecondary: m.status !== 'active' ? m.status.toUpperCase() : undefined,
+        valueSecondary:
+          m.status !== 'active' ? m.status.toUpperCase() : undefined,
         change24hPct: null,
         sortVolume: vol,
         sortName: m.text.toLowerCase(),
@@ -254,10 +298,15 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
 
   const selectedPerp = useMemo(() => {
     if (!selected || selected.kind !== 'perp') return null;
-    return perpMarkets.find((m) => m.ticker.toUpperCase() === selected.id.toUpperCase()) ?? null;
+    return (
+      perpMarkets.find(
+        (m) => m.ticker.toUpperCase() === selected.id.toUpperCase()
+      ) ?? null
+    );
   }, [selected, perpMarkets]);
 
-  const [predictionState, setPredictionState] = useState<PredictionMarketTerminalState | null>(null);
+  const [predictionState, setPredictionState] =
+    useState<PredictionMarketTerminalState | null>(null);
 
   useEffect(() => {
     if (!selected || selected.kind !== 'prediction') {
@@ -269,19 +318,22 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
     setPredictionState(base as PredictionMarketTerminalState | null);
   }, [selected, predictionMarkets]);
 
-  const handlePredictionTradeEvent = useCallback((event: PredictionTradeSSE) => {
-    setPredictionState((prev) => {
-      if (!prev || prev.id.toString() !== event.marketId) return prev;
-      return {
-        ...prev,
-        yesShares: event.yesShares,
-        noShares: event.noShares,
-        liquidity: event.liquidity ?? prev.liquidity,
-        yesProbability: event.yesPrice,
-        noProbability: event.noPrice,
-      };
-    });
-  }, []);
+  const handlePredictionTradeEvent = useCallback(
+    (event: PredictionTradeSSE) => {
+      setPredictionState((prev) => {
+        if (!prev || prev.id.toString() !== event.marketId) return prev;
+        return {
+          ...prev,
+          yesShares: event.yesShares,
+          noShares: event.noShares,
+          liquidity: event.liquidity ?? prev.liquidity,
+          yesProbability: event.yesPrice,
+          noProbability: event.noPrice,
+        };
+      });
+    },
+    []
+  );
 
   const handlePredictionResolutionEvent = useCallback(
     (event: PredictionResolutionSSE) => {
@@ -302,10 +354,13 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
     []
   );
 
-  usePredictionMarketStream(selected?.kind === 'prediction' ? selected.id : null, {
-    onTrade: handlePredictionTradeEvent,
-    onResolution: handlePredictionResolutionEvent,
-  });
+  usePredictionMarketStream(
+    selected?.kind === 'prediction' ? selected.id : null,
+    {
+      onTrade: handlePredictionTradeEvent,
+      onResolution: handlePredictionResolutionEvent,
+    }
+  );
 
   const predictionSeed = useMemo(() => {
     if (!predictionState) return undefined;
@@ -436,7 +491,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ side: predictionSide, amount: predictionAmountNum }),
+        body: JSON.stringify({
+          side: predictionSide,
+          amount: predictionAmountNum,
+        }),
       }
     );
 
@@ -467,16 +525,21 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
     setPredictionSubmitting(false);
   };
 
-  const selectedPredictionId = selected?.kind === 'prediction' ? selected.id : null;
+  const selectedPredictionId =
+    selected?.kind === 'prediction' ? selected.id : null;
   const selectedPredictionPositions = useMemo(() => {
     if (!selectedPredictionId) return [];
-    return predictionPositions.filter((p) => p.marketId.toString() === selectedPredictionId);
+    return predictionPositions.filter(
+      (p) => p.marketId.toString() === selectedPredictionId
+    );
   }, [predictionPositions, selectedPredictionId]);
 
   const selectedPerpPositions = useMemo(() => {
     if (!selectedPerp) return [];
     return perpPositions.filter(
-      (p) => p.ticker.toUpperCase() === selectedPerp.ticker.toUpperCase() && !p.closedAt
+      (p) =>
+        p.ticker.toUpperCase() === selectedPerp.ticker.toUpperCase() &&
+        !p.closedAt
     );
   }, [perpPositions, selectedPerp]);
 
@@ -494,7 +557,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               onClick={() => handleFilterChange(f)}
               className={cn(
                 'rounded px-2.5 py-1 transition-colors',
-                filter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+                filter === f
+                  ? 'bg-foreground text-background'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {f === 'all' ? 'All' : f === 'perp' ? 'Perps' : 'Predictions'}
@@ -520,7 +585,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
             onClick={onRequestBuyPoints}
             className="rounded border border-white/10 bg-background/30 px-2 py-1 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
           >
-            {balanceLoading ? '…' : `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`}
+            {balanceLoading
+              ? '…'
+              : `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`}
           </button>
         ) : (
           <button
@@ -575,7 +642,8 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
             <tbody>
               {rows.map((row) => {
                 const active =
-                  selected?.kind === row.key.kind && selected.id.toString() === row.key.id.toString();
+                  selected?.kind === row.key.kind &&
+                  selected.id.toString() === row.key.id.toString();
                 const change = row.change24hPct;
                 return (
                   <tr
@@ -599,7 +667,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                         )}
                         aria-label="Toggle favorite"
                       >
-                        <Star size={14} fill={isFavorite(row.key) ? 'currentColor' : 'none'} />
+                        <Star
+                          size={14}
+                          fill={isFavorite(row.key) ? 'currentColor' : 'none'}
+                        />
                       </button>
                     </td>
                     <td className="px-2 py-2">
@@ -627,7 +698,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                         <div
                           className={cn(
                             'inline-flex items-center justify-end rounded-full px-2 py-0.5 font-bold text-[10px] tabular-nums',
-                            change >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                            change >= 0
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-red-500/10 text-red-500'
                           )}
                         >
                           {change >= 0 ? '+' : ''}
@@ -642,7 +715,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                  <td
+                    colSpan={4}
+                    className="p-6 text-center text-muted-foreground"
+                  >
                     No markets found
                   </td>
                 </tr>
@@ -675,7 +751,8 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                 {predictionState?.text ?? 'Prediction market'}
               </div>
               <div className="text-muted-foreground text-xs">
-                YES {formatYesPct(predictionYesPct)} · NO {formatYesPct(100 - predictionYesPct)}
+                YES {formatYesPct(predictionYesPct)} · NO{' '}
+                {formatYesPct(100 - predictionYesPct)}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -712,8 +789,12 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
         <>
           <div className="flex shrink-0 items-center justify-between border-white/5 border-b px-4 py-3">
             <div className="min-w-0">
-              <div className="font-bold text-foreground text-lg">${selectedPerp.ticker}</div>
-              <div className="truncate text-muted-foreground text-xs">{selectedPerp.name}</div>
+              <div className="font-bold text-foreground text-lg">
+                ${selectedPerp.ticker}
+              </div>
+              <div className="truncate text-muted-foreground text-xs">
+                {selectedPerp.name}
+              </div>
             </div>
           </div>
           <div className="min-h-0 flex-1 p-4">
@@ -793,7 +874,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                 Amount
               </label>
-              <span className="text-[10px] text-muted-foreground">Min {BABYLON_POINTS_SYMBOL}1</span>
+              <span className="text-[10px] text-muted-foreground">
+                Min {BABYLON_POINTS_SYMBOL}1
+              </span>
             </div>
             <input
               type="number"
@@ -833,13 +916,17 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
           <button
             type="button"
             onClick={handlePredictionSubmit}
-            disabled={predictionSubmitting || (authenticated && predictionAmountNum < 1)}
+            disabled={
+              predictionSubmitting || (authenticated && predictionAmountNum < 1)
+            }
             className={cn(
               'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
               predictionSide === 'yes'
                 ? 'bg-green-600 hover:brightness-110'
                 : 'bg-red-600 hover:brightness-110',
-              (predictionSubmitting || (authenticated && predictionAmountNum < 1)) && 'cursor-not-allowed opacity-50'
+              (predictionSubmitting ||
+                (authenticated && predictionAmountNum < 1)) &&
+                'cursor-not-allowed opacity-50'
             )}
           >
             {predictionSubmitting
@@ -868,10 +955,16 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
     <div className="flex h-full min-h-0 flex-col bg-background/20">
       <div className="flex items-center justify-between border-white/5 border-b bg-background/30 px-2">
         <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto">
-          <TabButton active={bottomTab === 'positions'} onClick={() => setBottomTab('positions')}>
+          <TabButton
+            active={bottomTab === 'positions'}
+            onClick={() => setBottomTab('positions')}
+          >
             Positions
           </TabButton>
-          <TabButton active={bottomTab === 'trades'} onClick={() => setBottomTab('trades')}>
+          <TabButton
+            active={bottomTab === 'trades'}
+            onClick={() => setBottomTab('trades')}
+          >
             Trades
           </TabButton>
           <TabButton active={false} onClick={() => {}} disabled soon>
@@ -988,25 +1081,43 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
 
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <PanelGroup direction="vertical" className="flex min-h-0 flex-1">
-              <Panel defaultSize={bottomCollapsed ? 100 : 70} minSize={35} className="min-h-0">
+              <Panel
+                defaultSize={bottomCollapsed ? 100 : 70}
+                minSize={35}
+                className="min-h-0"
+              >
                 <PanelGroup direction="horizontal" className="min-h-0">
                   {!leftCollapsed && (
                     <>
-                      <Panel defaultSize={22} minSize={15} maxSize={32} className="min-h-0 border-white/5 border-r">
+                      <Panel
+                        defaultSize={22}
+                        minSize={15}
+                        maxSize={32}
+                        className="min-h-0 border-white/5 border-r"
+                      >
                         {listPanel}
                       </Panel>
                       <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
                     </>
                   )}
 
-                  <Panel defaultSize={leftCollapsed ? 72 : 56} minSize={40} className="min-h-0">
+                  <Panel
+                    defaultSize={leftCollapsed ? 72 : 56}
+                    minSize={40}
+                    className="min-h-0"
+                  >
                     {centerPanel}
                   </Panel>
 
                   {!rightCollapsed && (
                     <>
                       <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
-                      <Panel defaultSize={22} minSize={18} maxSize={32} className="min-h-0 border-white/5 border-l bg-background/20">
+                      <Panel
+                        defaultSize={22}
+                        minSize={18}
+                        maxSize={32}
+                        className="min-h-0 border-white/5 border-l bg-background/20"
+                      >
                         {rightPanel}
                       </Panel>
                     </>
@@ -1030,7 +1141,11 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               {!bottomCollapsed && (
                 <>
                   <PanelResizeHandle className="h-1 bg-white/5 hover:bg-primary/40" />
-                  <Panel defaultSize={30} minSize={12} className="min-h-0 border-white/5 border-t bg-background/20">
+                  <Panel
+                    defaultSize={30}
+                    minSize={12}
+                    className="min-h-0 border-white/5 border-t bg-background/20"
+                  >
                     {bottomPanel}
                   </Panel>
                 </>
@@ -1046,7 +1161,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                   'transition-colors hover:bg-muted/20 hover:text-foreground'
                 )}
               >
-                <span className="font-semibold text-[10px] tracking-widest">POSITIONS & TRADES</span>
+                <span className="font-semibold text-[10px] tracking-widest">
+                  POSITIONS & TRADES
+                </span>
                 <span className="text-[10px]">▲</span>
               </button>
             )}
@@ -1065,7 +1182,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5"
             >
               <span className="max-w-[180px] truncate font-bold text-sm">
-                {selected?.kind === 'perp' ? selected.id : predictionState?.text ?? 'Select'}
+                {selected?.kind === 'perp'
+                  ? selected.id
+                  : (predictionState?.text ?? 'Select')}
               </span>
               <span className="text-muted-foreground text-xs">▼</span>
             </button>
@@ -1113,7 +1232,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                 />
               ) : selectedPerp ? (
                 <PerpPriceChart
-                  data={perpHistory.map((p) => ({ time: p.time, price: p.price }))}
+                  data={perpHistory.map((p) => ({
+                    time: p.time,
+                    price: p.price,
+                  }))}
                   currentPrice={selectedPerp.currentPrice}
                   ticker={selectedPerp.ticker}
                   timeRange={perpTimeRange}
@@ -1134,7 +1256,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                 onClick={() => setBottomTab('positions')}
                 className={cn(
                   'relative flex h-full min-w-[88px] flex-1 items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
-                  bottomTab === 'positions' ? 'text-foreground' : 'text-muted-foreground'
+                  bottomTab === 'positions'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
                 )}
               >
                 Positions
@@ -1147,7 +1271,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                 onClick={() => setBottomTab('trades')}
                 className={cn(
                   'relative flex h-full min-w-[88px] flex-1 items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
-                  bottomTab === 'trades' ? 'text-foreground' : 'text-muted-foreground'
+                  bottomTab === 'trades'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
                 )}
               >
                 Trades
@@ -1203,7 +1329,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                   />
                 )
               ) : selected?.kind === 'prediction' ? (
-                <div ref={mobileTradesContainerRef} className="h-full overflow-auto">
+                <div
+                  ref={mobileTradesContainerRef}
+                  className="h-full overflow-auto"
+                >
                   <AssetTradesFeed
                     marketType="prediction"
                     assetId={selected.id}
@@ -1211,7 +1340,10 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
                   />
                 </div>
               ) : selectedPerp ? (
-                <div ref={mobileTradesContainerRef} className="h-full overflow-auto">
+                <div
+                  ref={mobileTradesContainerRef}
+                  className="h-full overflow-auto"
+                >
                   <AssetTradesFeed
                     marketType="perp"
                     assetId={selectedPerp.ticker}
@@ -1351,7 +1483,9 @@ function TabButton({
       disabled={disabled}
       className={cn(
         '-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2 font-semibold text-xs transition-colors',
-        active ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground',
+        active
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
         disabled && 'cursor-not-allowed opacity-60 hover:text-muted-foreground'
       )}
     >

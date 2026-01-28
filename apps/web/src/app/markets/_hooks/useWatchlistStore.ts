@@ -20,7 +20,8 @@ export function useWatchlistStore() {
       favorites,
       toggleFavorite: (ticker: string) =>
         toggleFavoriteKey({ kind: 'perp', id: ticker }),
-      isFavorite: (ticker: string) => isFavoriteKey({ kind: 'perp', id: ticker }),
+      isFavorite: (ticker: string) =>
+        isFavoriteKey({ kind: 'perp', id: ticker }),
       clear,
     }),
     [favorites, toggleFavoriteKey, isFavoriteKey, clear]
