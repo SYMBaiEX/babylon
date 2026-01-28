@@ -209,6 +209,9 @@ export class MultiStepExecutor {
 
     // Main iteration loop
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
+      const iterationStartTime = Date.now();
+      const iterationTimings: Record<string, number> = {};
+
       logger.info(
         `[MultiStep] Iteration ${iteration}/${this.maxIterations}`,
         { agentUserId, actionsCompleted: trace.length },
@@ -225,11 +228,14 @@ export class MultiStepExecutor {
         : enabledFeatures;
 
       // Gather fresh context (state refreshes after each action)
+      const contextStartTime = Date.now();
       const context = await this.gatherContext(
         agentUserId,
         effectiveFeatures,
         isNpc
       );
+      iterationTimings.gatherContext = Date.now() - contextStartTime;
+
       const actionability = this.getActionabilitySummary(context);
 
       // Build decision prompt (systemPrompt passed separately to LLM system role)
@@ -248,17 +254,20 @@ export class MultiStepExecutor {
       });
 
       // Get LLM decision
+      const llmStartTime = Date.now();
       const decisionResult = await this.getDecision(
         prompt,
         runtime,
         iteration,
         systemPrompt
       );
+      iterationTimings.llmDecision = Date.now() - llmStartTime;
 
       if (!decisionResult) {
+        iterationTimings.total = Date.now() - iterationStartTime;
         logger.warn(
           `[MultiStep] Failed to parse decision at iteration ${iteration}, finishing`,
-          undefined,
+          { iterationTimings },
           'MultiStepExecutor'
         );
         break;
@@ -271,28 +280,31 @@ export class MultiStepExecutor {
         {
           thought: decision.thought.substring(0, 100),
           isFinish: decision.isFinish,
+          llmTimeMs: iterationTimings.llmDecision,
         },
         'MultiStepExecutor'
       );
 
       // Check if we should finish
       if (decision.isFinish || !decision.action) {
+        iterationTimings.total = Date.now() - iterationStartTime;
         if (trace.length === 0 && actionability.hasAny) {
           logger.warn(
             `[MultiStep] Finished without actions despite actionable context`,
-            { agentUserId, actionability },
+            { agentUserId, actionability, iterationTimings },
             'MultiStepExecutor'
           );
         }
         logger.info(
           `[MultiStep] Agent decided to finish at iteration ${iteration}`,
-          { thought: decision.thought },
+          { thought: decision.thought, iterationTimings },
           'MultiStepExecutor'
         );
         break;
       }
 
       // Execute the chosen action with parameters (pass effectiveFeatures for enforcement)
+      const actionStartTime = Date.now();
       const actionResult = await this.executeAction(
         agentUserId,
         decision.action,
@@ -302,8 +314,23 @@ export class MultiStepExecutor {
         isNpc,
         { prompt, completion: rawResponse, thought: decision.thought }
       );
+      iterationTimings.actionExecution = Date.now() - actionStartTime;
+      iterationTimings.total = Date.now() - iterationStartTime;
 
       trace.push(actionResult);
+
+      // Log iteration timing summary - warn if iteration took more than 30s
+      const iterLogLevel = iterationTimings.total > 30000 ? 'warn' : 'info';
+      logger[iterLogLevel](
+        `[MultiStep] Iteration ${iteration} completed in ${iterationTimings.total}ms`,
+        {
+          agentUserId,
+          action: decision.action,
+          actionSuccess: actionResult.success,
+          timings: iterationTimings,
+        },
+        'MultiStepExecutor'
+      );
 
       // Small delay between iterations (reduced since no double LLM calls)
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -335,11 +362,15 @@ export class MultiStepExecutor {
     enabledFeatures: string[],
     isNpc: boolean
   ): Promise<AgentTickContext> {
+    const contextStartTime = Date.now();
+    const timings: Record<string, number> = {};
+
     // Get balance and PnL
     let balance = 0;
     let pnl = 0;
     let creator: { name: string; username?: string } | undefined;
 
+    const balanceStart = Date.now();
     if (isNpc) {
       const [actor] = await db
         .select({ tradingBalance: actorState.tradingBalance })
@@ -385,6 +416,7 @@ export class MultiStepExecutor {
         }
       }
     }
+    timings.balance = Date.now() - balanceStart;
 
     // Only fetch data for enabled features (saves DB queries and tokens)
     const canTrade = enabledFeatures.includes(Features.TRADING);
@@ -393,32 +425,72 @@ export class MultiStepExecutor {
     const canGroupChat = enabledFeatures.includes(Features.GROUP_CHATS);
     const canPost = enabledFeatures.includes(Features.POSTING);
 
-    // Gather context in parallel using utility functions
+    // Gather context in parallel using utility functions with individual timing
+    const parallelStart = Date.now();
     const [
-      predictionMarkets,
-      perpMarkets,
-      agentPositions,
-      recentPosts,
-      pendingCommentRepliesRaw,
-      pendingChatMessagesRaw,
-      agentGroupChats,
-      agentOwnPosts,
+      predictionMarketsResult,
+      perpMarketsResult,
+      agentPositionsResult,
+      recentPostsResult,
+      pendingCommentRepliesResult,
+      pendingChatMessagesResult,
+      agentGroupChatsResult,
+      agentOwnPostsResult,
     ] = await Promise.all([
-      canTrade ? getPredictionMarkets() : Promise.resolve([]),
-      canTrade ? getPerpMarkets() : Promise.resolve([]),
-      getAgentPositions(agentUserId),
+      canTrade
+        ? this.timedOperation('predictionMarkets', () => getPredictionMarkets())
+        : Promise.resolve({ data: [], duration: 0 }),
+      canTrade
+        ? this.timedOperation('perpMarkets', () => getPerpMarkets())
+        : Promise.resolve({ data: [], duration: 0 }),
+      this.timedOperation('agentPositions', () =>
+        getAgentPositions(agentUserId)
+      ),
       canComment || canRespondDMs
-        ? getRecentPosts(agentUserId)
-        : Promise.resolve([]),
+        ? this.timedOperation('recentPosts', () => getRecentPosts(agentUserId))
+        : Promise.resolve({ data: [], duration: 0 }),
       canComment
-        ? gatherPendingCommentReplies(agentUserId)
-        : Promise.resolve([]),
+        ? this.timedOperation('pendingCommentReplies', () =>
+            gatherPendingCommentReplies(agentUserId)
+          )
+        : Promise.resolve({ data: [], duration: 0 }),
       canRespondDMs || canGroupChat
-        ? gatherPendingChatMessages(agentUserId)
-        : Promise.resolve([]),
-      canGroupChat ? getAgentGroupChats(agentUserId) : Promise.resolve([]),
-      canPost ? getAgentOwnPosts(agentUserId) : Promise.resolve([]),
+        ? this.timedOperation('pendingChatMessages', () =>
+            gatherPendingChatMessages(agentUserId)
+          )
+        : Promise.resolve({ data: [], duration: 0 }),
+      canGroupChat
+        ? this.timedOperation('agentGroupChats', () =>
+            getAgentGroupChats(agentUserId)
+          )
+        : Promise.resolve({ data: [], duration: 0 }),
+      canPost
+        ? this.timedOperation('agentOwnPosts', () =>
+            getAgentOwnPosts(agentUserId)
+          )
+        : Promise.resolve({ data: [], duration: 0 }),
     ]);
+    timings.parallelTotal = Date.now() - parallelStart;
+
+    // Extract data and individual timings
+    const predictionMarkets = predictionMarketsResult.data;
+    const perpMarkets = perpMarketsResult.data;
+    const agentPositions = agentPositionsResult.data;
+    const recentPosts = recentPostsResult.data;
+    const pendingCommentRepliesRaw = pendingCommentRepliesResult.data;
+    const pendingChatMessagesRaw = pendingChatMessagesResult.data;
+    const agentGroupChats = agentGroupChatsResult.data;
+    const agentOwnPosts = agentOwnPostsResult.data;
+
+    // Collect individual operation timings
+    timings.predictionMarkets = predictionMarketsResult.duration;
+    timings.perpMarkets = perpMarketsResult.duration;
+    timings.agentPositions = agentPositionsResult.duration;
+    timings.recentPosts = recentPostsResult.duration;
+    timings.pendingCommentReplies = pendingCommentRepliesResult.duration;
+    timings.pendingChatMessages = pendingChatMessagesResult.duration;
+    timings.agentGroupChats = agentGroupChatsResult.duration;
+    timings.agentOwnPosts = agentOwnPostsResult.duration;
 
     // Filter chat messages based on DMs vs group chats feature
     const pendingChatMessages = pendingChatMessagesRaw.filter((m) =>
@@ -429,6 +501,31 @@ export class MultiStepExecutor {
     const diversityInstructions =
       topicDiversityService.getDiversityInstructions(agentUserId);
     const assignment = topicDiversityService.getAgentAssignment(agentUserId);
+
+    timings.total = Date.now() - contextStartTime;
+
+    // Log timing summary - warn if total exceeds 5 seconds
+    const logLevel = timings.total > 5000 ? 'warn' : 'debug';
+    logger[logLevel](
+      `[MultiStep] Context gathered in ${timings.total}ms`,
+      {
+        agentUserId,
+        timings,
+        counts: {
+          predictionMarkets: predictionMarkets.length,
+          perpMarkets: perpMarkets.length,
+          positions:
+            agentPositions.predictions.length + agentPositions.perps.length,
+          recentPosts: recentPosts.length,
+          pendingCommentReplies: pendingCommentRepliesRaw.length,
+          pendingChatMessages: pendingChatMessages.length,
+          pendingChatMessagesRaw: pendingChatMessagesRaw.length,
+          groupChats: agentGroupChats.length,
+          ownPosts: agentOwnPosts.length,
+        },
+      },
+      'MultiStepExecutor'
+    );
 
     return {
       balance,
@@ -450,6 +547,18 @@ export class MultiStepExecutor {
       agentOwnPosts,
       creator,
     };
+  }
+
+  /**
+   * Helper to time an async operation
+   */
+  private async timedOperation<T>(
+    _name: string,
+    operation: () => Promise<T>
+  ): Promise<{ data: T; duration: number }> {
+    const start = Date.now();
+    const data = await operation();
+    return { data, duration: Date.now() - start };
   }
 
   private getActionabilitySummary(context: AgentTickContext): {
