@@ -25,6 +25,10 @@ export {
   getDuplicateStats,
 } from './duplicate-detector';
 export {
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
+} from './environment';
+export {
   getClientIp,
   getHashedClientIp,
   hashIpAddress,

@@ -267,10 +267,13 @@ export {
   // Token counter utilities (moved from @babylon/shared)
   countTokens,
   countTokensSync,
+  // Deployment environment detection
+  type DeploymentEnvironment,
   generateApiKey,
   generateTestApiKey,
   getApiKeyCacheStats,
   getClientIp,
+  getDeploymentEnvironment,
   getHashedClientIp,
   getModelTokenLimit,
   getSafeContextLimit,
