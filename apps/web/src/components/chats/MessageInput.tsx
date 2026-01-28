@@ -2,7 +2,7 @@
 
 import { cn } from '@babylon/shared';
 import { Send } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
@@ -22,57 +22,6 @@ function isAtValidMentionPosition(text: string, atIndex: number): boolean {
   if (atIndex === 0) return true;
   const charBefore = text[atIndex - 1];
   return /\s/.test(charBefore || '');
-}
-
-/**
- * Renders text with @mentions highlighted as styled chips.
- * Only highlights mentions that are in the validUsernames set.
- */
-function HighlightedText({
-  text,
-  validUsernames,
-}: {
-  text: string;
-  validUsernames: Set<string>;
-}) {
-  const parts: React.ReactNode[] = [];
-  const mentionRegex = /(@[A-Za-z0-9_.-]+)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null = null;
-
-  while ((match = mentionRegex.exec(text)) !== null) {
-    // Add text before the mention
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-
-    const mention = match[0];
-    const handle = mention.slice(1).toLowerCase();
-
-    // Only highlight if it's a valid mention handle
-    if (validUsernames.has(handle)) {
-      parts.push(
-        <mark
-          key={`${match.index}-${mention}`}
-          className="rounded-sm bg-primary/20 text-primary"
-          style={{ padding: 0, margin: 0 }}
-        >
-          {mention}
-        </mark>
-      );
-    } else {
-      parts.push(mention);
-    }
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return <>{parts}</>;
 }
 
 export interface MessageInputProps {
@@ -124,18 +73,6 @@ export function MessageInput({
     getSelectedAgent,
     setSelectedIndex,
   } = useMentionAutocomplete(mentionableMembers || []);
-
-  // Set of valid mention handles for highlighting (lowercase)
-  const validMentionHandles = useMemo(() => {
-    if (!mentionableMembers) return new Set<string>();
-    const set = new Set<string>();
-    for (const member of mentionableMembers) {
-      if (member.username) {
-        set.add(member.username.toLowerCase());
-      }
-    }
-    return set;
-  }, [mentionableMembers]);
 
   // Resize textarea based on content
   const resizeTextarea = useCallback(() => {
@@ -305,73 +242,44 @@ export function MessageInput({
         />
       )}
 
-      <div className="flex items-end gap-2 md:gap-3">
-        {/* Textarea with optional highlight overlay */}
-        {mentionsEnabled ? (
-          <div className="relative min-h-[44px] flex-1">
-            {/* Highlight overlay - renders mentions with styling */}
-            <div
-              className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm',
-                'text-foreground'
-              )}
-              aria-hidden="true"
-            >
-              <HighlightedText
-                text={value}
-                validUsernames={validMentionHandles}
-              />
-            </div>
-            {/* Actual textarea - text is transparent, caret visible */}
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              aria-label="Message input, use @ to mention members"
-              placeholder={placeholderText}
-              disabled={sending || disabled}
-              rows={1}
-              spellCheck={false}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              className={cn(
-                'relative z-10 max-h-40 min-h-[44px] w-full resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
-                'message-input bg-sidebar-accent/50',
-                'text-transparent caret-foreground placeholder:text-muted-foreground',
-                'outline-none focus:ring-2 focus:ring-primary/50',
-                'disabled:cursor-not-allowed disabled:opacity-50'
-              )}
-            />
-          </div>
-        ) : (
-          /* Simple textarea without highlight overlay */
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholderText}
-            disabled={sending || disabled}
-            rows={1}
-            className={cn(
-              'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
-              'message-input bg-sidebar-accent/50',
-              'text-foreground placeholder:text-muted-foreground',
-              'outline-none focus:ring-2 focus:ring-primary/50',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          />
-        )}
+      {/* Input container with send button inside */}
+      <div className="relative">
+        {/* Simple textarea - no highlight overlay needed, mentions work without it */}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          aria-label={
+            mentionsEnabled
+              ? 'Message input, use @ to mention members'
+              : undefined
+          }
+          placeholder={placeholderText}
+          disabled={sending || disabled}
+          rows={1}
+          spellCheck={mentionsEnabled ? false : undefined}
+          autoComplete={mentionsEnabled ? 'off' : undefined}
+          autoCorrect={mentionsEnabled ? 'off' : undefined}
+          autoCapitalize={mentionsEnabled ? 'off' : undefined}
+          className={cn(
+            'max-h-40 min-h-[56px] w-full resize-none overflow-y-auto rounded-xl px-4 py-4 pr-14 text-sm',
+            'message-input bg-sidebar-accent/50',
+            'text-foreground placeholder:text-muted-foreground',
+            'outline-none focus:ring-2 focus:ring-primary/50',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        />
+
+        {/* Send button - positioned inside input, vertically centered */}
         <button
           type="button"
           onClick={onSend}
           disabled={!value.trim() || sending || disabled}
           className={cn(
-            'flex h-[44px] items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
-            'chat-button bg-sidebar-accent/50 text-primary',
-            'transition-all duration-300',
+            '-translate-y-1/2 absolute top-1/2 right-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg',
+            'text-primary transition-all duration-200',
+            'hover:bg-muted',
             'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'
           )}
         >
