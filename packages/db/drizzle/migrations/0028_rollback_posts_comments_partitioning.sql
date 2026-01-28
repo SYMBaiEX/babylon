@@ -31,10 +31,12 @@ BEGIN
         AND c.relkind = 'p'  -- 'p' = partitioned table
     ) INTO partitioned_is_primary;
 
-    -- Check if unpartitioned backup tables exist
+    -- Check if unpartitioned backup tables exist (schema-qualified to avoid false positives)
     SELECT EXISTS(
-        SELECT 1 FROM pg_class 
-        WHERE relname = 'Post_unpartitioned'
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relname = 'Post_unpartitioned'
+        AND n.nspname = current_schema()
     ) INTO unpartitioned_exists;
 
     IF partitioned_is_primary AND NOT unpartitioned_exists THEN
@@ -67,19 +69,28 @@ DROP FUNCTION IF EXISTS create_future_partitions();
 -- Step 2: Restore original tables if swap occurred
 -- ============================================================================
 
--- If the old tables were renamed during migration, restore them:
--- These are commented out because they should only run if swap occurred.
--- Uncomment if needed:
-
--- DO $$
--- BEGIN
---     IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Post_unpartitioned') THEN
---         ALTER TABLE "Post_unpartitioned" RENAME TO "Post";
---         RAISE NOTICE 'Restored Post from Post_unpartitioned';
---     END IF;
---     
---     IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Comment_unpartitioned') THEN
---         ALTER TABLE "Comment_unpartitioned" RENAME TO "Comment";
---         RAISE NOTICE 'Restored Comment from Comment_unpartitioned';
---     END IF;
--- END $$;
+-- IMPORTANT: If the table swap was completed during forward migration, you need
+-- to restore the original unpartitioned tables. This is a MANUAL process:
+--
+-- PREREQUISITE: The partitioned tables must be dropped FIRST (done in Step 1 above).
+-- If "Post" or "Comment" still exist as partitioned tables, RENAME TO will fail.
+--
+-- BACKUP YOUR DATA before running these commands!
+--
+-- Manual restoration steps (run in order):
+--
+-- 1. Verify partitioned tables were dropped:
+--    SELECT relname, relkind FROM pg_class WHERE relname IN ('Post', 'Comment');
+--    -- Should return empty or show relkind='r' (regular table), NOT 'p' (partitioned)
+--
+-- 2. If "Post" or "Comment" still exist (as partitioned), drop or rename them:
+--    ALTER TABLE "Post" RENAME TO "Post_partitioned_backup";
+--    ALTER TABLE "Comment" RENAME TO "Comment_partitioned_backup";
+--
+-- 3. Restore unpartitioned tables:
+--    ALTER TABLE "Post_unpartitioned" RENAME TO "Post";
+--    ALTER TABLE "Comment_unpartitioned" RENAME TO "Comment";
+--
+-- 4. Verify restoration:
+--    SELECT COUNT(*) FROM "Post";
+--    SELECT COUNT(*) FROM "Comment";

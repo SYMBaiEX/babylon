@@ -559,6 +559,13 @@ export default function CommentPage({ params }: CommentPageProps) {
                       router.push('/feed');
                     }
                   }}
+                  aria-label={
+                    parentChain.length > 0
+                      ? 'Go back to parent comment'
+                      : post
+                        ? 'Go back to post'
+                        : 'Go back to feed'
+                  }
                   className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ArrowLeft size={20} />
@@ -584,7 +591,7 @@ export default function CommentPage({ params }: CommentPageProps) {
                     <ParentCommentCard
                       key={parent.id}
                       parent={parent}
-                      showConnector={index < parentChain.length}
+                      showConnector={index < parentChain.length - 1}
                     />
                   ))}
                 </div>
@@ -743,16 +750,20 @@ export default function CommentPage({ params }: CommentPageProps) {
                     description="Be the first to reply!"
                     className="py-12"
                   />
-                ) : (
+                ) : post ? (
                   <div>
                     {replies.map((reply) => (
                       <ReplyCard
                         key={reply.id}
                         reply={reply}
-                        postId={post?.id || ''}
+                        postId={post.id}
                         onReplySubmit={loadComment}
                       />
                     ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    Unable to load replies - post not found
                   </div>
                 )}
               </div>

@@ -34,6 +34,10 @@ LEFT JOIN (
     WHERE "deletedAt" IS NULL
     GROUP BY "postId"
 ) c ON p.id = c."postId"
+-- NOTE: Share table intentionally has no soft-delete (deletedAt) column.
+-- Shares are permanent records of user actions - once shared, it remains in history.
+-- This is a business decision: shares represent historical engagement metrics.
+-- If soft-delete is added to Share in the future, update this query to filter.
 LEFT JOIN (
     SELECT "postId", COUNT(*) AS share_count
     FROM "Share"

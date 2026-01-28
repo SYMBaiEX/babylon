@@ -273,6 +273,37 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
 
+/**
+ * Engagement thresholds for comment preview visibility
+ * These control when and how many comment previews are shown based on post engagement
+ */
+const ENGAGEMENT_THRESHOLDS = {
+  // Comment count thresholds
+  COMMENTS_HIGH: 50, // Show 2 previews, always visible
+  COMMENTS_MEDIUM: 20, // Show 1 preview, always visible
+  COMMENTS_LOW: 10, // Show 1 preview, 85% visibility
+  COMMENTS_MINIMAL: 5, // Show 1 preview, 65% visibility
+  COMMENTS_VERY_LOW: 2, // Show 1 preview, 40-60% visibility
+
+  // Like count thresholds (alternative trigger)
+  LIKES_MEDIUM: 30, // Show 1 preview, always visible
+  LIKES_LOW: 15, // Show 1 preview, 85% visibility
+  LIKES_MINIMAL: 8, // Show 1 preview, 65% visibility
+  LIKES_VERY_LOW: 3, // Show 1 preview, 40-60% visibility
+
+  // Top comment like thresholds
+  TOP_COMMENT_LIKES_BOOST: 2, // Boosts visibility probability
+
+  // Visibility probabilities (out of 100)
+  VISIBILITY_ALWAYS: 100,
+  VISIBILITY_HIGH: 85,
+  VISIBILITY_MEDIUM: 65,
+  VISIBILITY_LOW_WITH_LIKES: 60,
+  VISIBILITY_LOW_NO_LIKES: 40,
+  VISIBILITY_MINIMAL_WITH_LIKES: 50,
+  VISIBILITY_MINIMAL_NO_LIKES: 25,
+} as const;
+
 // Type for posts with included original post relation
 type PostWithOriginal = Post & {
   originalPost?: {
@@ -976,24 +1007,44 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let showPreview = true;
     let previewLimit = 1;
 
-    if (postCommentCount >= 50) {
+    if (postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_HIGH) {
       previewLimit = 2;
       showPreview = true;
-    } else if (postCommentCount >= 20 || postLikeCount >= 30) {
+    } else if (
+      postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_MEDIUM ||
+      postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_MEDIUM
+    ) {
       previewLimit = 1;
       showPreview = true;
-    } else if (postCommentCount >= 10 || postLikeCount >= 15) {
+    } else if (
+      postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_LOW ||
+      postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_LOW
+    ) {
       previewLimit = 1;
-      showPreview = hashValue < 85;
-    } else if (postCommentCount >= 5 || postLikeCount >= 8) {
+      showPreview = hashValue < ENGAGEMENT_THRESHOLDS.VISIBILITY_HIGH;
+    } else if (
+      postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_MINIMAL ||
+      postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_MINIMAL
+    ) {
       previewLimit = 1;
-      showPreview = hashValue < 65;
-    } else if (postCommentCount >= 2 || postLikeCount >= 3) {
+      showPreview = hashValue < ENGAGEMENT_THRESHOLDS.VISIBILITY_MEDIUM;
+    } else if (
+      postCommentCount >= ENGAGEMENT_THRESHOLDS.COMMENTS_VERY_LOW ||
+      postLikeCount >= ENGAGEMENT_THRESHOLDS.LIKES_VERY_LOW
+    ) {
       previewLimit = 1;
-      showPreview = hashValue < (topCommentLikes > 0 ? 60 : 40);
+      showPreview =
+        hashValue <
+        (topCommentLikes > 0
+          ? ENGAGEMENT_THRESHOLDS.VISIBILITY_LOW_WITH_LIKES
+          : ENGAGEMENT_THRESHOLDS.VISIBILITY_LOW_NO_LIKES);
     } else {
       previewLimit = 1;
-      showPreview = hashValue < (topCommentLikes >= 2 ? 50 : 25);
+      showPreview =
+        hashValue <
+        (topCommentLikes >= ENGAGEMENT_THRESHOLDS.TOP_COMMENT_LIKES_BOOST
+          ? ENGAGEMENT_THRESHOLDS.VISIBILITY_MINIMAL_WITH_LIKES
+          : ENGAGEMENT_THRESHOLDS.VISIBILITY_MINIMAL_NO_LIKES);
     }
 
     if (!showPreview) continue;

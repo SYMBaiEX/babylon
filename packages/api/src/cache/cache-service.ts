@@ -409,8 +409,20 @@ export async function getCacheOrFetch<T>(
       valueResult !== undefined &&
       valueResult.trim() !== ''
     ) {
-      cached = JSON.parse(valueResult) as T;
-      remainingTtl = ttlResult > 0 ? ttlResult : 0;
+      try {
+        cached = JSON.parse(valueResult) as T;
+        remainingTtl = ttlResult > 0 ? ttlResult : 0;
+      } catch (parseError) {
+        // Malformed cache entry - treat as cache miss and remove bad key
+        logger.warn(
+          'Failed to parse cached value, removing corrupted entry',
+          { key: fullKey, error: parseError },
+          'CacheService'
+        );
+        void client.del(fullKey);
+        cached = null;
+        remainingTtl = 0;
+      }
     }
   } else {
     // In-memory fallback
@@ -776,23 +788,6 @@ export function getCacheStats() {
  * impact application performance.
  */
 export async function clearAllCache(): Promise<void> {
-  logger.warn('Clearing all cache', undefined, 'CacheService');
-
-  // Clear memory cache
-  memoryCache.clear();
-
-  // Clear Redis cache (if available and safe to do)
-  if (isRedisAvailable()) {
-    // Only clear our namespaced keys, not the entire Redis instance
-    logger.warn(
-      'Redis cache clear requested but not implemented for safety',
-      undefined,
-      'CacheService'
-    );
-  }
-}
-
-{
   logger.warn('Clearing all cache', undefined, 'CacheService');
 
   // Clear memory cache
