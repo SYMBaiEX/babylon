@@ -46,62 +46,8 @@ CREATE TABLE IF NOT EXISTS "Post_partitioned" (
     UNIQUE (id)  -- Enables ORM relationships and FK references by id alone
 ) PARTITION BY RANGE (timestamp);
 
--- Create partitions for historical and future data
--- Historical partitions for pre-2024 data (prevents default partition hotspot)
-CREATE TABLE IF NOT EXISTS "Post_2023" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
-CREATE TABLE IF NOT EXISTS "Post_pre_2023" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2000-01-01') TO ('2023-01-01');
-
--- 2024 partitions (monthly granularity for recent data)
-CREATE TABLE IF NOT EXISTS "Post_2024_01" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_02" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_03" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-03-01') TO ('2024-04-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_04" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-04-01') TO ('2024-05-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_05" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-05-01') TO ('2024-06-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_06" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-06-01') TO ('2024-07-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_07" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-07-01') TO ('2024-08-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_08" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-08-01') TO ('2024-09-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_09" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-09-01') TO ('2024-10-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_10" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-10-01') TO ('2024-11-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_11" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-11-01') TO ('2024-12-01');
-CREATE TABLE IF NOT EXISTS "Post_2024_12" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
-
--- 2025 partitions
-CREATE TABLE IF NOT EXISTS "Post_2025_01" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_02" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_03" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-03-01') TO ('2025-04-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_04" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-04-01') TO ('2025-05-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_05" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-05-01') TO ('2025-06-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_06" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-06-01') TO ('2025-07-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_07" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-07-01') TO ('2025-08-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_08" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-08-01') TO ('2025-09-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_09" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-09-01') TO ('2025-10-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_10" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
-CREATE TABLE IF NOT EXISTS "Post_2025_11" PARTITION OF "Post_partitioned"
-    FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
+-- Create partitions starting from Dec 2025 (when data began)
+-- Note: No pre-Dec-2025 partitions needed as no historical data exists
 CREATE TABLE IF NOT EXISTS "Post_2025_12" PARTITION OF "Post_partitioned"
     FOR VALUES FROM ('2025-12-01') TO ('2026-01-01');
 
@@ -168,62 +114,7 @@ CREATE TABLE IF NOT EXISTS "Comment_partitioned" (
     UNIQUE (id)  -- Enables ORM relationships and FK references by id alone
 ) PARTITION BY RANGE ("createdAt");
 
--- Historical partitions for pre-2024 data
-CREATE TABLE IF NOT EXISTS "Comment_2023" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
-CREATE TABLE IF NOT EXISTS "Comment_pre_2023" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2000-01-01') TO ('2023-01-01');
-
--- Create Comment partitions (similar to Post)
--- 2024 partitions
-CREATE TABLE IF NOT EXISTS "Comment_2024_01" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_02" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_03" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-03-01') TO ('2024-04-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_04" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-04-01') TO ('2024-05-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_05" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-05-01') TO ('2024-06-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_06" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-06-01') TO ('2024-07-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_07" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-07-01') TO ('2024-08-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_08" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-08-01') TO ('2024-09-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_09" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-09-01') TO ('2024-10-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_10" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-10-01') TO ('2024-11-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_11" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-11-01') TO ('2024-12-01');
-CREATE TABLE IF NOT EXISTS "Comment_2024_12" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
-
--- 2025 partitions
-CREATE TABLE IF NOT EXISTS "Comment_2025_01" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_02" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_03" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-03-01') TO ('2025-04-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_04" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-04-01') TO ('2025-05-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_05" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-05-01') TO ('2025-06-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_06" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-06-01') TO ('2025-07-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_07" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-07-01') TO ('2025-08-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_08" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-08-01') TO ('2025-09-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_09" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-09-01') TO ('2025-10-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_10" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
-CREATE TABLE IF NOT EXISTS "Comment_2025_11" PARTITION OF "Comment_partitioned"
-    FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
+-- Create Comment partitions starting from Dec 2025 (when data began)
 CREATE TABLE IF NOT EXISTS "Comment_2025_12" PARTITION OF "Comment_partitioned"
     FOR VALUES FROM ('2025-12-01') TO ('2026-01-01');
 

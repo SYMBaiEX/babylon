@@ -446,79 +446,28 @@ async function fetchPostMetadataConsolidated(postIds: string[]): Promise<{
   const shareMap = new Map<string, number>();
   const commentPreviewMap = new Map<string, CommentPreviewRow[]>();
 
-  // Runtime validation for SQL result rows
-  // Validates and normalizes raw database results before processing
-  function validateResultRow(row: unknown): {
-    valid: boolean;
-    normalized: {
-      result_type: string;
-      post_id: string;
-      like_count: number;
-      comment_count: number;
-      share_count: number;
-      comment_id: string | null;
-      comment_content: string | null;
-      comment_created_at: Date | null;
-      comment_author_id: string | null;
-      comment_user_name: string | null;
-      comment_user_username: string | null;
-      comment_user_avatar: string | null;
-      comment_like_count: number | null;
-      comment_row_num: number | null;
-    } | null;
-  } {
-    if (!row || typeof row !== 'object') {
-      return { valid: false, normalized: null };
-    }
-
-    const r = row as Record<string, unknown>;
-
-    // Required fields validation
-    if (typeof r.result_type !== 'string' || typeof r.post_id !== 'string') {
-      return { valid: false, normalized: null };
-    }
-
-    // Normalize and coerce values to expected types
-    return {
-      valid: true,
-      normalized: {
-        result_type: r.result_type,
-        post_id: r.post_id,
-        like_count: Number(r.like_count ?? 0),
-        comment_count: Number(r.comment_count ?? 0),
-        share_count: Number(r.share_count ?? 0),
-        comment_id: r.comment_id != null ? String(r.comment_id) : null,
-        comment_content: r.comment_content != null ? String(r.comment_content) : null,
-        comment_created_at: r.comment_created_at instanceof Date 
-          ? r.comment_created_at 
-          : r.comment_created_at != null 
-            ? new Date(r.comment_created_at as string | number) 
-            : null,
-        comment_author_id: r.comment_author_id != null ? String(r.comment_author_id) : null,
-        comment_user_name: r.comment_user_name != null ? String(r.comment_user_name) : null,
-        comment_user_username: r.comment_user_username != null ? String(r.comment_user_username) : null,
-        comment_user_avatar: r.comment_user_avatar != null ? String(r.comment_user_avatar) : null,
-        comment_like_count: r.comment_like_count != null ? Number(r.comment_like_count) : null,
-        comment_row_num: r.comment_row_num != null ? Number(r.comment_row_num) : null,
-      },
-    };
+  interface RawResultRow {
+    result_type: string;
+    post_id: string;
+    like_count: number;
+    comment_count: number;
+    share_count: number;
+    comment_id: string | null;
+    comment_content: string | null;
+    comment_created_at: Date | null;
+    comment_author_id: string | null;
+    comment_user_name: string | null;
+    comment_user_username: string | null;
+    comment_user_avatar: string | null;
+    comment_like_count: number | null;
+    comment_row_num: number | null;
   }
 
-  // Validate and process each row
-  const rawRows = result as unknown[];
-  for (const rawRow of rawRows) {
-    const { valid, normalized: row } = validateResultRow(rawRow);
-    
-    if (!valid || !row) {
-      // Skip invalid rows - they may be from schema changes or data corruption
-      logger.warn('Invalid SQL result row skipped', { rawRow }, 'PostsAPI');
-      continue;
-    }
-
+  for (const row of result as unknown as RawResultRow[]) {
     if (row.result_type === 'metadata') {
-      reactionMap.set(row.post_id, row.like_count);
-      commentMap.set(row.post_id, row.comment_count);
-      shareMap.set(row.post_id, row.share_count);
+      reactionMap.set(row.post_id, Number(row.like_count));
+      commentMap.set(row.post_id, Number(row.comment_count));
+      shareMap.set(row.post_id, Number(row.share_count));
     } else if (row.result_type === 'comment' && row.comment_id) {
       const previews = commentPreviewMap.get(row.post_id) ?? [];
       previews.push({
