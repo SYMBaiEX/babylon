@@ -353,13 +353,6 @@ export default function TeamChatPage() {
     setRightSidebarOpen((prev) => !prev);
   }, []);
 
-  // Handle sidebar "Add Agent" - switch to Agents tab and show create form
-  const handleAddAgent = useCallback(() => {
-    setActiveTab('agents');
-    setSelectedAgentDetail(null);
-    setShowCreateAgent(true);
-  }, []);
-
   // Fetch agents when switching to Agents tab or filter changes
   useEffect(() => {
     if (activeTab === 'agents' && authenticated) {
@@ -585,14 +578,23 @@ export default function TeamChatPage() {
 
             <Separator />
 
-            {/* Team Members Header */}
-            <div className="p-4">
-              <h3 className="font-semibold text-foreground text-sm">
-                Team Members
-              </h3>
+            {/* Agents Header */}
+            <div className="flex items-center justify-between p-3">
+              <h3 className="font-semibold text-foreground text-sm">Agents</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('agents');
+                  setSelectedAgentDetail(null);
+                  setShowCreateAgent(true);
+                  setShowMemberDrawer(false);
+                }}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Add agent"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
-
-            <Separator />
 
             {/* Member list - extracted component */}
             <MemberList
@@ -603,7 +605,6 @@ export default function TeamChatPage() {
               onStopAgent={stopAgent}
               onViewProfile={handleViewProfile}
               onViewSettings={handleViewSettings}
-              onAddAgent={handleAddAgent}
             />
           </div>
         </>
@@ -669,12 +670,24 @@ export default function TeamChatPage() {
 
               <Separator />
 
-              {/* Team Members Header */}
-              <div className="p-4">
-                <h3 className="font-semibold text-foreground">Team Members</h3>
+              {/* Agents Header */}
+              <div className="flex items-center justify-between p-3">
+                <h3 className="font-semibold text-foreground text-sm">
+                  Agents
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('agents');
+                    setSelectedAgentDetail(null);
+                    setShowCreateAgent(true);
+                  }}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Add agent"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
-
-              <Separator />
 
               {/* Member list - extracted component */}
               <MemberList
@@ -684,7 +697,6 @@ export default function TeamChatPage() {
                 onStopAgent={stopAgent}
                 onViewProfile={handleViewProfile}
                 onViewSettings={handleViewSettings}
-                onAddAgent={handleAddAgent}
               />
             </div>
 

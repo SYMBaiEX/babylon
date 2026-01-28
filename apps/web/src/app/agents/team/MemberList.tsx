@@ -1,10 +1,9 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { MoreVertical, Plus, Settings, Square, User } from 'lucide-react';
+import { MoreVertical, Settings, Square, User } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,8 +42,6 @@ interface MemberListProps {
   onViewProfile?: (agentId: string) => void;
   /** Called when "Settings" is clicked */
   onViewSettings?: (agentId: string) => void;
-  /** Called when "Add Agent" is clicked */
-  onAddAgent?: () => void;
 }
 
 /**
@@ -62,21 +59,14 @@ export function MemberList({
   onStopAgent,
   onViewProfile,
   onViewSettings,
-  onAddAgent,
 }: MemberListProps) {
   // Track which dropdown is open (by agent id)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto">
       {/* Agents */}
       <div>
-        <p className="mb-2 font-medium text-muted-foreground text-xs uppercase">
-          Agents ({teamChat?.agentCount ?? 0})
-          <span className="ml-2 font-normal normal-case opacity-70">
-            · Click to tag
-          </span>
-        </p>
         {teamChat?.agents.length ? (
           <nav role="list" aria-label="Team agents" className="space-y-1">
             {teamChat.agents.map((agent) => {
@@ -195,22 +185,6 @@ export function MemberList({
             })}
           </nav>
         ) : null}
-      </div>
-
-      {/* Add agent button */}
-      <div className="mt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2"
-          onClick={() => {
-            onAddAgent?.();
-            onClose?.();
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Add Agent
-        </Button>
       </div>
     </div>
   );
