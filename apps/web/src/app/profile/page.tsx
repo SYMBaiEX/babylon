@@ -885,7 +885,13 @@ export default function ProfilePage() {
             return postData.type === 'article' ? (
               <ArticleCard key={item.id} post={postData} />
             ) : (
-              <PostCard key={item.id} post={postData} showInteractions />
+              <PostCard
+                key={item.id}
+                post={postData}
+                showInteractions
+                showCommentInputBar={false}
+                onCommentClick={() => router.push(`/post/${item.id}`)}
+              />
             );
           })}
         </div>

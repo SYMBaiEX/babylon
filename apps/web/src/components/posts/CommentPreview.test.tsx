@@ -108,6 +108,7 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
   }
 
   interface RenderDecision {
+    shouldRender: boolean;
     showCommentList: boolean;
     showViewAllLink: boolean;
     showInputBar: boolean;
@@ -116,31 +117,54 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
 
   function getCommentPreviewRenderDecision(
     comments: CommentPreviewData[],
-    totalCommentCount: number
+    totalCommentCount: number,
+    showInputBarProp: boolean = true
   ): RenderDecision {
     // Type-safe: comments is always an array (required prop)
     const hasComments = comments.length > 0;
 
+    // Don't render if no comments and input bar is hidden
+    if (!hasComments && !showInputBarProp) {
+      return {
+        shouldRender: false,
+        showCommentList: false,
+        showViewAllLink: false,
+        showInputBar: false,
+        inputBarMarginTop: false,
+      };
+    }
+
     return {
+      shouldRender: true,
       // Comment list only shown if there are comments - explicit boolean
       showCommentList: !!hasComments,
       // View all link only shown if there are more comments than previewed - explicit boolean
       showViewAllLink: !!hasComments && totalCommentCount > comments.length,
-      // Input bar is ALWAYS shown (this is the new behavior)
-      showInputBar: true,
+      // Input bar shown based on prop
+      showInputBar: showInputBarProp,
       // Input bar has margin-top only when there are comments above it - explicit boolean
       inputBarMarginTop: !!hasComments,
     };
   }
 
   describe('with no comments (empty array)', () => {
-    it('should show input bar but not comment list', () => {
+    it('should show input bar but not comment list (default behavior)', () => {
       const result = getCommentPreviewRenderDecision([], 0);
 
+      expect(result.shouldRender).toBe(true);
       expect(result.showCommentList).toBe(false);
       expect(result.showViewAllLink).toBe(false);
       expect(result.showInputBar).toBe(true);
       expect(result.inputBarMarginTop).toBe(false);
+    });
+
+    it('should not render when no comments and input bar hidden', () => {
+      // Feed pages hide input bar - component returns null when no comments
+      const result = getCommentPreviewRenderDecision([], 0, false);
+
+      expect(result.shouldRender).toBe(false);
+      expect(result.showCommentList).toBe(false);
+      expect(result.showInputBar).toBe(false);
     });
 
     it('should handle empty array correctly (PostCard always passes [])', () => {
@@ -159,12 +183,22 @@ describe('CommentPreview - Conditional Rendering Logic', () => {
       { id: '2', content: 'Second comment' },
     ];
 
-    it('should show comment list and input bar', () => {
+    it('should show comment list and input bar (default)', () => {
       const result = getCommentPreviewRenderDecision(mockComments, 2);
 
+      expect(result.shouldRender).toBe(true);
       expect(result.showCommentList).toBe(true);
       expect(result.showInputBar).toBe(true);
       expect(result.inputBarMarginTop).toBe(true);
+    });
+
+    it('should show comments but hide input bar (feed use case)', () => {
+      // Feed pages show comments but hide input bar
+      const result = getCommentPreviewRenderDecision(mockComments, 2, false);
+
+      expect(result.shouldRender).toBe(true);
+      expect(result.showCommentList).toBe(true);
+      expect(result.showInputBar).toBe(false);
     });
 
     it('should show "view all" link when total exceeds previewed count', () => {

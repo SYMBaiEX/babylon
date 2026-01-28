@@ -98,6 +98,7 @@ export interface PostCardProps {
   onCommentClick?: () => void;
   showInteractions?: boolean;
   showCommentPreviews?: boolean;
+  showCommentInputBar?: boolean;
   isDetail?: boolean;
 }
 
@@ -107,6 +108,7 @@ export const PostCard = memo(function PostCard({
   onCommentClick,
   showInteractions = true,
   showCommentPreviews = true,
+  showCommentInputBar = true,
   isDetail = false,
 }: PostCardProps) {
   const router = useRouter();
@@ -542,12 +544,13 @@ export const PostCard = memo(function PostCard({
         </div>
       )}
 
-      {/* Row 4: Comment Section - Shows previews (if any) + "Leave a comment" input on all posts */}
+      {/* Row 4: Comment Section - Shows previews (if any) + optional "Leave a comment" input */}
       {showCommentPreviews && !isDetail && (
         <CommentPreview
           comments={post.commentPreviews ?? []}
           totalCommentCount={post.commentCount ?? 0}
           onViewAllClick={onCommentClick}
+          showInputBar={showCommentInputBar}
         />
       )}
     </article>

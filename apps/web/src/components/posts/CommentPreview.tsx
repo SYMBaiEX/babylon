@@ -18,6 +18,7 @@ interface CommentPreviewProps {
   comments: CommentPreviewData[];
   totalCommentCount: number;
   onViewAllClick?: () => void;
+  showInputBar?: boolean;
   className?: string;
 }
 
@@ -48,27 +49,34 @@ export const CommentPreview = memo(function CommentPreview({
   comments,
   totalCommentCount,
   onViewAllClick,
+  showInputBar = true,
   className,
 }: CommentPreviewProps) {
   // Type-safe check: comments is always an array (required prop)
   const hasComments = comments.length > 0;
 
+  // Don't render anything if no comments and input bar is hidden
+  if (!hasComments && !showInputBar) return null;
+
+  const showViewAll = hasComments && totalCommentCount > comments.length;
+
   return (
-    <div
-      className={cn('mt-3 border-muted border-t pt-3', className)}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className={cn('mt-3', className)} onClick={(e) => e.stopPropagation()}>
       {/* Comment list - only show if there are comments */}
       {hasComments && (
         <div className="space-y-3">
           {comments.map((comment) => (
-            <CommentPreviewItem key={comment.id} comment={comment} />
+            <CommentPreviewItem
+              key={comment.id}
+              comment={comment}
+              onClick={onViewAllClick}
+            />
           ))}
         </div>
       )}
 
       {/* View all comments link - only show if there are more comments than previewed */}
-      {hasComments && totalCommentCount > comments.length && (
+      {showViewAll && (
         <button
           type="button"
           onClick={(e) => {
@@ -81,23 +89,27 @@ export const CommentPreview = memo(function CommentPreview({
         </button>
       )}
 
-      {/* Comment input bar - always shown on all posts */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onViewAllClick?.();
-        }}
-        className={cn(
-          hasComments ? 'mt-3' : '',
-          'w-full rounded-full border border-border/20 bg-muted',
-          'px-4 py-2 text-left text-muted-foreground text-sm',
-          'hover:bg-muted/80',
-          'cursor-text transition-colors'
-        )}
-      >
-        Leave a comment...
-      </button>
+      {/* Line separator - shown under comments/view all when there are comments */}
+      {hasComments && <div className="mt-3 border-muted border-b" />}
+
+      {/* Comment input bar - shown when showInputBar is true */}
+      {showInputBar && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewAllClick?.();
+          }}
+          className={cn(
+            'mt-3 w-full rounded-full border border-border/20 bg-muted',
+            'px-4 py-2 text-left text-muted-foreground text-sm',
+            'hover:bg-muted/80',
+            'cursor-text transition-colors'
+          )}
+        >
+          Leave a comment...
+        </button>
+      )}
     </div>
   );
 });
@@ -107,14 +119,23 @@ export const CommentPreview = memo(function CommentPreview({
  */
 const CommentPreviewItem = memo(function CommentPreviewItem({
   comment,
+  onClick,
 }: {
   comment: CommentPreviewData;
+  onClick?: () => void;
 }) {
   const isNPC = isNpcIdentifier(comment.userId);
   const timeAgo = formatTimeAgo(comment.createdAt);
 
   return (
-    <div className="flex items-start gap-3">
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className="flex w-full cursor-pointer items-start gap-3 text-left transition-colors hover:bg-muted/30"
+    >
       {/* Avatar */}
       <Link
         href={getProfileUrl(comment.userId, comment.userUsername)}
@@ -161,7 +182,7 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
           {comment.content}
         </p>
       </div>
-    </div>
+    </button>
   );
 });
 
