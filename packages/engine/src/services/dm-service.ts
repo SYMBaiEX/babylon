@@ -23,7 +23,7 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
  * Get or create a DM chat between two users.
  *
  * NOTE: This function should NOT be used for agent-owner communication.
- * Agents should communicate with their owners through the Command Center (team chat).
+ * Agents should communicate with their owners through the Agents (team chat).
  *
  * @param userA - First user ID
  * @param userB - Second user ID
@@ -35,7 +35,7 @@ export async function getOrCreateDMChat(
   userB: string
 ): Promise<string> {
   // Check if either user is an agent trying to DM their owner
-  // Agents should use Command Center instead
+  // Agents should use Agents chat instead
   const [userAInfo, userBInfo] = await Promise.all([
     db
       .select({ isAgent: users.isAgent, managedBy: users.managedBy })
@@ -55,12 +55,12 @@ export async function getOrCreateDMChat(
   // Block agent-owner DMs (both directions)
   if (userAData?.isAgent && userAData?.managedBy === userB) {
     throw new Error(
-      'Agent-owner DMs are not allowed - use Command Center instead'
+      'Agent-owner DMs are not allowed - use Agents chat instead'
     );
   }
   if (userBData?.isAgent && userBData?.managedBy === userA) {
     throw new Error(
-      'Agent-owner DMs are not allowed - use Command Center instead'
+      'Agent-owner DMs are not allowed - use Agents chat instead'
     );
   }
 
