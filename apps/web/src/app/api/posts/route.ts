@@ -414,11 +414,14 @@ async function fetchPostMetadataConsolidated(postIds: string[]): Promise<{
       FROM "Comment" c
       INNER JOIN target_posts tp ON c."postId" = tp.post_id
       LEFT JOIN "User" u ON c."authorId" = u.id
+      -- Scope comment likes to only comments from target_posts to avoid full table scan
       LEFT JOIN (
-        SELECT "commentId", COUNT(*) as like_count
-        FROM "Reaction"
-        WHERE "commentId" IS NOT NULL AND type = 'like'
-        GROUP BY "commentId"
+        SELECT r."commentId", COUNT(*) as like_count
+        FROM "Reaction" r
+        INNER JOIN "Comment" c2 ON r."commentId" = c2.id
+        INNER JOIN target_posts tp2 ON c2."postId" = tp2.post_id
+        WHERE r."commentId" IS NOT NULL AND r.type = 'like'
+        GROUP BY r."commentId"
       ) cl ON c.id = cl."commentId"
       WHERE c."parentCommentId" IS NULL
     ),
@@ -515,6 +518,13 @@ async function fetchPostMetadataConsolidated(postIds: string[]): Promise<{
       });
       commentPreviewMap.set(row.post_id, previews);
     }
+  }
+
+  // Sort each post's comment previews by rowNum to ensure correct ordering
+  // (SQL window function order may not be preserved across result set)
+  for (const [postId, previews] of commentPreviewMap) {
+    previews.sort((a, b) => Number(a.rowNum) - Number(b.rowNum));
+    commentPreviewMap.set(postId, previews);
   }
 
   return { reactionMap, commentMap, shareMap, commentPreviewMap };

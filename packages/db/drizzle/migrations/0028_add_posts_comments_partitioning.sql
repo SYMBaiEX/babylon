@@ -206,11 +206,12 @@ $$ LANGUAGE plpgsql;
 -- 
 -- For production deployment:
 -- 1. Create the partitioned tables first (Steps 1-5 above)
--- 2. Run data migration in batches:
---    INSERT INTO "Post_partitioned" SELECT * FROM "Post" WHERE timestamp >= '2024-01-01' AND timestamp < '2024-02-01';
---    -- Repeat for each month's data
+-- 2. Run data migration in batches (data starts Dec 2025):
+--    INSERT INTO "Post_partitioned" SELECT * FROM "Post" WHERE timestamp >= '2025-12-01' AND timestamp < '2026-01-01';
+--    INSERT INTO "Post_partitioned" SELECT * FROM "Post" WHERE timestamp >= '2026-01-01' AND timestamp < '2026-02-01';
+--    -- Repeat for each month's data that exists
 -- 3. Once all data is migrated and verified:
---    ALTER TABLE "Post" RENAME TO "Post_old";
+--    ALTER TABLE "Post" RENAME TO "Post_unpartitioned";
 --    ALTER TABLE "Post_partitioned" RENAME TO "Post";
 -- 4. Update foreign key references
 -- 5. Drop old tables after verification period
@@ -248,12 +249,14 @@ $$ LANGUAGE plpgsql;
 -- SELECT 'Partitioned Comment count', COUNT(*) FROM "Comment_partitioned";
 
 -- 8.2 Partition distribution check (verify no excessive data in default partition)
+-- Uses pg_stat_user_tables for row count estimates (n_live_tup) to avoid dynamic SQL
 -- SELECT 
 --     c.relname as partition_name,
 --     pg_size_pretty(pg_relation_size(c.oid)) as size,
---     (SELECT COUNT(*) FROM ONLY c.relname::regclass) as row_count
+--     COALESCE(s.n_live_tup, 0) as row_count_estimate
 -- FROM pg_class c
 -- JOIN pg_inherits i ON c.oid = i.inhrelid
+-- LEFT JOIN pg_stat_user_tables s ON c.oid = s.relid
 -- WHERE i.inhparent = '"Post_partitioned"'::regclass
 -- ORDER BY c.relname;
 
