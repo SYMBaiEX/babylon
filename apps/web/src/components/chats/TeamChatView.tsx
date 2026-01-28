@@ -127,7 +127,7 @@ interface TeamChatViewProps {
 }
 
 /**
- * Chat view component for Team Chat (Command Center)
+ * Chat view component for Team Chat (Agents)
  *
  * Similar to ChatView but with typing/thinking indicators and custom header
  */
@@ -161,9 +161,7 @@ export function TeamChatView({
       <div className="flex h-full flex-1 items-center justify-center">
         <div className="max-w-md p-8 text-center text-muted-foreground">
           <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
-          <h3 className="mb-2 font-bold text-foreground text-xl">
-            Command Center
-          </h3>
+          <h3 className="mb-2 font-bold text-foreground text-xl">Agents</h3>
           <p className="text-sm">Loading your team chat...</p>
         </div>
       </div>
@@ -176,9 +174,7 @@ export function TeamChatView({
       <div className="shrink-0">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Command Center
-            </h2>
+            <h2 className="font-semibold text-foreground text-lg">Agents</h2>
             <p className="text-muted-foreground text-sm">
               {chatDetails.participants.length} member
               {chatDetails.participants.length !== 1 ? 's' : ''}

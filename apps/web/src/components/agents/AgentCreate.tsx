@@ -2,7 +2,7 @@
  * Agent Create Component
  *
  * @description Reusable multi-step form for creating a new agent.
- * Used in both the standalone create page and the Command Center.
+ * Used in both the standalone create page and the Agents page.
  */
 
 'use client';

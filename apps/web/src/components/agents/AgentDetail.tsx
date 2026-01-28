@@ -2,7 +2,7 @@
  * Agent Detail Component
  *
  * @description Reusable component for displaying agent details.
- * Used in both the standalone agent page and the Command Center.
+ * Used in both the standalone agent page and the Agents page.
  */
 
 'use client';

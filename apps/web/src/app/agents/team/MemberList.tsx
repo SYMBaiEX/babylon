@@ -56,7 +56,7 @@ interface MemberListProps {
 }
 
 /**
- * Member list component for Command Center sidebar/drawer
+ * Member list component for Agents sidebar/drawer
  *
  * Shows all agents in the team chat.
  * Supports agent selection for parallel task execution.
