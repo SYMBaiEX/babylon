@@ -31,8 +31,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
 import { ActivityFilters, type ActivityType } from './ActivityFilters';
+import { AgentSettingsPanel } from './AgentSettingsPanel';
 import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
+import {
+  RIGHT_SIDEBAR_DEFAULT_WIDTH,
+  RightSidebar,
+  type RightSidebarTab,
+} from './RightSidebar';
 
 // Lazy load activity feed for performance
 const AgentActivityFeed = dynamic(
@@ -129,6 +135,19 @@ export default function TeamChatPage() {
 
   // Mobile member drawer state
   const [showMemberDrawer, setShowMemberDrawer] = useState(false);
+
+  // Left sidebar collapse state (desktop only)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+
+  // Right sidebar state
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(
+    RIGHT_SIDEBAR_DEFAULT_WIDTH
+  );
+  const [rightSidebarTabs, setRightSidebarTabs] = useState<RightSidebarTab[]>(
+    []
+  );
+  const [activeRightTabId, setActiveRightTabId] = useState<string | null>(null);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('chat');
@@ -230,16 +249,62 @@ export default function TeamChatPage() {
     [router]
   );
 
-  // Handle sidebar "Settings" - switch to Agents tab and show detail with Settings tab
+  // Handle sidebar "Settings" - open in right sidebar
   const handleViewSettings = useCallback(
     (agentId: string) => {
-      setActiveTab('agents');
-      setShowCreateAgent(false);
-      setSelectedAgentDefaultTab('settings');
-      fetchAgentDetail(agentId);
+      // Find agent name for tab title
+      const agent = teamChat?.agents.find((a) => a.id === agentId);
+      const agentName = agent?.displayName || agent?.username || 'Agent';
+      const tabId = `settings-${agentId}`;
+
+      // Use functional update to check existing tabs without dependency
+      setRightSidebarTabs((prev) => {
+        const existingTab = prev.find((t) => t.id === tabId);
+        if (existingTab) {
+          return prev; // Tab exists, don't modify
+        }
+        // Add new tab
+        return [
+          ...prev,
+          {
+            id: tabId,
+            type: 'agent-settings' as const,
+            title: agentName,
+            agentId,
+          },
+        ];
+      });
+      setActiveRightTabId(tabId);
+      setRightSidebarOpen(true);
     },
-    [fetchAgentDetail]
+    [teamChat?.agents]
   );
+
+  // Close a right sidebar tab
+  const closeRightTab = useCallback(
+    (tabId: string) => {
+      setRightSidebarTabs((prev) => {
+        const newTabs = prev.filter((t) => t.id !== tabId);
+        // If closing active tab, switch to last tab or close sidebar
+        if (activeRightTabId === tabId) {
+          const lastTab = newTabs[newTabs.length - 1];
+          if (lastTab) {
+            setActiveRightTabId(lastTab.id);
+          } else {
+            setActiveRightTabId(null);
+            setRightSidebarOpen(false);
+          }
+        }
+        return newTabs;
+      });
+    },
+    [activeRightTabId]
+  );
+
+  // Toggle right sidebar
+  const toggleRightSidebar = useCallback(() => {
+    setRightSidebarOpen((prev) => !prev);
+  }, []);
 
   // Handle sidebar "Add Agent" - switch to Agents tab and show create form
   const handleAddAgent = useCallback(() => {
@@ -422,7 +487,10 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
+    <div
+      data-command-center-container
+      className="relative flex h-[calc(100dvh-112px)] flex-col md:h-dvh"
+    >
       {/* Mobile Member Drawer - only for Chat tab */}
       {showMemberDrawer && activeTab === 'chat' && (
         <>
@@ -537,10 +605,10 @@ export default function TeamChatPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Member Sidebar - only visible on Chat tab for lg+ */}
-        {activeTab === 'chat' && (
+        {/* Member Sidebar - only visible on Chat tab for lg+ when not collapsed */}
+        {activeTab === 'chat' && !leftSidebarCollapsed && (
           <>
-            <div className="hidden w-64 flex-col border-border border-r lg:flex">
+            <div className="hidden w-64 shrink-0 flex-col border-border border-r lg:flex">
               {/* Conversations Section */}
               <div className="p-3">
                 <ConversationList
@@ -577,8 +645,11 @@ export default function TeamChatPage() {
           </>
         )}
 
-        {/* Tab Content */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+        {/* Tab Content - min-width ensures chat doesn't get too small */}
+        <div
+          className="flex min-h-0 flex-1 flex-col bg-background"
+          style={{ minWidth: 400 }}
+        >
           {/* Chat Tab */}
           {activeTab === 'chat' && (
             <TeamChatView
@@ -620,6 +691,10 @@ export default function TeamChatPage() {
               thinkingAgents={thinkingAgents}
               onShowMembers={() => setShowMemberDrawer(true)}
               onScroll={handleScroll}
+              leftSidebarCollapsed={leftSidebarCollapsed}
+              onToggleLeftSidebar={() => setLeftSidebarCollapsed((p) => !p)}
+              rightSidebarOpen={rightSidebarOpen}
+              onToggleRightSidebar={toggleRightSidebar}
             />
           )}
 
@@ -925,7 +1000,43 @@ export default function TeamChatPage() {
             </div>
           )}
         </div>
+
+        {/* Spacer for right sidebar - only on desktop to make room for fixed sidebar */}
+        {rightSidebarOpen && (
+          <div
+            className="hidden shrink-0 transition-[width] duration-200 lg:block"
+            style={{ width: rightSidebarWidth }}
+            aria-hidden="true"
+          />
+        )}
       </div>
+
+      {/* Right Sidebar - Fixed position overlay, doesn't squeeze chat */}
+      {rightSidebarOpen && (
+        <RightSidebar
+          tabs={rightSidebarTabs}
+          activeTabId={activeRightTabId}
+          onTabSelect={setActiveRightTabId}
+          onTabClose={closeRightTab}
+          width={rightSidebarWidth}
+          onWidthChange={setRightSidebarWidth}
+          onClose={() => setRightSidebarOpen(false)}
+          leftSidebarCollapsed={leftSidebarCollapsed}
+        >
+          {rightSidebarTabs
+            .filter((tab) => tab.id === activeRightTabId)
+            .map((tab) => (
+              <div key={tab.id}>
+                {tab.type === 'agent-settings' && tab.agentId && (
+                  <AgentSettingsPanel
+                    agentId={tab.agentId}
+                    onAgentUpdated={refreshTeamChat}
+                  />
+                )}
+              </div>
+            ))}
+        </RightSidebar>
+      )}
     </div>
   );
 }

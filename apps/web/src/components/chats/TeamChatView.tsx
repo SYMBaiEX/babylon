@@ -1,6 +1,14 @@
 'use client';
 
-import { Brain, MessageCircle, Radio, Users } from 'lucide-react';
+import { cn } from '@babylon/shared';
+import {
+  Brain,
+  MessageCircle,
+  PanelLeft,
+  PanelRight,
+  Radio,
+  Users,
+} from 'lucide-react';
 import React from 'react';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
@@ -108,6 +116,14 @@ interface TeamChatViewProps {
   onShowMembers?: () => void;
   /** Callback when messages container is scrolled (for auto-scroll tracking) */
   onScroll?: (container: HTMLDivElement) => void;
+  /** Left sidebar collapsed state */
+  leftSidebarCollapsed?: boolean;
+  /** Callback to toggle left sidebar */
+  onToggleLeftSidebar?: () => void;
+  /** Right sidebar open state */
+  rightSidebarOpen?: boolean;
+  /** Callback to toggle right sidebar */
+  onToggleRightSidebar?: () => void;
 }
 
 /**
@@ -135,6 +151,10 @@ export function TeamChatView({
   thinkingAgents = [],
   onShowMembers,
   onScroll,
+  leftSidebarCollapsed = false,
+  onToggleLeftSidebar,
+  rightSidebarOpen = false,
+  onToggleRightSidebar,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -156,14 +176,39 @@ export function TeamChatView({
       {/* Chat Header - Fixed */}
       <div className="shrink-0">
         <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Command Center
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {chatDetails.participants.length} member
-              {chatDetails.participants.length !== 1 ? 's' : ''}
-            </p>
+          <div className="flex items-center gap-3">
+            {/* Left sidebar toggle - desktop only */}
+            {onToggleLeftSidebar && (
+              <button
+                onClick={onToggleLeftSidebar}
+                className={cn(
+                  'hidden rounded-lg p-2 transition-colors hover:bg-muted lg:block',
+                  !leftSidebarCollapsed && 'bg-muted'
+                )}
+                aria-label={
+                  leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
+                }
+              >
+                <PanelLeft
+                  className={cn(
+                    'h-4 w-4',
+                    !leftSidebarCollapsed
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                  strokeWidth={1.5}
+                />
+              </button>
+            )}
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">
+                Command Center
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {chatDetails.participants.length} member
+                {chatDetails.participants.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Mobile members button */}
@@ -189,6 +234,27 @@ export function TeamChatView({
                 {sseConnected ? 'Live' : 'Connecting...'}
               </span>
             </div>
+            {/* Right sidebar toggle */}
+            {onToggleRightSidebar && (
+              <button
+                onClick={onToggleRightSidebar}
+                className={cn(
+                  'rounded-lg p-2 transition-colors hover:bg-muted',
+                  rightSidebarOpen && 'bg-muted'
+                )}
+                aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
+              >
+                <PanelRight
+                  className={cn(
+                    'h-4 w-4',
+                    rightSidebarOpen
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                  strokeWidth={1.5}
+                />
+              </button>
+            )}
           </div>
         </div>
 
