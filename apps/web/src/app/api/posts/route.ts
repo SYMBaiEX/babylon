@@ -823,21 +823,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       WITH ranked_comments AS (
         SELECT 
           c.id,
-          c.post_id,
+          c."postId" as post_id,
           c.content,
-          c.created_at,
-          c.author_id,
-          u.display_name as user_name,
+          c."createdAt" as created_at,
+          c."authorId" as author_id,
+          u."displayName" as user_name,
           u.username as user_username,
-          u.profile_image_url as user_avatar,
+          u."profileImageUrl" as user_avatar,
           ROW_NUMBER() OVER (
-            PARTITION BY c.post_id 
-            ORDER BY c.created_at DESC
+            PARTITION BY c."postId" 
+            ORDER BY c."createdAt" DESC
           ) as rn
-        FROM comments c
-        LEFT JOIN users u ON c.author_id = u.id
-        WHERE c.post_id IN (${sql.raw(postIdsParam)})
-          AND c.parent_comment_id IS NULL
+        FROM "Comment" c
+        LEFT JOIN "User" u ON c."authorId" = u.id
+        WHERE c."postId" IN (${sql.raw(postIdsParam)})
+          AND c."parentCommentId" IS NULL
       )
       SELECT id, post_id, content, created_at, author_id, user_name, user_username, user_avatar
       FROM ranked_comments
