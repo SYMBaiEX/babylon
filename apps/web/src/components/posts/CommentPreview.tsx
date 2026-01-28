@@ -50,24 +50,25 @@ export const CommentPreview = memo(function CommentPreview({
   onViewAllClick,
   className,
 }: CommentPreviewProps) {
-  if (!comments || comments.length === 0) {
-    return null;
-  }
+  // Type-safe check: comments is always an array (required prop)
+  const hasComments = comments.length > 0;
 
   return (
     <div
-      className={cn('mt-3 border-muted border-b pb-3', className)}
+      className={cn('mt-3 border-muted border-t pt-3', className)}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Comment list */}
-      <div className="space-y-3">
-        {comments.map((comment) => (
-          <CommentPreviewItem key={comment.id} comment={comment} />
-        ))}
-      </div>
+      {/* Comment list - only show if there are comments */}
+      {hasComments && (
+        <div className="space-y-3">
+          {comments.map((comment) => (
+            <CommentPreviewItem key={comment.id} comment={comment} />
+          ))}
+        </div>
+      )}
 
-      {/* View all comments link */}
-      {totalCommentCount > comments.length && (
+      {/* View all comments link - only show if there are more comments than previewed */}
+      {hasComments && totalCommentCount > comments.length && (
         <button
           type="button"
           onClick={(e) => {
@@ -80,7 +81,7 @@ export const CommentPreview = memo(function CommentPreview({
         </button>
       )}
 
-      {/* Comment input bar - opens full comment section on click */}
+      {/* Comment input bar - always shown on all posts */}
       <button
         type="button"
         onClick={(e) => {
@@ -88,7 +89,8 @@ export const CommentPreview = memo(function CommentPreview({
           onViewAllClick?.();
         }}
         className={cn(
-          'mt-3 w-full rounded-full border border-border/20 bg-muted',
+          hasComments ? 'mt-3' : '',
+          'w-full rounded-full border border-border/20 bg-muted',
           'px-4 py-2 text-left text-muted-foreground text-sm',
           'hover:bg-muted/80',
           'cursor-text transition-colors'
@@ -165,8 +167,9 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
 
 /**
  * Format timestamp to relative time with suffix (e.g., "5m ago", "2h ago", "just now")
+ * Exported for unit testing.
  */
-function formatTimeAgo(timestamp: string): string {
+export function formatTimeAgo(timestamp: string): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();

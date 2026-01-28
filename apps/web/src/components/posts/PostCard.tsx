@@ -542,17 +542,14 @@ export const PostCard = memo(function PostCard({
         </div>
       )}
 
-      {/* Row 4: Comment Previews - Shows top 1-2 comments inline based on engagement */}
-      {showCommentPreviews &&
-        !isDetail &&
-        post.commentPreviews &&
-        post.commentPreviews.length > 0 && (
-          <CommentPreview
-            comments={post.commentPreviews}
-            totalCommentCount={post.commentCount ?? 0}
-            onViewAllClick={onCommentClick}
-          />
-        )}
+      {/* Row 4: Comment Section - Shows previews (if any) + "Leave a comment" input on all posts */}
+      {showCommentPreviews && !isDetail && (
+        <CommentPreview
+          comments={post.commentPreviews ?? []}
+          totalCommentCount={post.commentCount ?? 0}
+          onViewAllClick={onCommentClick}
+        />
+      )}
     </article>
   );
 });
