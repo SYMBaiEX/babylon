@@ -38,8 +38,6 @@ import {
   getRecentlyMentionedActorIds,
   getTrendingPromptContext,
   isActiveHour,
-  MarketContextService,
-  MarketDecisionEngine,
   NPC_ENGAGEMENT_CONFIG,
   NPC_TICK_CONFIG,
   NPCInvestmentManager,
@@ -50,8 +48,6 @@ import {
   processNPCSocialEngagements,
   StaticDataRegistry,
   secureRandom,
-  TradeExecutionService,
-  updateMarketPricesFromTrades,
   worldFactsService,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
@@ -530,74 +526,14 @@ export async function POST(_req: NextRequest) {
     }
 
     // =======================================================================
-    // NPC BATCH TRADING (MarketDecisionEngine)
-    // Generate and execute batch trading decisions for market liquidity
+    // NPC BATCH TRADING - NOW HANDLED BY game-tick
     // =======================================================================
-    let npcTradesExecuted = 0;
-    let marketsUpdated = 0;
-    const tradeDeadline = startTime + 240000; // 4 minute budget
+    // NPC trading (MarketDecisionEngine, batch decisions, trade execution) is now
+    // handled by game-tick for consistent 1-minute interval trading.
+    // See: packages/engine/src/game-tick.ts
+    // =======================================================================
 
-    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
-      try {
-        logger.info('Starting NPC batch trading', {}, 'NPCTick');
-
-        // Initialize trading infrastructure
-        const marketDecisionLLM = BabylonLLMClient.forGameTick();
-        const contextService = new MarketContextService();
-
-        // Configure decision engine
-        const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-        const isKimiModel = modelName.toLowerCase().includes('kimi');
-        const defaultMaxOutput = isKimiModel ? 16000 : 32000;
-        const maxOutputTokens = Number.parseInt(
-          process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
-            defaultMaxOutput.toString(),
-          10
-        );
-
-        const decisionEngine = new MarketDecisionEngine(
-          marketDecisionLLM,
-          contextService,
-          { model: modelName, maxOutputTokens }
-        );
-        const executionService = new TradeExecutionService();
-
-        // Generate batch decisions
-        const marketDecisions = await decisionEngine.generateBatchDecisions();
-
-        if (marketDecisions.length === 0) {
-          logger.info('No NPC batch trades generated', {}, 'NPCTick');
-        } else {
-          const executionResult =
-            await executionService.executeDecisionBatch(marketDecisions);
-
-          npcTradesExecuted = executionResult.successfulTrades;
-
-          logger.info(
-            `NPC Batch Trading: ${executionResult.successfulTrades} trades executed`,
-            {
-              successful: executionResult.successfulTrades,
-              failed: executionResult.failedTrades,
-              holds: executionResult.holdDecisions,
-            },
-            'NPCTick'
-          );
-
-          // Update prices based on NPC trades
-          const timestamp = new Date();
-          marketsUpdated = await updateMarketPricesFromTrades(
-            timestamp,
-            executionResult
-          );
-        }
-      } catch (error) {
-        logger.error(
-          'NPC batch trading failed',
-          { error: error instanceof Error ? error.message : String(error) },
-          'NPCTick'
-        );
-      }
-    }
+    const tradeDeadline = startTime + 240000; // 4 minute budget (used by other sections)
 
     // -------------------------------------------------------------------------
     // NPC-TO-NPC FEED INTERACTIONS (discourse + comments/likes/shares)
@@ -786,43 +722,11 @@ export async function POST(_req: NextRequest) {
     }
 
     // =======================================================================
-    // NPC BASELINE INVESTMENTS
-    // Ensure each NPC pool has an initial baseline allocation across aligned companies
+    // NPC BASELINE INVESTMENTS - NOW HANDLED BY game-tick
     // =======================================================================
-    let baselineInvestmentsExecuted = 0;
-
-    if (Date.now() < tradeDeadline && !abortedDueToCircuitBreaker) {
-      try {
-        const baselineResult =
-          await NPCInvestmentManager.executeBaselineInvestments(new Date());
-
-        if (baselineResult) {
-          baselineInvestmentsExecuted = baselineResult.successfulTrades;
-
-          logger.info(
-            'NPC baseline investments executed',
-            {
-              successful: baselineResult.successfulTrades,
-              failed: baselineResult.failedTrades,
-            },
-            'NPCTick'
-          );
-
-          // Update prices based on baseline investments
-          const baselineMarketsUpdated = await updateMarketPricesFromTrades(
-            new Date(),
-            baselineResult
-          );
-          marketsUpdated += baselineMarketsUpdated;
-        }
-      } catch (error) {
-        logger.error(
-          'NPC baseline investments failed',
-          { error: error instanceof Error ? error.message : String(error) },
-          'NPCTick'
-        );
-      }
-    }
+    // Baseline investments are now handled by game-tick for consistent timing.
+    // See: packages/engine/src/game-tick.ts
+    // =======================================================================
 
     // =======================================================================
     // NPC PORTFOLIO REBALANCING
@@ -954,12 +858,9 @@ export async function POST(_req: NextRequest) {
         npcsProcessed: results.length - skippedDueToLock,
         npcsSkippedLocked: skippedDueToLock,
         totalActions: totalActionsExecuted,
-        npcTradesExecuted,
-        marketsUpdated,
         npcSocialActionsProcessed,
         npcFollowsCreated,
         npcUnfollows,
-        baselineInvestmentsExecuted,
         rebalanceActionsExecuted,
         discourseCreated,
         socialEngagement,
@@ -979,12 +880,9 @@ export async function POST(_req: NextRequest) {
       success: !abortedDueToCircuitBreaker,
       processed: results.length - skippedDueToLock,
       totalActions: totalActionsExecuted,
-      npcTradesExecuted,
-      marketsUpdated,
       npcSocialActionsProcessed,
       npcFollowsCreated,
       npcUnfollows,
-      baselineInvestmentsExecuted,
       rebalanceActionsExecuted,
       discourseCreated: discourseCreated,
       socialEngagement: socialEngagement
@@ -1013,12 +911,9 @@ export async function POST(_req: NextRequest) {
       skippedLocked: skippedDueToLock,
       duration,
       totalActions: totalActionsExecuted,
-      npcTradesExecuted,
-      marketsUpdated,
       npcSocialActionsProcessed,
       npcFollowsCreated,
       npcUnfollows,
-      baselineInvestmentsExecuted,
       rebalanceActionsExecuted,
       discourseCreated,
       socialEngagement,
