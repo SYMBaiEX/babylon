@@ -39,6 +39,45 @@ export interface GeneratedTag {
   category?: string; // auto-detected category (e.g., "Sports", "Politics", "Tech")
 }
 
+/**
+ * Tag details shared between PostTagWithTag and TrendingTagWithTag
+ */
+export interface TagDetails {
+  id: string;
+  name: string;
+  displayName: string;
+  category: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Post tag with tag details
+ */
+export interface PostTagWithTag {
+  id: string;
+  postId: string;
+  tagId: string;
+  createdAt: Date;
+  tag: TagDetails;
+}
+
+/**
+ * Trending tag with tag details
+ */
+export interface TrendingTagWithTag {
+  id: string;
+  tagId: string;
+  rank: number;
+  score: number;
+  postCount: number;
+  windowStart: Date;
+  windowEnd: Date;
+  calculatedAt: Date;
+  relatedContext: string | null;
+  tag: TagDetails;
+}
+
 // =============================================================================
 // LLM Client Setup
 // =============================================================================
@@ -407,7 +446,7 @@ export async function storeTagsForPost(
  * Get tags for a post
  */
 export async function getTagsForPost(postId: string) {
-  return await db.query.postTags.findMany({
+  return db.query.postTags.findMany({
     where: eq(postTags.postId, postId),
     with: {
       tag: true,
@@ -599,7 +638,9 @@ export async function storeTrendingTags(
 /**
  * Get current trending tags (most recent calculation)
  */
-export async function getCurrentTrendingTags(limit = 10) {
+export async function getCurrentTrendingTags(
+  limit = 10
+): Promise<TrendingTagWithTag[]> {
   const [latestCalculation] = await db
     .select({ calculatedAt: trendingTags.calculatedAt })
     .from(trendingTags)
@@ -612,12 +653,12 @@ export async function getCurrentTrendingTags(limit = 10) {
 
   const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000);
 
-  return await db.query.trendingTags.findMany({
+  return (await db.query.trendingTags.findMany({
     where: gte(trendingTags.calculatedAt, cutoffTime),
     with: { tag: true },
     orderBy: asc(trendingTags.rank),
     limit,
-  });
+  })) as TrendingTagWithTag[];
 }
 
 /**

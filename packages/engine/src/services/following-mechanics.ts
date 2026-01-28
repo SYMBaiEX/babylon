@@ -30,6 +30,7 @@ import {
 import { generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_FOLLOWING_CONFIG } from '../config/npc-activity';
 import { secureRandom } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -282,10 +283,7 @@ export class FollowingMechanics {
           {
             userId,
             npcId,
-            error:
-              notifyError instanceof Error
-                ? notifyError.message
-                : String(notifyError),
+            error: formatError(notifyError),
           },
           'FollowingMechanics'
         );
@@ -669,10 +667,7 @@ export class FollowingMechanics {
               {
                 npcId: npc.id,
                 userId: player.userId,
-                error:
-                  followError instanceof Error
-                    ? followError.message
-                    : String(followError),
+                error: formatError(followError),
               },
               'FollowingMechanics'
             );
@@ -684,7 +679,7 @@ export class FollowingMechanics {
     } catch (error) {
       logger.error(
         'Error in proactive following',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'FollowingMechanics'
       );
       return result;
@@ -864,7 +859,7 @@ export class FollowingMechanics {
     } catch (error) {
       logger.error(
         'Error in unfollow checks',
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'FollowingMechanics'
       );
       return unfollowCount;

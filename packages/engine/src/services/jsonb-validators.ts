@@ -8,7 +8,13 @@
  * Zod schemas for runtime validation.
  */
 
-import type { NpcMemory, PriceModifier, RelationshipState } from '@babylon/db';
+import type {
+  NpcMemory,
+  PendingTransition,
+  PriceModifier,
+  RelationshipState,
+  ScheduledEvent,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { z } from 'zod';
 
@@ -316,4 +322,252 @@ export function validatePriceModifier(
   modifier: unknown
 ): asserts modifier is PriceModifier {
   PriceModifierSchema.parse(modifier);
+}
+
+// =============================================================================
+// STRING ARRAY VALIDATORS (for actors, tags, etc.)
+// =============================================================================
+
+/**
+ * String array schema - validates arrays of strings
+ */
+export const StringArraySchema = z.array(z.string());
+
+/**
+ * Safely parse a string array from JSONB with fallback to empty array.
+ * Common use case: actors, tags, mentions, etc.
+ */
+export function parseStringArraySafe(
+  data: unknown,
+  context?: { field?: string }
+): string[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  // Fast path: already a valid string array using type guard
+  // Note: isStringArray validates the same shape as StringArraySchema.safeParse,
+  // so we skip the redundant safeParse and fall through directly to salvage logic
+  if (isStringArray(data)) {
+    return data;
+  }
+
+  // Log warning and try to salvage valid strings
+  logger.warn(
+    'Invalid string array JSONB data',
+    {
+      field: context?.field,
+      dataType: typeof data,
+      isArray: Array.isArray(data),
+    },
+    'JSONBValidation'
+  );
+
+  // Salvage valid strings from array with metrics
+  if (Array.isArray(data)) {
+    const originalCount = data.length;
+    const filtered = data.filter(
+      (item): item is string => typeof item === 'string'
+    );
+    const keptCount = filtered.length;
+    const droppedCount = originalCount - keptCount;
+
+    // Log salvage metrics for observability
+    if (droppedCount > 0) {
+      logger.info(
+        'JSONBSalvage: salvaged partial string array data',
+        {
+          field: context?.field,
+          originalCount,
+          keptCount,
+          droppedCount,
+        },
+        'JSONBValidation'
+      );
+    }
+
+    return filtered;
+  }
+
+  return [];
+}
+
+/**
+ * Type guard to check if a value is a valid string array
+ */
+export function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
+}
+
+// =============================================================================
+// NARRATIVE ARC VALIDATORS (PendingTransition, ScheduledEvent)
+// =============================================================================
+
+/**
+ * PendingTransition schema for arc state transitions.
+ *
+ * Note: targetState accepts any string rather than validating against the concrete
+ * ArcStateType union. This is intentional for future-proofing - new arc states can
+ * be added without requiring schema updates. The PendingTransition interface in
+ * @babylon/db defines the canonical ArcStateType constraint; this schema provides
+ * looser runtime validation for flexibility.
+ */
+export const PendingTransitionSchema = z.object({
+  targetState: z.string(),
+  triggerDay: z.number(),
+  triggerEventType: z.string().optional(),
+  probability: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Array of pending transitions
+ */
+export const PendingTransitionsSchema = z.array(PendingTransitionSchema);
+
+/**
+ * ScheduledEvent schema for deterministic narrative firing
+ */
+export const ScheduledEventSchema = z.object({
+  baseDay: z.number(),
+  jitterHours: z.number(),
+  eventType: z.enum([
+    'leak',
+    'rumor',
+    'scandal',
+    'confirmation',
+    'red_herring',
+  ]),
+  description: z.string(),
+  signalDirection: z.enum(['YES', 'NO', 'NEUTRAL']),
+  fired: z.boolean(),
+  firedAt: z.string().optional(),
+});
+
+/**
+ * Array of scheduled events
+ */
+export const ScheduledEventsSchema = z.array(ScheduledEventSchema);
+
+/**
+ * Safely parse pending transitions from JSONB with fallback to empty array.
+ */
+export function parsePendingTransitionsSafe(
+  data: unknown,
+  context?: { arcId?: string }
+): PendingTransition[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  const result = PendingTransitionsSchema.safeParse(data);
+  if (result.success) {
+    return result.data as PendingTransition[];
+  }
+
+  logger.warn(
+    'Invalid pendingTransitions JSONB data',
+    {
+      arcId: context?.arcId,
+      issues: result.error.issues.slice(0, 3),
+    },
+    'JSONBValidation'
+  );
+
+  // Try to salvage valid transitions with metrics logging
+  if (Array.isArray(data)) {
+    const valid: PendingTransition[] = [];
+    let total = 0;
+    let invalid = 0;
+    for (const item of data) {
+      total++;
+      const itemResult = PendingTransitionSchema.safeParse(item);
+      if (itemResult.success) {
+        valid.push(itemResult.data as PendingTransition);
+      } else {
+        invalid++;
+      }
+    }
+
+    // Log salvage metrics only when there are actually invalid entries
+    if (invalid > 0) {
+      logger.info(
+        'Salvaged partial PendingTransition data',
+        {
+          parser: 'PendingTransition',
+          arcId: context?.arcId,
+          total,
+          valid: valid.length,
+          invalid,
+        },
+        'JSONBValidation'
+      );
+    }
+
+    return valid;
+  }
+
+  return [];
+}
+
+/**
+ * Safely parse scheduled events from JSONB with fallback to empty array.
+ */
+export function parseScheduledEventsSafe(
+  data: unknown,
+  context?: { questionId?: string }
+): ScheduledEvent[] {
+  if (data === null || data === undefined) {
+    return [];
+  }
+
+  const result = ScheduledEventsSchema.safeParse(data);
+  if (result.success) {
+    return result.data as ScheduledEvent[];
+  }
+
+  logger.warn(
+    'Invalid eventSchedule JSONB data',
+    {
+      questionId: context?.questionId,
+      issues: result.error.issues.slice(0, 3),
+    },
+    'JSONBValidation'
+  );
+
+  // Try to salvage valid events with metrics logging
+  if (Array.isArray(data)) {
+    const valid: ScheduledEvent[] = [];
+    let total = 0;
+    let invalid = 0;
+    for (const item of data) {
+      total++;
+      const itemResult = ScheduledEventSchema.safeParse(item);
+      if (itemResult.success) {
+        valid.push(itemResult.data as ScheduledEvent);
+      } else {
+        invalid++;
+      }
+    }
+
+    // Log salvage metrics only when there are actually invalid entries
+    if (invalid > 0) {
+      logger.info(
+        'Salvaged partial ScheduledEvent data',
+        {
+          parser: 'ScheduledEvent',
+          questionId: context?.questionId,
+          total,
+          valid: valid.length,
+          invalid,
+        },
+        'JSONBValidation'
+      );
+    }
+
+    return valid;
+  }
+
+  return [];
 }

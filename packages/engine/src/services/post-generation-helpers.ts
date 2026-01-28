@@ -42,6 +42,7 @@ import {
   stripHashtagsAndEmojis,
 } from '../utils/shared-utils';
 import { characterMappingService } from './character-mapping-service';
+import { parseStringArraySafe } from './jsonb-validators';
 import { buildPositionsPromptContextByActorId } from './npc-positions-context-service';
 import {
   ensureRunningBits,
@@ -314,14 +315,14 @@ export async function loadSharedPostContext(
     postsByAuthor.set(post.author, existing);
   }
 
-  // Convert events to context format
+  // Convert events to context format with safe parsing for JSONB actors array
   const recentEvents: EventContext[] = recentEventsRaw.map((event) => ({
     type: event.eventType,
     description:
       event.description.length > 200
         ? event.description.slice(0, 200) + '...'
         : event.description,
-    actors: event.actors as string[] | undefined,
+    actors: parseStringArraySafe(event.actors, { field: 'worldEvents.actors' }),
     timestamp: event.timestamp.toISOString(),
     relatedQuestion: event.relatedQuestion || undefined,
     pointsToward: event.pointsToward || undefined,

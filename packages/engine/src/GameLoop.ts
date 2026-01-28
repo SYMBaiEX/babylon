@@ -14,6 +14,7 @@ import { isSimulationMode } from './storage-bridge';
 import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { TradingDecision } from './types/market-decisions';
 import type { Actor, ActorTier, FeedPost } from './types/shared';
+import { formatError } from './utils/error-utils';
 
 /**
  * Interface for market decision engines used by GameLoop.
@@ -134,9 +135,7 @@ export class GameLoop {
         );
       } catch (e) {
         logger.warn(
-          `Trade execution batch failed: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
+          `Trade execution batch failed: ${formatError(e)}`,
           undefined,
           'GameLoop'
         );
@@ -236,9 +235,7 @@ export class GameLoop {
       );
     } catch (e) {
       logger.warn(
-        `Failed to generate world events: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
+        `Failed to generate world events: ${formatError(e)}`,
         { day, hour },
         'GameLoop'
       );
@@ -308,9 +305,7 @@ export class GameLoop {
         await this.relationships.analyzeAndUpdateRelationships();
       } catch (e) {
         logger.warn(
-          `Failed to analyze relationships: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
+          `Failed to analyze relationships: ${formatError(e)}`,
           undefined,
           'GameLoop'
         );

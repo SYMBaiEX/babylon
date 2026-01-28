@@ -14,6 +14,7 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import { NPC_ENGAGEMENT_CONFIG } from '../config/npc-activity';
 import type { LLMJsonClient } from '../llm/types';
 import { secureRandom } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
 import { shuffleArray } from '../utils/randomization';
 import {
   formatActorFinanceGuardrails,
@@ -461,7 +462,7 @@ export async function processNPCSocialEngagements(
               {
                 actorId: actor.id,
                 postId: post.id,
-                error: error instanceof Error ? error.message : String(error),
+                error: formatError(error),
               },
               'NPCSocialEngagement'
             );
@@ -493,7 +494,7 @@ export async function processNPCSocialEngagements(
                 {
                   actorId: actor.id,
                   postId: post.id,
-                  error: error instanceof Error ? error.message : String(error),
+                  error: formatError(error),
                 },
                 'NPCSocialEngagement'
               );
@@ -852,7 +853,7 @@ export async function processNPCSocialEngagements(
     logger.error(
       'NPC engagement failed',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'NPCSocialEngagement'
     );
@@ -1157,7 +1158,7 @@ ${promptContext}
         actorName: actor.name,
         postId: post.id,
         parentCommentId: parentComment.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'NPCSocialEngagement'
     );
@@ -1299,7 +1300,7 @@ ${promptContext}
         actorId: actor.id,
         actorName: actor.name,
         postId: post.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: formatError(err),
       },
       'NPCSocialEngagement'
     );

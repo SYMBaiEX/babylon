@@ -26,6 +26,7 @@ import { logger as honoLogger } from 'hono/logger';
 import { GameWorld, type WorldConfig } from '../GameWorld';
 import type { NPCMarketContext } from '../types/market-context';
 import type { MarketAction, TradingDecision } from '../types/market-decisions';
+import { formatError } from '../utils/error-utils';
 import { MarketContextService } from './market-context-service';
 import { TradeExecutionService } from './trade-execution-service';
 
@@ -498,11 +499,11 @@ class SimulationState {
         },
         events: [],
       };
-    } catch {
+    } catch (error) {
       // Fall back to synthetic execution if real execution fails
       logger.debug(
         `Real execution failed for ${npcId}, using synthetic`,
-        {},
+        { error: formatError(error) },
         'SimulationBridge'
       );
       return this.executeSyntheticAction(npcId, action);

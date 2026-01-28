@@ -7,6 +7,7 @@
  */
 
 import type { JsonValue } from '../types/common';
+import { toDateString } from '../utils/date-utils';
 import type { PromptDefinition } from './define-prompt';
 
 /**
@@ -145,7 +146,7 @@ export function renderPrompt(
   const now = new Date();
   const dateVariables: Record<string, string | number> = {
     currentDateTime: now.toLocaleString('en-US'),
-    currentDate: now.toISOString().split('T')[0] || '',
+    currentDate: toDateString(now),
     currentTime: now.toTimeString().split(' ')[0] || '',
     currentYear: now.getFullYear(),
     currentMonth: now.toLocaleString('en-US', { month: 'long' }),

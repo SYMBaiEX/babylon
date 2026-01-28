@@ -49,6 +49,7 @@ import type {
   PredictionMarketSnapshot,
   RelationshipContext,
 } from '../types/market-context';
+import { parseStringArraySafe } from './jsonb-validators';
 import { SignalExtractionService } from './signal-extraction-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -671,7 +672,9 @@ export class MarketContextService {
       return {
         type: event.eventType,
         description,
-        actors: event.actors as string[] | undefined,
+        actors: parseStringArraySafe(event.actors, {
+          field: 'worldEvents.actors',
+        }),
         timestamp: event.timestamp.toISOString(),
         relatedQuestion: event.relatedQuestion || undefined,
         pointsToward: event.pointsToward || undefined,
@@ -741,7 +744,9 @@ export class MarketContextService {
       return {
         type: event.eventType,
         description,
-        actors: event.actors as string[] | undefined,
+        actors: parseStringArraySafe(event.actors, {
+          field: 'worldEvents.actors',
+        }),
         timestamp: event.timestamp.toISOString(),
         relatedQuestion: event.relatedQuestion || undefined,
         pointsToward: event.pointsToward || undefined,
@@ -877,7 +882,8 @@ export class MarketContextService {
         let low24h = currentPrice;
 
         if (priceHistory.length > 0) {
-          const oldestPrice = priceHistory[0]!.price;
+          const firstPrice = priceHistory[0];
+          const oldestPrice = firstPrice?.price ?? currentPrice;
           change24h = currentPrice - oldestPrice;
           changePercent24h = (change24h / oldestPrice) * 100;
 

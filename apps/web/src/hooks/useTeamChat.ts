@@ -1110,6 +1110,7 @@ export function useTeamChat(): UseTeamChatReturn {
     if (teamChat?.id && user) {
       refreshConversations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally depend on id only
   }, [teamChat?.id, user, refreshConversations]);
 
   return {

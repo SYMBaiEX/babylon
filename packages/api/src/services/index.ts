@@ -40,4 +40,11 @@ export * from './points-service';
 export * from './prediction-market-onchain';
 export * from './referral-service';
 export * from './reputation-service';
+// Resource-Level Locks (question, market, NPC)
+export {
+  isQuestionLocked,
+  withMarketLock,
+  withNPCLock,
+  withQuestionLock,
+} from './resource-locks';
 export * from './waitlist-service';

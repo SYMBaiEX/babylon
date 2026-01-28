@@ -11,6 +11,7 @@ import 'dotenv/config';
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 import type { LLMCallTokenUsage } from '../types/token-stats';
+import { first } from '../utils/array-utils';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import {
   cleanMarkdownCodeBlocks,
@@ -295,8 +296,12 @@ WORLD RULES:
         });
         const callDurationMs = Date.now() - callStartTime;
 
-        let content = response.choices[0]!.message.content!;
-        let finishReason = response.choices[0]!.finish_reason;
+        const firstChoice = first(response.choices);
+        if (!firstChoice || !firstChoice.message.content) {
+          throw new Error('LLM response missing content');
+        }
+        let content = firstChoice.message.content;
+        let finishReason = firstChoice.finish_reason;
 
         // Extract token usage from response
         const usage = response.usage;
@@ -369,9 +374,14 @@ WORLD RULES:
                 ...(isQwen3Model ? { reasoning_effort: 'none' as const } : {}),
               });
 
-            const continuationContent =
-              continuationResponse.choices[0]!.message.content!;
-            finishReason = continuationResponse.choices[0]!.finish_reason;
+            const contChoice = first(continuationResponse.choices);
+            if (!contChoice || !contChoice.message.content) {
+              throw new Error(
+                'LLM continuation response missing choices or content - invalid API response'
+              );
+            }
+            const continuationContent = contChoice.message.content;
+            finishReason = contChoice.finish_reason ?? 'stop';
 
             // Append continuation to content
             content += continuationContent;

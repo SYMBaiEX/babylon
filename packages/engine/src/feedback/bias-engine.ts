@@ -8,6 +8,7 @@
  */
 
 import { logger } from '@babylon/shared';
+import { clamp01 } from '../utils/math-utils';
 
 export interface BiasConfig {
   entityId: string; // Organization ID or keyword
@@ -62,7 +63,7 @@ export class BiasEngine {
     }
   ): void {
     // Normalize strength to 0-1
-    const normalizedStrength = Math.max(0, Math.min(1, strength));
+    const normalizedStrength = clamp01(strength);
 
     // Calculate expiration
     const expiresAt = options?.durationHours
@@ -123,7 +124,7 @@ export class BiasEngine {
     }
 
     // Normalize strength to 0-1
-    const normalizedStrength = Math.max(0, Math.min(1, strength));
+    const normalizedStrength = clamp01(strength);
 
     // Update bias with new strength
     const updatedBias: BiasConfig = {

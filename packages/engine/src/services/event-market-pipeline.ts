@@ -23,6 +23,7 @@ import {
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { secureRandom } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
 import { parseModifiersSafe, validatePriceModifier } from './jsonb-validators';
 import { applyCascadeEffects } from './market-correlation-service';
 import { PriceUpdateService } from './price-update-service';
@@ -199,7 +200,7 @@ export async function applyEventToMarkets(
     } catch (error) {
       logger.error(
         `Failed to apply modifier to ${impact.stockTicker}`,
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: formatError(error) },
         'EventMarketPipeline'
       );
     }
@@ -305,10 +306,7 @@ export async function applyEventToMarkets(
                 'Failed to apply cascade effects',
                 {
                   organizationId: update.organizationId,
-                  error:
-                    cascadeError instanceof Error
-                      ? cascadeError.message
-                      : String(cascadeError),
+                  error: formatError(cascadeError),
                 },
                 'EventMarketPipeline'
               );
@@ -319,7 +317,7 @@ export async function applyEventToMarkets(
         // Price application is best-effort; modifiers are persisted regardless.
         logger.warn(
           'Failed to apply narrative price updates',
-          { error: error instanceof Error ? error.message : String(error) },
+          { error: formatError(error) },
           'EventMarketPipeline'
         );
       }

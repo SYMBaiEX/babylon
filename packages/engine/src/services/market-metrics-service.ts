@@ -24,6 +24,8 @@ import {
   stockPrices,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { first, last } from '../utils/array-utils';
+import { formatError } from '../utils/error-utils';
 import { StaticDataRegistry } from './static-data-registry';
 
 /**
@@ -369,8 +371,7 @@ export class MarketMetricsService {
       } catch (error) {
         // Only swallow "missing table" errors (Postgres error code 42P01)
         // Other errors (connection, permission, query issues) should propagate
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = formatError(error);
         const errorCode =
           error && typeof error === 'object' && 'code' in error
             ? (error as { code?: string }).code
@@ -413,8 +414,12 @@ export class MarketMetricsService {
       // Sort by timestamp descending
       prices.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-      const currentPrice = prices[0]!.price;
-      const oldestPrice = prices[prices.length - 1]!.price;
+      const currentPriceEntry = first(prices);
+      const oldestPriceEntry = last(prices);
+      if (!currentPriceEntry || !oldestPriceEntry) continue;
+
+      const currentPrice = currentPriceEntry.price;
+      const oldestPrice = oldestPriceEntry.price;
 
       // Use 24h ago price from snapshot if available and fresh (more accurate)
       // Explicit null check to ensure TypeScript narrows snapshot from T | undefined

@@ -32,7 +32,7 @@ class TickUsageCollector implements TokenUsageCollector {
   recordCall(usage: Omit<LLMCallTokenUsage, 'callId' | 'timestamp'>): void {
     const call: LLMCallTokenUsage = {
       ...usage,
-      callId: `call-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      callId: `call-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       timestamp: new Date(),
     };
     this.calls.push(call);
@@ -485,5 +485,9 @@ class TokenStatsServiceImpl {
   }
 }
 
-// Export singleton instance
-export const TokenStatsService = new TokenStatsServiceImpl();
+// Export singleton instance (camelCase for consistency with other services)
+export const tokenStatsService = new TokenStatsServiceImpl();
+
+// Backward-compatible alias (PascalCase)
+/** @deprecated Use tokenStatsService instead */
+export const TokenStatsService = tokenStatsService;

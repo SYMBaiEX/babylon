@@ -11,6 +11,7 @@
 
 import { db, eq, organizations } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { formatError } from '../utils/error-utils';
 import { npcMemoryService } from './npc-memory-service';
 import { StaticDataRegistry } from './static-data-registry';
 
@@ -171,7 +172,7 @@ export async function handlePlayerMention(
       {
         playerId,
         mentionedActorId,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'PlayerInfluence'
     );
@@ -297,7 +298,7 @@ export async function handlePlayerTrade(
       {
         playerId,
         stockTicker,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'PlayerInfluence'
     );

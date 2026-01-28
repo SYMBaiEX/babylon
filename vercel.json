@@ -1,5 +1,8 @@
 {
   "functions": {
+    "src/app/api/cron/metrics-snapshot/route.ts": {
+      "maxDuration": 60
+    },
     "src/app/api/cron/agent-tick/route.ts": {
       "maxDuration": 800
     },
@@ -35,6 +38,10 @@
     }
   },
   "crons": [
+    {
+      "path": "/api/cron/metrics-snapshot",
+      "schedule": "0 * * * *"
+    },
     {
       "path": "/api/cron/game-tick",
       "schedule": "* * * * *"

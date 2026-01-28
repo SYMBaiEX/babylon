@@ -15,6 +15,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { ActorStateRow } from '@babylon/db';
 import { StaticDataRegistry } from '../../services/static-data-registry';
+import { toDateString } from '../../utils/date-utils';
 
 /**
  * Mock actor state for testing diversity selection
@@ -31,7 +32,7 @@ const createMockActorState = (
 describe('NPC Diversity Guarantee - Selection Logic', () => {
   test('filters NPCs that have not posted today correctly', () => {
     const today = new Date('2026-01-05T14:00:00Z');
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = toDateString(today);
 
     // Simulate state map with some NPCs having posted today, some not
     const stateMap = new Map<string, Partial<ActorStateRow>>([
@@ -61,7 +62,7 @@ describe('NPC Diversity Guarantee - Selection Logic', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
+      return !lastPost || toDateString(lastPost) !== todayStr;
     });
 
     // NPC 2 (posted yesterday) and NPC 3 (never posted) should be in diversity pool
@@ -108,7 +109,7 @@ describe('NPC Diversity Guarantee - Selection Logic', () => {
 describe('NPC Diversity Guarantee - Edge Cases', () => {
   test('handles case when all NPCs have posted today', () => {
     const today = new Date('2026-01-05T14:00:00Z');
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = toDateString(today);
 
     const stateMap = new Map<string, Partial<ActorStateRow>>([
       [
@@ -129,7 +130,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
+      return !lastPost || toDateString(lastPost) !== todayStr;
     });
 
     // All NPCs posted today, diversity pool is empty
@@ -138,7 +139,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
 
   test('handles case when no NPCs have state', () => {
     const today = new Date('2026-01-05T14:00:00Z');
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = toDateString(today);
 
     const stateMap = new Map<string, Partial<ActorStateRow>>();
 
@@ -150,7 +151,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
+      return !lastPost || toDateString(lastPost) !== todayStr;
     });
 
     // No state means all NPCs are in diversity pool
@@ -160,7 +161,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
   test('handles midnight boundary correctly', () => {
     // Test that posts at 23:59:59 yesterday vs 00:00:01 today are handled correctly
     const today = new Date('2026-01-05T00:30:00Z');
-    const todayStr = today.toISOString().split('T')[0]; // '2026-01-05'
+    const todayStr = toDateString(today); // '2026-01-05'
 
     const stateMap = new Map<string, Partial<ActorStateRow>>([
       // Posted at 23:59 yesterday (should be in diversity pool)
@@ -183,7 +184,7 @@ describe('NPC Diversity Guarantee - Edge Cases', () => {
     const neverPostedToday = activeNpcs.filter((npc) => {
       const state = stateMap.get(npc.id);
       const lastPost = state?.lastPostAt;
-      return !lastPost || lastPost.toISOString().split('T')[0] !== todayStr;
+      return !lastPost || toDateString(lastPost) !== todayStr;
     });
 
     // Only NPC 1 (posted yesterday) should be in diversity pool

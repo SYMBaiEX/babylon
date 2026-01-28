@@ -56,12 +56,16 @@ export default function PerpDetailPage() {
   const ticker = params.ticker as string;
   const { trackMarketView } = useMarketTracking();
   const from = searchParams.get('from');
+  const sideParam = searchParams.get('side');
 
   // Use shared perp markets store
   const { market, loading, refetch, initialLoadComplete } =
     usePerpMarket(ticker);
 
-  const [side, setSide] = useState<'long' | 'short'>('long');
+  const [side, setSide] = useState<'long' | 'short'>(() => {
+    if (sideParam === 'short') return 'short';
+    return 'long';
+  });
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [submitting, setSubmitting] = useState(false);
@@ -128,6 +132,17 @@ export default function PerpDetailPage() {
       trackMarketView(ticker, 'perp');
     }
   }, [ticker, market, trackMarketView]);
+
+  // Sync side from URL (used by mobile quick-trade buttons)
+  useEffect(() => {
+    if (sideParam === 'short') {
+      setSide('short');
+      return;
+    }
+    if (sideParam === 'long') {
+      setSide('long');
+    }
+  }, [sideParam]);
 
   // Redirect if market not found after initial load is complete
   useEffect(() => {

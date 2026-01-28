@@ -19,7 +19,6 @@ import {
   eq,
   type LongTermArcState,
   type MarketImpact,
-  type PendingTransition,
   questionArcPlans,
   questions,
   type ScheduledEvent,
@@ -30,7 +29,12 @@ import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import { toSafeDayNumber } from '../utils/date-utils';
 import { secureRandom } from '../utils/entropy';
+import { formatError } from '../utils/error-utils';
 import { generateArticlesForArcEvent } from './event-generation-helpers';
+import {
+  parsePendingTransitionsSafe,
+  parseScheduledEventsSafe,
+} from './jsonb-validators';
 
 // Re-export the BabylonLLMClient type for callers
 export type { BabylonLLMClient } from '../llm/openai-client';
@@ -199,9 +203,10 @@ export function evaluateStateTransition(
     return expectedState;
   }
 
-  // Check pending transitions
-  // Cast from unknown since JSONB columns don't have type info at runtime
-  const pending = (arc.pendingTransitions as PendingTransition[] | null) ?? [];
+  // Check pending transitions using safe parser for JSONB validation
+  const pending = parsePendingTransitionsSafe(arc.pendingTransitions, {
+    arcId: arc.id,
+  });
   for (const transition of pending) {
     if (dayNumber >= transition.triggerDay) {
       // Probability check
@@ -426,7 +431,9 @@ export async function markScheduledEventFired(
     return false;
   }
 
-  const schedule = arcPlan.eventSchedule as ScheduledEvent[];
+  const schedule = parseScheduledEventsSafe(arcPlan.eventSchedule, {
+    questionId,
+  });
   if (eventIndex < 0 || eventIndex >= schedule.length) {
     logger.warn(
       'Cannot mark event fired: invalid event index',
@@ -436,7 +443,17 @@ export async function markScheduledEventFired(
     return false;
   }
 
-  if (schedule[eventIndex]!.fired) {
+  const eventAtIndex = schedule[eventIndex];
+  if (!eventAtIndex) {
+    logger.warn(
+      'Cannot mark event fired: event not found at index',
+      { questionId, eventIndex },
+      'NarrativeEventProcessor'
+    );
+    return false;
+  }
+
+  if (eventAtIndex.fired) {
     // Already fired, idempotent success
     return true;
   }
@@ -444,7 +461,7 @@ export async function markScheduledEventFired(
   // Update the event as fired
   const updatedSchedule = [...schedule];
   updatedSchedule[eventIndex] = {
-    ...updatedSchedule[eventIndex]!,
+    ...eventAtIndex,
     fired: true,
     firedAt: new Date().toISOString(),
   };
@@ -459,8 +476,8 @@ export async function markScheduledEventFired(
     {
       questionId,
       eventIndex,
-      eventType: schedule[eventIndex]!.eventType,
-      signalDirection: schedule[eventIndex]!.signalDirection,
+      eventType: eventAtIndex.eventType,
+      signalDirection: eventAtIndex.signalDirection,
     },
     'NarrativeEventProcessor'
   );
@@ -817,7 +834,7 @@ async function getAffectedStocksForQuestion(
       'Failed to get affected stocks for question',
       {
         questionId,
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
       },
       'NarrativeEventProcessor'
     );
@@ -896,13 +913,15 @@ export async function processArcTick(
 
   // Check for scheduled events first (deterministic approach)
   const currentHour = new Date().getHours();
-  const scheduledEvent = arcPlan?.eventSchedule
-    ? getNextScheduledEvent(
-        arcPlan.eventSchedule as ScheduledEvent[],
-        dayNumber,
-        currentHour
-      )
-    : null;
+  const parsedSchedule = arcPlan?.eventSchedule
+    ? parseScheduledEventsSafe(arcPlan.eventSchedule, {
+        questionId: arc.questionId,
+      })
+    : [];
+  const scheduledEvent =
+    parsedSchedule.length > 0
+      ? getNextScheduledEvent(parsedSchedule, dayNumber, currentHour)
+      : null;
 
   // Determine if we should generate an event:
   // 1. If there's a scheduled event due, use it (deterministic)
@@ -935,9 +954,8 @@ export async function processArcTick(
 
     // If this was from a scheduled event, find its index and mark it as fired
     let scheduledEventIndex = -1;
-    if (scheduledEvent && arcPlan?.eventSchedule) {
-      const schedule = arcPlan.eventSchedule as ScheduledEvent[];
-      scheduledEventIndex = schedule.findIndex(
+    if (scheduledEvent && parsedSchedule.length > 0) {
+      scheduledEventIndex = parsedSchedule.findIndex(
         (e) =>
           e.baseDay === scheduledEvent.baseDay &&
           e.jitterHours === scheduledEvent.jitterHours &&
@@ -1017,10 +1035,7 @@ export async function processArcTick(
             arcId,
             questionId: arc.questionId,
             scheduledEventIndex,
-            error:
-              markError instanceof Error
-                ? markError.message
-                : String(markError),
+            error: formatError(markError),
           },
           'NarrativeEventProcessor'
         );
@@ -1044,10 +1059,7 @@ export async function processArcTick(
           {
             arcId,
             worldEventId,
-            error:
-              marketError instanceof Error
-                ? marketError.message
-                : String(marketError),
+            error: formatError(marketError),
           },
           'NarrativeEventProcessor'
         );
@@ -1090,10 +1102,7 @@ export async function processArcTick(
           {
             arcId,
             worldEventId,
-            error:
-              articleError instanceof Error
-                ? articleError.message
-                : String(articleError),
+            error: formatError(articleError),
           },
           'NarrativeEventProcessor'
         );
