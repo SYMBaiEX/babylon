@@ -14,13 +14,14 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Avatar } from '@/components/shared/Avatar';
+import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
+import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
@@ -211,25 +212,12 @@ function SidebarContent() {
         )}
       >
         {/* Header - Logo */}
-        <div className="flex items-center justify-center p-6 lg:justify-start">
-          <Link href="/feed" className="">
+        <div className="flex items-center justify-center p-6 lg:justify-start lg:px-4">
+          <Link href="/feed">
             {/* Icon-only logo for md (tablet) */}
-            <Image
-              src="/assets/logos/logo.svg"
-              alt="Babylon Logo"
-              width={32}
-              height={32}
-              className="h-8 w-8 lg:hidden"
-            />
+            <BabylonIcon className="h-8 w-8 lg:hidden" />
             {/* Full logo with text for lg+ (desktop) */}
-            <Image
-              src="/assets/logos/logo_full.svg"
-              alt="Babylon"
-              width={160}
-              height={38}
-              className="hidden h-8 w-auto lg:block"
-              loading="eager"
-            />
+            <BabylonFullLogo className="hidden h-8 w-auto lg:block" />
           </Link>
         </div>
 
