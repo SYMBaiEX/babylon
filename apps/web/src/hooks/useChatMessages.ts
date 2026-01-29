@@ -1,4 +1,4 @@
-import { logger } from '@babylon/shared';
+import { logger, type MessageMetadata } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type MessageType, MessageTypeEnum } from '@/components/chats/types';
@@ -20,6 +20,8 @@ export interface ChatMessage {
   stableKey?: string;
   /** Whether this message is a "thinking" placeholder (shows spinner while waiting for response) */
   isThinking?: boolean;
+  /** Metadata containing action tags for sidebar display */
+  metadata?: MessageMetadata | null;
 }
 
 /** Raw message from API (createdAt may be string or Date) */
@@ -29,6 +31,7 @@ interface RawApiMessage {
   senderId: string;
   type?: MessageType;
   createdAt: string | Date;
+  metadata?: MessageMetadata | null;
 }
 
 /** Format raw API message to ChatMessage */
@@ -43,6 +46,7 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
       typeof msg.createdAt === 'string'
         ? msg.createdAt
         : msg.createdAt.toISOString(),
+    metadata: msg.metadata,
   };
 }
 
@@ -79,13 +83,24 @@ function isMatchingOptimistic(
 /**
  * Adds a confirmed message to the list, replacing any matching optimistic message.
  * Preserves the stableKey from the optimistic message to prevent React remount.
+ * Merges metadata from SSE messages when a message with the same ID already exists.
  */
 function replaceOptimisticMessage(
   messages: ChatMessage[],
   confirmed: ChatMessage
 ): ChatMessage[] {
-  // Skip exact duplicates
-  if (messages.some((msg) => msg.id === confirmed.id)) {
+  // Check if message with same ID already exists
+  const existingIdx = messages.findIndex((msg) => msg.id === confirmed.id);
+  if (existingIdx >= 0) {
+    const existingMsg = messages[existingIdx];
+    // Merge metadata from confirmed message (SSE) into existing message
+    // This handles the case where updateMessage is called first (without metadata)
+    // and then SSE arrives with metadata
+    if (confirmed.metadata && existingMsg && !existingMsg.metadata) {
+      return messages.map((msg, idx) =>
+        idx === existingIdx ? { ...msg, metadata: confirmed.metadata } : msg
+      );
+    }
     return messages;
   }
 
@@ -293,6 +308,7 @@ export function useChatMessages(chatId: string | null) {
         createdAt: m.createdAt,
         isGameChat:
           typeof m.isGameChat === 'boolean' ? m.isGameChat : undefined,
+        metadata: m.metadata as MessageMetadata | null | undefined,
       };
 
       setIsLoading(false);

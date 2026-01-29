@@ -1,0 +1,242 @@
+'use client';
+
+import type { PredictionMarketData, PredictionsTagData } from '@babylon/shared';
+import { cn } from '@babylon/shared';
+import { CheckCircle, Clock, XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
+import type { PredictionMarket } from '@/types/markets';
+
+interface PredictionsPanelProps {
+  data: PredictionsTagData;
+}
+
+/** Convert tag prediction data to PredictionMarket format for modal */
+function toPredictionMarket(
+  prediction: PredictionMarketData
+): PredictionMarket {
+  return {
+    id: prediction.id,
+    text: prediction.question,
+    status: prediction.resolved ? 'resolved' : 'active',
+    resolutionDate: prediction.endDate,
+    resolvedOutcome:
+      prediction.resolution === 'YES'
+        ? true
+        : prediction.resolution === 'NO'
+          ? false
+          : undefined,
+    scenario: 0,
+    yesShares: prediction.yesShares,
+    noShares: prediction.noShares,
+  };
+}
+
+export function PredictionsPanel({ data }: PredictionsPanelProps) {
+  const [tradingPrediction, setTradingPrediction] =
+    useState<PredictionMarket | null>(null);
+
+  // Handle single prediction view
+  if (data.prediction) {
+    const prediction = data.prediction;
+    const predictionMarket = toPredictionMarket(prediction);
+
+    return (
+      <div className="p-4">
+        {/* Question Header */}
+        <div className="mb-4">
+          <div className="mb-2 flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Prediction Market</h3>
+            {prediction.daysUntil !== null && !prediction.resolved && (
+              <span className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+                <Clock size={12} />
+                {prediction.daysUntil > 0
+                  ? `${prediction.daysUntil}d left`
+                  : 'Ending soon'}
+              </span>
+            )}
+          </div>
+          <p className="font-medium text-foreground">{prediction.question}</p>
+        </div>
+
+        {/* Odds Display */}
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="rounded-lg bg-green-600/15 p-4">
+            <div className="mb-1 text-green-600 text-xs">YES</div>
+            <div className="font-bold text-3xl text-green-600">
+              {prediction.yesPercent}%
+            </div>
+          </div>
+          <div className="rounded-lg bg-red-600/15 p-4">
+            <div className="mb-1 text-red-600 text-xs">NO</div>
+            <div className="font-bold text-3xl text-red-600">
+              {prediction.noPercent}%
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mb-4">
+          <div className="flex overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-3 bg-green-500 transition-all"
+              style={{ width: `${prediction.yesPercent}%` }}
+            />
+            <div
+              className="h-3 bg-red-500 transition-all"
+              style={{ width: `${prediction.noPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Resolution Status */}
+        {prediction.resolved ? (
+          <div
+            className={cn(
+              'mb-4 rounded-lg p-3 text-center font-semibold',
+              prediction.resolution === 'YES'
+                ? 'bg-green-600/15 text-green-600'
+                : prediction.resolution === 'NO'
+                  ? 'bg-red-600/15 text-red-600'
+                  : 'bg-muted text-muted-foreground'
+            )}
+          >
+            Resolved: {prediction.resolution}
+          </div>
+        ) : (
+          /* Trade Buttons */
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTradingPrediction(predictionMarket)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-3 font-bold text-sm text-white transition-colors hover:bg-green-700"
+            >
+              <CheckCircle size={18} />
+              BUY YES
+            </button>
+            <button
+              type="button"
+              onClick={() => setTradingPrediction(predictionMarket)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-3 font-bold text-sm text-white transition-colors hover:bg-red-700"
+            >
+              <XCircle size={18} />
+              BUY NO
+            </button>
+          </div>
+        )}
+
+        {/* Trading Modal */}
+        {tradingPrediction && (
+          <PredictionTradingModal
+            question={tradingPrediction}
+            isOpen={!!tradingPrediction}
+            onClose={() => setTradingPrediction(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Handle list view
+  const { predictions, status } = data;
+
+  if (!predictions || predictions.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="text-muted-foreground text-sm">
+          No predictions available
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">Prediction Markets</h3>
+        {status && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs capitalize">
+            {status}
+          </span>
+        )}
+      </div>
+      <div className="space-y-2">
+        {predictions.map((prediction) => {
+          const predictionMarket = toPredictionMarket(prediction);
+          return (
+            <div
+              key={prediction.id}
+              className="rounded-lg border border-border bg-card p-3"
+            >
+              <p className="line-clamp-2 font-medium text-sm">
+                {prediction.question}
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                {/* YES/NO bars */}
+                <div className="flex flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-2 bg-green-500"
+                    style={{ width: `${prediction.yesPercent}%` }}
+                  />
+                  <div
+                    className="h-2 bg-red-500"
+                    style={{ width: `${prediction.noPercent}%` }}
+                  />
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between text-xs">
+                <span className="text-green-500">
+                  {prediction.yesPercent}% YES
+                </span>
+                <span className="text-red-500">{prediction.noPercent}% NO</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
+                {prediction.resolved ? (
+                  <span
+                    className={cn(
+                      'font-medium',
+                      prediction.resolution === 'YES'
+                        ? 'text-green-500'
+                        : prediction.resolution === 'NO'
+                          ? 'text-red-500'
+                          : ''
+                    )}
+                  >
+                    Resolved: {prediction.resolution}
+                  </span>
+                ) : prediction.daysUntil !== null ? (
+                  <span>
+                    {prediction.daysUntil > 0
+                      ? `${prediction.daysUntil}d left`
+                      : 'Ending soon'}
+                  </span>
+                ) : (
+                  <span>End: {prediction.endDate}</span>
+                )}
+              </div>
+              {/* Quick Trade Button - only show for unresolved markets */}
+              {!prediction.resolved && (
+                <button
+                  type="button"
+                  onClick={() => setTradingPrediction(predictionMarket)}
+                  className="mt-2 w-full rounded bg-primary/10 py-1.5 font-medium text-primary text-xs transition-colors hover:bg-primary/20"
+                >
+                  Trade
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Trading Modal */}
+      {tradingPrediction && (
+        <PredictionTradingModal
+          question={tradingPrediction}
+          isOpen={!!tradingPrediction}
+          onClose={() => setTradingPrediction(null)}
+        />
+      )}
+    </div>
+  );
+}

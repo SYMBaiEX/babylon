@@ -1,7 +1,7 @@
-import type { MessageType } from '@babylon/shared';
+import type { MessageMetadata, MessageType } from '@babylon/shared';
 
 export { MessageTypeEnum } from '@babylon/shared';
-export type { MessageType };
+export type { MessageMetadata, MessageType };
 
 export type ChatFilter = 'all' | 'dms' | 'groups';
 
@@ -46,6 +46,8 @@ export interface Message {
   stableKey?: string;
   /** Whether this message is a "thinking" placeholder (shows spinner while waiting for response) */
   isThinking?: boolean;
+  /** Metadata containing action tags for sidebar display */
+  metadata?: MessageMetadata | null;
 }
 
 export interface ChatParticipant {

@@ -6,7 +6,7 @@
  * Provides high-level functions for broadcasting to channels and chat rooms.
  */
 
-import { logger } from '@babylon/shared';
+import { logger, type MessageMetadata } from '@babylon/shared';
 import { publishEvent, type RealtimeChannel } from '../realtime';
 import type { JsonValue } from '../types';
 
@@ -85,6 +85,7 @@ export async function broadcastChatMessage(
     createdAt: string;
     isGameChat?: boolean;
     isDMChat?: boolean;
+    metadata?: MessageMetadata | null;
   }
 ): Promise<void> {
   logger.info(

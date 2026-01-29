@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, type MessageTag } from '@babylon/shared';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
 import { Avatar } from '@/components/shared/Avatar';
@@ -33,6 +33,8 @@ interface MessageBubbleProps {
   validMentions?: string[];
   /** Whether this message is showing "Thinking..." placeholder state */
   isThinking?: boolean;
+  /** Callback when a tag is clicked - opens sidebar with tag data */
+  onTagClick?: (tag: MessageTag) => void;
 }
 
 export function MessageBubble({
@@ -41,6 +43,7 @@ export function MessageBubble({
   isCurrentUser,
   validMentions,
   isThinking,
+  onTagClick,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -126,9 +129,30 @@ export function MessageBubble({
               />
             </div>
           ) : (
-            <Response className="text-foreground" validMentions={validMentions}>
-              {getDisplayContent(message.content)}
-            </Response>
+            <>
+              <Response
+                className="text-foreground"
+                validMentions={validMentions}
+              >
+                {getDisplayContent(message.content)}
+              </Response>
+
+              {/* Action Tags - Buttons with background inside bubble */}
+              {message.metadata?.tags && message.metadata.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 border-muted/50 border-t pt-2">
+                  {message.metadata.tags.map((tag, i) => (
+                    <button
+                      key={`${tag.type}-${tag.entityId ?? i}`}
+                      type="button"
+                      onClick={() => onTagClick?.(tag)}
+                      className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

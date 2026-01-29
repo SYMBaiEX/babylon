@@ -1,5 +1,13 @@
 'use client';
 
+import type {
+  FeedTagData,
+  MessageTag,
+  PerpsTagData,
+  PnlTagData,
+  PostTagData,
+  PredictionsTagData,
+} from '@babylon/shared';
 import { Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,6 +29,13 @@ import {
 } from './BottomPanel';
 import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
+import {
+  FeedPanel,
+  PerpsPanel,
+  PnlPanel,
+  PostPanel,
+  PredictionsPanel,
+} from './panels';
 import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
   RightSidebar,
@@ -219,6 +234,54 @@ export default function TeamChatPage() {
   // Toggle right sidebar
   const toggleRightSidebar = useCallback(() => {
     setRightSidebarOpen((prev) => !prev);
+  }, []);
+
+  // Handle tag click from message bubble - opens panel in right sidebar
+  // Reuses existing tab if same type (and entityId for single-item views)
+  const handleTagClick = useCallback((tag: MessageTag) => {
+    setRightSidebarTabs((prev) => {
+      // Check if a matching tab already exists
+      // For tags with entityId (specific item), match by type + entityId
+      // For tags without entityId (list view), match by type only
+      const existingTab = prev.find((t) => {
+        if (tag.entityId) {
+          // Single item view - match type and check if data has same entityId
+          return t.type === tag.type && t.id.includes(tag.entityId);
+        }
+        // List view - match by type (allow only one list per type)
+        return t.type === tag.type && !t.id.includes('-id-');
+      });
+
+      if (existingTab) {
+        // Tab exists - just switch to it (update data in case it changed)
+        setActiveRightTabId(existingTab.id);
+        setRightSidebarOpen(true);
+        // Update the data for the existing tab
+        return prev.map((t) =>
+          t.id === existingTab.id
+            ? { ...t, data: tag.data, title: tag.label }
+            : t
+        );
+      }
+
+      // Create new tab with unique ID
+      const tabId = tag.entityId
+        ? `${tag.type}-id-${tag.entityId}`
+        : `${tag.type}-list`;
+
+      setActiveRightTabId(tabId);
+      setRightSidebarOpen(true);
+
+      return [
+        ...prev,
+        {
+          id: tabId,
+          type: tag.type,
+          title: tag.label,
+          data: tag.data,
+        },
+      ];
+    });
   }, []);
 
   // Handle selectAgent from query parameter (when redirected from agent profile)
@@ -549,6 +612,7 @@ export default function TeamChatPage() {
             onToggleLeftSidebar={() => setLeftSidebarCollapsed((p) => !p)}
             rightSidebarOpen={rightSidebarOpen}
             onToggleRightSidebar={toggleRightSidebar}
+            onTagClick={handleTagClick}
           />
         </div>
 
@@ -628,16 +692,39 @@ export default function TeamChatPage() {
         >
           {rightSidebarTabs
             .filter((tab) => tab.id === activeRightTabId)
-            .map((tab) => (
-              <div key={tab.id}>
-                {tab.type === 'agent-settings' && tab.agentId && (
+            .map((tab) => {
+              // Render panel based on tab type
+              let content: React.ReactNode = null;
+
+              if (tab.type === 'agent-settings' && tab.agentId) {
+                content = (
                   <AgentSettingsPanel
                     agentId={tab.agentId}
                     onAgentUpdated={refreshTeamChat}
                   />
-                )}
-              </div>
-            ))}
+                );
+              } else if (tab.type === 'perps' && tab.data) {
+                content = <PerpsPanel data={tab.data as PerpsTagData} />;
+              } else if (tab.type === 'predictions' && tab.data) {
+                content = (
+                  <PredictionsPanel data={tab.data as PredictionsTagData} />
+                );
+              } else if (tab.type === 'post' && tab.data) {
+                content = <PostPanel data={tab.data as PostTagData} />;
+              } else if (tab.type === 'feed' && tab.data) {
+                content = <FeedPanel data={tab.data as FeedTagData} />;
+              } else if (tab.type === 'agent-pnl' && tab.data) {
+                content = (
+                  <PnlPanel data={tab.data as PnlTagData} type="agent-pnl" />
+                );
+              } else if (tab.type === 'owner-pnl' && tab.data) {
+                content = (
+                  <PnlPanel data={tab.data as PnlTagData} type="owner-pnl" />
+                );
+              }
+
+              return <div key={tab.id}>{content}</div>;
+            })}
         </RightSidebar>
       )}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import type { MessageTag } from '@babylon/shared';
 import {
   Brain,
   MessageCircle,
@@ -123,6 +124,8 @@ interface TeamChatViewProps {
   rightSidebarOpen?: boolean;
   /** Callback to toggle right sidebar */
   onToggleRightSidebar?: () => void;
+  /** Callback when a message tag is clicked */
+  onTagClick?: (tag: MessageTag) => void;
 }
 
 /**
@@ -154,6 +157,7 @@ export function TeamChatView({
   onToggleLeftSidebar,
   rightSidebarOpen = false,
   onToggleRightSidebar,
+  onTagClick,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -251,6 +255,7 @@ export function TeamChatView({
           authenticated={authenticated}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}
+          onTagClick={onTagClick}
         />
       </div>
 

@@ -26,6 +26,8 @@ import {
   GROQ_MODELS,
   generateSnowflakeId,
   logger,
+  type MessageMetadata,
+  type MessageTag,
   MessageTypeEnum,
 } from '@babylon/shared';
 import {
@@ -254,6 +256,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     values?: Record<string, unknown>;
     parameters?: Record<string, unknown>;
     timestamp: number;
+    tag?: MessageTag;
   }> = [];
   let finalResponse: string | null = null;
   let isLLMFailure = false;
@@ -402,6 +405,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           success?: boolean;
           text?: string;
           values?: Record<string, unknown>;
+          tag?: MessageTag;
         } | null;
       } = { result: null };
 
@@ -415,6 +419,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
               success?: boolean;
               text?: string;
               values?: Record<string, unknown>;
+              tag?: MessageTag;
             };
           }> | null;
           if (resultsArray && resultsArray.length > 0) {
@@ -427,6 +432,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
                     ? firstResult.content.text
                     : undefined,
                 values: firstResult.content?.values,
+                tag: firstResult.content?.tag,
               };
             }
           }
@@ -466,6 +472,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         values: actionResult?.values,
         parameters: actionParams,
         timestamp: Date.now(),
+        tag: actionResult?.tag,
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -561,6 +568,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const responseText = finalResponse ?? "I'm here to help!";
 
+  // Collect tags from successful action results
+  const tags: MessageTag[] = traceActionResults
+    .filter((r) => r.success && r.tag)
+    .map((r) => r.tag as MessageTag);
+
+  // Build metadata if we have tags
+  const metadata: MessageMetadata | null = tags.length > 0 ? { tags } : null;
+
   // Save coordinator response to messages table
   const responseMessageId = await generateSnowflakeId();
   const responseTime = new Date();
@@ -571,6 +586,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     senderId: COORDINATOR_SENDER_ID,
     content: responseText,
     createdAt: responseTime,
+    metadata,
   });
 
   // Broadcast coordinator response
@@ -581,6 +597,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     senderId: COORDINATOR_SENDER_ID,
     type: MessageTypeEnum.COORDINATOR,
     createdAt: responseTime.toISOString(),
+    metadata,
   }).catch((err) => {
     logger.warn(
       `Failed to broadcast coordinator message: ${err}`,

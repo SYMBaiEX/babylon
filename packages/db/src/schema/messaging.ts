@@ -1,9 +1,11 @@
+import type { MessageMetadata } from '@babylon/shared';
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -103,6 +105,9 @@ export const messages = pgTable(
     // - For agent/coordinator responses: null (they don't target anyone)
     // - For non-team-chat messages: null
     targetIds: text('targetIds').array(),
+    // Metadata for action tags (displayed as clickable buttons on messages)
+    // Contains tags from actions like CHECK_PERPS, CHECK_PREDICTIONS, etc.
+    metadata: jsonb('metadata').$type<MessageMetadata>(),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),

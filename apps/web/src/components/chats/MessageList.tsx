@@ -1,6 +1,10 @@
 'use client';
 
-import { COORDINATOR_INFO, COORDINATOR_SENDER_ID } from '@babylon/shared';
+import {
+  COORDINATOR_INFO,
+  COORDINATOR_SENDER_ID,
+  type MessageTag,
+} from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -39,6 +43,8 @@ interface MessageListProps {
   authenticated: boolean;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  /** Callback when a message tag is clicked */
+  onTagClick?: (tag: MessageTag) => void;
 }
 
 export function MessageList({
@@ -51,6 +57,7 @@ export function MessageList({
   authenticated,
   topSentinelRef,
   messagesEndRef,
+  onTagClick,
 }: MessageListProps) {
   // Extract usernames from participants for @mention formatting
   // Only usernames that exist in the chat will be formatted as mentions
@@ -121,6 +128,7 @@ export function MessageList({
                 isCurrentUser={false}
                 validMentions={validMentions}
                 isThinking={msg.isThinking}
+                onTagClick={onTagClick}
               />
             );
           }
@@ -140,6 +148,7 @@ export function MessageList({
                 isCurrentUser={isCurrentUser}
                 validMentions={validMentions}
                 isThinking={msg.isThinking}
+                onTagClick={onTagClick}
               />
             );
           }

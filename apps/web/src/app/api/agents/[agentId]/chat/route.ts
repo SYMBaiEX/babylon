@@ -26,6 +26,8 @@ import {
   GROQ_MODELS,
   generateSnowflakeId,
   logger,
+  type MessageMetadata,
+  type MessageTag,
 } from '@babylon/shared';
 import {
   type ActionResult,
@@ -420,6 +422,7 @@ export const POST = withErrorHandling(
         actionType: string;
         parameters?: Record<string, unknown>;
         timestamp: number;
+        tag?: MessageTag;
       }
     > = [];
     let finalResponse: string | null = null;
@@ -602,6 +605,7 @@ export const POST = withErrorHandling(
           success?: boolean;
           text?: string;
           values?: Record<string, unknown>;
+          tag?: MessageTag;
         } | null = null;
 
         await runtime.processActions(
@@ -615,6 +619,7 @@ export const POST = withErrorHandling(
                 success?: boolean;
                 text?: string;
                 values?: Record<string, unknown>;
+                tag?: MessageTag;
               };
             }> | null;
             if (resultsArray && resultsArray.length > 0) {
@@ -627,6 +632,7 @@ export const POST = withErrorHandling(
                       ? firstResult.content.text
                       : undefined,
                   values: firstResult.content?.values,
+                  tag: firstResult.content?.tag,
                 };
               }
             }
@@ -667,6 +673,7 @@ export const POST = withErrorHandling(
           values: actionResult?.values,
           parameters: actionParams,
           timestamp: Date.now(),
+          tag: actionResult?.tag,
         });
       } catch (error) {
         const errorMsg =
@@ -790,6 +797,15 @@ export const POST = withErrorHandling(
     const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
     let responseMessageId: string;
 
+    // Collect tags from successful action results
+    const tags: MessageTag[] = traceActionResults
+      .filter((r) => r.success && r.tag)
+      .map((r) => r.tag as MessageTag);
+
+    // Build metadata if we have tags
+    const messageMetadata: MessageMetadata | null =
+      tags.length > 0 ? { tags } : null;
+
     if (isTeamChatMode && teamChatId) {
       // Team chat mode: Write only to messages table (not agentMessages)
       // User message is written by frontend (once) before calling multiple agents
@@ -802,6 +818,7 @@ export const POST = withErrorHandling(
         senderId: agentId,
         content: responseText,
         createdAt: assistantMessageTime,
+        metadata: messageMetadata,
       });
 
       // Broadcast agent response to team chat
@@ -812,6 +829,7 @@ export const POST = withErrorHandling(
         senderId: agentId,
         type: 'user',
         createdAt: assistantMessageTime.toISOString(),
+        metadata: messageMetadata,
       }).catch((err) => {
         logger.warn(
           `Failed to broadcast agent message to team chat: ${err}`,
@@ -857,6 +875,7 @@ export const POST = withErrorHandling(
                 success: a.success,
               })),
               isLLMFailure, // Track if this was a fallback response
+              // Note: tags are not included in legacy DM mode as it uses a different schema
             },
           },
         ],

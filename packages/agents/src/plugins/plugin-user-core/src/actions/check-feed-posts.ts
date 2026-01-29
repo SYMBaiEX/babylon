@@ -5,6 +5,7 @@
  * Similar to what users see on the /feed page.
  */
 
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -14,6 +15,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 /**
  * Format relative time (e.g., "2h ago", "15m ago")
@@ -203,7 +209,18 @@ export const checkFeedPostsAction: Action = {
             commentCount: p.commentCount,
           })),
         },
-      };
+        // Tag for sidebar display
+        tag: {
+          type: 'feed',
+          label: 'Feed',
+          icon: 'Newspaper',
+          data: {
+            posts: formattedPosts,
+            count: feedPosts.length,
+            hasMore: data.hasMore,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_FEED_POSTS] Error:', errorMsg);

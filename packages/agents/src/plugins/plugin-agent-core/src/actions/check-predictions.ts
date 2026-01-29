@@ -10,6 +10,7 @@
  */
 
 import { db, desc, eq, gte, markets } from '@babylon/db';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -19,6 +20,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 type StatusFilter = 'active' | 'resolved' | 'all';
 
@@ -32,17 +38,24 @@ function getDaysUntil(date: Date | null): number | null {
 export const checkPredictionsAction: Action = {
   name: 'CHECK_PREDICTIONS',
   description:
-    'Check prediction markets - questions, YES/NO odds, resolution dates',
+    'Check prediction markets - questions, YES/NO odds, resolution dates. Use marketId param for specific market details.',
   parameters: {
+    marketId: {
+      type: 'string',
+      description:
+        'Optional market ID to get specific prediction details. If omitted, returns a list of predictions.',
+      required: false,
+    },
     status: {
       type: 'string',
       description:
-        'Filter by status: "active", "resolved", or "all" (default: "active")',
+        'Filter by status: "active", "resolved", or "all" (default: "active"). Only used when marketId is not provided.',
       required: false,
     },
     limit: {
       type: 'number',
-      description: 'Number of predictions to show (default: 10, max: 20)',
+      description:
+        'Number of predictions to show (default: 10, max: 20). Only used when marketId is not provided.',
       required: false,
     },
   },
@@ -60,11 +73,11 @@ export const checkPredictionsAction: Action = {
     [
       {
         name: 'user',
-        content: { text: 'Show me resolved predictions' },
+        content: { text: 'Show me market #123' },
       },
       {
         name: 'assistant',
-        content: { text: 'Let me fetch the resolved predictions.' },
+        content: { text: "I'll get the details for that prediction market." },
       },
     ],
     [
@@ -95,12 +108,85 @@ export const checkPredictionsAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const actionParams = state?.data?.actionParams as
-      | { status?: string; limit?: number }
+      | { marketId?: string; status?: string; limit?: number }
       | undefined;
+    const marketId = actionParams?.marketId;
     const statusFilter = (actionParams?.status as StatusFilter) ?? 'active';
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 20);
 
     try {
+      // =========================================================================
+      // SINGLE MARKET MODE: When marketId is provided
+      // =========================================================================
+      if (marketId) {
+        const [prediction] = await db
+          .select()
+          .from(markets)
+          .where(eq(markets.id, marketId))
+          .limit(1);
+
+        if (!prediction) {
+          return {
+            success: false,
+            text: `Prediction market #${marketId} not found.`,
+            error: 'Market not found',
+          };
+        }
+
+        const yesShares = Number(prediction.yesShares || 0);
+        const noShares = Number(prediction.noShares || 0);
+        const totalShares = yesShares + noShares;
+        const yesPercent =
+          totalShares > 0 ? Math.round((yesShares / totalShares) * 100) : 50;
+        const noPercent = 100 - yesPercent;
+        const daysUntil = getDaysUntil(prediction.endDate);
+
+        const predictionData = {
+          id: prediction.id,
+          question: prediction.question,
+          yesPercent,
+          noPercent,
+          resolved: prediction.resolved,
+          resolution: prediction.resolution,
+          daysUntil,
+          endDate: prediction.endDate?.toISOString().split('T')[0] ?? 'TBD',
+          yesShares,
+          noShares,
+        };
+
+        logger.info(
+          `[CHECK_PREDICTIONS] Retrieved single market: #${marketId}`,
+          { marketId, question: prediction.question.substring(0, 40) },
+          'CheckPredictions'
+        );
+
+        return {
+          success: true,
+          text: `"${prediction.question}" - ${yesPercent}% YES / ${noPercent}% NO${prediction.resolved ? ` (Resolved: ${prediction.resolution})` : ''}`,
+          data: { prediction: predictionData },
+          values: {
+            id: prediction.id,
+            question: prediction.question,
+            yesPercent,
+            noPercent,
+            resolved: prediction.resolved,
+            daysUntil,
+          },
+          // Tag for specific market - opens detailed view
+          tag: {
+            type: 'predictions',
+            label: 'Prediction Market',
+            icon: 'Target',
+            entityId: String(prediction.id),
+            data: { prediction: predictionData },
+          },
+        } as ActionResultWithTag;
+      }
+
+      // =========================================================================
+      // LIST MODE: When no marketId provided
+      // =========================================================================
+
       // Build query based on status filter
       let query = db.select().from(markets);
 
@@ -178,7 +264,17 @@ export const checkPredictionsAction: Action = {
             daysUntil: p.daysUntil,
           })),
         },
-      };
+        // Tag for list view
+        tag: {
+          type: 'predictions',
+          label: 'Predictions',
+          icon: 'Target',
+          data: {
+            predictions: formattedPredictions,
+            status: statusFilter,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_PREDICTIONS] Error:', errorMsg);

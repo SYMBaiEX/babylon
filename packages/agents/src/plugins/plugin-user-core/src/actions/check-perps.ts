@@ -10,6 +10,7 @@
 
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -20,22 +21,34 @@ import type {
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
 
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
+
 type SortOption = 'price' | 'change' | 'volume' | 'name';
 
 export const checkPerpsAction: Action = {
   name: 'CHECK_PERPS',
   description:
-    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Help users understand market conditions.',
+    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Use ticker param for specific market details.',
   parameters: {
+    ticker: {
+      type: 'string',
+      description:
+        'Optional ticker symbol to get specific market details (e.g., "AAPL", "BTC"). If omitted, returns a list of markets.',
+      required: false,
+    },
     limit: {
       type: 'number',
-      description: 'Number of markets to show (default: 10, max: 20)',
+      description:
+        'Number of markets to show (default: 10, max: 20). Only used when ticker is not provided.',
       required: false,
     },
     sortBy: {
       type: 'string',
       description:
-        'Sort by: "price", "change", "volume", "name" (default: "volume")',
+        'Sort by: "price", "change", "volume", "name" (default: "volume"). Only used when ticker is not provided.',
       required: false,
     },
   },
@@ -53,11 +66,11 @@ export const checkPerpsAction: Action = {
     [
       {
         name: 'user',
-        content: { text: 'Show me stock prices' },
+        content: { text: 'Show me AAPL price' },
       },
       {
         name: 'coordinator',
-        content: { text: "I'll fetch the latest perp market data." },
+        content: { text: "I'll get the AAPL market details." },
       },
     ],
     [
@@ -88,8 +101,9 @@ export const checkPerpsAction: Action = {
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const actionParams = state?.data?.actionParams as
-      | { limit?: number; sortBy?: string }
+      | { ticker?: string; limit?: number; sortBy?: string }
       | undefined;
+    const ticker = actionParams?.ticker?.toUpperCase();
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 20);
     const sortBy = (actionParams?.sortBy as SortOption) ?? 'volume';
 
@@ -125,6 +139,66 @@ export const checkPerpsAction: Action = {
         };
       }
 
+      // =========================================================================
+      // SINGLE MARKET MODE: When ticker is provided
+      // =========================================================================
+      if (ticker) {
+        const market = perpMarkets.find(
+          (m) => m.ticker.toUpperCase() === ticker
+        );
+
+        if (!market) {
+          return {
+            success: false,
+            text: `Market "${ticker}" not found. Available markets: ${perpMarkets
+              .slice(0, 10)
+              .map((m) => m.ticker)
+              .join(', ')}...`,
+            error: 'Market not found',
+          };
+        }
+
+        const marketData = {
+          ticker: market.ticker,
+          name: market.name,
+          currentPrice: market.currentPrice,
+          changePercent24h: market.changePercent24h,
+          volume24h: market.volume24h,
+          openInterest: market.openInterest,
+          fundingRate: market.fundingRate,
+        };
+
+        logger.info(
+          `[CHECK_PERPS] Retrieved single market: ${ticker}`,
+          { ticker, price: market.currentPrice },
+          'check-perps'
+        );
+
+        return {
+          success: true,
+          text: `${market.ticker}: $${market.currentPrice.toLocaleString()} (${market.changePercent24h >= 0 ? '+' : ''}${market.changePercent24h.toFixed(2)}%)`,
+          data: { market: marketData },
+          values: {
+            ticker: market.ticker,
+            price: market.currentPrice,
+            change24h: market.changePercent24h,
+            volume24h: market.volume24h,
+          },
+          // Tag for specific market - opens detailed view
+          tag: {
+            type: 'perps',
+            label: market.ticker,
+            icon: 'TrendingUp',
+            entityId: market.ticker,
+            data: { market: marketData },
+          },
+        } as ActionResultWithTag;
+      }
+
+      // =========================================================================
+      // LIST MODE: When no ticker provided
+      // =========================================================================
+
       // Sort markets
       const sortedMarkets = [...perpMarkets].sort((a, b) => {
         switch (sortBy) {
@@ -155,17 +229,20 @@ export const checkPerpsAction: Action = {
         'check-perps'
       );
 
+      // Format markets for tag data
+      const marketsForTag = displayedMarkets.map((m) => ({
+        ticker: m.ticker,
+        name: m.name,
+        currentPrice: m.currentPrice,
+        changePercent24h: m.changePercent24h,
+        volume24h: m.volume24h,
+      }));
+
       return {
         success: true,
         text: `Retrieved ${displayedMarkets.length} perpetual markets.`,
         data: {
-          markets: displayedMarkets.map((m) => ({
-            ticker: m.ticker,
-            name: m.name,
-            currentPrice: m.currentPrice,
-            changePercent24h: m.changePercent24h,
-            volume24h: m.volume24h,
-          })),
+          markets: marketsForTag,
           count: displayedMarkets.length,
         },
         values: {
@@ -178,7 +255,14 @@ export const checkPerpsAction: Action = {
           topGainer: topGainer.ticker,
           topLoser: topLoser.ticker,
         },
-      };
+        // Tag for list view
+        tag: {
+          type: 'perps',
+          label: 'Perpetuals',
+          icon: 'TrendingUp',
+          data: { markets: marketsForTag },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_PERPS] Error:', errorMsg);

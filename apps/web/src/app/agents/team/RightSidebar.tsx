@@ -1,16 +1,50 @@
 'use client';
 
-import { cn } from '@babylon/shared';
-import { Bot, X } from 'lucide-react';
+import { cn, type MessageTagType } from '@babylon/shared';
+import {
+  Bot,
+  FileText,
+  Newspaper,
+  PiggyBank,
+  Target,
+  TrendingUp,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** Tab types including action tag types */
+export type RightSidebarTabType =
+  | 'agent-settings'
+  | 'agent-activity'
+  | 'other'
+  | MessageTagType;
 
 /** Tab data for right sidebar */
 export interface RightSidebarTab {
   id: string;
-  type: 'agent-settings' | 'agent-activity' | 'other';
+  type: RightSidebarTabType;
   title: string;
   agentId?: string;
+  /** Data payload for tag panels (from MessageTag.data) */
+  data?: unknown;
 }
+
+/** Map tab types to icons */
+const TAB_ICONS: Record<
+  RightSidebarTabType,
+  React.ComponentType<{ className?: string }>
+> = {
+  'agent-settings': Bot,
+  'agent-activity': Bot,
+  other: Bot,
+  perps: TrendingUp,
+  predictions: Target,
+  post: FileText,
+  feed: Newspaper,
+  'agent-pnl': Wallet,
+  'owner-pnl': PiggyBank,
+};
 
 // Width constraints
 const MIN_WIDTH = 320;
@@ -193,45 +227,50 @@ export function RightSidebar({
             {/* Tab Bar */}
             <div className="shrink-0 overflow-x-auto border-border border-b bg-muted/30 px-2 py-1">
               <div className="flex items-center gap-1">
-                {tabs.map((tab) => (
-                  <div
-                    key={tab.id}
-                    role="tab"
-                    tabIndex={0}
-                    onClick={() => onTabSelect(tab.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onTabSelect(tab.id);
-                      }
-                    }}
-                    className={cn(
-                      'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors',
-                      activeTabId === tab.id
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    <Bot className="h-3.5 w-3.5 shrink-0" />
-                    <span className="max-w-[100px] truncate">{tab.title}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTabClose(tab.id);
+                {tabs.map((tab) => {
+                  const TabIcon = TAB_ICONS[tab.type] || Bot;
+                  return (
+                    <div
+                      key={tab.id}
+                      role="tab"
+                      tabIndex={0}
+                      onClick={() => onTabSelect(tab.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onTabSelect(tab.id);
+                        }
                       }}
                       className={cn(
-                        'rounded p-0.5 transition-colors',
-                        'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        'opacity-0 group-hover:opacity-100',
-                        activeTabId === tab.id && 'opacity-100'
+                        'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors',
+                        activeTabId === tab.id
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       )}
-                      aria-label={`Close ${tab.title}`}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                      <TabIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="max-w-[100px] truncate">
+                        {tab.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTabClose(tab.id);
+                        }}
+                        className={cn(
+                          'rounded p-0.5 transition-colors',
+                          'text-muted-foreground hover:bg-muted hover:text-foreground',
+                          'opacity-0 group-hover:opacity-100',
+                          activeTabId === tab.id && 'opacity-100'
+                        )}
+                        aria-label={`Close ${tab.title}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

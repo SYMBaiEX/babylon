@@ -16,6 +16,7 @@ import {
   users,
 } from '@babylon/db';
 import { WalletService } from '@babylon/engine';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -25,6 +26,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 export const checkUserPnlAction: Action = {
   name: 'CHECK_USER_PNL',
@@ -170,6 +176,25 @@ export const checkUserPnlAction: Action = {
         'CheckUserPnL'
       );
 
+      // Format data for tag
+      const formattedPredictionPositions = predictionPositions.map((p) => ({
+        id: p.id,
+        marketId: p.marketId,
+        side: p.side ? 'YES' : 'NO',
+        shares: Number(p.shares),
+        avgPrice: Number(p.avgPrice),
+        question: p.question?.substring(0, 80) || 'Unknown',
+      }));
+
+      const formattedPerpPositions = perpPositionsList.map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        side: p.side,
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        leverage: p.leverage,
+      }));
+
       return {
         success: true,
         text: `Retrieved ${userName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
@@ -178,40 +203,40 @@ export const checkUserPnlAction: Action = {
           userId: ownerId,
           balance,
           lifetimePnL,
-          predictionPositions: predictionPositions.map((p) => ({
-            id: p.id,
-            marketId: p.marketId,
-            side: p.side ? 'YES' : 'NO',
-            shares: Number(p.shares),
-            avgPrice: Number(p.avgPrice),
-          })),
-          perpPositions: perpPositionsList.map((p) => ({
-            id: p.id,
-            ticker: p.ticker,
-            side: p.side,
-            size: Number(p.size),
-            entryPrice: Number(p.entryPrice),
-            leverage: p.leverage,
-          })),
+          predictionPositions: formattedPredictionPositions,
+          perpPositions: formattedPerpPositions,
         },
         values: {
           userName,
           balance,
           lifetimePnL,
-          predictionPositions: predictionPositions.map((p) => ({
+          predictionPositions: formattedPredictionPositions.map((p) => ({
             id: p.id,
-            question: p.question?.substring(0, 80) || 'Unknown',
-            side: p.side ? 'YES' : 'NO',
-            shares: Number(p.shares),
+            question: p.question,
+            side: p.side,
+            shares: p.shares,
           })),
-          perpPositions: perpPositionsList.map((p) => ({
+          perpPositions: formattedPerpPositions.map((p) => ({
             id: p.id,
             ticker: p.ticker,
             side: p.side,
-            size: Number(p.size),
+            size: p.size,
           })),
         },
-      };
+        // Tag for sidebar display
+        tag: {
+          type: 'owner-pnl',
+          label: 'My P&L',
+          icon: 'PiggyBank',
+          data: {
+            ownerName: userName,
+            balance,
+            lifetimePnL,
+            predictionPositions: formattedPredictionPositions,
+            perpPositions: formattedPerpPositions,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_USER_PNL] Error:', errorMsg);

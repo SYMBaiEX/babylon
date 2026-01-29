@@ -6,6 +6,7 @@
  */
 
 import { and, comments, db, desc, eq, isNull, posts, users } from '@babylon/db';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -15,6 +16,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 interface CommentWithAuthor {
   id: string;
@@ -285,7 +291,25 @@ ${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComm
           postId: post.id,
           commentCount: postComments.length,
         },
-      };
+        // Tag for sidebar display
+        tag: {
+          type: 'post',
+          label: 'Post',
+          icon: 'FileText',
+          entityId: post.id,
+          data: {
+            post: {
+              id: post.id,
+              content: post.content,
+              author: postAuthorName,
+              authorId: post.authorId,
+              createdAt: post.createdAt,
+            },
+            comments: commentsWithAuthor,
+            commentCount: postComments.length,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_POST_DETAIL] Error:', errorMsg);
