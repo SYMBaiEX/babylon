@@ -1500,7 +1500,7 @@ export class PointsService {
     }
 
     const totalCount =
-      pointsCategory === 'total' ? totalCountForTotal! : combined.length;
+      pointsCategory === 'total' ? (totalCountForTotal ?? 0) : combined.length;
     const paginatedResults =
       pointsCategory === 'total'
         ? combined

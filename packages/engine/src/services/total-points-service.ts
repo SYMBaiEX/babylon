@@ -15,7 +15,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 // ---------------------------------------------------------------------------
@@ -174,18 +174,29 @@ export const TotalPointsService = {
   /**
    * Snapshot all non-agent, non-actor users' current totalPoints
    * into the userPointsSnapshots table.
+   * Uses cursor-based pagination to avoid loading unbounded rows into memory.
    */
   async snapshotAllUsers(): Promise<number> {
-    const allUsers = await db
-      .select({ id: users.id, totalPoints: users.totalPoints })
-      .from(users)
-      .where(and(eq(users.isAgent, false), eq(users.isActor, false)));
-
     const now = new Date();
     const BATCH_SIZE = 500;
+    let processed = 0;
+    let lastId: string | null = null;
 
-    for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
-      const batch = allUsers.slice(i, i + BATCH_SIZE);
+    // Cursor-based pagination: fetch BATCH_SIZE at a time, ordered by id
+    while (true) {
+      const whereClause = lastId
+        ? and(eq(users.isAgent, false), eq(users.isActor, false), gt(users.id, lastId))
+        : and(eq(users.isAgent, false), eq(users.isActor, false));
+
+      const batch: { id: string; totalPoints: string | null }[] = await db
+        .select({ id: users.id, totalPoints: users.totalPoints })
+        .from(users)
+        .where(whereClause)
+        .orderBy(users.id)
+        .limit(BATCH_SIZE);
+
+      if (batch.length === 0) break;
+
       const rows = await Promise.all(
         batch.map(async (user) => ({
           id: await generateSnowflakeId(),
@@ -196,27 +207,44 @@ export const TotalPointsService = {
         }))
       );
       await db.insert(userPointsSnapshots).values(rows);
+
+      processed += batch.length;
+      const lastUser = batch[batch.length - 1];
+      if (lastUser) lastId = lastUser.id;
+
+      // If we got fewer than BATCH_SIZE, we've reached the end
+      if (batch.length < BATCH_SIZE) break;
     }
 
-    return allUsers.length;
+    return processed;
   },
 
   /**
    * Recompute totalPoints only for users marked dirty.
    * Called by the 15-min cron job for incremental updates.
+   * Uses cursor-based pagination to avoid loading unbounded rows into memory.
    */
   async recomputeDirtyUsers(): Promise<number> {
     const cutoff = new Date();
-    const dirtyUsers = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(isNotNull(users.totalPointsDirtyAt));
-
     const BATCH_SIZE = 100;
     let processed = 0;
+    let lastId: string | null = null;
 
-    for (let i = 0; i < dirtyUsers.length; i += BATCH_SIZE) {
-      const batch = dirtyUsers.slice(i, i + BATCH_SIZE);
+    // Cursor-based pagination: fetch BATCH_SIZE at a time, ordered by id
+    while (true) {
+      const whereClause = lastId
+        ? and(isNotNull(users.totalPointsDirtyAt), gt(users.id, lastId))
+        : isNotNull(users.totalPointsDirtyAt);
+
+      const batch: { id: string }[] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(whereClause)
+        .orderBy(users.id)
+        .limit(BATCH_SIZE);
+
+      if (batch.length === 0) break;
+
       await Promise.all(
         batch.map(async (user) => {
           await TotalPointsService.recomputeTotalPoints(user.id);
@@ -229,7 +257,13 @@ export const TotalPointsService = {
             );
         })
       );
+
       processed += batch.length;
+      const lastUser = batch[batch.length - 1];
+      if (lastUser) lastId = lastUser.id;
+
+      // If we got fewer than BATCH_SIZE, we've reached the end
+      if (batch.length < BATCH_SIZE) break;
     }
 
     return processed;

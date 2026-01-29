@@ -31,7 +31,7 @@
  *     tags:
  *       - Leaderboard
  *     summary: Get points leaderboard
- *     description: Returns paginated leaderboard ranking users by reputation points
+ *     description: Returns paginated leaderboard ranking users by total points (default), reputation, earned, or referral points
  *     parameters:
  *       - in: query
  *         name: page
