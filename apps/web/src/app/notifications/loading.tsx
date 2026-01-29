@@ -1,5 +1,8 @@
 import { PageContainer } from '@/components/shared/PageContainer';
-import { NotificationItemSkeleton } from '@/components/shared/Skeleton';
+import {
+  NotificationItemSkeleton,
+  Skeleton,
+} from '@/components/shared/Skeleton';
 
 export default function NotificationsLoading() {
   return (
@@ -8,9 +11,7 @@ export default function NotificationsLoading() {
         {/* Sticky header */}
         <div className="sticky top-0 z-10 border-border border-b bg-background/95 backdrop-blur-sm">
           <div className="px-4 py-3 lg:px-6">
-            <div className="h-7 w-40">
-              <span className="font-bold text-xl">Notifications</span>
-            </div>
+            <Skeleton className="h-7 w-40" />
           </div>
         </div>
 
