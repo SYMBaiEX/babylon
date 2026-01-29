@@ -4,6 +4,7 @@ import { logger, privyConfig } from '@babylon/shared';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
 import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useTheme } from 'next-themes';
 import { Fragment, Suspense, useEffect, useRef, useState } from 'react';
 import { PostHogErrorBoundary } from '@/components/analytics/PostHogErrorBoundary';
 import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
@@ -166,6 +167,28 @@ function PrivyProviderWrapper({
 }
 
 /**
+ * Syncs the app's resolved theme (from next-themes) to Privy's appearance config.
+ * Must be rendered inside ThemeProvider so useTheme() has access to the context.
+ */
+function ThemedPrivyProvider({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme();
+
+  const config = {
+    ...privyConfig.config,
+    appearance: {
+      ...privyConfig.config.appearance,
+      theme: resolvedTheme === 'light' ? 'light' : 'dark',
+    },
+  } as PrivyClientConfig;
+
+  return (
+    <PrivyProviderWrapper appId={privyConfig.appId} config={config}>
+      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+    </PrivyProviderWrapper>
+  );
+}
+
+/**
  * Root providers component wrapping the application with all necessary providers.
  *
  * Provides all application-level context providers including:
@@ -268,12 +291,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <FontSizeProvider>
                 <QueryClientProvider client={queryClient}>
                   <GamePlaybackManager />
-                  <PrivyProviderWrapper
-                    appId={privyConfig.appId}
-                    config={privyConfig.config as PrivyClientConfig}
-                  >
-                    <SmartWalletsProvider>
-                      <FarcasterMiniAppProvider>
+                  <ThemedPrivyProvider>
+                    <FarcasterMiniAppProvider>
                         {/* PostHog user identification */}
                         <PostHogIdentifier />
                         {/* Capture referral code from URL if present */}
@@ -294,8 +313,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                           </GameGuideProvider>
                         </OnboardingProvider>
                       </FarcasterMiniAppProvider>
-                    </SmartWalletsProvider>
-                  </PrivyProviderWrapper>
+                  </ThemedPrivyProvider>
                 </QueryClientProvider>
               </FontSizeProvider>
             </ThemeProvider>
