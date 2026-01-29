@@ -112,13 +112,15 @@ export class PriceUpdateService {
         .select({
           id: organizations.id,
           currentPrice: organizations.currentPrice,
+          initialPrice: organizations.initialPrice,
         })
         .from(organizations)
         .where(eq(organizations.id, orgId))
         .limit(1);
 
       // Resolve basePrice for bounds enforcement
-      const resolvedBasePrice = Number(state?.basePrice ?? 100);
+      // Priority: organizationState.basePrice > organization.initialPrice
+      const resolvedBasePrice = Number(state?.basePrice ?? organization?.initialPrice ?? 0);
       const hasValidBasePrice =
         Number.isFinite(resolvedBasePrice) && resolvedBasePrice > 0;
 
