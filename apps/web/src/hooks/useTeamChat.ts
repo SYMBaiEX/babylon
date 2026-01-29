@@ -5,7 +5,7 @@
  * containing all their agents.
  */
 
-import { COORDINATOR_SENDER_ID } from '@babylon/shared';
+import { COORDINATOR_SENDER_ID, type MessageMetadata } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useCallback,
@@ -799,6 +799,7 @@ export function useTeamChat(): UseTeamChatReturn {
               pointsCost?: number;
               type?: string;
               isLLMFailure?: boolean;
+              metadata?: MessageMetadata | null;
             };
 
             // Update thinking message with actual response
@@ -808,6 +809,7 @@ export function useTeamChat(): UseTeamChatReturn {
                 content: data.response,
                 isThinking: false,
                 stableKey: data.messageId,
+                metadata: data.metadata,
               });
             } else {
               // No response - remove thinking bubble
@@ -1084,10 +1086,17 @@ export function useTeamChat(): UseTeamChatReturn {
 
   /**
    * Create a new conversation (New Chat)
+   * Prevents creation if current chat is already empty
    */
   const createConversation = useCallback(
     async (title?: string) => {
       if (!user) return;
+
+      // Prevent creating new chat if current chat is empty
+      if (realtimeMessages.length === 0) {
+        toast.info('Current chat is already empty');
+        return;
+      }
 
       try {
         const token = await getAccessToken();
@@ -1130,7 +1139,7 @@ export function useTeamChat(): UseTeamChatReturn {
         toast.error('Failed to create conversation');
       }
     },
-    [user, getAccessToken, clearMessages]
+    [user, getAccessToken, clearMessages, realtimeMessages.length]
   );
 
   /**

@@ -625,5 +625,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     modelUsed: GROQ_MODELS.FREE.displayName,
     type: MessageTypeEnum.COORDINATOR,
     isLLMFailure,
+    metadata, // Include tags in response for immediate UI update
   });
 });
