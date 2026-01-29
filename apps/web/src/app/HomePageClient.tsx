@@ -3,7 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { ComingSoon } from '@/components/shared/ComingSoon';
-import { Skeleton } from '@/components/shared/Skeleton';
+import { PageContainer } from '@/components/shared/PageContainer';
+import { FeedLayoutSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
 
@@ -47,14 +48,11 @@ function HomePageContent() {
     return <ComingSoon />;
   }
 
-  // Show loading while redirecting to feed
+  // Show feed skeleton while redirecting
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="space-y-3">
-        <Skeleton className="h-12 w-48" />
-        <Skeleton className="h-4 w-64" />
-      </div>
-    </div>
+    <PageContainer noPadding className="flex w-full flex-col">
+      <FeedLayoutSkeleton />
+    </PageContainer>
   );
 }
 
@@ -62,12 +60,9 @@ export function HomePageClient() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full items-center justify-center">
-          <div className="space-y-3">
-            <Skeleton className="h-12 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-        </div>
+        <PageContainer noPadding className="flex w-full flex-col">
+          <FeedLayoutSkeleton />
+        </PageContainer>
       }
     >
       <HomePageContent />
