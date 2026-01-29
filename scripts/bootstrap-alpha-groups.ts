@@ -149,6 +149,7 @@ async function main() {
   );
 
   logger.info('Done!', {}, 'bootstrap-alpha-groups');
+  process.exit(0);
 }
 
 main().catch((error) => {
