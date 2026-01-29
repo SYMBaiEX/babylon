@@ -20,6 +20,9 @@ export enum AgentType {
 
   /** External agents from ElizaOS, MCP, Agent0, etc. */
   EXTERNAL = 'EXTERNAL',
+
+  /** Global user coordinator for team chat (shared runtime) */
+  USER_COORDINATOR = 'USER_COORDINATOR',
 }
 
 /**

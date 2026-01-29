@@ -44,6 +44,8 @@ export interface Message {
   createdAt: string;
   /** Stable key for React rendering - prevents flash when optimistic messages are replaced */
   stableKey?: string;
+  /** Whether this message is a "thinking" placeholder (shows spinner while waiting for response) */
+  isThinking?: boolean;
 }
 
 export interface ChatParticipant {

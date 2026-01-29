@@ -400,7 +400,13 @@ export class AgentRegistryService {
     const conditions = [];
 
     if (types && types.length > 0) {
-      conditions.push(inArray(agentRegistries.type, types));
+      // Filter out USER_COORDINATOR since it's a virtual type not stored in database
+      const dbTypes = types.filter(
+        (t) => t !== AgentType.USER_COORDINATOR
+      ) as Array<'USER_CONTROLLED' | 'NPC' | 'EXTERNAL'>;
+      if (dbTypes.length > 0) {
+        conditions.push(inArray(agentRegistries.type, dbTypes));
+      }
     }
 
     if (statuses && statuses.length > 0) {

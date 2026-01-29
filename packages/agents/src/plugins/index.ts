@@ -18,3 +18,4 @@ export * from './plugin-agent-core/src';
 export * from './plugin-autonomy/src';
 export * from './plugin-experience/src';
 export * from './plugin-trajectory-logger/src';
+export * from './plugin-user-core/src';

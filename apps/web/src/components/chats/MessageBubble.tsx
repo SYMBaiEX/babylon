@@ -31,6 +31,8 @@ interface MessageBubbleProps {
   isCurrentUser: boolean;
   /** Valid usernames for @mention formatting (case-sensitive) */
   validMentions?: string[];
+  /** Whether this message is showing "Thinking..." placeholder state */
+  isThinking?: boolean;
 }
 
 export function MessageBubble({
@@ -38,6 +40,7 @@ export function MessageBubble({
   sender,
   isCurrentUser,
   validMentions,
+  isThinking,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -107,9 +110,26 @@ export function MessageBubble({
               : 'rounded-tl-sm bg-sidebar-accent/50'
           )}
         >
-          <Response className="text-foreground" validMentions={validMentions}>
-            {getDisplayContent(message.content)}
-          </Response>
+          {isThinking ? (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '0ms' }}
+              />
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '150ms' }}
+              />
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '300ms' }}
+              />
+            </div>
+          ) : (
+            <Response className="text-foreground" validMentions={validMentions}>
+              {getDisplayContent(message.content)}
+            </Response>
+          )}
         </div>
       </div>
     </div>

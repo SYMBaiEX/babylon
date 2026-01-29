@@ -5,6 +5,7 @@
  * containing all their agents.
  */
 
+import { COORDINATOR_SENDER_ID } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useCallback,
@@ -16,6 +17,7 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+import { MessageTypeEnum } from '@/components/chats/types';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
@@ -25,8 +27,6 @@ const SCROLL_NEAR_BOTTOM_THRESHOLD = 150;
 const SCROLL_STABLE_FRAMES_REQUIRED = 5;
 // Maximum retries for scroll height stabilization (~2 seconds max)
 const MAX_SCROLL_STABLE_RETRIES = 20;
-// Default number of agents to respond when no one is tagged
-const DEFAULT_AGENTS_TO_RESPOND = 4;
 
 /**
  * Extract agent IDs from @mentions in message content.
@@ -199,6 +199,7 @@ export function useTeamChat(): UseTeamChatReturn {
     isLoadingMore,
     hasMore,
     addMessage,
+    updateMessage,
     removeMessage,
     clearMessages,
   } = useChatMessages(teamChat?.chatId ?? null);
@@ -646,21 +647,21 @@ export function useTeamChat(): UseTeamChatReturn {
     const content = messageInput.trim();
 
     // Extract mentioned agents from message content
-    // If agents are tagged, only those respond; otherwise first N agents respond
     const mentionedAgentIds = extractMentionedAgentIds(
       content,
       teamChat.agents
     );
-    const agentsToCall =
-      mentionedAgentIds.length > 0
-        ? mentionedAgentIds
-        : teamChat.agents.slice(0, DEFAULT_AGENTS_TO_RESPOND).map((a) => a.id);
 
-    // Filter out any agents that are already processing
-    const availableAgents = agentsToCall.filter(
-      (id) => !processingAgentIds.has(id)
-    );
-    if (availableAgents.length === 0) return;
+    // If no agents are mentioned, use coordinator instead
+    const useCoordinator = mentionedAgentIds.length === 0;
+
+    // Only call specific agents when they are @mentioned
+    const availableAgents = useCoordinator
+      ? []
+      : mentionedAgentIds.filter((id) => !processingAgentIds.has(id));
+
+    // If agents are mentioned but all are busy, don't proceed
+    if (!useCoordinator && availableAgents.length === 0) return;
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Use crypto.randomUUID() to avoid ID collisions on rapid sends
@@ -709,10 +710,109 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
-      // Call available agents in parallel (skip any that are already processing)
+      // =========================================================================
+      // COORDINATOR PATH: When no agents are mentioned
+      // =========================================================================
+      if (useCoordinator) {
+        // Add thinking placeholder message immediately
+        const thinkingId = `thinking-coordinator-${Date.now()}`;
+        addMessage({
+          id: thinkingId,
+          chatId: teamChat.chatId,
+          content: '',
+          senderId: COORDINATOR_SENDER_ID,
+          type: MessageTypeEnum.COORDINATOR,
+          createdAt: new Date().toISOString(),
+          stableKey: thinkingId,
+          isThinking: true,
+        });
+
+        // Scroll to show thinking indicator
+        setTimeout(() => scrollToBottom('instant'), 50);
+
+        try {
+          const coordinatorResponse = await fetch(
+            '/api/agents/team-chat/coordinator',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                content,
+                teamChatId: teamChat.chatId,
+              }),
+            }
+          );
+
+          if (coordinatorResponse.ok) {
+            const data = (await coordinatorResponse.json()) as {
+              success?: boolean;
+              messageId?: string;
+              response?: string;
+              pointsCost?: number;
+              type?: string;
+              isLLMFailure?: boolean;
+            };
+
+            // Update thinking message with actual response
+            if (data.response && data.messageId) {
+              updateMessage(thinkingId, {
+                id: data.messageId,
+                content: data.response,
+                isThinking: false,
+                stableKey: data.messageId,
+              });
+            } else {
+              // No response - remove thinking bubble
+              removeMessage(thinkingId);
+            }
+
+            // Show toast for coordinator response
+            if (data.isLLMFailure) {
+              toast.warning(
+                'Coordinator had trouble understanding. No points charged.'
+              );
+            } else if (data.pointsCost && data.pointsCost > 0) {
+              toast.success(
+                `Coordinator response (-${data.pointsCost} points)`
+              );
+            }
+          } else {
+            // Remove thinking bubble on error
+            removeMessage(thinkingId);
+
+            const errorData = (await coordinatorResponse.json()) as {
+              error?: string;
+              message?: string;
+            };
+            const errorMessage =
+              errorData.error ||
+              errorData.message ||
+              'Coordinator failed to respond';
+
+            if (errorMessage.toLowerCase().includes('insufficient')) {
+              toast.error('Insufficient points. Deposit to continue.');
+            } else {
+              toast.error(`Coordinator: ${errorMessage}`);
+            }
+          }
+        } catch (err) {
+          // Remove thinking bubble on network error
+          removeMessage(thinkingId);
+          toast.error('Coordinator: Connection error. Please try again.');
+          console.error('Coordinator error:', err);
+        }
+
+        return; // Exit early - don't proceed to agent calls
+      }
+
+      // =========================================================================
+      // AGENT PATH: When specific agents are @mentioned
+      // =========================================================================
+
       // Mark agents as processing
-      // Note: We keep the selection so user can continue chatting with same agents
-      // They can remove processing agents via X button if they want to unblock
       setProcessingAgentIds((prev) => {
         const next = new Set(prev);
         for (const id of availableAgents) {
@@ -725,8 +825,33 @@ export function useTeamChat(): UseTeamChatReturn {
       const ownerName = user.displayName || user.username || 'User';
       const ownerUsername = user.username || '';
 
+      // Create thinking message IDs for each agent (for tracking)
+      const thinkingIds = new Map<string, string>();
+
+      // Add thinking placeholder messages for all agents immediately
+      for (const agentId of availableAgents) {
+        const thinkingId = `thinking-${agentId}-${Date.now()}`;
+        thinkingIds.set(agentId, thinkingId);
+        addMessage({
+          id: thinkingId,
+          chatId: teamChat.chatId,
+          content: '',
+          senderId: agentId,
+          type: 'user',
+          createdAt: new Date().toISOString(),
+          stableKey: thinkingId,
+          isThinking: true,
+        });
+      }
+
+      // Scroll to show thinking indicators
+      setTimeout(() => scrollToBottom('instant'), 50);
+
       // Call each available agent in parallel
       const agentCalls = availableAgents.map(async (agentId) => {
+        // Get the thinking message ID for this agent
+        const thinkingId = thinkingIds.get(agentId)!;
+
         // Create AbortController for this agent (for stop functionality)
         const controller = new AbortController();
         abortControllersRef.current.set(agentId, controller);
@@ -763,20 +888,17 @@ export function useTeamChat(): UseTeamChatReturn {
               isLLMFailure?: boolean;
             };
 
-            // Add agent response message IMMEDIATELY from JSON response
-            // This prevents the delay from waiting for SSE broadcast
-            // stableKey prevents duplicate if SSE also delivers the same message
-            // Note: Auto-scroll is handled by the realtimeMessages.length effect
+            // Update thinking message with actual response
             if (data.response && data.messageId) {
-              addMessage({
+              updateMessage(thinkingId, {
                 id: data.messageId,
-                chatId: teamChat.chatId,
                 content: data.response,
-                senderId: agentId,
-                type: 'user',
-                createdAt: new Date().toISOString(),
+                isThinking: false,
                 stableKey: data.messageId,
               });
+            } else {
+              // No response - remove thinking bubble
+              removeMessage(thinkingId);
             }
 
             // Show toast based on response type
@@ -807,6 +929,9 @@ export function useTeamChat(): UseTeamChatReturn {
               });
             }
           } else {
+            // Remove thinking bubble on error
+            removeMessage(thinkingId);
+
             // Handle error response from backend
             try {
               const errorData = (await agentResponse.json()) as {
@@ -830,6 +955,9 @@ export function useTeamChat(): UseTeamChatReturn {
             }
           }
         } catch (err) {
+          // Remove thinking bubble on error
+          removeMessage(thinkingId);
+
           // Don't show toast for abort errors - they're expected when user stops
           if (err instanceof Error && err.name === 'AbortError') {
             // User cancelled, no need to notify
@@ -873,6 +1001,7 @@ export function useTeamChat(): UseTeamChatReturn {
     processingAgentIds,
     getAccessToken,
     addMessage,
+    updateMessage,
     removeMessage,
     sendTypingIndicator,
     scrollToBottom,

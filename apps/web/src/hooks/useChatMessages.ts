@@ -18,6 +18,8 @@ export interface ChatMessage {
   isGameChat?: boolean;
   /** Stable key for React rendering - prevents flash when optimistic messages are replaced */
   stableKey?: string;
+  /** Whether this message is a "thinking" placeholder (shows spinner while waiting for response) */
+  isThinking?: boolean;
 }
 
 /** Raw message from API (createdAt may be string or Date) */
@@ -283,7 +285,9 @@ export function useChatMessages(chatId: string | null) {
         chatId: m.chatId,
         senderId: m.senderId,
         type:
-          m.type === MessageTypeEnum.USER || m.type === MessageTypeEnum.SYSTEM
+          m.type === MessageTypeEnum.USER ||
+          m.type === MessageTypeEnum.SYSTEM ||
+          m.type === MessageTypeEnum.COORDINATOR
             ? (m.type as MessageType)
             : undefined,
         createdAt: m.createdAt,
@@ -407,6 +411,15 @@ export function useChatMessages(chatId: string | null) {
     setMessages((prev) => replaceOptimisticMessage(prev, message));
   }, []);
 
+  const updateMessage = useCallback(
+    (messageId: string, updates: Partial<ChatMessage>) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, ...updates } : msg))
+      );
+    },
+    []
+  );
+
   const removeMessage = useCallback((messageId: string) => {
     setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
   }, []);
@@ -430,6 +443,7 @@ export function useChatMessages(chatId: string | null) {
     hasMore,
     loadMore,
     addMessage,
+    updateMessage,
     removeMessage,
     clearMessages,
     reloadMessages,
