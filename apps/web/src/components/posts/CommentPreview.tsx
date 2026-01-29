@@ -5,6 +5,7 @@ import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { memo } from 'react';
+import { CommentInteractionBar } from '@/components/interactions';
 import { Avatar } from '@/components/shared/Avatar';
 import {
   isNpcIdentifier,
@@ -128,14 +129,7 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
   const timeAgo = formatTimeAgo(comment.createdAt);
 
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      className="flex w-full cursor-pointer items-start gap-3 text-left transition-colors hover:bg-muted/30"
-    >
+    <div className="flex w-full items-start gap-3 text-left">
       {/* Avatar */}
       <Link
         href={getProfileUrl(comment.userId, comment.userUsername)}
@@ -177,12 +171,27 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
           )}
         </div>
 
-        {/* Comment content */}
-        <p className="mt-0.5 text-foreground/90 text-sm leading-relaxed">
+        {/* Comment content - clickable to view all */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+          className="mt-0.5 w-full cursor-pointer text-left text-foreground/90 text-sm leading-relaxed transition-colors hover:text-foreground"
+        >
           {comment.content}
-        </p>
+        </button>
+
+        {/* Interaction bar */}
+        <CommentInteractionBar
+          commentId={comment.id}
+          likeCount={comment.likeCount}
+          isLiked={comment.isLiked}
+          onReplyClick={onClick}
+        />
       </div>
-    </button>
+    </div>
   );
 });
 

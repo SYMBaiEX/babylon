@@ -278,6 +278,7 @@ export interface CommentPreviewData {
   userUsername?: string | null;
   userAvatar?: string | null;
   likeCount?: number;
+  isLiked?: boolean;
 }
 
 /**
