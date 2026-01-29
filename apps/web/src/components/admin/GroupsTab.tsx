@@ -144,7 +144,7 @@ export function GroupsTab() {
       case 'agent':
         return 'Agent Group';
       case 'team':
-        return 'Command Center';
+        return 'Agents';
       default:
         return 'Unknown';
     }

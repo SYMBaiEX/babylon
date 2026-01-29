@@ -12,7 +12,7 @@ import { getAuthToken } from '@/lib/auth';
 /**
  * Bottom navigation content component for mobile devices.
  *
- * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
+ * Provides mobile navigation with Feed, Terminal, Chats, Agents, and Notifications tabs.
  * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
  * is enabled on home page.
  *
@@ -79,7 +79,7 @@ function BottomNavContent() {
       active: pathname === '/feed' || pathname === '/',
     },
     {
-      name: 'Markets',
+      name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
       color: '#0066FF',
@@ -155,7 +155,7 @@ function BottomNavContent() {
 /**
  * Bottom navigation component for mobile devices.
  *
- * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
+ * Provides mobile navigation with Feed, Terminal, Chats, Agents, and Notifications tabs.
  * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
  * is enabled on home page.
  *

@@ -6,7 +6,6 @@ import { MessageCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
 import { useAuth } from '@/hooks/useAuth';
-import { useLoginModal } from '@/hooks/useLoginModal';
 import { useInteractionStore } from '@/stores/interactionStore';
 import { DeleteButton } from './DeleteButton';
 import { LikeButton } from './LikeButton';
@@ -50,8 +49,7 @@ export function InteractionBar({
 }: InteractionBarProps) {
   const [showComments, setShowComments] = useState(false);
   const { postInteractions } = useInteractionStore();
-  const { authenticated } = useAuth();
-  const { showLoginModal } = useLoginModal();
+  const { authenticated, login } = useAuth();
 
   // Determine if this is a simple repost (no quote commentary)
   // Simple repost: has originalPostId but no quote commentary
@@ -78,60 +76,52 @@ export function InteractionBar({
   const isShared =
     storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
-  // Update store with latest counts from API, but preserve isLiked/isShared from store
+  // Sync store with API data while preserving optimistic updates
+  // - Always update counts from API (source of truth for totals)
+  // - Preserve isLiked/isShared from store if user has interacted (optimistic state)
+  // - Don't update during loading (optimistic update in progress)
   useEffect(() => {
-    if (initialInteractions) {
-      const store = useInteractionStore.getState();
-      const currentStoreData = store.postInteractions.get(interactionPostId);
+    if (!initialInteractions) return;
 
-      // Check if values have actually changed to prevent unnecessary updates
-      const newLikeCount = initialInteractions.likeCount ?? 0;
-      const newCommentCount = initialInteractions.commentCount ?? 0;
-      const newShareCount = initialInteractions.shareCount ?? 0;
+    const store = useInteractionStore.getState();
+    const currentStoreData = store.postInteractions.get(interactionPostId);
+    const isLoading = store.loadingStates.get(interactionPostId);
 
-      const hasChanged =
-        !currentStoreData ||
-        currentStoreData.likeCount !== newLikeCount ||
-        currentStoreData.commentCount !== newCommentCount ||
-        currentStoreData.shareCount !== newShareCount;
+    // Don't overwrite if there's an in-progress optimistic update
+    if (isLoading) return;
 
-      // Only update if values have changed
-      if (hasChanged) {
-        const updatedInteractions = new Map(store.postInteractions);
+    const newLikeCount = initialInteractions.likeCount ?? 0;
+    const newCommentCount = initialInteractions.commentCount ?? 0;
+    const newShareCount = initialInteractions.shareCount ?? 0;
 
-        updatedInteractions.set(interactionPostId, {
-          postId: interactionPostId,
-          // Use fresh counts from API
-          likeCount: newLikeCount,
-          commentCount: newCommentCount,
-          shareCount: newShareCount,
-          // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
-          isLiked:
-            currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
-          isShared:
-            currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
-        });
-        useInteractionStore.setState({ postInteractions: updatedInteractions });
-      }
+    // Check if counts have changed to prevent unnecessary updates
+    const countsChanged =
+      !currentStoreData ||
+      currentStoreData.likeCount !== newLikeCount ||
+      currentStoreData.commentCount !== newCommentCount ||
+      currentStoreData.shareCount !== newShareCount;
+
+    if (countsChanged) {
+      const updatedInteractions = new Map(store.postInteractions);
+      updatedInteractions.set(interactionPostId, {
+        postId: interactionPostId,
+        // Always use fresh counts from API
+        likeCount: newLikeCount,
+        commentCount: newCommentCount,
+        shareCount: newShareCount,
+        // Preserve user's interaction state from store, fallback to API
+        isLiked:
+          currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+        isShared:
+          currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
+      });
+      useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
-  }, [
-    interactionPostId,
-    initialInteractions,
-    // Track individual properties to ensure we catch all changes
-    // Using initialInteractions directly is safe since we check for changes before updating
-    initialInteractions?.likeCount,
-    initialInteractions?.commentCount,
-    initialInteractions?.shareCount,
-    initialInteractions?.isLiked,
-    initialInteractions?.isShared,
-  ]);
+  }, [interactionPostId, initialInteractions]);
 
   const handleCommentClick = () => {
     if (!authenticated) {
-      showLoginModal({
-        title: 'Login to Comment',
-        message: 'Log in to reply to posts and engage with NPCs.',
-      });
+      login();
       return;
     }
     // If custom onCommentClick is provided, use that instead of opening our own modal
@@ -147,7 +137,7 @@ export function InteractionBar({
       <div
         className={cn(
           className,
-          'mt-3 flex w-full items-center justify-between gap-6 text-muted-foreground'
+          'mt-2 flex w-full items-center justify-between gap-6 text-muted-foreground'
         )}
       >
         {/* Comment button */}
@@ -158,7 +148,7 @@ export function InteractionBar({
             handleCommentClick();
           }}
           className={cn(
-            'flex h-8 items-center gap-1 px-2',
+            'flex items-center gap-1',
             'bg-transparent transition-all duration-200 hover:opacity-70',
             'cursor-pointer text-muted-foreground text-xs'
           )}

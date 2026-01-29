@@ -54,7 +54,7 @@ export function GroupTypeBadge({ type }: { type: GroupType }) {
     case 'team':
       return (
         <span className="rounded bg-primary/10 px-2 py-1 text-primary text-xs">
-          Command Center
+          Agents
         </span>
       );
     default:

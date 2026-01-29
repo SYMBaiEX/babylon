@@ -126,7 +126,7 @@ interface TeamChatViewProps {
 }
 
 /**
- * Chat view component for Team Chat (Command Center)
+ * Chat view component for Team Chat (Agents)
  *
  * Similar to ChatView but with typing/thinking indicators and custom header
  */

@@ -5,6 +5,10 @@
 
 # cursor
 .cursor/commands/
+.cursor/skills/
+
+# CLAUDE
+.claude/skills/
 
 # next.js
 /.next/

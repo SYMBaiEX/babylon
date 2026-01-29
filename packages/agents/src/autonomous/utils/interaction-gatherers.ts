@@ -203,7 +203,7 @@ export async function gatherPendingChatMessages(
   const validChats = agentChats.filter((c) => c.chat !== null);
   if (validChats.length === 0) return interactions;
 
-  // Filter out team chats (Command Center) - agents shouldn't auto-respond there
+  // Filter out team chats (Agents) - agents shouldn't auto-respond there
   // Team chats use group.type = 'team'
   const teamGroups = await db
     .select({ id: groups.id })

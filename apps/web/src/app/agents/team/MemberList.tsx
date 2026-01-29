@@ -45,7 +45,7 @@ interface MemberListProps {
 }
 
 /**
- * Member list component for Command Center sidebar/drawer
+ * Member list component for Agents sidebar/drawer
  *
  * Shows all agents in the team chat.
  * Click on an agent to tag them in the message input.

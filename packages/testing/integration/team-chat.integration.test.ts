@@ -1,5 +1,5 @@
 /**
- * Team Chat (Command Center) Integration Tests
+ * Team Chat (Agents) Integration Tests
  *
  * Tests the unified team chat functionality with real database operations:
  * - TeamChatService lifecycle (create, add, remove)
@@ -7,7 +7,7 @@
  * - Concurrent operations
  * - API endpoint validation
  *
- * These tests verify the Command Center works correctly for agent coordination.
+ * These tests verify the Agents chat works correctly for agent coordination.
  */
 
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -156,7 +156,7 @@ describe('TeamChatService', () => {
         .from(groups)
         .where(eq(groups.id, teamChat.groupId));
       expect(group).toBeDefined();
-      expect(group!.name).toBe('Command Center');
+      expect(group!.name).toBe('Agents');
       expect(group!.type).toBe('team');
       expect(group!.ownerId).toBe(user.id);
 

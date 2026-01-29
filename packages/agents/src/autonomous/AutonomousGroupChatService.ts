@@ -49,7 +49,7 @@ export class AutonomousGroupChatService {
 
     let messagesCreated = 0;
 
-    // Filter out team chats (Command Center) - agents shouldn't auto-respond there
+    // Filter out team chats (Agents) - agents shouldn't auto-respond there
     // Team chats use group.type = 'team'
     const groupIds = groupChatsRaw
       .map((c) => c.chat?.groupId)
@@ -71,7 +71,7 @@ export class AutonomousGroupChatService {
       const chat = chatParticipant.chat;
       if (!chat || !chat.isGroup) continue; // Skip DMs
 
-      // Skip team chats (Command Center) - user explicitly triggers agent responses there
+      // Skip team chats (Agents) - user explicitly triggers agent responses there
       if (chat.groupId && teamGroupIds.has(chat.groupId)) {
         continue;
       }

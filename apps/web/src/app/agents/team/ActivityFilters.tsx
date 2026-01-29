@@ -91,7 +91,7 @@ const ACTIVITY_TYPES: {
  * Activity filter bar component.
  *
  * Provides pill-style buttons for activity type filtering and a dropdown
- * for agent selection. Designed for the Command Center activity feed.
+ * for agent selection. Designed for the Agents activity feed.
  */
 export const ActivityFilters = memo(function ActivityFilters({
   activityType,

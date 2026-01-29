@@ -212,7 +212,7 @@ function MobileHeaderContent() {
       active: pathname === '/feed' || pathname === '/',
     },
     {
-      name: 'Markets',
+      name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
       active: pathname === '/markets',

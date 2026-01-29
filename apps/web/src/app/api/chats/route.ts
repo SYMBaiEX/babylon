@@ -349,9 +349,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Get user's chats with proper RLS context
   const { groupChats, directChats } = await asUser(user, async (dbClient) => {
-    // Get ALL user's Command Center groups to exclude from regular chat list
+    // Get ALL user's Agents groups to exclude from regular chat list
     // (handles edge case of duplicate team groups from race conditions)
-    // Command Center is managed separately at /agents/team
+    // Agents is managed separately at /agents/team
     const teamGroups = await dbClient
       .select({ id: groups.id })
       .from(groups)
@@ -395,7 +395,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .where(inArray(chats.groupId, groupIds))
         : [];
 
-    // Filter out Command Center chats (all chats linked to any team group)
+    // Filter out Agents chats (all chats linked to any team group)
     const filteredGroupChats =
       teamGroupIds.size > 0
         ? groupChatsWithGroupId.filter(

@@ -1,8 +1,8 @@
 /**
- * Agent Team Chat (Command Center) E2E Tests with Synpress
+ * Agent Team Chat (Agents) E2E Tests with Synpress
  *
  * Tests the unified team chat functionality for agent coordination:
- * - Loading the Command Center page
+ * - Loading the Agents page
  * - Viewing agent member list
  * - Sending messages with @mentions
  * - Mobile responsive design
@@ -21,7 +21,7 @@ import { ROUTES } from './helpers/test-data';
 // Increase test timeout for network operations
 test.setTimeout(90000);
 
-test.describe('Agent Team Chat (Command Center)', () => {
+test.describe('Agent Team Chat (Agents)', () => {
   test.beforeEach(async ({ page }) => {
     // Desktop viewport
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -50,24 +50,24 @@ test.describe('Agent Team Chat (Command Center)', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should load Command Center page', async ({ page }) => {
+  test('should load Agents page', async ({ page }) => {
     expect(page.url()).toContain('/agents/team');
 
     const pageContent = await page.locator('body').textContent();
 
-    // Check for Command Center content
-    const hasCommandCenterContent =
-      pageContent?.toLowerCase().includes('command center') ||
+    // Check for Agents content
+    const hasAgentsContent =
+      pageContent?.toLowerCase().includes('agents') ||
       pageContent?.toLowerCase().includes('team') ||
       pageContent?.toLowerCase().includes('agent');
 
-    expect(hasCommandCenterContent).toBe(true);
+    expect(hasAgentsContent).toBe(true);
 
     await page.screenshot({
-      path: 'test-results/screenshots/11-command-center-page.png',
+      path: 'test-results/screenshots/11-agents-page.png',
       fullPage: true,
     });
-    console.log('✅ Command Center page loaded');
+    console.log('✅ Agents page loaded');
   });
 
   test('should display "no agents" state when user has no agents', async ({
@@ -82,10 +82,10 @@ test.describe('Agent Team Chat (Command Center)', () => {
     const hasContent =
       pageContent?.toLowerCase().includes('create') ||
       pageContent?.toLowerCase().includes('agent') ||
-      pageContent?.toLowerCase().includes('command center');
+      pageContent?.toLowerCase().includes('agents');
 
     expect(hasContent).toBe(true);
-    console.log('✅ Command Center displays appropriate state');
+    console.log('✅ Agents displays appropriate state');
   });
 
   test('should show connection status indicator', async ({ page }) => {
@@ -154,7 +154,7 @@ test.describe('Agent Team Chat (Command Center)', () => {
   });
 });
 
-test.describe('Command Center @Mention Functionality', () => {
+test.describe('Agents @Mention Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await navigateTo(page, ROUTES.HOME);
@@ -258,7 +258,7 @@ test.describe('Command Center @Mention Functionality', () => {
   });
 });
 
-test.describe('Command Center Mobile Responsiveness', () => {
+test.describe('Agents Mobile Responsiveness', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await navigateTo(page, ROUTES.HOME);
@@ -270,7 +270,7 @@ test.describe('Command Center Mobile Responsiveness', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should load Command Center on mobile', async ({ page }) => {
+  test('should load Agents on mobile', async ({ page }) => {
     await navigateTo(page, ROUTES.AGENTS_TEAM_CHAT);
     await waitForPageLoad(page);
     await page.waitForTimeout(2000);
@@ -281,11 +281,11 @@ test.describe('Command Center Mobile Responsiveness', () => {
     expect(pageContent).toBeTruthy();
 
     await page.screenshot({
-      path: 'test-results/screenshots/11-command-center-mobile.png',
+      path: 'test-results/screenshots/11-agents-mobile.png',
       fullPage: true,
     });
 
-    console.log('✅ Command Center loads on mobile');
+    console.log('✅ Agents loads on mobile');
   });
 
   test('should show mobile member drawer button', async ({ page }) => {
@@ -371,7 +371,7 @@ test.describe('Command Center Mobile Responsiveness', () => {
   });
 });
 
-test.describe('Command Center Navigation', () => {
+test.describe('Agents Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await navigateTo(page, ROUTES.HOME);
@@ -383,59 +383,57 @@ test.describe('Command Center Navigation', () => {
     await cooldownBetweenTests(page);
   });
 
-  test('should navigate to Command Center from sidebar', async ({ page }) => {
-    // Look for Command Center link in sidebar
-    const commandCenterLink = page
+  test('should navigate to Agents from sidebar', async ({ page }) => {
+    // Look for Agents link in sidebar
+    const agentsLink = page
       .locator('a[href="/agents/team"]')
-      .or(page.getByRole('link', { name: /Command Center/i }))
+      .or(page.getByRole('link', { name: /Agents/i }))
       .first();
 
-    const linkVisible = await commandCenterLink
+    const linkVisible = await agentsLink
       .isVisible({ timeout: 5000 })
       .catch(() => false);
 
     if (linkVisible) {
-      await commandCenterLink.click();
+      await agentsLink.click();
       await page.waitForTimeout(2000);
 
       expect(page.url()).toContain('/agents/team');
-      console.log('✅ Navigation to Command Center from sidebar works');
+      console.log('✅ Navigation to Agents from sidebar works');
     } else {
       // User may not have agents
-      console.log('ℹ️ Command Center link not visible (requires agents)');
+      console.log('ℹ️ Agents link not visible (requires agents)');
     }
   });
 
-  test('should navigate to Command Center from agents page', async ({
-    page,
-  }) => {
+  test('should navigate to Agents from agents page', async ({ page }) => {
     await navigateTo(page, ROUTES.AGENTS);
     await waitForPageLoad(page);
     await page.waitForTimeout(1500);
 
-    // Look for Command Center card/link on agents page
-    const commandCenterCard = page
+    // Look for Agents Chat card/link on agents page
+    const agentsCard = page
       .locator('a[href="/agents/team"]')
       .or(
         page
-          .getByText(/Command Center/i)
+          .getByText(/Agents Chat/i)
           .locator('..')
           .locator('a')
       )
       .first();
 
-    const cardVisible = await commandCenterCard
+    const cardVisible = await agentsCard
       .isVisible({ timeout: 5000 })
       .catch(() => false);
 
     if (cardVisible) {
-      await commandCenterCard.click();
+      await agentsCard.click();
       await page.waitForTimeout(2000);
 
       expect(page.url()).toContain('/agents/team');
-      console.log('✅ Navigation to Command Center from agents page works');
+      console.log('✅ Navigation to Agents from agents page works');
     } else {
-      console.log('ℹ️ Command Center card not visible (requires agents)');
+      console.log('ℹ️ Agents card not visible (requires agents)');
     }
   });
 

@@ -245,13 +245,13 @@ export async function getAgentPositions(agentUserId: string): Promise<{
 
 /**
  * Get agent's group chats for potential sharing
- * Excludes team chats (Command Center) - agents shouldn't auto-respond there
+ * Excludes team chats (Agents) - agents shouldn't auto-respond there
  */
 export async function getAgentGroupChats(
   agentUserId: string
 ): Promise<{ id: string; name: string; memberCount: number }[]> {
   try {
-    // Filter out team chats (Command Center)
+    // Filter out team chats (Agents)
     const teamGroups = await db
       .select({ id: groups.id })
       .from(groups)

@@ -4,7 +4,9 @@ import type { CommentPreviewData } from '@babylon/shared';
 import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { memo } from 'react';
+import { CommentInteractionBar } from '@/components/interactions';
 import { Avatar } from '@/components/shared/Avatar';
 import {
   isNpcIdentifier,
@@ -18,6 +20,7 @@ interface CommentPreviewProps {
   comments: CommentPreviewData[];
   totalCommentCount: number;
   onViewAllClick?: () => void;
+  showInputBar?: boolean;
   className?: string;
 }
 
@@ -48,101 +51,125 @@ export const CommentPreview = memo(function CommentPreview({
   comments,
   totalCommentCount,
   onViewAllClick,
+  showInputBar = true,
   className,
 }: CommentPreviewProps) {
-  if (!comments || comments.length === 0) {
-    return null;
-  }
+  // Type-safe check: comments is always an array (required prop)
+  const hasComments = comments.length > 0;
+
+  // Don't render anything if no comments and input bar is hidden
+  if (!hasComments && !showInputBar) return null;
+
+  const showViewAll = hasComments && totalCommentCount > comments.length;
 
   return (
-    <div
-      className={cn('mt-3 border-muted border-b pb-3', className)}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Comment list */}
-      <div className="space-y-3">
-        {comments.map((comment) => (
-          <CommentPreviewItem key={comment.id} comment={comment} />
-        ))}
-      </div>
+    <div className={cn('mt-3', className)} onClick={(e) => e.stopPropagation()}>
+      {/* Comment list - only show if there are comments */}
+      {hasComments && (
+        <div className="space-y-3">
+          {comments.map((comment) => (
+            <CommentPreviewItem
+              key={comment.id}
+              comment={comment}
+              onClick={onViewAllClick}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* View all comments link */}
-      {totalCommentCount > comments.length && (
+      {/* View all comments link - only show if there are more comments than previewed */}
+      {showViewAll && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onViewAllClick?.();
           }}
-          className="mt-3 text-primary text-sm transition-colors hover:text-primary/80"
+          className="text-primary text-sm transition-colors hover:underline"
         >
           View all {totalCommentCount} comments
         </button>
       )}
 
-      {/* Comment input bar - opens full comment section on click */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onViewAllClick?.();
-        }}
-        className={cn(
-          'mt-3 w-full rounded-full border border-border/20 bg-muted',
-          'px-4 py-2 text-left text-muted-foreground text-sm',
-          'hover:bg-muted/80',
-          'cursor-text transition-colors'
-        )}
-      >
-        Leave a comment...
-      </button>
+      {/* Line separator - shown under comments/view all when there are comments */}
+      {hasComments && <div className="mt-3 border-border border-b" />}
+
+      {/* Comment input bar - shown when showInputBar is true */}
+      {showInputBar && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewAllClick?.();
+          }}
+          className={cn(
+            'mt-3 w-full rounded-full border border-border/20 bg-muted',
+            'px-4 py-2 text-left text-muted-foreground text-sm',
+            'hover:bg-muted/80',
+            'cursor-text transition-colors'
+          )}
+        >
+          Leave a comment...
+        </button>
+      )}
     </div>
   );
 });
 
 /**
- * Individual comment preview item - full layout matching reference design
+ * Individual comment preview item - two-column layout matching post style
  */
 const CommentPreviewItem = memo(function CommentPreviewItem({
   comment,
+  onClick,
 }: {
   comment: CommentPreviewData;
+  onClick?: () => void;
 }) {
+  const router = useRouter();
   const isNPC = isNpcIdentifier(comment.userId);
   const timeAgo = formatTimeAgo(comment.createdAt);
 
   return (
-    <div className="flex items-start gap-3">
-      {/* Avatar */}
-      <Link
-        href={getProfileUrl(comment.userId, comment.userUsername)}
-        className="shrink-0 transition-opacity hover:opacity-80"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Avatar
-          id={comment.userId}
-          name={comment.userName}
-          type="actor"
-          size="sm"
-          src={comment.userAvatar || undefined}
-        />
-      </Link>
+    <div
+      className="flex cursor-pointer gap-3"
+      onClick={(e) => {
+        e.stopPropagation();
+        router.push(`/comment/${comment.id}`);
+      }}
+    >
+      {/* Left column: Avatar */}
+      <div className="flex flex-col items-center">
+        <Link
+          href={getProfileUrl(comment.userId, comment.userUsername)}
+          className="shrink-0 transition-opacity hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Avatar
+            id={comment.userId}
+            name={comment.userName}
+            type="actor"
+            size="md"
+            src={comment.userAvatar || undefined}
+          />
+        </Link>
+      </div>
 
-      {/* Content area */}
+      {/* Right column: Content */}
       <div className="min-w-0 flex-1">
-        {/* Header: Name + Handle + Timestamp */}
-        <div className="flex items-center justify-between gap-2">
+        {/* Header: Name + Username + Time */}
+        <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1">
             <Link
               href={getProfileUrl(comment.userId, comment.userUsername)}
-              className="flex items-center gap-1 font-semibold text-foreground text-sm hover:underline"
+              className="truncate font-semibold text-[15px] text-foreground hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="truncate">{comment.userName}</span>
-              {isNPC && <VerifiedBadge size="sm" />}
+              {comment.userName}
             </Link>
+            {isNPC && <VerifiedBadge size="sm" />}
             {comment.userUsername && (
-              <span className="truncate text-muted-foreground text-sm">
+              <span className="truncate text-[15px] text-muted-foreground">
                 @{comment.userUsername}
               </span>
             )}
@@ -154,10 +181,25 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
           )}
         </div>
 
-        {/* Comment content */}
-        <p className="mt-0.5 text-foreground/90 text-sm leading-relaxed">
+        {/* Comment content - clickable to view all */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+          className="mt-0.5 w-full cursor-pointer text-left text-foreground/90 text-sm leading-relaxed transition-colors hover:text-foreground"
+        >
           {comment.content}
-        </p>
+        </button>
+
+        {/* Interaction bar */}
+        <CommentInteractionBar
+          commentId={comment.id}
+          likeCount={comment.likeCount}
+          isLiked={comment.isLiked}
+          onReplyClick={onClick}
+        />
       </div>
     </div>
   );
@@ -165,8 +207,9 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
 
 /**
  * Format timestamp to relative time with suffix (e.g., "5m ago", "2h ago", "just now")
+ * Exported for unit testing.
  */
-function formatTimeAgo(timestamp: string): string {
+export function formatTimeAgo(timestamp: string): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();

@@ -5,7 +5,7 @@
  * @access Authenticated
  *
  * @description
- * Broadcasts typing indicator status to the user's Command Center team chat.
+ * Broadcasts typing indicator status to the user's Agents team chat.
  * This allows other participants (and agents) to see when someone is typing.
  */
 

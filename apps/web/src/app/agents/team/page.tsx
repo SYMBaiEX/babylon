@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { AgentCreate } from '@/components/agents/AgentCreate';
-import { LoginButton } from '@/components/auth/LoginButton';
 import { TeamChatView } from '@/components/chats';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
@@ -71,7 +70,7 @@ const AgentActivityFeed = dynamic(
 );
 
 /**
- * Agent Team Chat Page (Command Center)
+ * Agent Team Chat Page (Agents)
  *
  * A unified group chat containing all the user's agents.
  * Users can @mention specific agents to direct tasks.
@@ -79,7 +78,7 @@ const AgentActivityFeed = dynamic(
 export default function TeamChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { ready, authenticated, user } = useAuth();
+  const { ready, authenticated, user, login } = useAuth();
 
   const {
     teamChat,
@@ -314,24 +313,16 @@ export default function TeamChatPage() {
     };
   }, [teamChat?.chatId, loading, messagesEndRef, scrollToBottom]);
 
-  // Auth required state
+  // Auth required — redirect to feed and show login
+  useEffect(() => {
+    if (!ready || authenticated) return;
+    router.push('/feed');
+    const timer = setTimeout(() => login(), 500);
+    return () => clearTimeout(timer);
+  }, [ready, authenticated, router, login]);
+
   if (ready && !authenticated) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <Users className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
-            <h2 className="mb-2 font-bold text-foreground text-xl">
-              Log in to access Command Center
-            </h2>
-            <p className="mb-6 text-muted-foreground">
-              Sign in to coordinate your agents
-            </p>
-            <LoginButton />
-          </div>
-        </div>
-      </PageContainer>
-    );
+    return null;
   }
 
   // Loading state
@@ -371,7 +362,7 @@ export default function TeamChatPage() {
           <div className="max-w-md text-center">
             <Users className="mx-auto mb-4 h-16 w-16 text-red-500" />
             <h2 className="mb-2 font-bold text-foreground text-xl">
-              Failed to load Command Center
+              Failed to load Agents
             </h2>
             <p className="mb-6 text-muted-foreground">{error}</p>
           </div>
@@ -405,7 +396,7 @@ export default function TeamChatPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4">
               <h3 id="drawer-title" className="font-semibold text-foreground">
-                Command Center
+                Agents
               </h3>
               <button
                 onClick={() => setShowMemberDrawer(false)}

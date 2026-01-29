@@ -16,7 +16,7 @@ import {
 // - 'user': User-created groups
 // - 'npc': NPC-managed groups (tiered alpha groups)
 // - 'agent': Agent-created groups
-// - 'team': User's Command Center (team chat with their agents)
+// - 'team': User's Agents (team chat with their agents)
 export const groupTypeEnum = pgEnum('group_type', [
   'user',
   'npc',
@@ -209,7 +209,7 @@ export const groups = pgTable(
     index('Group_tier_idx').on(table.tier),
     index('Group_ownerId_tier_idx').on(table.ownerId, table.tier),
     index('Group_parentGroupId_idx').on(table.parentGroupId),
-    // Ensure only ONE team group (Command Center) per owner
+    // Ensure only ONE team group (Agents) per owner
     // This prevents race conditions from creating duplicate team chats
     uniqueIndex('Group_team_ownerId_unique')
       .on(table.ownerId)

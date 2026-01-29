@@ -1,10 +1,9 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Loader2, MessageCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
-import { LoginButton } from '@/components/auth/LoginButton';
 import {
   ChatHeader,
   ChatList,
@@ -14,7 +13,6 @@ import {
 } from '@/components/chats';
 import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
 import { GroupManagementModal } from '@/components/groups/GroupManagementModal';
-import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
 import {
   AlertDialog,
@@ -28,12 +26,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { buttonVariants } from '@/components/ui/button';
 import { useA2A } from '@/hooks/useA2A';
+import { useAuth } from '@/hooks/useAuth';
 import { useChatParam } from '@/hooks/useChatParam';
 import { useOwnedAgents } from '@/hooks/useOwnedAgents';
 import { useSSE } from '@/hooks/useSSE';
 
 export default function ChatsPage() {
   const router = useRouter();
+  const { login } = useAuth();
   useA2A();
   useChatParam();
 
@@ -109,7 +109,7 @@ export default function ChatsPage() {
   } = useChatPage();
 
   // Detect if the current chat is with the user's own agent
-  // If so, redirect to team chat (Command Center) instead of this DM
+  // If so, redirect to team chat (Agents) instead of this DM
   const ownAgentId = useMemo(() => {
     if (!chatDetails?.chat.otherUser || chatDetails.chat.isGroup) return null;
     const other = chatDetails.chat.otherUser;
@@ -129,22 +129,16 @@ export default function ChatsPage() {
     }
   }, [ownAgentId, router]);
 
-  // Auth required state
+  // Auth required — redirect to feed and show login
+  useEffect(() => {
+    if (!ready || authenticated) return;
+    router.push('/feed');
+    const timer = setTimeout(() => login(), 500);
+    return () => clearTimeout(timer);
+  }, [ready, authenticated, router, login]);
+
   if (ready && !authenticated) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <MessageCircle className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
-            <h2 className="mb-2 font-bold text-foreground text-xl">log in</h2>
-            <p className="mb-6 text-muted-foreground">
-              Sign in to view and send messages
-            </p>
-            <LoginButton />
-          </div>
-        </div>
-      </PageContainer>
-    );
+    return null;
   }
 
   // Show back button only on mobile/tablet (not on xl+ where both columns visible)
