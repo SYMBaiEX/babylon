@@ -2,12 +2,13 @@
  * Points Leaderboard API
  *
  * @description
- * Returns platform-wide leaderboard ranking users by reputation points,
- * earned points, or referral points. Provides paginated results with
- * comprehensive user statistics and rankings.
+ * Returns platform-wide leaderboard ranking users by total points,
+ * reputation, earned points, or referral points. Provides paginated results
+ * with comprehensive user statistics and rankings.
  *
  * **Leaderboard Types:**
- * - **all:** Total reputation points (default)
+ * - **total:** Portfolio value: wallet + positions (default)
+ * - **all:** Total reputation points
  * - **earned:** Points earned through activity
  * - **referral:** Points earned from referrals
  *
