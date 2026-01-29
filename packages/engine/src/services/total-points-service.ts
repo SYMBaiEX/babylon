@@ -15,7 +15,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 // ---------------------------------------------------------------------------
@@ -179,20 +179,23 @@ export const TotalPointsService = {
       .where(and(eq(users.isAgent, false), eq(users.isActor, false)));
 
     const now = new Date();
-    let count = 0;
+    const BATCH_SIZE = 500;
 
-    for (const user of allUsers) {
-      await db.insert(userPointsSnapshots).values({
-        id: await generateSnowflakeId(),
-        userId: user.id,
-        totalPoints: user.totalPoints ?? '0',
-        snapshotDate: now,
-        period: 'daily',
-      });
-      count++;
+    for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
+      const batch = allUsers.slice(i, i + BATCH_SIZE);
+      const rows = await Promise.all(
+        batch.map(async (user) => ({
+          id: await generateSnowflakeId(),
+          userId: user.id,
+          totalPoints: user.totalPoints ?? '0',
+          snapshotDate: now,
+          period: 'daily' as const,
+        }))
+      );
+      await db.insert(userPointsSnapshots).values(rows);
     }
 
-    return count;
+    return allUsers.length;
   },
 
   /**
@@ -200,6 +203,7 @@ export const TotalPointsService = {
    * Called by the 15-min cron job for incremental updates.
    */
   async recomputeDirtyUsers(): Promise<number> {
+    const cutoff = new Date();
     const dirtyUsers = await db
       .select({ id: users.id })
       .from(users)
@@ -213,11 +217,13 @@ export const TotalPointsService = {
       await Promise.all(
         batch.map(async (user) => {
           await TotalPointsService.recomputeTotalPoints(user.id);
-          // Clear dirty flag after successful recompute
+          // Only clear flag if it wasn't re-dirtied after we started
           await db
             .update(users)
             .set({ totalPointsDirtyAt: null })
-            .where(eq(users.id, user.id));
+            .where(
+              and(eq(users.id, user.id), lte(users.totalPointsDirtyAt, cutoff))
+            );
         })
       );
       processed += batch.length;
@@ -225,5 +231,4 @@ export const TotalPointsService = {
 
     return processed;
   },
-
 };

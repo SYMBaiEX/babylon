@@ -526,7 +526,13 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position open
-    TotalPointsService.markDirty(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId: actorId, error: e instanceof Error ? e.message : String(e) },
+        'TradeExecutionService'
+      )
+    );
 
     return {
       npcId: decision.npcId,
@@ -652,7 +658,13 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position open
-    TotalPointsService.markDirty(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId: actorId, error: e instanceof Error ? e.message : String(e) },
+        'TradeExecutionService'
+      )
+    );
 
     return {
       npcId: decision.npcId,
@@ -799,7 +811,13 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.markDirty(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId: actorId, error: e instanceof Error ? e.message : String(e) },
+        'TradeExecutionService'
+      )
+    );
 
     return {
       npcId: decision.npcId,
@@ -947,7 +965,16 @@ export class TradeExecutionService {
       });
 
       // Fire-and-forget: recompute totalPoints after position close
-      TotalPointsService.markDirty(actorId).catch(() => {});
+      TotalPointsService.markDirty(actorId).catch((e) =>
+        logger.warn(
+          'Failed to mark user dirty',
+          {
+            userId: actorId,
+            error: e instanceof Error ? e.message : String(e),
+          },
+          'TradeExecutionService'
+        )
+      );
 
       return {
         npcId: decision.npcId,
@@ -1064,7 +1091,13 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.markDirty(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId: actorId, error: e instanceof Error ? e.message : String(e) },
+        'TradeExecutionService'
+      )
+    );
 
     return {
       npcId: decision.npcId,
@@ -1133,7 +1166,13 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.markDirty(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId: actorId, error: e instanceof Error ? e.message : String(e) },
+        'TradeExecutionService'
+      )
+    );
 
     return {
       npcId: decision.npcId,
