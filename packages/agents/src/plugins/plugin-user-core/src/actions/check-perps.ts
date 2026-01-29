@@ -143,9 +143,33 @@ export const checkPerpsAction: Action = {
       // SINGLE MARKET MODE: When ticker is provided
       // =========================================================================
       if (ticker) {
-        const market = perpMarkets.find(
-          (m) => m.ticker.toUpperCase() === ticker
+        // Normalize ticker: remove $ prefix if present
+        const normalizedTicker = ticker.replace(/^\$/, '');
+
+        // Try multiple matching strategies:
+        // 1. Exact match (with or without $)
+        // 2. Partial match (ticker starts with or contains the search term)
+        // 3. Name-based match (e.g., "TSLA" matches "TeslAI")
+        let market = perpMarkets.find(
+          (m) =>
+            m.ticker.toUpperCase() === ticker ||
+            m.ticker.toUpperCase() === normalizedTicker ||
+            m.ticker.toUpperCase() === `$${normalizedTicker}`
         );
+
+        // If no exact match, try partial/fuzzy matching
+        if (!market) {
+          market = perpMarkets.find((m) => {
+            const marketTicker = m.ticker.toUpperCase().replace(/^\$/, '');
+            const marketName = (m.name || '').toUpperCase();
+            // Match if ticker starts with search term (e.g., "TSLA" matches "TSLAI")
+            // Or if name contains the search term (e.g., "TSLA" matches "TeslAI")
+            return (
+              marketTicker.startsWith(normalizedTicker) ||
+              marketName.includes(normalizedTicker)
+            );
+          });
+        }
 
         if (!market) {
           return {
