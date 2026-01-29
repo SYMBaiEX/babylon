@@ -31,12 +31,12 @@ type SortOption = 'price' | 'change' | 'volume' | 'name';
 export const checkPerpsAction: Action = {
   name: 'CHECK_PERPS',
   description:
-    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Use ticker param for specific market details, or omit for list view.',
+    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Tickers are AI-themed (e.g., TSLAI for Tesla, AIPPL for Apple).',
   parameters: {
     ticker: {
       type: 'string',
       description:
-        'Optional ticker symbol to get specific market details (e.g., "AAPL", "BTC"). If omitted, returns a list of markets.',
+        'Exact ticker or name for specific market (e.g., "TSLAI" or "TeslAI"). If not found, returns available markets.',
       required: false,
     },
     limit: {
@@ -143,41 +143,23 @@ export const checkPerpsAction: Action = {
       // SINGLE MARKET MODE: When ticker is provided
       // =========================================================================
       if (ticker) {
-        // Normalize ticker: remove $ prefix if present
-        const normalizedTicker = ticker.replace(/^\$/, '');
-
-        // Try multiple matching strategies:
-        // 1. Exact match (with or without $)
-        // 2. Partial match (ticker starts with or contains the search term)
-        // 3. Name-based match (e.g., "TSLA" matches "TeslAI")
-        let market = perpMarkets.find(
+        // Exact match by ticker or name (case-insensitive)
+        const market = perpMarkets.find(
           (m) =>
             m.ticker.toUpperCase() === ticker ||
-            m.ticker.toUpperCase() === normalizedTicker ||
-            m.ticker.toUpperCase() === `$${normalizedTicker}`
+            (m.name && m.name.toUpperCase() === ticker)
         );
 
-        // If no exact match, try partial/fuzzy matching
         if (!market) {
-          market = perpMarkets.find((m) => {
-            const marketTicker = m.ticker.toUpperCase().replace(/^\$/, '');
-            const marketName = (m.name || '').toUpperCase();
-            // Match if ticker starts with search term (e.g., "TSLA" matches "TSLAI")
-            // Or if name contains the search term (e.g., "TSLA" matches "TeslAI")
-            return (
-              marketTicker.startsWith(normalizedTicker) ||
-              marketName.includes(normalizedTicker)
-            );
-          });
-        }
+          // List available tickers to help the agent correct itself
+          const availableTickers = perpMarkets
+            .slice(0, 15)
+            .map((m) => `${m.ticker} (${m.name})`)
+            .join(', ');
 
-        if (!market) {
           return {
             success: false,
-            text: `Market "${ticker}" not found. Available markets: ${perpMarkets
-              .slice(0, 10)
-              .map((m) => m.ticker)
-              .join(', ')}...`,
+            text: `Market "${ticker}" not found. Available: ${availableTickers}`,
             error: 'Market not found',
           };
         }
