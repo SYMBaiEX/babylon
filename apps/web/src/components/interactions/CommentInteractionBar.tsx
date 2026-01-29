@@ -101,15 +101,17 @@ export const CommentInteractionBar = memo(function CommentInteractionBar({
         )}
       </button>
 
-      {/* Repost button */}
-      <button
-        type="button"
-        onClick={handleRepostClick}
-        className={buttonClasses}
-        aria-label="Repost comment"
-      >
-        <Repeat2 size={iconSize} />
-      </button>
+      {/* Repost button - only show if handler is provided */}
+      {onRepostClick && (
+        <button
+          type="button"
+          onClick={handleRepostClick}
+          className={buttonClasses}
+          aria-label="Repost comment"
+        >
+          <Repeat2 size={iconSize} />
+        </button>
+      )}
 
       {/* Like button - reuses existing component */}
       <LikeButton

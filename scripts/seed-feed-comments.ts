@@ -307,15 +307,20 @@ async function clearExistingData(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Production safety guard - prevent accidental data deletion
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Refusing to run seed-feed-comments in production. This script deletes data and is for local development only.'
+    );
+  }
+
   const args = process.argv.slice(2);
   const shouldClear = args.includes('--clear');
 
   // Parse count argument
   const countIndex = args.indexOf('--count');
-  const count =
-    countIndex !== -1 && args[countIndex + 1]
-      ? parseInt(args[countIndex + 1], 10)
-      : 20;
+  const countArg = countIndex !== -1 ? args[countIndex + 1] : undefined;
+  const count = countArg ? parseInt(countArg, 10) : 20;
 
   logger.info(
     '════════════════════════════════════════════════════════════',

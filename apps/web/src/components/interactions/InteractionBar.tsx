@@ -78,8 +78,10 @@ export function InteractionBar({
   const isShared =
     storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
-  // Initialize store with initial values ONLY if store doesn't have data for this post
-  // This prevents overwriting optimistic updates from user interactions
+  // Sync store with API data while preserving optimistic updates
+  // - Always update counts from API (source of truth for totals)
+  // - Preserve isLiked/isShared from store if user has interacted (optimistic state)
+  // - Don't update during loading (optimistic update in progress)
   useEffect(() => {
     if (!initialInteractions) return;
 
@@ -90,17 +92,28 @@ export function InteractionBar({
     // Don't overwrite if there's an in-progress optimistic update
     if (isLoading) return;
 
-    // Only initialize if store doesn't have data for this post
-    // Once user interacts, store becomes source of truth
-    if (!currentStoreData) {
+    const newLikeCount = initialInteractions.likeCount ?? 0;
+    const newCommentCount = initialInteractions.commentCount ?? 0;
+    const newShareCount = initialInteractions.shareCount ?? 0;
+
+    // Check if counts have changed to prevent unnecessary updates
+    const countsChanged =
+      !currentStoreData ||
+      currentStoreData.likeCount !== newLikeCount ||
+      currentStoreData.commentCount !== newCommentCount ||
+      currentStoreData.shareCount !== newShareCount;
+
+    if (countsChanged) {
       const updatedInteractions = new Map(store.postInteractions);
       updatedInteractions.set(interactionPostId, {
         postId: interactionPostId,
-        likeCount: initialInteractions.likeCount ?? 0,
-        commentCount: initialInteractions.commentCount ?? 0,
-        shareCount: initialInteractions.shareCount ?? 0,
-        isLiked: initialInteractions.isLiked ?? false,
-        isShared: initialInteractions.isShared ?? false,
+        // Always use fresh counts from API
+        likeCount: newLikeCount,
+        commentCount: newCommentCount,
+        shareCount: newShareCount,
+        // Preserve user's interaction state from store, fallback to API
+        isLiked: currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+        isShared: currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
       });
       useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
