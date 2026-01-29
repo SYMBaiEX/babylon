@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
+import { InteractionBar } from '@/components/interactions/InteractionBar';
 import { LikeButton } from '@/components/interactions/LikeButton';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { formatTimeAgo } from '@/components/posts/CommentPreview';
@@ -97,6 +98,11 @@ interface PostData {
   authorUsername: string | null;
   authorProfileImageUrl: string | null;
   createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  isLiked: boolean;
+  isShared: boolean;
 }
 
 /**
@@ -183,6 +189,28 @@ function OriginalPostCard({ post }: { post: PostData }) {
           <p className="line-clamp-3 text-foreground text-sm">
             <TaggedText text={post.content} />
           </p>
+
+          {/* Interaction bar */}
+          <InteractionBar
+            postId={post.id}
+            initialInteractions={{
+              postId: post.id,
+              likeCount: post.likeCount,
+              commentCount: post.commentCount,
+              shareCount: post.shareCount,
+              isLiked: post.isLiked,
+              isShared: post.isShared,
+            }}
+            postData={{
+              id: post.id,
+              content: post.content,
+              authorId: post.authorId,
+              authorName: post.authorName,
+              authorUsername: post.authorUsername,
+              authorProfileImageUrl: post.authorProfileImageUrl,
+              timestamp: post.createdAt,
+            }}
+          />
         </div>
       </div>
     </div>
@@ -405,7 +433,7 @@ function ReplyCard({
               type="button"
               onClick={() => setIsReplying(!isReplying)}
               className={cn(
-                'flex items-center gap-1',
+                'flex flex-1 items-center gap-1',
                 'bg-transparent transition-all duration-200 hover:opacity-70',
                 'cursor-pointer text-muted-foreground text-xs',
                 isReplying && 'text-[#0066FF]'
@@ -422,7 +450,7 @@ function ReplyCard({
             </button>
 
             {/* Repost button (placeholder) */}
-            <div>
+            <div className="flex-1">
               <button
                 type="button"
                 disabled
@@ -433,7 +461,7 @@ function ReplyCard({
             </div>
 
             {/* Like button */}
-            <div>
+            <div className="flex-1">
               <LikeButton
                 targetId={reply.id}
                 targetType="comment"
@@ -445,7 +473,7 @@ function ReplyCard({
             </div>
 
             {/* Empty spacer to match 4-column layout */}
-            <div />
+            <div className="flex-1" />
           </div>
 
           {/* Inline reply input */}
@@ -742,7 +770,7 @@ export default function CommentPage({ params }: CommentPageProps) {
                 type="button"
                 onClick={() => setIsReplying(!isReplying)}
                 className={cn(
-                  'flex items-center gap-1',
+                  'flex flex-1 items-center gap-1',
                   'bg-transparent transition-all duration-200 hover:opacity-70',
                   'cursor-pointer text-muted-foreground text-xs',
                   isReplying && 'text-[#0066FF]'
@@ -759,7 +787,7 @@ export default function CommentPage({ params }: CommentPageProps) {
               </button>
 
               {/* Repost button (placeholder) */}
-              <div>
+              <div className="flex-1">
                 <button
                   type="button"
                   disabled
@@ -770,7 +798,7 @@ export default function CommentPage({ params }: CommentPageProps) {
               </div>
 
               {/* Like button */}
-              <div>
+              <div className="flex-1">
                 <LikeButton
                   targetId={comment.id}
                   targetType="comment"
@@ -782,7 +810,7 @@ export default function CommentPage({ params }: CommentPageProps) {
               </div>
 
               {/* Empty spacer to match 4-column layout */}
-              <div />
+              <div className="flex-1" />
             </div>
 
             {/* Reply input */}

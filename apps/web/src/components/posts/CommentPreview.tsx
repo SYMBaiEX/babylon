@@ -85,14 +85,11 @@ export const CommentPreview = memo(function CommentPreview({
             e.stopPropagation();
             onViewAllClick?.();
           }}
-          className="text-primary text-sm transition-colors hover:underline"
+          className="mt-3 text-primary text-sm transition-colors hover:underline"
         >
           View all {totalCommentCount} comments
         </button>
       )}
-
-      {/* Line separator - shown under comments/view all when there are comments */}
-      {hasComments && <div className="mt-3 border-border border-b" />}
 
       {/* Comment input bar - shown when showInputBar is true */}
       {showInputBar && (
@@ -181,17 +178,10 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
           )}
         </div>
 
-        {/* Comment content - clickable to view all */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick?.();
-          }}
-          className="mt-0.5 w-full cursor-pointer text-left text-foreground/90 text-sm leading-relaxed transition-colors hover:text-foreground"
-        >
+        {/* Comment content */}
+        <p className="mt-0.5 text-foreground text-sm leading-relaxed">
           {comment.content}
-        </button>
+        </p>
 
         {/* Interaction bar */}
         <CommentInteractionBar

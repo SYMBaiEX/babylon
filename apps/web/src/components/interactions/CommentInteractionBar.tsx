@@ -17,7 +17,6 @@ export interface CommentInteractionBarProps {
   replyCount?: number;
   onReplyClick?: () => void;
   onRepostClick?: () => void;
-  size?: 'xs' | 'sm';
   className?: string;
 }
 
@@ -45,7 +44,6 @@ export const CommentInteractionBar = memo(function CommentInteractionBar({
   replyCount = 0,
   onReplyClick,
   onRepostClick,
-  size = 'xs',
   className,
 }: CommentInteractionBarProps) {
   const { authenticated } = useAuth();
@@ -75,57 +73,63 @@ export const CommentInteractionBar = memo(function CommentInteractionBar({
     onRepostClick?.();
   };
 
-  const iconSize = size === 'xs' ? 14 : 16;
-  const buttonClasses = cn(
-    'flex items-center gap-1 transition-all duration-200',
-    'cursor-pointer bg-transparent hover:opacity-70',
-    'text-muted-foreground',
-    size === 'xs' ? 'h-6 px-1 text-xs' : 'h-7 px-1.5 text-xs'
-  );
-
   return (
     <div
-      className={cn('mt-1.5 flex items-center gap-4', className)}
+      className={cn(
+        'mt-2 flex w-full items-center justify-between gap-6 text-muted-foreground',
+        className
+      )}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Reply button */}
       <button
         type="button"
         onClick={handleReplyClick}
-        className={buttonClasses}
+        className={cn(
+          'flex flex-1 items-center gap-1',
+          'bg-transparent transition-all duration-200 hover:opacity-70',
+          'cursor-pointer text-muted-foreground text-xs'
+        )}
         aria-label="Reply to comment"
       >
-        <MessageCircle size={iconSize} />
+        <MessageCircle size={18} />
         {replyCount > 0 && (
           <span className="font-medium tabular-nums">{replyCount}</span>
         )}
       </button>
 
-      {/* Repost button - only show if handler is provided */}
-      {onRepostClick && (
+      {/* Repost button */}
+      <div className="flex-1">
         <button
           type="button"
-          onClick={handleRepostClick}
-          className={buttonClasses}
+          onClick={onRepostClick ? handleRepostClick : undefined}
+          disabled={!onRepostClick}
+          className={cn(
+            'flex items-center gap-1 text-xs',
+            onRepostClick
+              ? 'cursor-pointer bg-transparent text-muted-foreground transition-all duration-200 hover:opacity-70'
+              : 'cursor-default text-muted-foreground/40'
+          )}
           aria-label="Repost comment"
         >
-          <Repeat2 size={iconSize} />
+          <Repeat2 size={18} />
         </button>
-      )}
+      </div>
 
-      {/* Like button - reuses existing component */}
-      <LikeButton
-        targetId={commentId}
-        targetType="comment"
-        initialLiked={isLiked}
-        initialCount={likeCount}
-        size="sm"
-        showCount
-        className={cn(
-          size === 'xs' && '!h-6 !px-1 !text-xs !gap-1',
-          '[&_svg]:!w-3.5 [&_svg]:!h-3.5'
-        )}
-      />
+      {/* Like button */}
+      <div className="flex-1">
+        <LikeButton
+          targetId={commentId}
+          targetType="comment"
+          initialLiked={isLiked}
+          initialCount={likeCount}
+          size="sm"
+          showCount
+        />
+      </div>
+
+      {/* Empty spacer to match 4-column layout */}
+      <div className="flex-1" />
     </div>
   );
 });
