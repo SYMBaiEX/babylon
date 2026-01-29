@@ -49,7 +49,7 @@ import {
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 import { db, generateSnowflakeId, messages } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { COORDINATOR_SENDER_ID, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -64,6 +64,10 @@ const messageSchema = z.object({
     .string()
     .min(1, 'Message content is required')
     .max(4000, 'Message too long. Maximum 4000 characters allowed.'),
+  // Target IDs for message routing in team chat
+  // - Array of agent IDs when @mentioning agents
+  // - Empty array or undefined = coordinator (no @mentions)
+  targetIds: z.array(z.string()).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { content } = parseResult.data;
+  const { content, targetIds: providedTargetIds } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
@@ -121,6 +125,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Determine target IDs for message routing
+  // If no agents are @mentioned (empty array or undefined), target the coordinator
+  const targetIds =
+    providedTargetIds && providedTargetIds.length > 0
+      ? providedTargetIds
+      : [COORDINATOR_SENDER_ID];
+
   // Create the message
   const messageId = await generateSnowflakeId();
   const now = new Date();
@@ -132,6 +143,7 @@ export async function POST(req: NextRequest) {
     content: content.trim(),
     type: 'user',
     createdAt: now,
+    targetIds,
   });
 
   logger.info(

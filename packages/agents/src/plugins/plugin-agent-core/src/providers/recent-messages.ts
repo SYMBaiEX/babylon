@@ -4,7 +4,7 @@
  * Provides conversation history from Babylon's database.
  *
  * In team chat mode: Queries the `messages` table filtered to only
- * messages between the user (owner) and this specific agent.
+ * messages that target this specific agent (via targetIds) and the agent's responses.
  *
  * In regular DM mode: Queries the `agentMessages` table (legacy behavior).
  */
@@ -14,8 +14,9 @@ import {
   db,
   desc,
   eq,
-  inArray,
   messages as messagesTable,
+  or,
+  sql,
 } from '@babylon/db';
 import type {
   IAgentRuntime,
@@ -80,15 +81,24 @@ export const recentMessagesProvider: Provider = {
       let rawMessages: unknown[];
 
       if (isTeamChatMode) {
-        // Team chat mode: Query messages table, filter to user + this agent only
-        // This gives the agent focused context on their 1:1 conversation within the team chat
+        // Team chat mode: Query messages that target this agent
+        // 1. User messages where targetIds contains this agent's ID
+        // 2. This agent's own responses
         const recentMsgs = await db
           .select()
           .from(messagesTable)
           .where(
             and(
               eq(messagesTable.chatId, teamChatId),
-              inArray(messagesTable.senderId, [ownerId, agentUserId])
+              or(
+                // Agent's own messages
+                eq(messagesTable.senderId, agentUserId),
+                // User messages targeting this agent
+                and(
+                  eq(messagesTable.senderId, ownerId),
+                  sql`${agentUserId} = ANY(${messagesTable.targetIds})`
+                )
+              )
             )
           )
           .orderBy(desc(messagesTable.createdAt))

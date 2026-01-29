@@ -693,13 +693,17 @@ export function useTeamChat(): UseTeamChatReturn {
       }
 
       // First, save user message to team chat (happens once for all agents)
+      // Pass targetIds for message routing (empty = coordinator, otherwise = agent IDs)
       const response = await fetch('/api/agents/team-chat/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          targetIds: mentionedAgentIds, // Empty array = coordinator, agent IDs = specific agents
+        }),
       });
 
       if (!response.ok) {

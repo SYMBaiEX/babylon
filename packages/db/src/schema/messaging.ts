@@ -98,11 +98,17 @@ export const messages = pgTable(
     content: text('content').notNull(),
     type: messageTypeEnum('type').notNull().default('user'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    // Target IDs for team chat message routing
+    // - For user messages: IDs of @mentioned agents, or ['coordinator'] if no mentions
+    // - For agent/coordinator responses: null (they don't target anyone)
+    // - For non-team-chat messages: null
+    targetIds: text('targetIds').array(),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
     index('Message_senderId_idx').on(table.senderId),
     index('Message_type_idx').on(table.type),
+    index('Message_targetIds_idx').on(table.targetIds),
   ]
 );
 

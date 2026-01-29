@@ -2,7 +2,8 @@
  * Coordinator Recent Messages Provider
  *
  * Provides conversation history for the coordinator.
- * Queries messages from the user and coordinator.
+ * Only shows messages that target the coordinator (no @mentions)
+ * and coordinator's own responses.
  */
 
 import {
@@ -10,8 +11,9 @@ import {
   db,
   desc,
   eq,
-  inArray,
   messages as messagesTable,
+  or,
+  sql,
 } from '@babylon/db';
 import { COORDINATOR_SENDER_ID } from '@babylon/shared';
 import type {
@@ -51,7 +53,9 @@ function formatTime(date: Date): string {
  * Coordinator Recent Messages Provider
  *
  * Fetches messages between the user and coordinator in team chat.
- * Uses 'coordinator' as the senderId for coordinator messages.
+ * Only includes:
+ * - User messages that target the coordinator (targetIds contains 'coordinator')
+ * - Coordinator's own responses (senderId = 'coordinator')
  */
 export const coordinatorRecentMessagesProvider: Provider = {
   name: 'RECENT_MESSAGES',
@@ -78,14 +82,24 @@ export const coordinatorRecentMessagesProvider: Provider = {
     }
 
     try {
-      // Query messages from user and coordinator
+      // Query messages relevant to coordinator:
+      // 1. User messages that target coordinator (targetIds contains 'coordinator')
+      // 2. Coordinator's own responses (senderId = 'coordinator')
       const recentMsgs = await db
         .select()
         .from(messagesTable)
         .where(
           and(
             eq(messagesTable.chatId, teamChatId),
-            inArray(messagesTable.senderId, [ownerId, COORDINATOR_SENDER_ID])
+            or(
+              // Coordinator's own messages
+              eq(messagesTable.senderId, COORDINATOR_SENDER_ID),
+              // User messages targeting coordinator
+              and(
+                eq(messagesTable.senderId, ownerId),
+                sql`${COORDINATOR_SENDER_ID} = ANY(${messagesTable.targetIds})`
+              )
+            )
           )
         )
         .orderBy(desc(messagesTable.createdAt))
