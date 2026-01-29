@@ -100,10 +100,19 @@ export async function applyCascadeEffects(
     const rawPrice = currentPrice * (1 + cascadeEffect);
 
     // Clamp to basePrice bounds to prevent cascade-driven price explosion
-    const minPrice = Number.isFinite(basePrice) && basePrice > 0
+    const hasValidBasePrice =
+      Number.isFinite(basePrice) && basePrice > 0;
+    if (!hasValidBasePrice) {
+      logger.warn(
+        'Missing basePrice for cascade target, using currentPrice fallback',
+        { orgId: affected.orgId, currentPrice },
+        'MarketCorrelationService'
+      );
+    }
+    const minPrice = hasValidBasePrice
       ? basePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO
       : currentPrice * 0.25;
-    const maxPrice = Number.isFinite(basePrice) && basePrice > 0
+    const maxPrice = hasValidBasePrice
       ? basePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO
       : currentPrice * 4.0;
     const newPrice = Math.max(minPrice, Math.min(maxPrice, rawPrice));

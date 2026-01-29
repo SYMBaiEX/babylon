@@ -662,6 +662,7 @@ class DatabaseService {
       .values({
         id,
         currentPrice,
+        basePrice: currentPrice ?? 100,
         updatedAt: new Date(),
       })
       .returning();

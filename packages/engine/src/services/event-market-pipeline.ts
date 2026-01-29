@@ -61,8 +61,8 @@ async function backoffDelay(attempt: number): Promise<void> {
 /**
  * Price bounds to prevent invalid prices
  */
-const MIN_PRICE_MULTIPLIER = 0.5; // Minimum 50% of base price per event
-const MAX_PRICE_MULTIPLIER = 1.5; // Maximum 150% of base price per event
+const MIN_EVENT_MULTIPLIER = 0.5; // Minimum 50% of base price per event
+const MAX_EVENT_MULTIPLIER = 1.5; // Maximum 150% of base price per event
 
 /**
  * Resolve a ticker to an organization ID.
@@ -153,8 +153,8 @@ export async function applyEventToMarkets(
       const rawEffect =
         impact.direction === 'up' ? 1 + magnitude : 1 - magnitude;
       const effect = Math.max(
-        MIN_PRICE_MULTIPLIER,
-        Math.min(MAX_PRICE_MULTIPLIER, rawEffect)
+        MIN_EVENT_MULTIPLIER,
+        Math.min(MAX_EVENT_MULTIPLIER, rawEffect)
       );
 
       const now = new Date();
@@ -229,8 +229,8 @@ export async function applyEventToMarkets(
 
         // Clamp combined multiplier to avoid extreme compounding from multiple impacts.
         const combinedMultiplier = Math.max(
-          MIN_PRICE_MULTIPLIER,
-          Math.min(MAX_PRICE_MULTIPLIER, entry.multiplier)
+          MIN_EVENT_MULTIPLIER,
+          Math.min(MAX_EVENT_MULTIPLIER, entry.multiplier)
         );
 
         const state = stateByOrgId.get(orgId);
@@ -241,12 +241,14 @@ export async function applyEventToMarkets(
         // Apply multiplier to currentPrice but clamp to basePrice bounds
         // to prevent exponential compounding across repeated events
         const rawPrice = currentPrice * combinedMultiplier;
-        const minPrice = Number.isFinite(basePrice) && basePrice > 0
-          ? basePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO
-          : currentPrice * 0.25;
-        const maxPrice = Number.isFinite(basePrice) && basePrice > 0
-          ? basePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO
-          : currentPrice * 4.0;
+        const minPrice =
+          Number.isFinite(basePrice) && basePrice > 0
+            ? basePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO
+            : currentPrice * 0.25;
+        const maxPrice =
+          Number.isFinite(basePrice) && basePrice > 0
+            ? basePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO
+            : currentPrice * 4.0;
         const newPrice = Math.max(minPrice, Math.min(maxPrice, rawPrice));
         if (!Number.isFinite(newPrice) || newPrice <= 0) return null;
 
@@ -381,8 +383,8 @@ export async function addPriceModifier(
       .map((m) => ({
         ...m,
         effect: Math.max(
-          MIN_PRICE_MULTIPLIER,
-          Math.min(MAX_PRICE_MULTIPLIER, m.effect)
+          MIN_EVENT_MULTIPLIER,
+          Math.min(MAX_EVENT_MULTIPLIER, m.effect)
         ),
       }));
 
@@ -445,8 +447,8 @@ export function calculateCurrentPrice(
   const now = new Date();
 
   // Pre-compute bounds for clamping during the loop
-  const minPrice = basePrice * MIN_PRICE_MULTIPLIER;
-  const maxPrice = basePrice * MAX_PRICE_MULTIPLIER;
+  const minPrice = basePrice * MIN_EVENT_MULTIPLIER;
+  const maxPrice = basePrice * MAX_EVENT_MULTIPLIER;
 
   // Apply all active modifiers with decay, clamping after each to avoid overflow
   for (const mod of modifiers) {
@@ -460,8 +462,8 @@ export function calculateCurrentPrice(
 
     // Bound effect to prevent extreme values
     const boundedEffect = Math.max(
-      MIN_PRICE_MULTIPLIER,
-      Math.min(MAX_PRICE_MULTIPLIER, mod.effect)
+      MIN_EVENT_MULTIPLIER,
+      Math.min(MAX_EVENT_MULTIPLIER, mod.effect)
     );
 
     const hoursSince = (now.getTime() - appliedAt.getTime()) / (1000 * 60 * 60);
@@ -470,8 +472,8 @@ export function calculateCurrentPrice(
 
     // Clamp decayed effect to prevent extreme per-modifier impact
     decayedEffect = Math.max(
-      MIN_PRICE_MULTIPLIER,
-      Math.min(MAX_PRICE_MULTIPLIER, decayedEffect)
+      MIN_EVENT_MULTIPLIER,
+      Math.min(MAX_EVENT_MULTIPLIER, decayedEffect)
     );
 
     price *= decayedEffect;
@@ -528,8 +530,8 @@ export async function updateStockPrice(
       .map((m) => ({
         ...m,
         effect: Math.max(
-          MIN_PRICE_MULTIPLIER,
-          Math.min(MAX_PRICE_MULTIPLIER, m.effect)
+          MIN_EVENT_MULTIPLIER,
+          Math.min(MAX_EVENT_MULTIPLIER, m.effect)
         ),
       }));
 

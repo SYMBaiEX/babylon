@@ -124,12 +124,22 @@ export class PriceUpdateService {
 
       // Central price clamp: enforce basePrice bounds on all updates
       let clampedNewPrice = update.newPrice;
+      if (!hasValidBasePrice) {
+        logger.warn(
+          'Missing basePrice for price update, skipping bounds enforcement',
+          { orgId, resolvedBasePrice },
+          'PriceUpdateService'
+        );
+      }
       if (hasValidBasePrice) {
         const minPrice =
           resolvedBasePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO;
         const maxPrice =
           resolvedBasePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO;
-        clampedNewPrice = Math.max(minPrice, Math.min(maxPrice, clampedNewPrice));
+        clampedNewPrice = Math.max(
+          minPrice,
+          Math.min(maxPrice, clampedNewPrice)
+        );
       }
 
       const oldPriceCandidate =
