@@ -228,6 +228,7 @@ export {
   type AgentActivityEvent,
   broadcastAgentActivity,
   broadcastChatMessage,
+  broadcastChatTitleUpdate,
   broadcastThinkingIndicator,
   broadcastToChannel,
   broadcastTypingIndicator,

@@ -9,6 +9,8 @@
  * Agent responses are triggered separately by the frontend calling /api/agents/[agentId]/chat
  * for each selected agent (parallel execution model).
  *
+ * On the first user message, an LLM-generated title is created for the conversation.
+ *
  * @openapi
  * /api/agents/team-chat/message:
  *   post:
@@ -41,6 +43,7 @@
  *         description: No team chat exists
  */
 
+import { createGroq } from '@ai-sdk/groq';
 import { teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
@@ -50,9 +53,76 @@ import {
 } from '@babylon/api';
 import { db, generateSnowflakeId, messages } from '@babylon/db';
 import { COORDINATOR_SENDER_ID, logger } from '@babylon/shared';
+import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+
+// =============================================================================
+// Title Generation
+// =============================================================================
+
+/**
+ * Generate a chat title from the first user message using LLM.
+ * Returns the generated title or null if generation failed.
+ */
+async function generateAndUpdateChatTitle(
+  chatId: string,
+  firstMessage: string
+): Promise<string | null> {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      logger.warn(
+        'GROQ_API_KEY not set, skipping title generation',
+        { chatId },
+        'TeamChatMessageAPI'
+      );
+      return null;
+    }
+
+    const groq = createGroq({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+
+    const prompt = `Create a brief chat title (2-5 words) that captures the topic of this message.
+
+Rules:
+- Just the topic, no meta commentary (NOT "Question about X" or "User asks about X")
+- No quotes, prefixes, or formatting
+
+Message: "${firstMessage.slice(0, 200)}"
+
+Title:`;
+
+    const result = await generateText({
+      model: groq('llama-3.1-8b-instant'),
+      prompt,
+      temperature: 0.7,
+      maxOutputTokens: 50,
+    });
+
+    const title = result.text.trim().slice(0, 50);
+
+    if (title) {
+      await teamChatService.updateChatTitle(chatId, title);
+      logger.info(
+        'Generated chat title from first message',
+        { chatId, title },
+        'TeamChatMessageAPI'
+      );
+      return title;
+    }
+    return null;
+  } catch (error) {
+    logger.error(
+      'Failed to generate chat title',
+      { chatId, error: error instanceof Error ? error.message : 'Unknown' },
+      'TeamChatMessageAPI'
+    );
+    return null;
+  }
+}
 
 // =============================================================================
 // Request Validation
@@ -164,6 +234,23 @@ export async function POST(req: NextRequest) {
     isDMChat: false,
   });
 
+  // Generate chat title on first message
+  // Check if chat needs title (name is null) and this is the first user message
+  let generatedTitle: string | null = null;
+  const needsTitle = await teamChatService.chatNeedsTitle(teamChat.chatId);
+  if (needsTitle) {
+    const messageCount = await teamChatService.getUserMessageCount(
+      teamChat.chatId
+    );
+    // Only generate on first message (count is 1 after insert)
+    if (messageCount === 1) {
+      generatedTitle = await generateAndUpdateChatTitle(
+        teamChat.chatId,
+        content.trim()
+      );
+    }
+  }
+
   // Note: Agent responses are now triggered by the frontend calling
   // /api/agents/[agentId]/chat for each selected agent (parallel execution).
   // The old broadcastToAllAgents flow has been removed to prevent duplicate responses.
@@ -179,6 +266,8 @@ export async function POST(req: NextRequest) {
         type: 'user',
         createdAt: now.toISOString(),
       },
+      // Include generated title if one was created
+      generatedTitle,
     },
     { status: 201 }
   );

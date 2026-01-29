@@ -13,6 +13,27 @@ interface ConversationInfo {
   isActive: boolean;
 }
 
+/**
+ * Get display name for a conversation.
+ * Returns the actual name if set, or a fallback using createdAt timestamp.
+ */
+function getConversationDisplayName(conversation: ConversationInfo): string {
+  if (conversation.name) return conversation.name;
+
+  // Fallback: "New Chat - Jan 30, 1:55 AM"
+  const date = new Date(conversation.createdAt);
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `New Chat - ${dateStr}, ${timeStr}`;
+}
+
 interface ConversationListProps {
   conversations: ConversationInfo[];
   loading?: boolean;
@@ -64,7 +85,8 @@ export function ConversationList({
     e.stopPropagation(); // Prevent selecting the conversation
     if (!onRenameConversation) return;
     setEditingId(conversation.id);
-    setEditValue(conversation.name || '');
+    // Use display name as initial edit value
+    setEditValue(getConversationDisplayName(conversation));
   };
 
   const handleSaveRename = async () => {
@@ -182,7 +204,7 @@ export function ConversationList({
                     onClick={() => handleSelectConversation(conversation.id)}
                     className="flex-1 truncate text-left text-sm"
                   >
-                    {conversation.name || 'Untitled'}
+                    {getConversationDisplayName(conversation)}
                   </button>
                   {onRenameConversation && (
                     <button

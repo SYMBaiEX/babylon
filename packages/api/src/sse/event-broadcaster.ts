@@ -201,6 +201,27 @@ export async function broadcastAgentActivity(
 }
 
 /**
+ * Broadcast chat title update to a chat room.
+ * Used when LLM generates a title for a new conversation.
+ */
+export async function broadcastChatTitleUpdate(
+  chatId: string,
+  newTitle: string
+): Promise<void> {
+  logger.info(
+    'Broadcasting chat title update',
+    { chatId, newTitle },
+    'Realtime'
+  );
+  await broadcastToChannel(`chat:${chatId}`, {
+    type: 'title_updated',
+    chatId,
+    title: newTitle,
+    timestamp: Date.now(),
+  });
+}
+
+/**
  * Broadcast typing indicator to a chat room.
  */
 export async function broadcastTypingIndicator(

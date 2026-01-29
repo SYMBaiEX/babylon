@@ -38,11 +38,35 @@ const TEAM_CHAT_NAME = 'Agents';
 const TEAM_CHAT_DESCRIPTION = 'Coordinate all your agents in one place';
 
 /**
- * Generate a chat name with date and time
- * Format: "Chat Jan 24, 10:30 AM"
+ * Format a date for display in chat names.
+ * Used for UI fallback when chat.name is null.
+ * Format: "Jan 24, 10:30 AM"
  */
-function generateChatName(date: Date = new Date()): string {
-  return `Chat ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+export function formatChatDate(date: Date): string {
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateStr}, ${timeStr}`;
+}
+
+/**
+ * Get display name for a chat.
+ * Returns the actual name if set, or a fallback using createdAt.
+ */
+export function getChatDisplayName(chat: {
+  name: string | null;
+  createdAt: Date | string;
+}): string {
+  if (chat.name) return chat.name;
+  const date =
+    chat.createdAt instanceof Date ? chat.createdAt : new Date(chat.createdAt);
+  return `New Chat - ${formatChatDate(date)}`;
 }
 
 /**
@@ -127,9 +151,10 @@ export class TeamChatService {
         });
 
         // 2. Create the initial Chat linked to the group
+        // name is null to indicate it needs LLM-generated title after first message
         await tx.insert(chats).values({
           id: chatId,
-          name: generateChatName(now),
+          name: null,
           description: null,
           isGroup: true,
           groupId,
@@ -817,8 +842,8 @@ export class TeamChatService {
         generateSnowflakeId(),
       ]);
 
-      // Generate default title if not provided
-      const chatTitle = title || generateChatName(now);
+      // Use provided title, or null to indicate LLM should generate after first message
+      const chatTitle = title || null;
 
       // 1. Create new Chat linked to the same Group
       const [newChat] = await tx
@@ -968,6 +993,59 @@ export class TeamChatService {
       { newTitle },
       'TeamChatService'
     );
+  }
+
+  /**
+   * Check if a chat needs a title to be generated.
+   * Returns true if name is null (indicating auto-generation needed).
+   *
+   * @param chatId - The chat ID to check
+   * @returns Whether the chat needs a title
+   */
+  async chatNeedsTitle(chatId: string): Promise<boolean> {
+    const [chat] = await db
+      .select({ name: chats.name })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    return chat?.name === null;
+  }
+
+  /**
+   * Update a chat's title (used for LLM-generated titles).
+   * This is a direct update without ownership validation - caller must verify.
+   *
+   * @param chatId - The chat ID to update
+   * @param title - The new title
+   */
+  async updateChatTitle(chatId: string, title: string): Promise<void> {
+    await db
+      .update(chats)
+      .set({ name: title, updatedAt: new Date() })
+      .where(eq(chats.id, chatId));
+
+    logger.info(
+      `Updated chat title via LLM generation`,
+      { chatId, title },
+      'TeamChatService'
+    );
+  }
+
+  /**
+   * Get the count of user messages in a chat.
+   * Used to determine if this is the first message (for title generation).
+   *
+   * @param chatId - The chat ID
+   * @returns Number of user messages
+   */
+  async getUserMessageCount(chatId: string): Promise<number> {
+    const result = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.chatId, chatId), eq(messages.type, 'user')));
+
+    return result.length;
   }
 
   /**

@@ -99,6 +99,27 @@ interface ConversationInfo {
   isActive: boolean;
 }
 
+/**
+ * Get display name for a conversation.
+ * Returns the actual name if set, or a fallback using createdAt timestamp.
+ */
+function getConversationDisplayName(conversation: ConversationInfo): string {
+  if (conversation.name) return conversation.name;
+
+  // Fallback: "New Chat - Jan 30, 1:55 AM"
+  const date = new Date(conversation.createdAt);
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `New Chat - ${dateStr}, ${timeStr}`;
+}
+
 /** Hook return type */
 interface UseTeamChatReturn {
   // State
@@ -601,7 +622,9 @@ export function useTeamChat(): UseTeamChatReturn {
     ? {
         chat: {
           id: teamChat.chatId,
-          name: activeConversation?.name || 'New Chat',
+          name: activeConversation
+            ? getConversationDisplayName(activeConversation)
+            : 'New Chat',
           isGroup: true,
           createdAt: teamChat.createdAt,
           updatedAt: teamChat.updatedAt,
@@ -712,6 +735,24 @@ export function useTeamChat(): UseTeamChatReturn {
         const data = await response.json();
         setSendError(data.message || data.error || 'Failed to send message');
         return;
+      }
+
+      // Check if a title was generated for this conversation (first message)
+      const responseData = (await response.json()) as {
+        success?: boolean;
+        message?: unknown;
+        generatedTitle?: string | null;
+      };
+
+      if (responseData.generatedTitle) {
+        // Update conversation title in the list (like manual rename does)
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === teamChat.chatId
+              ? { ...c, name: responseData.generatedTitle as string }
+              : c
+          )
+        );
       }
 
       // =========================================================================
