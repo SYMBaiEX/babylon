@@ -22,6 +22,11 @@ interface CronSchedule {
  */
 const ADDITIONAL_CRONS: CronSchedule[] = [
   {
+    path: '/api/cron/points-recompute',
+    schedule: '*/15 * * * *', // Every 15 minutes
+    description: 'Recompute total points for dirty users (incremental)',
+  },
+  {
     path: '/api/cron/metrics-snapshot',
     schedule: '0 * * * *', // Every hour at minute 0
     description: 'Hourly metrics snapshot',

@@ -64,6 +64,7 @@ interface ReferralData {
     profileImageUrl: string | null;
     referralCode: string | null;
     reputationPoints: number;
+    totalPoints: number;
     pointsAwardedForProfile: boolean;
     pointsAwardedForFarcaster: boolean;
     pointsAwardedForTwitter: boolean;
@@ -330,16 +331,16 @@ export default function RewardsPage() {
                 </div>
               </div>
 
-              {/* Current Balance */}
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
+              {/* Total Points */}
+              <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/10 p-4">
                 <div className="mb-2 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-[#0066FF]" />
                   <h2 className="font-medium text-muted-foreground text-sm">
-                    Current Balance
+                    Total Points
                   </h2>
                 </div>
-                <div className="font-bold text-3xl text-foreground">
-                  {referralData.user.reputationPoints.toLocaleString()}
+                <div className="font-bold text-3xl text-[#0066FF]">
+                  {referralData.user.totalPoints.toLocaleString()}
                 </div>
               </div>
 
@@ -645,16 +646,16 @@ export default function RewardsPage() {
                 </div>
               </div>
 
-              {/* Current Balance */}
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
+              {/* Total Points */}
+              <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/10 p-3">
                 <div className="mb-1 flex items-center gap-1">
                   <TrendingUp className="h-4 w-4 text-[#0066FF]" />
                   <h2 className="font-medium text-muted-foreground text-xs">
-                    Balance
+                    Total Points
                   </h2>
                 </div>
-                <div className="font-bold text-2xl text-foreground">
-                  {referralData.user.reputationPoints.toLocaleString()}
+                <div className="font-bold text-2xl text-[#0066FF]">
+                  {referralData.user.totalPoints.toLocaleString()}
                 </div>
               </div>
 

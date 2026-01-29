@@ -43,7 +43,7 @@ const UNQUALIFIED_REFERRAL_LIMIT = 10;
  *
  * @description Categories for filtering leaderboard results.
  */
-type LeaderboardCategory = 'all' | 'earned' | 'referral';
+type LeaderboardCategory = 'all' | 'earned' | 'referral' | 'total';
 
 /**
  * Result of awarding points to a user
@@ -1336,30 +1336,64 @@ export class PointsService {
       referralCount: users.referralCount,
       virtualBalance: users.virtualBalance,
       lifetimePnL: users.lifetimePnL,
+      totalPoints: users.totalPoints,
       createdAt: users.createdAt,
       onChainRegistered: users.onChainRegistered,
       nftTokenId: users.nftTokenId,
     };
 
     // Build users query based on category
+    // All modes exclude actors (isActor=false) AND agents (isAgent=false)
     let usersResult;
-    if (pointsCategory === 'all') {
+    let totalCountForTotal: number | null = null;
+    if (pointsCategory === 'total') {
+      // Use DB-level ordering and pagination for 'total' mode
+      const [countResult] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
+      totalCountForTotal = countResult?.count ?? 0;
+
+      usersResult = await db
+        .select(userSelectFields)
+        .from(users)
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)))
+        .orderBy(desc(users.totalPoints))
+        .limit(pageSize)
+        .offset(skip);
+    } else if (pointsCategory === 'all') {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
         .where(
-          and(eq(users.isActor, false), gte(users.reputationPoints, minPoints))
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gte(users.reputationPoints, minPoints)
+          )
         );
     } else if (pointsCategory === 'earned') {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), ne(users.earnedPoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            ne(users.earnedPoints, 0)
+          )
+        );
     } else {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), gt(users.invitePoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gt(users.invitePoints, 0)
+          )
+        );
     }
 
     const combined = [
@@ -1372,6 +1406,7 @@ export class PointsService {
         invitePoints: user.invitePoints,
         earnedPoints: user.earnedPoints,
         bonusPoints: user.bonusPoints,
+        totalPoints: Number(user.totalPoints ?? 0),
         referralCount: user.referralCount,
         balance: Number(user.virtualBalance ?? 0),
         lifetimePnL: Number(user.lifetimePnL ?? 0),
@@ -1410,6 +1445,7 @@ export class PointsService {
               invitePoints: 0,
               earnedPoints: 0,
               bonusPoints: 0,
+              totalPoints: 0,
               referralCount: 0,
               balance: 0,
               lifetimePnL: 0,
@@ -1424,37 +1460,51 @@ export class PointsService {
       );
     }
 
-    const sortField: 'allPoints' | 'earnedPoints' | 'invitePoints' =
-      pointsCategory === 'all'
-        ? 'allPoints'
-        : pointsCategory === 'earned'
-          ? 'earnedPoints'
-          : 'invitePoints';
+    const sortField:
+      | 'allPoints'
+      | 'earnedPoints'
+      | 'invitePoints'
+      | 'totalPoints' =
+      pointsCategory === 'total'
+        ? 'totalPoints'
+        : pointsCategory === 'all'
+          ? 'allPoints'
+          : pointsCategory === 'earned'
+            ? 'earnedPoints'
+            : 'invitePoints';
 
-    combined.sort((a, b) => {
-      const comparison = b[sortField] - a[sortField];
-      if (comparison !== 0) {
-        return comparison;
-      }
-
-      if (pointsCategory === 'referral') {
-        const referralComparison = b.referralCount - a.referralCount;
-        if (referralComparison !== 0) {
-          return referralComparison;
+    // For 'total' mode, DB already handled ordering and pagination
+    if (pointsCategory !== 'total') {
+      combined.sort((a, b) => {
+        const comparison = b[sortField] - a[sortField];
+        if (comparison !== 0) {
+          return comparison;
         }
-      }
 
-      if (pointsCategory === 'earned') {
-        const pnlComparison = b.lifetimePnL - a.lifetimePnL;
-        if (pnlComparison !== 0) {
-          return pnlComparison;
+        if (pointsCategory === 'referral') {
+          const referralComparison = b.referralCount - a.referralCount;
+          if (referralComparison !== 0) {
+            return referralComparison;
+          }
         }
-      }
 
-      return b.allPoints - a.allPoints;
-    });
+        if (pointsCategory === 'earned') {
+          const pnlComparison = b.lifetimePnL - a.lifetimePnL;
+          if (pnlComparison !== 0) {
+            return pnlComparison;
+          }
+        }
 
-    const paginatedResults = combined.slice(skip, skip + pageSize);
+        return b.allPoints - a.allPoints;
+      });
+    }
+
+    const totalCount =
+      pointsCategory === 'total' ? (totalCountForTotal ?? 0) : combined.length;
+    const paginatedResults =
+      pointsCategory === 'total'
+        ? combined
+        : combined.slice(skip, skip + pageSize);
 
     const resultsWithRank = paginatedResults.map((entry, index) => ({
       ...entry,
@@ -1463,10 +1513,10 @@ export class PointsService {
 
     return {
       users: resultsWithRank,
-      totalCount: combined.length,
+      totalCount,
       page,
       pageSize,
-      totalPages: Math.ceil(combined.length / pageSize),
+      totalPages: Math.ceil(totalCount / pageSize),
       pointsCategory,
     };
   }

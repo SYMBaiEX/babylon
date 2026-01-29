@@ -412,10 +412,9 @@ export const LeaderboardQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => {
-      // Default to 'all' if invalid, undefined, or empty
-      if (!val || !['all', 'earned', 'referral'].includes(val)) {
-        return undefined; // Will be handled as 'all' in route handler (pointsType ?? 'all')
+      if (!val || !['all', 'earned', 'referral', 'total'].includes(val)) {
+        return undefined;
       }
-      return val as 'all' | 'earned' | 'referral';
+      return val as 'all' | 'earned' | 'referral' | 'total';
     }),
 });

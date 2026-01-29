@@ -2,12 +2,12 @@
 
 import { cn } from '@babylon/shared';
 
-export type LeaderboardTab = 'all' | 'earned' | 'referral';
+export type LeaderboardTab = 'total' | 'all' | 'earned' | 'referral';
 
 /**
  * Leaderboard toggle component for switching between leaderboard views.
  *
- * Provides tab navigation between All Points, Earned Points, and Referral Points views.
+ * Provides tab navigation between Total Points, Reputation, Earned Points, and Referral Points views.
  * Shows active tab with underline indicator and hover states.
  *
  * @param props - LeaderboardToggle component props
@@ -16,7 +16,7 @@ export type LeaderboardTab = 'all' | 'earned' | 'referral';
  * @example
  * ```tsx
  * <LeaderboardToggle
- *   activeTab="all"
+ *   activeTab="total"
  *   onTabChange={(tab) => setActiveTab(tab)}
  * />
  * ```
@@ -33,13 +33,25 @@ export function LeaderboardToggle({
   return (
     <div className="flex w-full items-center border-border border-b">
       <button
+        onClick={() => onTabChange('total')}
+        className={cn(
+          'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
+          activeTab === 'total' ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        Total Points
+        {activeTab === 'total' && (
+          <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
+        )}
+      </button>
+      <button
         onClick={() => onTabChange('all')}
         className={cn(
           'relative flex-1 py-3.5 font-semibold transition-all hover:bg-muted/20',
           activeTab === 'all' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
-        All Points
+        Reputation
         {activeTab === 'all' && (
           <div className="absolute right-0 bottom-0 left-0 h-[3px] bg-primary" />
         )}

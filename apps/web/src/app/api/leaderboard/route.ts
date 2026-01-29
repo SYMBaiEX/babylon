@@ -2,12 +2,13 @@
  * Points Leaderboard API
  *
  * @description
- * Returns platform-wide leaderboard ranking users by reputation points,
- * earned points, or referral points. Provides paginated results with
- * comprehensive user statistics and rankings.
+ * Returns platform-wide leaderboard ranking users by total points,
+ * reputation, earned points, or referral points. Provides paginated results
+ * with comprehensive user statistics and rankings.
  *
  * **Leaderboard Types:**
- * - **all:** Total reputation points (default)
+ * - **total:** Portfolio value: wallet + positions (default)
+ * - **all:** Total reputation points
  * - **earned:** Points earned through activity
  * - **referral:** Points earned from referrals
  *
@@ -30,7 +31,7 @@
  *     tags:
  *       - Leaderboard
  *     summary: Get points leaderboard
- *     description: Returns paginated leaderboard ranking users by reputation points
+ *     description: Returns paginated leaderboard ranking users by total points (default), reputation, earned, or referral points
  *     parameters:
  *       - in: query
  *         name: page
@@ -58,8 +59,8 @@
  *         name: pointsType
  *         schema:
  *           type: string
- *           enum: [all, earned, referral]
- *           default: all
+ *           enum: [total, all, earned, referral]
+ *           default: total
  *         description: Points category to rank by
  *     responses:
  *       200:
@@ -173,7 +174,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { page, pageSize, minPoints, pointsType } = validationResult.data;
 
-  const pointsCategory = (pointsType ?? 'all') as 'all' | 'earned' | 'referral';
+  const pointsCategory = (pointsType ?? 'total') as
+    | 'all'
+    | 'earned'
+    | 'referral'
+    | 'total';
 
   // Cache key includes all query parameters
   const cacheKey = `${pointsCategory}-${page}-${pageSize}-${minPoints}`;
