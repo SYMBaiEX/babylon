@@ -148,6 +148,17 @@ export class WalletService {
     const currentBalance = Number(user.virtualBalance ?? 0);
     const newBalance = currentBalance + delta;
 
+    // Reject non-finite values to prevent balance corruption
+    if (
+      !Number.isFinite(delta) ||
+      !Number.isFinite(currentBalance) ||
+      !Number.isFinite(newBalance)
+    ) {
+      throw new Error(
+        `Invalid wallet mutation for ${userId}: delta=${delta}, balance=${currentBalance}, result=${newBalance}`
+      );
+    }
+
     // Prevent negative balance on debits
     if (delta < 0 && newBalance < 0) {
       throw new InsufficientFundsError(Math.abs(delta), currentBalance, 'USD');
@@ -369,8 +380,21 @@ export class WalletService {
         );
       }
 
+      // Reject non-finite PnL to prevent lifetime stats corruption
+      if (!Number.isFinite(pnl)) {
+        throw new Error(
+          `Invalid PnL for ${userId}: pnl=${pnl}, tradeType=${tradeType}`
+        );
+      }
+
       const previousLifetimePnL = Number(user.lifetimePnL);
       const newLifetimePnL = previousLifetimePnL + pnl;
+
+      if (!Number.isFinite(newLifetimePnL)) {
+        throw new Error(
+          `Invalid lifetimePnL for ${userId}: prev=${previousLifetimePnL}, delta=${pnl}`
+        );
+      }
 
       // Update lifetimePnL first within the transaction
       await tx

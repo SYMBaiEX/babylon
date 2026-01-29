@@ -7,7 +7,7 @@ import {
   organizations,
 } from '@babylon/db';
 import type { JsonValue } from '@babylon/shared';
-import { logger } from '@babylon/shared';
+import { logger, PERP_MARKET_CONFIG } from '@babylon/shared';
 import { FEE_CONFIG } from '../config/fees';
 import { broadcastToChannel } from './realtime-broadcaster';
 import { WalletService } from './wallet-service';
@@ -117,48 +117,65 @@ export class PriceUpdateService {
         .where(eq(organizations.id, orgId))
         .limit(1);
 
+      // Resolve basePrice for bounds enforcement
+      const resolvedBasePrice = Number(state?.basePrice ?? 100);
+      const hasValidBasePrice =
+        Number.isFinite(resolvedBasePrice) && resolvedBasePrice > 0;
+
+      // Central price clamp: enforce basePrice bounds on all updates
+      let clampedNewPrice = update.newPrice;
+      if (hasValidBasePrice) {
+        const minPrice =
+          resolvedBasePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO;
+        const maxPrice =
+          resolvedBasePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO;
+        clampedNewPrice = Math.max(minPrice, Math.min(maxPrice, clampedNewPrice));
+      }
+
       const oldPriceCandidate =
         organization?.currentPrice ??
         state?.currentPrice ??
         state?.basePrice ??
-        update.newPrice;
-      const oldPrice = Number(oldPriceCandidate ?? update.newPrice);
-      const change = update.newPrice - oldPrice;
+        clampedNewPrice;
+      const oldPrice = Number(oldPriceCandidate ?? clampedNewPrice);
+      const change = clampedNewPrice - oldPrice;
       const changePercent = oldPrice === 0 ? 0 : (change / oldPrice) * 100;
 
       if (organization) {
         await db
           .update(organizations)
-          .set({ currentPrice: update.newPrice, updatedAt: now })
+          .set({ currentPrice: clampedNewPrice, updatedAt: now })
           .where(eq(organizations.id, organization.id));
       }
 
       // Keep runtime price state in sync (used across engine + widgets)
+      // Ensure basePrice is always set to prevent null fallback drift
       await db
         .insert(organizationState)
         .values({
           id: orgId,
-          currentPrice: update.newPrice,
+          currentPrice: clampedNewPrice,
+          basePrice: resolvedBasePrice,
           updatedAt: now,
         })
         .onConflictDoUpdate({
           target: organizationState.id,
-          set: { currentPrice: update.newPrice, updatedAt: now },
+          set: { currentPrice: clampedNewPrice, updatedAt: now },
         });
 
       await getDbInstance().recordPriceUpdate(
         orgId,
-        update.newPrice,
+        clampedNewPrice,
         change,
         changePercent
       );
 
-      priceMap.set(orgId, update.newPrice);
+      priceMap.set(orgId, clampedNewPrice);
 
       appliedUpdates.push({
         organizationId: orgId,
         oldPrice,
-        newPrice: update.newPrice,
+        newPrice: clampedNewPrice,
         change,
         changePercent,
         source: update.source,
