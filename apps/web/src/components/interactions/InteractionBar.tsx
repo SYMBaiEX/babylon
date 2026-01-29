@@ -112,8 +112,10 @@ export function InteractionBar({
         commentCount: newCommentCount,
         shareCount: newShareCount,
         // Preserve user's interaction state from store, fallback to API
-        isLiked: currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
-        isShared: currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
+        isLiked:
+          currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
+        isShared:
+          currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
       });
       useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
