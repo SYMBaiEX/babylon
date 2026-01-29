@@ -1,0 +1,226 @@
+/**
+ * CHECK_USER_PNL Action (Coordinator)
+ *
+ * Returns the user's balance, P&L, open positions, and recent trades.
+ * This shows the user's trading performance.
+ */
+
+import {
+  and,
+  db,
+  eq,
+  isNull,
+  markets,
+  perpPositions,
+  positions,
+  users,
+} from '@babylon/db';
+import { WalletService } from '@babylon/engine';
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+
+export const checkUserPnlAction: Action = {
+  name: 'CHECK_USER_PNL',
+  description:
+    "Check the user's balance, P&L, and open positions. Use this to help users understand their current trading performance and portfolio.",
+
+  parameters: {},
+
+  examples: [
+    [
+      {
+        name: 'user',
+        content: { text: "What's my P&L?" },
+      },
+      {
+        name: 'coordinator',
+        content: { text: 'Let me check your trading performance...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'Show me my positions' },
+      },
+      {
+        name: 'coordinator',
+        content: { text: "I'll pull up your current positions..." },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'How am I doing on trades?' },
+      },
+      {
+        name: 'coordinator',
+        content: { text: 'Let me check your trading stats...' },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: "What's my balance?" },
+      },
+      {
+        name: 'coordinator',
+        content: { text: "I'll check your balance..." },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => {
+    return true;
+  },
+
+  handler: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const ownerId = state?.values?.ownerId as string | undefined;
+
+    if (!ownerId) {
+      return {
+        success: false,
+        text: 'User ID not available in this context.',
+        error: 'No user ID provided',
+      };
+    }
+
+    try {
+      // Get user info
+      const [user] = await db
+        .select({
+          displayName: users.displayName,
+          username: users.username,
+          lifetimePnL: users.lifetimePnL,
+        })
+        .from(users)
+        .where(eq(users.id, ownerId))
+        .limit(1);
+
+      if (!user) {
+        return {
+          success: false,
+          text: 'User not found.',
+          error: 'User not found',
+        };
+      }
+
+      const userName = user.displayName || user.username || 'User';
+
+      // Get wallet balance
+      let balance = 0;
+      let lifetimePnL = 0;
+      try {
+        const walletBalance = await WalletService.getBalance(ownerId);
+        balance = walletBalance.balance;
+        lifetimePnL = walletBalance.lifetimePnL;
+      } catch {
+        lifetimePnL = Number(user?.lifetimePnL ?? 0);
+      }
+
+      // Get active prediction positions with market details
+      const predictionPositions = await db
+        .select({
+          id: positions.id,
+          marketId: positions.marketId,
+          side: positions.side,
+          shares: positions.shares,
+          avgPrice: positions.avgPrice,
+          amount: positions.amount,
+          question: markets.question,
+          yesShares: markets.yesShares,
+          noShares: markets.noShares,
+        })
+        .from(positions)
+        .leftJoin(markets, eq(positions.marketId, markets.id))
+        .where(
+          and(eq(positions.userId, ownerId), eq(positions.status, 'active'))
+        );
+
+      // Get active perp positions
+      const perpPositionsList = await db
+        .select()
+        .from(perpPositions)
+        .where(
+          and(eq(perpPositions.userId, ownerId), isNull(perpPositions.closedAt))
+        );
+
+      const totalPositions =
+        predictionPositions.length + perpPositionsList.length;
+
+      logger.info(
+        `[CHECK_USER_PNL] Retrieved P&L for user ${userName}`,
+        { positions: totalPositions, ownerId },
+        'CheckUserPnL'
+      );
+
+      return {
+        success: true,
+        text: `Retrieved ${userName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
+        data: {
+          userName,
+          userId: ownerId,
+          balance,
+          lifetimePnL,
+          predictionPositions: predictionPositions.map((p) => ({
+            id: p.id,
+            marketId: p.marketId,
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+            avgPrice: Number(p.avgPrice),
+          })),
+          perpPositions: perpPositionsList.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            side: p.side,
+            size: Number(p.size),
+            entryPrice: Number(p.entryPrice),
+            leverage: p.leverage,
+          })),
+        },
+        values: {
+          userName,
+          balance,
+          lifetimePnL,
+          predictionPositions: predictionPositions.map((p) => ({
+            id: p.id,
+            question: p.question?.substring(0, 80) || 'Unknown',
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+          })),
+          perpPositions: perpPositionsList.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            side: p.side,
+            size: Number(p.size),
+          })),
+        },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[CHECK_USER_PNL] Error:', errorMsg);
+
+      return {
+        success: false,
+        text: `Failed to retrieve user's P&L: ${errorMsg}`,
+        error: errorMsg,
+      };
+    }
+  },
+};

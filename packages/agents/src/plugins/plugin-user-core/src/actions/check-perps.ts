@@ -1,0 +1,192 @@
+/**
+ * CHECK_PERPS Action (Coordinator)
+ *
+ * Returns perpetual/stock market data:
+ * - Ticker, name, current price
+ * - 24h change (absolute and %)
+ * - Volume, open interest
+ * - Funding rate
+ */
+
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import { FEE_CONFIG, WalletService } from '@babylon/engine';
+import type {
+  Action,
+  ActionResult,
+  HandlerCallback,
+  IAgentRuntime,
+  Memory,
+  State,
+} from '@elizaos/core';
+import { logger } from '../../../../shared/logger';
+
+type SortOption = 'price' | 'change' | 'volume' | 'name';
+
+export const checkPerpsAction: Action = {
+  name: 'CHECK_PERPS',
+  description:
+    'Check perpetual/stock market data - prices, 24h changes, volume, funding rates. Help users understand market conditions.',
+  parameters: {
+    limit: {
+      type: 'number',
+      description: 'Number of markets to show (default: 10, max: 20)',
+      required: false,
+    },
+    sortBy: {
+      type: 'string',
+      description:
+        'Sort by: "price", "change", "volume", "name" (default: "volume")',
+      required: false,
+    },
+  },
+  examples: [
+    [
+      {
+        name: 'user',
+        content: { text: "What's happening in the perp markets?" },
+      },
+      {
+        name: 'coordinator',
+        content: { text: "I'll check the perpetual markets for you." },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'Show me stock prices' },
+      },
+      {
+        name: 'coordinator',
+        content: { text: "I'll fetch the latest perp market data." },
+      },
+    ],
+    [
+      {
+        name: 'user',
+        content: { text: 'Which stocks are moving the most?' },
+      },
+      {
+        name: 'coordinator',
+        content: { text: 'Let me check the top movers.' },
+      },
+    ],
+  ],
+
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
+  ): Promise<boolean> => {
+    return true;
+  },
+
+  handler: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    state?: State,
+    _options?: Record<string, unknown>,
+    _callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    const actionParams = state?.data?.actionParams as
+      | { limit?: number; sortBy?: string }
+      | undefined;
+    const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 20);
+    const sortBy = (actionParams?.sortBy as SortOption) ?? 'volume';
+
+    try {
+      // Create wallet adapter (needed for PerpMarketService but we won't use it for reads)
+      const walletAdapter = {
+        debit: async () => {},
+        credit: async () => {},
+        recordPnL: async () => {},
+        getBalance: WalletService.getBalance,
+      };
+
+      const service = new PerpMarketService({
+        db: new PerpDbAdapter(),
+        wallet: walletAdapter,
+        fees: {
+          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+          platformShare: FEE_CONFIG.PLATFORM_SHARE,
+          referrerShare: FEE_CONFIG.REFERRER_SHARE,
+          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+        },
+      });
+
+      // Get markets from the same source OPEN_PERP uses
+      const perpMarkets = await service.getMarketsSnapshot();
+
+      if (perpMarkets.length === 0) {
+        return {
+          success: true,
+          text: 'No perpetual markets available.',
+          data: { markets: [], count: 0 },
+          values: { count: 0 },
+        };
+      }
+
+      // Sort markets
+      const sortedMarkets = [...perpMarkets].sort((a, b) => {
+        switch (sortBy) {
+          case 'price':
+            return b.currentPrice - a.currentPrice;
+          case 'change':
+            return Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h);
+          case 'volume':
+            return b.volume24h - a.volume24h;
+          case 'name':
+            return (a.name ?? a.ticker).localeCompare(b.name ?? b.ticker);
+          default:
+            return b.volume24h - a.volume24h;
+        }
+      });
+
+      const displayedMarkets = sortedMarkets.slice(0, limit);
+
+      const topGainer = displayedMarkets.reduce((max, m) =>
+        m.changePercent24h > max.changePercent24h ? m : max
+      );
+      const topLoser = displayedMarkets.reduce((min, m) =>
+        m.changePercent24h < min.changePercent24h ? m : min
+      );
+      logger.info(
+        `[CHECK_PERPS] Retrieved ${displayedMarkets.length} markets`,
+        { sortBy, limit },
+        'check-perps'
+      );
+
+      return {
+        success: true,
+        text: `Retrieved ${displayedMarkets.length} perpetual markets.`,
+        data: {
+          markets: displayedMarkets.map((m) => ({
+            ticker: m.ticker,
+            name: m.name,
+            currentPrice: m.currentPrice,
+            changePercent24h: m.changePercent24h,
+            volume24h: m.volume24h,
+          })),
+          count: displayedMarkets.length,
+        },
+        values: {
+          count: displayedMarkets.length,
+          tickers: displayedMarkets.map((m) => ({
+            ticker: m.ticker,
+            price: m.currentPrice,
+            change24h: m.changePercent24h,
+          })),
+          topGainer: topGainer.ticker,
+          topLoser: topLoser.ticker,
+        },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[CHECK_PERPS] Error:', errorMsg);
+      return {
+        success: false,
+        text: `Failed to fetch perp markets: ${errorMsg}`,
+        error: errorMsg,
+      };
+    }
+  },
+};

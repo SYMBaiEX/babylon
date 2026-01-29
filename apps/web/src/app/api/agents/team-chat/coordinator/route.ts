@@ -89,6 +89,7 @@ Actions taken this round: {{actionCount}}
 # Actions Completed This Round
 {{#if actionCount}}
 {{actionResults}}
+**IMPORTANT**: Use data from these results for your response. Do NOT repeat these actions.
 {{else}}
 No actions taken yet.
 {{/if}}
@@ -96,17 +97,16 @@ No actions taken yet.
 ---
 
 # Decision Rules
-1. **Market information requests** → Use CHECK_MARKETS action
+1. **Market/data requests** → Use the appropriate CHECK action from above
 2. **Trading/Agent action requests** → Explain to @mention their agent (NO action needed)
 3. **General questions** → Answer directly (NO action needed)
-4. **How-to questions** → Explain how team chat works (NO action needed)
 
 **IMPORTANT**: You CANNOT trade, post, or modify agent settings. Always guide users to @mention their agents.
 
 <keys>
 "thought" Your reasoning about what the user needs
-"action" Action name (CHECK_MARKETS) or empty string "" if no action needed
-"parameters" JSON parameters for the action, or {} if no action
+"action" Action name from available actions above, or empty string "" if no action needed
+"parameters" JSON parameters for the action, or {} if no parameters needed
 "isFinish" Set to true when ready to respond to user
 </keys>
 
@@ -296,7 +296,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       teamChatId,
     };
 
-    // Add action results to state data
+    // Add action results to state data for provider
     state.data = {
       ...state.data,
       actionResults: traceActionResults,
@@ -434,7 +434,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         }
       );
 
-      const actionResult = resultHolder.result;
+      // Fallback to state cache if callback didn't capture
+      let actionResult = resultHolder.result;
+      if (!actionResult) {
+        const cachedState = (
+          runtime as unknown as { stateCache?: Map<string, unknown> }
+        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+          | {
+              values?: {
+                actionResults?: Array<{
+                  success?: boolean;
+                  text?: string;
+                  values?: Record<string, unknown>;
+                }>;
+              };
+            }
+          | undefined;
+        const actionResultsFromCache = cachedState?.values?.actionResults || [];
+        actionResult =
+          actionResultsFromCache.length > 0
+            ? (actionResultsFromCache[0] ?? null)
+            : null;
+      }
       const success = actionResult?.success ?? true;
 
       traceActionResults.push({
@@ -477,6 +498,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       summaryProviders,
       true
     );
+
     state.values = {
       ...state.values,
       isAgent: false,

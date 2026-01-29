@@ -14,7 +14,14 @@
  */
 
 import type { Plugin } from '@elizaos/core';
-import { checkMarketsAction } from './actions';
+import {
+  checkFeedPostsAction,
+  checkPerpsAction,
+  checkPredictionsAction,
+  checkRecentMarketTradesAction,
+  checkTeamChatAction,
+  checkUserPnlAction,
+} from './actions';
 import {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
@@ -27,18 +34,30 @@ import {
  * User Core Plugin
  *
  * Provides capabilities for the user coordinator:
- * - CHECK_MARKETS action for market information
+ * - CHECK_PREDICTIONS - Detailed prediction market info
+ * - CHECK_PERPS - Perpetual market data
+ * - CHECK_USER_PNL - User's balance, positions, P&L
+ * - CHECK_TEAM_CHAT - Full team chat history
+ * - CHECK_FEED_POSTS - Latest posts from global feed
+ * - CHECK_RECENT_MARKET_TRADES - Platform trading activity
  * - Coordinator-specific providers for actions, messages, team members, and context
  */
 export const userCorePlugin: Plugin = {
   name: 'user-core',
   description:
-    'Core capabilities for user coordinator with limited actions for team chat coordination',
+    'Core capabilities for user coordinator with read-only actions for team chat coordination',
 
   actions: [
-    // Informational actions only
-    checkMarketsAction,
-    // More actions can be added later as needed
+    // Market information
+    checkPredictionsAction,
+    checkPerpsAction,
+    // User portfolio
+    checkUserPnlAction,
+    // Team chat
+    checkTeamChatAction,
+    // Social & activity
+    checkFeedPostsAction,
+    checkRecentMarketTradesAction,
   ],
 
   providers: [
@@ -52,7 +71,14 @@ export const userCorePlugin: Plugin = {
 };
 
 // Export individual components
-export { checkMarketsAction } from './actions';
+export {
+  checkFeedPostsAction,
+  checkPerpsAction,
+  checkPredictionsAction,
+  checkRecentMarketTradesAction,
+  checkTeamChatAction,
+  checkUserPnlAction,
+} from './actions';
 export {
   coordinatorActionStateProvider,
   coordinatorActionsProvider,
