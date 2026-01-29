@@ -102,7 +102,11 @@ export const TotalPointsService = {
 
     const user = userResult[0];
     if (!user) {
-      logger.warn('recomputeTotalPoints: user not found', { userId }, 'TotalPointsService');
+      logger.warn(
+        'recomputeTotalPoints: user not found',
+        { userId },
+        'TotalPointsService'
+      );
       return 0;
     }
 
@@ -185,7 +189,11 @@ export const TotalPointsService = {
     // Cursor-based pagination: fetch BATCH_SIZE at a time, ordered by id
     while (true) {
       const whereClause = lastId
-        ? and(eq(users.isAgent, false), eq(users.isActor, false), gt(users.id, lastId))
+        ? and(
+            eq(users.isAgent, false),
+            eq(users.isActor, false),
+            gt(users.id, lastId)
+          )
         : and(eq(users.isAgent, false), eq(users.isActor, false));
 
       const batch: { id: string; totalPoints: string | null }[] = await db
