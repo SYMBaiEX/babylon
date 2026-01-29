@@ -240,7 +240,7 @@ export const PostCard = memo(function PostCard({
         className={cn(
           'px-4 py-3',
           'w-full overflow-hidden',
-          'border-border/5 border-b',
+          'border-muted border-b',
           className
         )}
       >
@@ -258,7 +258,7 @@ export const PostCard = memo(function PostCard({
         !isDetail &&
           'cursor-pointer transition-all duration-200 hover:bg-muted/30',
         'w-full overflow-hidden',
-        'border-border/5 border-b',
+        'border-muted border-b',
         className
       )}
       style={{
