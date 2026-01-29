@@ -1124,7 +1124,8 @@ function calculateUnrealizedPnL(
     entryPrice <= 0 ||
     size <= 0 ||
     !Number.isFinite(entryPrice) ||
-    !Number.isFinite(currentPrice)
+    !Number.isFinite(currentPrice) ||
+    !Number.isFinite(size)
   ) {
     return { pnl: 0, pnlPercent: 0 };
   }

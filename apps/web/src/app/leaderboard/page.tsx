@@ -172,6 +172,16 @@ export default function LeaderboardPage() {
       <div className="flex flex-1 items-center justify-center p-8">
         <div className="text-center text-muted-foreground">
           <Trophy className="mx-auto mb-4 h-16 w-16 opacity-50" />
+          {leaderboardData.pointsCategory === 'total' && (
+            <>
+              <p className="mb-2 font-semibold text-foreground text-lg">
+                No Total Points Yet
+              </p>
+              <p className="text-sm">
+                Total points combine your wallet balance and open positions.
+              </p>
+            </>
+          )}
           {leaderboardData.pointsCategory === 'all' && (
             <>
               <p className="mb-2 font-semibold text-foreground text-lg">

@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
   }
 
   const startTime = Date.now();
-  const isMidnight = new Date().getUTCHours() === 0;
+  const now = new Date();
+  const isMidnight = now.getUTCHours() === 0 && now.getUTCMinutes() < 15;
 
   logger.info('Points recompute started', { isMidnight }, 'PointsRecompute');
 

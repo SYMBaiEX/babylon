@@ -58,8 +58,8 @@
  *         name: pointsType
  *         schema:
  *           type: string
- *           enum: [all, earned, referral]
- *           default: all
+ *           enum: [total, all, earned, referral]
+ *           default: total
  *         description: Points category to rank by
  *     responses:
  *       200:

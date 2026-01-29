@@ -151,7 +151,7 @@ export function LeaderboardWidgetSidebar({
       case 'total':
         return 'Total Points';
       case 'all':
-        return 'All Points';
+        return 'Reputation';
       case 'earned':
         return 'Earned Points';
       case 'referral':
