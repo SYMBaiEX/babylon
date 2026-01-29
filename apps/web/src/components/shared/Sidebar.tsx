@@ -6,7 +6,6 @@ import {
   Check,
   Copy,
   Gift,
-  Home,
   LogOut,
   MessageCircle,
   Shield,
@@ -22,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Avatar } from '@/components/shared/Avatar';
+import { HouseIcon } from '@/components/shared/icons/HouseIcon';
 import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
@@ -42,7 +42,7 @@ function SidebarContent() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const mdMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-  const { ready, authenticated, user, logout } = useAuth();
+  const { ready, authenticated, user, logout, login } = useAuth();
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
   // Hide sidebar when WAITLIST_MODE is enabled on home page
@@ -127,7 +127,7 @@ function SidebarContent() {
     {
       name: 'Home',
       href: '/feed',
-      icon: Home,
+      icon: HouseIcon,
       color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
     },
@@ -137,6 +137,7 @@ function SidebarContent() {
       icon: Bell,
       color: '#0066FF',
       active: pathname === '/notifications',
+      requiresAuth: true,
     },
     {
       name: 'Leaderboard',
@@ -158,6 +159,7 @@ function SidebarContent() {
       icon: MessageCircle,
       color: '#0066FF',
       active: pathname === '/chats',
+      requiresAuth: true,
     },
     {
       name: 'Agents',
@@ -165,13 +167,15 @@ function SidebarContent() {
       icon: Users,
       color: '#0066FF',
       active: pathname === '/agents/team',
+      requiresAuth: true,
     },
     {
       name: 'Rewards',
       href: '/rewards',
       icon: Gift,
-      color: '#a855f7',
+      color: '#0066FF',
       active: pathname === '/rewards',
+      requiresAuth: true,
     },
     {
       name: 'Profile',
@@ -179,6 +183,7 @@ function SidebarContent() {
       icon: User,
       color: '#0066FF',
       active: pathname === '/profile',
+      requiresAuth: true,
     },
     // Admin link (only shown for admins)
     ...(isAdmin
@@ -207,10 +212,7 @@ function SidebarContent() {
       >
         {/* Header - Logo */}
         <div className="flex items-center justify-center p-6 lg:justify-start">
-          <Link
-            href="/feed"
-            className="transition-transform duration-300 hover:scale-105"
-          >
+          <Link href="/feed" className="">
             {/* Icon-only logo for md (tablet) */}
             <Image
               src="/assets/logos/logo.svg"
@@ -238,54 +240,19 @@ function SidebarContent() {
             const hasNotificationBadge =
               (item.name === 'Notifications' && unreadNotifications > 0) ||
               (item.name === 'Chats' && unreadMessages > 0);
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                prefetch={true}
-                className={cn(
-                  'group pointer-events-auto relative z-10 flex items-center px-4 py-3',
-                  'transition-colors duration-200',
-                  'md:justify-center lg:justify-start',
-                  !item.active && 'bg-transparent hover:bg-sidebar-accent'
-                )}
-                title={item.name}
-                style={{
-                  backgroundColor: item.active ? item.color : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.backgroundColor = item.color;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.backgroundColor = '';
-                  }
-                }}
-              >
+
+            const navContent = (
+              <>
                 {/* Icon with notification indicator */}
                 <div className="relative lg:mr-3">
                   <Icon
                     className={cn(
                       'h-6 w-6 flex-shrink-0',
-                      'transition-all duration-300',
-                      'group-hover:scale-110',
-                      !item.active && 'text-sidebar-foreground'
+                      item.active
+                        ? 'text-sidebar-primary'
+                        : 'text-sidebar-foreground'
                     )}
-                    style={{
-                      color: item.active ? '#e4e4e4' : undefined,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!item.active) {
-                        e.currentTarget.style.color = '#e4e4e4';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!item.active) {
-                        e.currentTarget.style.color = '';
-                      }
-                    }}
+                    fill={item.active ? 'currentColor' : 'none'}
                   />
                   {hasNotificationBadge && (
                     <span className="-top-1 -right-1 absolute h-2 w-2 rounded-full bg-blue-500 ring-2 ring-sidebar" />
@@ -297,24 +264,46 @@ function SidebarContent() {
                   className={cn(
                     'hidden lg:block',
                     'text-lg transition-colors duration-300',
-                    item.active ? 'font-semibold' : 'text-sidebar-foreground'
+                    item.active
+                      ? 'font-semibold text-black dark:text-white'
+                      : 'text-sidebar-foreground group-hover:text-black dark:group-hover:text-white'
                   )}
-                  style={{
-                    color: item.active ? '#e4e4e4' : undefined,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!item.active) {
-                      e.currentTarget.style.color = '#e4e4e4';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!item.active) {
-                      e.currentTarget.style.color = '';
-                    }
-                  }}
                 >
                   {item.name}
                 </span>
+              </>
+            );
+
+            const sharedClassName = cn(
+              'group pointer-events-auto relative z-10 flex items-center px-4 py-3',
+              'transition-colors duration-200',
+              'md:justify-center lg:justify-start',
+              'bg-transparent hover:bg-sidebar-accent'
+            );
+
+            if (item.requiresAuth && !authenticated) {
+              return (
+                <button
+                  key={item.name}
+                  type="button"
+                  onClick={login}
+                  className={cn(sharedClassName, 'w-full')}
+                  title={item.name}
+                >
+                  {navContent}
+                </button>
+              );
+            }
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                prefetch={true}
+                className={sharedClassName}
+                title={item.name}
+              >
+                {navContent}
               </Link>
             );
           })}

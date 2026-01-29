@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeft, MessageCircle } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
@@ -9,6 +10,17 @@ import { PostCard } from '@/components/posts/PostCard';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useInteractionStore } from '@/stores/interactionStore';
+
+const WidgetSidebar = dynamic(
+  () =>
+    import('@/components/shared/WidgetSidebar').then((m) => ({
+      default: m.WidgetSidebar,
+    })),
+  {
+    ssr: false,
+    loading: () => <div className="hidden w-96 flex-none xl:block" />,
+  }
+);
 
 interface PostPageProps {
   params: Promise<{ id: string }>;
@@ -175,48 +187,94 @@ export default function PostPage({ params }: PostPageProps) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-feed space-y-4 px-4 py-3">
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-32 w-full" />
+      <PageContainer
+        noPadding
+        className="!overflow-visible flex w-full flex-col"
+      >
+        <div className="relative flex min-h-screen flex-1">
+          {/* Desktop loading */}
+          <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+            <div className="flex-1 bg-background">
+              <div className="w-full lg:mx-auto lg:max-w-[700px]">
+                <div className="space-y-4 px-4 py-6">
+                  <Skeleton className="h-8 w-3/4" />
+                  <Skeleton className="h-64 w-full" />
+                  <Skeleton className="h-32 w-full" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <WidgetSidebar showLatestNews={false} showMarkets={false} />
+          {/* Mobile loading */}
+          <div className="flex flex-1 flex-col lg:hidden">
+            <div className="space-y-4 px-4 py-6">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (error || !post) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center px-4 py-3">
-        <div className="text-center">
-          <h1 className="mb-2 font-bold text-2xl">Post Not Found</h1>
-          <p className="mb-4 text-muted-foreground">
-            {error || 'The post you are looking for does not exist.'}
-          </p>
-          <button
-            onClick={() => router.push('/feed')}
-            className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Back to Feed
-          </button>
+      <PageContainer
+        noPadding
+        className="!overflow-visible flex w-full flex-col"
+      >
+        <div className="relative flex min-h-screen flex-1">
+          {/* Desktop error */}
+          <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+            <div className="flex flex-1 flex-col items-center justify-center bg-background">
+              <div className="text-center">
+                <h1 className="mb-2 font-bold text-2xl">Post Not Found</h1>
+                <p className="mb-4 text-muted-foreground">
+                  {error || 'The post you are looking for does not exist.'}
+                </p>
+                <button
+                  onClick={() => router.push('/feed')}
+                  className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Back to Feed
+                </button>
+              </div>
+            </div>
+          </div>
+          <WidgetSidebar showLatestNews={false} showMarkets={false} />
+          {/* Mobile error */}
+          <div className="flex flex-1 flex-col items-center justify-center lg:hidden">
+            <div className="px-4 text-center">
+              <h1 className="mb-2 font-bold text-2xl">Post Not Found</h1>
+              <p className="mb-4 text-muted-foreground">
+                {error || 'The post you are looking for does not exist.'}
+              </p>
+              <button
+                onClick={() => router.push('/feed')}
+                className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Back to Feed
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
     <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
-      {/* Desktop: Multi-column layout matching feed */}
-      <div className="relative hidden flex-1 lg:flex">
-        {/* Content area with same borders as feed */}
-        <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.5)] lg:border-r lg:border-l">
+      <div className="relative flex min-h-screen flex-1">
+        {/* Desktop: Post content area */}
+        <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
           {/* Desktop: Top bar with back button */}
           <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
-            <div className="px-3 sm:px-4 lg:px-6">
-              <div className="flex items-center gap-4 py-3">
+            <div className="px-6 py-4">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={() => router.push('/feed')}
-                  className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ArrowLeft size={20} />
                 </button>
@@ -229,7 +287,7 @@ export default function PostPage({ params }: PostPageProps) {
           </div>
 
           {/* Post content */}
-          <div className="flex-1 overflow-y-auto bg-background">
+          <div className="flex-1 bg-background">
             <div className="w-full lg:mx-auto lg:max-w-[700px]">
               {/* Post */}
               <div className="border-border border-b">
@@ -314,117 +372,116 @@ export default function PostPage({ params }: PostPageProps) {
               </div>
 
               {/* Comments Section - Always visible below the post */}
-              <div className="border-border border-b">
-                <FeedCommentSection postId={postId} postData={post} />
+              <FeedCommentSection postId={postId} postData={post} />
+            </div>
+          </div>
+        </div>
+
+        {/* Widget sidebar - desktop only */}
+        <WidgetSidebar showLatestNews={false} showMarkets={false} />
+
+        {/* Mobile/Tablet: Single column layout */}
+        <div className="flex flex-1 flex-col overflow-hidden lg:hidden">
+          {/* Mobile header */}
+          <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background">
+            <div className="flex items-center gap-4 px-4 py-3">
+              <button
+                onClick={() => router.push('/feed')}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-[#0066FF]" />
+                <h1 className="font-semibold text-lg">Post</h1>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Mobile/Tablet: Single column layout */}
-      <div className="flex flex-1 flex-col overflow-hidden lg:hidden">
-        {/* Mobile header */}
-        <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <button
-              onClick={() => router.push('/feed')}
-              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-[#0066FF]" />
-              <h1 className="font-semibold text-lg">Post</h1>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Post */}
-          <div className="border-border border-b">
-            {post.type === 'article' &&
-            post.fullContent &&
-            post.fullContent.length > 100 ? (
-              // Article detail view - Only show if has substantial full content (> 100 chars)
-              <article className="px-4 py-4 sm:px-6 sm:py-5">
-                {/* Category badge */}
-                {post.category && (
-                  <div className="mb-4">
-                    <span className="rounded bg-[#0066FF]/20 px-3 py-1 font-semibold text-[#0066FF] text-sm uppercase">
-                      {post.category}
-                    </span>
-                  </div>
-                )}
-
-                {/* Article title */}
-                <h1 className="mb-4 font-bold text-2xl text-foreground leading-tight sm:text-3xl">
-                  {post.articleTitle || 'Untitled Article'}
-                </h1>
-
-                {/* Article metadata */}
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-                  <span className="font-semibold text-[#0066FF]">
-                    {post.authorName}
-                  </span>
-                  {post.byline && (
-                    <>
-                      <span>·</span>
-                      <span>{post.byline}</span>
-                    </>
+          {/* Mobile content */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Post */}
+            <div className="border-border border-b">
+              {post.type === 'article' &&
+              post.fullContent &&
+              post.fullContent.length > 100 ? (
+                // Article detail view - Only show if has substantial full content (> 100 chars)
+                <article className="px-4 py-4 sm:px-6 sm:py-5">
+                  {/* Category badge */}
+                  {post.category && (
+                    <div className="mb-4">
+                      <span className="rounded bg-[#0066FF]/20 px-3 py-1 font-semibold text-[#0066FF] text-sm uppercase">
+                        {post.category}
+                      </span>
+                    </div>
                   )}
-                  <span>·</span>
-                  <time>
-                    {new Date(post.timestamp).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </time>
-                </div>
 
-                {/* Full article content */}
-                <div className="prose prose-invert mb-4 max-w-none">
-                  {post.fullContent.split('\n\n').map((paragraph, i) => (
-                    <p
-                      key={i}
-                      className="mb-4 text-base text-foreground leading-relaxed"
-                    >
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
+                  {/* Article title */}
+                  <h1 className="mb-4 font-bold text-2xl text-foreground leading-tight sm:text-3xl">
+                    {post.articleTitle || 'Untitled Article'}
+                  </h1>
 
-                {/* Interaction bar */}
-                <div className="mt-4 border-border border-t pt-4">
-                  <InteractionBar
-                    postId={post.id}
-                    initialInteractions={{
-                      postId: post.id,
-                      likeCount: post.likeCount,
-                      commentCount: post.commentCount,
-                      shareCount: post.shareCount,
-                      isLiked: post.isLiked,
-                      isShared: post.isShared,
-                    }}
-                    postData={post}
-                    onCommentClick={handleCommentClick}
-                  />
-                </div>
-              </article>
-            ) : (
-              // Regular post
-              <PostCard
-                post={post}
-                showInteractions={true}
-                isDetail
-                onCommentClick={handleCommentClick}
-              />
-            )}
-          </div>
+                  {/* Article metadata */}
+                  <div className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
+                    <span className="font-semibold text-[#0066FF]">
+                      {post.authorName}
+                    </span>
+                    {post.byline && (
+                      <>
+                        <span>·</span>
+                        <span>{post.byline}</span>
+                      </>
+                    )}
+                    <span>·</span>
+                    <time>
+                      {new Date(post.timestamp).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </time>
+                  </div>
 
-          {/* Comments Section - Always visible below the post */}
-          <div className="border-border border-b">
+                  {/* Full article content */}
+                  <div className="prose prose-invert mb-4 max-w-none">
+                    {post.fullContent.split('\n\n').map((paragraph, i) => (
+                      <p
+                        key={i}
+                        className="mb-4 text-base text-foreground leading-relaxed"
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+
+                  {/* Interaction bar */}
+                  <div className="mt-4 border-border border-t pt-4">
+                    <InteractionBar
+                      postId={post.id}
+                      initialInteractions={{
+                        postId: post.id,
+                        likeCount: post.likeCount,
+                        commentCount: post.commentCount,
+                        shareCount: post.shareCount,
+                        isLiked: post.isLiked,
+                        isShared: post.isShared,
+                      }}
+                      postData={post}
+                      onCommentClick={handleCommentClick}
+                    />
+                  </div>
+                </article>
+              ) : (
+                // Regular post
+                <PostCard
+                  post={post}
+                  showInteractions={true}
+                  isDetail
+                  onCommentClick={handleCommentClick}
+                />
+              )}
+            </div>
+
+            {/* Comments Section - Always visible below the post */}
             <FeedCommentSection postId={postId} postData={post} />
           </div>
         </div>
