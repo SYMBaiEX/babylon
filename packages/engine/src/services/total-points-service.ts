@@ -14,7 +14,7 @@ import {
   userPointsSnapshots,
   users,
 } from '@babylon/db';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
@@ -101,7 +101,10 @@ export const TotalPointsService = {
       .limit(1);
 
     const user = userResult[0];
-    if (!user) return 0;
+    if (!user) {
+      logger.warn('recomputeTotalPoints: user not found', { userId }, 'TotalPointsService');
+      return 0;
+    }
 
     const wallet = toNumber(user.virtualBalance);
 
