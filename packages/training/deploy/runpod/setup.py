@@ -145,6 +145,11 @@ def cmd_train(args):
         env["WANDB_MODE"] = "online"
     if args.hf_token:
         env["HF_TOKEN"] = args.hf_token
+    # Ensure HF_TOKEN is included for private datasets (from env file if not CLI arg)
+    if "HF_TOKEN" not in env and not args.hf_token:
+        hf_token = os.environ.get("HF_TOKEN")
+        if hf_token:
+            env["HF_TOKEN"] = hf_token
     
     # Determine profile
     profile = args.profile or env.get("TRAINING_PROFILE") or PROFILES.get(args.gpu, "24gb")
