@@ -16,6 +16,7 @@ export interface PortfolioBreakdownSnapshot {
   totalAssets: number;
   totalPnL: number;
   agentCount: number;
+  totalPoints: number;
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -118,7 +119,9 @@ export async function calculatePortfolioBreakdown(
     0
   );
 
-  const positionUserIds = [userId, ...agentIds];
+  // Only include user's own positions for totalPoints calculation
+  // Agents are separate accounts and should not contribute to user's totalPoints
+  const positionUserIds = [userId];
 
   const [perpRows, predictionRows] = await Promise.all([
     db
@@ -179,6 +182,7 @@ export async function calculatePortfolioBreakdown(
   const available = wallet + agents;
   const totalAssets = wallet + agents + positionsValue;
   const totalPnL = totalAssets - originalAmount;
+  const totalPoints = wallet + positionsValue;
 
   return {
     wallet,
@@ -189,5 +193,6 @@ export async function calculatePortfolioBreakdown(
     totalAssets,
     totalPnL,
     agentCount,
+    totalPoints,
   };
 }

@@ -150,6 +150,9 @@ export {
   calculatePortfolioPnL,
   type PortfolioPnLSnapshot,
 } from './portfolio-pnl';
+export {
+  TotalPointsService,
+} from './total-points-service';
 
 // =============================================================================
 // Reputation Service (includes sync interface)

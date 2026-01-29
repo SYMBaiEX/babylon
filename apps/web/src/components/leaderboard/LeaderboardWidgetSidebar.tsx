@@ -16,6 +16,7 @@ export interface SelectedUser {
   username: string | null;
   displayName: string | null;
   profileImageUrl: string | null;
+  totalPoints?: number;
   allPoints: number;
   invitePoints: number;
   earnedPoints: number;
@@ -32,7 +33,7 @@ export interface SelectedUser {
 
 interface LeaderboardWidgetSidebarProps {
   selectedUser: SelectedUser | null;
-  pointsCategory: 'all' | 'earned' | 'referral';
+  pointsCategory: 'total' | 'all' | 'earned' | 'referral';
 }
 
 /**
@@ -134,6 +135,8 @@ export function LeaderboardWidgetSidebar({
 
   const getDisplayPoints = (user: SelectedUser) => {
     switch (pointsCategory) {
+      case 'total':
+        return user.totalPoints ?? 0;
       case 'all':
         return user.allPoints;
       case 'earned':
@@ -145,6 +148,8 @@ export function LeaderboardWidgetSidebar({
 
   const getPointsLabel = () => {
     switch (pointsCategory) {
+      case 'total':
+        return 'Total Points';
       case 'all':
         return 'All Points';
       case 'earned':
@@ -220,6 +225,19 @@ export function LeaderboardWidgetSidebar({
                 </div>
                 <RankBadge rank={selectedUser.rank} size="lg" showLabel />
               </div>
+
+              {/* Total Points (primary metric) */}
+              {selectedUser.totalPoints !== undefined && (
+                <div className="rounded-lg bg-[#0066FF]/10 p-3">
+                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                    <Trophy className="h-3 w-3" />
+                    Total Points
+                  </div>
+                  <div className="font-bold text-[#0066FF] text-xl">
+                    {selectedUser.totalPoints.toLocaleString()}
+                  </div>
+                </div>
+              )}
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-3">

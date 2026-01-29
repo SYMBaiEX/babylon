@@ -66,6 +66,7 @@ import { NpcTradeRateLimiter } from './npc-trade-rate-limiter';
 import { createNpcWalletAdapter } from './npc-wallet-adapter';
 import { broadcastToChannel } from './realtime-broadcaster';
 import { StaticDataRegistry } from './static-data-registry';
+import { TotalPointsService } from './total-points-service';
 import { invalidateAfterPredictionTrade } from './trade-cache-invalidation';
 
 type PredictionTradeBroadcast = {
@@ -524,6 +525,9 @@ export class TradeExecutionService {
       reason: decision.reasoning,
     });
 
+    // Fire-and-forget: recompute totalPoints after position open
+    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -646,6 +650,9 @@ export class TradeExecutionService {
         'TradeExecutionService'
       );
     });
+
+    // Fire-and-forget: recompute totalPoints after position open
+    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -790,6 +797,9 @@ export class TradeExecutionService {
         'TradeExecutionService'
       );
     });
+
+    // Fire-and-forget: recompute totalPoints after position close
+    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -936,6 +946,9 @@ export class TradeExecutionService {
         );
       });
 
+      // Fire-and-forget: recompute totalPoints after position close
+      TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+
       return {
         npcId: decision.npcId,
         npcName: decision.npcName,
@@ -1050,6 +1063,9 @@ export class TradeExecutionService {
       });
     });
 
+    // Fire-and-forget: recompute totalPoints after position close
+    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -1115,6 +1131,9 @@ export class TradeExecutionService {
       sentiment: 0,
       reason: decision.reasoning,
     });
+
+    // Fire-and-forget: recompute totalPoints after position close
+    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,

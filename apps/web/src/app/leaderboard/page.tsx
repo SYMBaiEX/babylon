@@ -37,6 +37,7 @@ interface LeaderboardUser {
   allPoints: number;
   invitePoints: number;
   earnedPoints: number;
+  totalPoints: number;
   bonusPoints: number;
   referralCount: number;
   balance: number;
@@ -68,7 +69,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedTab, setSelectedTab] = useState<LeaderboardTab>('all');
+  const [selectedTab, setSelectedTab] = useState<LeaderboardTab>('total');
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
 
   const pageSize = 100;
@@ -132,6 +133,7 @@ export default function LeaderboardPage() {
       username: player.username,
       displayName: player.displayName,
       profileImageUrl: player.profileImageUrl,
+      totalPoints: player.totalPoints,
       allPoints: player.allPoints,
       invitePoints: player.invitePoints,
       earnedPoints: player.earnedPoints,
@@ -148,13 +150,16 @@ export default function LeaderboardPage() {
   };
 
   const activePointsLabel =
-    selectedTab === 'all'
-      ? 'All Points'
-      : selectedTab === 'earned'
-        ? 'Earned Points'
-        : 'Referral Points';
+    selectedTab === 'total'
+      ? 'Total Points'
+      : selectedTab === 'all'
+        ? 'All Points'
+        : selectedTab === 'earned'
+          ? 'Earned Points'
+          : 'Referral Points';
 
   const tabDescriptions: Record<LeaderboardTab, string> = {
+    total: 'Portfolio value: wallet balance + open positions',
     all: 'Total reputation including invites and bonuses',
     earned: 'Points from trading P&L across all markets',
     referral: 'Points from inviting and onboarding friends',
@@ -244,11 +249,13 @@ export default function LeaderboardPage() {
             const isSelected = selectedUser?.id === player.id;
             const profileUrl = `/profile/${player.username || player.id}`;
             const displayPoints =
-              selectedTab === 'all'
-                ? player.allPoints
-                : selectedTab === 'earned'
-                  ? player.earnedPoints
-                  : player.invitePoints;
+              selectedTab === 'total'
+                ? player.totalPoints
+                : selectedTab === 'all'
+                  ? player.allPoints
+                  : selectedTab === 'earned'
+                    ? player.earnedPoints
+                    : player.invitePoints;
             const formattedPoints = (displayPoints ?? 0).toLocaleString();
             const absolutePnL = Math.abs(player.lifetimePnL);
             const formattedPnL = formatCurrency(absolutePnL);

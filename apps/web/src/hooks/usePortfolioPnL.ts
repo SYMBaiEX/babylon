@@ -129,6 +129,7 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
       totalAssets: toNumber(breakdownJson.totalAssets),
       totalPnL: toNumber(breakdownJson.totalPnL),
       agentCount: toNumber(breakdownJson.agentCount),
+      totalPoints: toNumber(breakdownJson.totalPoints),
     });
     setLastUpdated(Date.now());
     setLoading(false);

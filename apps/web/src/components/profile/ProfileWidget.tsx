@@ -94,6 +94,7 @@ async function fetchProfileWidgetData(userId: string): Promise<{
       totalAssets: toNumber(breakdownJson.totalAssets),
       totalPnL: toNumber(breakdownJson.totalPnL),
       agentCount: toNumber(breakdownJson.agentCount),
+      totalPoints: toNumber(breakdownJson.totalPoints),
     };
   }
 
@@ -338,6 +339,12 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       <div className="mb-6">
         <h3 className="mb-3 font-bold text-foreground text-lg">Points</h3>
         <div className="space-y-2">
+          <div className="flex items-center justify-between rounded-lg bg-[#0066FF]/10 px-2 py-1.5">
+            <span className="font-semibold text-[#0066FF] text-sm">Total Points</span>
+            <span className="font-bold text-[#0066FF] text-sm">
+              {formatPoints(portfolio?.totalPoints ?? 0)} pts
+            </span>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm">Available</span>
             <span className="font-semibold text-foreground text-sm">
