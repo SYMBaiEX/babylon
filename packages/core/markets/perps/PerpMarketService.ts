@@ -121,6 +121,13 @@ export class PerpMarketService {
 
     const entryPrice = market.currentPrice;
 
+    // Reject non-finite or extreme prices to prevent NaN/Infinity PnL
+    if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+      throw new Error(
+        `Invalid market price for ${ticker}: ${entryPrice}. Cannot open position.`
+      );
+    }
+
     // Slippage protection: if mark price differs significantly from spot, reject
     if (maxSlippage !== undefined && maxSlippage > 0 && market.markPrice) {
       const priceDeviation =
@@ -251,6 +258,13 @@ export class PerpMarketService {
     }
 
     const exitPrice = input.exitPriceOverride ?? market.currentPrice;
+
+    // Reject non-finite or extreme prices to prevent NaN/Infinity PnL
+    if (!Number.isFinite(exitPrice) || exitPrice <= 0) {
+      throw new Error(
+        `Invalid exit price for ${position.ticker}: ${exitPrice}. Cannot close position.`
+      );
+    }
 
     // Slippage protection: reject if execution price deviates too far from mark price
     // This protects against executing at a price that differs significantly from fair value
@@ -1105,8 +1119,13 @@ function calculateUnrealizedPnL(
   side: PerpSide,
   size: number
 ): { pnl: number; pnlPercent: number } {
-  // Guard against division by zero
-  if (entryPrice <= 0 || size <= 0) {
+  // Guard against division by zero and non-finite values
+  if (
+    entryPrice <= 0 ||
+    size <= 0 ||
+    !Number.isFinite(entryPrice) ||
+    !Number.isFinite(currentPrice)
+  ) {
     return { pnl: 0, pnlPercent: 0 };
   }
   const pnl =

@@ -14,7 +14,7 @@
  */
 
 import { db, inArray, organizationState } from '@babylon/db';
-import { type JsonValue, logger } from '@babylon/shared';
+import { type JsonValue, logger, PERP_MARKET_CONFIG } from '@babylon/shared';
 import {
   correlations,
   getAffectedOrgs,
@@ -89,6 +89,7 @@ export async function applyCascadeEffects(
     const state = stateByOrgId.get(affected.orgId);
     if (!state) continue;
 
+    const basePrice = Number(state.basePrice);
     const currentPrice = Number(state.currentPrice ?? state.basePrice);
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) continue;
 
@@ -96,7 +97,25 @@ export async function applyCascadeEffects(
     // Positive multiplier = same direction (suppliers hurt when customer hurts)
     // Negative multiplier = inverse direction (competitors benefit from rival's pain)
     const cascadeEffect = priceChangePercent * affected.multiplier;
-    const newPrice = currentPrice * (1 + cascadeEffect);
+    const rawPrice = currentPrice * (1 + cascadeEffect);
+
+    // Clamp to basePrice bounds to prevent cascade-driven price explosion
+    const hasValidBasePrice =
+      Number.isFinite(basePrice) && basePrice > 0;
+    if (!hasValidBasePrice) {
+      logger.warn(
+        'Missing basePrice for cascade target, using currentPrice fallback',
+        { orgId: affected.orgId, currentPrice },
+        'MarketCorrelationService'
+      );
+    }
+    const minPrice = hasValidBasePrice
+      ? basePrice * PERP_MARKET_CONFIG.PRICE_FLOOR_RATIO
+      : currentPrice * 0.25;
+    const maxPrice = hasValidBasePrice
+      ? basePrice * PERP_MARKET_CONFIG.PRICE_CEILING_RATIO
+      : currentPrice * 4.0;
+    const newPrice = Math.max(minPrice, Math.min(maxPrice, rawPrice));
 
     if (!Number.isFinite(newPrice) || newPrice <= 0) continue;
 
