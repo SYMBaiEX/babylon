@@ -213,11 +213,11 @@ function SidebarContent() {
       >
         {/* Header - Logo */}
         <div className="flex items-center justify-center p-6 lg:justify-start lg:px-4">
-          <Link href="/feed">
+          <Link href="/feed" aria-label="Babylon home">
             {/* Icon-only logo for md (tablet) */}
-            <BabylonIcon className="h-8 w-8 lg:hidden" />
+            <BabylonIcon className="h-8 w-8 text-[#06f] lg:hidden" />
             {/* Full logo with text for lg+ (desktop) */}
-            <BabylonFullLogo className="hidden h-8 w-auto lg:block" />
+            <BabylonFullLogo className="hidden h-8 w-auto text-[#06f] lg:block" />
           </Link>
         </div>
 
