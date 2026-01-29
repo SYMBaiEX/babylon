@@ -269,6 +269,8 @@ export const users = pgTable(
     totalPoints: decimal('totalPoints', { precision: 18, scale: 2 })
       .notNull()
       .default('0'),
+    // Dirty flag for incremental totalPoints recompute
+    totalPointsDirtyAt: timestamp('totalPointsDirtyAt', { mode: 'date' }),
     // Game guide completion tracking
     gameGuideCompletedAt: timestamp('gameGuideCompletedAt', { mode: 'date' }),
     // Profile chain sync tracking (database-first architecture)

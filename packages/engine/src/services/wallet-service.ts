@@ -313,7 +313,7 @@ export class WalletService {
     await WalletService.invalidateCache(userId);
 
     // Fire-and-forget: recompute totalPoints after balance change
-    TotalPointsService.recomputeTotalPoints(userId).catch(() => {});
+    TotalPointsService.markDirty(userId).catch(() => {});
   }
 
   /**
@@ -352,7 +352,7 @@ export class WalletService {
     await WalletService.invalidateCache(userId);
 
     // Fire-and-forget: recompute totalPoints after balance change
-    TotalPointsService.recomputeTotalPoints(userId).catch(() => {});
+    TotalPointsService.markDirty(userId).catch(() => {});
   }
 
   /**

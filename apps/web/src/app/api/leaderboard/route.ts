@@ -173,7 +173,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { page, pageSize, minPoints, pointsType } = validationResult.data;
 
-  const pointsCategory = (pointsType ?? 'total') as 'all' | 'earned' | 'referral' | 'total';
+  const pointsCategory = (pointsType ?? 'total') as
+    | 'all'
+    | 'earned'
+    | 'referral'
+    | 'total';
 
   // Cache key includes all query parameters
   const cacheKey = `${pointsCategory}-${page}-${pageSize}-${minPoints}`;

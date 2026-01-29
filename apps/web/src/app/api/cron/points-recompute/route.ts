@@ -5,13 +5,13 @@
  * @access Cron (CRON_SECRET required)
  *
  * @description
- * Periodic job that recomputes total points for all users.
+ * Periodic job that recomputes total points for dirty users only.
  * At midnight UTC, also takes a daily snapshot of all user points.
  *
- * Max execution time: 300s (batch processing across all users).
+ * Max execution time: 300s (batch processing).
  *
  * Operations:
- * - Always: Recompute total points for all users
+ * - Always: Recompute dirty users (incremental)
  * - At midnight UTC: Additionally snapshot all user points
  */
 
@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Verify cron authorization
   if (!verifyCronAuth(request, { jobName: 'PointsRecompute' })) {
     logger.warn(
       'Unauthorized points-recompute request',
@@ -42,20 +41,14 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const isMidnight = new Date().getUTCHours() === 0;
 
-  logger.info(
-    'Points recompute started',
-    { isMidnight },
-    'PointsRecompute'
-  );
+  logger.info('Points recompute started', { isMidnight }, 'PointsRecompute');
 
   try {
-    // Always recompute all user points
-    const recomputeResult = await TotalPointsService.recomputeAllUsers();
+    // Incremental: only recompute users marked dirty
+    const recomputeResult = await TotalPointsService.recomputeDirtyUsers();
 
     // At midnight UTC, also snapshot all user points
-    let snapshotResult: Awaited<
-      ReturnType<typeof TotalPointsService.snapshotAllUsers>
-    > | null = null;
+    let snapshotResult: number | null = null;
     if (isMidnight) {
       snapshotResult = await TotalPointsService.snapshotAllUsers();
     }
@@ -64,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const result = {
       success: true,
-      recompute: recomputeResult,
+      recomputed: recomputeResult,
       snapshot: snapshotResult,
       isMidnight,
       durationMs,

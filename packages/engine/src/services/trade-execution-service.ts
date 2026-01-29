@@ -526,7 +526,7 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position open
-    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -652,7 +652,7 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position open
-    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -799,7 +799,7 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -947,7 +947,7 @@ export class TradeExecutionService {
       });
 
       // Fire-and-forget: recompute totalPoints after position close
-      TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+      TotalPointsService.markDirty(actorId).catch(() => {});
 
       return {
         npcId: decision.npcId,
@@ -1064,7 +1064,7 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,
@@ -1133,7 +1133,7 @@ export class TradeExecutionService {
     });
 
     // Fire-and-forget: recompute totalPoints after position close
-    TotalPointsService.recomputeTotalPoints(actorId).catch(() => {});
+    TotalPointsService.markDirty(actorId).catch(() => {});
 
     return {
       npcId: decision.npcId,

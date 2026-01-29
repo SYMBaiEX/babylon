@@ -29,3 +29,6 @@ CREATE INDEX IF NOT EXISTS "UserPointsSnapshot_snapshotDate_idx"
 -- This is a safe initial value; the cron job will recompute with position values
 UPDATE "User" SET "totalPoints" = COALESCE(CAST("virtualBalance" AS DECIMAL(18,2)), 0)
 WHERE "totalPoints" = 0;
+
+-- Add dirty flag for incremental totalPoints recompute
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totalPointsDirtyAt" TIMESTAMP;

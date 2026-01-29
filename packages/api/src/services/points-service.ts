@@ -1351,17 +1351,13 @@ export class PointsService {
       const [countResult] = await db
         .select({ count: count() })
         .from(users)
-        .where(
-          and(eq(users.isActor, false), eq(users.isAgent, false))
-        );
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
       totalCountForTotal = countResult?.count ?? 0;
 
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(
-          and(eq(users.isActor, false), eq(users.isAgent, false))
-        )
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)))
         .orderBy(desc(users.totalPoints))
         .limit(pageSize)
         .offset(skip);
@@ -1370,18 +1366,34 @@ export class PointsService {
         .select(userSelectFields)
         .from(users)
         .where(
-          and(eq(users.isActor, false), eq(users.isAgent, false), gte(users.reputationPoints, minPoints))
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gte(users.reputationPoints, minPoints)
+          )
         );
     } else if (pointsCategory === 'earned') {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), eq(users.isAgent, false), ne(users.earnedPoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            ne(users.earnedPoints, 0)
+          )
+        );
     } else {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), eq(users.isAgent, false), gt(users.invitePoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gt(users.invitePoints, 0)
+          )
+        );
     }
 
     const combined = [
@@ -1448,7 +1460,11 @@ export class PointsService {
       );
     }
 
-    const sortField: 'allPoints' | 'earnedPoints' | 'invitePoints' | 'totalPoints' =
+    const sortField:
+      | 'allPoints'
+      | 'earnedPoints'
+      | 'invitePoints'
+      | 'totalPoints' =
       pointsCategory === 'total'
         ? 'totalPoints'
         : pointsCategory === 'all'
@@ -1483,8 +1499,12 @@ export class PointsService {
       });
     }
 
-    const totalCount = pointsCategory === 'total' ? totalCountForTotal! : combined.length;
-    const paginatedResults = pointsCategory === 'total' ? combined : combined.slice(skip, skip + pageSize);
+    const totalCount =
+      pointsCategory === 'total' ? totalCountForTotal! : combined.length;
+    const paginatedResults =
+      pointsCategory === 'total'
+        ? combined
+        : combined.slice(skip, skip + pageSize);
 
     const resultsWithRank = paginatedResults.map((entry, index) => ({
       ...entry,

@@ -15,7 +15,7 @@ import {
   users,
 } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 // ---------------------------------------------------------------------------
@@ -114,10 +114,7 @@ export const TotalPointsService = {
         })
         .from(perpPositions)
         .where(
-          and(
-            eq(perpPositions.userId, userId),
-            isNull(perpPositions.closedAt)
-          )
+          and(eq(perpPositions.userId, userId), isNull(perpPositions.closedAt))
         ),
       db
         .select({
@@ -129,12 +126,7 @@ export const TotalPointsService = {
         })
         .from(positions)
         .innerJoin(markets, eq(positions.marketId, markets.id))
-        .where(
-          and(
-            eq(positions.userId, userId),
-            eq(markets.resolved, false)
-          )
-        ),
+        .where(and(eq(positions.userId, userId), eq(markets.resolved, false))),
     ]);
 
     const perpsValue = perpRows.reduce(
@@ -166,6 +158,17 @@ export const TotalPointsService = {
   },
 
   /**
+   * Mark a user's totalPoints as dirty (needing recompute).
+   * Called instead of immediate recompute on balance/position changes.
+   */
+  async markDirty(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ totalPointsDirtyAt: new Date() })
+      .where(eq(users.id, userId));
+  },
+
+  /**
    * Snapshot all non-agent, non-actor users' current totalPoints
    * into the userPointsSnapshots table.
    */
@@ -193,26 +196,34 @@ export const TotalPointsService = {
   },
 
   /**
-   * Batch recompute totalPoints for all non-agent, non-actor users.
-   * Processes in batches of 100.
+   * Recompute totalPoints only for users marked dirty.
+   * Called by the 15-min cron job for incremental updates.
    */
-  async recomputeAllUsers(): Promise<number> {
-    const allUsers = await db
+  async recomputeDirtyUsers(): Promise<number> {
+    const dirtyUsers = await db
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.isAgent, false), eq(users.isActor, false)));
+      .where(isNotNull(users.totalPointsDirtyAt));
 
     const BATCH_SIZE = 100;
     let processed = 0;
 
-    for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
-      const batch = allUsers.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < dirtyUsers.length; i += BATCH_SIZE) {
+      const batch = dirtyUsers.slice(i, i + BATCH_SIZE);
       await Promise.all(
-        batch.map((user) => TotalPointsService.recomputeTotalPoints(user.id))
+        batch.map(async (user) => {
+          await TotalPointsService.recomputeTotalPoints(user.id);
+          // Clear dirty flag after successful recompute
+          await db
+            .update(users)
+            .set({ totalPointsDirtyAt: null })
+            .where(eq(users.id, user.id));
+        })
       );
       processed += batch.length;
     }
 
     return processed;
   },
+
 };

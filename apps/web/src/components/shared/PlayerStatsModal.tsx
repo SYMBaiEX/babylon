@@ -281,7 +281,9 @@ export function PlayerStatsModal({
               {/* Reputation Badge */}
               <div className="flex items-center gap-2 rounded-lg border border-border bg-background/50 px-3 py-2">
                 <Trophy className="h-4 w-4 shrink-0 text-yellow-500" />
-                <span className="text-muted-foreground text-sm">Reputation</span>
+                <span className="text-muted-foreground text-sm">
+                  Reputation
+                </span>
                 <span className="ml-auto font-semibold text-foreground text-sm">
                   {profile.reputationPoints.toLocaleString()}
                 </span>
