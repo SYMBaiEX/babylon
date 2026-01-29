@@ -82,11 +82,34 @@ def load_env_file(path: str) -> dict:
     return env
 
 
+def load_api_key():
+    """Load RUNPOD_API_KEY from environment or default .env file."""
+    key = os.environ.get("RUNPOD_API_KEY")
+    if key:
+        return key
+    
+    # Try loading from default .env locations
+    script_dir = Path(__file__).parent
+    env_locations = [
+        script_dir / ".env",
+        script_dir.parent / ".env",
+        script_dir.parent / "deploy" / ".env",
+    ]
+    
+    for env_path in env_locations:
+        if env_path.exists():
+            env = load_env_file(str(env_path))
+            if "RUNPOD_API_KEY" in env:
+                return env["RUNPOD_API_KEY"]
+    
+    return None
+
+
 def api(method, endpoint, data=None):
     """Make API request."""
-    key = os.environ.get("RUNPOD_API_KEY")
+    key = load_api_key()
     if not key:
-        sys.exit("Set RUNPOD_API_KEY (https://console.runpod.io/user/settings)")
+        sys.exit("Set RUNPOD_API_KEY (https://console.runpod.io/user/settings) or use --env-file")
     
     r = requests.request(
         method, f"{API}{endpoint}",
@@ -128,9 +151,10 @@ def cmd_train(args):
     steps = args.steps or int(env.get("TRAINING_STEPS", 1000))
     min_agents = args.min_agents_per_window or int(env.get("MIN_AGENTS_PER_WINDOW", 1))
     
-    # Ensure required vars
-    if "DATABASE_URL" not in env:
-        sys.exit("DATABASE_URL required. Use --db or set in env file.")
+    # Ensure data source - either DATABASE_URL or --hf-dataset
+    hf_dataset = getattr(args, 'hf_dataset', None)
+    if not hf_dataset and "DATABASE_URL" not in env:
+        sys.exit("Data source required. Use --db, --hf-dataset, or set DATABASE_URL in env file.")
     
     # Build docker command
     docker_cmd = [
@@ -139,6 +163,10 @@ def cmd_train(args):
         "--steps", str(steps),
         "--min-agents-per-window", str(min_agents)
     ]
+    
+    # Add HuggingFace dataset if specified
+    if hf_dataset:
+        docker_cmd.extend(["--hf-dataset", hf_dataset])
     
     pod = api("POST", "/pods", {
         "name": args.name or f"babylon-{args.gpu}",
@@ -167,6 +195,12 @@ def cmd_train(args):
 
 def cmd_list(args):
     """List running pods."""
+    # Load env file if provided
+    if hasattr(args, 'env_file') and args.env_file:
+        env = load_env_file(args.env_file)
+        if "RUNPOD_API_KEY" in env and not os.environ.get("RUNPOD_API_KEY"):
+            os.environ["RUNPOD_API_KEY"] = env["RUNPOD_API_KEY"]
+    
     pods = api("GET", "/pods?includeMachine=true")
     if not pods:
         print("No pods.")
@@ -265,14 +299,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Training Examples:
-  # Using env file
-  python setup.py train --gpu h100 --image user/babylon-training:latest --env-file ../.env
+  # Using HuggingFace dataset (recommended for RunPod)
+  python setup.py train --gpu h100 --image user/babylon-training:latest --env-file ../.env --hf-dataset elizaos/enkidu-trajectories-raw
   
-  # Using CLI args  
+  # Using database URL (requires network access to DB)
   python setup.py train --gpu h100 --image user/babylon-training:latest --db "postgresql://..."
   
   # Spot instance (cheaper)
-  python setup.py train --gpu 4090 --image user/babylon-training:latest --env-file .env --spot
+  python setup.py train --gpu 4090 --image user/babylon-training:latest --env-file .env --hf-dataset org/dataset --spot
 
 Benchmark Examples:
   # Benchmark HuggingFace model
@@ -299,12 +333,14 @@ Benchmark Examples:
     t.add_argument("--db", help="DATABASE_URL (overrides env file)")
     t.add_argument("--wandb", help="WANDB_API_KEY (overrides env file)")
     t.add_argument("--hf-token", help="HF_TOKEN (overrides env file)")
+    t.add_argument("--hf-dataset", help="HuggingFace dataset ID for training data (instead of DATABASE_URL)")
     t.add_argument("--min-agents-per-window", type=int, help="Min trajectories per window (default: 1)")
     t.add_argument("--spot", action="store_true", help="Use spot instance (cheaper, may interrupt)")
     t.add_argument("--community", action="store_true", help="Use community cloud (cheaper)")
     
     # list
-    sub.add_parser("list", help="List pods")
+    lst = sub.add_parser("list", help="List pods")
+    lst.add_argument("--env-file", help="Path to .env file (for RUNPOD_API_KEY)")
     
     # stop
     s = sub.add_parser("stop", help="Delete a pod")
