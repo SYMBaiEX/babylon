@@ -162,127 +162,58 @@ export class NPCGroupDynamicsService {
   }
 
   /**
-   * Form new NPC groups based on relationships
+   * Form new NPC tier groups using the tiered group system.
+   *
+   * Creates all 3 tiers per NPC (Inner Circle, Community, Followers) with proper
+   * tier configuration. This replaces the legacy single-group creation.
+   *
+   * Each NPC can have:
+   * - Tier 1 (Inner Circle): 12 members, full alpha content
+   * - Tier 2 (Community): 50 members, partial alpha content
+   * - Tier 3 (Followers): 500 members, public-facing content
    */
   private static async formNewGroups(rng: RngFunction): Promise<number> {
     let groupsCreated = 0;
 
-    // Get NPCs from static registry
-    const npcs = StaticDataRegistry.getAllActors().map((a) => ({
-      id: a.id,
-      name: a.name,
-    }));
+    // Get non-test NPCs from static registry
+    const npcs = StaticDataRegistry.getAllActors()
+      .filter((a) => !a.isTest)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+      }));
 
     for (const npc of npcs) {
-      // Random chance to form a group
+      // Random chance to bootstrap this NPC's tier groups
+      // Lower probability since we're creating 3 groups at once
       if (!randomChance(NPC_GROUP_DYNAMICS_CONFIG.formGroupProbability, rng)) {
         continue;
       }
 
-      // Check if NPC already has a group they admin by querying groups with their name
-      const [hasGroup] = await db
-        .select({ id: chats.id, name: chats.name })
-        .from(chats)
-        .where(eq(chats.isGroup, true))
-        .limit(1000);
+      // Use TieredGroupService to ensure all 3 tiers exist (idempotent)
+      // This creates the groups with proper tier configuration if they don't exist
+      const tiers = await TieredGroupService.ensureAllTiersExist(npc.id);
 
-      const alreadyHasGroup = hasGroup
-        ? (
-            await db
-              .select({ id: chats.id, name: chats.name })
-              .from(chats)
-              .where(eq(chats.isGroup, true))
-          ).some((g) => g.name?.includes(npc.name))
-        : false;
+      // Count newly created tiers (memberCount === 1 means only NPC owner)
+      const newTiers = tiers.filter((t) => t.memberCount === 1);
+      groupsCreated += newTiers.length;
 
-      if (alreadyHasGroup) {
-        continue; // Already has a group
+      if (newTiers.length > 0) {
+        logger.info(
+          'NPC tier groups created',
+          {
+            npcId: npc.id,
+            npcName: npc.name,
+            tiersCreated: newTiers.map((t) => ({
+              tier: t.tier,
+              name: t.groupName,
+              maxMembers: t.maxMembers,
+            })),
+            existingTiers: tiers.length - newTiers.length,
+          },
+          'NPCGroupDynamicsService'
+        );
       }
-
-      // Get NPC's positive relationships
-      const relationships = await db
-        .select()
-        .from(actorRelationships)
-        .where(
-          and(
-            or(
-              eq(actorRelationships.actor1Id, npc.id),
-              eq(actorRelationships.actor2Id, npc.id)
-            ),
-            gte(actorRelationships.sentiment, 0.5)
-          )
-        )
-        .limit(NPC_GROUP_DYNAMICS_CONFIG.idealGroupSize - 1);
-
-      const memberIds = new Set<string>([npc.id]);
-
-      // Add related actors as members
-      for (const rel of relationships) {
-        const memberId = rel.actor1Id === npc.id ? rel.actor2Id : rel.actor1Id;
-        memberIds.add(memberId);
-      }
-
-      if (memberIds.size < NPC_GROUP_DYNAMICS_CONFIG.minGroupSize) {
-        continue; // Not enough members
-      }
-
-      // Create the group chat
-      const chatId = await generateSnowflakeId();
-      const groupId = await generateSnowflakeId();
-      const chatName = `${npc.name}'s Circle`;
-
-      // Create Group
-      await db.insert(groups).values({
-        id: groupId,
-        name: chatName,
-        type: 'npc',
-        ownerId: npc.id,
-        createdById: npc.id,
-        updatedAt: new Date(),
-      });
-
-      // Create Chat with groupId link (Chat.groupId → Group.id)
-      await db.insert(chats).values({
-        id: chatId,
-        name: chatName,
-        isGroup: true,
-        groupId, // Link Chat → Group
-        updatedAt: new Date(),
-      });
-
-      // Create participants
-      const participantValues = await Promise.all(
-        Array.from(memberIds).map(async (memberId) => ({
-          id: await generateSnowflakeId(),
-          chatId,
-          userId: memberId,
-        }))
-      );
-      await db.insert(chatParticipants).values(participantValues);
-
-      // Create GroupMember records
-      const memberValues = await Promise.all(
-        Array.from(memberIds).map(async (memberId) => ({
-          id: await generateSnowflakeId(),
-          groupId,
-          userId: memberId,
-          role: memberId === npc.id ? 'owner' : ('member' as const),
-          addedBy: npc.id,
-        }))
-      );
-      await db.insert(groupMembers).values(memberValues);
-
-      groupsCreated++;
-      logger.info(
-        'NPC formed new group',
-        {
-          npcId: npc.id,
-          npcName: npc.name,
-          chatName,
-          memberCount: memberIds.size,
-        },
-        'NPCGroupDynamicsService'
-      );
     }
 
     return groupsCreated;

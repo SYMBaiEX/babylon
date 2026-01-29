@@ -154,17 +154,36 @@ export const RELATIONSHIP_TYPES = {
 /**
  * Group chat configuration
  * Controls group participation limits
+ *
+ * With the tiered group system, users get:
+ * - 3 default Tier 3 groups on signup (Followers)
+ * - Can earn invites to higher tiers through engagement
+ * - MAX_ACTIVE_USER_GROUPS includes both default and invited groups
  */
 export const GROUP_CONFIG = {
-  /** Max NPC groups a user can be in simultaneously (env: MAX_ACTIVE_USER_GROUPS)
-   * Note: User-created groups don't count toward this limit */
+  /**
+   * Max NPC groups a user can be in simultaneously (env: MAX_ACTIVE_USER_GROUPS)
+   * Note: User-created groups don't count toward this limit
+   *
+   * Set to 10 to accommodate:
+   * - 3 default Tier 3 groups (assigned on signup)
+   * - Up to 7 additional invites earned through engagement
+   */
   MAX_ACTIVE_USER_GROUPS: Number.parseInt(
-    process.env.MAX_ACTIVE_USER_GROUPS || '5',
+    process.env.MAX_ACTIVE_USER_GROUPS || '10',
+    10
+  ),
+  /**
+   * Minimum number of default NPC groups to assign on signup.
+   * Users get this many Tier 3 groups automatically.
+   */
+  MIN_DEFAULT_GROUPS: Number.parseInt(
+    process.env.MIN_DEFAULT_GROUPS || '3',
     10
   ),
   /** Min members for NPC group */
   MIN_GROUP_SIZE: 3,
-  /** Max members for any group */
+  /** Max members for Tier 1 groups (Inner Circle) */
   MAX_GROUP_SIZE: 12,
   /** Ideal NPC group size */
   IDEAL_GROUP_SIZE: 7,
