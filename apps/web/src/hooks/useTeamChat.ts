@@ -933,6 +933,7 @@ export function useTeamChat(): UseTeamChatReturn {
               pointsCost?: number;
               balanceAfter?: number;
               isLLMFailure?: boolean;
+              metadata?: MessageMetadata | null;
             };
 
             // Update thinking message with actual response
@@ -942,6 +943,7 @@ export function useTeamChat(): UseTeamChatReturn {
                 content: data.response,
                 isThinking: false,
                 stableKey: data.messageId,
+                metadata: data.metadata,
               });
             } else {
               // No response - remove thinking bubble
@@ -1086,15 +1088,40 @@ export function useTeamChat(): UseTeamChatReturn {
 
   /**
    * Create a new conversation (New Chat)
-   * Prevents creation if current chat is already empty
+   * If the most recently created chat is empty, switches to it instead
    */
   const createConversation = useCallback(
     async (title?: string) => {
-      if (!user) return;
+      if (!user || !teamChat) return;
 
-      // Prevent creating new chat if current chat is empty
-      if (realtimeMessages.length === 0) {
-        toast.info('Current chat is already empty');
+      // Find the most recently created conversation (sorted by createdAt desc)
+      const sortedConversations = [...conversations].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const mostRecentChat = sortedConversations[0];
+
+      // Check if most recent chat is empty (name === null means no messages yet)
+      if (mostRecentChat && mostRecentChat.name === null) {
+        // If already on this empty chat, just show a toast
+        if (mostRecentChat.id === teamChat.chatId) {
+          toast.info('Current chat is already empty');
+          return;
+        }
+
+        // Switch to the existing empty chat instead of creating a new one
+        // Update active state in conversations list
+        setConversations((prev) =>
+          prev.map((c) => ({ ...c, isActive: c.id === mostRecentChat.id }))
+        );
+
+        // Update team chat with the empty chat's ID
+        setTeamChat((prev) =>
+          prev ? { ...prev, chatId: mostRecentChat.id } : prev
+        );
+
+        // Clear messages (useChatMessages will refetch for new chatId)
+        clearMessages();
         return;
       }
 
@@ -1139,7 +1166,7 @@ export function useTeamChat(): UseTeamChatReturn {
         toast.error('Failed to create conversation');
       }
     },
-    [user, getAccessToken, clearMessages, realtimeMessages.length]
+    [user, teamChat, conversations, getAccessToken, clearMessages]
   );
 
   /**

@@ -945,6 +945,7 @@ export const POST = withErrorHandling(
       modelUsed,
       balanceAfter: newBalance,
       isLLMFailure, // Let frontend know if this was a fallback response
+      metadata: messageMetadata, // Include tags in response for immediate UI update
       multiStep: {
         actionsExecuted: traceActionResults.length,
         actions: traceActionResults.map((a) => ({
