@@ -5,6 +5,8 @@ import { cn } from '@babylon/shared';
 import { Frown, Heart, Laugh } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useLoginModal } from '@/hooks/useLoginModal';
 import { useSocialTracking } from '@/hooks/usePostHog';
 import { useInteractionStore } from '@/stores/interactionStore';
 
@@ -128,6 +130,8 @@ export function LikeButton({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressStartTime = useRef<number>(0);
 
+  const { authenticated } = useAuth();
+  const { showLoginModal } = useLoginModal();
   const {
     toggleLike,
     toggleCommentLike,
@@ -157,6 +161,15 @@ export function LikeButton({
   }, []);
 
   const handleClick = async () => {
+    // Check authentication before allowing like
+    if (!authenticated) {
+      showLoginModal({
+        title: 'Login to Like',
+        message: `Log in to like ${targetType === 'post' ? 'posts' : 'comments'} and engage with the community.`,
+      });
+      return;
+    }
+
     // Trigger animation
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 300);
@@ -175,6 +188,16 @@ export function LikeButton({
 
   const handleReactionSelect = async (reactionType: ReactionType) => {
     setShowReactionPicker(false);
+
+    // Check authentication before allowing reaction
+    if (!authenticated) {
+      showLoginModal({
+        title: 'Login to React',
+        message: `Log in to react to ${targetType === 'post' ? 'posts' : 'comments'} and engage with the community.`,
+      });
+      return;
+    }
+
     setCurrentReaction(reactionType);
 
     // Trigger animation

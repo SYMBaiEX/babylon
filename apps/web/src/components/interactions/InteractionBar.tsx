@@ -78,53 +78,33 @@ export function InteractionBar({
   const isShared =
     storeData?.isShared ?? initialInteractions?.isShared ?? false;
 
-  // Update store with latest counts from API, but preserve isLiked/isShared from store
+  // Initialize store with initial values ONLY if store doesn't have data for this post
+  // This prevents overwriting optimistic updates from user interactions
   useEffect(() => {
-    if (initialInteractions) {
-      const store = useInteractionStore.getState();
-      const currentStoreData = store.postInteractions.get(interactionPostId);
+    if (!initialInteractions) return;
 
-      // Check if values have actually changed to prevent unnecessary updates
-      const newLikeCount = initialInteractions.likeCount ?? 0;
-      const newCommentCount = initialInteractions.commentCount ?? 0;
-      const newShareCount = initialInteractions.shareCount ?? 0;
+    const store = useInteractionStore.getState();
+    const currentStoreData = store.postInteractions.get(interactionPostId);
+    const isLoading = store.loadingStates.get(interactionPostId);
 
-      const hasChanged =
-        !currentStoreData ||
-        currentStoreData.likeCount !== newLikeCount ||
-        currentStoreData.commentCount !== newCommentCount ||
-        currentStoreData.shareCount !== newShareCount;
+    // Don't overwrite if there's an in-progress optimistic update
+    if (isLoading) return;
 
-      // Only update if values have changed
-      if (hasChanged) {
-        const updatedInteractions = new Map(store.postInteractions);
-
-        updatedInteractions.set(interactionPostId, {
-          postId: interactionPostId,
-          // Use fresh counts from API
-          likeCount: newLikeCount,
-          commentCount: newCommentCount,
-          shareCount: newShareCount,
-          // Preserve isLiked/isShared from store (localStorage), don't overwrite with API
-          isLiked:
-            currentStoreData?.isLiked ?? initialInteractions.isLiked ?? false,
-          isShared:
-            currentStoreData?.isShared ?? initialInteractions.isShared ?? false,
-        });
-        useInteractionStore.setState({ postInteractions: updatedInteractions });
-      }
+    // Only initialize if store doesn't have data for this post
+    // Once user interacts, store becomes source of truth
+    if (!currentStoreData) {
+      const updatedInteractions = new Map(store.postInteractions);
+      updatedInteractions.set(interactionPostId, {
+        postId: interactionPostId,
+        likeCount: initialInteractions.likeCount ?? 0,
+        commentCount: initialInteractions.commentCount ?? 0,
+        shareCount: initialInteractions.shareCount ?? 0,
+        isLiked: initialInteractions.isLiked ?? false,
+        isShared: initialInteractions.isShared ?? false,
+      });
+      useInteractionStore.setState({ postInteractions: updatedInteractions });
     }
-  }, [
-    interactionPostId,
-    initialInteractions,
-    // Track individual properties to ensure we catch all changes
-    // Using initialInteractions directly is safe since we check for changes before updating
-    initialInteractions?.likeCount,
-    initialInteractions?.commentCount,
-    initialInteractions?.shareCount,
-    initialInteractions?.isLiked,
-    initialInteractions?.isShared,
-  ]);
+  }, [interactionPostId, initialInteractions]);
 
   const handleCommentClick = () => {
     if (!authenticated) {
