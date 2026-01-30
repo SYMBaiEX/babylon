@@ -1135,7 +1135,9 @@ export class TeamChatService {
 
     // COUNT may be returned as string at runtime; convert to number
     const countValue = result[0]?.count;
-    return typeof countValue === 'string' ? parseInt(countValue, 10) : (countValue ?? 0);
+    return typeof countValue === 'string'
+      ? parseInt(countValue, 10)
+      : (countValue ?? 0);
   }
 
   /**

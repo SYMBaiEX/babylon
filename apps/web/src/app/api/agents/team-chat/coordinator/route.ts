@@ -388,7 +388,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
             `[Coordinator] Failed to parse parameters JSON`,
             {
               parameters,
-              error: parseError instanceof Error ? parseError.message : String(parseError),
+              error:
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError),
             },
             'CoordinatorChat'
           );

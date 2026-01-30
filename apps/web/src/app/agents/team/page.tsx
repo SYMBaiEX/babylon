@@ -730,11 +730,17 @@ export default function TeamChatPage() {
                 username: agent.username,
                 // Use agent parameter fields with safe fallbacks
                 // These may be undefined from the basic onSuccess signature
-                displayName: (agent as { displayName?: string | null }).displayName ?? null,
-                profileImageUrl: (agent as { profileImageUrl?: string | null }).profileImageUrl ?? null,
+                displayName:
+                  (agent as { displayName?: string | null }).displayName ??
+                  null,
+                profileImageUrl:
+                  (agent as { profileImageUrl?: string | null })
+                    .profileImageUrl ?? null,
                 isAgent: true,
-                modelTier: (agent as { modelTier?: 'free' | 'pro' }).modelTier ?? 'pro',
-                virtualBalance: (agent as { virtualBalance?: number }).virtualBalance ?? 0,
+                modelTier:
+                  (agent as { modelTier?: 'free' | 'pro' }).modelTier ?? 'pro',
+                virtualBalance:
+                  (agent as { virtualBalance?: number }).virtualBalance ?? 0,
               });
             }
           }}
