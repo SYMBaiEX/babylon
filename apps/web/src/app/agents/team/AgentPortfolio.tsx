@@ -397,6 +397,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-[#0066FF]"
+                aria-label={`Open agent ${agent0Profile.tokenId} on Agent0 Network`}
               >
                 <ExternalLink className="h-3 w-3" />
               </a>
@@ -440,6 +441,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
                     {/* Collapsed row - clickable */}
                     <button
                       type="button"
+                      aria-expanded={expandedTxIds.has(tx.id)}
                       onClick={() => {
                         setExpandedTxIds((prev) => {
                           const next = new Set(prev);
