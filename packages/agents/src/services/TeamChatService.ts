@@ -1083,6 +1083,7 @@ export class TeamChatService {
     }
 
     // Atomic update with ownership check included in WHERE clause
+    // Use .returning() to check if any rows were updated
     const result = await db
       .update(chats)
       .set({ name: title, updatedAt: new Date() })
@@ -1092,9 +1093,10 @@ export class TeamChatService {
           isNull(chats.name),
           eq(chats.groupId, teamChat.groupId)
         )
-      );
+      )
+      .returning({ id: chats.id });
 
-    const updated = (result.rowCount ?? 0) > 0;
+    const updated = result.length > 0;
 
     if (updated) {
       logger.info(
@@ -1127,11 +1129,13 @@ export class TeamChatService {
     }
 
     const result = await db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<string>`count(*)` })
       .from(messages)
       .where(and(eq(messages.chatId, chatId), eq(messages.type, 'user')));
 
-    return result[0]?.count ?? 0;
+    // COUNT may be returned as string at runtime; convert to number
+    const countValue = result[0]?.count;
+    return typeof countValue === 'string' ? parseInt(countValue, 10) : (countValue ?? 0);
   }
 
   /**

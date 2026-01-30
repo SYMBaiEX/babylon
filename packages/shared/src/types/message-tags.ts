@@ -148,31 +148,72 @@ export interface FeedTagData {
   hasMore: boolean;
 }
 
-/** Data for P&L tags (agent-pnl and owner-pnl) */
+/**
+ * Data for P&L tags (agent-pnl and owner-pnl).
+ *
+ * Used by the Agents chat to display portfolio and trading performance.
+ * - `agent-pnl`: Shows the agent's own trading balance and positions
+ * - `owner-pnl`: Shows the owner's (human user's) portfolio summary
+ */
 export interface PnlTagData {
-  ownerName?: string; // Only for owner-pnl
+  /**
+   * Display name of the portfolio owner.
+   * Only populated for `owner-pnl` tags; undefined for `agent-pnl`.
+   */
+  ownerName?: string;
+
+  /** Current available balance (trading points) */
   balance: number;
+
+  /** Cumulative realized P&L across all closed trades */
   lifetimePnL: number;
+
+  /** Open prediction market positions */
   predictionPositions: Array<{
     id: string;
     marketId: string | null;
     side: string;
     shares: number;
+    /**
+     * Average entry price per share.
+     * May be undefined if position was opened before price tracking was added.
+     */
     avgPrice?: number;
+    /** Market question text for display */
     question?: string;
   }>;
+
+  /** Open perpetual/stock positions */
   perpPositions: Array<{
     id: string;
     ticker: string;
     side: string;
     size: number;
+    /**
+     * Entry price for the position.
+     * May be undefined for legacy positions or if unavailable from the API.
+     */
     entryPrice?: number;
+    /**
+     * Leverage multiplier for the position (e.g., 2 = 2x leverage).
+     * Only applicable to leveraged perp markets; undefined for spot-like positions.
+     */
     leverage?: number;
   }>;
+
+  /**
+   * Recent closed trades for this portfolio.
+   * Only populated when the caller requests trade history.
+   * Omitted or empty array when no recent trades exist.
+   */
   recentTrades?: Array<{
     action: string;
     ticker: string;
     amount: number;
+    /**
+     * Realized P&L for this trade.
+     * Null for opening trades or when P&L is not yet calculated.
+     */
     pnl: number | null;
   }>;
 }

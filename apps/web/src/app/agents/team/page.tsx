@@ -215,22 +215,18 @@ export default function TeamChatPage() {
     (tabId: string) => {
       setRightSidebarTabs((prev) => {
         const newTabs = prev.filter((t) => t.id !== tabId);
-        return newTabs;
-      });
-      // Handle active tab logic outside the updater
-      if (activeRightTabId === tabId) {
-        // Use functional update to get the latest tabs state
-        setRightSidebarTabs((currentTabs) => {
-          const lastTab = currentTabs[currentTabs.length - 1];
+        // Handle active tab logic within the same updater to avoid race conditions
+        if (activeRightTabId === tabId) {
+          const lastTab = newTabs[newTabs.length - 1];
           if (lastTab) {
             setActiveRightTabId(lastTab.id);
           } else {
             setActiveRightTabId(null);
             setRightSidebarOpen(false);
           }
-          return currentTabs; // No mutation, just reading
-        });
-      }
+        }
+        return newTabs;
+      });
     },
     [activeRightTabId]
   );
@@ -726,18 +722,19 @@ export default function TeamChatPage() {
           onSuccess={async (agent) => {
             setShowCreateAgentModal(false);
             await refreshTeamChat();
-            // Use the agent parameter directly to avoid stale closure
+            // Use the agent parameter directly - don't rely on stale teamChat
+            // The agent object from onSuccess contains the core data we need
             if (agent.username) {
-              // Fetch the full agent data from refreshed teamChat
-              const fullAgent = teamChat?.agents.find((a) => a.id === agent.id);
               tagAgentInInput({
                 id: agent.id,
                 username: agent.username,
-                displayName: fullAgent?.displayName ?? null,
-                profileImageUrl: fullAgent?.profileImageUrl ?? null,
+                // Use agent parameter fields with safe fallbacks
+                // These may be undefined from the basic onSuccess signature
+                displayName: (agent as { displayName?: string | null }).displayName ?? null,
+                profileImageUrl: (agent as { profileImageUrl?: string | null }).profileImageUrl ?? null,
                 isAgent: true,
-                modelTier: fullAgent?.modelTier ?? 'pro',
-                virtualBalance: fullAgent?.virtualBalance ?? 0,
+                modelTier: (agent as { modelTier?: 'free' | 'pro' }).modelTier ?? 'pro',
+                virtualBalance: (agent as { virtualBalance?: number }).virtualBalance ?? 0,
               });
             }
           }}

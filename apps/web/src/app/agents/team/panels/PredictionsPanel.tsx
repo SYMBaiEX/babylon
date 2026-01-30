@@ -233,6 +233,10 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
       <div className="space-y-2">
         {predictions.map((prediction) => {
           const predictionMarket = toPredictionMarket(prediction);
+          // Normalize percentages to ensure they sum to 100%
+          const yesRaw = Number(prediction.yesPercent) || 0;
+          const yesClamped = Math.max(0, Math.min(100, yesRaw));
+          const noClamped = 100 - yesClamped;
           return (
             <div
               key={prediction.id}
@@ -246,11 +250,11 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
                 <div className="flex flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-2 bg-green-500"
-                    style={{ width: `${prediction.yesPercent}%` }}
+                    style={{ width: `${yesClamped}%` }}
                   />
                   <div
                     className="h-2 bg-red-500"
-                    style={{ width: `${prediction.noPercent}%` }}
+                    style={{ width: `${noClamped}%` }}
                   />
                 </div>
               </div>

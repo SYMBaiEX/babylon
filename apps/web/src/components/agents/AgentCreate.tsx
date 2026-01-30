@@ -254,12 +254,14 @@ export function AgentCreate({
       <AgentSetupModal
         isOpen={true}
         onClose={() => {
+          // Close action should dismiss the modal, not advance the wizard
+          // If onBack is provided, use it; otherwise do nothing (modal stays open)
+          // This prevents confusing UX where close button advances the form
           if (onBack) {
             onBack();
-          } else {
-            // Fallback: go to step 2 if no onBack provided (allows user to continue)
-            setCurrentStep(Step.Prompts);
           }
+          // When onBack is not provided, the close button is effectively disabled
+          // Users must use the Save button to proceed
         }}
         profileData={profileData}
         onSave={handleProfileSave}

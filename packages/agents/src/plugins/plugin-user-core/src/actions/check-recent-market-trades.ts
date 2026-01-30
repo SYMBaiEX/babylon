@@ -90,7 +90,9 @@ export const checkRecentMarketTradesAction: Action = {
     const parsedLimit =
       typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
     const validLimit = Number.isFinite(parsedLimit) ? parsedLimit : 15;
-    const limit = Math.min(Math.max(validLimit, 1), 30);
+    // Coerce to integer with Math.floor before clamping (PostgreSQL requires integer)
+    const integerLimit = Math.floor(validLimit);
+    const limit = Math.min(Math.max(integerLimit, 1), 30);
 
     // Fail-fast: let DB errors propagate to the action executor
     // Get recent NPC trades

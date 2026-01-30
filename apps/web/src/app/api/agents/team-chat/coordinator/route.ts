@@ -362,25 +362,37 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
 
-    // Parse parameters with proper type validation (fail-fast on malformed JSON)
+    // Parse parameters with proper type validation
     let actionParams: Record<string, unknown> = {};
     if (parameters) {
       if (typeof parameters === 'string') {
-        // Fail-fast: let JSON.parse throw on malformed JSON
-        const parsed: unknown = JSON.parse(parameters);
-        // Ensure parsed result is an object
-        if (
-          typeof parsed === 'object' &&
-          parsed !== null &&
-          !Array.isArray(parsed)
-        ) {
-          actionParams = parsed as Record<string, unknown>;
-        } else {
+        try {
+          const parsed: unknown = JSON.parse(parameters);
+          // Ensure parsed result is an object
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            !Array.isArray(parsed)
+          ) {
+            actionParams = parsed as Record<string, unknown>;
+          } else {
+            logger.warn(
+              `[Coordinator] Parameters parsed but not an object`,
+              { parameters, parsedType: typeof parsed },
+              'CoordinatorChat'
+            );
+          }
+        } catch (parseError) {
+          // Log the parse error and continue with empty params
           logger.warn(
-            `[Coordinator] Parameters parsed but not an object`,
-            { parameters, parsedType: typeof parsed },
+            `[Coordinator] Failed to parse parameters JSON`,
+            {
+              parameters,
+              error: parseError instanceof Error ? parseError.message : String(parseError),
+            },
             'CoordinatorChat'
           );
+          // actionParams remains empty Record<string, unknown>
         }
       } else if (typeof parameters === 'object' && parameters !== null) {
         actionParams = parameters as Record<string, unknown>;
