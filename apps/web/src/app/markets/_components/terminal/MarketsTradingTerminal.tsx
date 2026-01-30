@@ -774,33 +774,34 @@ export function MarketsTradingTerminal({
 
   const listPanel = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 space-y-3 border-white/5 border-b p-3">
+      <div
+        ref={marketsMenuRef}
+        className="shrink-0 space-y-3 border-white/5 border-b p-3"
+      >
         <div className="flex items-center justify-between">
           <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
             Markets
           </div>
           <div className="flex items-center gap-1">
-            <div ref={marketsMenuRef}>
-              <button
-                type="button"
-                onClick={() => setShowMarketsMenu((v) => !v)}
-                aria-expanded={showMarketsMenu}
-                aria-controls="markets-filter-sort"
-                className={cn(
-                  'rounded p-1.5 transition-colors hover:bg-muted/20',
-                  showMarketsMenu ||
-                    filter !== 'all' ||
-                    sortBy !== 'volume' ||
-                    sortDesc !== true
-                    ? 'bg-muted/20 text-primary'
-                    : 'text-muted-foreground'
-                )}
-                aria-label="Filter and sort markets"
-                title="Filter & Sort"
-              >
-                <Filter size={14} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowMarketsMenu((v) => !v)}
+              aria-expanded={showMarketsMenu}
+              aria-controls="markets-filter-sort"
+              className={cn(
+                'rounded p-1.5 transition-colors hover:bg-muted/20',
+                showMarketsMenu ||
+                  filter !== 'all' ||
+                  sortBy !== 'volume' ||
+                  sortDesc !== true
+                  ? 'bg-muted/20 text-primary'
+                  : 'text-muted-foreground'
+              )}
+              aria-label="Filter and sort markets"
+              title="Filter & Sort"
+            >
+              <Filter size={14} />
+            </button>
 
             <button
               type="button"
