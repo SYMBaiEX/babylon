@@ -28,7 +28,8 @@ function getConversationDisplayName(conversation: ConversationInfo): string {
   }
 
   // Use browser locale if available, otherwise undefined for system default
-  const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const locale =
+    typeof navigator !== 'undefined' ? navigator.language : undefined;
   const dateStr = date.toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',

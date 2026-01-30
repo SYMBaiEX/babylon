@@ -467,16 +467,21 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       // Access stateCache via public getter if available, otherwise use guarded internal access
       const runtimeAny = runtime as unknown as Record<string, unknown>;
       let cachedState: CachedActionState | undefined;
-      
+
       if (typeof runtimeAny.getCachedActionResults === 'function') {
         // Use public API if available
-        const results = runtimeAny.getCachedActionResults(elizaMessage.id) as ActionResultContent[] | undefined;
+        const results = runtimeAny.getCachedActionResults(elizaMessage.id) as
+          | ActionResultContent[]
+          | undefined;
         if (results && results.length > 0) {
           actionResult = results[0] ?? null;
         }
       } else if (runtimeAny.stateCache instanceof Map) {
         // Guarded fallback to internal stateCache
-        const stateCache = runtimeAny.stateCache as Map<string, CachedActionState>;
+        const stateCache = runtimeAny.stateCache as Map<
+          string,
+          CachedActionState
+        >;
         cachedState = stateCache.get(`${elizaMessage.id}_action_results`);
         const actionResultsFromCache = cachedState?.values?.actionResults || [];
         actionResult =

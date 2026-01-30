@@ -87,7 +87,8 @@ export const checkRecentMarketTradesAction: Action = {
       | undefined;
     // Coerce and validate limit to handle non-numeric values
     const rawLimit = actionParams?.limit;
-    const parsedLimit = typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
+    const parsedLimit =
+      typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
     const validLimit = Number.isFinite(parsedLimit) ? parsedLimit : 15;
     const limit = Math.min(Math.max(validLimit, 1), 30);
 

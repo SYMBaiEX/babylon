@@ -99,7 +99,10 @@ Title:`;
     // Add timeout to prevent hanging on slow API responses
     const GENERATE_TIMEOUT_MS = 10000;
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), GENERATE_TIMEOUT_MS);
+    const timeoutId = setTimeout(
+      () => abortController.abort(),
+      GENERATE_TIMEOUT_MS
+    );
 
     let result: { text: string };
     try {
