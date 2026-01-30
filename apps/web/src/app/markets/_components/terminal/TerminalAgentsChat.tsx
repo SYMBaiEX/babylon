@@ -56,7 +56,7 @@ export function TerminalAgentsChat() {
   }
 
   return (
-    <div className="h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col">
       <TeamChatView
         chatDetails={chatDetails}
         currentUserId={user?.id}
