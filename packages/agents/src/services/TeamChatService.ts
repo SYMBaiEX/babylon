@@ -1016,12 +1016,34 @@ export class TeamChatService {
 
   /**
    * Update a chat's title (used for LLM-generated titles).
-   * This is a direct update without ownership validation - caller must verify.
+   * Validates ownership before updating.
    *
    * @param chatId - The chat ID to update
    * @param title - The new title
+   * @param userId - The user ID to validate ownership
    */
-  async updateChatTitle(chatId: string, title: string): Promise<void> {
+  async updateChatTitle(
+    chatId: string,
+    title: string,
+    userId: string
+  ): Promise<void> {
+    // Validate ownership using team chat
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      throw new Error('Team chat not found for user');
+    }
+
+    // Verify the chat belongs to this team's group
+    const [chat] = await db
+      .select()
+      .from(chats)
+      .where(and(eq(chats.id, chatId), eq(chats.groupId, teamChat.groupId)))
+      .limit(1);
+
+    if (!chat) {
+      throw new Error('Chat not found or does not belong to this team');
+    }
+
     await db
       .update(chats)
       .set({ name: title, updatedAt: new Date() })
@@ -1029,7 +1051,7 @@ export class TeamChatService {
 
     logger.info(
       `Updated chat title via LLM generation`,
-      { chatId, title },
+      { chatId, title, userId },
       'TeamChatService'
     );
   }
@@ -1037,23 +1059,47 @@ export class TeamChatService {
   /**
    * Atomically update a chat's title only if it's currently null.
    * This prevents race conditions where multiple first messages try to set the title.
+   * Validates ownership before updating.
    *
    * @param chatId - The chat ID to update
    * @param title - The new title
-   * @returns true if title was updated, false if it was already set
+   * @param userId - The user ID to validate ownership
+   * @returns true if title was updated, false if it was already set or unauthorized
    */
-  async updateChatTitleIfNull(chatId: string, title: string): Promise<boolean> {
+  async updateChatTitleIfNull(
+    chatId: string,
+    title: string,
+    userId: string
+  ): Promise<boolean> {
+    // Validate ownership using team chat
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      logger.warn(
+        `Cannot update chat title: team chat not found for user`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    // Atomic update with ownership check included in WHERE clause
     const result = await db
       .update(chats)
       .set({ name: title, updatedAt: new Date() })
-      .where(and(eq(chats.id, chatId), isNull(chats.name)));
+      .where(
+        and(
+          eq(chats.id, chatId),
+          isNull(chats.name),
+          eq(chats.groupId, teamChat.groupId)
+        )
+      );
 
     const updated = (result.rowCount ?? 0) > 0;
 
     if (updated) {
       logger.info(
         `Atomically set chat title via LLM generation`,
-        { chatId, title },
+        { chatId, title, userId },
         'TeamChatService'
       );
     }

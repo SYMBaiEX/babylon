@@ -68,6 +68,9 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
 
+/** Pending runtime creation promises to prevent race conditions */
+const pendingRuntimePromises = new Map<string, Promise<AgentRuntime>>();
+
 /** Coordinator runtime ID cast to UUID type for ElizaOS */
 const COORDINATOR_RUNTIME_ID = COORDINATOR_RUNTIME_ID_STRING as UUID;
 
@@ -790,19 +793,42 @@ export class AgentRuntimeManager {
       return globalRuntimes.get(COORDINATOR_RUNTIME_ID)!;
     }
 
-    // Create new coordinator runtime
-    const runtime = await this.createCoordinatorRuntime();
+    // Check if there's already a pending creation to avoid race conditions
+    const pendingPromise = pendingRuntimePromises.get(COORDINATOR_RUNTIME_ID);
+    if (pendingPromise) {
+      logger.debug(
+        'Waiting for pending coordinator runtime creation',
+        undefined,
+        'AgentRuntimeManager'
+      );
+      return pendingPromise;
+    }
 
-    // Cache it
-    globalRuntimes.set(COORDINATOR_RUNTIME_ID, runtime);
+    // Create new coordinator runtime with pending-promise guard
+    const creationPromise = (async () => {
+      try {
+        const runtime = await this.createCoordinatorRuntime();
 
-    logger.info(
-      'Coordinator runtime created and cached',
-      undefined,
-      'AgentRuntimeManager'
-    );
+        // Cache it
+        globalRuntimes.set(COORDINATOR_RUNTIME_ID, runtime);
 
-    return runtime;
+        logger.info(
+          'Coordinator runtime created and cached',
+          undefined,
+          'AgentRuntimeManager'
+        );
+
+        return runtime;
+      } finally {
+        // Clear pending entry on completion or error
+        pendingRuntimePromises.delete(COORDINATOR_RUNTIME_ID);
+      }
+    })();
+
+    // Store the pending promise so concurrent callers await it
+    pendingRuntimePromises.set(COORDINATOR_RUNTIME_ID, creationPromise);
+
+    return creationPromise;
   }
 
   /**

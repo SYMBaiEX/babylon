@@ -68,7 +68,8 @@ import { z } from 'zod';
  */
 async function generateAndUpdateChatTitle(
   chatId: string,
-  firstMessage: string
+  firstMessage: string,
+  userId: string
 ): Promise<string | null> {
   try {
     if (!process.env.GROQ_API_KEY) {
@@ -109,7 +110,8 @@ Title:`;
       // arrive simultaneously - only the first one to update will succeed
       const updated = await teamChatService.updateChatTitleIfNull(
         chatId,
-        title
+        title,
+        userId
       );
       if (updated) {
         logger.info(
@@ -260,7 +262,8 @@ export async function POST(req: NextRequest) {
     if (messageCount === 1) {
       generatedTitle = await generateAndUpdateChatTitle(
         teamChat.chatId,
-        content.trim()
+        content.trim(),
+        user.id
       );
     }
   }
