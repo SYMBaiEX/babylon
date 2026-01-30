@@ -490,7 +490,7 @@ export class UserAlphaGroupAssignmentService {
     let currentMembers = 0;
 
     for (const g of tier3Stats) {
-      const max = g.maxMembers ?? 500;
+      const max = g.maxMembers ?? DEFAULT_TIER3_MAX_MEMBERS;
       totalCapacity += max;
       currentMembers += g.memberCount ?? 0;
     }

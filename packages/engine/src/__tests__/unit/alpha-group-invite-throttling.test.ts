@@ -22,6 +22,9 @@ describe('Alpha Group Invite Throttling Configuration', () => {
 
     it('should be within reasonable bounds (1-10)', () => {
       // Even with env overrides, should stay reasonable
+      expect(
+        ALPHA_GROUP_CONFIG.maxInvitesPerUserPerWeek
+      ).toBeGreaterThanOrEqual(1);
       expect(ALPHA_GROUP_CONFIG.maxInvitesPerUserPerWeek).toBeLessThanOrEqual(
         10
       );
@@ -42,6 +45,7 @@ describe('Alpha Group Invite Throttling Configuration', () => {
 
     it('should be within reasonable bounds (1-90 days)', () => {
       // Even with env overrides, should stay reasonable
+      expect(ALPHA_GROUP_CONFIG.recentActivityDays).toBeGreaterThanOrEqual(1);
       expect(ALPHA_GROUP_CONFIG.recentActivityDays).toBeLessThanOrEqual(90);
     });
   });
@@ -166,8 +170,7 @@ describe('Configuration Consistency', () => {
       ALPHA_GROUP_CONFIG.tieredInviteProbability *
       1000; // Assuming 1000 potential users per NPC
 
-    // Should be low (< 10 invites per NPC per day on average given 1000 users)
-    // With default values of 0.02 * 0.001 * 1000 = 0.02 invites/day
+    // Combined probability should result in low invites per NPC per day
     expect(estimatedDailyInvitesPerNpc).toBeLessThan(10);
   });
 });
