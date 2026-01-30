@@ -37,10 +37,7 @@ interface AgentPortfolioProps {
  * Merged Portfolio component combining Performance stats + Wallet functionality.
  * Optimized for the bottom panel with a compact, horizontal layout.
  */
-export function AgentPortfolio({
-  agentId,
-  agentName,
-}: AgentPortfolioProps) {
+export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   const { getAccessToken } = useAuth();
 
   // Wallet state
