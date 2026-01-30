@@ -172,7 +172,9 @@ function computeYesPctFromShares(
   return (yes / total) * 100;
 }
 
-export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTerminalProps) {
+export function MarketsTradingTerminal({
+  onRequestBuyPoints,
+}: MarketsTradingTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -218,7 +220,9 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
   const [filter, setFilter] = useState<MarketsFilter>(() =>
     parseFilter(searchParams)
   );
-  const [sortBy, setSortBy] = useState<MarketsSort>(() => parseSort(searchParams));
+  const [sortBy, setSortBy] = useState<MarketsSort>(() =>
+    parseSort(searchParams)
+  );
   const [sortDesc, setSortDesc] = useState(() => parseSortDesc(searchParams));
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<MarketKey | null>(() =>
@@ -372,7 +376,8 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
 
     const filtered = combined.filter((row) => {
       if (filter === 'favorites') {
-        const id = row.key.kind === 'perp' ? row.key.id.toUpperCase() : row.key.id;
+        const id =
+          row.key.kind === 'perp' ? row.key.id.toUpperCase() : row.key.id;
         if (!favoritesSet.has(`${row.key.kind}:${id}`)) return false;
       } else if (filter !== 'all' && row.kind !== filter) {
         return false;
@@ -775,12 +780,12 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
             Markets
           </div>
           <div className="flex items-center gap-1">
-            <div className="relative" ref={marketsMenuRef}>
+            <div ref={marketsMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowMarketsMenu((v) => !v)}
                 aria-expanded={showMarketsMenu}
-                aria-haspopup="menu"
+                aria-controls="markets-filter-sort"
                 className={cn(
                   'rounded p-1.5 transition-colors hover:bg-muted/20',
                   showMarketsMenu ||
@@ -795,85 +800,6 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
               >
                 <Filter size={14} />
               </button>
-
-              {showMarketsMenu && (
-                <div className="absolute top-full right-0 z-50 mt-1 w-56 rounded-md border border-white/10 bg-background/95 py-1 shadow-lg backdrop-blur-md">
-                  <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Type
-                  </div>
-                  {(
-                    [
-                      { id: 'all', label: 'All Markets' },
-                      { id: 'favorites', label: 'Favorites' },
-                      { id: 'perp', label: 'Perps' },
-                      { id: 'prediction', label: 'Prediction' },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
-                      onClick={() => {
-                        handleFilterChange(opt.id);
-                        setShowMarketsMenu(false);
-                      }}
-                    >
-                      <span
-                        className={cn(
-                          opt.id === filter
-                            ? 'font-medium text-primary'
-                            : 'text-foreground'
-                        )}
-                      >
-                        {opt.label}
-                      </span>
-                      {opt.id === filter && (
-                        <Check size={12} className="text-primary" />
-                      )}
-                    </button>
-                  ))}
-
-                  <div className="my-1 border-white/10 border-t" />
-
-                  <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Sort By
-                  </div>
-                  {(
-                    [
-                      { id: 'volume', label: 'Volume' },
-                      { id: 'change', label: '24h Change' },
-                      { id: 'openInterest', label: 'Open Interest' },
-                      { id: 'name', label: 'Name' },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
-                      onClick={() => handleSortChange(opt.id)}
-                    >
-                      <span
-                        className={cn(
-                          opt.id === sortBy
-                            ? 'font-medium text-primary'
-                            : 'text-foreground'
-                        )}
-                      >
-                        {opt.label}
-                      </span>
-                      {opt.id === sortBy && (
-                        <ArrowUpDown
-                          size={12}
-                          className={cn(
-                            'text-primary transition-transform',
-                            sortDesc ? 'rotate-0' : 'rotate-180'
-                          )}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <button
@@ -886,6 +812,88 @@ export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTer
             </button>
           </div>
         </div>
+
+        {showMarketsMenu && (
+          <div
+            id="markets-filter-sort"
+            className="fade-in-0 animate-in rounded-md border border-white/10 bg-background/40 py-1 shadow-sm duration-150"
+          >
+            <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+              Type
+            </div>
+            {(
+              [
+                { id: 'all', label: 'All Markets' },
+                { id: 'favorites', label: 'Favorites' },
+                { id: 'perp', label: 'Perps' },
+                { id: 'prediction', label: 'Prediction' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
+                onClick={() => {
+                  handleFilterChange(opt.id);
+                  setShowMarketsMenu(false);
+                }}
+              >
+                <span
+                  className={cn(
+                    opt.id === filter
+                      ? 'font-medium text-primary'
+                      : 'text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </span>
+                {opt.id === filter && (
+                  <Check size={12} className="text-primary" />
+                )}
+              </button>
+            ))}
+
+            <div className="my-1 border-white/10 border-t" />
+
+            <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+              Sort By
+            </div>
+            {(
+              [
+                { id: 'volume', label: 'Volume' },
+                { id: 'change', label: '24h Change' },
+                { id: 'openInterest', label: 'Open Interest' },
+                { id: 'name', label: 'Name' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
+                onClick={() => handleSortChange(opt.id)}
+              >
+                <span
+                  className={cn(
+                    opt.id === sortBy
+                      ? 'font-medium text-primary'
+                      : 'text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </span>
+                {opt.id === sortBy && (
+                  <ArrowUpDown
+                    size={12}
+                    className={cn(
+                      'text-primary transition-transform',
+                      sortDesc ? 'rotate-0' : 'rotate-180'
+                    )}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="relative">
           <Search
