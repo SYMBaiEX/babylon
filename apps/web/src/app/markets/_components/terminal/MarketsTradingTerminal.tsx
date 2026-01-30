@@ -4,11 +4,13 @@ import {
   calculateExpectedPayout,
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
+import { FEE_CONFIG } from '@babylon/engine/config/fees';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
   Filter,
+  Info,
   Maximize2,
   Minimize2,
   Search,
@@ -26,9 +28,20 @@ import { PredictionPositionsList } from '@/components/markets/PredictionPosition
 import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import {
   type BuyPredictionDetails,
+  type SellPredictionDetails,
   TradeConfirmationDialog,
 } from '@/components/markets/TradeConfirmationDialog';
 import { Skeleton } from '@/components/shared/Skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
@@ -243,8 +256,13 @@ export function MarketsTradingTerminal({
     () => parsePredictionSide(searchParams) ?? 'yes'
   );
   const [predictionAmount, setPredictionAmount] = useState('10');
+  const [predictionTradeMode, setPredictionTradeMode] = useState<
+    'buy' | 'sell'
+  >('buy');
+  const [predictionSellShares, setPredictionSellShares] = useState('');
   const [predictionSubmitting, setPredictionSubmitting] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [predictionDetailsOpen, setPredictionDetailsOpen] = useState(false);
 
   const [perpTimeRange, setPerpTimeRange] = useState<MarketTimeRange>('1D');
   const [predictionTimeRange, setPredictionTimeRange] =
@@ -607,118 +625,6 @@ export function MarketsTradingTerminal({
     [router, searchParams, sortBy, sortDesc]
   );
 
-  const predictionAmountNum = Number.parseFloat(predictionAmount) || 0;
-
-  const predictionCalculation = useMemo(() => {
-    if (!predictionEffectiveShares) return null;
-    if (predictionAmountNum <= 0) return null;
-    return PredictionPricing.calculateBuy(
-      predictionEffectiveShares.yesShares,
-      predictionEffectiveShares.noShares,
-      predictionSide,
-      predictionAmountNum
-    );
-  }, [predictionEffectiveShares, predictionSide, predictionAmountNum]);
-
-  const expectedPayout = useMemo(() => {
-    if (!predictionCalculation) return 0;
-    return calculateExpectedPayout(
-      predictionCalculation.sharesBought,
-      predictionCalculation.avgPrice
-    );
-  }, [predictionCalculation]);
-  const expectedProfit = expectedPayout - predictionAmountNum;
-
-  const handlePredictionSubmit = () => {
-    if (!authenticated) {
-      login();
-      return;
-    }
-    if (!predictionState) return;
-    if (predictionState.status !== 'active' || predictionState.resolved) {
-      toast.error('This market is not active.');
-      return;
-    }
-    if (predictionAmountNum < 1) {
-      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
-      return;
-    }
-    setConfirmDialogOpen(true);
-  };
-
-  const handleConfirmPredictionBuy = async () => {
-    if (!predictionState) return;
-    if (!predictionCalculation) return;
-
-    setPredictionSubmitting(true);
-    setConfirmDialogOpen(false);
-
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error('Authentication required. Please log in.');
-        return;
-      }
-
-      const response = await fetch(
-        `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            side: predictionSide,
-            amount: predictionAmountNum,
-          }),
-        }
-      );
-
-      let data: unknown = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-
-      if (!response.ok) {
-        const maybeError = data as {
-          error?: unknown;
-          message?: unknown;
-        } | null;
-        const errorMessage =
-          typeof maybeError?.error === 'object'
-            ? ((maybeError.error as { message?: unknown })
-                ?.message as string) || 'Failed to buy shares'
-            : (maybeError?.error as string) ||
-              (maybeError?.message as string) ||
-              'Failed to buy shares';
-        toast.error(errorMessage);
-        return;
-      }
-
-      toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
-        description: `${predictionCalculation.sharesBought.toFixed(2)} shares at ${predictionCalculation.avgPrice.toFixed(3)} each`,
-      });
-
-      invalidateUserPositions();
-      invalidateWalletBalance();
-      await Promise.all([
-        refreshPredictionPositions(),
-        refreshPerpPositions(),
-        refreshWalletBalance(),
-        refreshPredictionHistory(),
-      ]);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to buy shares';
-      toast.error(message);
-    } finally {
-      setPredictionSubmitting(false);
-    }
-  };
-
   const selectedPredictionId =
     selected?.kind === 'prediction' ? selected.id : null;
   const selectedPredictionPositions = useMemo(() => {
@@ -736,6 +642,203 @@ export function MarketsTradingTerminal({
         !p.closedAt
     );
   }, [perpPositions, selectedPerp]);
+
+  const predictionAmountNum = Number.parseFloat(predictionAmount) || 0;
+  const predictionSellSharesNum = Number.parseFloat(predictionSellShares) || 0;
+
+  const predictionBuyCalculation = useMemo(() => {
+    if (!predictionEffectiveShares) return null;
+    if (predictionAmountNum <= 0) return null;
+    return PredictionPricing.calculateBuyWithFees(
+      predictionEffectiveShares.yesShares,
+      predictionEffectiveShares.noShares,
+      predictionSide,
+      predictionAmountNum,
+      FEE_CONFIG.TRADING_FEE_RATE
+    );
+  }, [predictionEffectiveShares, predictionSide, predictionAmountNum]);
+
+  const sellPosition = useMemo(() => {
+    const wantedSide = predictionSide.toUpperCase() as 'YES' | 'NO';
+    const candidates = selectedPredictionPositions.filter(
+      (p) => p.side === wantedSide && p.shares >= 0.01
+    );
+    if (candidates.length === 0) return null;
+    const first = candidates[0];
+    if (!first) return null;
+    return candidates
+      .slice(1)
+      .reduce((best, pos) => (pos.shares > best.shares ? pos : best), first);
+  }, [predictionSide, selectedPredictionPositions]);
+
+  const maxSellShares = sellPosition?.shares ?? 0;
+  const clampedSellShares =
+    predictionSellSharesNum > 0
+      ? Math.min(predictionSellSharesNum, maxSellShares)
+      : 0;
+
+  const predictionSellCalculation = useMemo(() => {
+    if (!predictionEffectiveShares) return null;
+    if (!sellPosition) return null;
+    if (clampedSellShares <= 0) return null;
+    return PredictionPricing.calculateSellWithFees(
+      predictionEffectiveShares.yesShares,
+      predictionEffectiveShares.noShares,
+      predictionSide,
+      clampedSellShares,
+      FEE_CONFIG.TRADING_FEE_RATE
+    );
+  }, [
+    predictionEffectiveShares,
+    predictionSide,
+    sellPosition,
+    clampedSellShares,
+  ]);
+
+  const expectedPayout = useMemo(() => {
+    if (!predictionBuyCalculation) return 0;
+    return calculateExpectedPayout(
+      predictionBuyCalculation.sharesBought,
+      predictionBuyCalculation.avgPrice
+    );
+  }, [predictionBuyCalculation]);
+  const expectedProfit = expectedPayout - predictionAmountNum;
+
+  const handlePredictionSubmit = () => {
+    if (!authenticated) {
+      login();
+      return;
+    }
+    if (!predictionState) return;
+    if (predictionState.status !== 'active' || predictionState.resolved) {
+      toast.error('This market is not active.');
+      return;
+    }
+    if (predictionTradeMode === 'buy') {
+      if (predictionAmountNum < 1) {
+        toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
+        return;
+      }
+    } else {
+      if (!sellPosition) {
+        toast.error('No sellable position for this side.');
+        return;
+      }
+      if (clampedSellShares < 0.01) {
+        toast.error('Minimum sell is 0.01 shares');
+        return;
+      }
+    }
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmPredictionTrade = async () => {
+    if (!predictionState) return;
+    if (predictionTradeMode === 'buy' && !predictionBuyCalculation) {
+      toast.error('Invalid buy amount.');
+      return;
+    }
+    if (predictionTradeMode === 'sell') {
+      if (!sellPosition) {
+        toast.error('No sellable position for this side.');
+        return;
+      }
+      if (clampedSellShares < 0.01) {
+        toast.error('Minimum sell is 0.01 shares');
+        return;
+      }
+    }
+
+    setPredictionSubmitting(true);
+    setConfirmDialogOpen(false);
+
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error('Authentication required. Please log in.');
+        return;
+      }
+
+      const url =
+        predictionTradeMode === 'buy'
+          ? `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`
+          : `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/sell`;
+
+      const body =
+        predictionTradeMode === 'buy'
+          ? { side: predictionSide, amount: predictionAmountNum }
+          : (() => {
+              if (!sellPosition) {
+                throw new Error('No sellable position for this side.');
+              }
+              return { shares: clampedSellShares, positionId: sellPosition.id };
+            })();
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const maybeError = data as {
+          error?: unknown;
+          message?: unknown;
+        } | null;
+        const errorMessage =
+          typeof maybeError?.error === 'object'
+            ? ((maybeError.error as { message?: unknown })
+                ?.message as string) ||
+              (predictionTradeMode === 'sell'
+                ? 'Failed to sell shares'
+                : 'Failed to buy shares')
+            : (maybeError?.error as string) ||
+              (maybeError?.message as string) ||
+              (predictionTradeMode === 'sell'
+                ? 'Failed to sell shares'
+                : 'Failed to buy shares');
+        toast.error(errorMessage);
+        return;
+      }
+
+      if (predictionTradeMode === 'buy') {
+        toast.success(`Bought ${predictionSide.toUpperCase()} shares!`, {
+          description: predictionBuyCalculation
+            ? `${predictionBuyCalculation.sharesBought.toFixed(2)} shares at ${predictionBuyCalculation.avgPrice.toFixed(3)} each`
+            : undefined,
+        });
+      } else {
+        toast.success(`Sold ${predictionSide.toUpperCase()} shares!`, {
+          description: `${clampedSellShares.toFixed(2)} shares sold`,
+        });
+      }
+
+      invalidateUserPositions();
+      invalidateWalletBalance();
+      await Promise.all([
+        refreshPredictionPositions(),
+        refreshPerpPositions(),
+        refreshWalletBalance(),
+        refreshPredictionHistory(),
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to trade';
+      toast.error(message);
+    } finally {
+      setPredictionSubmitting(false);
+    }
+  };
 
   const desktopTradesContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileTradesContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1038,49 +1141,80 @@ export function MarketsTradingTerminal({
     <div className="flex h-full min-h-0 flex-col bg-background/10">
       {selected?.kind === 'prediction' ? (
         <>
-          <div className="flex shrink-0 items-center justify-between border-white/5 border-b px-4 py-3">
-            <div className="min-w-0">
-              <div className="truncate font-bold text-foreground text-lg">
-                {predictionState?.text ?? 'Prediction market'}
+          <div className="shrink-0 border-white/5 border-b px-4 py-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="whitespace-normal break-words font-bold text-foreground text-lg leading-snug">
+                  {predictionState?.text ?? 'Prediction market'}
+                </div>
+                <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+                  {predictionState?.resolutionDescription?.trim()
+                    ? predictionState.resolutionDescription
+                    : `Scenario ${predictionState?.scenario ?? ''}${
+                        (predictionState?.endDate ??
+                        predictionState?.resolutionDate)
+                          ? ` • Ends ${new Date(
+                              (predictionState.endDate ??
+                                predictionState.resolutionDate) as string
+                            ).toLocaleString()}`
+                          : ''
+                      }`}
+                </div>
               </div>
-              <div className="text-muted-foreground text-xs">
-                YES {formatYesPct(predictionYesPct)} · NO{' '}
-                {formatYesPct(100 - predictionYesPct)}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                {MARKET_TIME_RANGES.map((range) => (
+
+              <div className="flex flex-col gap-2 lg:items-end">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-green-600/10 px-2 py-1 font-bold text-[10px] text-green-500 tabular-nums">
+                    YES {formatYesPct(predictionYesPct)}
+                  </div>
+                  <div className="rounded-full bg-red-600/10 px-2 py-1 font-bold text-[10px] text-red-500 tabular-nums">
+                    NO {formatYesPct(100 - predictionYesPct)}
+                  </div>
                   <button
-                    key={range}
                     type="button"
-                    onClick={() => setPredictionTimeRange(range)}
-                    className={cn(
-                      'rounded px-2 py-1 transition-colors',
-                      predictionTimeRange === range
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
+                    onClick={() => setPredictionDetailsOpen(true)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    aria-label="View market details"
+                    title="Details"
                   >
-                    {range}
+                    <Info size={14} />
                   </button>
-                ))}
+                </div>
+
+                <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                  {MARKET_TIME_RANGES.map((range) => (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => setPredictionTimeRange(range)}
+                      className={cn(
+                        'rounded px-2 py-1 transition-colors',
+                        predictionTimeRange === range
+                          ? 'bg-foreground text-background'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 p-4">
             <PredictionProbabilityChart
               data={predictionHistory}
               marketId={selectedPredictionId ?? 'unknown'}
               timeRange={predictionTimeRange}
               onTimeRangeChange={setPredictionTimeRange}
+              showHeader={false}
             />
           </div>
         </>
       ) : selectedPerp ? (
         <>
-          <div className="flex shrink-0 items-center justify-between border-white/5 border-b px-4 py-3">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b px-4 py-3">
             <div className="min-w-0">
               <div className="font-bold text-foreground text-lg">
                 ${selectedPerp.ticker}
@@ -1088,6 +1222,23 @@ export function MarketsTradingTerminal({
               <div className="truncate text-muted-foreground text-xs">
                 {selectedPerp.name}
               </div>
+            </div>
+            <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+              {MARKET_TIME_RANGES.map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setPerpTimeRange(range)}
+                  className={cn(
+                    'rounded px-2 py-1 transition-colors',
+                    perpTimeRange === range
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {range}
+                </button>
+              ))}
             </div>
           </div>
           <div className="min-h-0 flex-1 p-4">
@@ -1127,107 +1278,263 @@ export function MarketsTradingTerminal({
       </div>
 
       {selected?.kind === 'prediction' ? (
-        <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold text-sm">Buy Shares</div>
-            <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
-              Standard
-            </div>
-          </div>
-
-          <div className="mt-3 flex rounded-md bg-muted/20 p-1">
-            <button
-              type="button"
-              onClick={() => setPredictionSide('yes')}
-              className={cn(
-                'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                predictionSide === 'yes'
-                  ? 'bg-green-600 text-white'
-                  : 'text-muted-foreground hover:text-foreground'
+        <div className="flex h-full min-h-0 flex-col bg-background/10">
+          <div className="border-white/5 border-b bg-muted/10 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  Available Balance
+                </div>
+                <div className="font-mono text-foreground text-lg tabular-nums">
+                  {balanceLoading ? (
+                    <Skeleton className="h-5 w-20" />
+                  ) : (
+                    `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`
+                  )}
+                </div>
+              </div>
+              {selectedPredictionPositions.length > 0 && (
+                <div className="text-right">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Open Position
+                  </div>
+                  <div className="text-xs">
+                    {(['YES', 'NO'] as const)
+                      .map((side) => {
+                        const total = selectedPredictionPositions
+                          .filter((p) => p.side === side)
+                          .reduce((sum, p) => sum + p.shares, 0);
+                        return total > 0 ? `${side} ${total.toFixed(2)}` : null;
+                      })
+                      .filter(Boolean)
+                      .join(' • ')}
+                  </div>
+                </div>
               )}
-            >
-              YES
-            </button>
-            <button
-              type="button"
-              onClick={() => setPredictionSide('no')}
-              className={cn(
-                'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                predictionSide === 'no'
-                  ? 'bg-red-600 text-white'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              NO
-            </button>
+            </div>
           </div>
 
-          <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between">
-              <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                Amount
-              </label>
-              <span className="text-[10px] text-muted-foreground">
-                Min {BABYLON_POINTS_SYMBOL}1
-              </span>
-            </div>
-            <input
-              type="number"
-              value={predictionAmount}
-              onChange={(e) => setPredictionAmount(e.target.value)}
-              min={1}
-              step="1"
-              className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="10"
-            />
-          </div>
-
-          {predictionCalculation && (
-            <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Shares</span>
-                <span className="font-mono text-foreground tabular-nums">
-                  {predictionCalculation.sharesBought.toFixed(2)}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-muted-foreground">Avg price</span>
-                <span className="font-mono text-foreground tabular-nums">
-                  {(predictionCalculation.avgPrice * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-muted-foreground">Expected payout</span>
-                <span className="font-mono text-foreground tabular-nums">
-                  {BABYLON_POINTS_SYMBOL}
-                  {expectedPayout.toFixed(2)}
-                </span>
+          <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-sm">Place Order</div>
+              <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
+                Standard
               </div>
             </div>
-          )}
 
-          <button
-            type="button"
-            onClick={handlePredictionSubmit}
-            disabled={
-              predictionSubmitting || (authenticated && predictionAmountNum < 1)
-            }
-            className={cn(
-              'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
-              predictionSide === 'yes'
-                ? 'bg-green-600 hover:brightness-110'
-                : 'bg-red-600 hover:brightness-110',
-              (predictionSubmitting ||
-                (authenticated && predictionAmountNum < 1)) &&
-                'cursor-not-allowed opacity-50'
+            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+              <button
+                type="button"
+                onClick={() => setPredictionTradeMode('buy')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'buy'
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                BUY
+              </button>
+              <button
+                type="button"
+                onClick={() => setPredictionTradeMode('sell')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell'
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                SELL
+              </button>
+            </div>
+
+            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+              <button
+                type="button"
+                onClick={() => setPredictionSide('yes')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionSide === 'yes'
+                    ? 'bg-green-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                YES
+              </button>
+              <button
+                type="button"
+                onClick={() => setPredictionSide('no')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionSide === 'no'
+                    ? 'bg-red-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                NO
+              </button>
+            </div>
+
+            {predictionTradeMode === 'buy' ? (
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    Amount
+                  </label>
+                  <span className="text-[10px] text-muted-foreground">
+                    Min {BABYLON_POINTS_SYMBOL}1
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  value={predictionAmount}
+                  onChange={(e) => setPredictionAmount(e.target.value)}
+                  min={1}
+                  step="1"
+                  className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="10"
+                />
+              </div>
+            ) : (
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    Shares
+                  </label>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span>Min 0.01</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPredictionSellShares(
+                          maxSellShares > 0 ? maxSellShares.toFixed(2) : ''
+                        )
+                      }
+                      className="rounded bg-muted/20 px-2 py-0.5 hover:bg-muted/30"
+                      disabled={maxSellShares <= 0}
+                    >
+                      Max
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  value={predictionSellShares}
+                  onChange={(e) => setPredictionSellShares(e.target.value)}
+                  min={0.01}
+                  step="0.01"
+                  className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder={
+                    maxSellShares > 0 ? maxSellShares.toFixed(2) : '0.00'
+                  }
+                  disabled={maxSellShares <= 0}
+                />
+                {maxSellShares <= 0 && (
+                  <div className="mt-2 text-[10px] text-muted-foreground">
+                    No sellable position for this side.
+                  </div>
+                )}
+              </div>
             )}
-          >
-            {predictionSubmitting
-              ? 'Processing…'
-              : !authenticated
-                ? 'Log In to Trade'
-                : `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(0)}`}
-          </button>
+
+            {predictionTradeMode === 'buy' && predictionBuyCalculation && (
+              <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Shares</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {predictionBuyCalculation.sharesBought.toFixed(2)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Avg price</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {(predictionBuyCalculation.avgPrice * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Fee</span>
+                  <span className="font-mono text-muted-foreground tabular-nums">
+                    {BABYLON_POINTS_SYMBOL}
+                    {predictionBuyCalculation.fee?.toFixed(2) ?? '0.00'}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Expected payout</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {BABYLON_POINTS_SYMBOL}
+                    {expectedPayout.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {predictionTradeMode === 'sell' && predictionSellCalculation && (
+              <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Gross proceeds</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {BABYLON_POINTS_SYMBOL}
+                    {predictionSellCalculation.totalCost.toFixed(2)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Fee</span>
+                  <span className="font-mono text-muted-foreground tabular-nums">
+                    {BABYLON_POINTS_SYMBOL}
+                    {predictionSellCalculation.fee?.toFixed(2) ?? '0.00'}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between font-semibold">
+                  <span className="text-muted-foreground">Net proceeds</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {BABYLON_POINTS_SYMBOL}
+                    {(
+                      predictionSellCalculation.netProceeds ??
+                      predictionSellCalculation.netAmount ??
+                      predictionSellCalculation.totalCost
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handlePredictionSubmit}
+              disabled={
+                predictionSubmitting ||
+                (predictionTradeMode === 'buy' &&
+                  authenticated &&
+                  predictionAmountNum < 1) ||
+                (predictionTradeMode === 'sell' &&
+                  authenticated &&
+                  (maxSellShares <= 0 || clampedSellShares < 0.01))
+              }
+              className={cn(
+                'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
+                predictionSide === 'yes'
+                  ? 'bg-green-600 hover:brightness-110'
+                  : 'bg-red-600 hover:brightness-110',
+                (predictionSubmitting ||
+                  (predictionTradeMode === 'buy' &&
+                    authenticated &&
+                    predictionAmountNum < 1) ||
+                  (predictionTradeMode === 'sell' &&
+                    authenticated &&
+                    (maxSellShares <= 0 || clampedSellShares < 0.01))) &&
+                  'cursor-not-allowed opacity-50'
+              )}
+            >
+              {predictionSubmitting
+                ? 'Processing…'
+                : !authenticated
+                  ? 'Log In to Trade'
+                  : predictionTradeMode === 'buy'
+                    ? `BUY ${predictionSide.toUpperCase()} · ${BABYLON_POINTS_SYMBOL}${predictionAmountNum.toFixed(0)}`
+                    : `SELL ${predictionSide.toUpperCase()} · ${clampedSellShares.toFixed(2)} shares`}
+            </button>
+          </div>
         </div>
       ) : selectedPerp ? (
         <div className="min-h-0 flex-1 overflow-auto">
@@ -1512,27 +1819,116 @@ export function MarketsTradingTerminal({
 
         <div className="min-h-0 flex-1 overflow-hidden">
           <div className="hide-scrollbar flex h-full flex-col overflow-y-auto overflow-x-hidden">
-            <div className="h-[45vh] w-full shrink-0 border-white/5 border-b">
+            <div className="flex h-[45vh] w-full shrink-0 flex-col border-white/5 border-b">
               {selected?.kind === 'prediction' ? (
-                <PredictionProbabilityChart
-                  data={predictionHistory}
-                  marketId={selectedPredictionId ?? 'unknown'}
-                  timeRange={predictionTimeRange}
-                  onTimeRangeChange={setPredictionTimeRange}
-                />
+                <>
+                  <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="whitespace-normal break-words font-bold text-sm leading-snug">
+                          {predictionState?.text ?? 'Prediction market'}
+                        </div>
+                        <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+                          {predictionState?.resolutionDescription?.trim()
+                            ? predictionState.resolutionDescription
+                            : `Scenario ${predictionState?.scenario ?? ''}`}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPredictionDetailsOpen(true)}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        aria-label="View market details"
+                        title="Details"
+                      >
+                        <Info size={14} />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-full bg-green-600/10 px-2 py-1 font-bold text-[10px] text-green-500 tabular-nums">
+                          YES {formatYesPct(predictionYesPct)}
+                        </div>
+                        <div className="rounded-full bg-red-600/10 px-2 py-1 font-bold text-[10px] text-red-500 tabular-nums">
+                          NO {formatYesPct(100 - predictionYesPct)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                        {MARKET_TIME_RANGES.map((range) => (
+                          <button
+                            key={range}
+                            type="button"
+                            onClick={() => setPredictionTimeRange(range)}
+                            className={cn(
+                              'rounded px-2 py-1 transition-colors',
+                              predictionTimeRange === range
+                                ? 'bg-foreground text-background'
+                                : 'text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {range}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 p-3">
+                    <PredictionProbabilityChart
+                      data={predictionHistory}
+                      marketId={selectedPredictionId ?? 'unknown'}
+                      timeRange={predictionTimeRange}
+                      onTimeRangeChange={setPredictionTimeRange}
+                      showHeader={false}
+                    />
+                  </div>
+                </>
               ) : selectedPerp ? (
-                <PerpPriceChart
-                  data={perpHistory.map((p) => ({
-                    time: p.time,
-                    price: p.price,
-                  }))}
-                  currentPrice={selectedPerp.currentPrice}
-                  ticker={selectedPerp.ticker}
-                  timeRange={perpTimeRange}
-                  onTimeRangeChange={setPerpTimeRange}
-                  showHeader={false}
-                  className="h-full"
-                />
+                <>
+                  <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                    <div className="min-w-0">
+                      <div className="font-bold text-foreground text-sm">
+                        ${selectedPerp.ticker}
+                      </div>
+                      <div className="truncate text-muted-foreground text-xs">
+                        {selectedPerp.name}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                      {MARKET_TIME_RANGES.map((range) => (
+                        <button
+                          key={range}
+                          type="button"
+                          onClick={() => setPerpTimeRange(range)}
+                          className={cn(
+                            'rounded px-2 py-1 transition-colors',
+                            perpTimeRange === range
+                              ? 'bg-foreground text-background'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {range}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 p-3">
+                    <PerpPriceChart
+                      data={perpHistory.map((p) => ({
+                        time: p.time,
+                        price: p.price,
+                      }))}
+                      currentPrice={selectedPerp.currentPrice}
+                      ticker={selectedPerp.ticker}
+                      timeRange={perpTimeRange}
+                      onTimeRangeChange={setPerpTimeRange}
+                      showHeader={false}
+                      className="h-full"
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   Select a market
@@ -1744,29 +2140,135 @@ export function MarketsTradingTerminal({
         </div>
       </div>
 
+      <AlertDialog
+        open={predictionDetailsOpen}
+        onOpenChange={setPredictionDetailsOpen}
+      >
+        <AlertDialogContent className="max-w-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Market details</AlertDialogTitle>
+            <AlertDialogDescription>
+              {predictionState?.text ?? 'Prediction market'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="mt-4 space-y-3 text-sm">
+            {predictionState?.resolutionDescription?.trim() && (
+              <div className="rounded border border-white/10 bg-muted/10 p-3">
+                <div className="mb-1 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  Conditions
+                </div>
+                <div className="whitespace-pre-wrap break-words text-foreground">
+                  {predictionState.resolutionDescription}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded border border-white/10 bg-muted/10 p-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Scenario</span>
+                <span className="font-mono text-foreground tabular-nums">
+                  {predictionState?.scenario ?? '—'}
+                </span>
+              </div>
+              {(predictionState?.endDate ??
+                predictionState?.resolutionDate) && (
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">Ends</span>
+                  <span className="font-mono text-foreground tabular-nums">
+                    {new Date(
+                      (predictionState?.endDate ??
+                        predictionState?.resolutionDate) as string
+                    ).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {predictionState?.resolutionProofUrl && (
+              <a
+                className="text-primary text-sm hover:underline"
+                href={predictionState.resolutionProofUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View proof / source
+              </a>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPredictionDetailsOpen(false)}>
+              Close
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => setPredictionDetailsOpen(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <TradeConfirmationDialog
         open={confirmDialogOpen}
         onOpenChange={setConfirmDialogOpen}
-        onConfirm={handleConfirmPredictionBuy}
+        onConfirm={handleConfirmPredictionTrade}
         isSubmitting={predictionSubmitting}
         tradeDetails={
-          predictionState && predictionCalculation
+          predictionState &&
+          predictionTradeMode === 'buy' &&
+          predictionBuyCalculation
             ? ({
                 type: 'buy-prediction',
                 question: predictionState.text,
                 side: predictionSide.toUpperCase() as 'YES' | 'NO',
                 amount: predictionAmountNum,
-                sharesBought: predictionCalculation.sharesBought,
-                avgPrice: predictionCalculation.avgPrice,
+                sharesBought: predictionBuyCalculation.sharesBought,
+                avgPrice: predictionBuyCalculation.avgPrice,
                 newPrice:
                   predictionSide === 'yes'
-                    ? predictionCalculation.newYesPrice
-                    : predictionCalculation.newNoPrice,
-                priceImpact: predictionCalculation.priceImpact,
+                    ? predictionBuyCalculation.newYesPrice
+                    : predictionBuyCalculation.newNoPrice,
+                priceImpact: predictionBuyCalculation.priceImpact,
                 expectedPayout,
                 expectedProfit,
               } satisfies BuyPredictionDetails)
-            : null
+            : predictionState &&
+                predictionTradeMode === 'sell' &&
+                predictionSellCalculation &&
+                sellPosition
+              ? (() => {
+                  const expectedValue =
+                    predictionSellCalculation.netProceeds ??
+                    predictionSellCalculation.netAmount ??
+                    predictionSellCalculation.totalCost;
+                  const costBasis =
+                    typeof sellPosition.costBasis === 'number' &&
+                    sellPosition.shares > 0
+                      ? sellPosition.costBasis *
+                        (clampedSellShares / sellPosition.shares)
+                      : clampedSellShares * sellPosition.avgPrice;
+                  const unrealizedPnL = expectedValue - costBasis;
+                  const unrealizedPnLPercent =
+                    costBasis !== 0 ? (unrealizedPnL / costBasis) * 100 : 0;
+                  const currentPrice =
+                    sellPosition.currentPrice ??
+                    (clampedSellShares > 0
+                      ? expectedValue / clampedSellShares
+                      : 0);
+
+                  return {
+                    type: 'sell-prediction',
+                    question: predictionState.text,
+                    side: predictionSide.toUpperCase() as 'YES' | 'NO',
+                    shares: clampedSellShares,
+                    avgPrice: sellPosition.avgPrice,
+                    currentPrice,
+                    expectedValue,
+                    unrealizedPnL,
+                    unrealizedPnLPercent,
+                  } satisfies SellPredictionDetails;
+                })()
+              : null
         }
       />
     </div>

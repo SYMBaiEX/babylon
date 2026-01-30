@@ -82,17 +82,24 @@ export interface PerpMarket {
 export interface PredictionMarket {
   id: number | string;
   text: string;
+  /** Alias sometimes returned by API routes */
+  question?: string;
   status: 'active' | 'resolved' | 'cancelled';
   createdDate?: string;
   resolutionDate?: string;
+  endDate?: string | null;
   resolvedOutcome?: boolean;
   scenario: number;
   yesShares?: number;
   noShares?: number;
+  yesProbability?: number;
+  noProbability?: number;
   tradeCount?: number;
   oracleCommitTxHash?: string | null;
   oracleRevealTxHash?: string | null;
   oraclePublishedAt?: string | null;
+  resolutionProofUrl?: string | null;
+  resolutionDescription?: string | null;
 }
 
 /**
