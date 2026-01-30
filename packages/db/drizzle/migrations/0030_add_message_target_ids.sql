@@ -38,5 +38,8 @@ ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
 -- Step 4: Create index for efficient array lookups
 -- ============================================================================
 
--- GIN index for efficient ANY() queries on the array
+-- GIN index for array containment queries
+-- NOTE: This index is optimized for containment operators (@>, <@, &&)
+-- Queries should use: "targetIds" @> ARRAY['value'] (array contains value)
+-- NOT: 'value' = ANY("targetIds") (ANY() doesn't use GIN efficiently)
 CREATE INDEX IF NOT EXISTS "Message_targetIds_idx" ON "Message" USING GIN ("targetIds");
