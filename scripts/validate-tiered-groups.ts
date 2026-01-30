@@ -211,13 +211,14 @@ async function validateUserDefaultGroupAssignment(
     );
 
   const npcGroupCount = currentCount?.count ?? 0;
+  const targetGroups = UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS;
 
   pass(results, 'User Default Group Assignment', {
     userId: resolvedUserId,
     currentNpcGroups: npcGroupCount,
-    hasMinimumGroups: npcGroupCount >= 3,
+    hasMinimumGroups: npcGroupCount >= targetGroups,
     note:
-      npcGroupCount < 3
+      npcGroupCount < targetGroups
         ? 'User would be assigned more groups if assignDefaultGroups() is called'
         : 'User meets minimum group requirement',
   });

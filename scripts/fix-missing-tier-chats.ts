@@ -81,26 +81,7 @@ async function main() {
       const participantId = await generateSnowflakeId();
       const now = new Date();
 
-      // Create the chat
-      await db.insert(chats).values({
-        id: chatId,
-        name: group.name,
-        isGroup: true,
-        groupId: group.id,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Add NPC as participant (they should already be in GroupMember)
-      await db.insert(chatParticipants).values({
-        id: participantId,
-        chatId,
-        userId: group.ownerId,
-        joinedAt: now,
-        isActive: true,
-      });
-
-      // Also add any existing group members as chat participants
+      // Get existing members before transaction
       const existingMembers = await db
         .select({ userId: groupMembers.userId })
         .from(groupMembers)
@@ -111,33 +92,56 @@ async function main() {
           )
         );
 
-      for (const member of existingMembers) {
-        // Skip NPC (already added)
-        if (member.userId === group.ownerId) continue;
+      // Wrap all inserts in a transaction for atomicity
+      await db.$transaction(async (tx) => {
+        // Create the chat
+        await tx.insert(chats).values({
+          id: chatId,
+          name: group.name,
+          isGroup: true,
+          groupId: group.id,
+          createdAt: now,
+          updatedAt: now,
+        });
 
-        try {
-          await db.insert(chatParticipants).values({
-            id: await generateSnowflakeId(),
-            chatId,
-            userId: member.userId,
-            joinedAt: now,
-            isActive: true,
-          });
-        } catch (insertError) {
-          // Only ignore duplicate-key errors; rethrow other errors
-          const errorMessage = String(insertError);
-          const isDuplicateKey =
-            errorMessage.includes('unique constraint') ||
-            errorMessage.includes('duplicate key') ||
-            errorMessage.includes('UNIQUE constraint failed');
-          if (!isDuplicateKey) {
-            console.log(
-              `  ⚠️ Error adding participant ${member.userId}: ${errorMessage}`
-            );
-            throw insertError;
+        // Add NPC as participant (they should already be in GroupMember)
+        await tx.insert(chatParticipants).values({
+          id: participantId,
+          chatId,
+          userId: group.ownerId,
+          joinedAt: now,
+          isActive: true,
+        });
+
+        // Add existing group members as chat participants
+        for (const member of existingMembers) {
+          // Skip NPC (already added)
+          if (member.userId === group.ownerId) continue;
+
+          try {
+            await tx.insert(chatParticipants).values({
+              id: await generateSnowflakeId(),
+              chatId,
+              userId: member.userId,
+              joinedAt: now,
+              isActive: true,
+            });
+          } catch (insertError) {
+            // Only ignore duplicate-key errors; rethrow other errors
+            const errorMessage = String(insertError);
+            const isDuplicateKey =
+              errorMessage.includes('unique constraint') ||
+              errorMessage.includes('duplicate key') ||
+              errorMessage.includes('UNIQUE constraint failed');
+            if (!isDuplicateKey) {
+              console.log(
+                `  ⚠️ Error adding participant ${member.userId}: ${errorMessage}`
+              );
+              throw insertError;
+            }
           }
         }
-      }
+      });
 
       console.log(
         `  ✅ Created chat ${chatId} with ${existingMembers.length} participants`

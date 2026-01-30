@@ -28,12 +28,18 @@ import {
   isNotNull,
   users,
 } from '@babylon/db';
-import { generateSnowflakeId, logger, type TierLevel } from '@babylon/shared';
+import {
+  GROUP_CONFIG,
+  generateSnowflakeId,
+  logger,
+  type TierLevel,
+} from '@babylon/shared';
 import { StaticDataRegistry } from './static-data-registry';
+import { TIER_CONFIG } from './tier-config';
 import { TieredGroupService } from './tiered-group-service';
 
-/** Default max members for Tier 3 groups (matches TIER_CONFIG.tiers[3].maxMembers) */
-const DEFAULT_TIER3_MAX_MEMBERS = 500;
+/** Default max members for Tier 3 groups (from TIER_CONFIG) */
+const DEFAULT_TIER3_MAX_MEMBERS = TIER_CONFIG[3].maxMembers;
 
 /**
  * Result of default group assignment
@@ -69,11 +75,14 @@ interface AvailableGroup {
 }
 
 export class UserAlphaGroupAssignmentService {
-  /** Target number of default groups to assign (best effort) */
-  static readonly TARGET_DEFAULT_GROUPS = 3;
+  /** Target number of default groups to assign (best effort), from config */
+  static readonly TARGET_DEFAULT_GROUPS = GROUP_CONFIG.MIN_DEFAULT_GROUPS;
 
   /** Default tier for new users with no engagement history */
   static readonly DEFAULT_TIER: TierLevel = 3;
+
+  /** Flag to ensure tier groups are only created once per process */
+  private static tiersEnsuredOnce = false;
 
   /**
    * Assign default alpha groups to a new user.
@@ -260,19 +269,23 @@ export class UserAlphaGroupAssignmentService {
     excludeNpcIds: Set<string>,
     limit: number
   ): Promise<AvailableGroup[]> {
-    // First ensure all NPCs have their tier groups created
-    // This is idempotent - won't duplicate existing groups
-    const allActors = StaticDataRegistry.getAllActors().filter(
-      (a) => !a.isTest
-    );
-
-    // Batch ensure tiers exist for all NPCs (parallel with limit)
-    const batchSize = 10;
-    for (let i = 0; i < allActors.length; i += batchSize) {
-      const batch = allActors.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map((actor) => TieredGroupService.ensureAllTiersExist(actor.id))
+    // Ensure all NPCs have their tier groups created (one-time per process)
+    // This is idempotent but expensive, so we only run it once.
+    // In production, the bootstrap script should handle initial creation.
+    if (!this.tiersEnsuredOnce) {
+      const allActors = StaticDataRegistry.getAllActors().filter(
+        (a) => !a.isTest
       );
+
+      // Batch ensure tiers exist for all NPCs (parallel with limit)
+      const batchSize = 10;
+      for (let i = 0; i < allActors.length; i += batchSize) {
+        const batch = allActors.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map((actor) => TieredGroupService.ensureAllTiersExist(actor.id))
+        );
+      }
+      this.tiersEnsuredOnce = true;
     }
 
     // Query all Tier 3 groups with their member counts

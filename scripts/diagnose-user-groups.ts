@@ -20,6 +20,7 @@ import {
 } from '@babylon/db';
 import {
   StaticDataRegistry,
+  TIER_CONFIG,
   UserAlphaGroupAssignmentService,
 } from '@babylon/engine';
 
@@ -191,7 +192,7 @@ async function main() {
       excludedAlreadyMember++;
       continue;
     }
-    const maxMembers = g.maxMembers ?? 500;
+    const maxMembers = g.maxMembers ?? TIER_CONFIG[3].maxMembers;
     const memberCount = g.memberCount ?? 0;
     if (memberCount >= maxMembers) {
       excludedFull++;
