@@ -5,7 +5,18 @@
  * Shows IDs for each comment so agent can reference them for replies.
  */
 
-import { and, comments, db, desc, eq, isNull, posts, users } from '@babylon/db';
+import {
+  and,
+  comments,
+  count,
+  db,
+  desc,
+  eq,
+  isNull,
+  posts,
+  shares,
+  users,
+} from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import type { MessageTag } from '@babylon/shared';
 import type {
@@ -301,6 +312,13 @@ export const checkPostDetailAction: Action = {
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
       const { formatted: formattedComments } = formatCommentTree(commentTree);
 
+      // Get share count
+      const [shareResult] = await db
+        .select({ count: count() })
+        .from(shares)
+        .where(eq(shares.postId, postId));
+      const shareCount = shareResult?.count ?? 0;
+
       // Get post author info
       const postAuthorInfo = getAuthorInfo(
         post.authorId,
@@ -343,8 +361,9 @@ ${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComm
           formattedView,
           postId: post.id,
           commentCount: postComments.length,
+          shareCount,
         },
-        // Tag for sidebar display
+        // Tag for sidebar display (simplified - no comments)
         tag: {
           type: 'post',
           label: 'Post',
@@ -359,8 +378,8 @@ ${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComm
               authorProfileImageUrl: postAuthorProfileImageUrl,
               createdAt: post.createdAt,
             },
-            comments: commentsWithAuthor,
             commentCount: postComments.length,
+            shareCount,
           },
         },
       } as ActionResultWithTag;

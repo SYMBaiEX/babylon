@@ -2,7 +2,7 @@
 
 import type { PostTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { ExternalLink, MessageCircle, Reply } from 'lucide-react';
+import { ExternalLink, MessageCircle, Repeat2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface PostPanelProps {
@@ -62,7 +62,7 @@ function formatDate(date: Date): string {
 }
 
 export function PostPanel({ data }: PostPanelProps) {
-  const { post, comments, commentCount } = data;
+  const { post, commentCount, shareCount } = data;
 
   return (
     <div className="space-y-4 p-4">
@@ -112,97 +112,28 @@ export function PostPanel({ data }: PostPanelProps) {
           {post.content}
         </p>
 
-        {/* Stats */}
-        <div className="mt-4 flex items-center gap-1 text-muted-foreground text-xs">
-          <MessageCircle className="h-4 w-4" />
-          <span>{commentCount} comments</span>
+        {/* Engagement Stats */}
+        <div className="mt-4 flex items-center gap-4 text-muted-foreground text-xs">
+          <span className="flex items-center gap-1.5">
+            <MessageCircle className="h-4 w-4" />
+            <span>{commentCount}</span>
+          </span>
+          {shareCount !== undefined && (
+            <span className="flex items-center gap-1.5">
+              <Repeat2 className="h-4 w-4" />
+              <span>{shareCount}</span>
+            </span>
+          )}
         </div>
       </div>
-
-      {/* Comments Section */}
-      {comments && comments.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="flex items-center gap-2 font-medium text-sm">
-            <MessageCircle className="h-4 w-4" />
-            Comments ({comments.length})
-          </h4>
-
-          <div className="space-y-2">
-            {comments.map((comment) => {
-              const isReply = comment.parentCommentId !== null;
-
-              return (
-                <div
-                  key={comment.id}
-                  className={cn(
-                    'rounded-lg border border-border bg-muted/30 p-3',
-                    isReply && 'ml-4 border-l-2 border-l-primary/30'
-                  )}
-                >
-                  {/* Reply indicator */}
-                  {isReply && (
-                    <div className="mb-1.5 flex items-center gap-1 text-muted-foreground text-xs">
-                      <Reply className="h-3 w-3" />
-                      <span>Reply</span>
-                    </div>
-                  )}
-
-                  {/* Comment Author Row */}
-                  <div className="flex items-center gap-2">
-                    {/* Small Avatar */}
-                    {comment.authorProfileImageUrl ? (
-                      <img
-                        src={comment.authorProfileImageUrl}
-                        alt={comment.authorName}
-                        className="h-6 w-6 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div
-                        className={cn(
-                          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-[10px] text-white',
-                          getAvatarColor(comment.authorName)
-                        )}
-                      >
-                        {getInitials(comment.authorName)}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-xs">
-                        @{comment.authorName}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        · {formatDate(comment.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Comment Content */}
-                  <p className="mt-1.5 text-foreground/90 text-sm leading-relaxed">
-                    {comment.content}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Empty Comments State */}
-      {(!comments || comments.length === 0) && (
-        <div className="rounded-lg border border-border border-dashed p-4 text-center">
-          <MessageCircle className="mx-auto h-8 w-8 text-muted-foreground/50" />
-          <p className="mt-2 text-muted-foreground text-sm">No comments yet</p>
-        </div>
-      )}
 
       {/* Link to full post */}
       <Link
         href={`/post/${post.id}`}
-        className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+        className="flex items-center justify-center gap-2 rounded-lg border border-border bg-primary/5 p-3 font-medium text-primary text-sm transition-colors hover:bg-primary/10"
       >
         <ExternalLink size={14} />
-        View full post →
+        View full post
       </Link>
     </div>
   );

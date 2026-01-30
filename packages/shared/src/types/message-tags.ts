@@ -101,16 +101,8 @@ export interface PostTagData {
     authorProfileImageUrl?: string | null;
     createdAt: Date;
   };
-  comments: Array<{
-    id: string;
-    content: string;
-    authorId: string;
-    parentCommentId: string | null;
-    createdAt: Date;
-    authorName: string;
-    authorProfileImageUrl?: string | null;
-  }>;
   commentCount: number;
+  shareCount?: number;
 }
 
 /** Data for feed tag */
