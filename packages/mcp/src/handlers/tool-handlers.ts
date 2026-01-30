@@ -816,10 +816,10 @@ export async function executeOpenPosition(
   return {
     position: {
       positionId: result.positionId,
-      ticker: args.ticker,
-      side: args.side,
-      size: args.amount,
-      leverage: args.leverage,
+      ticker: result.ticker,
+      side: result.side.toUpperCase() as 'LONG' | 'SHORT',
+      size: result.size,
+      leverage: result.leverage,
       entryPrice: result.entryPrice ?? 0,
     },
     marginPaid: result.marginPaid ?? 0,
@@ -923,6 +923,10 @@ export async function executeGetTrades(
 
 /**
  * Execute get_trade_history tool
+ *
+ * Returns trade history by querying positions with their associated data.
+ * Each position represents a trade entry with the actual side (YES/NO),
+ * shares, and average price.
  */
 export async function executeGetTradeHistory(
   _agent: AuthenticatedAgent,
@@ -930,31 +934,32 @@ export async function executeGetTradeHistory(
 ): Promise<GetTradeHistoryResult> {
   logger.info(`Getting trade history for user: ${args.userId}`, {}, 'MCP');
 
-  // Query balance transactions for prediction trades
-  const trades = await db.balanceTransaction.findMany({
+  // Query positions which contain the actual side (YES/NO), shares, and price
+  const positions = await db.position.findMany({
     where: {
       userId: args.userId,
-      type: { in: ['pred_buy', 'pred_sell'] },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { updatedAt: 'desc' },
     take: args.limit || 20,
     select: {
       id: true,
-      type: true,
-      amount: true,
-      relatedId: true,
+      marketId: true,
+      side: true, // boolean: true = YES, false = NO
+      shares: true,
+      avgPrice: true,
       createdAt: true,
+      updatedAt: true,
     },
   });
 
   return {
-    trades: trades.map((trade) => ({
-      id: trade.id,
-      marketId: trade.relatedId ?? '',
-      side: (trade.type === 'pred_buy' ? 'YES' : 'NO') as 'YES' | 'NO',
-      shares: trade.amount.toString(),
-      price: '0', // Price not stored in balance transaction
-      timestamp: trade.createdAt.toISOString(),
+    trades: positions.map((pos) => ({
+      id: pos.id,
+      marketId: pos.marketId,
+      side: (pos.side ? 'YES' : 'NO') as 'YES' | 'NO',
+      shares: pos.shares.toString(),
+      price: pos.avgPrice.toString(),
+      timestamp: pos.updatedAt.toISOString(),
     })),
   };
 }
@@ -2250,12 +2255,7 @@ export async function executePaymentRequest(
   _args: PaymentRequestArgs
 ): Promise<PaymentRequestResult> {
   // x402 micropayments feature is not yet implemented
-  // Return a structured response indicating the feature is unavailable
-  return {
-    success: false,
-    error: 'x402 micropayments feature is not yet implemented',
-    requestId: null,
-  } as unknown as PaymentRequestResult;
+  throw new Error('x402 micropayments feature is not yet implemented');
 }
 
 /**
@@ -2267,11 +2267,7 @@ export async function executePaymentReceipt(
   _args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
   // x402 micropayments feature is not yet implemented
-  return {
-    success: false,
-    error: 'x402 micropayments feature is not yet implemented',
-    receipt: null,
-  } as unknown as PaymentReceiptResult;
+  throw new Error('x402 micropayments feature is not yet implemented');
 }
 
 // ============================================================================
@@ -2665,37 +2661,36 @@ export async function executeAppealBan(
   if (!user) {
     return {
       success: false,
-      error: 'User not found',
-      status: 'error',
-    } as unknown as AppealBanResult;
+      message: 'User not found',
+      appealStatus: 'error',
+    };
   }
 
   if (!user.isBanned) {
     return {
       success: false,
-      error: 'User is not banned',
-      status: 'not_banned',
-    } as unknown as AppealBanResult;
+      message: 'User is not banned',
+      appealStatus: 'not_banned',
+    };
   }
 
   // Check if already appealed
   if (user.appealCount >= 1 && !user.appealStaked) {
     return {
       success: false,
-      error:
+      message:
         'You have already used your free appeal. You must stake $10 for a second review.',
-      status: 'appeal_exhausted',
-      requiresStake: true,
-    } as unknown as AppealBanResult;
+      appealStatus: 'appeal_exhausted',
+    };
   }
 
   if (user.appealStaked && user.appealStatus === 'human_review') {
     return {
       success: false,
-      error:
+      message:
         'Your appeal is already in human review. Please wait for a decision.',
-      status: 'human_review',
-    } as unknown as AppealBanResult;
+      appealStatus: 'human_review',
+    };
   }
 
   // Update appeal status - submit for strict review (first appeal)
@@ -2712,9 +2707,8 @@ export async function executeAppealBan(
     success: true,
     message:
       'Appeal submitted for review. Please note: full AI evaluation is only available via the web interface.',
-    status: 'submitted',
-    appealCount: user.appealCount + 1,
-  } as unknown as AppealBanResult;
+    appealStatus: 'submitted',
+  };
 }
 
 /**
@@ -2920,26 +2914,37 @@ export async function executeTransferPoints(
     throw new Error('Recipient not found');
   }
 
-  // Check if sender has enough points
-  if (sender.reputationPoints < amount) {
-    throw new Error(
-      `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
-    );
-  }
-
   // Generate transaction IDs before the transaction
   const senderTxId = await generateSnowflakeId();
   const recipientTxId = await generateSnowflakeId();
 
-  // Perform the transfer in a transaction
+  // Perform the transfer in a transaction with balance check inside
+  // This prevents race conditions where two concurrent transfers could overdraw
   await db.$transaction(async (tx) => {
-    const senderPointsBefore = sender.reputationPoints;
+    // Re-fetch sender inside transaction with row-level lock to prevent race conditions
+    const currentSender = await tx.user.findUnique({
+      where: { id: senderId },
+      select: { reputationPoints: true },
+    });
+
+    if (!currentSender) {
+      throw new Error('Sender not found');
+    }
+
+    // Check balance inside transaction
+    if (currentSender.reputationPoints < amount) {
+      throw new Error(
+        `Insufficient points. You have ${currentSender.reputationPoints} points, but tried to send ${amount} points.`
+      );
+    }
+
+    const senderPointsBefore = currentSender.reputationPoints;
     const recipientPointsBefore = recipient.reputationPoints;
 
     // Deduct from sender
     const updatedSender = await tx.user.update({
       where: { id: senderId },
-      data: { reputationPoints: Number(sender.reputationPoints) - amount },
+      data: { reputationPoints: Number(currentSender.reputationPoints) - amount },
     });
 
     // Add to recipient
