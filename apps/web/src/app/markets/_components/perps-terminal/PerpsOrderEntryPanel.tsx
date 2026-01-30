@@ -27,11 +27,13 @@ import { formatPrice } from '../../_lib/formatters';
 interface PerpsOrderEntryPanelProps {
   market: PerpMarket | null;
   initialSide?: 'long' | 'short';
+  onRequestBuyPoints?: () => void;
 }
 
 export function PerpsOrderEntryPanel({
   market,
   initialSide,
+  onRequestBuyPoints,
 }: PerpsOrderEntryPanelProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
   const userId = authenticated ? (user?.id ?? null) : null;
@@ -299,6 +301,15 @@ export function PerpsOrderEntryPanel({
                 <Skeleton className="h-5 w-20" />
               ) : (
                 formatPrice(balance)
+              )}
+              {onRequestBuyPoints && (
+                <button
+                  type="button"
+                  onClick={onRequestBuyPoints}
+                  className="ml-2 rounded bg-muted/20 px-2 py-1 font-sans text-[10px] text-muted-foreground uppercase tracking-wider transition-colors hover:bg-muted/30 hover:text-foreground"
+                >
+                  Buy
+                </button>
               )}
             </div>
           </div>

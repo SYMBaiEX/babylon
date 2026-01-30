@@ -15,6 +15,7 @@ import {
   Minimize2,
   Search,
   Star,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -851,17 +852,7 @@ export function MarketsTradingTerminal({
       </div>
 
       <div className="ml-3 flex items-center gap-2 text-xs">
-        {authenticated ? (
-          <button
-            type="button"
-            onClick={onRequestBuyPoints}
-            className="rounded border border-white/10 bg-background/30 px-2 py-1 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-          >
-            {balanceLoading
-              ? '…'
-              : `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`}
-          </button>
-        ) : (
+        {!authenticated && (
           <button
             type="button"
             onClick={login}
@@ -1276,11 +1267,21 @@ export function MarketsTradingTerminal({
                 <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
                   Available Balance
                 </div>
-                <div className="font-mono text-foreground text-lg tabular-nums">
+                <div className="flex items-center gap-2 font-mono text-foreground text-lg tabular-nums">
+                  <Wallet size={14} className="text-muted-foreground" />
                   {balanceLoading ? (
                     <Skeleton className="h-5 w-20" />
                   ) : (
                     `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`
+                  )}
+                  {onRequestBuyPoints && (
+                    <button
+                      type="button"
+                      onClick={onRequestBuyPoints}
+                      className="ml-2 rounded bg-muted/20 px-2 py-1 font-sans text-[10px] text-muted-foreground uppercase tracking-wider transition-colors hover:bg-muted/30 hover:text-foreground"
+                    >
+                      Buy
+                    </button>
                   )}
                 </div>
               </div>
@@ -1532,6 +1533,7 @@ export function MarketsTradingTerminal({
           <PerpsOrderEntryPanel
             market={selectedPerp}
             initialSide={perpSideFromUrl ?? undefined}
+            onRequestBuyPoints={onRequestBuyPoints}
           />
         </div>
       ) : (
