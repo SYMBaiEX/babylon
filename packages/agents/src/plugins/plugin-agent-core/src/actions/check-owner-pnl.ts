@@ -228,7 +228,7 @@ export const checkOwnerPnlAction: Action = {
         // Tag for sidebar display
         tag: {
           type: 'owner-pnl',
-          label: 'My P&L',
+          label: 'My Portfolio',
           icon: 'PiggyBank',
           data: {
             ownerName,

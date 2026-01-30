@@ -217,7 +217,7 @@ export const checkPnlAction: Action = {
         // Tag for sidebar display
         tag: {
           type: 'agent-pnl',
-          label: 'Agent P&L',
+          label: 'Portfolio',
           icon: 'Wallet',
           data: {
             balance,

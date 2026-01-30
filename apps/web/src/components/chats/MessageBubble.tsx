@@ -1,11 +1,33 @@
 'use client';
 
-import { cn, type MessageTag } from '@babylon/shared';
+import { cn, type MessageTag, type MessageTagIcon } from '@babylon/shared';
+import {
+  ChevronRight,
+  FileText,
+  Newspaper,
+  PiggyBank,
+  Target,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
 import { Avatar } from '@/components/shared/Avatar';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
+
+/** Map icon names to Lucide components */
+const TAG_ICONS: Record<
+  MessageTagIcon,
+  React.ComponentType<{ className?: string }>
+> = {
+  TrendingUp,
+  Target,
+  FileText,
+  Newspaper,
+  Wallet,
+  PiggyBank,
+};
 
 /**
  * Extracts the displayable content from a message, stripping `<think>...</think>` reasoning blocks.
@@ -137,19 +159,26 @@ export function MessageBubble({
                 {getDisplayContent(message.content)}
               </Response>
 
-              {/* Action Tags - Buttons with background inside bubble */}
+              {/* Action Tags - Pill-style chips with icons */}
               {message.metadata?.tags && message.metadata.tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2 border-muted/50 border-t pt-2">
-                  {message.metadata.tags.map((tag, i) => (
-                    <button
-                      key={`${tag.type}-${tag.entityId ?? i}`}
-                      type="button"
-                      onClick={() => onTagClick?.(tag)}
-                      className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      {tag.label}
-                    </button>
-                  ))}
+                <div className="mt-3 flex flex-wrap gap-2 border-muted/30 border-t pt-3">
+                  {message.metadata.tags.map((tag, i) => {
+                    const IconComponent = TAG_ICONS[tag.icon];
+                    return (
+                      <button
+                        key={`${tag.type}-${tag.entityId ?? i}`}
+                        type="button"
+                        onClick={() => onTagClick?.(tag)}
+                        className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
+                      >
+                        {IconComponent && (
+                          <IconComponent className="h-3.5 w-3.5" />
+                        )}
+                        <span>{tag.label}</span>
+                        <ChevronRight className="h-3 w-3 opacity-50 transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
