@@ -263,7 +263,11 @@ export function RightSidebar({
         ) : (
           <>
             {/* Tab Bar */}
-            <div className="shrink-0 overflow-x-auto border-border border-b bg-muted/30 px-2 py-1">
+            <div
+              role="tablist"
+              aria-orientation="horizontal"
+              className="shrink-0 overflow-x-auto border-border border-b bg-muted/30 px-2 py-1"
+            >
               <div className="flex items-center gap-1">
                 {tabs.map((tab) => {
                   const TabIcon = TAB_ICONS[tab.type] || Bot;

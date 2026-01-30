@@ -44,7 +44,7 @@ interface BottomPanelProps {
 }
 
 /**
- * Bottom panel with tabs for Activity, Portfolio, Logs, Settings.
+ * Bottom panel with tabs for Activity, Portfolio, and Logs.
  * Spans full width, collapsible, and resizable.
  */
 export function BottomPanel({

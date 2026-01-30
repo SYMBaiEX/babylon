@@ -406,13 +406,13 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
               <div>
                 <span className="text-muted-foreground">Accuracy</span>
                 <div className="font-semibold text-[#0066FF]">
-                  {agent0Profile.reputation?.accuracyScore.toFixed(1) ?? '—'}%
+                  {agent0Profile.reputation?.accuracyScore?.toFixed(1) ?? '—'}%
                 </div>
               </div>
               <div>
                 <span className="text-muted-foreground">Trust</span>
                 <div className="font-semibold text-green-600">
-                  {agent0Profile.reputation?.trustScore.toFixed(1) ?? '—'}%
+                  {agent0Profile.reputation?.trustScore?.toFixed(1) ?? '—'}%
                 </div>
               </div>
             </div>
