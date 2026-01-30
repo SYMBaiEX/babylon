@@ -12,6 +12,11 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import {
+  PredictionDbAdapter,
+  PredictionMarketService,
+} from '@babylon/core/markets/prediction';
 import {
   and,
   db,
@@ -21,7 +26,13 @@ import {
   perpMarketSnapshots,
   users,
 } from '@babylon/db';
-import { StaticDataRegistry } from '@babylon/engine';
+import {
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
+  StaticDataRegistry,
+  WalletService,
+} from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
 import {
   GROUP_CONFIG,
@@ -357,6 +368,61 @@ export async function executeGetMarkets(
 }
 
 /**
+ * Build prediction market service for a given market
+ */
+function buildPredictionService(marketId: string) {
+  return new PredictionMarketService({
+    db: new PredictionDbAdapter(),
+    wallet: {
+      debit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      credit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      recordPnL: ({ userId, pnl, reason, relatedId }) =>
+        WalletService.recordPnL(userId, pnl, reason, relatedId).then(
+          () => undefined
+        ),
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    broadcast: {
+      emit: async () => {
+        // No-op for MCP - broadcasts handled separately
+      },
+    },
+    cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
+    clock: { now: () => new Date() },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
+}
+
+/**
  * Execute place_bet tool
  */
 export async function executePlaceBet(
@@ -365,22 +431,35 @@ export async function executePlaceBet(
 ): Promise<PlaceBetResult> {
   logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP');
 
-  // Call the existing market API logic
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<PlaceBetResult>(
-    `${apiBaseUrl}/markets/${args.marketId}/bet`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: agent.userId,
-        side: args.side,
-        amount: args.amount,
-      }),
-    }
-  );
+  // Convert uppercase side to lowercase for service
+  const side = args.side.toLowerCase() as 'yes' | 'no';
+
+  const service = buildPredictionService(args.marketId);
+  const result = await service.buy({
+    userId: agent.userId,
+    marketId: args.marketId,
+    side,
+    amount: args.amount,
+  });
+
+  const balance = await WalletService.getBalance(agent.userId);
+
+  return {
+    position: {
+      id: result.positionId,
+      marketId: args.marketId,
+      side: args.side,
+      shares: result.shares,
+      avgPrice: result.avgPrice,
+      totalCost: result.totalCost ?? 0,
+    },
+    market: result.market,
+    fee: {
+      amount: result.feePaid,
+      referrerPaid: 0,
+    },
+    newBalance: balance.balance,
+  };
 }
 
 /**
@@ -467,21 +546,41 @@ export async function executeClosePosition(
 ): Promise<ClosePositionResult> {
   logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
 
-  // Call the existing close position API logic
-  const apiBaseUrl = getAPIBaseUrl();
-  const result = await safeFetchRequired<ClosePositionResult>(
-    `${apiBaseUrl}/positions/${args.positionId}/close`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: agent.userId,
-      }),
-    }
-  );
-  return result;
+  const service = buildPerpService();
+  const result = await service.closePosition({
+    userId: agent.userId,
+    positionId: args.positionId,
+  });
+
+  const grossSettlement =
+    result.realizedPnL !== undefined && result.marginPaid !== undefined
+      ? result.marginPaid + result.realizedPnL
+      : 0;
+  const netSettlement =
+    result.realizedPnL !== undefined && result.marginPaid !== undefined
+      ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
+      : 0;
+
+  return {
+    position: {
+      positionId: args.positionId,
+      ticker: result.ticker,
+      side: result.side,
+      size: result.size,
+      entryPrice: result.entryPrice ?? 0,
+      exitPrice: result.exitPrice ?? 0,
+    },
+    grossSettlement,
+    netSettlement,
+    marginReturned: result.marginPaid ?? 0,
+    pnl: result.realizedPnL ?? 0,
+    fee: {
+      amount: result.feePaid,
+      referrerPaid: 0,
+    },
+    wasLiquidated: false,
+    newBalance: result.balance ?? 0,
+  };
 }
 
 /**
@@ -565,19 +664,37 @@ export async function executeBuyShares(
   agent: AuthenticatedAgent,
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<BuySharesResult>(
-    `${apiBaseUrl}/markets/predictions/${args.marketId}/buy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: agent.userId,
-        outcome: args.outcome,
-        amount: args.amount,
-      }),
-    }
-  );
+  logger.info(`Agent ${agent.agentId} buying shares:`, args, 'MCP');
+
+  // Convert uppercase outcome to lowercase for service
+  const side = args.outcome.toLowerCase() as 'yes' | 'no';
+
+  const service = buildPredictionService(args.marketId);
+  const result = await service.buy({
+    userId: agent.userId,
+    marketId: args.marketId,
+    side,
+    amount: args.amount,
+  });
+
+  const balance = await WalletService.getBalance(agent.userId);
+
+  return {
+    position: {
+      id: result.positionId,
+      marketId: args.marketId,
+      side: args.outcome,
+      shares: result.shares,
+      avgPrice: result.avgPrice,
+      totalCost: result.totalCost ?? 0,
+    },
+    market: result.market,
+    fee: {
+      amount: result.feePaid,
+      referrerPaid: 0,
+    },
+    newBalance: balance.balance,
+  };
 }
 
 /**
@@ -587,24 +704,92 @@ export async function executeSellShares(
   agent: AuthenticatedAgent,
   args: SellSharesArgs
 ): Promise<SellSharesResult> {
-  const apiBaseUrl = getAPIBaseUrl();
+  logger.info(`Agent ${agent.agentId} selling shares:`, args, 'MCP');
+
   const position = await db.position.findUnique({
     where: { id: args.positionId },
   });
   if (!position || position.userId !== agent.userId) {
     throw new Error('Position not found or access denied');
   }
-  return safeFetchRequired<SellSharesResult>(
-    `${apiBaseUrl}/markets/predictions/${position.marketId}/sell`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: agent.userId,
-        shares: args.shares,
-      }),
-    }
-  );
+  if (!position.marketId) {
+    throw new Error('Position has no associated market');
+  }
+
+  const service = buildPredictionService(position.marketId);
+  const result = await service.sell({
+    userId: agent.userId,
+    marketId: position.marketId,
+    shares: args.shares,
+    positionId: args.positionId,
+  });
+
+  const balance = await WalletService.getBalance(agent.userId);
+
+  return {
+    sharesSold: args.shares,
+    grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
+    netProceeds: result.netProceeds ?? 0,
+    pnl: result.pnl ?? 0,
+    market: result.market,
+    fee: {
+      amount: result.feePaid,
+      referrerPaid: 0,
+    },
+    remainingShares: result.remainingShares ?? 0,
+    positionClosed: result.positionClosed ?? false,
+    newBalance: balance.balance,
+    positionId: result.positionId,
+  };
+}
+
+/**
+ * Build perp market service
+ */
+function buildPerpService() {
+  return new PerpMarketService({
+    db: new PerpDbAdapter(),
+    wallet: {
+      debit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      credit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+        await WalletService.recordPnL(userId, pnl, reason, relatedId);
+      },
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
 }
 
 /**
@@ -614,21 +799,36 @@ export async function executeOpenPosition(
   agent: AuthenticatedAgent,
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<OpenPositionResult>(
-    `${apiBaseUrl}/markets/perps/open`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: agent.userId,
-        ticker: args.ticker,
-        side: args.side,
-        amount: args.amount,
-        leverage: args.leverage,
-      }),
-    }
-  );
+  logger.info(`Agent ${agent.agentId} opening perp position:`, args, 'MCP');
+
+  // Convert side to lowercase for service
+  const side = args.side.toLowerCase() as 'long' | 'short';
+
+  const service = buildPerpService();
+  const result = await service.openPosition({
+    userId: agent.userId,
+    ticker: args.ticker,
+    side,
+    size: args.amount,
+    leverage: args.leverage,
+  });
+
+  return {
+    position: {
+      positionId: result.positionId,
+      ticker: args.ticker,
+      side: args.side,
+      size: args.amount,
+      leverage: args.leverage,
+      entryPrice: result.entryPrice ?? 0,
+    },
+    marginPaid: result.marginPaid ?? 0,
+    fee: {
+      amount: result.feePaid,
+      referrerPaid: 0,
+    },
+    newBalance: result.balance ?? 0,
+  };
 }
 
 /**
@@ -728,38 +928,33 @@ export async function executeGetTradeHistory(
   _agent: AuthenticatedAgent,
   args: GetTradeHistoryArgs
 ): Promise<GetTradeHistoryResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  const url = new URL(
-    `${apiBaseUrl}/markets/predictions/${args.userId}/trades`
-  );
-  if (args.limit) url.searchParams.set('limit', args.limit.toString());
-  const data = await safeFetch<{
-    trades: Array<{
-      id: string;
-      marketId: string;
-      side: boolean;
-      shares: string;
-      price: string;
-      timestamp: Date | string;
-    }>;
-  }>(url);
+  logger.info(`Getting trade history for user: ${args.userId}`, {}, 'MCP');
 
-  // Handle null/empty response
-  if (!data) {
-    return { trades: [] };
-  }
+  // Query balance transactions for prediction trades
+  const trades = await db.balanceTransaction.findMany({
+    where: {
+      userId: args.userId,
+      type: { in: ['pred_buy', 'pred_sell'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: args.limit || 20,
+    select: {
+      id: true,
+      type: true,
+      amount: true,
+      relatedId: true,
+      createdAt: true,
+    },
+  });
 
   return {
-    trades: data.trades.map((trade) => ({
+    trades: trades.map((trade) => ({
       id: trade.id,
-      marketId: trade.marketId,
-      side: trade.side ? 'YES' : 'NO',
-      shares: trade.shares,
-      price: trade.price,
-      timestamp:
-        trade.timestamp instanceof Date
-          ? trade.timestamp.toISOString()
-          : trade.timestamp,
+      marketId: trade.relatedId ?? '',
+      side: (trade.type === 'pred_buy' ? 'YES' : 'NO') as 'YES' | 'NO',
+      shares: trade.amount.toString(),
+      price: '0', // Price not stored in balance transaction
+      timestamp: trade.createdAt.toISOString(),
     })),
   };
 }
@@ -2048,48 +2243,35 @@ export async function executeGetOrganizations(
 
 /**
  * Execute payment_request tool
+ * Note: x402 payments feature is not yet implemented
  */
 export async function executePaymentRequest(
-  agent: AuthenticatedAgent,
-  args: PaymentRequestArgs
+  _agent: AuthenticatedAgent,
+  _args: PaymentRequestArgs
 ): Promise<PaymentRequestResult> {
-  // agent used for userId in request body
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<PaymentRequestResult>(
-    `${apiBaseUrl}/payments/request`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: args.from || agent.userId,
-        to: args.to,
-        amount: args.amount,
-        service: args.service,
-        metadata: args.metadata,
-      }),
-    }
-  );
+  // x402 micropayments feature is not yet implemented
+  // Return a structured response indicating the feature is unavailable
+  return {
+    success: false,
+    error: 'x402 micropayments feature is not yet implemented',
+    requestId: null,
+  } as unknown as PaymentRequestResult;
 }
 
 /**
  * Execute payment_receipt tool
+ * Note: x402 payments feature is not yet implemented
  */
 export async function executePaymentReceipt(
   _agent: AuthenticatedAgent,
-  args: PaymentReceiptArgs
+  _args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<PaymentReceiptResult>(
-    `${apiBaseUrl}/payments/receipt`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestId: args.requestId,
-        txHash: args.txHash,
-      }),
-    }
-  );
+  // x402 micropayments feature is not yet implemented
+  return {
+    success: false,
+    error: 'x402 micropayments feature is not yet implemented',
+    receipt: null,
+  } as unknown as PaymentReceiptResult;
 }
 
 // ============================================================================
@@ -2464,15 +2646,75 @@ export async function executeAppealBan(
   agent: AuthenticatedAgent,
   args: AppealBanArgs
 ): Promise<AppealBanResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<AppealBanResult>(`${apiBaseUrl}/moderation/appeal`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: agent.userId,
-      reason: args.reason,
-    }),
+  logger.info(`Agent ${agent.agentId} appealing ban:`, args, 'MCP');
+
+  const userId = agent.userId;
+
+  // Get user
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      isBanned: true,
+      appealCount: true,
+      appealStaked: true,
+      appealStatus: true,
+    },
   });
+
+  if (!user) {
+    return {
+      success: false,
+      error: 'User not found',
+      status: 'error',
+    } as unknown as AppealBanResult;
+  }
+
+  if (!user.isBanned) {
+    return {
+      success: false,
+      error: 'User is not banned',
+      status: 'not_banned',
+    } as unknown as AppealBanResult;
+  }
+
+  // Check if already appealed
+  if (user.appealCount >= 1 && !user.appealStaked) {
+    return {
+      success: false,
+      error:
+        'You have already used your free appeal. You must stake $10 for a second review.',
+      status: 'appeal_exhausted',
+      requiresStake: true,
+    } as unknown as AppealBanResult;
+  }
+
+  if (user.appealStaked && user.appealStatus === 'human_review') {
+    return {
+      success: false,
+      error:
+        'Your appeal is already in human review. Please wait for a decision.',
+      status: 'human_review',
+    } as unknown as AppealBanResult;
+  }
+
+  // Update appeal status - submit for strict review (first appeal)
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      appealCount: user.appealCount + 1,
+      appealStatus: 'strict_review',
+      appealSubmittedAt: new Date(),
+    },
+  });
+
+  return {
+    success: true,
+    message:
+      'Appeal submitted for review. Please note: full AI evaluation is only available via the web interface.',
+    status: 'submitted',
+    appealCount: user.appealCount + 1,
+  } as unknown as AppealBanResult;
 }
 
 /**
@@ -2639,20 +2881,114 @@ export async function executeTransferPoints(
   agent: AuthenticatedAgent,
   args: TransferPointsArgs
 ): Promise<TransferPointsResult> {
-  const apiBaseUrl = getAPIBaseUrl();
-  return safeFetchRequired<TransferPointsResult>(
-    `${apiBaseUrl}/points/transfer`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fromUserId: agent.userId,
-        recipientId: args.recipientId,
-        amount: args.amount,
-        message: args.message,
-      }),
-    }
-  );
+  logger.info(`Agent ${agent.agentId} transferring points:`, args, 'MCP');
+
+  const senderId = agent.userId;
+  const { recipientId, amount, message } = args;
+
+  // Prevent self-transfers
+  if (senderId === recipientId) {
+    throw new Error('Cannot send points to yourself');
+  }
+
+  // Verify sender and recipient exist
+  const [sender, recipient] = await Promise.all([
+    db.user.findUnique({
+      where: { id: senderId },
+      select: {
+        id: true,
+        reputationPoints: true,
+        displayName: true,
+        username: true,
+      },
+    }),
+    db.user.findUnique({
+      where: { id: recipientId },
+      select: {
+        id: true,
+        reputationPoints: true,
+        displayName: true,
+        username: true,
+      },
+    }),
+  ]);
+
+  if (!sender) {
+    throw new Error('Sender not found');
+  }
+  if (!recipient) {
+    throw new Error('Recipient not found');
+  }
+
+  // Check if sender has enough points
+  if (sender.reputationPoints < amount) {
+    throw new Error(
+      `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
+    );
+  }
+
+  // Generate transaction IDs before the transaction
+  const senderTxId = await generateSnowflakeId();
+  const recipientTxId = await generateSnowflakeId();
+
+  // Perform the transfer in a transaction
+  await db.$transaction(async (tx) => {
+    const senderPointsBefore = sender.reputationPoints;
+    const recipientPointsBefore = recipient.reputationPoints;
+
+    // Deduct from sender
+    const updatedSender = await tx.user.update({
+      where: { id: senderId },
+      data: { reputationPoints: Number(sender.reputationPoints) - amount },
+    });
+
+    // Add to recipient
+    const updatedRecipient = await tx.user.update({
+      where: { id: recipientId },
+      data: { reputationPoints: Number(recipient.reputationPoints) + amount },
+    });
+
+    // Create transaction record for sender (negative)
+    await tx.pointsTransaction.create({
+      data: {
+        id: senderTxId,
+        userId: senderId,
+        amount: -amount,
+        pointsBefore: senderPointsBefore,
+        pointsAfter: updatedSender.reputationPoints,
+        reason: 'transfer_sent',
+        metadata: JSON.stringify({
+          recipientId,
+          recipientName: recipient.displayName || recipient.username,
+          message,
+        }),
+      },
+    });
+
+    // Create transaction record for recipient (positive)
+    await tx.pointsTransaction.create({
+      data: {
+        id: recipientTxId,
+        userId: recipientId,
+        amount: amount,
+        pointsBefore: recipientPointsBefore,
+        pointsAfter: updatedRecipient.reputationPoints,
+        reason: 'transfer_received',
+        metadata: JSON.stringify({
+          senderId,
+          senderName: sender.displayName || sender.username,
+          message,
+        }),
+      },
+    });
+  });
+
+  return {
+    success: true,
+    transactionId: senderTxId,
+    amount,
+    recipientId,
+  };
 }
 
 // ============================================================================
