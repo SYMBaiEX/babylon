@@ -362,33 +362,23 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
 
-    // Parse parameters with proper type validation
+    // Parse parameters with proper type validation (fail-fast on malformed JSON)
     let actionParams: Record<string, unknown> = {};
     if (parameters) {
       if (typeof parameters === 'string') {
-        try {
-          const parsed = JSON.parse(parameters);
-          // Ensure parsed result is an object
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            !Array.isArray(parsed)
-          ) {
-            actionParams = parsed;
-          } else {
-            logger.warn(
-              `[Coordinator] Parameters parsed but not an object`,
-              { parameters, parsedType: typeof parsed },
-              'CoordinatorChat'
-            );
-          }
-        } catch (err) {
+        // Fail-fast: let JSON.parse throw on malformed JSON
+        const parsed: unknown = JSON.parse(parameters);
+        // Ensure parsed result is an object
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          !Array.isArray(parsed)
+        ) {
+          actionParams = parsed as Record<string, unknown>;
+        } else {
           logger.warn(
-            `[Coordinator] Failed to parse parameters JSON`,
-            {
-              parameters,
-              error: err instanceof Error ? err.message : 'Unknown',
-            },
+            `[Coordinator] Parameters parsed but not an object`,
+            { parameters, parsedType: typeof parsed },
             'CoordinatorChat'
           );
         }
@@ -423,93 +413,81 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       content: actionContent,
     };
 
-    try {
-      // Use object to allow mutation from callback
-      const resultHolder: {
-        result: {
-          success?: boolean;
-          text?: string;
-          values?: Record<string, unknown>;
-          tag?: MessageTag;
-        } | null;
-      } = { result: null };
-
-      await runtime.processActions(
-        elizaMessage,
-        [actionMessage],
-        state,
-        async (results: unknown) => {
-          const resultsArray = results as Array<{
-            content?: {
-              success?: boolean;
-              text?: string;
-              values?: Record<string, unknown>;
-              tag?: MessageTag;
-            };
-          }> | null;
-          if (resultsArray && resultsArray.length > 0) {
-            const firstResult = resultsArray[0];
-            if (firstResult) {
-              resultHolder.result = {
-                success: firstResult.content?.success ?? true,
-                text:
-                  typeof firstResult.content?.text === 'string'
-                    ? firstResult.content.text
-                    : undefined,
-                values: firstResult.content?.values,
-                tag: firstResult.content?.tag,
-              };
-            }
-          }
-          return [];
-        }
-      );
-
-      // Fallback to state cache if callback didn't capture
-      let actionResult = resultHolder.result;
-      if (!actionResult) {
-        const cachedState = (
-          runtime as unknown as { stateCache?: Map<string, unknown> }
-        ).stateCache?.get(`${elizaMessage.id}_action_results`) as
-          | {
-              values?: {
-                actionResults?: Array<{
-                  success?: boolean;
-                  text?: string;
-                  values?: Record<string, unknown>;
-                }>;
-              };
-            }
-          | undefined;
-        const actionResultsFromCache = cachedState?.values?.actionResults || [];
-        actionResult =
-          actionResultsFromCache.length > 0
-            ? (actionResultsFromCache[0] ?? null)
-            : null;
-      }
-      const success = actionResult?.success ?? true;
-
-      traceActionResults.push({
-        actionType: action,
-        success,
-        text: actionResult?.text || `${action} executed`,
-        error: success ? undefined : actionResult?.text,
-        values: actionResult?.values,
-        parameters: actionParams,
-        timestamp: Date.now(),
-        tag: actionResult?.tag,
-      });
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      traceActionResults.push({
-        actionType: action,
-        success: false,
-        text: `Action failed: ${errorMsg}`,
-        error: errorMsg,
-        parameters: actionParams,
-        timestamp: Date.now(),
-      });
+    // Concrete types for action results
+    interface ActionResultContent {
+      success?: boolean;
+      text?: string;
+      values?: Record<string, unknown>;
+      tag?: MessageTag;
     }
+
+    interface ProcessActionsResult {
+      content?: ActionResultContent;
+    }
+
+    interface CachedActionState {
+      values?: {
+        actionResults?: ActionResultContent[];
+      };
+    }
+
+    // Use object to allow mutation from callback
+    const resultHolder: { result: ActionResultContent | null } = {
+      result: null,
+    };
+
+    // Fail-fast: let errors from processActions propagate to caller
+    await runtime.processActions(
+      elizaMessage,
+      [actionMessage],
+      state,
+      async (results: unknown) => {
+        const resultsArray = results as ProcessActionsResult[] | null;
+        if (resultsArray && resultsArray.length > 0) {
+          const firstResult = resultsArray[0];
+          if (firstResult) {
+            resultHolder.result = {
+              success: firstResult.content?.success ?? true,
+              text:
+                typeof firstResult.content?.text === 'string'
+                  ? firstResult.content.text
+                  : undefined,
+              values: firstResult.content?.values,
+              tag: firstResult.content?.tag,
+            };
+          }
+        }
+        return [];
+      }
+    );
+
+    // Fallback to state cache if callback didn't capture
+    let actionResult = resultHolder.result;
+    if (!actionResult) {
+      const runtimeWithCache = runtime as unknown as {
+        stateCache?: Map<string, CachedActionState>;
+      };
+      const cachedState = runtimeWithCache.stateCache?.get(
+        `${elizaMessage.id}_action_results`
+      );
+      const actionResultsFromCache = cachedState?.values?.actionResults || [];
+      actionResult =
+        actionResultsFromCache.length > 0
+          ? (actionResultsFromCache[0] ?? null)
+          : null;
+    }
+    const success = actionResult?.success ?? true;
+
+    traceActionResults.push({
+      actionType: action,
+      success,
+      text: actionResult?.text || `${action} executed`,
+      error: success ? undefined : actionResult?.text,
+      values: actionResult?.values,
+      parameters: actionParams,
+      timestamp: Date.now(),
+      tag: actionResult?.tag,
+    });
 
     // Check if done
     if (isFinish === 'true' || isFinish === true) {

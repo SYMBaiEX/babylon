@@ -107,139 +107,129 @@ export const checkUserPnlAction: Action = {
       };
     }
 
-    try {
-      // Get user info
-      const [user] = await db
-        .select({
-          displayName: users.displayName,
-          username: users.username,
-          lifetimePnL: users.lifetimePnL,
-        })
-        .from(users)
-        .where(eq(users.id, ownerId))
-        .limit(1);
+    // Fail-fast: let errors from WalletService.getBalance, db queries propagate
+    // Get user info
+    const [user] = await db
+      .select({
+        displayName: users.displayName,
+        username: users.username,
+        lifetimePnL: users.lifetimePnL,
+      })
+      .from(users)
+      .where(eq(users.id, ownerId))
+      .limit(1);
 
-      if (!user) {
-        return {
-          success: false,
-          text: 'User not found.',
-          error: 'User not found',
-        };
-      }
+    if (!user) {
+      return {
+        success: false,
+        text: 'User not found.',
+        error: 'User not found',
+      };
+    }
 
-      const userName = user.displayName || user.username || 'User';
+    const userName = user.displayName || user.username || 'User';
 
-      // Get wallet balance (fail-fast - no fallback)
-      const walletBalance = await WalletService.getBalance(ownerId);
-      const balance = walletBalance.balance;
-      const lifetimePnL = walletBalance.lifetimePnL;
+    // Get wallet balance (fail-fast - no fallback)
+    const walletBalance = await WalletService.getBalance(ownerId);
+    const balance = walletBalance.balance;
+    const lifetimePnL = walletBalance.lifetimePnL;
 
-      // Get active prediction positions with market details
-      const predictionPositions = await db
-        .select({
-          id: positions.id,
-          marketId: positions.marketId,
-          side: positions.side,
-          shares: positions.shares,
-          avgPrice: positions.avgPrice,
-          amount: positions.amount,
-          question: markets.question,
-          yesShares: markets.yesShares,
-          noShares: markets.noShares,
-        })
-        .from(positions)
-        .leftJoin(markets, eq(positions.marketId, markets.id))
-        .where(
-          and(eq(positions.userId, ownerId), eq(positions.status, 'active'))
-        );
-
-      // Get active perp positions
-      const perpPositionsList = await db
-        .select()
-        .from(perpPositions)
-        .where(
-          and(eq(perpPositions.userId, ownerId), isNull(perpPositions.closedAt))
-        );
-
-      const totalPositions =
-        predictionPositions.length + perpPositionsList.length;
-
-      logger.info(
-        `[CHECK_USER_PNL] Retrieved P&L for user ${userName}`,
-        { positions: totalPositions, ownerId },
-        'CheckUserPnL'
+    // Get active prediction positions with market details
+    const predictionPositions = await db
+      .select({
+        id: positions.id,
+        marketId: positions.marketId,
+        side: positions.side,
+        shares: positions.shares,
+        avgPrice: positions.avgPrice,
+        amount: positions.amount,
+        question: markets.question,
+        yesShares: markets.yesShares,
+        noShares: markets.noShares,
+      })
+      .from(positions)
+      .leftJoin(markets, eq(positions.marketId, markets.id))
+      .where(
+        and(eq(positions.userId, ownerId), eq(positions.status, 'active'))
       );
 
-      // Format data for tag
-      const formattedPredictionPositions = predictionPositions.map((p) => ({
-        id: p.id,
-        marketId: p.marketId,
-        side: p.side ? 'YES' : 'NO',
-        shares: Number(p.shares),
-        avgPrice: Number(p.avgPrice),
-        question: p.question?.substring(0, 80) || 'Unknown',
-      }));
+    // Get active perp positions
+    const perpPositionsList = await db
+      .select()
+      .from(perpPositions)
+      .where(
+        and(eq(perpPositions.userId, ownerId), isNull(perpPositions.closedAt))
+      );
 
-      const formattedPerpPositions = perpPositionsList.map((p) => ({
-        id: p.id,
-        ticker: p.ticker,
-        side: p.side,
-        size: Number(p.size),
-        entryPrice: Number(p.entryPrice),
-        leverage: p.leverage,
-      }));
+    const totalPositions =
+      predictionPositions.length + perpPositionsList.length;
 
-      return {
-        success: true,
-        text: `Retrieved ${userName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
+    logger.info(
+      `[CHECK_USER_PNL] Retrieved P&L for user ${userName}`,
+      { positions: totalPositions, ownerId },
+      'CheckUserPnL'
+    );
+
+    // Format data for tag
+    const formattedPredictionPositions = predictionPositions.map((p) => ({
+      id: p.id,
+      marketId: p.marketId,
+      side: p.side ? 'YES' : 'NO',
+      shares: Number(p.shares),
+      avgPrice: Number(p.avgPrice),
+      question: p.question?.substring(0, 80) || 'Unknown',
+    }));
+
+    const formattedPerpPositions = perpPositionsList.map((p) => ({
+      id: p.id,
+      ticker: p.ticker,
+      side: p.side,
+      size: Number(p.size),
+      entryPrice: Number(p.entryPrice),
+      leverage: p.leverage,
+    }));
+
+    return {
+      success: true,
+      text: `Retrieved ${userName}'s P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
+      data: {
+        userName,
+        userId: ownerId,
+        balance,
+        lifetimePnL,
+        predictionPositions: formattedPredictionPositions,
+        perpPositions: formattedPerpPositions,
+      },
+      values: {
+        userName,
+        balance,
+        lifetimePnL,
+        predictionPositions: formattedPredictionPositions.map((p) => ({
+          id: p.id,
+          question: p.question,
+          side: p.side,
+          shares: p.shares,
+        })),
+        perpPositions: formattedPerpPositions.map((p) => ({
+          id: p.id,
+          ticker: p.ticker,
+          side: p.side,
+          size: p.size,
+        })),
+      },
+      // Tag for sidebar display
+      tag: {
+        type: 'owner-pnl',
+        label: 'My Portfolio',
+        icon: 'PiggyBank',
         data: {
-          userName,
-          userId: ownerId,
+          ownerName: userName,
           balance,
           lifetimePnL,
           predictionPositions: formattedPredictionPositions,
           perpPositions: formattedPerpPositions,
         },
-        values: {
-          userName,
-          balance,
-          lifetimePnL,
-          predictionPositions: formattedPredictionPositions.map((p) => ({
-            id: p.id,
-            question: p.question,
-            side: p.side,
-            shares: p.shares,
-          })),
-          perpPositions: formattedPerpPositions.map((p) => ({
-            id: p.id,
-            ticker: p.ticker,
-            side: p.side,
-            size: p.size,
-          })),
-        },
-        // Tag for sidebar display
-        tag: {
-          type: 'owner-pnl',
-          label: 'My Portfolio',
-          icon: 'PiggyBank',
-          data: {
-            ownerName: userName,
-            balance,
-            lifetimePnL,
-            predictionPositions: formattedPredictionPositions,
-            perpPositions: formattedPerpPositions,
-          },
-        },
-      } as ActionResultWithTag;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('[CHECK_USER_PNL] Error:', errorMsg);
-
-      return {
-        success: false,
-        text: `Failed to retrieve user's P&L: ${errorMsg}`,
-        error: errorMsg,
-      };
-    }
+      },
+    } as ActionResultWithTag;
   },
 };
