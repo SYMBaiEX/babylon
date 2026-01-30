@@ -276,6 +276,7 @@ export function MarketsTradingTerminal({
   // Mobile UI state
   const [isMobileMarketListOpen, setIsMobileMarketListOpen] = useState(false);
   const [isMobileTradeSheetOpen, setIsMobileTradeSheetOpen] = useState(false);
+  const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
 
   useEffect(() => {
     if (!isFullscreen) return undefined;
@@ -1797,52 +1798,10 @@ export function MarketsTradingTerminal({
 
       {/* Mobile */}
       <div className="relative flex h-full flex-col overflow-hidden overscroll-none md:hidden">
-        <div className="shrink-0 border-white/5 border-b bg-background">
-          <div className="flex h-14 items-center justify-between px-4">
-            <div className="font-bold text-lg tracking-tight">Markets</div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsMobileMarketListOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5"
-              >
-                <span className="max-w-[180px] truncate font-bold text-sm">
-                  {selected?.kind === 'perp'
-                    ? selected.id
-                    : (predictionState?.text ?? 'Select')}
-                </span>
-                <span className="text-muted-foreground text-xs">▼</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                aria-pressed={isFullscreen}
-                aria-label={
-                  isFullscreen
-                    ? 'Exit fullscreen terminal view'
-                    : 'Enter fullscreen terminal view'
-                }
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                className={cn(
-                  'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
-                  'transition-colors hover:bg-muted/40 hover:text-foreground',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-                )}
-              >
-                {isFullscreen ? (
-                  <Minimize2 size={18} />
-                ) : (
-                  <Maximize2 size={18} />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="flex h-[40%] w-full shrink-0 flex-col border-white/5 border-b">
+              <div className="relative flex h-[40%] w-full shrink-0 flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
@@ -1956,6 +1915,23 @@ export function MarketsTradingTerminal({
                   <div className="flex h-full items-center justify-center text-muted-foreground">
                     Select a market
                   </div>
+                )}
+
+                {selected && (
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileChartFullscreen(true)}
+                    className={cn(
+                      'absolute right-3 bottom-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full',
+                      'border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
+                      'transition-colors hover:bg-muted/40 hover:text-foreground',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                    )}
+                    aria-label="Open chart fullscreen"
+                    title="Fullscreen chart"
+                  >
+                    <Maximize2 size={18} />
+                  </button>
                 )}
               </div>
 
@@ -2184,6 +2160,141 @@ export function MarketsTradingTerminal({
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   {rightPanel}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {isMobileChartFullscreen && (
+            <div className="fixed inset-0 z-[60] bg-background">
+              <button
+                type="button"
+                aria-label="Close fullscreen chart"
+                onClick={() => setIsMobileChartFullscreen(false)}
+                className={cn(
+                  'absolute top-[calc(12px+env(safe-area-inset-top))] right-[calc(12px+env(safe-area-inset-right))] z-20 inline-flex h-10 w-10 items-center justify-center rounded-full',
+                  'border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
+                  'transition-colors hover:bg-muted/40 hover:text-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                )}
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex h-full flex-col pt-safe pb-safe">
+                {selected?.kind === 'prediction' ? (
+                  <>
+                    <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="whitespace-normal break-words font-bold text-sm leading-snug">
+                            {predictionState?.text ?? 'Prediction market'}
+                          </div>
+                          <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+                            {predictionState?.resolutionDescription?.trim()
+                              ? predictionState.resolutionDescription
+                              : `Scenario ${predictionState?.scenario ?? ''}`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPredictionDetailsOpen(true)}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          aria-label="View market details"
+                          title="Details"
+                        >
+                          <Info size={14} />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
+                            YES {formatYesPct(predictionYesPct)}
+                          </div>
+                          <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
+                            NO {formatYesPct(100 - predictionYesPct)}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                          {MARKET_TIME_RANGES.map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() => setPredictionTimeRange(range)}
+                              className={cn(
+                                'rounded px-2 py-1 transition-colors',
+                                predictionTimeRange === range
+                                  ? 'bg-foreground text-background'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="min-h-0 flex-1 p-2">
+                      <PredictionProbabilityChart
+                        data={predictionHistory}
+                        marketId={selectedPredictionId ?? 'unknown'}
+                        timeRange={predictionTimeRange}
+                        onTimeRangeChange={setPredictionTimeRange}
+                        showHeader={false}
+                      />
+                    </div>
+                  </>
+                ) : selectedPerp ? (
+                  <>
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground text-sm">
+                          ${selectedPerp.ticker}
+                        </div>
+                        <div className="truncate text-muted-foreground text-xs">
+                          {selectedPerp.name}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                        {MARKET_TIME_RANGES.map((range) => (
+                          <button
+                            key={range}
+                            type="button"
+                            onClick={() => setPerpTimeRange(range)}
+                            className={cn(
+                              'rounded px-2 py-1 transition-colors',
+                              perpTimeRange === range
+                                ? 'bg-foreground text-background'
+                                : 'text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {range}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="min-h-0 flex-1 p-2">
+                      <PerpPriceChart
+                        data={perpHistory.map((p) => ({
+                          time: p.time,
+                          price: p.price,
+                        }))}
+                        currentPrice={selectedPerp.currentPrice}
+                        ticker={selectedPerp.ticker}
+                        timeRange={perpTimeRange}
+                        onTimeRangeChange={setPerpTimeRange}
+                        showHeader={false}
+                        className="h-full"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    Select a market
+                  </div>
+                )}
               </div>
             </div>
           )}
