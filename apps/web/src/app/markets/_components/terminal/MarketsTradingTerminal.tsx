@@ -5,7 +5,7 @@ import {
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import { Star, X } from 'lucide-react';
+import { Maximize2, Minimize2, Star, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
@@ -142,6 +142,13 @@ export function MarketsTradingTerminal({
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const terminalRootRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const previousOverflowRef = useRef<{
+    body: string;
+    html: string;
+  } | null>(null);
+
   const { user, authenticated, login, getAccessToken } = useAuth();
   const userId = authenticated ? (user?.id ?? null) : null;
 
@@ -206,6 +213,37 @@ export function MarketsTradingTerminal({
   // Mobile UI state
   const [isMobileMarketListOpen, setIsMobileMarketListOpen] = useState(false);
   const [isMobileTradeSheetOpen, setIsMobileTradeSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+
+    previousOverflowRef.current = {
+      body: document.body.style.overflow,
+      html: document.documentElement.style.overflow,
+    };
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflowRef.current?.body ?? '';
+      document.documentElement.style.overflow =
+        previousOverflowRef.current?.html ?? '';
+      previousOverflowRef.current = null;
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
+
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => !prev);
+  }, []);
 
   // One-way sync from URL → local UI state
   useEffect(() => {
@@ -1091,7 +1129,13 @@ export function MarketsTradingTerminal({
   );
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+    <div
+      ref={terminalRootRef}
+      className={cn(
+        'relative flex h-full w-full flex-col overflow-hidden bg-background text-foreground',
+        isFullscreen && 'fixed inset-0 z-[45] h-[100dvh] w-[100dvw] pt-safe'
+      )}
+    >
       {/* Desktop */}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
         {terminalHeader}
@@ -1200,6 +1244,26 @@ export function MarketsTradingTerminal({
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        aria-pressed={isFullscreen}
+        aria-label={
+          isFullscreen
+            ? 'Exit fullscreen terminal view'
+            : 'Enter fullscreen terminal view'
+        }
+        title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        className={cn(
+          'absolute z-40 hidden h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-background/70 text-muted-foreground shadow-lg backdrop-blur-md md:inline-flex',
+          'right-[calc(16px+env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))]',
+          'transition-colors hover:bg-muted/40 hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+        )}
+      >
+        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+      </button>
 
       {/* Mobile */}
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:hidden">
@@ -1390,14 +1454,34 @@ export function MarketsTradingTerminal({
             <div className="h-28 shrink-0" />
           </div>
 
-          <div className="pointer-events-none absolute bottom-[calc(72px+env(safe-area-inset-bottom)+24px)] left-0 z-30 flex w-full justify-center px-4">
+          <div className="pointer-events-none absolute bottom-[calc(72px+env(safe-area-inset-bottom)+24px)] left-0 z-30 flex w-full items-center px-4">
+            <div className="h-11 w-11 shrink-0" aria-hidden />
             <button
               type="button"
               onClick={() => setIsMobileTradeSheetOpen(true)}
-              className="pointer-events-auto w-full max-w-sm rounded-full bg-foreground py-3.5 font-bold text-background shadow-lg transition-transform active:scale-95"
+              className="pointer-events-auto mx-auto w-full max-w-sm rounded-full bg-foreground py-3.5 font-bold text-background shadow-lg transition-transform active:scale-95"
               disabled={!selected}
             >
               Trade
+            </button>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-pressed={isFullscreen}
+              aria-label={
+                isFullscreen
+                  ? 'Exit fullscreen terminal view'
+                  : 'Enter fullscreen terminal view'
+              }
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              className={cn(
+                'pointer-events-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-background/80 text-muted-foreground shadow-lg backdrop-blur-md',
+                'ml-3',
+                'transition-colors hover:bg-muted/40 hover:text-foreground',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+              )}
+            >
+              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
           </div>
 
