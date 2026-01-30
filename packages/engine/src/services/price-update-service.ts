@@ -120,7 +120,9 @@ export class PriceUpdateService {
 
       // Resolve basePrice for bounds enforcement
       // Priority: organizationState.basePrice > organization.initialPrice
-      const resolvedBasePrice = Number(state?.basePrice ?? organization?.initialPrice ?? 0);
+      const resolvedBasePrice = Number(
+        state?.basePrice ?? organization?.initialPrice ?? 0
+      );
       const hasValidBasePrice =
         Number.isFinite(resolvedBasePrice) && resolvedBasePrice > 0;
 
