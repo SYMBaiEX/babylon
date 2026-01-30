@@ -565,7 +565,7 @@ export async function executeClosePosition(
     position: {
       positionId: args.positionId,
       ticker: result.ticker,
-      side: result.side,
+      side: result.side.toUpperCase() as 'LONG' | 'SHORT',
       size: result.size,
       entryPrice: result.entryPrice ?? 0,
       exitPrice: result.exitPrice ?? 0,
