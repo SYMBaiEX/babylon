@@ -407,52 +407,80 @@ export class UserAlphaGroupAssignmentService {
           })
           .where(eq(groupMembers.id, existingMember.id));
 
-        // Also ensure chat participant is active
+        // Upsert chat participant - insert if missing, update if exists
         await tx
-          .update(chatParticipants)
-          .set({
+          .insert(chatParticipants)
+          .values({
+            id: participantId,
+            chatId: group.chatId,
+            userId,
+            invitedBy: group.npcId,
             isActive: true,
             joinedAt: new Date(),
           })
-          .where(
-            and(
-              eq(chatParticipants.chatId, group.chatId),
-              eq(chatParticipants.userId, userId)
-            )
-          );
+          .onConflictDoUpdate({
+            target: [chatParticipants.chatId, chatParticipants.userId],
+            set: {
+              isActive: true,
+              joinedAt: new Date(),
+            },
+          });
       });
 
       return { success: true };
     }
 
     // Create new membership using transaction for atomicity
-    await db.$transaction(async (tx) => {
-      // Add to group members
-      await tx.insert(groupMembers).values({
-        id: memberId,
-        groupId: group.groupId,
-        userId,
-        role: 'member',
-        addedBy: group.npcId, // NPC is the one adding them
-        tier: 3,
-        isActive: true,
-        joinedAt: new Date(),
-        messageCount: 0,
-        qualityScore: 1.0,
+    try {
+      await db.$transaction(async (tx) => {
+        // Re-check capacity inside transaction to prevent race conditions
+        const [currentCount] = await tx
+          .select({ count: count() })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, group.groupId),
+              eq(groupMembers.isActive, true)
+            )
+          );
+
+        const memberCount = currentCount?.count ?? 0;
+        if (memberCount >= group.maxMembers) {
+          throw new Error('GROUP_FULL');
+        }
+
+        // Add to group members
+        await tx.insert(groupMembers).values({
+          id: memberId,
+          groupId: group.groupId,
+          userId,
+          role: 'member',
+          addedBy: group.npcId, // NPC is the one adding them
+          tier: 3,
+          isActive: true,
+          joinedAt: new Date(),
+          messageCount: 0,
+          qualityScore: 1.0,
+        });
+
+        // Add to chat participants
+        await tx.insert(chatParticipants).values({
+          id: participantId,
+          chatId: group.chatId,
+          userId,
+          invitedBy: group.npcId,
+          isActive: true,
+          joinedAt: new Date(),
+        });
       });
 
-      // Add to chat participants
-      await tx.insert(chatParticipants).values({
-        id: participantId,
-        chatId: group.chatId,
-        userId,
-        invitedBy: group.npcId,
-        isActive: true,
-        joinedAt: new Date(),
-      });
-    });
-
-    return { success: true };
+      return { success: true };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'GROUP_FULL') {
+        return { success: false, error: 'Group is at capacity' };
+      }
+      throw error;
+    }
   }
 
   /**

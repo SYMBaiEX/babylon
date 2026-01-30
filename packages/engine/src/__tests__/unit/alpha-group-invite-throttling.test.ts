@@ -13,6 +13,31 @@
 import { describe, expect, it } from 'vitest';
 import { ALPHA_GROUP_CONFIG } from '../../config/alpha-group-config';
 
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
+/** Milliseconds per day */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Default assumed user pool size for invite rate calculations */
+const DEFAULT_USER_POOL_SIZE = 1000;
+
+/**
+ * Compute estimated daily invites per NPC based on probability settings.
+ *
+ * @param inviteChance - Base probability a user gets considered for invite
+ * @param tieredProbability - Additional tier-based probability multiplier
+ * @param userCount - Number of potential users in the pool (default 1000)
+ */
+function computeEstimatedDailyInvitesPerNpc(
+  inviteChance: number,
+  tieredProbability: number,
+  userCount = DEFAULT_USER_POOL_SIZE
+): number {
+  return inviteChance * tieredProbability * userCount;
+}
+
 describe('Alpha Group Invite Throttling Configuration', () => {
   describe('maxInvitesPerUserPerWeek', () => {
     it('should be a positive number', () => {
@@ -81,12 +106,12 @@ describe('Alpha Group Invite Throttling Configuration', () => {
   describe('Throttling effectiveness', () => {
     it('combined throttling should result in low daily invite rate', () => {
       // With typical settings, daily invites per NPC should be manageable
-      const estimatedDailyInvitesPerNpc =
-        ALPHA_GROUP_CONFIG.inviteUserChance *
-        ALPHA_GROUP_CONFIG.tieredInviteProbability *
-        1000; // Assuming 1000 potential users per NPC
+      const estimatedDailyInvitesPerNpc = computeEstimatedDailyInvitesPerNpc(
+        ALPHA_GROUP_CONFIG.inviteUserChance,
+        ALPHA_GROUP_CONFIG.tieredInviteProbability
+      );
 
-      // Should be reasonable (< 10 per NPC per day with 1000 users)
+      // Should be reasonable (< 10 per NPC per day with default user pool)
       expect(estimatedDailyInvitesPerNpc).toBeLessThan(10);
     });
 
@@ -121,10 +146,10 @@ describe('Throttling Logic', () => {
     it('should correctly calculate activity window start', () => {
       const days = ALPHA_GROUP_CONFIG.recentActivityDays;
       const now = Date.now();
-      const windowStart = now - days * 24 * 60 * 60 * 1000;
+      const windowStart = now - days * MS_PER_DAY;
 
       expect(windowStart).toBeLessThan(now);
-      expect(now - windowStart).toBe(days * 24 * 60 * 60 * 1000);
+      expect(now - windowStart).toBe(days * MS_PER_DAY);
     });
 
     it('should correctly identify recent activity', () => {
@@ -132,19 +157,15 @@ describe('Throttling Logic', () => {
       const now = new Date();
 
       // Activity within window
-      const recentActivity = new Date(
-        now.getTime() - (days - 1) * 24 * 60 * 60 * 1000
-      );
+      const recentActivity = new Date(now.getTime() - (days - 1) * MS_PER_DAY);
       expect(recentActivity.getTime()).toBeGreaterThan(
-        now.getTime() - days * 24 * 60 * 60 * 1000
+        now.getTime() - days * MS_PER_DAY
       );
 
       // Activity outside window
-      const oldActivity = new Date(
-        now.getTime() - (days + 1) * 24 * 60 * 60 * 1000
-      );
+      const oldActivity = new Date(now.getTime() - (days + 1) * MS_PER_DAY);
       expect(oldActivity.getTime()).toBeLessThan(
-        now.getTime() - days * 24 * 60 * 60 * 1000
+        now.getTime() - days * MS_PER_DAY
       );
     });
   });
@@ -165,10 +186,10 @@ describe('Configuration Consistency', () => {
     // - Recent active users only
     // - Limited per-user invites
 
-    const estimatedDailyInvitesPerNpc =
-      ALPHA_GROUP_CONFIG.inviteUserChance *
-      ALPHA_GROUP_CONFIG.tieredInviteProbability *
-      1000; // Assuming 1000 potential users per NPC
+    const estimatedDailyInvitesPerNpc = computeEstimatedDailyInvitesPerNpc(
+      ALPHA_GROUP_CONFIG.inviteUserChance,
+      ALPHA_GROUP_CONFIG.tieredInviteProbability
+    );
 
     // Combined probability should result in low invites per NPC per day
     expect(estimatedDailyInvitesPerNpc).toBeLessThan(10);
