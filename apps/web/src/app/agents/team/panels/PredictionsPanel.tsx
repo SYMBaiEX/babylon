@@ -4,9 +4,11 @@ import type { PredictionMarketData, PredictionsTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { CheckCircle, Clock, ExternalLink, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
-import type { PredictionMarket } from '@/types/markets';
+import { usePredictionHistory } from '@/hooks/usePredictionHistory';
+import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
 
 interface PredictionsPanelProps {
   data: PredictionsTagData;
@@ -36,10 +38,43 @@ function toPredictionMarket(
 export function PredictionsPanel({ data }: PredictionsPanelProps) {
   const [tradingPrediction, setTradingPrediction] =
     useState<PredictionMarket | null>(null);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('1D');
+
+  // Fetch history for single prediction view
+  const marketId = data.prediction ? String(data.prediction.id) : null;
+  const { history, loading: historyLoading } = usePredictionHistory(marketId, {
+    limit: 100,
+    range: timeRange,
+    seed: data.prediction
+      ? {
+          yesShares: data.prediction.yesShares,
+          noShares: data.prediction.noShares,
+        }
+      : undefined,
+  });
+
+  // Calculate live probability from history data
+  const liveData = useMemo(() => {
+    if (history.length === 0) {
+      return null;
+    }
+    const last = history[history.length - 1];
+    if (!last) return null;
+
+    // yesPrice is 0-1, convert to percentage
+    const yesPercent = Math.round(last.yesPrice * 100);
+    const noPercent = 100 - yesPercent;
+
+    return { yesPercent, noPercent };
+  }, [history]);
 
   // Handle single prediction view
   if (data.prediction) {
     const prediction = data.prediction;
+    // Use live data from chart if available, otherwise fall back to tag data
+    const displayYesPercent = liveData?.yesPercent ?? prediction.yesPercent;
+    const displayNoPercent = liveData?.noPercent ?? prediction.noPercent;
+
     const predictionMarket = toPredictionMarket(prediction);
 
     return (
@@ -65,15 +100,31 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
           <div className="rounded-lg bg-green-600/15 p-4">
             <div className="mb-1 text-green-600 text-xs">YES</div>
             <div className="font-bold text-3xl text-green-600">
-              {prediction.yesPercent}%
+              {displayYesPercent}%
             </div>
           </div>
           <div className="rounded-lg bg-red-600/15 p-4">
             <div className="mb-1 text-red-600 text-xs">NO</div>
             <div className="font-bold text-3xl text-red-600">
-              {prediction.noPercent}%
+              {displayNoPercent}%
             </div>
           </div>
+        </div>
+
+        {/* Probability Chart */}
+        <div className="mb-4">
+          {historyLoading && history.length === 0 ? (
+            <div className="h-[200px] animate-pulse rounded-lg bg-muted/30" />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border">
+              <PredictionProbabilityChart
+                data={history}
+                marketId={String(prediction.id)}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+              />
+            </div>
+          )}
         </div>
 
         {/* Progress Bar */}
@@ -81,11 +132,11 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
           <div className="flex overflow-hidden rounded-full bg-muted">
             <div
               className="h-3 bg-green-500 transition-all"
-              style={{ width: `${prediction.yesPercent}%` }}
+              style={{ width: `${displayYesPercent}%` }}
             />
             <div
               className="h-3 bg-red-500 transition-all"
-              style={{ width: `${prediction.noPercent}%` }}
+              style={{ width: `${displayNoPercent}%` }}
             />
           </div>
         </div>

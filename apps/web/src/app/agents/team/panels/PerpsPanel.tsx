@@ -4,9 +4,11 @@ import type { PerpMarketData, PerpsTagData } from '@babylon/shared';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import { ExternalLink, TrendingDown, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
 import { PerpTradingModal } from '@/components/markets/PerpTradingModal';
-import type { PerpMarket } from '@/types/markets';
+import { usePerpHistory } from '@/hooks/usePerpHistory';
+import type { MarketTimeRange, PerpMarket } from '@/types/markets';
 
 interface PerpsPanelProps {
   data: PerpsTagData;
@@ -37,11 +39,47 @@ function toPerpMarket(market: PerpMarketData): PerpMarket {
 
 export function PerpsPanel({ data }: PerpsPanelProps) {
   const [tradingMarket, setTradingMarket] = useState<PerpMarket | null>(null);
+  const [timeRange, setTimeRange] = useState<MarketTimeRange>('1D');
+
+  // Fetch history for single market view
+  const ticker = data.market?.ticker ?? null;
+  const { history, loading: historyLoading } = usePerpHistory(ticker, {
+    limit: 100,
+    range: timeRange,
+    seed: data.market ? { currentPrice: data.market.currentPrice } : undefined,
+  });
+
+  // Calculate live price and change from history data
+  const liveData = useMemo(() => {
+    if (history.length < 2) {
+      return null;
+    }
+    const first = history[0];
+    const last = history[history.length - 1];
+    if (!first || !last) return null;
+
+    const currentPrice = last.price;
+    const priceChange = currentPrice - first.price;
+    const changePercent =
+      first.price > 0 ? (priceChange / first.price) * 100 : 0;
+
+    return { currentPrice, changePercent };
+  }, [history]);
 
   // Handle single market view
   if (data.market) {
     const market = data.market;
-    const perpMarket = toPerpMarket(market);
+    // Use live data from chart if available, otherwise fall back to tag data
+    const displayPrice = liveData?.currentPrice ?? market.currentPrice;
+    const displayChangePercent =
+      liveData?.changePercent ?? market.changePercent24h;
+    const isPositive = displayChangePercent >= 0;
+
+    const perpMarket = toPerpMarket({
+      ...market,
+      currentPrice: displayPrice,
+      changePercent24h: displayChangePercent,
+    });
 
     return (
       <div className="p-4">
@@ -52,11 +90,11 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
             <span
               className={cn(
                 'font-semibold text-sm',
-                market.changePercent24h >= 0 ? 'text-green-500' : 'text-red-500'
+                isPositive ? 'text-green-500' : 'text-red-500'
               )}
             >
-              {market.changePercent24h >= 0 ? '+' : ''}
-              {market.changePercent24h.toFixed(2)}%
+              {isPositive ? '+' : ''}
+              {displayChangePercent.toFixed(2)}%
             </span>
           </div>
           {market.name && (
@@ -69,20 +107,41 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
           <div className="text-muted-foreground text-xs">Current Price</div>
           <div className="font-bold text-3xl">
             {BABYLON_POINTS_SYMBOL}
-            {market.currentPrice.toLocaleString()}
+            {displayPrice.toLocaleString()}
           </div>
+        </div>
+
+        {/* Price Chart */}
+        <div className="mb-4">
+          {historyLoading && history.length === 0 ? (
+            <div className="h-[200px] animate-pulse rounded-lg bg-muted/30" />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border">
+              <PerpPriceChart
+                data={history}
+                currentPrice={displayPrice}
+                ticker={market.ticker}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                showHeader={false}
+                className="h-[200px]"
+              />
+            </div>
+          )}
         </div>
 
         {/* Market Stats */}
         <div className="mb-4 grid grid-cols-2 gap-3">
-          <div className="rounded-lg bg-muted/30 p-3">
-            <div className="text-muted-foreground text-xs">24h Volume</div>
-            <div className="font-semibold text-sm">
-              {BABYLON_POINTS_SYMBOL}
-              {(market.volume24h / 1000).toFixed(1)}K
+          {market.volume24h != null && market.volume24h > 0 && (
+            <div className="rounded-lg bg-muted/30 p-3">
+              <div className="text-muted-foreground text-xs">24h Volume</div>
+              <div className="font-semibold text-sm">
+                {BABYLON_POINTS_SYMBOL}
+                {(market.volume24h / 1000).toFixed(1)}K
+              </div>
             </div>
-          </div>
-          {market.openInterest !== undefined && (
+          )}
+          {market.openInterest != null && market.openInterest > 0 && (
             <div className="rounded-lg bg-muted/30 p-3">
               <div className="text-muted-foreground text-xs">Open Interest</div>
               <div className="font-semibold text-sm">
@@ -91,14 +150,17 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
               </div>
             </div>
           )}
-          {market.fundingRate !== undefined && (
-            <div className="rounded-lg bg-muted/30 p-3">
-              <div className="text-muted-foreground text-xs">Funding Rate</div>
-              <div className="font-semibold text-sm">
-                {(market.fundingRate * 100).toFixed(4)}%
+          {market.fundingRate != null &&
+            Number.isFinite(market.fundingRate) && (
+              <div className="rounded-lg bg-muted/30 p-3">
+                <div className="text-muted-foreground text-xs">
+                  Funding Rate
+                </div>
+                <div className="font-semibold text-sm">
+                  {(market.fundingRate * 100).toFixed(4)}%
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* Trade Buttons */}

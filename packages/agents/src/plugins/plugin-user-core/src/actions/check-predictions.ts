@@ -9,6 +9,7 @@
  * - Resolution outcome (if resolved)
  */
 
+import { PredictionPricing } from '@babylon/core/markets/prediction/client';
 import { db, desc, eq, gte, markets } from '@babylon/db';
 import type { MessageTag } from '@babylon/shared';
 import type {
@@ -135,10 +136,19 @@ export const checkPredictionsAction: Action = {
 
         const yesShares = Number(prediction.yesShares || 0);
         const noShares = Number(prediction.noShares || 0);
-        const totalShares = yesShares + noShares;
-        const yesPercent =
-          totalShares > 0 ? Math.round((yesShares / totalShares) * 100) : 50;
-        const noPercent = 100 - yesPercent;
+        // Use AMM pricing formula: YES price = noShares / total (inverted from share ratio)
+        const yesPrice = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          'yes'
+        );
+        const noPrice = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          'no'
+        );
+        const yesPercent = Math.round(yesPrice * 100);
+        const noPercent = Math.round(noPrice * 100);
         const daysUntil = getDaysUntil(prediction.endDate);
 
         const predictionData = {
@@ -218,10 +228,19 @@ export const checkPredictionsAction: Action = {
       const formattedPredictions = predictions.map((p, i) => {
         const yesShares = Number(p.yesShares || 0);
         const noShares = Number(p.noShares || 0);
-        const totalShares = yesShares + noShares;
-        const yesPercent =
-          totalShares > 0 ? Math.round((yesShares / totalShares) * 100) : 50;
-        const noPercent = 100 - yesPercent;
+        // Use AMM pricing formula: YES price = noShares / total (inverted from share ratio)
+        const yesPrice = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          'yes'
+        );
+        const noPrice = PredictionPricing.getCurrentPrice(
+          yesShares,
+          noShares,
+          'no'
+        );
+        const yesPercent = Math.round(yesPrice * 100);
+        const noPercent = Math.round(noPrice * 100);
         const daysUntil = getDaysUntil(p.endDate);
 
         return {

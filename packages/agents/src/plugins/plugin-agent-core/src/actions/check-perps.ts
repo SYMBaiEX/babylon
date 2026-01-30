@@ -171,7 +171,7 @@ export const checkPerpsAction: Action = {
           changePercent24h: market.changePercent24h,
           volume24h: market.volume24h,
           openInterest: market.openInterest,
-          fundingRate: market.fundingRate,
+          fundingRate: market.fundingRate?.rate,
         };
 
         logger.info(
