@@ -680,6 +680,10 @@ export class AgentRuntimeManager {
     }
     await Promise.all(pluginRegistrationPromises);
 
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
+
     // Wrap and enhance with Babylon plugin
     // Use userId for USER_CONTROLLED agents (User table lookup), agentId for NPCs
     const babylonAgentId = userId || agentId;
@@ -872,6 +876,10 @@ export class AgentRuntimeManager {
       }
     }
     await Promise.all(pluginRegistrationPromises);
+
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
 
     // Store trajectory logger reference
     runtime.trajectoryLogger = trajectoryLogger;
