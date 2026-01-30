@@ -275,6 +275,7 @@ export function RightSidebar({
                     <div
                       key={tab.id}
                       role="tab"
+                      aria-selected={activeTabId === tab.id}
                       tabIndex={0}
                       onClick={() => onTabSelect(tab.id)}
                       onKeyDown={(e) => {

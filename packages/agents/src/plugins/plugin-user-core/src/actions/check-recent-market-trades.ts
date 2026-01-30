@@ -85,7 +85,11 @@ export const checkRecentMarketTradesAction: Action = {
     const actionParams = state?.data?.actionParams as
       | { limit?: number }
       | undefined;
-    const limit = Math.min(Math.max(actionParams?.limit ?? 15, 1), 30);
+    // Coerce and validate limit to handle non-numeric values
+    const rawLimit = actionParams?.limit;
+    const parsedLimit = typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
+    const validLimit = Number.isFinite(parsedLimit) ? parsedLimit : 15;
+    const limit = Math.min(Math.max(validLimit, 1), 30);
 
     // Fail-fast: let DB errors propagate to the action executor
     // Get recent NPC trades

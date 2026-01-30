@@ -1110,11 +1110,22 @@ export class TeamChatService {
   /**
    * Get the count of user messages in a chat.
    * Used to determine if this is the first message (for title generation).
+   * Validates chat ownership before returning the count.
    *
    * @param chatId - The chat ID
+   * @param userId - The user ID to validate ownership (optional for backwards compat, will be required)
    * @returns Number of user messages
+   * @throws Error if userId is provided and doesn't own the chat
    */
-  async getUserMessageCount(chatId: string): Promise<number> {
+  async getUserMessageCount(chatId: string, userId?: string): Promise<number> {
+    // If userId is provided, validate ownership
+    if (userId) {
+      const isOwner = await this.validateTeamChatOwnership(userId, chatId);
+      if (!isOwner) {
+        throw new Error('Unauthorized: User does not own this chat');
+      }
+    }
+
     const result = await db
       .select({ count: sql<number>`count(*)` })
       .from(messages)

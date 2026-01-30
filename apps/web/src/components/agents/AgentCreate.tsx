@@ -253,7 +253,14 @@ export function AgentCreate({
     return (
       <AgentSetupModal
         isOpen={true}
-        onClose={() => onBack?.()}
+        onClose={() => {
+          if (onBack) {
+            onBack();
+          } else {
+            // Fallback: go to step 2 if no onBack provided (allows user to continue)
+            setCurrentStep(Step.Prompts);
+          }
+        }}
         profileData={profileData}
         onSave={handleProfileSave}
       />

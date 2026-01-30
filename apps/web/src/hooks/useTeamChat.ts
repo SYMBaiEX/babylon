@@ -849,22 +849,25 @@ export function useTeamChat(): UseTeamChatReturn {
 
             let errorMessage = 'Coordinator failed to respond';
             try {
-              const errorData = (await coordinatorResponse.json()) as {
-                error?: string;
-                message?: string;
-              };
-              errorMessage =
-                errorData.error ||
-                errorData.message ||
-                'Coordinator failed to respond';
-            } catch {
-              // JSON parse failed - try to get raw text as fallback
-              try {
-                const rawText = await coordinatorResponse.text();
-                errorMessage = rawText || 'Invalid coordinator response';
-              } catch {
-                errorMessage = 'Invalid coordinator response';
+              // Read body once and parse JSON from text to avoid body consumption issues
+              const responseText = await coordinatorResponse.text();
+              if (responseText) {
+                try {
+                  const errorData = JSON.parse(responseText) as {
+                    error?: string;
+                    message?: string;
+                  };
+                  errorMessage =
+                    errorData.error ||
+                    errorData.message ||
+                    'Coordinator failed to respond';
+                } catch {
+                  // JSON parse failed - use raw text as fallback
+                  errorMessage = responseText || 'Invalid coordinator response';
+                }
               }
+            } catch {
+              errorMessage = 'Invalid coordinator response';
             }
 
             if (errorMessage.toLowerCase().includes('insufficient')) {

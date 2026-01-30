@@ -44,10 +44,12 @@ export const coordinatorTeamMembersProvider: Provider = {
         data: {
           teamMembers: [],
           memberCount: 0,
+          agentCount: 0,
         },
         values: {
           teamMembers: '',
           memberCount: 0,
+          agentCount: 0,
           hasTeamMembers: false,
         },
         text: '',
@@ -76,10 +78,12 @@ export const coordinatorTeamMembersProvider: Provider = {
         data: {
           teamMembers: [],
           memberCount: 0,
+          agentCount: 0,
         },
         values: {
           teamMembers: 'No team members found.',
           memberCount: 0,
+          agentCount: 0,
           hasTeamMembers: false,
         },
         text: 'No team members found.',
@@ -103,8 +107,9 @@ export const coordinatorTeamMembersProvider: Provider = {
       formattedMembers += agents
         .map((agent) => {
           const name = agent.displayName || agent.username || 'Unknown';
-          const handle = agent.username ? `@${agent.username}` : '';
-          return `- ${name} (${handle}) - Available for tasks`;
+          // Only include handle portion when username exists
+          const handleSuffix = agent.username ? ` (@${agent.username})` : '';
+          return `- ${name}${handleSuffix} - Available for tasks`;
         })
         .join('\n');
     } else {

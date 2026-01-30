@@ -464,17 +464,27 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Fallback to state cache if callback didn't capture
     let actionResult = resultHolder.result;
     if (!actionResult) {
-      const runtimeWithCache = runtime as unknown as {
-        stateCache?: Map<string, CachedActionState>;
-      };
-      const cachedState = runtimeWithCache.stateCache?.get(
-        `${elizaMessage.id}_action_results`
-      );
-      const actionResultsFromCache = cachedState?.values?.actionResults || [];
-      actionResult =
-        actionResultsFromCache.length > 0
-          ? (actionResultsFromCache[0] ?? null)
-          : null;
+      // Access stateCache via public getter if available, otherwise use guarded internal access
+      const runtimeAny = runtime as unknown as Record<string, unknown>;
+      let cachedState: CachedActionState | undefined;
+      
+      if (typeof runtimeAny.getCachedActionResults === 'function') {
+        // Use public API if available
+        const results = runtimeAny.getCachedActionResults(elizaMessage.id) as ActionResultContent[] | undefined;
+        if (results && results.length > 0) {
+          actionResult = results[0] ?? null;
+        }
+      } else if (runtimeAny.stateCache instanceof Map) {
+        // Guarded fallback to internal stateCache
+        const stateCache = runtimeAny.stateCache as Map<string, CachedActionState>;
+        cachedState = stateCache.get(`${elizaMessage.id}_action_results`);
+        const actionResultsFromCache = cachedState?.values?.actionResults || [];
+        actionResult =
+          actionResultsFromCache.length > 0
+            ? (actionResultsFromCache[0] ?? null)
+            : null;
+      }
+      // If neither method works, actionResult remains null (already handled downstream)
     }
     const success = actionResult?.success ?? true;
 

@@ -64,8 +64,8 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
     if (history.length === 0) {
       return null;
     }
-    const last = history[history.length - 1];
-    if (!last) return null;
+    // Non-null assertion is safe here because history.length > 0
+    const last = history[history.length - 1]!;
 
     // yesPrice is 0-1, convert to percentage
     const yesPercent = Math.round(last.yesPrice * 100);

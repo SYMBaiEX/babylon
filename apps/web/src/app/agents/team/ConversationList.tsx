@@ -27,11 +27,13 @@ function getConversationDisplayName(conversation: ConversationInfo): string {
     return 'New Chat';
   }
 
-  const dateStr = date.toLocaleDateString('en-US', {
+  // Use browser locale if available, otherwise undefined for system default
+  const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const dateStr = date.toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
   });
-  const timeStr = date.toLocaleTimeString('en-US', {
+  const timeStr = date.toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,

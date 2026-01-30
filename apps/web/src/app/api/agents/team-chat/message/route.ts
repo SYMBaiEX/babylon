@@ -96,12 +96,23 @@ Message: "${firstMessage.slice(0, 200)}"
 
 Title:`;
 
-    const result = await generateText({
-      model: groq('llama-3.1-8b-instant'),
-      prompt,
-      temperature: 0.7,
-      maxOutputTokens: 50,
-    });
+    // Add timeout to prevent hanging on slow API responses
+    const GENERATE_TIMEOUT_MS = 10000;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), GENERATE_TIMEOUT_MS);
+
+    let result: { text: string };
+    try {
+      result = await generateText({
+        model: groq('llama-3.1-8b-instant'),
+        prompt,
+        temperature: 0.7,
+        maxTokens: 50,
+        abortSignal: abortController.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const title = result.text.trim().slice(0, 50);
 
@@ -256,7 +267,8 @@ export async function POST(req: NextRequest) {
   const needsTitle = await teamChatService.chatNeedsTitle(teamChat.chatId);
   if (needsTitle) {
     const messageCount = await teamChatService.getUserMessageCount(
-      teamChat.chatId
+      teamChat.chatId,
+      user.id
     );
     // Only generate on first message (count is 1 after insert)
     if (messageCount === 1) {

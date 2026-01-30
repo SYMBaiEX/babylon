@@ -28,6 +28,28 @@ interface Transaction {
   createdAt: string;
 }
 
+/** Response from /api/agents/[agentId]/trading-balance */
+interface WalletResponse {
+  success: boolean;
+  agentBalance: {
+    tradingBalance: number;
+    lifetimePnL: number;
+    totalDeposited?: number;
+    totalWithdrawn?: number;
+  };
+  userBalance: number;
+  transactions?: Transaction[];
+}
+
+/** Response from /api/agents/[agentId] */
+interface AgentResponse {
+  agent?: {
+    totalTrades?: number;
+    profitableTrades?: number;
+    winRate?: number;
+  };
+}
+
 interface AgentPortfolioProps {
   agentId: string;
   agentName: string;
@@ -108,16 +130,16 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         );
         toast.error('Failed to load wallet balance');
       } else {
-        const data = await walletRes.json();
+        const data = (await walletRes.json()) as WalletResponse;
         if (data.success) {
           setBalanceInfo({
             agentBalance: data.agentBalance.tradingBalance,
             userBalance: data.userBalance,
             lifetimePnL: data.agentBalance.lifetimePnL,
-            totalDeposited: data.agentBalance.totalDeposited || 0,
-            totalWithdrawn: data.agentBalance.totalWithdrawn || 0,
+            totalDeposited: data.agentBalance.totalDeposited ?? 0,
+            totalWithdrawn: data.agentBalance.totalWithdrawn ?? 0,
           });
-          setTransactions(data.transactions || []);
+          setTransactions(data.transactions ?? []);
         }
       }
 
@@ -134,12 +156,12 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         );
         // Don't show toast for this - wallet balance is more important
       } else {
-        const data = await agentRes.json();
+        const data = (await agentRes.json()) as AgentResponse;
         if (data.agent) {
           setAgentStats({
-            totalTrades: data.agent.totalTrades || 0,
-            profitableTrades: data.agent.profitableTrades || 0,
-            winRate: data.agent.winRate || 0,
+            totalTrades: data.agent.totalTrades ?? 0,
+            profitableTrades: data.agent.profitableTrades ?? 0,
+            winRate: data.agent.winRate ?? 0,
           });
         }
       }

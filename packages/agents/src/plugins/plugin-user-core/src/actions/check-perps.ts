@@ -105,7 +105,12 @@ export const checkPerpsAction: Action = {
       | undefined;
     const ticker = actionParams?.ticker?.toUpperCase();
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 20);
-    const sortBy = (actionParams?.sortBy as SortOption) ?? 'volume';
+    // Validate sortBy against allowed values
+    const validSortOptions: Set<SortOption> = new Set(['price', 'change', 'volume', 'name']);
+    const rawSortBy = actionParams?.sortBy;
+    const sortBy: SortOption = (rawSortBy && validSortOptions.has(rawSortBy as SortOption))
+      ? (rawSortBy as SortOption)
+      : 'volume';
 
     // Create wallet adapter (needed for PerpMarketService but we won't use it for reads)
     const walletAdapter = {

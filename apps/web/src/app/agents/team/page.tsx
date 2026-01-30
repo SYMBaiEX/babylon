@@ -215,18 +215,22 @@ export default function TeamChatPage() {
     (tabId: string) => {
       setRightSidebarTabs((prev) => {
         const newTabs = prev.filter((t) => t.id !== tabId);
-        // If closing active tab, switch to last tab or close sidebar
-        if (activeRightTabId === tabId) {
-          const lastTab = newTabs[newTabs.length - 1];
+        return newTabs;
+      });
+      // Handle active tab logic outside the updater
+      if (activeRightTabId === tabId) {
+        // Use functional update to get the latest tabs state
+        setRightSidebarTabs((currentTabs) => {
+          const lastTab = currentTabs[currentTabs.length - 1];
           if (lastTab) {
             setActiveRightTabId(lastTab.id);
           } else {
             setActiveRightTabId(null);
             setRightSidebarOpen(false);
           }
-        }
-        return newTabs;
-      });
+          return currentTabs; // No mutation, just reading
+        });
+      }
     },
     [activeRightTabId]
   );
@@ -239,26 +243,17 @@ export default function TeamChatPage() {
   // Handle tag click from message bubble - opens panel in right sidebar
   // Reuses existing tab if same type (and entityId for single-item views)
   const handleTagClick = useCallback((tag: MessageTag) => {
+    // Compute the expected tab ID
+    const tabId = tag.entityId
+      ? `${tag.type}-id-${tag.entityId}`
+      : `${tag.type}-list`;
+
     setRightSidebarTabs((prev) => {
       // Check if a matching tab already exists
-      // For tags with entityId (specific item), match by exact ID
-      // For tags without entityId (list view), match by type-list ID
-      const existingTab = prev.find((t) => {
-        if (tag.entityId) {
-          // Single item view - match by exact constructed ID to avoid substring false positives
-          const expectedId = `${tag.type}-id-${tag.entityId}`;
-          return t.id === expectedId;
-        }
-        // List view - match by exact list ID
-        const expectedListId = `${tag.type}-list`;
-        return t.id === expectedListId;
-      });
+      const existingTab = prev.find((t) => t.id === tabId);
 
       if (existingTab) {
-        // Tab exists - just switch to it (update data in case it changed)
-        setActiveRightTabId(existingTab.id);
-        setRightSidebarOpen(true);
-        // Update the data for the existing tab
+        // Tab exists - update the data for the existing tab
         return prev.map((t) =>
           t.id === existingTab.id
             ? { ...t, data: tag.data, title: tag.label }
@@ -266,14 +261,7 @@ export default function TeamChatPage() {
         );
       }
 
-      // Create new tab with unique ID
-      const tabId = tag.entityId
-        ? `${tag.type}-id-${tag.entityId}`
-        : `${tag.type}-list`;
-
-      setActiveRightTabId(tabId);
-      setRightSidebarOpen(true);
-
+      // Create new tab
       return [
         ...prev,
         {
@@ -284,6 +272,10 @@ export default function TeamChatPage() {
         },
       ];
     });
+
+    // Set active tab and open sidebar outside the updater
+    setActiveRightTabId(tabId);
+    setRightSidebarOpen(true);
   }, []);
 
   // Handle selectAgent from query parameter (when redirected from agent profile)
@@ -736,15 +728,16 @@ export default function TeamChatPage() {
             await refreshTeamChat();
             // Use the agent parameter directly to avoid stale closure
             if (agent.username) {
-              // Use the agent directly from onSuccess parameter to avoid stale closure
+              // Fetch the full agent data from refreshed teamChat
+              const fullAgent = teamChat?.agents.find((a) => a.id === agent.id);
               tagAgentInInput({
                 id: agent.id,
                 username: agent.username,
-                displayName: null,
-                profileImageUrl: null,
+                displayName: fullAgent?.displayName ?? null,
+                profileImageUrl: fullAgent?.profileImageUrl ?? null,
                 isAgent: true,
-                modelTier: 'pro',
-                virtualBalance: 0,
+                modelTier: fullAgent?.modelTier ?? 'pro',
+                virtualBalance: fullAgent?.virtualBalance ?? 0,
               });
             }
           }}

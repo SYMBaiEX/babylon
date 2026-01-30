@@ -67,22 +67,10 @@ export const coordinatorActionsProvider: Provider = {
     state: State
   ): Promise<ProviderResult> => {
     // Get actions that validate for this message
-    // Wrap each validation in try/catch to isolate errors per-action
+    // Let validation errors propagate (fail-fast) per coding guidelines
     const actionPromises = runtime.actions.map(async (action: Action) => {
-      try {
-        const result = await action.validate(runtime, message, state);
-        if (result) {
-          return action;
-        }
-        return null;
-      } catch (err) {
-        // Log the error but don't let one failing action crash the provider
-        console.error(
-          `[ActionsProvider] Action "${action.name}" validation threw:`,
-          err instanceof Error ? err.message : err
-        );
-        return null;
-      }
+      const result = await action.validate(runtime, message, state);
+      return result ? action : null;
     });
 
     const resolvedActions = await Promise.all(actionPromises);
