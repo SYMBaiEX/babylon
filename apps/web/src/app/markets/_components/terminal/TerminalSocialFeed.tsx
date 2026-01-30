@@ -1,15 +1,46 @@
 'use client';
 
-import type { FeedPost } from '@babylon/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { cn, type FeedPost } from '@babylon/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PostList } from '@/app/feed/components/PostList';
 import { useFeedPosts } from '@/app/feed/hooks/useFeedPosts';
 import { FeedSkeleton } from '@/components/shared/Skeleton';
 
-export function TerminalSocialFeed() {
+interface TerminalSocialFeedProps {
+  perpTicker?: string | null;
+}
+
+export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
-  const { posts, loading, loadingMore, hasMore, cursor, fetchPosts } =
-    useFeedPosts();
+  const tag = useMemo(() => {
+    const t = perpTicker?.trim();
+    if (!t) return null;
+    return t.replace(/^\$/, '').toLowerCase();
+  }, [perpTicker]);
+
+  const [tagPosts, setTagPosts] = useState<FeedPost[]>([]);
+  const [tagInfo, setTagInfo] = useState<{
+    name: string;
+    displayName: string;
+    category?: string | null;
+  } | null>(null);
+  const [tagLoading, setTagLoading] = useState(false);
+  const [tagLoadingMore, setTagLoadingMore] = useState(false);
+  const [tagHasMore, setTagHasMore] = useState(true);
+  const [tagOffset, setTagOffset] = useState(0);
+  const [tagNotFound, setTagNotFound] = useState(false);
+  const inFlightTagRef = useRef<AbortController | null>(null);
+
+  const tagMode = tag != null && !tagNotFound;
+
+  const {
+    posts: globalPosts,
+    loading: globalLoading,
+    loadingMore: globalLoadingMore,
+    hasMore: globalHasMore,
+    cursor: globalCursor,
+    fetchPosts: fetchGlobalPosts,
+  } = useFeedPosts({ enabled: !tagMode });
 
   useEffect(() => {
     const loadActorNames = async () => {
@@ -27,13 +58,139 @@ export function TerminalSocialFeed() {
     void loadActorNames();
   }, []);
 
+  const fetchTagPosts = useCallback(
+    async ({ append }: { append: boolean }) => {
+      if (!tag) return;
+
+      if (append) setTagLoadingMore(true);
+      else setTagLoading(true);
+
+      inFlightTagRef.current?.abort();
+      const controller = new AbortController();
+      inFlightTagRef.current = controller;
+
+      const limit = 20;
+      const offset = append ? tagOffset : 0;
+
+      const response = await fetch(
+        `/api/trending/${encodeURIComponent(tag)}?limit=${limit}&offset=${offset}`,
+        { signal: controller.signal }
+      ).catch(() => null);
+
+      if (!response) {
+        setTagLoading(false);
+        setTagLoadingMore(false);
+        return;
+      }
+
+      if (response.status === 404) {
+        setTagNotFound(true);
+        setTagPosts([]);
+        setTagInfo(null);
+        setTagHasMore(true);
+        setTagOffset(0);
+        setTagLoading(false);
+        setTagLoadingMore(false);
+        return;
+      }
+
+      if (!response.ok) {
+        setTagLoading(false);
+        setTagLoadingMore(false);
+        return;
+      }
+
+      const data = (await response.json()) as {
+        success: boolean;
+        tag?: { name: string; displayName: string; category?: string | null };
+        posts?: FeedPost[];
+        total?: number;
+      };
+
+      if (!data.success) {
+        setTagLoading(false);
+        setTagLoadingMore(false);
+        return;
+      }
+
+      if (data.tag) setTagInfo(data.tag);
+      const newPosts = data.posts ?? [];
+
+      setTagPosts((prev) => {
+        const combined = append ? [...prev, ...newPosts] : newPosts;
+        const unique = new Map<string, FeedPost>();
+        combined.forEach((p) => unique.set(p.id, p));
+        return Array.from(unique.values()).sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? 0).getTime();
+          const bTime = new Date(b.timestamp ?? 0).getTime();
+          return bTime - aTime;
+        });
+      });
+
+      const nextOffset = offset + newPosts.length;
+      setTagOffset(nextOffset);
+      setTagHasMore(newPosts.length === limit);
+      setTagLoading(false);
+      setTagLoadingMore(false);
+    },
+    [tag, tagOffset]
+  );
+
+  useEffect(() => {
+    setTagNotFound(false);
+    setTagPosts([]);
+    setTagInfo(null);
+    setTagHasMore(true);
+    setTagOffset(0);
+    if (!tag) return;
+    void fetchTagPosts({ append: false });
+  }, [tag, fetchTagPosts]);
+
   const onLoadMore = useCallback(() => {
-    if (!cursor) return;
-    void fetchPosts(cursor, true);
-  }, [cursor, fetchPosts]);
+    if (tagMode) {
+      if (!tagHasMore || tagLoadingMore) return;
+      void fetchTagPosts({ append: true });
+      return;
+    }
+    if (!globalCursor) return;
+    void fetchGlobalPosts(globalCursor, true);
+  }, [
+    fetchGlobalPosts,
+    fetchTagPosts,
+    globalCursor,
+    tagHasMore,
+    tagLoadingMore,
+    tagMode,
+  ]);
+
+  const posts = tagMode ? tagPosts : globalPosts;
+  const loading = tagMode ? tagLoading : globalLoading;
+  const loadingMore = tagMode ? tagLoadingMore : globalLoadingMore;
+  const hasMore = tagMode ? tagHasMore : globalHasMore;
 
   return (
     <div className="h-full overflow-auto px-2 py-3">
+      {tagMode && (
+        <div
+          className={cn(
+            'mb-3 flex items-center justify-between rounded-md border border-white/5 bg-background/40 px-3 py-2 text-muted-foreground text-xs'
+          )}
+        >
+          <span className="min-w-0 truncate">
+            Showing posts for{' '}
+            <span className="font-semibold text-foreground">
+              {tagInfo?.displayName ?? perpTicker}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setTagNotFound(true)}
+            className="shrink-0 rounded px-2 py-1 font-semibold text-foreground/80 hover:bg-muted/20 hover:text-foreground"
+          >
+            Show all
+          </button>
+        </div>
+      )}
       {loading ? (
         <FeedSkeleton count={6} />
       ) : posts.length === 0 ? (

@@ -1549,7 +1549,7 @@ export function MarketsTradingTerminal({
   const bottomPanel = (
     <div className="flex h-full min-h-0 flex-col bg-background/20">
       <div className="flex items-center justify-between border-white/5 border-b bg-background/30 px-2">
-        <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1">
           <TabButton
             active={bottomTab === 'agent'}
             onClick={() => setBottomTab('agent')}
@@ -1574,12 +1574,6 @@ export function MarketsTradingTerminal({
           >
             Trades
           </TabButton>
-          <TabButton active={false} onClick={() => {}} disabled soon>
-            Orders
-          </TabButton>
-          <TabButton active={false} onClick={() => {}} disabled soon>
-            PnL
-          </TabButton>
         </div>
         <button
           type="button"
@@ -1595,7 +1589,11 @@ export function MarketsTradingTerminal({
         {bottomTab === 'agent' ? (
           <TerminalAgentsChat />
         ) : bottomTab === 'social' ? (
-          <TerminalSocialFeed />
+          <TerminalSocialFeed
+            perpTicker={
+              selected?.kind === 'perp' ? (selectedPerp?.ticker ?? null) : null
+            }
+          />
         ) : bottomTab === 'positions' ? (
           !authenticated ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
@@ -1937,12 +1935,12 @@ export function MarketsTradingTerminal({
             </div>
 
             <div className="sticky top-0 z-30 flex h-12 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
-              <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto">
+              <div className="flex min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={() => setBottomTab('agent')}
                   className={cn(
-                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
                     bottomTab === 'agent'
                       ? 'text-foreground'
                       : 'text-muted-foreground'
@@ -1957,7 +1955,7 @@ export function MarketsTradingTerminal({
                   type="button"
                   onClick={() => setBottomTab('social')}
                   className={cn(
-                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
                     bottomTab === 'social'
                       ? 'text-foreground'
                       : 'text-muted-foreground'
@@ -1972,7 +1970,7 @@ export function MarketsTradingTerminal({
                   type="button"
                   onClick={() => setBottomTab('positions')}
                   className={cn(
-                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
                     bottomTab === 'positions'
                       ? 'text-foreground'
                       : 'text-muted-foreground'
@@ -1987,7 +1985,7 @@ export function MarketsTradingTerminal({
                   type="button"
                   onClick={() => setBottomTab('trades')}
                   className={cn(
-                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
                     bottomTab === 'trades'
                       ? 'text-foreground'
                       : 'text-muted-foreground'
@@ -1998,16 +1996,6 @@ export function MarketsTradingTerminal({
                     <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
                   )}
                 </button>
-                <button
-                  type="button"
-                  disabled
-                  className="flex h-full min-w-[88px] flex-none cursor-not-allowed items-center justify-center py-3 font-bold text-muted-foreground text-sm capitalize opacity-60"
-                >
-                  Orders
-                  <span className="ml-2 rounded-full bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Soon
-                  </span>
-                </button>
               </div>
             </div>
 
@@ -2015,7 +2003,13 @@ export function MarketsTradingTerminal({
               {bottomTab === 'agent' ? (
                 <TerminalAgentsChat />
               ) : bottomTab === 'social' ? (
-                <TerminalSocialFeed />
+                <TerminalSocialFeed
+                  perpTicker={
+                    selected?.kind === 'perp'
+                      ? (selectedPerp?.ticker ?? null)
+                      : null
+                  }
+                />
               ) : bottomTab === 'positions' ? (
                 !authenticated ? (
                   <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
