@@ -1164,10 +1164,10 @@ export function MarketsTradingTerminal({
 
               <div className="flex flex-col gap-2 lg:items-end">
                 <div className="flex items-center gap-2">
-                  <div className="rounded-full bg-green-600/10 px-2 py-1 font-bold text-[10px] text-green-500 tabular-nums">
+                  <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
                     YES {formatYesPct(predictionYesPct)}
                   </div>
-                  <div className="rounded-full bg-red-600/10 px-2 py-1 font-bold text-[10px] text-red-500 tabular-nums">
+                  <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
                     NO {formatYesPct(100 - predictionYesPct)}
                   </div>
                   <button
@@ -1847,10 +1847,10 @@ export function MarketsTradingTerminal({
 
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="rounded-full bg-green-600/10 px-2 py-1 font-bold text-[10px] text-green-500 tabular-nums">
+                        <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
                           YES {formatYesPct(predictionYesPct)}
                         </div>
-                        <div className="rounded-full bg-red-600/10 px-2 py-1 font-bold text-[10px] text-red-500 tabular-nums">
+                        <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
                           NO {formatYesPct(100 - predictionYesPct)}
                         </div>
                       </div>

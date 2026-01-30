@@ -160,7 +160,7 @@ export function PredictionProbabilityChart({
       setChartInitError(null);
 
       const yesOptions = {
-        ...AREA_STYLES.green,
+        ...AREA_STYLES.bluePastel,
         priceFormat: {
           type: 'custom' as const,
           formatter: (price: number) => `${price.toFixed(1)}%`,
@@ -169,7 +169,7 @@ export function PredictionProbabilityChart({
       };
 
       const noOptions = {
-        ...LINE_STYLES.red,
+        ...LINE_STYLES.violetPastel,
         priceFormat: {
           type: 'custom' as const,
           formatter: (price: number) => `${price.toFixed(1)}%`,
@@ -287,13 +287,13 @@ export function PredictionProbabilityChart({
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-green-600" />
+              <div className="h-3 w-3 rounded-full bg-blue-400" />
               <span className="font-semibold text-sm">
                 YES {currentProbability.toFixed(1)}%
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-red-600" />
+              <div className="h-3 w-3 rounded-full bg-violet-400" />
               <span className="font-semibold text-sm">
                 NO {(100 - currentProbability).toFixed(1)}%
               </span>
@@ -345,14 +345,14 @@ export function PredictionProbabilityChart({
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#22c55e' }}
+            style={{ backgroundColor: '#60a5fa' }}
           />
           <span>YES Probability</span>
         </div>
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#ef4444' }}
+            style={{ backgroundColor: '#a78bfa' }}
           />
           <span>NO Probability</span>
         </div>
