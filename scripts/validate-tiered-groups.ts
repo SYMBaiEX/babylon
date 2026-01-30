@@ -29,18 +29,31 @@ interface ValidationResult {
   error?: string;
 }
 
-const results: ValidationResult[] = [];
+/** Type guard to check if an object has a function at the given key */
+function hasFunction(obj: unknown, key: string): boolean {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    key in obj &&
+    typeof (obj as Record<string, unknown>)[key] === 'function'
+  );
+}
 
 function log(message: string, data?: Record<string, unknown>) {
   logger.info(message, data ?? {}, 'validate-tiered-groups');
 }
 
-function pass(name: string, details: Record<string, unknown> = {}) {
+function pass(
+  results: ValidationResult[],
+  name: string,
+  details: Record<string, unknown> = {}
+) {
   results.push({ name, passed: true, details });
   console.log(`✅ ${name}`);
 }
 
 function fail(
+  results: ValidationResult[],
   name: string,
   error: string,
   details: Record<string, unknown> = {}
@@ -49,13 +62,14 @@ function fail(
   console.log(`❌ ${name}: ${error}`);
 }
 
-async function validateTierGroupsExist() {
+async function validateTierGroupsExist(results: ValidationResult[]) {
   log('Checking tier groups exist...');
 
   const analytics = await TieredGroupService.getGlobalAnalytics();
 
   if (analytics.totalGroups === 0) {
     fail(
+      results,
       'Tier Groups Exist',
       'No tier groups found. Run bootstrap-alpha-groups.ts first.',
       analytics
@@ -72,6 +86,7 @@ async function validateTierGroupsExist() {
     tiers[2] !== 3
   ) {
     fail(
+      results,
       'All 3 Tiers Present',
       `Only found tiers: ${tiers.join(', ')}`,
       analytics
@@ -87,6 +102,7 @@ async function validateTierGroupsExist() {
 
   if (analytics.totalGroups < expectedGroups * 0.9) {
     fail(
+      results,
       'Tier Groups Complete',
       `Expected ~${expectedGroups} groups, found ${analytics.totalGroups}`,
       { expected: expectedGroups, actual: analytics.totalGroups }
@@ -94,7 +110,7 @@ async function validateTierGroupsExist() {
     return;
   }
 
-  pass('Tier Groups Exist', {
+  pass(results, 'Tier Groups Exist', {
     totalNpcs: analytics.totalNpcs,
     totalGroups: analytics.totalGroups,
     totalCapacity: analytics.totalCapacity,
@@ -103,22 +119,27 @@ async function validateTierGroupsExist() {
   });
 }
 
-async function validateCapacityStats() {
+async function validateCapacityStats(results: ValidationResult[]) {
   log('Checking capacity stats...');
 
   const stats = await UserAlphaGroupAssignmentService.getCapacityStats();
 
   if (stats.totalTier3Groups === 0) {
-    fail('Tier 3 Capacity', 'No Tier 3 groups found', stats);
+    fail(results, 'Tier 3 Capacity', 'No Tier 3 groups found', stats);
     return;
   }
 
   if (stats.availableSlots <= 0) {
-    fail('Available Capacity', 'No available slots in Tier 3 groups', stats);
+    fail(
+      results,
+      'Available Capacity',
+      'No available slots in Tier 3 groups',
+      stats
+    );
     return;
   }
 
-  pass('Capacity Stats', {
+  pass(results, 'Capacity Stats', {
     tier3Groups: stats.totalTier3Groups,
     capacity: stats.totalTier3Capacity,
     currentMembers: stats.currentTier3Members,
@@ -128,12 +149,12 @@ async function validateCapacityStats() {
   });
 }
 
-async function validateInviteStats() {
+async function validateInviteStats(results: ValidationResult[]) {
   log('Checking invite stats...');
 
   const stats = await AlphaGroupInviteService.getInviteStats();
 
-  pass('Invite Stats', {
+  pass(results, 'Invite Stats', {
     totalInvites: stats.totalInvites,
     activeGroups: stats.activeGroups,
     invitesLast24h: stats.invitesLast24h,
@@ -141,10 +162,16 @@ async function validateInviteStats() {
   });
 }
 
-async function validateUserDefaultGroupAssignment(userId?: string) {
+async function validateUserDefaultGroupAssignment(
+  results: ValidationResult[],
+  userId?: string
+) {
   log('Testing user default group assignment...');
 
-  if (!userId) {
+  // Resolve the user ID to check (avoid reassigning parameter)
+  let resolvedUserId = userId;
+
+  if (!resolvedUserId) {
     // Find a test user or create a mock check
     const [testUser] = await db
       .select({ id: users.id, username: users.username })
@@ -160,14 +187,14 @@ async function validateUserDefaultGroupAssignment(userId?: string) {
       .limit(1);
 
     if (!testUser) {
-      pass('User Default Group Assignment', {
+      pass(results, 'User Default Group Assignment', {
         skipped: true,
         reason: 'No eligible test user found',
       });
       return;
     }
 
-    userId = testUser.id;
+    resolvedUserId = testUser.id;
   }
 
   // Check current group count
@@ -177,7 +204,7 @@ async function validateUserDefaultGroupAssignment(userId?: string) {
     .innerJoin(groups, eq(groupMembers.groupId, groups.id))
     .where(
       and(
-        eq(groupMembers.userId, userId),
+        eq(groupMembers.userId, resolvedUserId),
         eq(groupMembers.isActive, true),
         eq(groups.type, 'npc')
       )
@@ -185,8 +212,8 @@ async function validateUserDefaultGroupAssignment(userId?: string) {
 
   const npcGroupCount = currentCount?.count ?? 0;
 
-  pass('User Default Group Assignment', {
-    userId,
+  pass(results, 'User Default Group Assignment', {
+    userId: resolvedUserId,
     currentNpcGroups: npcGroupCount,
     hasMinimumGroups: npcGroupCount >= 3,
     note:
@@ -196,7 +223,7 @@ async function validateUserDefaultGroupAssignment(userId?: string) {
   });
 }
 
-async function validateAgentInheritance() {
+async function validateAgentInheritance(results: ValidationResult[]) {
   log('Testing agent group inheritance...');
 
   // Find an agent with a managed owner
@@ -211,7 +238,7 @@ async function validateAgentInheritance() {
     .limit(1);
 
   if (!agent || !agent.managedBy) {
-    pass('Agent Inheritance', {
+    pass(results, 'Agent Inheritance', {
       skipped: true,
       reason: 'No agents with owners found',
     });
@@ -219,10 +246,10 @@ async function validateAgentInheritance() {
   }
 
   // Check if owner has any NPC group memberships
-  const [ownerGroups] = await db
+  // Note: groups.id is the groupId, not chatId - renamed for clarity
+  const [ownerGroup] = await db
     .select({
       groupId: groupMembers.groupId,
-      chatId: groups.id,
     })
     .from(groupMembers)
     .innerJoin(groups, eq(groupMembers.groupId, groups.id))
@@ -235,8 +262,8 @@ async function validateAgentInheritance() {
     )
     .limit(1);
 
-  if (!ownerGroups) {
-    pass('Agent Inheritance', {
+  if (!ownerGroup) {
+    pass(results, 'Agent Inheritance', {
       agentId: agent.id,
       ownerId: agent.managedBy,
       note: 'Owner has no NPC groups to inherit',
@@ -245,7 +272,7 @@ async function validateAgentInheritance() {
   }
 
   // Test that the inheritance mechanism exists
-  pass('Agent Inheritance', {
+  pass(results, 'Agent Inheritance', {
     agentId: agent.id,
     ownerId: agent.managedBy,
     ownerHasGroups: true,
@@ -253,24 +280,20 @@ async function validateAgentInheritance() {
   });
 }
 
-async function validateGroupChatServiceMethods() {
+async function validateGroupChatServiceMethods(results: ValidationResult[]) {
   log('Checking GroupChatService methods...');
 
   // Just verify the methods exist and are callable
   const methods = ['isInChat', 'calculateKickChance', 'getUserGroupChats'];
 
   for (const method of methods) {
-    if (
-      typeof (GroupChatService as unknown as Record<string, unknown>)[
-        method
-      ] !== 'function'
-    ) {
-      fail('GroupChatService Methods', `Method ${method} not found`);
+    if (!hasFunction(GroupChatService, method)) {
+      fail(results, 'GroupChatService Methods', `Method ${method} not found`);
       return;
     }
   }
 
-  pass('GroupChatService Methods', { methods });
+  pass(results, 'GroupChatService Methods', { methods });
 }
 
 async function main() {
@@ -278,16 +301,19 @@ async function main() {
   const verbose = args.includes('--verbose');
   const specificUser = args.find((a) => a.startsWith('--user='))?.split('=')[1];
 
+  // Local results array to avoid module-level mutable state
+  const results: ValidationResult[] = [];
+
   console.log('\n🔍 Tiered Group System Validation\n');
   console.log('='.repeat(50));
 
   // Run all validations
-  await validateTierGroupsExist();
-  await validateCapacityStats();
-  await validateInviteStats();
-  await validateUserDefaultGroupAssignment(specificUser);
-  await validateAgentInheritance();
-  await validateGroupChatServiceMethods();
+  await validateTierGroupsExist(results);
+  await validateCapacityStats(results);
+  await validateInviteStats(results);
+  await validateUserDefaultGroupAssignment(results, specificUser);
+  await validateAgentInheritance(results);
+  await validateGroupChatServiceMethods(results);
 
   // Summary
   console.log('\n' + '='.repeat(50));

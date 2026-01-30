@@ -19,8 +19,8 @@ describe('Alpha Group Invite Throttling Configuration', () => {
       );
     });
 
-    it('should default to 2 invites per week', () => {
-      // This can be overridden by env, but default should be 2
+    it('should be a number for type safety', () => {
+      // Value may be overridden by env vars; verify type only
       expect(typeof ALPHA_GROUP_CONFIG.maxInvitesPerUserPerWeek).toBe('number');
     });
   });
@@ -37,7 +37,8 @@ describe('Alpha Group Invite Throttling Configuration', () => {
       expect(ALPHA_GROUP_CONFIG.recentActivityDays).toBeLessThanOrEqual(90);
     });
 
-    it('should default to 30 days', () => {
+    it('should be a number for type safety', () => {
+      // Value may be overridden by env vars; verify type only
       expect(typeof ALPHA_GROUP_CONFIG.recentActivityDays).toBe('number');
     });
   });

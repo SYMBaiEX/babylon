@@ -269,9 +269,11 @@ describe('Global Analytics', () => {
       // This test requires DATABASE_URL - run integration tests instead
       const analytics = await TieredGroupService.getGlobalAnalytics();
 
-      // Members should not exceed capacity
+      // Members should not exceed capacity.
+      // We add totalNpcs because NPC owners are auto-added to their own groups
+      // but may not be counted toward maxMembers in some edge cases.
       expect(analytics.totalMembers).toBeLessThanOrEqual(
-        analytics.totalCapacity + analytics.totalNpcs // Account for potential edge cases
+        analytics.totalCapacity + analytics.totalNpcs
       );
     });
   });

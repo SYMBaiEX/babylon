@@ -32,6 +32,9 @@ import { generateSnowflakeId, logger, type TierLevel } from '@babylon/shared';
 import { StaticDataRegistry } from './static-data-registry';
 import { TieredGroupService } from './tiered-group-service';
 
+/** Default max members for Tier 3 groups (matches TIER_CONFIG.tiers[3].maxMembers) */
+const DEFAULT_TIER3_MAX_MEMBERS = 500;
+
 /**
  * Result of default group assignment
  */
@@ -308,7 +311,8 @@ export class UserAlphaGroupAssignmentService {
         continue;
       }
 
-      const maxMembers = g.maxMembers ?? 500; // Default Tier 3 size
+      // Default Tier 3 size - matches TIER_CONFIG.tiers[3].maxMembers
+      const maxMembers = g.maxMembers ?? DEFAULT_TIER3_MAX_MEMBERS;
       const memberCount = g.memberCount ?? 0;
       const availableSlots = maxMembers - memberCount;
 
@@ -377,31 +381,33 @@ export class UserAlphaGroupAssignmentService {
         return { success: false, error: 'Already a member' };
       }
 
-      // Reactivate existing membership
-      await db
-        .update(groupMembers)
-        .set({
-          isActive: true,
-          joinedAt: new Date(),
-          kickedAt: null,
-          kickReason: null,
-          tier: 3,
-        })
-        .where(eq(groupMembers.id, existingMember.id));
+      // Reactivate existing membership in a transaction for atomicity
+      await db.$transaction(async (tx) => {
+        await tx
+          .update(groupMembers)
+          .set({
+            isActive: true,
+            joinedAt: new Date(),
+            kickedAt: null,
+            kickReason: null,
+            tier: 3,
+          })
+          .where(eq(groupMembers.id, existingMember.id));
 
-      // Also ensure chat participant is active
-      await db
-        .update(chatParticipants)
-        .set({
-          isActive: true,
-          joinedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(chatParticipants.chatId, group.chatId),
-            eq(chatParticipants.userId, userId)
-          )
-        );
+        // Also ensure chat participant is active
+        await tx
+          .update(chatParticipants)
+          .set({
+            isActive: true,
+            joinedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(chatParticipants.chatId, group.chatId),
+              eq(chatParticipants.userId, userId)
+            )
+          );
+      });
 
       return { success: true };
     }

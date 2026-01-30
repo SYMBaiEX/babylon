@@ -23,6 +23,9 @@ import { and, count, db, eq, groupMembers, groups, users } from '@babylon/db';
 import { UserAlphaGroupAssignmentService } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 
+/** Default limit for batch processing when no limit specified */
+const MIGRATE_USERS_DEFAULT_LIMIT = 100000;
+
 interface MigrationStats {
   totalUsersProcessed: number;
   usersNeedingAssignment: number;
@@ -137,7 +140,7 @@ async function main() {
         )
       )
       .orderBy(users.createdAt)
-      .limit(limit > 0 ? limit : 100000); // Large limit if not specified
+      .limit(limit > 0 ? limit : MIGRATE_USERS_DEFAULT_LIMIT);
   }
 
   logger.info(
@@ -175,8 +178,10 @@ async function main() {
         );
 
       const currentGroups = groupCount?.count ?? 0;
+      const targetGroups =
+        UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS;
 
-      if (currentGroups >= 3) {
+      if (currentGroups >= targetGroups) {
         // User already has sufficient groups
         stats.usersSkipped++;
         logger.debug(
@@ -196,7 +201,7 @@ async function main() {
             userId: user.id,
             username: user.username,
             currentGroups,
-            groupsNeeded: 3 - currentGroups,
+            groupsNeeded: targetGroups - currentGroups,
           },
           'migrate-default-groups'
         );

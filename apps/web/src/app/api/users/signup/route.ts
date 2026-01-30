@@ -792,6 +792,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             },
             'POST /api/users/signup'
           );
+          // Track successful assignment for monitoring
+          trackServerEvent(result.user.id, 'alpha_group_assignment.success', {
+            groupsAssigned: assignmentResult.groupsAssigned,
+            assignments: assignmentResult.assignments.map((a) => a.npcName),
+          }).catch(() => {
+            /* ignore tracking errors */
+          });
         }
         if (assignmentResult.errors.length > 0) {
           logger.warn(
@@ -802,6 +809,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             },
             'POST /api/users/signup'
           );
+          // Track partial failures for monitoring
+          trackServerEvent(
+            result.user.id,
+            'alpha_group_assignment.partial_failure',
+            {
+              groupsAssigned: assignmentResult.groupsAssigned,
+              errorCount: assignmentResult.errors.length,
+            }
+          ).catch(() => {
+            /* ignore tracking errors */
+          });
         }
       })
       .catch((error) => {
@@ -811,6 +829,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           { userId: result.user.id, error: String(error) },
           'POST /api/users/signup'
         );
+        // Track failures for monitoring and alerting
+        trackServerEvent(result.user.id, 'alpha_group_assignment.failure', {
+          error: String(error),
+        }).catch(() => {
+          /* ignore tracking errors */
+        });
       });
   }
 

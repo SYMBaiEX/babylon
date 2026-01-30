@@ -123,8 +123,19 @@ async function main() {
             joinedAt: now,
             isActive: true,
           });
-        } catch {
-          // Ignore duplicate participant errors
+        } catch (insertError) {
+          // Only ignore duplicate-key errors; rethrow other errors
+          const errorMessage = String(insertError);
+          const isDuplicateKey =
+            errorMessage.includes('unique constraint') ||
+            errorMessage.includes('duplicate key') ||
+            errorMessage.includes('UNIQUE constraint failed');
+          if (!isDuplicateKey) {
+            console.log(
+              `  ⚠️ Error adding participant ${member.userId}: ${errorMessage}`
+            );
+            throw insertError;
+          }
         }
       }
 

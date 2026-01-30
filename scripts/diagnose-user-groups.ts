@@ -99,11 +99,12 @@ async function main() {
     );
   }
 
-  const groupsNeeded = 3 - currentMemberships.length;
+  const targetGroups = UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS;
+  const groupsNeeded = targetGroups - currentMemberships.length;
   console.log('\n📈 Groups Needed:', Math.max(0, groupsNeeded));
 
   if (groupsNeeded <= 0) {
-    console.log('✅ User already has 3+ NPC groups');
+    console.log(`✅ User already has ${targetGroups}+ NPC groups`);
     process.exit(0);
   }
 

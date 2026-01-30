@@ -52,8 +52,14 @@ function getTestNpc(): { id: string; name: string } {
       'No actors in StaticDataRegistry - cannot run integration tests'
     );
   }
-  // Use the first non-test actor
-  const actor = actors.find((a) => !a.isTest) || actors[0]!;
+  // Use the first non-test actor; fail fast if none found
+  const actor = actors.find((a) => !a.isTest);
+  if (!actor) {
+    throw new Error(
+      'No non-test actors available in StaticDataRegistry - cannot run integration tests. ' +
+        'Ensure real NPC data is loaded before running integration tests.'
+    );
+  }
   return { id: actor.id, name: actor.name };
 }
 
