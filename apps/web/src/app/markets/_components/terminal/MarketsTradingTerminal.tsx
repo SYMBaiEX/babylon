@@ -1325,38 +1325,11 @@ export function MarketsTradingTerminal({
             <div className="mt-3 flex rounded-md bg-muted/20 p-1">
               <button
                 type="button"
-                onClick={() => setPredictionTradeMode('buy')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'buy'
-                    ? 'bg-foreground text-background'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                BUY
-              </button>
-              <button
-                type="button"
-                onClick={() => setPredictionTradeMode('sell')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'sell'
-                    ? 'bg-foreground text-background'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                SELL
-              </button>
-            </div>
-
-            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
-              <button
-                type="button"
                 onClick={() => setPredictionSide('yes')}
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionSide === 'yes'
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -1368,11 +1341,38 @@ export function MarketsTradingTerminal({
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionSide === 'no'
-                    ? 'bg-red-600 text-white'
+                    ? 'bg-pink-600 text-white'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 NO
+              </button>
+            </div>
+
+            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+              <button
+                type="button"
+                onClick={() => setPredictionTradeMode('buy')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'buy'
+                    ? 'bg-green-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                BUY
+              </button>
+              <button
+                type="button"
+                onClick={() => setPredictionTradeMode('sell')}
+                className={cn(
+                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell'
+                    ? 'bg-red-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                SELL
               </button>
             </div>
 
@@ -1513,7 +1513,7 @@ export function MarketsTradingTerminal({
               }
               className={cn(
                 'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
-                predictionSide === 'yes'
+                predictionTradeMode === 'buy'
                   ? 'bg-green-600 hover:brightness-110'
                   : 'bg-red-600 hover:brightness-110',
                 (predictionSubmitting ||
