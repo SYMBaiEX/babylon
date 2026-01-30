@@ -24,6 +24,8 @@ import {
   groupMembers,
   groups,
   gte,
+  or,
+  userInteractions,
 } from '@babylon/db';
 import { GROUP_CONFIG, logger, type TierLevel } from '@babylon/shared';
 import {
@@ -202,6 +204,20 @@ export class AlphaGroupInviteService {
       // Check invite cooldown
       const inCooldown = await this.checkCooldown(userScore.userId);
       if (inCooldown) {
+        continue;
+      }
+
+      // Check weekly invite rate limit (prevents invite spam)
+      const atWeeklyLimit = await this.checkWeeklyInviteLimit(userScore.userId);
+      if (atWeeklyLimit) {
+        continue;
+      }
+
+      // Check recent activity (only invite active users)
+      const hasRecentActivity = await this.checkRecentActivity(
+        userScore.userId
+      );
+      if (!hasRecentActivity) {
         continue;
       }
 
@@ -451,6 +467,89 @@ export class AlphaGroupInviteService {
     }
 
     return false;
+  }
+
+  /**
+   * Check if user has exceeded their weekly invite limit.
+   * Prevents spamming users with too many invites across all NPCs.
+   */
+  private static async checkWeeklyInviteLimit(
+    userId: string
+  ): Promise<boolean> {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Count invites (pending or accepted) sent to this user in the last week
+    const [result] = await db
+      .select({ count: count() })
+      .from(groupInvites)
+      .where(
+        and(
+          eq(groupInvites.invitedUserId, userId),
+          gte(groupInvites.invitedAt, oneWeekAgo),
+          or(
+            eq(groupInvites.status, 'pending'),
+            eq(groupInvites.status, 'accepted')
+          )
+        )
+      );
+
+    const weeklyInvites = result?.count ?? 0;
+
+    if (weeklyInvites >= ALPHA_GROUP_CONFIG.maxInvitesPerUserPerWeek) {
+      logger.debug(
+        'User at weekly invite limit',
+        {
+          userId,
+          weeklyInvites,
+          maxPerWeek: ALPHA_GROUP_CONFIG.maxInvitesPerUserPerWeek,
+        },
+        'AlphaGroupInviteService'
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if user has had recent activity (within configured days).
+   * Prevents inviting inactive/churned users.
+   */
+  private static async checkRecentActivity(userId: string): Promise<boolean> {
+    if (!ALPHA_GROUP_CONFIG.requireRecentActivity) {
+      return true; // Activity check disabled
+    }
+
+    const activityWindowStart = new Date(
+      Date.now() - ALPHA_GROUP_CONFIG.recentActivityDays * 24 * 60 * 60 * 1000
+    );
+
+    // Check for any user interactions in the activity window
+    const [result] = await db
+      .select({ count: count() })
+      .from(userInteractions)
+      .where(
+        and(
+          eq(userInteractions.userId, userId),
+          gte(userInteractions.timestamp, activityWindowStart)
+        )
+      );
+
+    const recentInteractions = result?.count ?? 0;
+
+    if (recentInteractions === 0) {
+      logger.debug(
+        'User has no recent activity',
+        {
+          userId,
+          activityWindowDays: ALPHA_GROUP_CONFIG.recentActivityDays,
+        },
+        'AlphaGroupInviteService'
+      );
+      return false;
+    }
+
+    return true;
   }
 
   /**

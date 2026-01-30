@@ -32,6 +32,7 @@ import {
   gte,
   messages,
   userInteractions,
+  users,
 } from '@babylon/db';
 import type { GroupChat } from '@babylon/shared';
 import { generateSnowflakeId } from '@babylon/shared';
@@ -445,12 +446,17 @@ export class GroupChatService {
   }
 
   /**
-   * Check if user is in a specific chat (by chatId)
+   * Check if user is in a specific chat (by chatId).
+   *
+   * Supports agent inheritance: if the user is an agent (has managedBy set),
+   * also checks if the agent's owner has access to the chat. This enables
+   * agents to participate in their owner's group chats.
+   *
    * Chat.groupId → Group.id relationship
    */
   static async isInChat(userId: string, chatId: string): Promise<boolean> {
-    // Single query with join
-    const [membership] = await db
+    // First check if user is directly a member
+    const [directMembership] = await db
       .select({ id: groupMembers.id })
       .from(chats)
       .innerJoin(groupMembers, eq(chats.groupId, groupMembers.groupId))
@@ -463,7 +469,37 @@ export class GroupChatService {
       )
       .limit(1);
 
-    return !!membership;
+    if (directMembership) {
+      return true;
+    }
+
+    // If not direct member, check if this is an agent with owner membership
+    // Agents inherit their owner's group access for NPC groups
+    const [userRecord] = await db
+      .select({ managedBy: users.managedBy, isAgent: users.isAgent })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    // If user is an agent (has managedBy), check owner's membership
+    if (userRecord?.isAgent && userRecord?.managedBy) {
+      const [ownerMembership] = await db
+        .select({ id: groupMembers.id })
+        .from(chats)
+        .innerJoin(groupMembers, eq(chats.groupId, groupMembers.groupId))
+        .where(
+          and(
+            eq(chats.id, chatId),
+            eq(groupMembers.userId, userRecord.managedBy),
+            eq(groupMembers.isActive, true)
+          )
+        )
+        .limit(1);
+
+      return !!ownerMembership;
+    }
+
+    return false;
   }
 
   // ---------------------------------------------------------------------------

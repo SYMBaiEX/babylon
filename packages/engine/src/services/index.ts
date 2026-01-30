@@ -45,6 +45,7 @@ export * from './posting-probability-service';
 export * from './reply-rate-limiter';
 export * from './tier-config';
 export * from './tiered-group-service';
+export * from './user-alpha-group-assignment-service';
 
 // =============================================================================
 // Market Services

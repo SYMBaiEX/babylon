@@ -112,6 +112,7 @@ import {
   withRetry,
   withTransaction,
 } from '@babylon/db';
+import { UserAlphaGroupAssignmentService } from '@babylon/engine';
 import type { OnboardingProfilePayload } from '@babylon/shared';
 import {
   checkForAdminEmail,
@@ -771,6 +772,71 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     pointsBreakdown: pointsAwarded,
     importedFrom: parsedProfile.importedFrom || null,
   });
+
+  // Assign default alpha groups (async, non-blocking)
+  // New users get access to NPC group chats from day one
+  // This runs after the main signup flow to avoid blocking the response
+  if (!isWaitlist) {
+    UserAlphaGroupAssignmentService.assignDefaultGroups(result.user.id)
+      .then((assignmentResult) => {
+        if (assignmentResult.groupsAssigned > 0) {
+          logger.info(
+            'Assigned default alpha groups to new user',
+            {
+              userId: result.user.id,
+              groupsAssigned: assignmentResult.groupsAssigned,
+              assignments: assignmentResult.assignments.map((a) => ({
+                npc: a.npcName,
+                tier: a.tier,
+              })),
+            },
+            'POST /api/users/signup'
+          );
+          // Track successful assignment for monitoring
+          trackServerEvent(result.user.id, 'alpha_group_assignment.success', {
+            groupsAssigned: assignmentResult.groupsAssigned,
+            assignments: assignmentResult.assignments.map((a) => a.npcName),
+          }).catch(() => {
+            /* ignore tracking errors */
+          });
+        }
+        if (assignmentResult.errors.length > 0) {
+          logger.warn(
+            'Some default group assignments had errors',
+            {
+              userId: result.user.id,
+              errors: assignmentResult.errors,
+            },
+            'POST /api/users/signup'
+          );
+          // Track partial failures for monitoring
+          trackServerEvent(
+            result.user.id,
+            'alpha_group_assignment.partial_failure',
+            {
+              groupsAssigned: assignmentResult.groupsAssigned,
+              errorCount: assignmentResult.errors.length,
+            }
+          ).catch(() => {
+            /* ignore tracking errors */
+          });
+        }
+      })
+      .catch((error) => {
+        // Log but don't fail signup - alpha group assignment is non-critical
+        logger.warn(
+          'Failed to assign default alpha groups',
+          { userId: result.user.id, error: String(error) },
+          'POST /api/users/signup'
+        );
+        // Track failures for monitoring and alerting
+        trackServerEvent(result.user.id, 'alpha_group_assignment.failure', {
+          error: String(error),
+        }).catch(() => {
+          /* ignore tracking errors */
+        });
+      });
+  }
 
   return successResponse({
     user: {

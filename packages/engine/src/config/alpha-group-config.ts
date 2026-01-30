@@ -330,6 +330,61 @@ export const ALPHA_GROUP_CONFIG = {
   inviteCooldownHours: envPositiveInt('ALPHA_INVITE_COOLDOWN_HOURS', 2),
 
   // ===========================================================================
+  // THROTTLING & RATE LIMITS
+  // ===========================================================================
+
+  /**
+   * Maximum invites a single user can receive per week (across all NPCs).
+   * Prevents spamming users with too many invites.
+   *
+   * @env ALPHA_MAX_INVITES_PER_USER_PER_WEEK
+   * @default 2
+   */
+  maxInvitesPerUserPerWeek: envPositiveInt(
+    'ALPHA_MAX_INVITES_PER_USER_PER_WEEK',
+    2
+  ),
+
+  /**
+   * Require recent activity for invite eligibility.
+   * Users who haven't been active recently are excluded from invites.
+   *
+   * @env ALPHA_REQUIRE_RECENT_ACTIVITY
+   * @default true
+   */
+  requireRecentActivity: envBoolean('ALPHA_REQUIRE_RECENT_ACTIVITY', true),
+
+  /**
+   * Number of days to look back for "recent" activity.
+   * Users with no activity in this window are considered inactive.
+   *
+   * @env ALPHA_RECENT_ACTIVITY_DAYS
+   * @default 30
+   */
+  recentActivityDays: envPositiveInt('ALPHA_RECENT_ACTIVITY_DAYS', 30),
+
+  /**
+   * Reduced invite probability for tiered system (0.001 = 0.1% per eligible user per tick).
+   * Lower than legacy system to reduce invite spam. Set to 0.005 for legacy behavior.
+   *
+   * @env ALPHA_TIERED_INVITE_PROBABILITY
+   * @default 0.001
+   */
+  tieredInviteProbability: envProbability(
+    'ALPHA_TIERED_INVITE_PROBABILITY',
+    0.001
+  ),
+
+  /**
+   * Reduced user invite chance for NPC group dynamics (0.02 = 2% per group per tick).
+   * Lower than legacy 8% to reduce invite spam. Set to 0.08 for legacy behavior.
+   *
+   * @env ALPHA_INVITE_USER_CHANCE
+   * @default 0.02
+   */
+  inviteUserChance: envProbability('ALPHA_INVITE_USER_CHANCE', 0.02),
+
+  // ===========================================================================
   // FEATURE FLAGS
   // ===========================================================================
 
