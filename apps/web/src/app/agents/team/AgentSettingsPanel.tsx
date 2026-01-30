@@ -44,7 +44,7 @@ export function AgentSettingsPanel({
 
   // Fetch agent data with optional abort signal to prevent state updates after unmount
   const fetchAgent = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal): Promise<{ success: boolean } | undefined> => {
       setLoading(true);
       setError(null);
 
@@ -52,7 +52,7 @@ export function AgentSettingsPanel({
         const token = await getAccessToken();
         if (!token) {
           if (!signal?.aborted) setError('Not authenticated');
-          return;
+          return undefined;
         }
 
         const res = await fetch(`/api/agents/${agentId}`, {
@@ -61,20 +61,22 @@ export function AgentSettingsPanel({
         });
 
         // Don't update state if request was aborted
-        if (signal?.aborted) return;
+        if (signal?.aborted) return undefined;
 
         if (!res.ok) {
           throw new Error('Failed to fetch agent');
         }
 
-        const data = await res.json();
+        const data = (await res.json()) as { agent: AgentSettingsData };
         if (!signal?.aborted) setAgent(data.agent);
+        return { success: true };
       } catch (err) {
         // Ignore abort errors - they're expected on cleanup
-        if (err instanceof Error && err.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return undefined;
         if (!signal?.aborted) {
           setError(err instanceof Error ? err.message : 'Failed to load agent');
         }
+        return undefined;
       } finally {
         if (!signal?.aborted) setLoading(false);
       }
@@ -96,13 +98,16 @@ export function AgentSettingsPanel({
   }, [fetchAgent]);
 
   // Handle update from AgentSettings
-  const handleUpdate = useCallback(() => {
+  const handleUpdate = useCallback(async () => {
     // Abort previous update request if still pending
     updateControllerRef.current?.abort();
     const controller = new AbortController();
     updateControllerRef.current = controller;
-    fetchAgent(controller.signal);
-    onAgentUpdated?.();
+    const result = await fetchAgent(controller.signal);
+    // Only call onAgentUpdated after successful refresh
+    if (result?.success) {
+      onAgentUpdated?.();
+    }
   }, [fetchAgent, onAgentUpdated]);
 
   if (loading) {

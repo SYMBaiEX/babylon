@@ -843,14 +843,25 @@ export function useTeamChat(): UseTeamChatReturn {
             // Remove thinking bubble on error
             removeMessage(thinkingId);
 
-            const errorData = (await coordinatorResponse.json()) as {
-              error?: string;
-              message?: string;
-            };
-            const errorMessage =
-              errorData.error ||
-              errorData.message ||
-              'Coordinator failed to respond';
+            let errorMessage = 'Coordinator failed to respond';
+            try {
+              const errorData = (await coordinatorResponse.json()) as {
+                error?: string;
+                message?: string;
+              };
+              errorMessage =
+                errorData.error ||
+                errorData.message ||
+                'Coordinator failed to respond';
+            } catch {
+              // JSON parse failed - try to get raw text as fallback
+              try {
+                const rawText = await coordinatorResponse.text();
+                errorMessage = rawText || 'Invalid coordinator response';
+              } catch {
+                errorMessage = 'Invalid coordinator response';
+              }
+            }
 
             if (errorMessage.toLowerCase().includes('insufficient')) {
               toast.error('Insufficient points. Deposit to continue.');
