@@ -16,6 +16,16 @@ export function formatPrice(price: number): string {
 }
 
 /**
+ * Formats a Babylon points balance as an integer (no decimals) with separators.
+ *
+ * @param balance - The balance to format
+ * @returns Formatted balance string (e.g., "ƀ12,345")
+ */
+export function formatBalance(balance: number): string {
+  return `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`;
+}
+
+/**
  * Formats a volume value with appropriate suffix (K, M, B).
  * Values under ƀ1,000 are displayed without suffix.
  *

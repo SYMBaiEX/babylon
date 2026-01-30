@@ -22,7 +22,7 @@ import {
   useWalletBalance,
 } from '@/stores/walletBalanceStore';
 import type { PerpMarket } from '@/types/markets';
-import { formatPrice } from '../../_lib/formatters';
+import { formatBalance, formatPrice } from '../../_lib/formatters';
 
 interface PerpsOrderEntryPanelProps {
   market: PerpMarket | null;
@@ -300,7 +300,7 @@ export function PerpsOrderEntryPanel({
               {balanceLoading ? (
                 <Skeleton className="h-5 w-20" />
               ) : (
-                formatPrice(balance)
+                formatBalance(balance)
               )}
               {onRequestBuyPoints && (
                 <button

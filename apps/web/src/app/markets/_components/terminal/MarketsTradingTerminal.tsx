@@ -82,6 +82,7 @@ import type {
 } from '@/types/markets';
 import { MARKET_TIME_RANGES } from '@/types/markets';
 import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
+import { formatBalance } from '../../_lib/formatters';
 
 type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
 type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
@@ -1272,7 +1273,7 @@ export function MarketsTradingTerminal({
                   {balanceLoading ? (
                     <Skeleton className="h-5 w-20" />
                   ) : (
-                    `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`
+                    formatBalance(balance)
                   )}
                   {onRequestBuyPoints && (
                     <button
