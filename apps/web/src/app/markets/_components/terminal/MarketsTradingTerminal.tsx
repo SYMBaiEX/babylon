@@ -1842,7 +1842,7 @@ export function MarketsTradingTerminal({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="flex h-[45%] w-full shrink-0 flex-col border-white/5 border-b">
+              <div className="flex h-[40%] w-full shrink-0 flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
@@ -1898,7 +1898,7 @@ export function MarketsTradingTerminal({
                       </div>
                     </div>
 
-                    <div className="min-h-0 flex-1 p-3">
+                    <div className="min-h-0 flex-1 p-2">
                       <PredictionProbabilityChart
                         data={predictionHistory}
                         marketId={selectedPredictionId ?? 'unknown'}
@@ -1937,7 +1937,7 @@ export function MarketsTradingTerminal({
                         ))}
                       </div>
                     </div>
-                    <div className="min-h-0 flex-1 p-3">
+                    <div className="min-h-0 flex-1 p-2">
                       <PerpPriceChart
                         data={perpHistory.map((p) => ({
                           time: p.time,
