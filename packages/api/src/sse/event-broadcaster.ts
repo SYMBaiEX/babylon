@@ -93,9 +93,10 @@ export async function broadcastChatMessage(
     { chatId, messageId: message.id },
     'Realtime'
   );
+  // Cast to JsonValue for type compatibility - metadata may contain complex nested types
   await broadcastToChannel(`chat:${chatId}`, {
     type: 'new_message',
-    message,
+    message: message as unknown as JsonValue,
   });
 }
 

@@ -687,8 +687,13 @@ export function useTeamChat(): UseTeamChatReturn {
     if (!useCoordinator && availableAgents.length === 0) return;
 
     // Create optimistic message (stableKey prevents flash on confirmation)
-    // Use crypto.randomUUID() to avoid ID collisions on rapid sends
-    const optimisticId = `pending-${crypto.randomUUID()}`;
+    // Generate unique ID to avoid collisions on rapid sends
+    // Use crypto.randomUUID() with fallback for older browsers (Safari < 15.4, Chrome < 92)
+    const uuid =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const optimisticId = `pending-${uuid}`;
     addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,

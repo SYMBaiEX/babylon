@@ -612,6 +612,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               type: 'user' as const,
               createdAt: agentLastMsg.createdAt,
               targetIds: null, // Not applicable for DM messages
+              metadata: null, // Not applicable for DM messages
             };
           }
         }

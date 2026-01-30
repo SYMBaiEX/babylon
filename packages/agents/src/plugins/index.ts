@@ -18,4 +18,15 @@ export * from './plugin-agent-core/src';
 export * from './plugin-autonomy/src';
 export * from './plugin-experience/src';
 export * from './plugin-trajectory-logger/src';
-export * from './plugin-user-core/src';
+// Note: plugin-user-core has action names that overlap with plugin-agent-core
+// Export only the plugin and unique exports to avoid TS2308 ambiguity errors
+export {
+  userCorePlugin,
+  checkUserPnlAction,
+  // Coordinator-specific providers (prefixed to avoid conflicts)
+  coordinatorActionStateProvider,
+  coordinatorActionsProvider,
+  coordinatorContextProvider,
+  coordinatorRecentMessagesProvider,
+  coordinatorTeamMembersProvider,
+} from './plugin-user-core/src';

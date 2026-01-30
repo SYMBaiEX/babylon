@@ -27,7 +27,14 @@ export const groupTypeEnum = pgEnum('group_type', [
 ]);
 
 // Enum for message types
-export const messageTypeEnum = pgEnum('message_type', ['user', 'system']);
+// - 'user': Regular user messages
+// - 'system': System-generated messages (announcements, etc.)
+// - 'coordinator': Coordinator assistant messages in team chat
+export const messageTypeEnum = pgEnum('message_type', [
+  'user',
+  'system',
+  'coordinator',
+]);
 
 // Chat
 export const chats = pgTable(

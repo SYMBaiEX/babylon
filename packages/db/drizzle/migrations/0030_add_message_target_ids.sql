@@ -1,13 +1,21 @@
--- Migration: Add targetIds column to Message table
+-- Migration: Add targetIds column and coordinator message type
 -- Purpose: Enable message routing in team chat by tracking which agents/coordinator a message targets
 --
 -- This allows:
 -- - User messages without @mentions to target 'coordinator'
 -- - User messages with @mentions to target specific agent IDs
 -- - Proper filtering in recentMessages providers for scoped context
+-- - Coordinator messages to be identified by their type in addition to senderId
 
 -- ============================================================================
--- Step 1: Add targetIds column
+-- Step 1: Add 'coordinator' to message_type enum
+-- ============================================================================
+
+-- Add 'coordinator' value to the message_type enum for coordinator assistant messages
+ALTER TYPE "message_type" ADD VALUE IF NOT EXISTS 'coordinator';
+
+-- ============================================================================
+-- Step 2: Add targetIds column
 -- ============================================================================
 
 -- Add nullable text array column for target IDs

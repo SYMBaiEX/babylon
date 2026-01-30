@@ -37,7 +37,10 @@ interface AgentPortfolioProps {
  * Merged Portfolio component combining Performance stats + Wallet functionality.
  * Optimized for the bottom panel with a compact, horizontal layout.
  */
-export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
+export function AgentPortfolio({
+  agentId,
+  agentName,
+}: AgentPortfolioProps) {
   const { getAccessToken } = useAuth();
 
   // Wallet state
@@ -208,9 +211,14 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       <div className="flex w-72 shrink-0 flex-col gap-3">
         {/* Balance Card */}
         <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-3">
-          <div className="mb-1 flex items-center gap-1.5 text-[#0066FF] text-xs">
-            <Wallet className="h-3.5 w-3.5" />
-            Balance
+          <div className="mb-1 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
+              <Wallet className="h-3.5 w-3.5" />
+              Balance
+            </div>
+            <span className="truncate font-medium text-foreground text-xs">
+              {agentName}
+            </span>
           </div>
           <div className="font-bold text-2xl">
             {balanceInfo.agentBalance.toFixed(2)} pts
