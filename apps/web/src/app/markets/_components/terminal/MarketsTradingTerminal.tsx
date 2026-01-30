@@ -1839,10 +1839,10 @@ export function MarketsTradingTerminal({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(72px+env(safe-area-inset-bottom))]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="flex h-[42vh] w-full shrink-0 flex-col border-white/5 border-b">
+              <div className="flex h-[45%] w-full shrink-0 flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
@@ -2104,7 +2104,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 z-50 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
+          <div className="sticky bottom-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
             {/* Minimal bottom nav */}
             <button
               type="button"
