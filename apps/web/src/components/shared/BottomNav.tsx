@@ -27,7 +27,9 @@ function BottomNavContent() {
   // Hide bottom nav when WAITLIST_MODE is enabled on home page
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
   const isHomePage = pathname === '/';
-  const shouldHide = isWaitlistMode && isHomePage;
+  const isMarketsPage =
+    pathname === '/markets' || pathname.startsWith('/markets/');
+  const shouldHide = (isWaitlistMode && isHomePage) || isMarketsPage;
 
   // Poll for unread notifications
   useEffect(() => {

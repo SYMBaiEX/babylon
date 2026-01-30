@@ -56,58 +56,60 @@ export function TerminalAgentsChat() {
   }
 
   return (
-    <TeamChatView
-      chatDetails={chatDetails}
-      currentUserId={user?.id}
-      authenticated={authenticated}
-      sseConnected={sseConnected}
-      hideHeader
-      loading={false}
-      isLoadingMore={isLoadingMore}
-      hasMore={hasMore}
-      messageInput={messageInput}
-      sending={sending}
-      sendError={sendError}
-      topSentinelRef={topSentinelRef}
-      messagesEndRef={messagesEndRef}
-      onMessageChange={handleInputChange}
-      onSendMessage={sendMessage}
-      agents={[
-        ...(user
-          ? [
-              {
-                id: user.id,
-                username: user.username || null,
-                displayName: user.displayName || user.username || 'You',
-                profileImageUrl: user.profileImageUrl || null,
-              },
-            ]
-          : []),
-        ...(teamChat?.agents.map((agent) => ({
-          id: agent.id,
-          username: agent.username,
-          displayName: agent.displayName,
-          profileImageUrl: agent.profileImageUrl,
-        })) || []),
-      ]}
-      typingUsers={typingUsers}
-      thinkingAgents={thinkingAgents}
-      onScroll={handleScroll}
-      selectedAgents={
-        teamChat?.agents
-          .filter((a) => selectedAgentIds.has(a.id))
-          .map((a) => ({
-            id: a.id,
-            displayName: a.displayName || a.username || 'Agent',
-            profileImageUrl: a.profileImageUrl,
-            isProcessing: processingAgentIds.has(a.id),
-          })) || []
-      }
-      onRemoveSelectedAgent={toggleAgentSelection}
-      hasProcessingSelected={
-        selectedAgentIds.size > 0 &&
-        Array.from(selectedAgentIds).some((id) => processingAgentIds.has(id))
-      }
-    />
+    <div className="h-full min-h-0">
+      <TeamChatView
+        chatDetails={chatDetails}
+        currentUserId={user?.id}
+        authenticated={authenticated}
+        sseConnected={sseConnected}
+        hideHeader
+        loading={false}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
+        messageInput={messageInput}
+        sending={sending}
+        sendError={sendError}
+        topSentinelRef={topSentinelRef}
+        messagesEndRef={messagesEndRef}
+        onMessageChange={handleInputChange}
+        onSendMessage={sendMessage}
+        agents={[
+          ...(user
+            ? [
+                {
+                  id: user.id,
+                  username: user.username || null,
+                  displayName: user.displayName || user.username || 'You',
+                  profileImageUrl: user.profileImageUrl || null,
+                },
+              ]
+            : []),
+          ...(teamChat?.agents.map((agent) => ({
+            id: agent.id,
+            username: agent.username,
+            displayName: agent.displayName,
+            profileImageUrl: agent.profileImageUrl,
+          })) || []),
+        ]}
+        typingUsers={typingUsers}
+        thinkingAgents={thinkingAgents}
+        onScroll={handleScroll}
+        selectedAgents={
+          teamChat?.agents
+            .filter((a) => selectedAgentIds.has(a.id))
+            .map((a) => ({
+              id: a.id,
+              displayName: a.displayName || a.username || 'Agent',
+              profileImageUrl: a.profileImageUrl,
+              isProcessing: processingAgentIds.has(a.id),
+            })) || []
+        }
+        onRemoveSelectedAgent={toggleAgentSelection}
+        hasProcessingSelected={
+          selectedAgentIds.size > 0 &&
+          Array.from(selectedAgentIds).some((id) => processingAgentIds.has(id))
+        }
+      />
+    </div>
   );
 }
