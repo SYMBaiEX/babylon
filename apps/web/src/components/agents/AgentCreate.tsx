@@ -340,15 +340,17 @@ export function AgentCreate({
 
                 {/* Actions */}
                 <div className="flex justify-end gap-3 border-border border-t pt-6">
-                  <button
-                    onClick={onBack}
-                    className={cn(
-                      'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                      'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    Cancel
-                  </button>
+                  {onBack && (
+                    <button
+                      onClick={() => onBack()}
+                      className={cn(
+                        'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                        'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      Cancel
+                    </button>
+                  )}
                   <button
                     onClick={handleContinueToSettings}
                     disabled={!isInitialized}

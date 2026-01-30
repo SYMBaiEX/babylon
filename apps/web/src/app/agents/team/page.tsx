@@ -566,11 +566,8 @@ export default function TeamChatPage() {
           </>
         )}
 
-        {/* Chat Content - min-width ensures chat doesn't get too small */}
-        <div
-          className="flex min-h-0 flex-1 flex-col bg-background"
-          style={{ minWidth: 400 }}
-        >
+        {/* Chat Content - min-width ensures chat doesn't get too small on desktop */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background md:min-w-[400px]">
           <TeamChatView
             chatDetails={chatDetails}
             currentUserId={user?.id}
@@ -737,11 +734,18 @@ export default function TeamChatPage() {
           onSuccess={async (agent) => {
             setShowCreateAgentModal(false);
             await refreshTeamChat();
+            // Use the agent parameter directly to avoid stale closure
             if (agent.username) {
-              const fullAgent = teamChat?.agents.find((a) => a.id === agent.id);
-              if (fullAgent) {
-                tagAgentInInput(fullAgent);
-              }
+              // Use the agent directly from onSuccess parameter to avoid stale closure
+              tagAgentInInput({
+                id: agent.id,
+                username: agent.username,
+                displayName: null,
+                profileImageUrl: null,
+                isAgent: true,
+                modelTier: 'pro',
+                virtualBalance: 0,
+              });
             }
           }}
           compact
