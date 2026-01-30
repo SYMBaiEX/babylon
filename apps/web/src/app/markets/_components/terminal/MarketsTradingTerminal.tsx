@@ -243,7 +243,6 @@ export function MarketsTradingTerminal({
   );
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
   const [bottomTab, setBottomTab] = useState<'positions' | 'trades'>(
     'positions'
@@ -1267,14 +1266,6 @@ export function MarketsTradingTerminal({
         <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
           Trade
         </div>
-        <button
-          type="button"
-          onClick={() => setRightCollapsed(true)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-          aria-label="Collapse trade panel"
-        >
-          ▶
-        </button>
       </div>
 
       {selected?.kind === 'prediction' ? (
@@ -1715,32 +1706,15 @@ export function MarketsTradingTerminal({
                     {centerPanel}
                   </Panel>
 
-                  {!rightCollapsed && (
-                    <>
-                      <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
-                      <Panel
-                        defaultSize={22}
-                        minSize={18}
-                        maxSize={32}
-                        className="min-h-0 border-white/5 border-l bg-background/20"
-                      >
-                        {rightPanel}
-                      </Panel>
-                    </>
-                  )}
-
-                  {rightCollapsed && (
-                    <button
-                      type="button"
-                      onClick={() => setRightCollapsed(false)}
-                      className="w-9 shrink-0 border-white/5 border-l bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-                      aria-label="Open trade panel"
-                    >
-                      <span className="writing-vertical-lr rotate-180 font-semibold text-[10px] tracking-wider">
-                        TRADE
-                      </span>
-                    </button>
-                  )}
+                  <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
+                  <Panel
+                    defaultSize={22}
+                    minSize={18}
+                    maxSize={32}
+                    className="min-h-0 border-white/5 border-l bg-background/20"
+                  >
+                    {rightPanel}
+                  </Panel>
                 </PanelGroup>
               </Panel>
 
