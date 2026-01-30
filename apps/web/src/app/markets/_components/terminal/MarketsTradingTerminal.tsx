@@ -1801,7 +1801,7 @@ export function MarketsTradingTerminal({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="relative flex h-[40%] w-full shrink-0 flex-col border-white/5 border-b">
+              <div className="relative flex w-full shrink-0 basis-[34%] flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
@@ -1935,13 +1935,13 @@ export function MarketsTradingTerminal({
                 )}
               </div>
 
-              <div className="sticky top-0 z-30 flex h-12 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
+              <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
                 <div className="flex min-w-0 flex-1">
                   <button
                     type="button"
                     onClick={() => setBottomTab('agent')}
                     className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'agent'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
@@ -1956,7 +1956,7 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setBottomTab('social')}
                     className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'social'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
@@ -1971,7 +1971,7 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setBottomTab('positions')}
                     className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'positions'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
@@ -1986,7 +1986,7 @@ export function MarketsTradingTerminal({
                     type="button"
                     onClick={() => setBottomTab('trades')}
                     className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'trades'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
