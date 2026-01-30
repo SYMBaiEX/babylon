@@ -25,6 +25,7 @@ import {
   generateSnowflakeId,
   groupMembers,
   groups,
+  isNull,
   messages,
   ne,
   type User,
@@ -1030,6 +1031,33 @@ export class TeamChatService {
       { chatId, title },
       'TeamChatService'
     );
+  }
+
+  /**
+   * Atomically update a chat's title only if it's currently null.
+   * This prevents race conditions where multiple first messages try to set the title.
+   *
+   * @param chatId - The chat ID to update
+   * @param title - The new title
+   * @returns true if title was updated, false if it was already set
+   */
+  async updateChatTitleIfNull(chatId: string, title: string): Promise<boolean> {
+    const result = await db
+      .update(chats)
+      .set({ name: title, updatedAt: new Date() })
+      .where(and(eq(chats.id, chatId), isNull(chats.name)));
+
+    const updated = (result.rowCount ?? 0) > 0;
+
+    if (updated) {
+      logger.info(
+        `Atomically set chat title via LLM generation`,
+        { chatId, title },
+        'TeamChatService'
+      );
+    }
+
+    return updated;
   }
 
   /**

@@ -151,13 +151,21 @@ export const checkPredictionsAction: Action = {
         const noPercent = Math.round(noPrice * 100);
         const daysUntil = getDaysUntil(prediction.endDate);
 
+        // Convert boolean resolution to string for UI display
+        const resolutionStr =
+          prediction.resolution === true
+            ? 'YES'
+            : prediction.resolution === false
+              ? 'NO'
+              : undefined;
+
         const predictionData = {
           id: prediction.id,
           question: prediction.question,
           yesPercent,
           noPercent,
           resolved: prediction.resolved,
-          resolution: prediction.resolution,
+          resolution: resolutionStr,
           daysUntil,
           endDate: prediction.endDate?.toISOString().split('T')[0] ?? 'TBD',
           yesShares,
@@ -172,7 +180,7 @@ export const checkPredictionsAction: Action = {
 
         return {
           success: true,
-          text: `"${prediction.question}" - ${yesPercent}% YES / ${noPercent}% NO${prediction.resolved ? ` (Resolved: ${prediction.resolution})` : ''}`,
+          text: `"${prediction.question}" - ${yesPercent}% YES / ${noPercent}% NO${prediction.resolved ? ` (Resolved: ${resolutionStr})` : ''}`,
           data: { prediction: predictionData },
           values: {
             id: prediction.id,
@@ -243,6 +251,14 @@ export const checkPredictionsAction: Action = {
         const noPercent = Math.round(noPrice * 100);
         const daysUntil = getDaysUntil(p.endDate);
 
+        // Convert boolean resolution to string for UI display
+        const resolutionStr =
+          p.resolution === true
+            ? 'YES'
+            : p.resolution === false
+              ? 'NO'
+              : undefined;
+
         return {
           index: i + 1,
           id: p.id,
@@ -250,7 +266,7 @@ export const checkPredictionsAction: Action = {
           yesPercent,
           noPercent,
           resolved: p.resolved,
-          resolution: p.resolution,
+          resolution: resolutionStr,
           daysUntil,
           endDate: p.endDate?.toISOString().split('T')[0] ?? 'TBD',
         };

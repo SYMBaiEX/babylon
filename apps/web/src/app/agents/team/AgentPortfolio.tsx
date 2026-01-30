@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, logger } from '@babylon/shared';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -97,7 +97,14 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (walletRes.ok) {
+      if (!walletRes.ok) {
+        logger.error(
+          'Failed to fetch wallet data',
+          { agentId, status: walletRes.status },
+          'AgentPortfolio'
+        );
+        toast.error('Failed to load wallet balance');
+      } else {
         const data = await walletRes.json();
         if (data.success) {
           setBalanceInfo({
@@ -116,7 +123,14 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (agentRes.ok) {
+      if (!agentRes.ok) {
+        logger.error(
+          'Failed to fetch agent stats',
+          { agentId, status: agentRes.status },
+          'AgentPortfolio'
+        );
+        // Don't show toast for this - wallet balance is more important
+      } else {
         const data = await agentRes.json();
         if (data.agent) {
           setAgentStats({
@@ -127,7 +141,12 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch portfolio data:', err);
+      logger.error(
+        'Failed to fetch portfolio data',
+        { agentId, error: err instanceof Error ? err.message : 'Unknown' },
+        'AgentPortfolio'
+      );
+      toast.error('Failed to load portfolio data');
     } finally {
       setWalletLoading(false);
     }

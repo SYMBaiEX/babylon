@@ -1,4 +1,4 @@
--- Rollback Migration: Remove targetIds column from Message table
+-- Rollback Migration: Remove targetIds and metadata columns from Message table
 -- Use this to undo migration 0030_add_message_target_ids.sql
 --
 -- Note: PostgreSQL does not support removing values from enums.
@@ -12,13 +12,19 @@
 DROP INDEX IF EXISTS "Message_targetIds_idx";
 
 -- ============================================================================
--- Step 2: Drop column
+-- Step 2: Drop targetIds column
 -- ============================================================================
 
 ALTER TABLE "Message" DROP COLUMN IF EXISTS "targetIds";
 
 -- ============================================================================
--- Step 3: Update any coordinator messages to 'system' type (optional cleanup)
+-- Step 3: Drop metadata column
+-- ============================================================================
+
+ALTER TABLE "Message" DROP COLUMN IF EXISTS "metadata";
+
+-- ============================================================================
+-- Step 4: Update any coordinator messages to 'system' type (optional cleanup)
 -- ============================================================================
 
 -- Uncomment if you want to reclassify coordinator messages:

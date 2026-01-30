@@ -64,7 +64,7 @@ export function FeedPanel({ data }: FeedPanelProps) {
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">Feed Posts</h3>
         <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
-          {count} posts
+          {count} {count === 1 ? 'post' : 'posts'}
         </span>
       </div>
 

@@ -1,11 +1,12 @@
--- Migration: Add targetIds column and coordinator message type
--- Purpose: Enable message routing in team chat by tracking which agents/coordinator a message targets
+-- Migration: Add targetIds and metadata columns, and coordinator message type
+-- Purpose: Enable message routing in team chat and action tag display
 --
 -- This allows:
 -- - User messages without @mentions to target 'coordinator'
 -- - User messages with @mentions to target specific agent IDs
 -- - Proper filtering in recentMessages providers for scoped context
 -- - Coordinator messages to be identified by their type in addition to senderId
+-- - Action tags (perps, predictions, pnl, etc.) to be displayed on messages
 
 -- ============================================================================
 -- Step 1: Add 'coordinator' to message_type enum
@@ -25,7 +26,16 @@ ALTER TYPE "message_type" ADD VALUE IF NOT EXISTS 'coordinator';
 ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "targetIds" TEXT[];
 
 -- ============================================================================
--- Step 2: Create index for efficient array lookups
+-- Step 3: Add metadata column for action tags
+-- ============================================================================
+
+-- Add nullable JSONB column for message metadata (action tags, etc.)
+-- Contains tags from actions like CHECK_PERPS, CHECK_PREDICTIONS, etc.
+-- Tags are displayed as clickable buttons on messages that open sidebar panels
+ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+
+-- ============================================================================
+-- Step 4: Create index for efficient array lookups
 -- ============================================================================
 
 -- GIN index for efficient ANY() queries on the array

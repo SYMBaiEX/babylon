@@ -241,15 +241,17 @@ export default function TeamChatPage() {
   const handleTagClick = useCallback((tag: MessageTag) => {
     setRightSidebarTabs((prev) => {
       // Check if a matching tab already exists
-      // For tags with entityId (specific item), match by type + entityId
-      // For tags without entityId (list view), match by type only
+      // For tags with entityId (specific item), match by exact ID
+      // For tags without entityId (list view), match by type-list ID
       const existingTab = prev.find((t) => {
         if (tag.entityId) {
-          // Single item view - match type and check if data has same entityId
-          return t.type === tag.type && t.id.includes(tag.entityId);
+          // Single item view - match by exact constructed ID to avoid substring false positives
+          const expectedId = `${tag.type}-id-${tag.entityId}`;
+          return t.id === expectedId;
         }
-        // List view - match by type (allow only one list per type)
-        return t.type === tag.type && !t.id.includes('-id-');
+        // List view - match by exact list ID
+        const expectedListId = `${tag.type}-list`;
+        return t.id === expectedListId;
       });
 
       if (existingTab) {

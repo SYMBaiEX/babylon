@@ -362,19 +362,44 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
 
-    // Parse parameters
-    let actionParams = {};
+    // Parse parameters with proper type validation
+    let actionParams: Record<string, unknown> = {};
     if (parameters) {
       if (typeof parameters === 'string') {
         try {
-          actionParams = JSON.parse(parameters);
-        } catch {
+          const parsed = JSON.parse(parameters);
+          // Ensure parsed result is an object
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            !Array.isArray(parsed)
+          ) {
+            actionParams = parsed;
+          } else {
+            logger.warn(
+              `[Coordinator] Parameters parsed but not an object`,
+              { parameters, parsedType: typeof parsed },
+              'CoordinatorChat'
+            );
+          }
+        } catch (err) {
           logger.warn(
-            `[Coordinator] Failed to parse parameters: ${parameters}`
+            `[Coordinator] Failed to parse parameters JSON`,
+            {
+              parameters,
+              error: err instanceof Error ? err.message : 'Unknown',
+            },
+            'CoordinatorChat'
           );
         }
-      } else if (typeof parameters === 'object') {
-        actionParams = parameters;
+      } else if (typeof parameters === 'object' && parameters !== null) {
+        actionParams = parameters as Record<string, unknown>;
+      } else {
+        logger.warn(
+          `[Coordinator] Unexpected parameters type`,
+          { parametersType: typeof parameters },
+          'CoordinatorChat'
+        );
       }
     }
 
@@ -585,6 +610,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     chatId: teamChatId,
     senderId: COORDINATOR_SENDER_ID,
     content: responseText,
+    type: 'coordinator',
     createdAt: responseTime,
     metadata,
   });

@@ -195,7 +195,7 @@ export const checkPnlAction: Action = {
           lifetimePnL,
           predictionPositions: formattedPredictionPositions,
           perpPositions: formattedPerpPositions,
-          recentTrades: recentTrades.length,
+          recentTrades: formattedRecentTrades,
         },
         values: {
           balance,

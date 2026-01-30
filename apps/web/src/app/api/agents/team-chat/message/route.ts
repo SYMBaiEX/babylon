@@ -105,13 +105,27 @@ Title:`;
     const title = result.text.trim().slice(0, 50);
 
     if (title) {
-      await teamChatService.updateChatTitle(chatId, title);
-      logger.info(
-        'Generated chat title from first message',
-        { chatId, title },
+      // Use atomic update to prevent race conditions when multiple first messages
+      // arrive simultaneously - only the first one to update will succeed
+      const updated = await teamChatService.updateChatTitleIfNull(
+        chatId,
+        title
+      );
+      if (updated) {
+        logger.info(
+          'Generated chat title from first message',
+          { chatId, title },
+          'TeamChatMessageAPI'
+        );
+        return title;
+      }
+      // Another message already set the title - this is fine, no error needed
+      logger.debug(
+        'Chat title already set by concurrent request',
+        { chatId },
         'TeamChatMessageAPI'
       );
-      return title;
+      return null;
     }
     return null;
   } catch (error) {

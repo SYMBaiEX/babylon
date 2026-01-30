@@ -42,37 +42,50 @@ export function AgentSettingsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch agent data
-  const fetchAgent = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch agent data with optional abort signal to prevent state updates after unmount
+  const fetchAgent = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        setError('Not authenticated');
-        return;
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          if (!signal?.aborted) setError('Not authenticated');
+          return;
+        }
+
+        const res = await fetch(`/api/agents/${agentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
+        });
+
+        // Don't update state if request was aborted
+        if (signal?.aborted) return;
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch agent');
+        }
+
+        const data = await res.json();
+        if (!signal?.aborted) setAgent(data.agent);
+      } catch (err) {
+        // Ignore abort errors - they're expected on cleanup
+        if (err instanceof Error && err.name === 'AbortError') return;
+        if (!signal?.aborted) {
+          setError(err instanceof Error ? err.message : 'Failed to load agent');
+        }
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
-
-      const res = await fetch(`/api/agents/${agentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to fetch agent');
-      }
-
-      const data = await res.json();
-      setAgent(data.agent);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load agent');
-    } finally {
-      setLoading(false);
-    }
-  }, [agentId, getAccessToken]);
+    },
+    [agentId, getAccessToken]
+  );
 
   useEffect(() => {
-    fetchAgent();
+    const controller = new AbortController();
+    fetchAgent(controller.signal);
+    return () => controller.abort();
   }, [fetchAgent]);
 
   // Handle update from AgentSettings

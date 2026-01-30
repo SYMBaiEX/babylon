@@ -152,14 +152,17 @@ export const checkPerpsAction: Action = {
 
         if (!market) {
           // List available tickers to help the agent correct itself
+          const displayLimit = 15;
           const availableTickers = perpMarkets
-            .slice(0, 15)
+            .slice(0, displayLimit)
             .map((m) => `${m.ticker} (${m.name})`)
             .join(', ');
+          // Only add ellipsis if list was truncated
+          const ellipsis = perpMarkets.length > displayLimit ? '...' : '';
 
           return {
             success: false,
-            text: `Market "${ticker}" not found. Available: ${availableTickers}`,
+            text: `Market "${ticker}" not found. Available: ${availableTickers}${ellipsis}`,
             error: 'Market not found',
           };
         }

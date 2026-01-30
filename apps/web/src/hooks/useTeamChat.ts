@@ -586,8 +586,10 @@ export function useTeamChat(): UseTeamChatReturn {
       if (!username) return;
 
       const mentionText = `@${username}`;
+      // Escape special regex characters in username to prevent ReDoS
+      const escapedMention = mentionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // Check if already tagged (word boundary check)
-      const regex = new RegExp(`(^|\\s)${mentionText}(\\s|$)`, 'i');
+      const regex = new RegExp(`(^|\\s)${escapedMention}(\\s|$)`, 'i');
       if (regex.test(messageInput)) return; // Already tagged
 
       // Append to input

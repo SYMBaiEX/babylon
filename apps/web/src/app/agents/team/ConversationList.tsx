@@ -21,7 +21,12 @@ function getConversationDisplayName(conversation: ConversationInfo): string {
   if (conversation.name) return conversation.name;
 
   // Fallback: "New Chat - Jan 30, 1:55 AM"
+  // Guard against invalid/missing createdAt
   const date = new Date(conversation.createdAt);
+  if (isNaN(date.getTime())) {
+    return 'New Chat';
+  }
+
   const dateStr = date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
