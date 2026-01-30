@@ -35,9 +35,15 @@ function toPredictionMarket(
   };
 }
 
+type TradeSide = 'YES' | 'NO';
+
+interface TradingState {
+  market: PredictionMarket;
+  side: TradeSide;
+}
+
 export function PredictionsPanel({ data }: PredictionsPanelProps) {
-  const [tradingPrediction, setTradingPrediction] =
-    useState<PredictionMarket | null>(null);
+  const [tradingState, setTradingState] = useState<TradingState | null>(null);
   const [timeRange, setTimeRange] = useState<MarketTimeRange>('1D');
 
   // Fetch history for single prediction view
@@ -160,7 +166,9 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setTradingPrediction(predictionMarket)}
+              onClick={() =>
+                setTradingState({ market: predictionMarket, side: 'YES' })
+              }
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-3 font-bold text-sm text-white transition-colors hover:bg-green-700"
             >
               <CheckCircle size={18} />
@@ -168,7 +176,9 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
             </button>
             <button
               type="button"
-              onClick={() => setTradingPrediction(predictionMarket)}
+              onClick={() =>
+                setTradingState({ market: predictionMarket, side: 'NO' })
+              }
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-3 font-bold text-sm text-white transition-colors hover:bg-red-700"
             >
               <XCircle size={18} />
@@ -185,11 +195,12 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
         </div>
 
         {/* Trading Modal */}
-        {tradingPrediction && (
+        {tradingState && (
           <PredictionTradingModal
-            question={tradingPrediction}
-            isOpen={!!tradingPrediction}
-            onClose={() => setTradingPrediction(null)}
+            question={tradingState.market}
+            isOpen={!!tradingState}
+            onClose={() => setTradingState(null)}
+            defaultSide={tradingState.side}
           />
         )}
       </div>
@@ -277,7 +288,9 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
               {!prediction.resolved && (
                 <button
                   type="button"
-                  onClick={() => setTradingPrediction(predictionMarket)}
+                  onClick={() =>
+                    setTradingState({ market: predictionMarket, side: 'YES' })
+                  }
                   className="mt-2 w-full rounded bg-primary/10 py-1.5 font-medium text-primary text-xs transition-colors hover:bg-primary/20"
                 >
                   Trade
@@ -292,11 +305,12 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
       <PanelViewMoreLink href="/markets">View all markets</PanelViewMoreLink>
 
       {/* Trading Modal */}
-      {tradingPrediction && (
+      {tradingState && (
         <PredictionTradingModal
-          question={tradingPrediction}
-          isOpen={!!tradingPrediction}
-          onClose={() => setTradingPrediction(null)}
+          question={tradingState.market}
+          isOpen={!!tradingState}
+          onClose={() => setTradingState(null)}
+          defaultSide={tradingState.side}
         />
       )}
     </div>

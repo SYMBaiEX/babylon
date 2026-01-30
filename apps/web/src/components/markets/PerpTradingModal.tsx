@@ -58,6 +58,8 @@ interface PerpTradingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /** Default side to preselect when modal opens */
+  defaultSide?: TradeSide;
 }
 
 export function PerpTradingModal({
@@ -65,9 +67,10 @@ export function PerpTradingModal({
   isOpen,
   onClose,
   onSuccess,
+  defaultSide = 'long',
 }: PerpTradingModalProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
-  const [side, setSide] = useState<TradeSide>('long');
+  const [side, setSide] = useState<TradeSide>(defaultSide);
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,13 @@ export function PerpTradingModal({
     loading: balanceLoading,
     refresh: refreshBalance,
   } = useWalletBalance(isOpen ? user?.id : null);
+
+  // Reset side when modal opens with a different defaultSide
+  useEffect(() => {
+    if (isOpen) {
+      setSide(defaultSide);
+    }
+  }, [isOpen, defaultSide]);
 
   // Body scroll lock using counter-based approach for multi-modal safety
   useBodyScrollLock(isOpen);

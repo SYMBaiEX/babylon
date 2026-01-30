@@ -37,8 +37,15 @@ function toPerpMarket(market: PerpMarketData): PerpMarket {
   };
 }
 
+type TradeSide = 'long' | 'short';
+
+interface TradingState {
+  market: PerpMarket;
+  side: TradeSide;
+}
+
 export function PerpsPanel({ data }: PerpsPanelProps) {
-  const [tradingMarket, setTradingMarket] = useState<PerpMarket | null>(null);
+  const [tradingState, setTradingState] = useState<TradingState | null>(null);
   const [timeRange, setTimeRange] = useState<MarketTimeRange>('1D');
 
   // Fetch history for single market view
@@ -167,7 +174,9 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setTradingMarket(perpMarket)}
+            onClick={() =>
+              setTradingState({ market: perpMarket, side: 'long' })
+            }
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-3 font-bold text-sm text-white transition-colors hover:bg-green-700"
           >
             <TrendingUp size={18} />
@@ -175,7 +184,9 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
           </button>
           <button
             type="button"
-            onClick={() => setTradingMarket(perpMarket)}
+            onClick={() =>
+              setTradingState({ market: perpMarket, side: 'short' })
+            }
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-3 font-bold text-sm text-white transition-colors hover:bg-red-700"
           >
             <TrendingDown size={18} />
@@ -191,11 +202,12 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
         </div>
 
         {/* Trading Modal */}
-        {tradingMarket && (
+        {tradingState && (
           <PerpTradingModal
-            market={tradingMarket}
-            isOpen={!!tradingMarket}
-            onClose={() => setTradingMarket(null)}
+            market={tradingState.market}
+            isOpen={!!tradingState}
+            onClose={() => setTradingState(null)}
+            defaultSide={tradingState.side}
           />
         )}
       </div>
@@ -249,14 +261,22 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
                   {market.currentPrice.toLocaleString()}
                 </span>
                 <span className="text-muted-foreground text-xs">
-                  Vol: {BABYLON_POINTS_SYMBOL}
-                  {(market.volume24h / 1000).toFixed(1)}K
+                  {market.volume24h != null && market.volume24h > 0 ? (
+                    <>
+                      Vol: {BABYLON_POINTS_SYMBOL}
+                      {(market.volume24h / 1000).toFixed(1)}K
+                    </>
+                  ) : (
+                    'Vol: -'
+                  )}
                 </span>
               </div>
               {/* Quick Trade Button */}
               <button
                 type="button"
-                onClick={() => setTradingMarket(perpMarket)}
+                onClick={() =>
+                  setTradingState({ market: perpMarket, side: 'long' })
+                }
                 className="mt-2 w-full rounded bg-primary/10 py-1.5 font-medium text-primary text-xs transition-colors hover:bg-primary/20"
               >
                 Trade
@@ -270,11 +290,12 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
       <PanelViewMoreLink href="/markets">View all markets</PanelViewMoreLink>
 
       {/* Trading Modal */}
-      {tradingMarket && (
+      {tradingState && (
         <PerpTradingModal
-          market={tradingMarket}
-          isOpen={!!tradingMarket}
-          onClose={() => setTradingMarket(null)}
+          market={tradingState.market}
+          isOpen={!!tradingState}
+          onClose={() => setTradingState(null)}
+          defaultSide={tradingState.side}
         />
       )}
     </div>

@@ -29,6 +29,8 @@ interface PredictionTradingModalProps {
   onClose: () => void;
   /** Optional callback when trade succeeds */
   onSuccess?: () => void;
+  /** Default side to preselect when modal opens */
+  defaultSide?: 'YES' | 'NO';
 }
 
 /**
@@ -57,10 +59,20 @@ export function PredictionTradingModal({
   isOpen,
   onClose,
   onSuccess,
+  defaultSide = 'YES',
 }: PredictionTradingModalProps) {
   const { user, authenticated } = useAuth();
   const { getAccessToken } = usePrivy();
-  const [side, setSide] = useState<'yes' | 'no'>('yes');
+  const [side, setSide] = useState<'yes' | 'no'>(
+    defaultSide.toLowerCase() as 'yes' | 'no'
+  );
+
+  // Reset side when modal opens with a different defaultSide
+  useEffect(() => {
+    if (isOpen) {
+      setSide(defaultSide.toLowerCase() as 'yes' | 'no');
+    }
+  }, [isOpen, defaultSide]);
   const [amount, setAmount] = useState('10');
   const [loading, setLoading] = useState(false);
   const {
