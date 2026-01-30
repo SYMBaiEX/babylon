@@ -346,12 +346,12 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       break;
     }
 
-    const action = (parsedStep.action as string) ?? '';
+    const action = ((parsedStep.action as string) ?? '').trim();
     const parameters = parsedStep.parameters;
     const isFinish = parsedStep.isFinish;
 
     // No action - go to summary phase
-    if (!action || action === '') {
+    if (!action) {
       break;
     }
 

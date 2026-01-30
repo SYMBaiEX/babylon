@@ -87,6 +87,11 @@ export interface PerpsTagData {
 
 /** Single prediction market data */
 export interface PredictionMarketData {
+  /**
+   * Market ID - accepts both string and number to support legacy API endpoints
+   * that return numeric IDs and newer endpoints that return string UUIDs.
+   * This dual-type ensures backward compatibility with older API responses.
+   */
   id: string | number;
   question: string;
   yesPercent: number;

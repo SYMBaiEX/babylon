@@ -30,16 +30,20 @@ const MAX_SCROLL_STABLE_RETRIES = 20;
 
 /**
  * Extract agent IDs from @mentions in message content.
- * Matches @username patterns and returns IDs of matching agents.
+ * Matches @username patterns (not inside emails) and returns IDs of matching agents.
+ * The regex requires @ to be at start of string or preceded by a non-word character,
+ * preventing matches like user@example.com from being treated as mentions.
  */
 function extractMentionedAgentIds(
   content: string,
   agents: TeamChatAgent[]
 ): string[] {
-  const mentionRegex = /@([A-Za-z0-9_.-]+)/g;
+  // Require @ to be at start or preceded by non-word char (excludes emails like user@domain.com)
+  const mentionRegex = /(?:^|[^\w])@([A-Za-z0-9_.-]+)/g;
   const mentionedUsernames = new Set<string>();
   let match;
   while ((match = mentionRegex.exec(content)) !== null) {
+    // Capture group is at index 1 (the username after @)
     const captured = match[1];
     if (captured) {
       mentionedUsernames.add(captured.toLowerCase());

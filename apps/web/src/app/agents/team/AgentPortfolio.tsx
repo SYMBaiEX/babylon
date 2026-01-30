@@ -87,7 +87,10 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   // Fetch balance, transactions, and agent stats
   const fetchData = useCallback(async () => {
     const token = await getAccessToken();
-    if (!token) return;
+    if (!token) {
+      setWalletLoading(false);
+      return;
+    }
 
     setWalletLoading(true);
 

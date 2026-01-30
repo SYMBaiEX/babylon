@@ -9,7 +9,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -81,9 +81,16 @@ export function PerpTradingModal({
     refresh: refreshBalance,
   } = useWalletBalance(isOpen ? user?.id : null);
 
-  // Reset side when modal opens with a different defaultSide
+  // Track previous isOpen to detect open transition
+  const prevIsOpenRef = useRef(false);
+
+  // Reset side only when modal actually opens (isOpen transitions from false to true)
   useEffect(() => {
-    if (isOpen) {
+    const prevIsOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    // Only reset when transitioning from closed to open
+    if (!prevIsOpen && isOpen) {
       setSide(defaultSide);
     }
   }, [isOpen, defaultSide]);

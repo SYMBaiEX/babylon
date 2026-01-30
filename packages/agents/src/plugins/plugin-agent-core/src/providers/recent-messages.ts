@@ -122,7 +122,8 @@ export const recentMessagesProvider: Provider = {
       }
 
       // Format messages (oldest first for conversation flow)
-      formattedMessages = recentMsgs
+      // Use spread to create a copy before reversing to avoid mutating the original array
+      formattedMessages = [...recentMsgs]
         .reverse()
         .map((msg) => {
           const speaker = msg.senderId === ownerId ? 'User' : 'You';
@@ -155,7 +156,8 @@ export const recentMessagesProvider: Provider = {
       }
 
       // Format messages (oldest first for conversation flow)
-      formattedMessages = messages
+      // Use spread to create a copy before reversing to avoid mutating the original array
+      formattedMessages = [...messages]
         .reverse()
         .map((msg) => {
           const speaker = msg.role === 'user' ? 'User' : 'Agent';
