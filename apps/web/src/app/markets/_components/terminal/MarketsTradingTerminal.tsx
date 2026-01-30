@@ -1329,7 +1329,7 @@ export function MarketsTradingTerminal({
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionSide === 'yes'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-blue-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -1341,7 +1341,7 @@ export function MarketsTradingTerminal({
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionSide === 'no'
-                    ? 'bg-pink-600 text-white'
+                    ? 'bg-violet-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >

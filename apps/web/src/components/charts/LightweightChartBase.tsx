@@ -142,11 +142,11 @@ export const LINE_STYLES = {
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<LineSeriesOptions>,
   violetPastel: {
-    color: '#a78bfa', // violet-400
+    color: '#8b5cf6', // violet-500 (a bit less pastel)
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#a78bfa',
+    crosshairMarkerBackgroundColor: '#8b5cf6',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<LineSeriesOptions>,

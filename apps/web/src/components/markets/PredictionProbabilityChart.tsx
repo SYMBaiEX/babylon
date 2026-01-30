@@ -293,7 +293,7 @@ export function PredictionProbabilityChart({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-violet-400" />
+              <div className="h-3 w-3 rounded-full bg-violet-500" />
               <span className="font-semibold text-sm">
                 NO {(100 - currentProbability).toFixed(1)}%
               </span>
@@ -352,7 +352,7 @@ export function PredictionProbabilityChart({
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#a78bfa' }}
+            style={{ backgroundColor: '#8b5cf6' }}
           />
           <span>NO Probability</span>
         </div>
