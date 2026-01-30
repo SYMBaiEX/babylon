@@ -98,6 +98,8 @@ interface TeamChatViewProps {
   currentUserId: string | undefined;
   authenticated: boolean;
   sseConnected: boolean;
+  /** When embedding in another container that already has a header (e.g. terminal tabs). */
+  hideHeader?: boolean;
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
@@ -136,6 +138,7 @@ export function TeamChatView({
   currentUserId,
   authenticated,
   sseConnected,
+  hideHeader = false,
   loading,
   isLoadingMore,
   hasMore,
@@ -171,47 +174,49 @@ export function TeamChatView({
   return (
     <div className="flex h-full flex-col">
       {/* Chat Header - Fixed */}
-      <div className="shrink-0">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">Agents</h2>
-            <p className="text-muted-foreground text-sm">
-              {chatDetails.participants.length} member
-              {chatDetails.participants.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Mobile members button */}
-            {onShowMembers && (
-              <button
-                onClick={onShowMembers}
-                className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
-                aria-label="Show team members"
-              >
-                <Users className="h-5 w-5 text-muted-foreground" />
-              </button>
-            )}
-            {/* Connection status */}
-            <div className="flex items-center gap-2">
-              <Radio
-                className={
-                  sseConnected
-                    ? 'h-4 w-4 text-green-500'
-                    : 'h-4 w-4 text-muted-foreground'
-                }
-              />
-              <span className="text-muted-foreground text-sm">
-                {sseConnected ? 'Live' : 'Connecting...'}
-              </span>
+      {!hideHeader && (
+        <div className="shrink-0">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">Agents</h2>
+              <p className="text-muted-foreground text-sm">
+                {chatDetails.participants.length} member
+                {chatDetails.participants.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Mobile members button */}
+              {onShowMembers && (
+                <button
+                  onClick={onShowMembers}
+                  className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
+                  aria-label="Show team members"
+                >
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </button>
+              )}
+              {/* Connection status */}
+              <div className="flex items-center gap-2">
+                <Radio
+                  className={
+                    sseConnected
+                      ? 'h-4 w-4 text-green-500'
+                      : 'h-4 w-4 text-muted-foreground'
+                  }
+                />
+                <span className="text-muted-foreground text-sm">
+                  {sseConnected ? 'Live' : 'Connecting...'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Header Separator */}
-        <div className="px-4">
-          <Separator />
+          {/* Header Separator */}
+          <div className="px-4">
+            <Separator />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Messages - Scrollable */}
       <div

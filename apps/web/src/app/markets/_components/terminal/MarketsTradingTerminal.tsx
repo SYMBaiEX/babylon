@@ -81,11 +81,14 @@ import type {
   TradeSide,
 } from '@/types/markets';
 import { MARKET_TIME_RANGES } from '@/types/markets';
-import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
 import { formatBalance } from '../../_lib/formatters';
+import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
+import { TerminalAgentsChat } from './TerminalAgentsChat';
+import { TerminalSocialFeed } from './TerminalSocialFeed';
 
 type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
 type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
+type BottomTab = 'agent' | 'social' | 'positions' | 'trades';
 
 interface MarketsTradingTerminalProps {
   onRequestBuyPoints?: () => void;
@@ -246,9 +249,7 @@ export function MarketsTradingTerminal({
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
-  const [bottomTab, setBottomTab] = useState<'positions' | 'trades'>(
-    'positions'
-  );
+  const [bottomTab, setBottomTab] = useState<BottomTab>('agent');
 
   const [showMarketsMenu, setShowMarketsMenu] = useState(false);
   const marketsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1550,6 +1551,18 @@ export function MarketsTradingTerminal({
       <div className="flex items-center justify-between border-white/5 border-b bg-background/30 px-2">
         <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto">
           <TabButton
+            active={bottomTab === 'agent'}
+            onClick={() => setBottomTab('agent')}
+          >
+            Agents
+          </TabButton>
+          <TabButton
+            active={bottomTab === 'social'}
+            onClick={() => setBottomTab('social')}
+          >
+            Social
+          </TabButton>
+          <TabButton
             active={bottomTab === 'positions'}
             onClick={() => setBottomTab('positions')}
           >
@@ -1579,12 +1592,16 @@ export function MarketsTradingTerminal({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {!authenticated ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-            Log in to view positions.
-          </div>
+        {bottomTab === 'agent' ? (
+          <TerminalAgentsChat />
+        ) : bottomTab === 'social' ? (
+          <TerminalSocialFeed />
         ) : bottomTab === 'positions' ? (
-          selected?.kind === 'prediction' ? (
+          !authenticated ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+              Log in to view positions.
+            </div>
+          ) : selected?.kind === 'prediction' ? (
             <div className="h-full overflow-auto">
               {selectedPredictionPositions.length > 0 ? (
                 <PredictionPositionsList
@@ -1745,7 +1762,13 @@ export function MarketsTradingTerminal({
                 )}
               >
                 <span className="font-semibold text-[10px] tracking-widest">
-                  POSITIONS & TRADES
+                  {bottomTab === 'agent'
+                    ? 'AGENTS'
+                    : bottomTab === 'social'
+                      ? 'SOCIAL'
+                      : bottomTab === 'positions'
+                        ? 'POSITIONS'
+                        : 'TRADES'}
                 </span>
                 <span className="text-[10px]">▲</span>
               </button>
@@ -1914,50 +1937,86 @@ export function MarketsTradingTerminal({
             </div>
 
             <div className="sticky top-0 z-30 flex h-12 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setBottomTab('positions')}
-                className={cn(
-                  'relative flex h-full min-w-[88px] flex-1 items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
-                  bottomTab === 'positions'
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
-                )}
-              >
-                Positions
-                {bottomTab === 'positions' && (
-                  <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setBottomTab('trades')}
-                className={cn(
-                  'relative flex h-full min-w-[88px] flex-1 items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
-                  bottomTab === 'trades'
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
-                )}
-              >
-                Trades
-                {bottomTab === 'trades' && (
-                  <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                )}
-              </button>
-              <button
-                type="button"
-                disabled
-                className="flex h-full min-w-[88px] flex-1 cursor-not-allowed items-center justify-center py-3 font-bold text-muted-foreground text-sm capitalize opacity-60"
-              >
-                Orders
-                <span className="ml-2 rounded-full bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">
-                  Soon
-                </span>
-              </button>
+              <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('agent')}
+                  className={cn(
+                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    bottomTab === 'agent'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  Agents
+                  {bottomTab === 'agent' && (
+                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('social')}
+                  className={cn(
+                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    bottomTab === 'social'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  Social
+                  {bottomTab === 'social' && (
+                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('positions')}
+                  className={cn(
+                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    bottomTab === 'positions'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  Positions
+                  {bottomTab === 'positions' && (
+                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('trades')}
+                  className={cn(
+                    'relative flex h-full min-w-[88px] flex-none items-center justify-center py-3 font-bold text-sm capitalize transition-colors',
+                    bottomTab === 'trades'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  Trades
+                  {bottomTab === 'trades' && (
+                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="flex h-full min-w-[88px] flex-none cursor-not-allowed items-center justify-center py-3 font-bold text-muted-foreground text-sm capitalize opacity-60"
+                >
+                  Orders
+                  <span className="ml-2 rounded-full bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Soon
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="min-h-[320px] flex-1">
-              {bottomTab === 'positions' ? (
+              {bottomTab === 'agent' ? (
+                <TerminalAgentsChat />
+              ) : bottomTab === 'social' ? (
+                <TerminalSocialFeed />
+              ) : bottomTab === 'positions' ? (
                 !authenticated ? (
                   <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                     Log in to view positions.
