@@ -120,7 +120,13 @@ export const checkTeamChatAction: Action = {
           msg.senderDisplayName || msg.senderUsername || 'Unknown';
         const senderHandle = msg.senderUsername ? `@${msg.senderUsername}` : '';
         const timestamp = new Date(msg.createdAt).toLocaleTimeString();
-        const role = msg.isAgent ? 'Agent' : 'User';
+        // Explicitly handle null (deleted users) vs true/false
+        const role =
+          msg.isAgent === true
+            ? 'Agent'
+            : msg.isAgent === false
+              ? 'User'
+              : 'Unknown';
 
         return {
           sender: `${senderName} ${senderHandle}`.trim(),

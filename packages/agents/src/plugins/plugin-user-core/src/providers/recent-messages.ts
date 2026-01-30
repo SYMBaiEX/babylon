@@ -81,79 +81,63 @@ export const coordinatorRecentMessagesProvider: Provider = {
       };
     }
 
-    try {
-      // Query messages relevant to coordinator:
-      // 1. User messages that target coordinator (targetIds contains 'coordinator')
-      // 2. Coordinator's own responses (senderId = 'coordinator')
-      const recentMsgs = await db
-        .select()
-        .from(messagesTable)
-        .where(
-          and(
-            eq(messagesTable.chatId, teamChatId),
-            or(
-              // Coordinator's own messages
-              eq(messagesTable.senderId, COORDINATOR_SENDER_ID),
-              // User messages targeting coordinator
-              and(
-                eq(messagesTable.senderId, ownerId),
-                sql`${COORDINATOR_SENDER_ID} = ANY(${messagesTable.targetIds})`
-              )
+    // Query messages relevant to coordinator:
+    // 1. User messages that target coordinator (targetIds contains 'coordinator')
+    // 2. Coordinator's own responses (senderId = 'coordinator')
+    const recentMsgs = await db
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          eq(messagesTable.chatId, teamChatId),
+          or(
+            // Coordinator's own messages
+            eq(messagesTable.senderId, COORDINATOR_SENDER_ID),
+            // User messages targeting coordinator (use @> for GIN index efficiency)
+            and(
+              eq(messagesTable.senderId, ownerId),
+              sql`${messagesTable.targetIds} @> ARRAY[${COORDINATOR_SENDER_ID}]`
             )
           )
         )
-        .orderBy(desc(messagesTable.createdAt))
-        .limit(15);
+      )
+      .orderBy(desc(messagesTable.createdAt))
+      .limit(15);
 
-      if (recentMsgs.length === 0) {
-        return {
-          data: { recentMessages: [], messageCount: 0 },
-          values: {
-            recentMessages: 'No previous conversation history with this user.',
-            messageCount: 0,
-            hasHistory: false,
-          },
-          text: 'No previous conversation history with this user.',
-        };
-      }
-
-      // Format messages (oldest first for conversation flow)
-      const formattedMessages = recentMsgs
-        .reverse()
-        .map((msg) => {
-          const speaker = msg.senderId === ownerId ? 'User' : 'You';
-          const time = formatTime(msg.createdAt);
-          const relativeTime = formatRelativeTime(msg.createdAt);
-          return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
-        })
-        .join('\n');
-
-      return {
-        data: {
-          recentMessages: recentMsgs,
-          messageCount: recentMsgs.length,
-        },
-        values: {
-          recentMessages: formattedMessages,
-          messageCount: recentMsgs.length,
-          hasHistory: true,
-        },
-        text: formattedMessages,
-      };
-    } catch (error) {
-      console.error(
-        '[CoordinatorRecentMessagesProvider] Error fetching messages:',
-        error
-      );
+    if (recentMsgs.length === 0) {
       return {
         data: { recentMessages: [], messageCount: 0 },
         values: {
-          recentMessages: 'Error retrieving conversation history.',
+          recentMessages: 'No previous conversation history with this user.',
           messageCount: 0,
           hasHistory: false,
         },
-        text: 'Error retrieving conversation history.',
+        text: 'No previous conversation history with this user.',
       };
     }
+
+    // Format messages (oldest first for conversation flow)
+    const formattedMessages = recentMsgs
+      .reverse()
+      .map((msg) => {
+        const speaker = msg.senderId === ownerId ? 'User' : 'You';
+        const time = formatTime(msg.createdAt);
+        const relativeTime = formatRelativeTime(msg.createdAt);
+        return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
+      })
+      .join('\n');
+
+    return {
+      data: {
+        recentMessages: recentMsgs,
+        messageCount: recentMsgs.length,
+      },
+      values: {
+        recentMessages: formattedMessages,
+        messageCount: recentMsgs.length,
+        hasHistory: true,
+      },
+      text: formattedMessages,
+    };
   },
 };

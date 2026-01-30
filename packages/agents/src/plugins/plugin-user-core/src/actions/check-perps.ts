@@ -107,176 +107,166 @@ export const checkPerpsAction: Action = {
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 20);
     const sortBy = (actionParams?.sortBy as SortOption) ?? 'volume';
 
-    try {
-      // Create wallet adapter (needed for PerpMarketService but we won't use it for reads)
-      const walletAdapter = {
-        debit: async () => {},
-        credit: async () => {},
-        recordPnL: async () => {},
-        getBalance: WalletService.getBalance,
+    // Create wallet adapter (needed for PerpMarketService but we won't use it for reads)
+    const walletAdapter = {
+      debit: async () => {},
+      credit: async () => {},
+      recordPnL: async () => {},
+      getBalance: WalletService.getBalance,
+    };
+
+    const service = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: walletAdapter,
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
+
+    // Get markets from the same source OPEN_PERP uses
+    const perpMarkets = await service.getMarketsSnapshot();
+
+    if (perpMarkets.length === 0) {
+      return {
+        success: true,
+        text: 'No perpetual markets available.',
+        data: { markets: [], count: 0 },
+        values: { count: 0 },
+      };
+    }
+
+    // =========================================================================
+    // SINGLE MARKET MODE: When ticker is provided
+    // =========================================================================
+    if (ticker) {
+      // Exact match by ticker or name (case-insensitive)
+      const market = perpMarkets.find(
+        (m) =>
+          m.ticker.toUpperCase() === ticker ||
+          (m.name && m.name.toUpperCase() === ticker)
+      );
+
+      if (!market) {
+        // List available tickers to help the agent correct itself
+        const availableTickers = perpMarkets
+          .slice(0, 15)
+          .map((m) => `${m.ticker} (${m.name})`)
+          .join(', ');
+
+        return {
+          success: false,
+          text: `Market "${ticker}" not found. Available: ${availableTickers}`,
+          error: 'Market not found',
+        };
+      }
+
+      const marketData = {
+        ticker: market.ticker,
+        name: market.name,
+        currentPrice: market.currentPrice,
+        changePercent24h: market.changePercent24h,
+        volume24h: market.volume24h,
+        openInterest: market.openInterest,
+        fundingRate: market.fundingRate?.rate,
       };
 
-      const service = new PerpMarketService({
-        db: new PerpDbAdapter(),
-        wallet: walletAdapter,
-        fees: {
-          tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
-          platformShare: FEE_CONFIG.PLATFORM_SHARE,
-          referrerShare: FEE_CONFIG.REFERRER_SHARE,
-          minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
-        },
-      });
-
-      // Get markets from the same source OPEN_PERP uses
-      const perpMarkets = await service.getMarketsSnapshot();
-
-      if (perpMarkets.length === 0) {
-        return {
-          success: true,
-          text: 'No perpetual markets available.',
-          data: { markets: [], count: 0 },
-          values: { count: 0 },
-        };
-      }
-
-      // =========================================================================
-      // SINGLE MARKET MODE: When ticker is provided
-      // =========================================================================
-      if (ticker) {
-        // Exact match by ticker or name (case-insensitive)
-        const market = perpMarkets.find(
-          (m) =>
-            m.ticker.toUpperCase() === ticker ||
-            (m.name && m.name.toUpperCase() === ticker)
-        );
-
-        if (!market) {
-          // List available tickers to help the agent correct itself
-          const availableTickers = perpMarkets
-            .slice(0, 15)
-            .map((m) => `${m.ticker} (${m.name})`)
-            .join(', ');
-
-          return {
-            success: false,
-            text: `Market "${ticker}" not found. Available: ${availableTickers}`,
-            error: 'Market not found',
-          };
-        }
-
-        const marketData = {
-          ticker: market.ticker,
-          name: market.name,
-          currentPrice: market.currentPrice,
-          changePercent24h: market.changePercent24h,
-          volume24h: market.volume24h,
-          openInterest: market.openInterest,
-          fundingRate: market.fundingRate?.rate,
-        };
-
-        logger.info(
-          `[CHECK_PERPS] Retrieved single market: ${ticker}`,
-          { ticker, price: market.currentPrice },
-          'check-perps'
-        );
-
-        return {
-          success: true,
-          text: `${market.ticker}: $${market.currentPrice.toLocaleString()} (${market.changePercent24h >= 0 ? '+' : ''}${market.changePercent24h.toFixed(2)}%)`,
-          data: { market: marketData },
-          values: {
-            ticker: market.ticker,
-            price: market.currentPrice,
-            change24h: market.changePercent24h,
-            volume24h: market.volume24h,
-          },
-          // Tag for specific market - opens detailed view
-          tag: {
-            type: 'perps',
-            label: market.ticker,
-            icon: 'TrendingUp',
-            entityId: market.ticker,
-            data: { market: marketData },
-          },
-        } as ActionResultWithTag;
-      }
-
-      // =========================================================================
-      // LIST MODE: When no ticker provided
-      // =========================================================================
-
-      // Sort markets
-      const sortedMarkets = [...perpMarkets].sort((a, b) => {
-        switch (sortBy) {
-          case 'price':
-            return b.currentPrice - a.currentPrice;
-          case 'change':
-            return Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h);
-          case 'volume':
-            return b.volume24h - a.volume24h;
-          case 'name':
-            return (a.name ?? a.ticker).localeCompare(b.name ?? b.ticker);
-          default:
-            return b.volume24h - a.volume24h;
-        }
-      });
-
-      const displayedMarkets = sortedMarkets.slice(0, limit);
-
-      const topGainer = displayedMarkets.reduce((max, m) =>
-        m.changePercent24h > max.changePercent24h ? m : max
-      );
-      const topLoser = displayedMarkets.reduce((min, m) =>
-        m.changePercent24h < min.changePercent24h ? m : min
-      );
       logger.info(
-        `[CHECK_PERPS] Retrieved ${displayedMarkets.length} markets`,
-        { sortBy, limit },
+        `[CHECK_PERPS] Retrieved single market: ${ticker}`,
+        { ticker, price: market.currentPrice },
         'check-perps'
       );
 
-      // Format markets for tag data
-      const marketsForTag = displayedMarkets.map((m) => ({
-        ticker: m.ticker,
-        name: m.name,
-        currentPrice: m.currentPrice,
-        changePercent24h: m.changePercent24h,
-        volume24h: m.volume24h,
-      }));
-
       return {
         success: true,
-        text: `Retrieved ${displayedMarkets.length} perpetual markets.`,
-        data: {
-          markets: marketsForTag,
-          count: displayedMarkets.length,
-        },
+        text: `${market.ticker}: $${market.currentPrice.toLocaleString()} (${market.changePercent24h >= 0 ? '+' : ''}${market.changePercent24h.toFixed(2)}%)`,
+        data: { market: marketData },
         values: {
-          count: displayedMarkets.length,
-          tickers: displayedMarkets.map((m) => ({
-            ticker: m.ticker,
-            price: m.currentPrice,
-            change24h: m.changePercent24h,
-          })),
-          topGainer: topGainer.ticker,
-          topLoser: topLoser.ticker,
+          ticker: market.ticker,
+          price: market.currentPrice,
+          change24h: market.changePercent24h,
+          volume24h: market.volume24h,
         },
-        // Tag for list view
+        // Tag for specific market - opens detailed view
         tag: {
           type: 'perps',
-          label: 'Markets',
+          label: market.ticker,
           icon: 'TrendingUp',
-          data: { markets: marketsForTag },
+          entityId: market.ticker,
+          data: { market: marketData },
         },
       } as ActionResultWithTag;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('[CHECK_PERPS] Error:', errorMsg);
-      return {
-        success: false,
-        text: `Failed to fetch perp markets: ${errorMsg}`,
-        error: errorMsg,
-      };
     }
+
+    // =========================================================================
+    // LIST MODE: When no ticker provided
+    // =========================================================================
+
+    // Sort markets
+    const sortedMarkets = [...perpMarkets].sort((a, b) => {
+      switch (sortBy) {
+        case 'price':
+          return b.currentPrice - a.currentPrice;
+        case 'change':
+          return Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h);
+        case 'volume':
+          return b.volume24h - a.volume24h;
+        case 'name':
+          return (a.name ?? a.ticker).localeCompare(b.name ?? b.ticker);
+        default:
+          return b.volume24h - a.volume24h;
+      }
+    });
+
+    const displayedMarkets = sortedMarkets.slice(0, limit);
+
+    const topGainer = displayedMarkets.reduce((max, m) =>
+      m.changePercent24h > max.changePercent24h ? m : max
+    );
+    const topLoser = displayedMarkets.reduce((min, m) =>
+      m.changePercent24h < min.changePercent24h ? m : min
+    );
+    logger.info(
+      `[CHECK_PERPS] Retrieved ${displayedMarkets.length} markets`,
+      { sortBy, limit },
+      'check-perps'
+    );
+
+    // Format markets for tag data
+    const marketsForTag = displayedMarkets.map((m) => ({
+      ticker: m.ticker,
+      name: m.name,
+      currentPrice: m.currentPrice,
+      changePercent24h: m.changePercent24h,
+      volume24h: m.volume24h,
+    }));
+
+    return {
+      success: true,
+      text: `Retrieved ${displayedMarkets.length} perpetual markets.`,
+      data: {
+        markets: marketsForTag,
+        count: displayedMarkets.length,
+      },
+      values: {
+        count: displayedMarkets.length,
+        tickers: displayedMarkets.map((m) => ({
+          ticker: m.ticker,
+          price: m.currentPrice,
+          change24h: m.changePercent24h,
+        })),
+        topGainer: topGainer.ticker,
+        topLoser: topLoser.ticker,
+      },
+      // Tag for list view
+      tag: {
+        type: 'perps',
+        label: 'Markets',
+        icon: 'TrendingUp',
+        data: { markets: marketsForTag },
+      },
+    } as ActionResultWithTag;
   },
 };

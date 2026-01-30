@@ -66,19 +66,11 @@ export const coordinatorActionsProvider: Provider = {
     message: Memory,
     state: State
   ): Promise<ProviderResult> => {
-    // Get actions that validate for this message
+    // Get actions that validate for this message (fail-fast - let validation errors propagate)
     const actionPromises = runtime.actions.map(async (action: Action) => {
-      try {
-        const result = await action.validate(runtime, message, state);
-        if (result) {
-          return action;
-        }
-      } catch (e) {
-        console.error(
-          '[CoordinatorActionsProvider] validate error:',
-          action.name,
-          e
-        );
+      const result = await action.validate(runtime, message, state);
+      if (result) {
+        return action;
       }
       return null;
     });

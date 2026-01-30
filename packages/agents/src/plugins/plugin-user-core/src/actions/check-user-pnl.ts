@@ -129,16 +129,10 @@ export const checkUserPnlAction: Action = {
 
       const userName = user.displayName || user.username || 'User';
 
-      // Get wallet balance
-      let balance = 0;
-      let lifetimePnL = 0;
-      try {
-        const walletBalance = await WalletService.getBalance(ownerId);
-        balance = walletBalance.balance;
-        lifetimePnL = walletBalance.lifetimePnL;
-      } catch {
-        lifetimePnL = Number(user?.lifetimePnL ?? 0);
-      }
+      // Get wallet balance (fail-fast - no fallback)
+      const walletBalance = await WalletService.getBalance(ownerId);
+      const balance = walletBalance.balance;
+      const lifetimePnL = walletBalance.lifetimePnL;
 
       // Get active prediction positions with market details
       const predictionPositions = await db
