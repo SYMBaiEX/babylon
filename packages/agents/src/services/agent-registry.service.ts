@@ -406,6 +406,10 @@ export class AgentRegistryService {
       ) as Array<'USER_CONTROLLED' | 'NPC' | 'EXTERNAL'>;
       if (dbTypes.length > 0) {
         conditions.push(inArray(agentRegistries.type, dbTypes));
+      } else if (types.length > 0) {
+        // Caller requested only virtual types (e.g., USER_COORDINATOR) which don't exist in DB
+        // Return empty result immediately to avoid returning all agents
+        return [];
       }
     }
 

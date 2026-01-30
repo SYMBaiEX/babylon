@@ -28,6 +28,7 @@ import {
   isNull,
   messages,
   ne,
+  sql,
   type User,
   users,
   withTransaction,
@@ -1069,11 +1070,11 @@ export class TeamChatService {
    */
   async getUserMessageCount(chatId: string): Promise<number> {
     const result = await db
-      .select({ id: messages.id })
+      .select({ count: sql<number>`count(*)` })
       .from(messages)
       .where(and(eq(messages.chatId, chatId), eq(messages.type, 'user')));
 
-    return result.length;
+    return result[0]?.count ?? 0;
   }
 
   /**
