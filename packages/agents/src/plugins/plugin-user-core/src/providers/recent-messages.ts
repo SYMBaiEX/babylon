@@ -117,7 +117,8 @@ export const coordinatorRecentMessagesProvider: Provider = {
     }
 
     // Format messages (oldest first for conversation flow)
-    const formattedMessages = recentMsgs
+    // Use a shallow copy to avoid mutating recentMsgs (which stays newest-first)
+    const formattedMessages = [...recentMsgs]
       .reverse()
       .map((msg) => {
         const speaker = msg.senderId === ownerId ? 'User' : 'You';

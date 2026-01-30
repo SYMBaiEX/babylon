@@ -25,8 +25,12 @@ interface ActionResultWithTag extends ActionResult {
  * Format relative time (e.g., "2h ago", "15m ago")
  */
 function getTimeAgo(date: Date): string {
+  // Guard against invalid dates
+  const timestamp = date.getTime();
+  if (Number.isNaN(timestamp)) return 'unknown time';
+
   const now = Date.now();
-  const diffMs = now - date.getTime();
+  const diffMs = now - timestamp;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
