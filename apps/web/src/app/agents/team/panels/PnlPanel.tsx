@@ -2,8 +2,8 @@
 
 import type { PnlTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { ExternalLink, TrendingDown, TrendingUp } from 'lucide-react';
-import Link from 'next/link';
+import { TrendingDown, TrendingUp } from 'lucide-react';
+import { PanelViewMoreLink } from './PanelViewMoreLink';
 
 interface PnlPanelProps {
   data: PnlTagData;
@@ -152,13 +152,7 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
         )}
 
       {/* View Profile Link */}
-      <Link
-        href="/profile"
-        className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <ExternalLink size={14} />
-        View full portfolio →
-      </Link>
+      <PanelViewMoreLink href="/profile">View full portfolio</PanelViewMoreLink>
     </div>
   );
 }

@@ -2,13 +2,13 @@
 
 import type { PredictionMarketData, PredictionsTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { CheckCircle, Clock, ExternalLink, XCircle } from 'lucide-react';
-import Link from 'next/link';
+import { CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart';
 import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type { MarketTimeRange, PredictionMarket } from '@/types/markets';
+import { PanelViewMoreLink } from './PanelViewMoreLink';
 
 interface PredictionsPanelProps {
   data: PredictionsTagData;
@@ -178,13 +178,11 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
         )}
 
         {/* View Full Page Link */}
-        <Link
-          href={`/markets/predictions/${prediction.id}`}
-          className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ExternalLink size={14} />
-          View full market page →
-        </Link>
+        <div className="mt-4">
+          <PanelViewMoreLink href={`/markets/predictions/${prediction.id}`}>
+            View full market page
+          </PanelViewMoreLink>
+        </div>
 
         {/* Trading Modal */}
         {tradingPrediction && (
@@ -291,13 +289,7 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
       </div>
 
       {/* View All Predictions Link */}
-      <Link
-        href="/markets"
-        className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <ExternalLink size={14} />
-        View all markets →
-      </Link>
+      <PanelViewMoreLink href="/markets">View all markets</PanelViewMoreLink>
 
       {/* Trading Modal */}
       {tradingPrediction && (

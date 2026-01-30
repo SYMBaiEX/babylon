@@ -2,8 +2,9 @@
 
 import type { FeedTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { ExternalLink, Heart, MessageCircle, Share2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2 } from 'lucide-react';
 import Link from 'next/link';
+import { PanelViewMoreLink } from './PanelViewMoreLink';
 
 interface FeedPanelProps {
   data: FeedTagData;
@@ -134,13 +135,7 @@ export function FeedPanel({ data }: FeedPanelProps) {
 
       {/* View More Link */}
       {hasMore && (
-        <Link
-          href="/feed"
-          className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ExternalLink size={14} />
-          View more on feed →
-        </Link>
+        <PanelViewMoreLink href="/feed">View more on feed</PanelViewMoreLink>
       )}
     </div>
   );

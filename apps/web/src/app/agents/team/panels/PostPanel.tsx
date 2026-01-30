@@ -2,8 +2,9 @@
 
 import type { PostTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { ExternalLink, MessageCircle, Repeat2 } from 'lucide-react';
+import { MessageCircle, Repeat2 } from 'lucide-react';
 import Link from 'next/link';
+import { PanelViewMoreLink } from './PanelViewMoreLink';
 
 interface PostPanelProps {
   data: PostTagData;
@@ -128,13 +129,9 @@ export function PostPanel({ data }: PostPanelProps) {
       </div>
 
       {/* Link to full post */}
-      <Link
-        href={`/post/${post.id}`}
-        className="flex items-center justify-center gap-2 rounded-lg border border-border bg-primary/5 p-3 font-medium text-primary text-sm transition-colors hover:bg-primary/10"
-      >
-        <ExternalLink size={14} />
+      <PanelViewMoreLink href={`/post/${post.id}`}>
         View full post
-      </Link>
+      </PanelViewMoreLink>
     </div>
   );
 }
