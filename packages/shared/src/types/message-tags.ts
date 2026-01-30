@@ -118,7 +118,8 @@ export interface PostTagData {
     author: string;
     authorId: string;
     authorProfileImageUrl?: string | null;
-    createdAt: Date;
+    /** ISO 8601 date string (serialized as string in JSON) */
+    createdAt: string;
   };
   commentCount: number;
   shareCount?: number;

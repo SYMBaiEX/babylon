@@ -47,10 +47,11 @@ function getInitials(name: string): string {
   return (name.slice(0, 2) || '??').toUpperCase();
 }
 
-/** Format date to relative or absolute */
-function formatDate(date: Date): string {
+/** Format ISO date string to relative or absolute */
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
   const now = Date.now();
-  const diffMs = now - new Date(date).getTime();
+  const diffMs = now - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -59,7 +60,7 @@ function formatDate(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(date).toLocaleDateString();
+  return date.toLocaleDateString();
 }
 
 export function PostPanel({ data }: PostPanelProps) {
