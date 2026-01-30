@@ -1442,7 +1442,7 @@ export function MarketsTradingTerminal({
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-muted-foreground">Avg price</span>
                   <span className="font-mono text-foreground tabular-nums">
-                    {(predictionBuyCalculation.avgPrice * 100).toFixed(1)}%
+                    ${predictionBuyCalculation.avgPrice.toFixed(3)}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
