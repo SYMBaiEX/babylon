@@ -2944,7 +2944,9 @@ export async function executeTransferPoints(
     // Deduct from sender
     const updatedSender = await tx.user.update({
       where: { id: senderId },
-      data: { reputationPoints: Number(currentSender.reputationPoints) - amount },
+      data: {
+        reputationPoints: Number(currentSender.reputationPoints) - amount,
+      },
     });
 
     // Add to recipient
