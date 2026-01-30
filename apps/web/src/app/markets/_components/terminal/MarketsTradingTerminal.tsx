@@ -5,7 +5,16 @@ import {
   PredictionPricing,
 } from '@babylon/core/markets/prediction/client';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import { Maximize2, Minimize2, Star, X } from 'lucide-react';
+import {
+  ArrowUpDown,
+  Check,
+  Filter,
+  Maximize2,
+  Minimize2,
+  Search,
+  Star,
+  X,
+} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
@@ -60,7 +69,8 @@ import type {
 import { MARKET_TIME_RANGES } from '@/types/markets';
 import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
 
-type MarketsFilter = 'all' | 'perp' | 'prediction';
+type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
+type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
 
 interface MarketsTradingTerminalProps {
   onRequestBuyPoints?: () => void;
@@ -83,6 +93,7 @@ interface UnifiedRow {
   valueSecondary?: string;
   change24hPct?: number | null;
   sortVolume: number;
+  sortOpenInterest: number;
   sortName: string;
   perpMarket?: PerpMarket;
   predictionMarket?: PredictionMarket;
@@ -90,13 +101,38 @@ interface UnifiedRow {
 
 function parseFilter(params: URLSearchParams): MarketsFilter {
   const filter = params.get('filter');
-  if (filter === 'perp' || filter === 'prediction' || filter === 'all') {
+  if (
+    filter === 'perp' ||
+    filter === 'prediction' ||
+    filter === 'favorites' ||
+    filter === 'all'
+  ) {
     return filter;
   }
   const tab = params.get('tab') ?? params.get('tabs');
   if (tab === 'perps') return 'perp';
   if (tab === 'predictions') return 'prediction';
   return 'all';
+}
+
+function parseSort(params: URLSearchParams): MarketsSort {
+  const sort = params.get('sort');
+  if (
+    sort === 'volume' ||
+    sort === 'change' ||
+    sort === 'openInterest' ||
+    sort === 'name'
+  ) {
+    return sort;
+  }
+  return 'volume';
+}
+
+function parseSortDesc(params: URLSearchParams): boolean {
+  const dir = params.get('sortDir');
+  if (dir === 'asc') return false;
+  if (dir === 'desc') return true;
+  return true;
 }
 
 function parseSelected(params: URLSearchParams): MarketKey | null {
@@ -136,9 +172,7 @@ function computeYesPctFromShares(
   return (yes / total) * 100;
 }
 
-export function MarketsTradingTerminal({
-  onRequestBuyPoints,
-}: MarketsTradingTerminalProps) {
+export function MarketsTradingTerminal({ onRequestBuyPoints }: MarketsTradingTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -184,6 +218,8 @@ export function MarketsTradingTerminal({
   const [filter, setFilter] = useState<MarketsFilter>(() =>
     parseFilter(searchParams)
   );
+  const [sortBy, setSortBy] = useState<MarketsSort>(() => parseSort(searchParams));
+  const [sortDesc, setSortDesc] = useState(() => parseSortDesc(searchParams));
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<MarketKey | null>(() =>
     parseSelected(searchParams)
@@ -195,6 +231,9 @@ export function MarketsTradingTerminal({
   const [bottomTab, setBottomTab] = useState<'positions' | 'trades'>(
     'positions'
   );
+
+  const [showMarketsMenu, setShowMarketsMenu] = useState(false);
+  const marketsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [predictionSide, setPredictionSide] = useState<'yes' | 'no'>(
     () => parsePredictionSide(searchParams) ?? 'yes'
@@ -245,11 +284,37 @@ export function MarketsTradingTerminal({
     setIsFullscreen((prev) => !prev);
   }, []);
 
+  useEffect(() => {
+    if (!showMarketsMenu) return undefined;
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (
+        marketsMenuRef.current &&
+        !marketsMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowMarketsMenu(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowMarketsMenu(false);
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showMarketsMenu]);
+
   // One-way sync from URL → local UI state
   useEffect(() => {
     const nextFilter = parseFilter(searchParams);
     setFilter(nextFilter);
     setSelected(parseSelected(searchParams));
+    setSortBy(parseSort(searchParams));
+    setSortDesc(parseSortDesc(searchParams));
 
     const nextPerpSide = parsePerpSide(searchParams);
     const nextPredSide = parsePredictionSide(searchParams);
@@ -261,7 +326,7 @@ export function MarketsTradingTerminal({
     if (nextPredSide) setPredictionSide(nextPredSide);
   }, [searchParams]);
 
-  const favorites = useMarketWatchlistStore((s) => s.favorites);
+  const favoritesSet = useMarketWatchlistStore((s) => s.favoritesSet);
   const toggleFavorite = useMarketWatchlistStore((s) => s.toggleFavorite);
   const isFavorite = useMarketWatchlistStore((s) => s.isFavorite);
 
@@ -277,6 +342,7 @@ export function MarketsTradingTerminal({
       valueSecondary: `Vol ${Math.round(m.volume24h).toLocaleString()}`,
       change24hPct: m.changePercent24h,
       sortVolume: m.volume24h ?? 0,
+      sortOpenInterest: m.openInterest ?? 0,
       sortName: m.ticker.toLowerCase(),
       perpMarket: m,
     }));
@@ -296,6 +362,7 @@ export function MarketsTradingTerminal({
           m.status !== 'active' ? m.status.toUpperCase() : undefined,
         change24hPct: null,
         sortVolume: vol,
+        sortOpenInterest: 0,
         sortName: m.text.toLowerCase(),
         predictionMarket: m,
       };
@@ -304,7 +371,12 @@ export function MarketsTradingTerminal({
     const combined = [...perps, ...preds];
 
     const filtered = combined.filter((row) => {
-      if (filter !== 'all' && row.kind !== filter) return false;
+      if (filter === 'favorites') {
+        const id = row.key.kind === 'perp' ? row.key.id.toUpperCase() : row.key.id;
+        if (!favoritesSet.has(`${row.key.kind}:${id}`)) return false;
+      } else if (filter !== 'all' && row.kind !== filter) {
+        return false;
+      }
       if (q.length === 0) return true;
       return (
         row.title.toLowerCase().includes(q) ||
@@ -314,25 +386,55 @@ export function MarketsTradingTerminal({
     });
 
     return filtered.sort((a, b) => {
-      if (b.sortVolume !== a.sortVolume) return b.sortVolume - a.sortVolume;
+      const compareNumbers = (valA: number, valB: number) =>
+        sortDesc ? valB - valA : valA - valB;
+
+      if (sortBy === 'name') {
+        const byName = a.sortName.localeCompare(b.sortName);
+        return sortDesc ? -byName : byName;
+      }
+
+      if (sortBy === 'change') {
+        const valA = a.change24hPct ?? Number.NEGATIVE_INFINITY;
+        const valB = b.change24hPct ?? Number.NEGATIVE_INFINITY;
+        const byChange = compareNumbers(valA, valB);
+        if (byChange !== 0) return byChange;
+      } else if (sortBy === 'openInterest') {
+        const byOI = compareNumbers(a.sortOpenInterest, b.sortOpenInterest);
+        if (byOI !== 0) return byOI;
+      } else {
+        const byVol = compareNumbers(a.sortVolume, b.sortVolume);
+        if (byVol !== 0) return byVol;
+      }
+
+      const byVolFallback = compareNumbers(a.sortVolume, b.sortVolume);
+      if (byVolFallback !== 0) return byVolFallback;
       return a.sortName.localeCompare(b.sortName);
     });
-  }, [perpMarkets, predictionMarkets, query, filter]);
+  }, [
+    perpMarkets,
+    predictionMarkets,
+    query,
+    filter,
+    sortBy,
+    sortDesc,
+    favoritesSet,
+  ]);
 
   // Ensure a default selection
   useEffect(() => {
-    if (selected) return;
     if (rows.length === 0) return;
-    setSelected(rows[0]?.key ?? null);
+    if (!selected) {
+      setSelected(rows[0]?.key ?? null);
+      return;
+    }
+    const stillVisible = rows.some(
+      (row) =>
+        row.key.kind === selected.kind &&
+        row.key.id.toString() === selected.id.toString()
+    );
+    if (!stillVisible) setSelected(rows[0]?.key ?? null);
   }, [selected, rows]);
-
-  // Keep selection consistent with the active filter (avoids hidden-selection confusion).
-  useEffect(() => {
-    if (!selected) return;
-    if (filter === 'all') return;
-    if (selected.kind === filter) return;
-    setSelected(rows[0]?.key ?? null);
-  }, [filter, rows, selected]);
 
   const selectedPerp = useMemo(() => {
     if (!selected || selected.kind !== 'perp') return null;
@@ -481,6 +583,25 @@ export function MarketsTradingTerminal({
     [router, searchParams]
   );
 
+  const handleSortChange = useCallback(
+    (nextSort: MarketsSort) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (sortBy === nextSort) {
+        const nextDesc = !sortDesc;
+        setSortDesc(nextDesc);
+        next.set('sort', nextSort);
+        next.set('sortDir', nextDesc ? 'desc' : 'asc');
+      } else {
+        setSortBy(nextSort);
+        setSortDesc(true);
+        next.set('sort', nextSort);
+        next.set('sortDir', 'desc');
+      }
+      router.replace(`/markets?${next.toString()}`, { scroll: false });
+    },
+    [router, searchParams, sortBy, sortDesc]
+  );
+
   const predictionAmountNum = Number.parseFloat(predictionAmount) || 0;
 
   const predictionCalculation = useMemo(() => {
@@ -616,33 +737,9 @@ export function MarketsTradingTerminal({
 
   const terminalHeader = (
     <div className="flex h-11 shrink-0 items-center justify-between border-white/5 border-b bg-background/40 px-3 backdrop-blur-md">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="flex shrink-0 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-          {(['all', 'perp', 'prediction'] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => handleFilterChange(f)}
-              className={cn(
-                'rounded px-2.5 py-1 transition-colors',
-                filter === f
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {f === 'all' ? 'All' : f === 'perp' ? 'Perps' : 'Predictions'}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative min-w-0 flex-1">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search markets…"
-            className="w-full rounded border border-white/10 bg-background/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="truncate font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+          Terminal
         </div>
       </div>
 
@@ -672,18 +769,137 @@ export function MarketsTradingTerminal({
 
   const listPanel = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-white/5 border-b px-3 py-2">
-        <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-          Markets
+      <div className="shrink-0 space-y-3 border-white/5 border-b p-3">
+        <div className="flex items-center justify-between">
+          <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+            Markets
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="relative" ref={marketsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowMarketsMenu((v) => !v)}
+                aria-expanded={showMarketsMenu}
+                aria-haspopup="menu"
+                className={cn(
+                  'rounded p-1.5 transition-colors hover:bg-muted/20',
+                  showMarketsMenu ||
+                    filter !== 'all' ||
+                    sortBy !== 'volume' ||
+                    sortDesc !== true
+                    ? 'bg-muted/20 text-primary'
+                    : 'text-muted-foreground'
+                )}
+                aria-label="Filter and sort markets"
+                title="Filter & Sort"
+              >
+                <Filter size={14} />
+              </button>
+
+              {showMarketsMenu && (
+                <div className="absolute top-full right-0 z-50 mt-1 w-56 rounded-md border border-white/10 bg-background/95 py-1 shadow-lg backdrop-blur-md">
+                  <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Type
+                  </div>
+                  {(
+                    [
+                      { id: 'all', label: 'All Markets' },
+                      { id: 'favorites', label: 'Favorites' },
+                      { id: 'perp', label: 'Perps' },
+                      { id: 'prediction', label: 'Prediction' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
+                      onClick={() => {
+                        handleFilterChange(opt.id);
+                        setShowMarketsMenu(false);
+                      }}
+                    >
+                      <span
+                        className={cn(
+                          opt.id === filter
+                            ? 'font-medium text-primary'
+                            : 'text-foreground'
+                        )}
+                      >
+                        {opt.label}
+                      </span>
+                      {opt.id === filter && (
+                        <Check size={12} className="text-primary" />
+                      )}
+                    </button>
+                  ))}
+
+                  <div className="my-1 border-white/10 border-t" />
+
+                  <div className="px-3 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Sort By
+                  </div>
+                  {(
+                    [
+                      { id: 'volume', label: 'Volume' },
+                      { id: 'change', label: '24h Change' },
+                      { id: 'openInterest', label: 'Open Interest' },
+                      { id: 'name', label: 'Name' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-muted/20"
+                      onClick={() => handleSortChange(opt.id)}
+                    >
+                      <span
+                        className={cn(
+                          opt.id === sortBy
+                            ? 'font-medium text-primary'
+                            : 'text-foreground'
+                        )}
+                      >
+                        {opt.label}
+                      </span>
+                      {opt.id === sortBy && (
+                        <ArrowUpDown
+                          size={12}
+                          className={cn(
+                            'text-primary transition-transform',
+                            sortDesc ? 'rotate-0' : 'rotate-180'
+                          )}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setLeftCollapsed(true)}
+              className="hidden rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground md:inline-flex"
+              aria-label="Collapse markets panel"
+            >
+              ◀
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setLeftCollapsed(true)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-          aria-label="Collapse markets panel"
-        >
-          ◀
-        </button>
+
+        <div className="relative">
+          <Search
+            className="-translate-y-1/2 absolute top-1/2 left-2 text-muted-foreground"
+            size={14}
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search…"
+            className="w-full rounded border border-white/10 bg-background/40 py-2 pr-3 pl-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -796,9 +1012,9 @@ export function MarketsTradingTerminal({
         )}
       </div>
 
-      {favorites.length > 0 && (
+      {favoritesSet.size > 0 && (
         <div className="border-white/5 border-t p-2 text-[10px] text-muted-foreground">
-          Favorites: {favorites.length}
+          Favorites: {favoritesSet.size}
         </div>
       )}
     </div>
@@ -1282,35 +1498,6 @@ export function MarketsTradingTerminal({
               </span>
               <span className="text-muted-foreground text-xs">▼</span>
             </button>
-          </div>
-          <div className="px-3 pb-3">
-            {/* Filter + search */}
-            <div className="flex items-center gap-2">
-              <div className="flex shrink-0 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                {(['all', 'perp', 'prediction'] as const).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => handleFilterChange(f)}
-                    className={cn(
-                      'rounded px-2.5 py-1 transition-colors',
-                      filter === f
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {f === 'all' ? 'All' : f === 'perp' ? 'Perps' : 'Pred'}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search…"
-                className="w-full rounded border border-white/10 bg-background/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
           </div>
         </div>
 
