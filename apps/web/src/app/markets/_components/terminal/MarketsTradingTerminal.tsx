@@ -1796,7 +1796,7 @@ export function MarketsTradingTerminal({
       </button>
 
       {/* Mobile */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:hidden">
+      <div className="relative flex h-full flex-col overflow-hidden overscroll-none md:hidden">
         <div className="shrink-0 border-white/5 border-b bg-background">
           <div className="flex h-14 items-center justify-between px-4">
             <div className="font-bold text-lg tracking-tight">Markets</div>
@@ -1839,7 +1839,7 @@ export function MarketsTradingTerminal({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(72px+env(safe-area-inset-bottom))]">
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex h-[42vh] w-full shrink-0 flex-col border-white/5 border-b">
@@ -2041,7 +2041,7 @@ export function MarketsTradingTerminal({
                       Log in to view positions.
                     </div>
                   ) : selected?.kind === 'prediction' ? (
-                    <div className="h-full overflow-auto">
+                    <div className="h-full overflow-auto overscroll-contain">
                       <PredictionPositionsList
                         positions={selectedPredictionPositions}
                         onPositionSold={async () => {
@@ -2057,7 +2057,7 @@ export function MarketsTradingTerminal({
                       />
                     </div>
                   ) : (
-                    <div className="h-full overflow-auto">
+                    <div className="h-full overflow-auto overscroll-contain">
                       <PerpPositionsList
                         positions={selectedPerpPositions}
                         onPositionClosed={async () => {
@@ -2076,7 +2076,7 @@ export function MarketsTradingTerminal({
                 ) : selected?.kind === 'prediction' ? (
                   <div
                     ref={mobileTradesContainerRef}
-                    className="h-full overflow-auto"
+                    className="h-full overflow-auto overscroll-contain"
                   >
                     <AssetTradesFeed
                       marketType="prediction"
@@ -2087,7 +2087,7 @@ export function MarketsTradingTerminal({
                 ) : selectedPerp ? (
                   <div
                     ref={mobileTradesContainerRef}
-                    className="h-full overflow-auto"
+                    className="h-full overflow-auto overscroll-contain"
                   >
                     <AssetTradesFeed
                       marketType="perp"
@@ -2104,7 +2104,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="relative z-40 flex h-[72px] select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
+          <div className="fixed bottom-0 left-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
             {/* Minimal bottom nav */}
             <button
               type="button"
