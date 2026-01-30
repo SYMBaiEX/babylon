@@ -2,7 +2,8 @@
 
 import type { PnlTagData } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { ExternalLink, TrendingDown, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 
 interface PnlPanelProps {
   data: PnlTagData;
@@ -149,6 +150,15 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
             No open positions
           </p>
         )}
+
+      {/* View Profile Link */}
+      <Link
+        href="/profile"
+        className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <ExternalLink size={14} />
+        View full portfolio →
+      </Link>
     </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import type { PerpMarketData, PerpsTagData } from '@babylon/shared';
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { ExternalLink, TrendingDown, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { PerpTradingModal } from '@/components/markets/PerpTradingModal';
 import type { PerpMarket } from '@/types/markets';
@@ -120,6 +121,15 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
           </button>
         </div>
 
+        {/* View Full Page Link */}
+        <Link
+          href={`/markets/perps/${market.ticker}`}
+          className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ExternalLink size={14} />
+          View full market page →
+        </Link>
+
         {/* Trading Modal */}
         {tradingMarket && (
           <PerpTradingModal
@@ -195,6 +205,15 @@ export function PerpsPanel({ data }: PerpsPanelProps) {
           );
         })}
       </div>
+
+      {/* View All Markets Link */}
+      <Link
+        href="/markets"
+        className="flex items-center justify-center gap-2 rounded-lg border border-border p-3 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <ExternalLink size={14} />
+        View all markets →
+      </Link>
 
       {/* Trading Modal */}
       {tradingMarket && (
