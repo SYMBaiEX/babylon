@@ -16,13 +16,16 @@ export function formatPrice(price: number): string {
 }
 
 /**
- * Formats a Babylon points balance as an integer (no decimals) with separators.
+ * Formats a Babylon points balance with 2 decimals and separators.
  *
  * @param balance - The balance to format
- * @returns Formatted balance string (e.g., "ƀ12,345")
+ * @returns Formatted balance string (e.g., "ƀ12,345.00")
  */
 export function formatBalance(balance: number): string {
-  return `${BABYLON_POINTS_SYMBOL}${Math.floor(balance).toLocaleString()}`;
+  return `${BABYLON_POINTS_SYMBOL}${balance.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 /**
