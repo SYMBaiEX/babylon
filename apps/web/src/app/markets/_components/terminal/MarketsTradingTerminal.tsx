@@ -1308,7 +1308,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
+          <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
             <div className="flex items-center justify-between">
               <div className="font-semibold text-sm">Place Order</div>
               <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -1800,68 +1800,134 @@ export function MarketsTradingTerminal({
         <div className="shrink-0 border-white/5 border-b bg-background">
           <div className="flex h-14 items-center justify-between px-4">
             <div className="font-bold text-lg tracking-tight">Markets</div>
-            <button
-              type="button"
-              onClick={() => setIsMobileMarketListOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5"
-            >
-              <span className="max-w-[180px] truncate font-bold text-sm">
-                {selected?.kind === 'perp'
-                  ? selected.id
-                  : (predictionState?.text ?? 'Select')}
-              </span>
-              <span className="text-muted-foreground text-xs">▼</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMobileMarketListOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5"
+              >
+                <span className="max-w-[180px] truncate font-bold text-sm">
+                  {selected?.kind === 'perp'
+                    ? selected.id
+                    : (predictionState?.text ?? 'Select')}
+                </span>
+                <span className="text-muted-foreground text-xs">▼</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-pressed={isFullscreen}
+                aria-label={
+                  isFullscreen
+                    ? 'Exit fullscreen terminal view'
+                    : 'Enter fullscreen terminal view'
+                }
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                className={cn(
+                  'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-md',
+                  'transition-colors hover:bg-muted/40 hover:text-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                )}
+              >
+                {isFullscreen ? (
+                  <Minimize2 size={18} />
+                ) : (
+                  <Maximize2 size={18} />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="hide-scrollbar flex h-full flex-col overflow-y-auto overflow-x-hidden">
-            <div className="flex h-[45vh] w-full shrink-0 flex-col border-white/5 border-b">
-              {selected?.kind === 'prediction' ? (
-                <>
-                  <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="whitespace-normal break-words font-bold text-sm leading-snug">
-                          {predictionState?.text ?? 'Prediction market'}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="flex h-[42vh] w-full shrink-0 flex-col border-white/5 border-b">
+                {selected?.kind === 'prediction' ? (
+                  <>
+                    <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="whitespace-normal break-words font-bold text-sm leading-snug">
+                            {predictionState?.text ?? 'Prediction market'}
+                          </div>
+                          <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+                            {predictionState?.resolutionDescription?.trim()
+                              ? predictionState.resolutionDescription
+                              : `Scenario ${predictionState?.scenario ?? ''}`}
+                          </div>
                         </div>
-                        <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
-                          {predictionState?.resolutionDescription?.trim()
-                            ? predictionState.resolutionDescription
-                            : `Scenario ${predictionState?.scenario ?? ''}`}
+                        <button
+                          type="button"
+                          onClick={() => setPredictionDetailsOpen(true)}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          aria-label="View market details"
+                          title="Details"
+                        >
+                          <Info size={14} />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
+                            YES {formatYesPct(predictionYesPct)}
+                          </div>
+                          <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
+                            NO {formatYesPct(100 - predictionYesPct)}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+                          {MARKET_TIME_RANGES.map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() => setPredictionTimeRange(range)}
+                              className={cn(
+                                'rounded px-2 py-1 transition-colors',
+                                predictionTimeRange === range
+                                  ? 'bg-foreground text-background'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              {range}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setPredictionDetailsOpen(true)}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                        aria-label="View market details"
-                        title="Details"
-                      >
-                        <Info size={14} />
-                      </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
-                          YES {formatYesPct(predictionYesPct)}
+                    <div className="min-h-0 flex-1 p-3">
+                      <PredictionProbabilityChart
+                        data={predictionHistory}
+                        marketId={selectedPredictionId ?? 'unknown'}
+                        timeRange={predictionTimeRange}
+                        onTimeRangeChange={setPredictionTimeRange}
+                        showHeader={false}
+                      />
+                    </div>
+                  </>
+                ) : selectedPerp ? (
+                  <>
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground text-sm">
+                          ${selectedPerp.ticker}
                         </div>
-                        <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
-                          NO {formatYesPct(100 - predictionYesPct)}
+                        <div className="truncate text-muted-foreground text-xs">
+                          {selectedPerp.name}
                         </div>
                       </div>
-
                       <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
                         {MARKET_TIME_RANGES.map((range) => (
                           <button
                             key={range}
                             type="button"
-                            onClick={() => setPredictionTimeRange(range)}
+                            onClick={() => setPerpTimeRange(range)}
                             className={cn(
                               'rounded px-2 py-1 transition-colors',
-                              predictionTimeRange === range
+                              perpTimeRange === range
                                 ? 'bg-foreground text-background'
                                 : 'text-muted-foreground hover:text-foreground'
                             )}
@@ -1871,256 +1937,210 @@ export function MarketsTradingTerminal({
                         ))}
                       </div>
                     </div>
+                    <div className="min-h-0 flex-1 p-3">
+                      <PerpPriceChart
+                        data={perpHistory.map((p) => ({
+                          time: p.time,
+                          price: p.price,
+                        }))}
+                        currentPrice={selectedPerp.currentPrice}
+                        ticker={selectedPerp.ticker}
+                        timeRange={perpTimeRange}
+                        onTimeRangeChange={setPerpTimeRange}
+                        showHeader={false}
+                        className="h-full"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    Select a market
                   </div>
+                )}
+              </div>
 
-                  <div className="min-h-0 flex-1 p-3">
-                    <PredictionProbabilityChart
-                      data={predictionHistory}
-                      marketId={selectedPredictionId ?? 'unknown'}
-                      timeRange={predictionTimeRange}
-                      onTimeRangeChange={setPredictionTimeRange}
-                      showHeader={false}
-                    />
-                  </div>
-                </>
-              ) : selectedPerp ? (
-                <>
-                  <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                    <div className="min-w-0">
-                      <div className="font-bold text-foreground text-sm">
-                        ${selectedPerp.ticker}
-                      </div>
-                      <div className="truncate text-muted-foreground text-xs">
-                        {selectedPerp.name}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                      {MARKET_TIME_RANGES.map((range) => (
-                        <button
-                          key={range}
-                          type="button"
-                          onClick={() => setPerpTimeRange(range)}
-                          className={cn(
-                            'rounded px-2 py-1 transition-colors',
-                            perpTimeRange === range
-                              ? 'bg-foreground text-background'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          {range}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="min-h-0 flex-1 p-3">
-                    <PerpPriceChart
-                      data={perpHistory.map((p) => ({
-                        time: p.time,
-                        price: p.price,
-                      }))}
-                      currentPrice={selectedPerp.currentPrice}
-                      ticker={selectedPerp.ticker}
-                      timeRange={perpTimeRange}
-                      onTimeRangeChange={setPerpTimeRange}
-                      showHeader={false}
-                      className="h-full"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  Select a market
+              <div className="sticky top-0 z-30 flex h-12 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
+                <div className="flex min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('agent')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'agent'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Agents
+                    {bottomTab === 'agent' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('social')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'social'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Social
+                    {bottomTab === 'social' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('positions')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'positions'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Positions
+                    {bottomTab === 'positions' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('trades')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'trades'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Trades
+                    {bottomTab === 'trades' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="sticky top-0 z-30 flex h-12 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
-              <div className="flex min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('agent')}
-                  className={cn(
-                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
-                    bottomTab === 'agent'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  Agents
-                  {bottomTab === 'agent' && (
-                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('social')}
-                  className={cn(
-                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
-                    bottomTab === 'social'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  Social
-                  {bottomTab === 'social' && (
-                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('positions')}
-                  className={cn(
-                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
-                    bottomTab === 'positions'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  Positions
-                  {bottomTab === 'positions' && (
-                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('trades')}
-                  className={cn(
-                    'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-3 font-bold text-xs capitalize transition-colors',
-                    bottomTab === 'trades'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  Trades
-                  {bottomTab === 'trades' && (
-                    <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                  )}
-                </button>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {bottomTab === 'agent' ? (
+                  <TerminalAgentsChat />
+                ) : bottomTab === 'social' ? (
+                  <TerminalSocialFeed
+                    perpTicker={
+                      selected?.kind === 'perp'
+                        ? (selectedPerp?.ticker ?? null)
+                        : null
+                    }
+                  />
+                ) : bottomTab === 'positions' ? (
+                  !authenticated ? (
+                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                      Log in to view positions.
+                    </div>
+                  ) : selected?.kind === 'prediction' ? (
+                    <div className="h-full overflow-auto">
+                      <PredictionPositionsList
+                        positions={selectedPredictionPositions}
+                        onPositionSold={async () => {
+                          invalidateUserPositions();
+                          invalidateWalletBalance();
+                          await Promise.all([
+                            refreshPredictionPositions(),
+                            refreshPerpPositions(),
+                            refreshWalletBalance(),
+                            refreshPredictionHistory(),
+                          ]);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-full overflow-auto">
+                      <PerpPositionsList
+                        positions={selectedPerpPositions}
+                        onPositionClosed={async () => {
+                          invalidateUserPositions();
+                          invalidateWalletBalance();
+                          await Promise.all([
+                            refreshPerpPositions(),
+                            refreshPredictionPositions(),
+                            refreshWalletBalance(),
+                            refreshPerpHistory(),
+                          ]);
+                        }}
+                      />
+                    </div>
+                  )
+                ) : selected?.kind === 'prediction' ? (
+                  <div
+                    ref={mobileTradesContainerRef}
+                    className="h-full overflow-auto"
+                  >
+                    <AssetTradesFeed
+                      marketType="prediction"
+                      assetId={selected.id}
+                      containerRef={mobileTradesContainerRef}
+                    />
+                  </div>
+                ) : selectedPerp ? (
+                  <div
+                    ref={mobileTradesContainerRef}
+                    className="h-full overflow-auto"
+                  >
+                    <AssetTradesFeed
+                      marketType="perp"
+                      assetId={selectedPerp.ticker}
+                      containerRef={mobileTradesContainerRef}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                    Select a market to see trades.
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="min-h-[320px] flex-1">
-              {bottomTab === 'agent' ? (
-                <TerminalAgentsChat />
-              ) : bottomTab === 'social' ? (
-                <TerminalSocialFeed
-                  perpTicker={
-                    selected?.kind === 'perp'
-                      ? (selectedPerp?.ticker ?? null)
-                      : null
-                  }
-                />
-              ) : bottomTab === 'positions' ? (
-                !authenticated ? (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                    Log in to view positions.
-                  </div>
-                ) : selected?.kind === 'prediction' ? (
-                  <PredictionPositionsList
-                    positions={selectedPredictionPositions}
-                    onPositionSold={async () => {
-                      invalidateUserPositions();
-                      invalidateWalletBalance();
-                      await Promise.all([
-                        refreshPredictionPositions(),
-                        refreshPerpPositions(),
-                        refreshWalletBalance(),
-                        refreshPredictionHistory(),
-                      ]);
-                    }}
-                  />
-                ) : (
-                  <PerpPositionsList
-                    positions={selectedPerpPositions}
-                    onPositionClosed={async () => {
-                      invalidateUserPositions();
-                      invalidateWalletBalance();
-                      await Promise.all([
-                        refreshPerpPositions(),
-                        refreshPredictionPositions(),
-                        refreshWalletBalance(),
-                        refreshPerpHistory(),
-                      ]);
-                    }}
-                  />
-                )
-              ) : selected?.kind === 'prediction' ? (
-                <div
-                  ref={mobileTradesContainerRef}
-                  className="h-full overflow-auto"
-                >
-                  <AssetTradesFeed
-                    marketType="prediction"
-                    assetId={selected.id}
-                    containerRef={mobileTradesContainerRef}
-                  />
-                </div>
-              ) : selectedPerp ? (
-                <div
-                  ref={mobileTradesContainerRef}
-                  className="h-full overflow-auto"
-                >
-                  <AssetTradesFeed
-                    marketType="perp"
-                    assetId={selectedPerp.ticker}
-                    containerRef={mobileTradesContainerRef}
-                  />
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                  Select a market to see trades.
-                </div>
-              )}
-            </div>
-
-            <div className="h-28 shrink-0" />
-          </div>
-
-          <div className="pointer-events-none absolute bottom-[calc(72px+env(safe-area-inset-bottom)+24px)] left-0 z-30 flex w-full items-center px-4">
-            <div className="h-11 w-11 shrink-0" aria-hidden />
-            <button
-              type="button"
-              onClick={() => setIsMobileTradeSheetOpen(true)}
-              className="pointer-events-auto mx-auto w-full max-w-sm rounded-full bg-foreground py-3.5 font-bold text-background shadow-lg transition-transform active:scale-95"
-              disabled={!selected}
-            >
-              Trade
-            </button>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              aria-pressed={isFullscreen}
-              aria-label={
-                isFullscreen
-                  ? 'Exit fullscreen terminal view'
-                  : 'Enter fullscreen terminal view'
-              }
-              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              className={cn(
-                'pointer-events-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-background/80 text-muted-foreground shadow-lg backdrop-blur-md',
-                'ml-3',
-                'transition-colors hover:bg-muted/40 hover:text-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-              )}
-            >
-              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
           </div>
 
           <div className="relative z-40 flex h-[72px] select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
             {/* Minimal bottom nav */}
             <button
               type="button"
+              onClick={() => setIsMobileMarketListOpen(true)}
               className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
             >
               Markets
             </button>
             <button
               type="button"
+              onClick={() => setIsMobileTradeSheetOpen(true)}
+              disabled={!selected}
+              className={cn(
+                'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
+                selected
+                  ? 'bg-foreground text-background active:scale-95'
+                  : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
+              )}
+            >
+              Trade
+            </button>
+            <button
+              type="button"
               onClick={authenticated ? onRequestBuyPoints : login}
               className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
             >
-              {authenticated ? 'Balance' : 'Log in'}
+              {authenticated ? (
+                <>
+                  <span className="font-semibold">Balance</span>
+                  <span className="font-mono text-[11px] tabular-nums">
+                    {balanceLoading ? '—' : formatBalance(balance)}
+                  </span>
+                </>
+              ) : (
+                'Log in'
+              )}
             </button>
           </div>
 

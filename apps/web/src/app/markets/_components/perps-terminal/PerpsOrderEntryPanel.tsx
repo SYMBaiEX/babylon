@@ -329,7 +329,7 @@ export function PerpsOrderEntryPanel({
       </div>
 
       {/* Order form */}
-      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
+      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <div className="flex items-center justify-between">
           <div className="font-semibold text-sm">Place Order</div>
           <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
