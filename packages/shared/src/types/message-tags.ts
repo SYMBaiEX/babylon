@@ -98,6 +98,7 @@ export interface PostTagData {
     content: string;
     author: string;
     authorId: string;
+    authorProfileImageUrl?: string | null;
     createdAt: Date;
   };
   comments: Array<{
@@ -107,6 +108,7 @@ export interface PostTagData {
     parentCommentId: string | null;
     createdAt: Date;
     authorName: string;
+    authorProfileImageUrl?: string | null;
   }>;
   commentCount: number;
 }
@@ -119,6 +121,7 @@ export interface FeedTagData {
     content: string;
     authorName: string;
     authorId: string;
+    authorProfileImageUrl?: string | null;
     timeAgo: string;
     likeCount: number;
     commentCount: number;

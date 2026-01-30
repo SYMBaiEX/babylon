@@ -43,6 +43,7 @@ interface FeedPost {
   authorId: string;
   authorName: string;
   authorUsername?: string;
+  authorProfileImageUrl?: string | null;
   timestamp: string;
   likeCount?: number;
   commentCount?: number;
@@ -168,6 +169,7 @@ export const checkFeedPostsAction: Action = {
         content: post.content,
         authorName: post.authorName || post.authorUsername || 'Unknown',
         authorId: post.authorId,
+        authorProfileImageUrl: post.authorProfileImageUrl,
         timeAgo: getTimeAgo(new Date(post.timestamp)),
         likeCount: post.likeCount ?? 0,
         commentCount: post.commentCount ?? 0,
