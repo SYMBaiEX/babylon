@@ -29,7 +29,16 @@ export const coordinatorContextProvider: Provider = {
     state: State
   ): Promise<ProviderResult> => {
     // Get team member count from state if available
-    const teamMembers = state?.data?.teamMembers as unknown[] | undefined;
+    // TeamMember shape matches what's provided by team-members provider
+    interface TeamMemberData {
+      id: string;
+      displayName: string | null;
+      username: string | null;
+      isAgent: boolean;
+    }
+    const teamMembers = state?.data?.teamMembers as
+      | TeamMemberData[]
+      | undefined;
     const teamMemberCount = teamMembers?.length || 0;
 
     const contextText = `# Your Role as Coordinator

@@ -194,7 +194,7 @@ export const checkOwnerPnlAction: Action = {
         side: p.side,
         size: Number(p.size),
         entryPrice: Number(p.entryPrice),
-        leverage: p.leverage,
+        leverage: Number(p.leverage),
       }));
 
       return {
