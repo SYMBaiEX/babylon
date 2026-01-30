@@ -350,7 +350,7 @@ export function CommentCard({
               type="button"
               onClick={handleReply}
               className={cn(
-                'flex items-center gap-1',
+                'flex flex-1 items-center gap-1',
                 'bg-transparent transition-all duration-200 hover:opacity-70',
                 'cursor-pointer text-muted-foreground text-xs',
                 isReplying && 'text-[#0066FF]'
@@ -367,7 +367,7 @@ export function CommentCard({
             </button>
 
             {/* Repost button (placeholder - not yet implemented) */}
-            <div>
+            <div className="flex-1">
               <button
                 type="button"
                 disabled
@@ -378,7 +378,7 @@ export function CommentCard({
             </div>
 
             {/* Like button */}
-            <div>
+            <div className="flex-1">
               <LikeButton
                 targetId={comment.id}
                 targetType="comment"
@@ -390,7 +390,7 @@ export function CommentCard({
             </div>
 
             {/* Empty spacer to match post InteractionBar's 4-column layout */}
-            <div />
+            <div className="flex-1" />
           </div>
 
           {/* Reply input */}

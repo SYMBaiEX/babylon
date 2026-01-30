@@ -12,6 +12,8 @@ The comment interaction bar currently shows a disabled repost icon as a placehol
 - **Store**: Update `toggleShare` in `interactionStore` to support comment IDs
 - **UI**: Enable the `Repeat2` repost button in `CommentCard` (`apps/web/src/components/interactions/CommentCard.tsx`)
 - **UI**: Enable the repost button in `ReplyCard` and main comment on `comment/[id]/page.tsx`
+- **UI**: Enable the repost button in `ProfileReplyCard` (`apps/web/src/components/profile/ProfileReplyCard.tsx`)
+- **UI**: Enable the repost button in `CommentInteractionBar` (`apps/web/src/components/interactions/CommentInteractionBar.tsx`) — used by feed comment previews
 
 ## Comment Delete on Thread Page
 

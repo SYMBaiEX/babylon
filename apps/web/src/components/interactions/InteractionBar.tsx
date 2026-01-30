@@ -148,7 +148,7 @@ export function InteractionBar({
             handleCommentClick();
           }}
           className={cn(
-            'flex items-center gap-1',
+            'flex flex-1 items-center gap-1',
             'bg-transparent transition-all duration-200 hover:opacity-70',
             'cursor-pointer text-muted-foreground text-xs'
           )}
@@ -160,7 +160,7 @@ export function InteractionBar({
         </button>
 
         {/* Share button */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="flex-1" onClick={(e) => e.stopPropagation()}>
           <RepostButton
             postId={interactionPostId}
             shareCount={shareCount}
@@ -184,7 +184,7 @@ export function InteractionBar({
         </div>
 
         {/* Like button with reaction picker */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="flex-1" onClick={(e) => e.stopPropagation()}>
           <LikeButton
             targetId={interactionPostId}
             targetType="post"
@@ -196,7 +196,7 @@ export function InteractionBar({
         </div>
 
         {/* Delete button (only visible to post author) */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="flex-1" onClick={(e) => e.stopPropagation()}>
           <DeleteButton
             postId={postId}
             postAuthorId={postData?.authorId || ''}

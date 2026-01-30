@@ -2,7 +2,7 @@
 
 import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Repeat2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -254,27 +254,41 @@ export function ProfileReplyCard({
             <TaggedText text={reply.content} onTagClick={handleTagClick} />
           </p>
 
-          {/* Action Buttons - reply and like only */}
-          <div className="flex items-center gap-1">
-            {/* Reply/Comment button - toggles inline reply */}
+          {/* Action Buttons */}
+          <div
+            className="mt-2 flex w-full items-center justify-between gap-6 text-muted-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Reply button */}
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsReplying(!isReplying);
-              }}
+              onClick={() => setIsReplying(!isReplying)}
               className={cn(
-                'flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors',
-                'text-muted-foreground hover:bg-[#0066FF]/10 hover:text-[#0066FF]',
-                isReplying && 'bg-[#0066FF]/10 text-[#0066FF]'
+                'flex flex-1 items-center gap-1',
+                'bg-transparent transition-all duration-200 hover:opacity-70',
+                'cursor-pointer text-muted-foreground text-xs',
+                isReplying && 'text-[#0066FF]'
               )}
             >
-              <MessageCircle size={14} />
-              {replyCount > 0 && <span>{replyCount}</span>}
+              <MessageCircle size={18} />
+              {replyCount > 0 && (
+                <span className="font-medium tabular-nums">{replyCount}</span>
+              )}
             </button>
 
+            {/* Repost button (placeholder) */}
+            <div className="flex-1">
+              <button
+                type="button"
+                disabled
+                className="flex cursor-default items-center gap-1 text-muted-foreground/40 text-xs"
+              >
+                <Repeat2 size={18} />
+              </button>
+            </div>
+
             {/* Like button */}
-            <div onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1">
               <LikeButton
                 targetId={reply.id}
                 targetType="comment"
@@ -284,6 +298,9 @@ export function ProfileReplyCard({
                 showCount
               />
             </div>
+
+            {/* Empty spacer to match 4-column layout */}
+            <div className="flex-1" />
           </div>
 
           {/* Inline reply input */}

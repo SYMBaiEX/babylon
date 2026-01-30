@@ -142,6 +142,7 @@ import {
   inArray,
   posts,
   reactions,
+  shares,
   users,
 } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
@@ -326,6 +327,65 @@ export const GET = withErrorHandling(
       }
     }
 
+    // Get post interaction counts (parallel queries)
+    let postLikeCount = 0;
+    let postCommentCount = 0;
+    let postShareCount = 0;
+    let postIsLiked = false;
+    let postIsShared = false;
+
+    if (post) {
+      const [[likeCountResult], [commentCountResult], [shareCountResult]] =
+        await Promise.all([
+          db
+            .select({ count: count() })
+            .from(reactions)
+            .where(
+              and(eq(reactions.postId, post.id), eq(reactions.type, 'like'))
+            ),
+          db
+            .select({ count: count() })
+            .from(comments)
+            .where(eq(comments.postId, post.id)),
+          db
+            .select({ count: count() })
+            .from(shares)
+            .where(eq(shares.postId, post.id)),
+        ]);
+
+      postLikeCount = Number(likeCountResult?.count ?? 0);
+      postCommentCount = Number(commentCountResult?.count ?? 0);
+      postShareCount = Number(shareCountResult?.count ?? 0);
+
+      if (canonicalUserId) {
+        const [[likedResult], [sharedResult]] = await Promise.all([
+          db
+            .select({ id: reactions.id })
+            .from(reactions)
+            .where(
+              and(
+                eq(reactions.postId, post.id),
+                eq(reactions.userId, canonicalUserId),
+                eq(reactions.type, 'like')
+              )
+            )
+            .limit(1),
+          db
+            .select({ id: shares.id })
+            .from(shares)
+            .where(
+              and(
+                eq(shares.postId, post.id),
+                eq(shares.userId, canonicalUserId)
+              )
+            )
+            .limit(1),
+        ]);
+        postIsLiked = !!likedResult;
+        postIsShared = !!sharedResult;
+      }
+    }
+
     // Get comment author info
     const [commentAuthor] = await db
       .select({
@@ -498,6 +558,11 @@ export const GET = withErrorHandling(
             authorUsername: postAuthorUsername,
             authorProfileImageUrl: postAuthorProfileImageUrl,
             createdAt: post.createdAt,
+            likeCount: postLikeCount,
+            commentCount: postCommentCount,
+            shareCount: postShareCount,
+            isLiked: postIsLiked,
+            isShared: postIsShared,
           }
         : null,
     });
