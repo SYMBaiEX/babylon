@@ -10,7 +10,7 @@ import {
   FileText,
   Wallet,
 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +62,22 @@ export function BottomPanel({
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Store mouse event handlers in refs for proper cleanup
+  const handleMouseMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const handleMouseUpRef = useRef<(() => void) | null>(null);
+
+  // Cleanup mouse listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (handleMouseMoveRef.current) {
+        document.removeEventListener('mousemove', handleMouseMoveRef.current);
+      }
+      if (handleMouseUpRef.current) {
+        document.removeEventListener('mouseup', handleMouseUpRef.current);
+      }
+    };
+  }, []);
+
   // Handle tab click - if clicking active tab while open, collapse
   const handleTabClick = useCallback(
     (tab: BottomPanelTab) => {
@@ -100,7 +116,13 @@ export function BottomPanel({
         setIsResizing(false);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        handleMouseMoveRef.current = null;
+        handleMouseUpRef.current = null;
       };
+
+      // Store refs for cleanup on unmount
+      handleMouseMoveRef.current = handleMouseMove;
+      handleMouseUpRef.current = handleMouseUp;
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);

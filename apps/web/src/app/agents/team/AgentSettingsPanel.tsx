@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AgentSettingsSidebar } from './AgentSettingsSidebar';
 
@@ -82,15 +82,26 @@ export function AgentSettingsPanel({
     [agentId, getAccessToken]
   );
 
+  // Store AbortController ref for update calls
+  const updateControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     const controller = new AbortController();
     fetchAgent(controller.signal);
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      // Also abort any pending update requests
+      updateControllerRef.current?.abort();
+    };
   }, [fetchAgent]);
 
   // Handle update from AgentSettings
   const handleUpdate = useCallback(() => {
-    fetchAgent();
+    // Abort previous update request if still pending
+    updateControllerRef.current?.abort();
+    const controller = new AbortController();
+    updateControllerRef.current = controller;
+    fetchAgent(controller.signal);
     onAgentUpdated?.();
   }, [fetchAgent, onAgentUpdated]);
 

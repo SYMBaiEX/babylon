@@ -1,6 +1,14 @@
 'use client';
 
-import { cn, type MessageTagType } from '@babylon/shared';
+import {
+  cn,
+  type FeedTagData,
+  type MessageTagType,
+  type PerpsTagData,
+  type PnlTagData,
+  type PostTagData,
+  type PredictionsTagData,
+} from '@babylon/shared';
 import {
   Bot,
   FileText,
@@ -20,6 +28,14 @@ export type RightSidebarTabType =
   | 'other'
   | MessageTagType;
 
+/** Tag data type map for discriminated union */
+type TagDataPayload =
+  | PerpsTagData
+  | PredictionsTagData
+  | PostTagData
+  | FeedTagData
+  | PnlTagData;
+
 /** Tab data for right sidebar */
 export interface RightSidebarTab {
   id: string;
@@ -27,7 +43,7 @@ export interface RightSidebarTab {
   title: string;
   agentId?: string;
   /** Data payload for tag panels (from MessageTag.data) */
-  data?: unknown;
+  data?: TagDataPayload;
 }
 
 /** Map tab types to icons */
@@ -87,6 +103,22 @@ export function RightSidebar({
   const [isResizing, setIsResizing] = useState(false);
   const [maxWidth, setMaxWidth] = useState(MAX_WIDTH_WITH_LEFT_SIDEBAR);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Store mouse event handlers in refs for proper cleanup
+  const handleMouseMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const handleMouseUpRef = useRef<(() => void) | null>(null);
+
+  // Cleanup mouse listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (handleMouseMoveRef.current) {
+        document.removeEventListener('mousemove', handleMouseMoveRef.current);
+      }
+      if (handleMouseUpRef.current) {
+        document.removeEventListener('mouseup', handleMouseUpRef.current);
+      }
+    };
+  }, []);
 
   // Calculate max width based on available space
   // Only recalculate on window resize or left sidebar state change, NOT on width change
@@ -154,7 +186,13 @@ export function RightSidebar({
         setIsResizing(false);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        handleMouseMoveRef.current = null;
+        handleMouseUpRef.current = null;
       };
+
+      // Store refs for cleanup on unmount
+      handleMouseMoveRef.current = handleMouseMove;
+      handleMouseUpRef.current = handleMouseUp;
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
