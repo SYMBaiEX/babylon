@@ -23,19 +23,38 @@ export type MessageTagIcon =
   | 'Wallet' // agent-pnl
   | 'PiggyBank'; // owner-pnl
 
-/** Tag attached to a message */
-export interface MessageTag {
+/** Mapping from tag type to its specific data payload */
+interface TagDataMap {
+  perps: PerpsTagData;
+  predictions: PredictionsTagData;
+  post: PostTagData;
+  feed: FeedTagData;
+  'agent-pnl': PnlTagData;
+  'owner-pnl': PnlTagData;
+}
+
+/** Base tag structure with common fields */
+interface MessageTagBase<T extends MessageTagType> {
   /** Tag type - determines which sidebar panel to render */
-  type: MessageTagType;
+  type: T;
   /** Display text shown on the tag button */
   label: string;
   /** Lucide icon name to display */
   icon: MessageTagIcon;
   /** Optional entity ID for deep-linking (e.g., specific market or post ID) */
   entityId?: string;
-  /** Data payload for the sidebar panel */
-  data: unknown;
+  /** Data payload for the sidebar panel - typed based on tag type */
+  data: TagDataMap[T];
 }
+
+/** Tag attached to a message - discriminated union based on type */
+export type MessageTag =
+  | MessageTagBase<'perps'>
+  | MessageTagBase<'predictions'>
+  | MessageTagBase<'post'>
+  | MessageTagBase<'feed'>
+  | MessageTagBase<'agent-pnl'>
+  | MessageTagBase<'owner-pnl'>;
 
 /** Message metadata stored in DB */
 export interface MessageMetadata {

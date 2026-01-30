@@ -767,7 +767,13 @@ export function useTeamChat(): UseTeamChatReturn {
       // =========================================================================
       if (useCoordinator) {
         // Add thinking placeholder message immediately
-        const thinkingId = `thinking-coordinator-${Date.now()}`;
+        // Use crypto.randomUUID() for unique ID with fallback for older browsers
+        const thinkingUuid =
+          typeof crypto !== 'undefined' &&
+          typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        const thinkingId = `thinking-coordinator-${thinkingUuid}`;
         addMessage({
           id: thinkingId,
           chatId: teamChat.chatId,
@@ -884,7 +890,13 @@ export function useTeamChat(): UseTeamChatReturn {
 
       // Add thinking placeholder messages for all agents immediately
       for (const agentId of availableAgents) {
-        const thinkingId = `thinking-${agentId}-${Date.now()}`;
+        // Use crypto.randomUUID() for unique ID with fallback for older browsers
+        const thinkingUuid =
+          typeof crypto !== 'undefined' &&
+          typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        const thinkingId = `thinking-${agentId}-${thinkingUuid}`;
         thinkingIds.set(agentId, thinkingId);
         addMessage({
           id: thinkingId,
