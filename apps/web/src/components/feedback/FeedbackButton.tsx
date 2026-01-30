@@ -33,7 +33,7 @@ export function FeedbackButton() {
         onClick={() => setIsModalOpen(true)}
         className={cn(
           // Fixed position in bottom-right corner, offset from edge on mobile for thumb reach
-          'fixed right-20 bottom-20 z-[100] md:right-6 md:bottom-6',
+          'fixed right-4 bottom-18 z-[100] md:right-6 md:bottom-6',
           'flex items-center justify-center gap-2',
           // Green color to stand out as feedback
           'bg-emerald-500 hover:bg-emerald-600',
