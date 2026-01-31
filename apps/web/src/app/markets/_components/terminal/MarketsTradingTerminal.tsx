@@ -1540,6 +1540,7 @@ export function MarketsTradingTerminal({
               timeRange={perpTimeRange}
               onTimeRangeChange={setPerpTimeRange}
               showHeader={false}
+              height="fill"
               className="h-full"
             />
           </div>
@@ -2227,6 +2228,7 @@ export function MarketsTradingTerminal({
                         timeRange={perpTimeRange}
                         onTimeRangeChange={setPerpTimeRange}
                         showHeader={false}
+                        height="fill"
                         className="h-full"
                       />
                     </div>
@@ -2735,6 +2737,7 @@ export function MarketsTradingTerminal({
                         timeRange={perpTimeRange}
                         onTimeRangeChange={setPerpTimeRange}
                         showHeader={false}
+                        height="fill"
                         className="h-full"
                       />
                     </div>

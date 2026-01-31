@@ -48,6 +48,12 @@ interface PerpPriceChartProps {
   showBrush?: boolean;
   /** Whether to show the header (price + range controls). Defaults to true. */
   showHeader?: boolean;
+  /**
+   * Chart sizing behavior.
+   * - fixed: uses a fixed-height chart (good for pages)
+   * - fill: stretches to the available parent height (good for flex layouts like the terminal)
+   */
+  height?: 'fixed' | 'fill';
   /** Optional className for the container */
   className?: string;
 }
@@ -77,6 +83,7 @@ export function PerpPriceChart({
   timeRange,
   onTimeRangeChange,
   showHeader = true,
+  height = 'fixed',
   className,
 }: PerpPriceChartProps) {
   const [chartInitError, setChartInitError] = useState<string | null>(null);
@@ -99,6 +106,7 @@ export function PerpPriceChart({
     },
   });
 
+  const fillHeight = height === 'fill';
   const hasData = data.length > 0;
   const unavailableReason = chartInitError ?? chartBaseError;
 
@@ -288,14 +296,15 @@ export function PerpPriceChart({
   return (
     <div
       className={cn(
-        'flex h-full w-full flex-col',
-        showHeader ? 'space-y-3' : '',
+        'flex w-full',
+        fillHeight ? 'h-full min-h-0 flex-col gap-3' : 'h-full flex-col',
+        showHeader && !fillHeight ? 'space-y-3' : '',
         className
       )}
     >
       {/* Header with price info and time range selector */}
       {showHeader && (
-        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 px-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-3">
             <div>
               <div className="font-bold text-2xl">
@@ -336,10 +345,13 @@ export function PerpPriceChart({
       )}
 
       {/* Chart container */}
-      <div className="relative">
+      <div className={cn('relative', fillHeight && 'min-h-0 flex-1')}>
         <div
           ref={chartContainerRef}
-          className="h-[400px] w-full rounded-lg bg-muted/10"
+          className={cn(
+            'w-full rounded-lg bg-muted/10',
+            fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
+          )}
         />
         {!chart && !unavailableReason && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
