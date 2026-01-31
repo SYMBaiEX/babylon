@@ -1,7 +1,20 @@
 /**
  * MCP Tool Handlers
  *
- * Handlers for executing MCP tools
+ * Handlers for executing MCP tools. These handlers use direct service layer
+ * calls instead of HTTP API endpoints for operations requiring authentication.
+ * This bypasses the need for Privy JWT tokens since MCP API key authentication
+ * provides the userId directly.
+ *
+ * ARCHITECTURE NOTES:
+ * - Direct service calls eliminate HTTP overhead for internal operations
+ * - Authorization is enforced at the handler level before service calls
+ * - Transactions use row-level locking to prevent race conditions
+ *
+ * RATE LIMITING CONSIDERATION:
+ * Direct service calls bypass any HTTP API rate limiting. If rate limiting
+ * is required for MCP operations, it should be implemented at the MCP
+ * handler layer (e.g., in the MCP server's tool dispatch logic).
  */
 
 import type { JsonRpcParams, JsonRpcRequest } from '@babylon/a2a';
@@ -940,9 +953,16 @@ export async function executeGetTrades(
 /**
  * Execute get_trade_history tool
  *
- * Returns trade history by querying positions with their associated data.
- * Each position represents a trade entry with the actual side (YES/NO),
- * shares, and average price.
+ * NOTE: This returns the user's current positions rather than individual trade
+ * transactions. Each position represents an aggregated holding with the side
+ * (YES/NO), total shares, and average entry price. This is a semantic
+ * difference from a true "trade history" which would show each individual
+ * buy/sell transaction.
+ *
+ * This approach was chosen because:
+ * 1. Positions contain accurate side information (YES/NO boolean)
+ * 2. Balance transactions don't store the actual side of the trade
+ * 3. This provides useful trading context for MCP agents
  */
 export async function executeGetTradeHistory(
   _agent: AuthenticatedAgent,
@@ -2259,30 +2279,34 @@ export async function executeGetOrganizations(
 }
 
 // ============================================================================
-// x402 Micropayments - Handlers
+// x402 Micropayments - Handlers (NOT IMPLEMENTED)
 // ============================================================================
 
 /**
  * Execute payment_request tool
- * Note: x402 payments feature is not yet implemented
+ *
+ * @throws {Error} Always throws - x402 micropayments feature is not yet implemented.
+ * Callers should handle this error gracefully. This tool will be functional once
+ * the x402 protocol integration is complete.
  */
 export async function executePaymentRequest(
   _agent: AuthenticatedAgent,
   _args: PaymentRequestArgs
 ): Promise<PaymentRequestResult> {
-  // x402 micropayments feature is not yet implemented
   throw new Error('x402 micropayments feature is not yet implemented');
 }
 
 /**
  * Execute payment_receipt tool
- * Note: x402 payments feature is not yet implemented
+ *
+ * @throws {Error} Always throws - x402 micropayments feature is not yet implemented.
+ * Callers should handle this error gracefully. This tool will be functional once
+ * the x402 protocol integration is complete.
  */
 export async function executePaymentReceipt(
   _agent: AuthenticatedAgent,
   _args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
-  // x402 micropayments feature is not yet implemented
   throw new Error('x402 micropayments feature is not yet implemented');
 }
 
