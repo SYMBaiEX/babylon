@@ -44,8 +44,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
-import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
+import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type {
   PredictionResolutionSSE,
@@ -1805,144 +1805,144 @@ export function MarketsTradingTerminal({
         </button>
       </div>
 
-	      <div className="min-h-0 flex-1 overflow-hidden">
-	        {bottomTab === 'agent' ? (
-	          <TerminalAgentsChat />
-	        ) : bottomTab === 'social' ? (
-	          <TerminalSocialFeed
-	            perpTicker={
-	              selected?.kind === 'perp' ? (selectedPerp?.ticker ?? null) : null
-	            }
-	          />
-	        ) : bottomTab === 'portfolio' ? (
-	          <TerminalPortfolio
-	            authenticated={authenticated}
-	            onLogin={login}
-	            onRequestBuyPoints={onRequestBuyPoints ?? null}
-	            balance={balance}
-	            balanceLoading={balanceLoading}
-	            portfolio={portfolioPnL}
-	            portfolioLoading={portfolioLoading}
-	            portfolioError={portfolioError}
-		            onRefresh={() => {
-		              invalidateUserPositions();
-		              invalidateWalletBalance();
-		              void Promise.allSettled([
-		                refreshPortfolio(),
-		                refreshPredictionPositions(),
-		                refreshPerpPositions(),
-		                refreshWalletBalance(),
-		              ]);
-		            }}
-	            perpPositions={perpPositions}
-	            predictionPositions={predictionPositions}
-	            onPerpPositionClosed={async () => {
-	              invalidateUserPositions();
-	              invalidateWalletBalance();
-	              await Promise.all([
-	                refreshPerpPositions(),
-	                refreshPredictionPositions(),
-	                refreshWalletBalance(),
-	                refreshPortfolio(),
-	              ]);
-	            }}
-	            onPredictionPositionSold={async () => {
-	              invalidateUserPositions();
-	              invalidateWalletBalance();
-	              await Promise.all([
-	                refreshPredictionPositions(),
-	                refreshPerpPositions(),
-	                refreshWalletBalance(),
-	                refreshPortfolio(),
-	              ]);
-	            }}
-	          />
-	        ) : bottomTab === 'positions' ? (
-	          !authenticated ? (
-	            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-	              Log in to view positions.
-	            </div>
-	          ) : selected?.kind === 'prediction' ? (
-	            <div className="h-full overflow-auto">
-	              {selectedPredictionPositions.length > 0 ? (
-	                <PredictionPositionsList
-	                  positions={selectedPredictionPositions}
-	                  density="compact"
-	                  onPositionSold={async () => {
-	                    invalidateUserPositions();
-	                    invalidateWalletBalance();
-	                    await Promise.all([
-	                      refreshPredictionPositions(),
-	                      refreshPerpPositions(),
-	                      refreshWalletBalance(),
-	                      refreshPredictionHistory(),
-	                    ]);
-	                  }}
-	                />
-	              ) : (
-	                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
-	                  No open positions
-	                </div>
-	              )}
-	            </div>
-	          ) : (
-	            <div className="h-full overflow-auto">
-	              {selectedPerpPositions.length > 0 ? (
-	                <PerpPositionsList
-	                  positions={selectedPerpPositions}
-	                  density="compact"
-	                  onPositionClosed={async () => {
-	                    invalidateUserPositions();
-	                    invalidateWalletBalance();
-	                    await Promise.all([
-	                      refreshPerpPositions(),
-	                      refreshPredictionPositions(),
-	                      refreshWalletBalance(),
-	                      refreshPerpHistory(),
-	                    ]);
-	                  }}
-	                />
-	              ) : (
-	                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
-	                  No open positions
-	                </div>
-	              )}
-	            </div>
-	          )
-	        ) : bottomTab === 'trades' ? (
-	          selected?.kind === 'prediction' ? (
-	            <div
-	              ref={desktopTradesContainerRef}
-	              className="h-full overflow-auto"
-	            >
-	              <AssetTradesFeed
-	                marketType="prediction"
-	                assetId={selected.id}
-	                containerRef={desktopTradesContainerRef}
-	                density="compact"
-	              />
-	            </div>
-	          ) : selectedPerp ? (
-	            <div
-	              ref={desktopTradesContainerRef}
-	              className="h-full overflow-auto"
-	            >
-	              <AssetTradesFeed
-	                marketType="perp"
-	                assetId={selectedPerp.ticker}
-	                containerRef={desktopTradesContainerRef}
-	                density="compact"
-	              />
-	            </div>
-	          ) : (
-	            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-	              Select a market to see trades.
-	            </div>
-	          )
-	        ) : null}
-	      </div>
-	    </div>
-	  );
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {bottomTab === 'agent' ? (
+          <TerminalAgentsChat />
+        ) : bottomTab === 'social' ? (
+          <TerminalSocialFeed
+            perpTicker={
+              selected?.kind === 'perp' ? (selectedPerp?.ticker ?? null) : null
+            }
+          />
+        ) : bottomTab === 'portfolio' ? (
+          <TerminalPortfolio
+            authenticated={authenticated}
+            onLogin={login}
+            onRequestBuyPoints={onRequestBuyPoints ?? null}
+            balance={balance}
+            balanceLoading={balanceLoading}
+            portfolio={portfolioPnL}
+            portfolioLoading={portfolioLoading}
+            portfolioError={portfolioError}
+            onRefresh={() => {
+              invalidateUserPositions();
+              invalidateWalletBalance();
+              void Promise.allSettled([
+                refreshPortfolio(),
+                refreshPredictionPositions(),
+                refreshPerpPositions(),
+                refreshWalletBalance(),
+              ]);
+            }}
+            perpPositions={perpPositions}
+            predictionPositions={predictionPositions}
+            onPerpPositionClosed={async () => {
+              invalidateUserPositions();
+              invalidateWalletBalance();
+              await Promise.all([
+                refreshPerpPositions(),
+                refreshPredictionPositions(),
+                refreshWalletBalance(),
+                refreshPortfolio(),
+              ]);
+            }}
+            onPredictionPositionSold={async () => {
+              invalidateUserPositions();
+              invalidateWalletBalance();
+              await Promise.all([
+                refreshPredictionPositions(),
+                refreshPerpPositions(),
+                refreshWalletBalance(),
+                refreshPortfolio(),
+              ]);
+            }}
+          />
+        ) : bottomTab === 'positions' ? (
+          !authenticated ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+              Log in to view positions.
+            </div>
+          ) : selected?.kind === 'prediction' ? (
+            <div className="h-full overflow-auto">
+              {selectedPredictionPositions.length > 0 ? (
+                <PredictionPositionsList
+                  positions={selectedPredictionPositions}
+                  density="compact"
+                  onPositionSold={async () => {
+                    invalidateUserPositions();
+                    invalidateWalletBalance();
+                    await Promise.all([
+                      refreshPredictionPositions(),
+                      refreshPerpPositions(),
+                      refreshWalletBalance(),
+                      refreshPredictionHistory(),
+                    ]);
+                  }}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
+                  No open positions
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-full overflow-auto">
+              {selectedPerpPositions.length > 0 ? (
+                <PerpPositionsList
+                  positions={selectedPerpPositions}
+                  density="compact"
+                  onPositionClosed={async () => {
+                    invalidateUserPositions();
+                    invalidateWalletBalance();
+                    await Promise.all([
+                      refreshPerpPositions(),
+                      refreshPredictionPositions(),
+                      refreshWalletBalance(),
+                      refreshPerpHistory(),
+                    ]);
+                  }}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
+                  No open positions
+                </div>
+              )}
+            </div>
+          )
+        ) : bottomTab === 'trades' ? (
+          selected?.kind === 'prediction' ? (
+            <div
+              ref={desktopTradesContainerRef}
+              className="h-full overflow-auto"
+            >
+              <AssetTradesFeed
+                marketType="prediction"
+                assetId={selected.id}
+                containerRef={desktopTradesContainerRef}
+                density="compact"
+              />
+            </div>
+          ) : selectedPerp ? (
+            <div
+              ref={desktopTradesContainerRef}
+              className="h-full overflow-auto"
+            >
+              <AssetTradesFeed
+                marketType="perp"
+                assetId={selectedPerp.ticker}
+                containerRef={desktopTradesContainerRef}
+                density="compact"
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+              Select a market to see trades.
+            </div>
+          )
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -2034,17 +2034,17 @@ export function MarketsTradingTerminal({
                   'transition-colors hover:bg-muted/20 hover:text-foreground'
                 )}
               >
-	                <span className="font-semibold text-[10px] tracking-widest">
-	                  {bottomTab === 'agent'
-	                    ? 'AGENTS'
-	                    : bottomTab === 'social'
-	                      ? 'SOCIAL'
-	                      : bottomTab === 'portfolio'
-	                        ? 'PORTFOLIO'
-	                      : bottomTab === 'positions'
-	                        ? 'POSITIONS'
-	                        : 'TRADES'}
-	                </span>
+                <span className="font-semibold text-[10px] tracking-widest">
+                  {bottomTab === 'agent'
+                    ? 'AGENTS'
+                    : bottomTab === 'social'
+                      ? 'SOCIAL'
+                      : bottomTab === 'portfolio'
+                        ? 'PORTFOLIO'
+                        : bottomTab === 'positions'
+                          ? 'POSITIONS'
+                          : 'TRADES'}
+                </span>
                 <span className="text-[10px]">▲</span>
               </button>
             )}
@@ -2162,41 +2162,41 @@ export function MarketsTradingTerminal({
                       <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
                     )}
                   </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => setBottomTab('social')}
-	                    className={cn(
-	                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('social')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'social'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
-	                    )}
-	                  >
-	                    Social
-	                    {bottomTab === 'social' && (
-	                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-	                    )}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => setBottomTab('portfolio')}
-	                    className={cn(
-	                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-	                      bottomTab === 'portfolio'
-	                        ? 'text-foreground'
-	                        : 'text-muted-foreground'
-	                    )}
-	                  >
-	                    Portfolio
-	                    {bottomTab === 'portfolio' && (
-	                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-	                    )}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => setBottomTab('positions')}
-	                    className={cn(
-	                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
+                    )}
+                  >
+                    Social
+                    {bottomTab === 'social' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('portfolio')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'portfolio'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Portfolio
+                    {bottomTab === 'portfolio' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('positions')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
                       bottomTab === 'positions'
                         ? 'text-foreground'
                         : 'text-muted-foreground'
@@ -2225,132 +2225,132 @@ export function MarketsTradingTerminal({
                 </div>
               </div>
 
-	              <div className="min-h-0 flex-1 overflow-hidden">
-	                {bottomTab === 'agent' ? (
-	                  <TerminalAgentsChat />
-	                ) : bottomTab === 'social' ? (
-	                  <TerminalSocialFeed
-	                    perpTicker={
-	                      selected?.kind === 'perp'
-	                        ? (selectedPerp?.ticker ?? null)
-	                        : null
-	                    }
-	                  />
-	                ) : bottomTab === 'portfolio' ? (
-	                  <TerminalPortfolio
-	                    authenticated={authenticated}
-	                    onLogin={login}
-	                    onRequestBuyPoints={onRequestBuyPoints ?? null}
-	                    balance={balance}
-	                    balanceLoading={balanceLoading}
-	                    portfolio={portfolioPnL}
-	                    portfolioLoading={portfolioLoading}
-	                    portfolioError={portfolioError}
-	                    onRefresh={() => {
-	                      invalidateUserPositions();
-	                      invalidateWalletBalance();
-	                      void Promise.allSettled([
-	                        refreshPortfolio(),
-	                        refreshPredictionPositions(),
-	                        refreshPerpPositions(),
-	                        refreshWalletBalance(),
-	                      ]);
-	                    }}
-	                    perpPositions={perpPositions}
-	                    predictionPositions={predictionPositions}
-	                    onPerpPositionClosed={async () => {
-	                      invalidateUserPositions();
-	                      invalidateWalletBalance();
-	                      await Promise.all([
-	                        refreshPerpPositions(),
-	                        refreshPredictionPositions(),
-	                        refreshWalletBalance(),
-	                        refreshPortfolio(),
-	                      ]);
-	                    }}
-	                    onPredictionPositionSold={async () => {
-	                      invalidateUserPositions();
-	                      invalidateWalletBalance();
-	                      await Promise.all([
-	                        refreshPredictionPositions(),
-	                        refreshPerpPositions(),
-	                        refreshWalletBalance(),
-	                        refreshPortfolio(),
-	                      ]);
-	                    }}
-	                  />
-	                ) : bottomTab === 'positions' ? (
-	                  !authenticated ? (
-	                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-	                      Log in to view positions.
-	                    </div>
-	                  ) : selected?.kind === 'prediction' ? (
-	                    <div className="h-full overflow-auto overscroll-contain">
-	                      <PredictionPositionsList
-	                        positions={selectedPredictionPositions}
-	                        density="compact"
-	                        onPositionSold={async () => {
-	                          invalidateUserPositions();
-	                          invalidateWalletBalance();
-	                          await Promise.all([
-	                            refreshPredictionPositions(),
-	                            refreshPerpPositions(),
-	                            refreshWalletBalance(),
-	                            refreshPredictionHistory(),
-	                          ]);
-	                        }}
-	                      />
-	                    </div>
-	                  ) : (
-	                    <div className="h-full overflow-auto overscroll-contain">
-	                      <PerpPositionsList
-	                        positions={selectedPerpPositions}
-	                        density="compact"
-	                        onPositionClosed={async () => {
-	                          invalidateUserPositions();
-	                          invalidateWalletBalance();
-	                          await Promise.all([
-	                            refreshPerpPositions(),
-	                            refreshPredictionPositions(),
-	                            refreshWalletBalance(),
-	                            refreshPerpHistory(),
-	                          ]);
-	                        }}
-	                      />
-	                    </div>
-	                  )
-	                ) : bottomTab === 'trades' ? (
-	                  selected?.kind === 'prediction' ? (
-	                    <div
-	                      ref={mobileTradesContainerRef}
-	                      className="h-full overflow-auto overscroll-contain"
-	                    >
-	                      <AssetTradesFeed
-	                        marketType="prediction"
-	                        assetId={selected.id}
-	                        containerRef={mobileTradesContainerRef}
-	                        density="compact"
-	                      />
-	                    </div>
-	                  ) : selectedPerp ? (
-	                    <div
-	                      ref={mobileTradesContainerRef}
-	                      className="h-full overflow-auto overscroll-contain"
-	                    >
-	                      <AssetTradesFeed
-	                        marketType="perp"
-	                        assetId={selectedPerp.ticker}
-	                        containerRef={mobileTradesContainerRef}
-	                        density="compact"
-	                      />
-	                    </div>
-	                  ) : (
-	                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-	                      Select a market to see trades.
-	                    </div>
-	                  )
-	                ) : null}
-	              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {bottomTab === 'agent' ? (
+                  <TerminalAgentsChat />
+                ) : bottomTab === 'social' ? (
+                  <TerminalSocialFeed
+                    perpTicker={
+                      selected?.kind === 'perp'
+                        ? (selectedPerp?.ticker ?? null)
+                        : null
+                    }
+                  />
+                ) : bottomTab === 'portfolio' ? (
+                  <TerminalPortfolio
+                    authenticated={authenticated}
+                    onLogin={login}
+                    onRequestBuyPoints={onRequestBuyPoints ?? null}
+                    balance={balance}
+                    balanceLoading={balanceLoading}
+                    portfolio={portfolioPnL}
+                    portfolioLoading={portfolioLoading}
+                    portfolioError={portfolioError}
+                    onRefresh={() => {
+                      invalidateUserPositions();
+                      invalidateWalletBalance();
+                      void Promise.allSettled([
+                        refreshPortfolio(),
+                        refreshPredictionPositions(),
+                        refreshPerpPositions(),
+                        refreshWalletBalance(),
+                      ]);
+                    }}
+                    perpPositions={perpPositions}
+                    predictionPositions={predictionPositions}
+                    onPerpPositionClosed={async () => {
+                      invalidateUserPositions();
+                      invalidateWalletBalance();
+                      await Promise.all([
+                        refreshPerpPositions(),
+                        refreshPredictionPositions(),
+                        refreshWalletBalance(),
+                        refreshPortfolio(),
+                      ]);
+                    }}
+                    onPredictionPositionSold={async () => {
+                      invalidateUserPositions();
+                      invalidateWalletBalance();
+                      await Promise.all([
+                        refreshPredictionPositions(),
+                        refreshPerpPositions(),
+                        refreshWalletBalance(),
+                        refreshPortfolio(),
+                      ]);
+                    }}
+                  />
+                ) : bottomTab === 'positions' ? (
+                  !authenticated ? (
+                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                      Log in to view positions.
+                    </div>
+                  ) : selected?.kind === 'prediction' ? (
+                    <div className="h-full overflow-auto overscroll-contain">
+                      <PredictionPositionsList
+                        positions={selectedPredictionPositions}
+                        density="compact"
+                        onPositionSold={async () => {
+                          invalidateUserPositions();
+                          invalidateWalletBalance();
+                          await Promise.all([
+                            refreshPredictionPositions(),
+                            refreshPerpPositions(),
+                            refreshWalletBalance(),
+                            refreshPredictionHistory(),
+                          ]);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-full overflow-auto overscroll-contain">
+                      <PerpPositionsList
+                        positions={selectedPerpPositions}
+                        density="compact"
+                        onPositionClosed={async () => {
+                          invalidateUserPositions();
+                          invalidateWalletBalance();
+                          await Promise.all([
+                            refreshPerpPositions(),
+                            refreshPredictionPositions(),
+                            refreshWalletBalance(),
+                            refreshPerpHistory(),
+                          ]);
+                        }}
+                      />
+                    </div>
+                  )
+                ) : bottomTab === 'trades' ? (
+                  selected?.kind === 'prediction' ? (
+                    <div
+                      ref={mobileTradesContainerRef}
+                      className="h-full overflow-auto overscroll-contain"
+                    >
+                      <AssetTradesFeed
+                        marketType="prediction"
+                        assetId={selected.id}
+                        containerRef={mobileTradesContainerRef}
+                        density="compact"
+                      />
+                    </div>
+                  ) : selectedPerp ? (
+                    <div
+                      ref={mobileTradesContainerRef}
+                      className="h-full overflow-auto overscroll-contain"
+                    >
+                      <AssetTradesFeed
+                        marketType="perp"
+                        assetId={selectedPerp.ticker}
+                        containerRef={mobileTradesContainerRef}
+                        density="compact"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                      Select a market to see trades.
+                    </div>
+                  )
+                ) : null}
+              </div>
             </div>
           </div>
 

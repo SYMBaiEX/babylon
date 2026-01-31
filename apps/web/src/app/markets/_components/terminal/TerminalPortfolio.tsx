@@ -3,8 +3,8 @@
 import type { UserPredictionPosition } from '@babylon/shared';
 import { cn } from '@babylon/shared';
 import { RefreshCw, Wallet } from 'lucide-react';
-import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
+import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 import type { DisplayPerpPosition } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
@@ -29,7 +29,9 @@ function StatCard({
       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
         {label}
       </div>
-      <div className={cn('mt-1 font-mono text-sm tabular-nums', valueClassName)}>
+      <div
+        className={cn('mt-1 font-mono text-sm tabular-nums', valueClassName)}
+      >
         {value}
       </div>
     </div>
@@ -122,7 +124,10 @@ export function TerminalPortfolio({
               title="Refresh"
             >
               <RefreshCw
-                className={cn('h-3.5 w-3.5', portfolioLoading && 'animate-spin')}
+                className={cn(
+                  'h-3.5 w-3.5',
+                  portfolioLoading && 'animate-spin'
+                )}
               />
               Refresh
             </button>
@@ -152,13 +157,17 @@ export function TerminalPortfolio({
           <StatCard
             label="Total Assets"
             value={
-              portfolioLoading || !portfolio ? '—' : formatBalance(portfolio.totalAssets)
+              portfolioLoading || !portfolio
+                ? '—'
+                : formatBalance(portfolio.totalAssets)
             }
           />
           <StatCard
             label="Available"
             value={
-              portfolioLoading || !portfolio ? '—' : formatBalance(portfolio.available)
+              portfolioLoading || !portfolio
+                ? '—'
+                : formatBalance(portfolio.available)
             }
           />
         </div>
@@ -166,12 +175,18 @@ export function TerminalPortfolio({
         <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
           <StatCard
             label="Agents"
-            value={portfolioLoading || !portfolio ? '—' : formatBalance(portfolio.agents)}
+            value={
+              portfolioLoading || !portfolio
+                ? '—'
+                : formatBalance(portfolio.agents)
+            }
           />
           <StatCard
             label="Positions"
             value={
-              portfolioLoading || !portfolio ? '—' : formatBalance(portfolio.positions)
+              portfolioLoading || !portfolio
+                ? '—'
+                : formatBalance(portfolio.positions)
             }
           />
           <StatCard
