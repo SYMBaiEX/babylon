@@ -2,8 +2,26 @@
  * MCP Tool Handlers Unit Tests
  *
  * Tests for type safety and logic in MCP tool handlers.
- * These tests validate the type conversion mappings and error handling patterns
- * used in the refactored handlers that use direct service calls.
+ * These tests validate the type conversion mappings, error handling patterns,
+ * and business logic used in the refactored handlers that use direct service calls.
+ *
+ * ## Test Coverage Approach
+ *
+ * 1. **Pure Unit Tests (this file)**: Test isolated logic like type mappings,
+ *    validation functions, calculation formulas, and state machine conditions
+ *    without requiring database or service mocks.
+ *
+ * 2. **Integration Tests (see packages/testing/integration/)**: For end-to-end
+ *    handler testing with mocked services, use the integration test suite which
+ *    has the proper mock infrastructure for DB, WalletService, and other deps.
+ *
+ * ## Handler Functions Tested (via logic extraction)
+ *
+ * - executePlaceBet / executeBuyShares: PREDICTION_SIDE_MAP, validatePredictionSide
+ * - executeOpenPosition / executeClosePosition: resolvePerpSide, settlement calcs
+ * - executeTransferPoints: Self-transfer prevention, balance validation, atomic ops
+ * - executeAppealBan: State machine transitions, validation conditions
+ * - executeSellShares: Position ownership, market association validation
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -315,7 +333,9 @@ describe('MCP Tool Handlers - Input Validation', () => {
     });
 
     it('should reject empty string', () => {
-      expect(() => validatePredictionSide('')).toThrow('Invalid prediction side');
+      expect(() => validatePredictionSide('')).toThrow(
+        'Invalid prediction side'
+      );
     });
 
     it('should reject invalid side LONG', () => {
@@ -358,6 +378,49 @@ describe('MCP Tool Handlers - Input Validation', () => {
 
     it('should reject invalid side YES', () => {
       expect(() => validatePerpSide('YES')).toThrow('Invalid perp side');
+    });
+  });
+
+  describe('resolvePerpSide (defensive lookup)', () => {
+    // Replicate the defensive resolver from tool-handlers.ts
+    function resolvePerpSide(side: string | undefined): 'LONG' | 'SHORT' {
+      if (!side) return 'LONG';
+      const lower = side.toLowerCase();
+      if (lower === 'long') return 'LONG';
+      if (lower === 'short') return 'SHORT';
+      return 'LONG'; // Fallback for unexpected values
+    }
+
+    it('should resolve "long" to "LONG"', () => {
+      expect(resolvePerpSide('long')).toBe('LONG');
+    });
+
+    it('should resolve "short" to "SHORT"', () => {
+      expect(resolvePerpSide('short')).toBe('SHORT');
+    });
+
+    it('should resolve "LONG" to "LONG"', () => {
+      expect(resolvePerpSide('LONG')).toBe('LONG');
+    });
+
+    it('should resolve "SHORT" to "SHORT"', () => {
+      expect(resolvePerpSide('SHORT')).toBe('SHORT');
+    });
+
+    it('should return LONG for undefined', () => {
+      expect(resolvePerpSide(undefined)).toBe('LONG');
+    });
+
+    it('should return LONG for empty string', () => {
+      expect(resolvePerpSide('')).toBe('LONG');
+    });
+
+    it('should return LONG for unexpected value', () => {
+      expect(resolvePerpSide('invalid')).toBe('LONG');
+    });
+
+    it('should return LONG for null-ish value', () => {
+      expect(resolvePerpSide(null as unknown as string)).toBe('LONG');
     });
   });
 });

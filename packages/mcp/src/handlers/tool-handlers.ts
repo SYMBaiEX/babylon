@@ -493,21 +493,15 @@ function buildPerpService() {
 }
 
 /**
- * Type-safe mapping from lowercase perp side to uppercase MCP API side
- */
-const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
-  long: 'LONG',
-  short: 'SHORT',
-};
-
-/**
  * Validate and convert prediction side input to lowercase.
  * Provides defensive runtime validation instead of just type assertions.
  */
 function validatePredictionSide(side: string): 'yes' | 'no' {
   const lower = side.toLowerCase();
   if (lower !== 'yes' && lower !== 'no') {
-    throw new Error(`Invalid prediction side: ${side}. Expected 'YES' or 'NO'.`);
+    throw new Error(
+      `Invalid prediction side: ${side}. Expected 'YES' or 'NO'.`
+    );
   }
   return lower;
 }
@@ -519,11 +513,32 @@ function validatePredictionSide(side: string): 'yes' | 'no' {
 function validatePerpSide(side: string): 'long' | 'short' {
   const lower = side.toLowerCase();
   if (lower !== 'long' && lower !== 'short') {
-    throw new Error(
-      `Invalid perp side: ${side}. Expected 'LONG' or 'SHORT'.`
-    );
+    throw new Error(`Invalid perp side: ${side}. Expected 'LONG' or 'SHORT'.`);
   }
   return lower;
+}
+
+/**
+ * Type-safe mapping from lowercase perp side to uppercase MCP API side.
+ * Used by resolvePerpSide for known good values.
+ */
+const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
+  long: 'LONG',
+  short: 'SHORT',
+};
+
+/**
+ * Safely resolve perp side from service result to uppercase MCP API format.
+ * Uses PERP_SIDE_MAP for known values, with defensive fallback for unexpected values.
+ */
+function resolvePerpSide(side: string | undefined): 'LONG' | 'SHORT' {
+  if (!side) return 'LONG'; // Default fallback for undefined/null
+  const lower = side.toLowerCase() as 'long' | 'short';
+  const mapped = PERP_SIDE_MAP[lower];
+  if (mapped) return mapped;
+  // Fallback for unexpected values - log and return default
+  logger.warn(`Unexpected perp side value: ${side}, defaulting to LONG`, 'MCP');
+  return 'LONG';
 }
 
 /**
@@ -669,7 +684,7 @@ export async function executeClosePosition(
     position: {
       positionId: args.positionId,
       ticker: result.ticker,
-      side: PERP_SIDE_MAP[result.side],
+      side: resolvePerpSide(result.side),
       size: result.size,
       entryPrice: result.entryPrice ?? 0,
       exitPrice: result.exitPrice ?? 0,
@@ -872,7 +887,7 @@ export async function executeOpenPosition(
     position: {
       positionId: result.positionId,
       ticker: result.ticker,
-      side: PERP_SIDE_MAP[result.side],
+      side: resolvePerpSide(result.side),
       size: result.size,
       leverage: result.leverage,
       entryPrice: result.entryPrice ?? 0,
