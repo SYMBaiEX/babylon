@@ -15,11 +15,27 @@ import type {
 } from '@elizaos/core';
 
 /**
+ * JSON-safe parameter value type for action parameters
+ */
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
+ * Typed action parameters - JSON-safe values only
+ */
+type ActionParameters = Record<string, JsonValue>;
+
+/**
  * Extended action result with tracking metadata
  */
 type ActionTraceResult = ActionResult & {
   actionType: string;
-  parameters?: Record<string, unknown>;
+  parameters?: ActionParameters;
   timestamp: number;
 };
 

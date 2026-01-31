@@ -68,6 +68,7 @@ export * from './utils/singleton';
 export * from './utils/snowflake';
 // UI utilities (cn function for Tailwind)
 export * from './utils/ui';
+export * from './utils/uuid';
 
 // =============================================================================
 // Error Classes (client-safe)

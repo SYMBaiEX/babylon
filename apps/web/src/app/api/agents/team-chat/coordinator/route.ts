@@ -451,7 +451,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Use resultHolder as the single source of truth for action results
     // The callback in processActions captures the result; no fallback to runtime internals
     const actionResult = resultHolder.result;
-    const success = actionResult?.success ?? true;
+
+    // Default to false if result is missing to avoid masking silent failures
+    if (!actionResult) {
+      logger.warn(
+        `[Coordinator] Action ${action} completed without a result - treating as failure`,
+        { action, parameters: actionParams },
+        'CoordinatorChat'
+      );
+    }
+    const success = actionResult?.success ?? false;
 
     traceActionResults.push({
       actionType: action,

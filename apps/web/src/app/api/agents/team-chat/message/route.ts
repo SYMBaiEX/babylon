@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
   // Generate chat title on first message
   // Check if chat needs title (name is null) and this is the first user message
   let generatedTitle: string | null = null;
-  const needsTitle = await teamChatService.chatNeedsTitle(teamChat.chatId);
+  const needsTitle = await teamChatService.chatNeedsTitle(teamChat.chatId, user.id);
   if (needsTitle) {
     const messageCount = await teamChatService.getUserMessageCount(
       teamChat.chatId,

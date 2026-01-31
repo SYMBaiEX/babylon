@@ -33,11 +33,21 @@ enum Step {
   Settings = 3,
 }
 
+/** Agent data returned on successful creation */
+interface AgentCreateResult {
+  id: string;
+  username?: string;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+  modelTier?: 'free' | 'pro';
+  virtualBalance?: number;
+}
+
 interface AgentCreateProps {
   /** Called when back is pressed on step 1 */
   onBack?: () => void;
   /** Called when agent is successfully created */
-  onSuccess?: (agent: { id: string; username?: string }) => void;
+  onSuccess?: (agent: AgentCreateResult) => void;
   /** Whether to show in compact mode (no page padding) */
   compact?: boolean;
 }
@@ -235,8 +245,15 @@ export function AgentCreate({
     clearDraft();
     toast.success('Agent created successfully!');
 
-    // Call success callback with agent info
-    onSuccess?.({ id: agentId, username: profileData.username });
+    // Call success callback with agent info including all relevant fields
+    onSuccess?.({
+      id: agentId,
+      username: profileData.username,
+      displayName: profileData.displayName || null,
+      profileImageUrl: profileData.profileImageUrl || null,
+      modelTier: settingsData.modelTier,
+      virtualBalance: agentData.initialDeposit,
+    });
   }, [
     profileData,
     agentData,
@@ -447,28 +464,30 @@ export function AgentCreate({
           className="relative max-h-[90vh] w-full min-w-[800px] max-w-5xl overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close button */}
-          <button
-            onClick={() => onBack?.()}
-            className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Close"
-          >
-            <span className="sr-only">Close</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {/* Close button - only rendered when onBack is provided */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Close"
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+              <span className="sr-only">Close</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
           {stepsContent}
         </div>
       </div>

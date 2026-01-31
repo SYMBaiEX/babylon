@@ -5,7 +5,11 @@
  * containing all their agents.
  */
 
-import { COORDINATOR_SENDER_ID, type MessageMetadata } from '@babylon/shared';
+import {
+  COORDINATOR_SENDER_ID,
+  generateUUID,
+  type MessageMetadata,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useCallback,
@@ -689,17 +693,17 @@ export function useTeamChat(): UseTeamChatReturn {
       ? []
       : mentionedAgentIds.filter((id) => !processingAgentIds.has(id));
 
-    // If agents are mentioned but all are busy, don't proceed
-    if (!useCoordinator && availableAgents.length === 0) return;
+    // If agents are mentioned but all are busy, notify user and don't proceed
+    if (!useCoordinator && availableAgents.length === 0) {
+      toast.warning(
+        'All mentioned agents are currently busy — your message was not sent to them.'
+      );
+      return;
+    }
 
     // Create optimistic message (stableKey prevents flash on confirmation)
     // Generate unique ID to avoid collisions on rapid sends
-    // Use crypto.randomUUID() with fallback for older browsers (Safari < 15.4, Chrome < 92)
-    const uuid =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    const optimisticId = `pending-${uuid}`;
+    const optimisticId = `pending-${generateUUID()}`;
     addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,
@@ -771,13 +775,7 @@ export function useTeamChat(): UseTeamChatReturn {
       // =========================================================================
       if (useCoordinator) {
         // Add thinking placeholder message immediately
-        // Use crypto.randomUUID() for unique ID with fallback for older browsers
-        const thinkingUuid =
-          typeof crypto !== 'undefined' &&
-          typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-        const thinkingId = `thinking-coordinator-${thinkingUuid}`;
+        const thinkingId = `thinking-coordinator-${generateUUID()}`;
         addMessage({
           id: thinkingId,
           chatId: teamChat.chatId,
@@ -908,13 +906,7 @@ export function useTeamChat(): UseTeamChatReturn {
 
       // Add thinking placeholder messages for all agents immediately
       for (const agentId of availableAgents) {
-        // Use crypto.randomUUID() for unique ID with fallback for older browsers
-        const thinkingUuid =
-          typeof crypto !== 'undefined' &&
-          typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-        const thinkingId = `thinking-${agentId}-${thinkingUuid}`;
+        const thinkingId = `thinking-${agentId}-${generateUUID()}`;
         thinkingIds.set(agentId, thinkingId);
         addMessage({
           id: thinkingId,

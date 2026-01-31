@@ -120,7 +120,9 @@ export const messages = pgTable(
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
     index('Message_senderId_idx').on(table.senderId),
     index('Message_type_idx').on(table.type),
-    index('Message_targetIds_idx').on(table.targetIds),
+    // GIN index for efficient array containment queries (@>, <@, &&)
+    // Must match the migration (0030_add_message_target_ids.sql)
+    index('Message_targetIds_idx').using('gin', table.targetIds),
   ]
 );
 

@@ -182,7 +182,13 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   }, [agentId, getAccessToken]);
 
   useEffect(() => {
-    fetchData();
+    fetchData().catch((err) => {
+      logger.error(
+        'Failed to fetch portfolio data',
+        { error: err instanceof Error ? err.message : String(err) },
+        'AgentPortfolio'
+      );
+    });
   }, [fetchData]);
 
   const handleTransaction = async () => {
@@ -225,8 +231,25 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       });
 
       if (!res.ok) {
-        const errorData = (await res.json()) as ErrorResponse;
-        throw new Error(errorData.error || 'Transaction failed');
+        // Clone response to safely attempt JSON parsing first, then fallback to text
+        const resClone = res.clone();
+        let errorMessage = `Transaction failed (${res.status})`;
+
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const errorData = (await resClone.json()) as ErrorResponse;
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } else {
+          const rawText = await res.text();
+          if (rawText) {
+            errorMessage = rawText;
+          }
+        }
+
+        toast.error(errorMessage);
+        return;
       }
 
       const data = (await res.json()) as TradingBalanceResponse;

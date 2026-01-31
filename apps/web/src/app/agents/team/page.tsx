@@ -8,6 +8,46 @@ import type {
   PostTagData,
   PredictionsTagData,
 } from '@babylon/shared';
+
+/** Type guard for PerpsTagData */
+function isPerpsTagData(data: unknown): data is PerpsTagData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return 'markets' in d || 'market' in d;
+}
+
+/** Type guard for PredictionsTagData */
+function isPredictionsTagData(data: unknown): data is PredictionsTagData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return 'predictions' in d || 'prediction' in d || 'status' in d;
+}
+
+/** Type guard for PostTagData */
+function isPostTagData(data: unknown): data is PostTagData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return (
+    'post' in d &&
+    typeof d.post === 'object' &&
+    d.post !== null &&
+    'id' in (d.post as Record<string, unknown>)
+  );
+}
+
+/** Type guard for FeedTagData */
+function isFeedTagData(data: unknown): data is FeedTagData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return 'posts' in d && Array.isArray(d.posts);
+}
+
+/** Type guard for PnlTagData */
+function isPnlTagData(data: unknown): data is PnlTagData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return 'balance' in d && typeof d.balance === 'number';
+}
 import { Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -229,20 +269,30 @@ export default function TeamChatPage() {
   // Close a right sidebar tab
   const closeRightTab = useCallback(
     (tabId: string) => {
+      // Compute new state values before updating
+      let newActiveId: string | null = null;
+      let shouldClosePanel = false;
+
       setRightSidebarTabs((prev) => {
         const newTabs = prev.filter((t) => t.id !== tabId);
-        // Handle active tab logic within the same updater to avoid race conditions
+
+        // Determine new active tab and whether to close sidebar
         if (activeRightTabId === tabId) {
           const lastTab = newTabs[newTabs.length - 1];
-          if (lastTab) {
-            setActiveRightTabId(lastTab.id);
-          } else {
-            setActiveRightTabId(null);
-            setRightSidebarOpen(false);
-          }
+          newActiveId = lastTab?.id ?? null;
+          shouldClosePanel = newTabs.length === 0;
         }
+
         return newTabs;
       });
+
+      // Update other state outside the updater to avoid race conditions
+      if (activeRightTabId === tabId) {
+        setActiveRightTabId(newActiveId);
+        if (shouldClosePanel) {
+          setRightSidebarOpen(false);
+        }
+      }
     },
     [activeRightTabId]
   );
@@ -659,18 +709,15 @@ export default function TeamChatPage() {
                 />
               </div>
             )}
-            {bottomPanelTab === 'portfolio' && (
-              <AgentPortfolio
-                agentId={bottomPanelAgentId}
-                agentName={
-                  teamChat?.agents.find((a) => a.id === bottomPanelAgentId)
-                    ?.displayName ||
-                  teamChat?.agents.find((a) => a.id === bottomPanelAgentId)
-                    ?.username ||
-                  'Agent'
-                }
-              />
-            )}
+            {bottomPanelTab === 'portfolio' && (() => {
+              const bottomAgent = teamChat?.agents.find((a) => a.id === bottomPanelAgentId);
+              return (
+                <AgentPortfolio
+                  agentId={bottomPanelAgentId}
+                  agentName={bottomAgent?.displayName || bottomAgent?.username || 'Agent'}
+                />
+              );
+            })()}
             {bottomPanelTab === 'logs' && (
               <div className="p-4">
                 <AgentLogs agentId={bottomPanelAgentId} />
@@ -706,23 +753,35 @@ export default function TeamChatPage() {
                     onAgentUpdated={refreshTeamChat}
                   />
                 );
-              } else if (tab.type === 'perps' && tab.data) {
-                content = <PerpsPanel data={tab.data as PerpsTagData} />;
-              } else if (tab.type === 'predictions' && tab.data) {
+              } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
+                content = <PerpsPanel data={tab.data} />;
+              } else if (
+                tab.type === 'predictions' &&
+                isPredictionsTagData(tab.data)
+              ) {
+                content = <PredictionsPanel data={tab.data} />;
+              } else if (tab.type === 'post' && isPostTagData(tab.data)) {
+                content = <PostPanel data={tab.data} />;
+              } else if (tab.type === 'feed' && isFeedTagData(tab.data)) {
+                content = <FeedPanel data={tab.data} />;
+              } else if (
+                tab.type === 'agent-pnl' &&
+                isPnlTagData(tab.data)
+              ) {
+                content = <PnlPanel data={tab.data} type="agent-pnl" />;
+              } else if (
+                tab.type === 'owner-pnl' &&
+                isPnlTagData(tab.data)
+              ) {
+                content = <PnlPanel data={tab.data} type="owner-pnl" />;
+              } else if (content === null) {
+                // Fallback for unrecognized tab types, invalid data, or missing agentId
                 content = (
-                  <PredictionsPanel data={tab.data as PredictionsTagData} />
-                );
-              } else if (tab.type === 'post' && tab.data) {
-                content = <PostPanel data={tab.data as PostTagData} />;
-              } else if (tab.type === 'feed' && tab.data) {
-                content = <FeedPanel data={tab.data as FeedTagData} />;
-              } else if (tab.type === 'agent-pnl' && tab.data) {
-                content = (
-                  <PnlPanel data={tab.data as PnlTagData} type="agent-pnl" />
-                );
-              } else if (tab.type === 'owner-pnl' && tab.data) {
-                content = (
-                  <PnlPanel data={tab.data as PnlTagData} type="owner-pnl" />
+                  <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
+                    <span className="text-sm">
+                      Unable to display panel: {tab.type}
+                    </span>
+                  </div>
                 );
               }
 
@@ -744,19 +803,11 @@ export default function TeamChatPage() {
               tagAgentInInput({
                 id: agent.id,
                 username: agent.username,
-                // Use agent parameter fields with safe fallbacks
-                // These may be undefined from the basic onSuccess signature
-                displayName:
-                  (agent as { displayName?: string | null }).displayName ??
-                  null,
-                profileImageUrl:
-                  (agent as { profileImageUrl?: string | null })
-                    .profileImageUrl ?? null,
+                displayName: agent.displayName ?? null,
+                profileImageUrl: agent.profileImageUrl ?? null,
                 isAgent: true,
-                modelTier:
-                  (agent as { modelTier?: 'free' | 'pro' }).modelTier ?? 'pro',
-                virtualBalance:
-                  (agent as { virtualBalance?: number }).virtualBalance ?? 0,
+                modelTier: agent.modelTier ?? 'pro',
+                virtualBalance: agent.virtualBalance ?? 0,
               });
             }
           }}

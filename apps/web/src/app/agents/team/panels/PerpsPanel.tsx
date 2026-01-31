@@ -14,6 +14,10 @@ interface PerpsPanelProps {
   data: PerpsTagData;
 }
 
+// Default perp trading limits (used when market data doesn't specify)
+const DEFAULT_MAX_LEVERAGE = 20;
+const DEFAULT_MIN_ORDER_SIZE = 1;
+
 /** Convert tag market data to PerpMarket format for modal */
 function toPerpMarket(market: PerpMarketData): PerpMarket {
   return {
@@ -32,8 +36,8 @@ function toPerpMarket(market: PerpMarketData): PerpMarket {
       nextFundingTime: '',
       predictedRate: 0,
     },
-    maxLeverage: 100,
-    minOrderSize: 10,
+    maxLeverage: (market as PerpMarketData & { maxLeverage?: number }).maxLeverage ?? DEFAULT_MAX_LEVERAGE,
+    minOrderSize: (market as PerpMarketData & { minOrderSize?: number }).minOrderSize ?? DEFAULT_MIN_ORDER_SIZE,
   };
 }
 

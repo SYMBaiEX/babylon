@@ -1000,18 +1000,41 @@ export class TeamChatService {
   /**
    * Check if a chat needs a title to be generated.
    * Returns true if name is null (indicating auto-generation needed).
+   * Validates ownership before returning the result.
    *
    * @param chatId - The chat ID to check
-   * @returns Whether the chat needs a title
+   * @param userId - The user ID to validate ownership
+   * @returns Whether the chat needs a title, or false if user doesn't own the chat
    */
-  async chatNeedsTitle(chatId: string): Promise<boolean> {
+  async chatNeedsTitle(chatId: string, userId: string): Promise<boolean> {
+    // Validate ownership first
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      logger.warn(
+        `chatNeedsTitle: User does not have a team chat`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    // Query with ownership validation
     const [chat] = await db
       .select({ name: chats.name })
       .from(chats)
-      .where(eq(chats.id, chatId))
+      .where(and(eq(chats.id, chatId), eq(chats.groupId, teamChat.groupId)))
       .limit(1);
 
-    return chat?.name === null;
+    if (!chat) {
+      logger.warn(
+        `chatNeedsTitle: Chat not found or not owned by user`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    return chat.name === null;
   }
 
   /**

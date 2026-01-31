@@ -148,10 +148,55 @@ export function BottomPanel({
       {/* Resize Handle - only when open */}
       {isOpen && (
         <div
+          role="separator"
+          tabIndex={0}
+          aria-orientation="horizontal"
+          aria-valuemin={MIN_HEIGHT}
+          aria-valuemax={MAX_HEIGHT}
+          aria-valuenow={height}
+          aria-label="Resize panel"
           onMouseDown={handleMouseDown}
+          onKeyDown={(e) => {
+            const STEP = 20;
+            const LARGE_STEP = 50;
+            let newHeight = height;
+
+            switch (e.key) {
+              case 'ArrowUp':
+                e.preventDefault();
+                newHeight = Math.min(height + STEP, MAX_HEIGHT);
+                break;
+              case 'ArrowDown':
+                e.preventDefault();
+                newHeight = Math.max(height - STEP, MIN_HEIGHT);
+                break;
+              case 'PageUp':
+                e.preventDefault();
+                newHeight = Math.min(height + LARGE_STEP, MAX_HEIGHT);
+                break;
+              case 'PageDown':
+                e.preventDefault();
+                newHeight = Math.max(height - LARGE_STEP, MIN_HEIGHT);
+                break;
+              case 'Home':
+                e.preventDefault();
+                newHeight = MAX_HEIGHT;
+                break;
+              case 'End':
+                e.preventDefault();
+                newHeight = MIN_HEIGHT;
+                break;
+              default:
+                return;
+            }
+
+            if (newHeight !== height) {
+              onHeightChange(newHeight);
+            }
+          }}
           className={cn(
             '-translate-y-1/2 absolute top-0 right-0 left-0 z-10 h-2 cursor-row-resize',
-            'hover:bg-primary/30',
+            'hover:bg-primary/30 focus:bg-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50',
             isResizing && 'bg-primary/50'
           )}
         />

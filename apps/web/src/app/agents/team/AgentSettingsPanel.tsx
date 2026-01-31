@@ -55,12 +55,19 @@ export function AgentSettingsPanel({
         return undefined;
       }
 
-      let res: Response;
+      let res: Response | undefined;
       try {
         res = await fetch(`/api/agents/${agentId}`, {
           headers: { Authorization: `Bearer ${token}` },
           signal,
         });
+      } catch (fetchError) {
+        // Fetch threw (network error, aborted, etc.)
+        if (!signal?.aborted) {
+          setError('Failed to fetch agent');
+          setLoading(false);
+        }
+        return undefined;
       } finally {
         // Ensure loading is cleared even if fetch throws
         if (!signal?.aborted) setLoading(false);
@@ -69,7 +76,8 @@ export function AgentSettingsPanel({
       // Don't update state if request was aborted
       if (signal?.aborted) return undefined;
 
-      if (!res.ok) {
+      // Check if res is defined and ok
+      if (!res || !res.ok) {
         setError('Failed to fetch agent');
         return undefined;
       }

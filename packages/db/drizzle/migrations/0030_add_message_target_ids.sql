@@ -12,7 +12,10 @@
 -- Step 1: Add 'coordinator' to message_type enum
 -- ============================================================================
 
--- Add 'coordinator' value to the message_type enum for coordinator assistant messages
+-- NOTE: ALTER TYPE ADD VALUE cannot run inside a transaction in PostgreSQL.
+-- If your migration runner wraps this in a transaction and it fails, run manually:
+--   psql $DATABASE_URL -c "ALTER TYPE \"message_type\" ADD VALUE IF NOT EXISTS 'coordinator';"
+-- The IF NOT EXISTS clause makes this idempotent and safe to retry.
 ALTER TYPE "message_type" ADD VALUE IF NOT EXISTS 'coordinator';
 
 -- ============================================================================
