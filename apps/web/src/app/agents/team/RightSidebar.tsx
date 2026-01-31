@@ -168,6 +168,18 @@ export function RightSidebar({
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+
+      // Clean up any existing handlers first to prevent memory leaks
+      // This handles edge cases where mouseDown fires before mouseUp completes
+      if (handleMouseMoveRef.current) {
+        document.removeEventListener('mousemove', handleMouseMoveRef.current);
+        handleMouseMoveRef.current = null;
+      }
+      if (handleMouseUpRef.current) {
+        document.removeEventListener('mouseup', handleMouseUpRef.current);
+        handleMouseUpRef.current = null;
+      }
+
       setIsResizing(true);
 
       const startX = e.clientX;
