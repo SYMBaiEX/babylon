@@ -112,52 +112,75 @@ describe('MCP Tool Handlers - Type Safety', () => {
 });
 
 describe('MCP Tool Handlers - Settlement Calculations', () => {
-  describe('Close Position Settlements', () => {
-    it('should calculate gross settlement correctly', () => {
-      const marginPaid = 2500;
-      const realizedPnL = 200;
+  // Replicate the calculateSettlement helper from tool-handlers.ts
+  function calculateSettlement(params: {
+    marginPaid: number | undefined;
+    realizedPnL: number | undefined;
+    feePaid: number;
+  }): { grossSettlement: number; netSettlement: number } {
+    const { marginPaid, realizedPnL, feePaid } = params;
+    if (realizedPnL === undefined || marginPaid === undefined) {
+      return { grossSettlement: 0, netSettlement: 0 };
+    }
+    const grossSettlement = marginPaid + realizedPnL;
+    const netSettlement = Math.max(0, grossSettlement - feePaid);
+    return { grossSettlement, netSettlement };
+  }
 
-      const grossSettlement =
-        realizedPnL !== undefined && marginPaid !== undefined
-          ? marginPaid + realizedPnL
-          : 0;
+  describe('calculateSettlement helper', () => {
+    it('should calculate gross and net settlement correctly', () => {
+      const result = calculateSettlement({
+        marginPaid: 2500,
+        realizedPnL: 200,
+        feePaid: 5,
+      });
 
-      expect(grossSettlement).toBe(2700);
-    });
-
-    it('should calculate net settlement correctly with fees', () => {
-      const marginPaid = 2500;
-      const realizedPnL = 200;
-      const feePaid = 5;
-
-      const netSettlement =
-        realizedPnL !== undefined && marginPaid !== undefined
-          ? Math.max(0, marginPaid + realizedPnL - feePaid)
-          : 0;
-
-      expect(netSettlement).toBe(2695);
+      expect(result.grossSettlement).toBe(2700);
+      expect(result.netSettlement).toBe(2695);
     });
 
     it('should handle negative PnL correctly', () => {
-      const marginPaid = 2500;
-      const realizedPnL = -500;
-      const feePaid = 5;
+      const result = calculateSettlement({
+        marginPaid: 2500,
+        realizedPnL: -500,
+        feePaid: 5,
+      });
 
-      const grossSettlement = marginPaid + realizedPnL;
-      const netSettlement = Math.max(0, marginPaid + realizedPnL - feePaid);
-
-      expect(grossSettlement).toBe(2000);
-      expect(netSettlement).toBe(1995);
+      expect(result.grossSettlement).toBe(2000);
+      expect(result.netSettlement).toBe(1995);
     });
 
     it('should floor net settlement at 0 for large losses', () => {
-      const marginPaid = 1000;
-      const realizedPnL = -1500; // Lost more than margin
-      const feePaid = 5;
+      const result = calculateSettlement({
+        marginPaid: 1000,
+        realizedPnL: -1500,
+        feePaid: 5,
+      });
 
-      const netSettlement = Math.max(0, marginPaid + realizedPnL - feePaid);
+      expect(result.grossSettlement).toBe(-500);
+      expect(result.netSettlement).toBe(0);
+    });
 
-      expect(netSettlement).toBe(0);
+    it('should return zeros when marginPaid is undefined', () => {
+      const result = calculateSettlement({
+        marginPaid: undefined,
+        realizedPnL: 200,
+        feePaid: 5,
+      });
+
+      expect(result.grossSettlement).toBe(0);
+      expect(result.netSettlement).toBe(0);
+    });
+
+    it('should return zeros when realizedPnL is undefined', () => {
+      const result = calculateSettlement({
+        marginPaid: 2500,
+        realizedPnL: undefined,
+        feePaid: 5,
+      });
+
+      expect(result.grossSettlement).toBe(0);
+      expect(result.netSettlement).toBe(0);
     });
   });
 });
@@ -381,14 +404,20 @@ describe('MCP Tool Handlers - Input Validation', () => {
     });
   });
 
-  describe('resolvePerpSide (defensive lookup)', () => {
-    // Replicate the defensive resolver from tool-handlers.ts
+  describe('resolvePerpSide (strict validation)', () => {
+    // Replicate the resolver from tool-handlers.ts - throws on unexpected values
     function resolvePerpSide(side: string | undefined): 'LONG' | 'SHORT' {
-      if (!side) return 'LONG';
+      if (!side) {
+        throw new Error(
+          'Position side is undefined - service layer contract violation'
+        );
+      }
       const lower = side.toLowerCase();
       if (lower === 'long') return 'LONG';
       if (lower === 'short') return 'SHORT';
-      return 'LONG'; // Fallback for unexpected values
+      throw new Error(
+        `Unexpected perp side value: '${side}'. Expected 'long' or 'short'.`
+      );
     }
 
     it('should resolve "long" to "LONG"', () => {
@@ -407,20 +436,26 @@ describe('MCP Tool Handlers - Input Validation', () => {
       expect(resolvePerpSide('SHORT')).toBe('SHORT');
     });
 
-    it('should return LONG for undefined', () => {
-      expect(resolvePerpSide(undefined)).toBe('LONG');
+    it('should throw for undefined', () => {
+      expect(() => resolvePerpSide(undefined)).toThrow(
+        'Position side is undefined - service layer contract violation'
+      );
     });
 
-    it('should return LONG for empty string', () => {
-      expect(resolvePerpSide('')).toBe('LONG');
+    it('should throw for empty string', () => {
+      expect(() => resolvePerpSide('')).toThrow('Position side is undefined');
     });
 
-    it('should return LONG for unexpected value', () => {
-      expect(resolvePerpSide('invalid')).toBe('LONG');
+    it('should throw for unexpected value', () => {
+      expect(() => resolvePerpSide('invalid')).toThrow(
+        "Unexpected perp side value: 'invalid'"
+      );
     });
 
-    it('should return LONG for null-ish value', () => {
-      expect(resolvePerpSide(null as unknown as string)).toBe('LONG');
+    it('should throw for null-ish value', () => {
+      expect(() => resolvePerpSide(null as unknown as string)).toThrow(
+        'Position side is undefined'
+      );
     });
   });
 });

@@ -15,6 +15,14 @@
  * Direct service calls bypass any HTTP API rate limiting. If rate limiting
  * is required for MCP operations, it should be implemented at the MCP
  * handler layer (e.g., in the MCP server's tool dispatch logic).
+ *
+ * REFERRER FEES:
+ * MCP tool responses report `referrerPaid: 0` because:
+ * 1. MCP agents operate autonomously without a referral context
+ * 2. Referrer attribution requires user session context not available in MCP
+ * 3. The fee.amount reflects the total trading fee charged to the user
+ * If referrer tracking is needed for MCP operations in the future, it would
+ * require passing referrer context through the MCP API key or session.
  */
 
 import type { JsonRpcParams, JsonRpcRequest } from '@babylon/a2a';
@@ -528,17 +536,39 @@ const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
 };
 
 /**
- * Safely resolve perp side from service result to uppercase MCP API format.
- * Uses PERP_SIDE_MAP for known values, with defensive fallback for unexpected values.
+ * Resolve perp side from service result to uppercase MCP API format.
+ * Throws on unexpected values to surface service layer contract violations.
  */
 function resolvePerpSide(side: string | undefined): 'LONG' | 'SHORT' {
-  if (!side) return 'LONG'; // Default fallback for undefined/null
+  if (!side) {
+    throw new Error(
+      'Position side is undefined - service layer contract violation'
+    );
+  }
   const lower = side.toLowerCase() as 'long' | 'short';
   const mapped = PERP_SIDE_MAP[lower];
   if (mapped) return mapped;
-  // Fallback for unexpected values - log and return default
-  logger.warn(`Unexpected perp side value: ${side}, defaulting to LONG`, 'MCP');
-  return 'LONG';
+  throw new Error(
+    `Unexpected perp side value: '${side}'. Expected 'long' or 'short'.`
+  );
+}
+
+/**
+ * Calculate settlement amounts for a closed position.
+ * Returns gross (before fees) and net (after fees) settlement values.
+ */
+function calculateSettlement(params: {
+  marginPaid: number | undefined;
+  realizedPnL: number | undefined;
+  feePaid: number;
+}): { grossSettlement: number; netSettlement: number } {
+  const { marginPaid, realizedPnL, feePaid } = params;
+  if (realizedPnL === undefined || marginPaid === undefined) {
+    return { grossSettlement: 0, netSettlement: 0 };
+  }
+  const grossSettlement = marginPaid + realizedPnL;
+  const netSettlement = Math.max(0, grossSettlement - feePaid);
+  return { grossSettlement, netSettlement };
 }
 
 /**
@@ -665,20 +695,22 @@ export async function executeClosePosition(
 ): Promise<ClosePositionResult> {
   logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
 
+  // Validate positionId
+  if (!args.positionId || typeof args.positionId !== 'string') {
+    throw new Error('positionId is required and must be a string');
+  }
+
   const service = buildPerpService();
   const result = await service.closePosition({
     userId: agent.userId,
     positionId: args.positionId,
   });
 
-  const grossSettlement =
-    result.realizedPnL !== undefined && result.marginPaid !== undefined
-      ? result.marginPaid + result.realizedPnL
-      : 0;
-  const netSettlement =
-    result.realizedPnL !== undefined && result.marginPaid !== undefined
-      ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
-      : 0;
+  const { grossSettlement, netSettlement } = calculateSettlement({
+    marginPaid: result.marginPaid,
+    realizedPnL: result.realizedPnL,
+    feePaid: result.feePaid,
+  });
 
   return {
     position: {
@@ -870,6 +902,21 @@ export async function executeOpenPosition(
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
   logger.info(`Agent ${agent.agentId} opening perp position:`, args, 'MCP');
+
+  // Validate inputs
+  if (!args.ticker || typeof args.ticker !== 'string') {
+    throw new Error('ticker is required and must be a string');
+  }
+  if (typeof args.amount !== 'number' || args.amount <= 0) {
+    throw new Error('amount must be a positive number');
+  }
+  if (
+    typeof args.leverage !== 'number' ||
+    args.leverage < 1 ||
+    args.leverage > 100
+  ) {
+    throw new Error('leverage must be a number between 1 and 100');
+  }
 
   // Validate and convert side to lowercase for service
   const side = validatePerpSide(args.side);
@@ -2946,6 +2993,17 @@ export async function executeTransferPoints(
 
   const senderId = agent.userId;
   const { recipientId, amount, message } = args;
+
+  // Validate inputs
+  if (!recipientId || typeof recipientId !== 'string') {
+    throw new Error('recipientId is required and must be a string');
+  }
+  if (typeof amount !== 'number' || amount <= 0) {
+    throw new Error('amount must be a positive number');
+  }
+  if (!Number.isInteger(amount)) {
+    throw new Error('amount must be a whole number (no decimals)');
+  }
 
   // Prevent self-transfers (fast check before any DB queries)
   if (senderId === recipientId) {
