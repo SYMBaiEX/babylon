@@ -259,12 +259,16 @@ export function getAvailableTools(): MCPTool[] {
     },
     {
       name: 'get_trade_history',
-      description: 'Get trade history for a user',
+      description:
+        'Get current positions for a user (aggregated holdings, not individual transactions). Returns open prediction market positions with side, shares, and average price.',
       inputSchema: {
         type: 'object',
         properties: {
           userId: { type: 'string', description: 'User ID' },
-          limit: { type: 'number', description: 'Number of trades to return' },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of positions to return',
+          },
         },
         required: ['userId'],
       },
