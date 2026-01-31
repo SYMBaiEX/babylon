@@ -48,6 +48,7 @@ function isPnlTagData(data: unknown): data is PnlTagData {
   const d = data as Record<string, unknown>;
   return 'balance' in d && typeof d.balance === 'number';
 }
+
 import { Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -709,15 +710,22 @@ export default function TeamChatPage() {
                 />
               </div>
             )}
-            {bottomPanelTab === 'portfolio' && (() => {
-              const bottomAgent = teamChat?.agents.find((a) => a.id === bottomPanelAgentId);
-              return (
-                <AgentPortfolio
-                  agentId={bottomPanelAgentId}
-                  agentName={bottomAgent?.displayName || bottomAgent?.username || 'Agent'}
-                />
-              );
-            })()}
+            {bottomPanelTab === 'portfolio' &&
+              (() => {
+                const bottomAgent = teamChat?.agents.find(
+                  (a) => a.id === bottomPanelAgentId
+                );
+                return (
+                  <AgentPortfolio
+                    agentId={bottomPanelAgentId}
+                    agentName={
+                      bottomAgent?.displayName ||
+                      bottomAgent?.username ||
+                      'Agent'
+                    }
+                  />
+                );
+              })()}
             {bottomPanelTab === 'logs' && (
               <div className="p-4">
                 <AgentLogs agentId={bottomPanelAgentId} />
@@ -764,15 +772,9 @@ export default function TeamChatPage() {
                 content = <PostPanel data={tab.data} />;
               } else if (tab.type === 'feed' && isFeedTagData(tab.data)) {
                 content = <FeedPanel data={tab.data} />;
-              } else if (
-                tab.type === 'agent-pnl' &&
-                isPnlTagData(tab.data)
-              ) {
+              } else if (tab.type === 'agent-pnl' && isPnlTagData(tab.data)) {
                 content = <PnlPanel data={tab.data} type="agent-pnl" />;
-              } else if (
-                tab.type === 'owner-pnl' &&
-                isPnlTagData(tab.data)
-              ) {
+              } else if (tab.type === 'owner-pnl' && isPnlTagData(tab.data)) {
                 content = <PnlPanel data={tab.data} type="owner-pnl" />;
               } else if (content === null) {
                 // Fallback for unrecognized tab types, invalid data, or missing agentId

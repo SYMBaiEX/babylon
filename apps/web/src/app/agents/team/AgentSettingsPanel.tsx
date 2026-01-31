@@ -64,7 +64,9 @@ export function AgentSettingsPanel({
       } catch (fetchError) {
         // Fetch threw (network error, aborted, etc.)
         if (!signal?.aborted) {
-          setError('Failed to fetch agent');
+          const errorMessage =
+            fetchError instanceof Error ? fetchError.message : 'Network error';
+          setError(`Failed to fetch agent: ${errorMessage}`);
           setLoading(false);
         }
         return undefined;

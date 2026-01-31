@@ -110,7 +110,7 @@ Title:`;
         model: groq('llama-3.1-8b-instant'),
         prompt,
         temperature: 0.7,
-        maxTokens: 50,
+        maxOutputTokens: 50,
         abortSignal: abortController.signal,
       });
     } finally {
@@ -267,7 +267,10 @@ export async function POST(req: NextRequest) {
   // Generate chat title on first message
   // Check if chat needs title (name is null) and this is the first user message
   let generatedTitle: string | null = null;
-  const needsTitle = await teamChatService.chatNeedsTitle(teamChat.chatId, user.id);
+  const needsTitle = await teamChatService.chatNeedsTitle(
+    teamChat.chatId,
+    user.id
+  );
   if (needsTitle) {
     const messageCount = await teamChatService.getUserMessageCount(
       teamChat.chatId,

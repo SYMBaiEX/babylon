@@ -36,8 +36,12 @@ function toPerpMarket(market: PerpMarketData): PerpMarket {
       nextFundingTime: '',
       predictedRate: 0,
     },
-    maxLeverage: (market as PerpMarketData & { maxLeverage?: number }).maxLeverage ?? DEFAULT_MAX_LEVERAGE,
-    minOrderSize: (market as PerpMarketData & { minOrderSize?: number }).minOrderSize ?? DEFAULT_MIN_ORDER_SIZE,
+    maxLeverage:
+      (market as PerpMarketData & { maxLeverage?: number }).maxLeverage ??
+      DEFAULT_MAX_LEVERAGE,
+    minOrderSize:
+      (market as PerpMarketData & { minOrderSize?: number }).minOrderSize ??
+      DEFAULT_MIN_ORDER_SIZE,
   };
 }
 
