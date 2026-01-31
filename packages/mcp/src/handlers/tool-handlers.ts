@@ -565,7 +565,7 @@ export async function executeClosePosition(
     position: {
       positionId: args.positionId,
       ticker: result.ticker,
-      side: result.side.toUpperCase() as 'LONG' | 'SHORT',
+      side: PERP_SIDE_MAP[result.side],
       size: result.size,
       entryPrice: result.entryPrice ?? 0,
       exitPrice: result.exitPrice ?? 0,
@@ -793,6 +793,14 @@ function buildPerpService() {
 }
 
 /**
+ * Type-safe mapping from lowercase perp side to uppercase MCP API side
+ */
+const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
+  long: 'LONG',
+  short: 'SHORT',
+};
+
+/**
  * Execute open_position tool
  */
 export async function executeOpenPosition(
@@ -817,7 +825,7 @@ export async function executeOpenPosition(
     position: {
       positionId: result.positionId,
       ticker: result.ticker,
-      side: result.side.toUpperCase() as 'LONG' | 'SHORT',
+      side: PERP_SIDE_MAP[result.side],
       size: result.size,
       leverage: result.leverage,
       entryPrice: result.entryPrice ?? 0,
@@ -2659,38 +2667,24 @@ export async function executeAppealBan(
   });
 
   if (!user) {
-    return {
-      success: false,
-      message: 'User not found',
-      appealStatus: 'error',
-    };
+    throw new Error('User not found');
   }
 
   if (!user.isBanned) {
-    return {
-      success: false,
-      message: 'User is not banned',
-      appealStatus: 'not_banned',
-    };
+    throw new Error('User is not banned');
   }
 
   // Check if already appealed
   if (user.appealCount >= 1 && !user.appealStaked) {
-    return {
-      success: false,
-      message:
-        'You have already used your free appeal. You must stake $10 for a second review.',
-      appealStatus: 'appeal_exhausted',
-    };
+    throw new Error(
+      'You have already used your free appeal. You must stake $10 for a second review.'
+    );
   }
 
   if (user.appealStaked && user.appealStatus === 'human_review') {
-    return {
-      success: false,
-      message:
-        'Your appeal is already in human review. Please wait for a decision.',
-      appealStatus: 'human_review',
-    };
+    throw new Error(
+      'Your appeal is already in human review. Please wait for a decision.'
+    );
   }
 
   // Update appeal status - submit for strict review (first appeal)
