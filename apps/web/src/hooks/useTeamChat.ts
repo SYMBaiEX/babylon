@@ -5,6 +5,11 @@
  * containing all their agents.
  */
 
+import {
+  COORDINATOR_SENDER_ID,
+  generateUUID,
+  type MessageMetadata,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useCallback,
@@ -16,6 +21,7 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import type { ChatDetails, ChatParticipant } from '@/components/chats/types';
+import { MessageTypeEnum } from '@/components/chats/types';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useSSEChannel } from '@/hooks/useSSE';
 import { useAuthStore } from '@/stores/authStore';
@@ -25,6 +31,35 @@ const SCROLL_NEAR_BOTTOM_THRESHOLD = 150;
 const SCROLL_STABLE_FRAMES_REQUIRED = 5;
 // Maximum retries for scroll height stabilization (~2 seconds max)
 const MAX_SCROLL_STABLE_RETRIES = 20;
+
+/**
+ * Extract agent IDs from @mentions in message content.
+ * Matches @username patterns (not inside emails) and returns IDs of matching agents.
+ * The regex requires @ to be at start of string or preceded by a non-word character,
+ * preventing matches like user@example.com from being treated as mentions.
+ */
+function extractMentionedAgentIds(
+  content: string,
+  agents: TeamChatAgent[]
+): string[] {
+  // Require @ to be at start or preceded by non-word char (excludes emails like user@domain.com)
+  const mentionRegex = /(?:^|[^\w])@([A-Za-z0-9_.-]+)/g;
+  const mentionedUsernames = new Set<string>();
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // Capture group is at index 1 (the username after @)
+    const captured = match[1];
+    if (captured) {
+      mentionedUsernames.add(captured.toLowerCase());
+    }
+  }
+
+  return agents
+    .filter(
+      (a) => a.username && mentionedUsernames.has(a.username.toLowerCase())
+    )
+    .map((a) => a.id);
+}
 
 /** Typing user info */
 interface TypingUser {
@@ -72,6 +107,27 @@ interface ConversationInfo {
   isActive: boolean;
 }
 
+/**
+ * Get display name for a conversation.
+ * Returns the actual name if set, or a fallback using createdAt timestamp.
+ */
+function getConversationDisplayName(conversation: ConversationInfo): string {
+  if (conversation.name) return conversation.name;
+
+  // Fallback: "New Chat - Jan 30, 1:55 AM"
+  const date = new Date(conversation.createdAt);
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `New Chat - ${dateStr}, ${timeStr}`;
+}
+
 /** Hook return type */
 interface UseTeamChatReturn {
   // State
@@ -101,14 +157,12 @@ interface UseTeamChatReturn {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
 
-  // Agent selection (for parallel task execution)
-  selectedAgentIds: Set<string>;
+  // Agent processing state
   processingAgentIds: Set<string>;
-  toggleAgentSelection: (agentId: string) => void;
-  selectAgent: (agentId: string) => void;
-  selectAllAgents: () => void;
-  deselectAllAgents: () => void;
   stopAgent: (agentId: string) => void;
+
+  // Tag agent in input (for sidebar click)
+  tagAgentInInput: (agent: TeamChatAgent) => void;
 
   // Actions
   sendMessage: () => Promise<void>;
@@ -148,10 +202,7 @@ export function useTeamChat(): UseTeamChatReturn {
   // Thinking indicator state (for complex queries)
   const [thinkingAgents, setThinkingAgents] = useState<ThinkingAgent[]>([]);
 
-  // Agent selection state (for parallel task execution)
-  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
-    new Set()
-  );
+  // Agent processing state (for stop functionality)
   const [processingAgentIds, setProcessingAgentIds] = useState<Set<string>>(
     new Set()
   );
@@ -177,6 +228,7 @@ export function useTeamChat(): UseTeamChatReturn {
     isLoadingMore,
     hasMore,
     addMessage,
+    updateMessage,
     removeMessage,
     clearMessages,
   } = useChatMessages(teamChat?.chatId ?? null);
@@ -535,58 +587,27 @@ export function useTeamChat(): UseTeamChatReturn {
     }
   }, [user?.id, fetchTeamChat]);
 
-  // Auto-select first agent on initial load
-  const hasAutoSelectedRef = useRef(false);
-  useEffect(() => {
-    if (
-      teamChat?.agents &&
-      teamChat.agents.length > 0 &&
-      !hasAutoSelectedRef.current &&
-      selectedAgentIds.size === 0
-    ) {
-      hasAutoSelectedRef.current = true;
-      const firstAgent = teamChat.agents[0];
-      if (firstAgent) {
-        setSelectedAgentIds(new Set([firstAgent.id]));
-      }
-    }
-  }, [teamChat?.agents, selectedAgentIds.size]);
+  // Tag an agent in the message input (inserts @username, avoids duplicates)
+  const tagAgentInInput = useCallback(
+    (agent: TeamChatAgent) => {
+      const username = agent.username;
+      if (!username) return;
 
-  // Agent selection methods
-  const toggleAgentSelection = useCallback(
-    (agentId: string) => {
-      setSelectedAgentIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(agentId)) {
-          // Always allow removing from selection (even if processing)
-          next.delete(agentId);
-        } else {
-          // Can't select if agent is processing
-          if (processingAgentIds.has(agentId)) return prev;
-          next.add(agentId);
-        }
-        return next;
-      });
+      const mentionText = `@${username}`;
+      // Escape special regex characters in username to prevent ReDoS
+      const escapedMention = mentionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Check if already tagged (word boundary check)
+      const regex = new RegExp(`(^|\\s)${escapedMention}(\\s|$)`, 'i');
+      if (regex.test(messageInput)) return; // Already tagged
+
+      // Append to input
+      const newValue = messageInput.trim()
+        ? `${messageInput.trimEnd()} ${mentionText} `
+        : `${mentionText} `;
+      setMessageInput(newValue);
     },
-    [processingAgentIds]
+    [messageInput]
   );
-
-  // Select a specific agent (non-toggling - use after agent creation)
-  const selectAgent = useCallback((agentId: string) => {
-    setSelectedAgentIds(new Set([agentId]));
-  }, []);
-
-  const selectAllAgents = useCallback(() => {
-    if (!teamChat?.agents) return;
-    const allIds = teamChat.agents
-      .filter((a) => !processingAgentIds.has(a.id))
-      .map((a) => a.id);
-    setSelectedAgentIds(new Set(allIds));
-  }, [teamChat?.agents, processingAgentIds]);
-
-  const deselectAllAgents = useCallback(() => {
-    setSelectedAgentIds(new Set());
-  }, []);
 
   // Stop a processing agent (aborts the fetch request)
   const stopAgent = useCallback((agentId: string) => {
@@ -603,12 +624,17 @@ export function useTeamChat(): UseTeamChatReturn {
     });
   }, []);
 
+  // Get active conversation name
+  const activeConversation = conversations.find((c) => c.isActive);
+
   // Build chat details from team chat info and realtime messages
   const chatDetails: ChatDetails | null = teamChat
     ? {
         chat: {
           id: teamChat.chatId,
-          name: 'Agents',
+          name: activeConversation
+            ? getConversationDisplayName(activeConversation)
+            : 'New Chat',
           isGroup: true,
           createdAt: teamChat.createdAt,
           updatedAt: teamChat.updatedAt,
@@ -653,21 +679,31 @@ export function useTeamChat(): UseTeamChatReturn {
 
     const content = messageInput.trim();
 
-    // Use selected agents, or fall back to all agents if none selected
-    let agentsToCall = Array.from(selectedAgentIds);
-    if (agentsToCall.length === 0 && teamChat?.agents) {
-      agentsToCall = teamChat.agents.map((a) => a.id);
+    // Extract mentioned agents from message content
+    const mentionedAgentIds = extractMentionedAgentIds(
+      content,
+      teamChat.agents
+    );
+
+    // If no agents are mentioned, use coordinator instead
+    const useCoordinator = mentionedAgentIds.length === 0;
+
+    // Only call specific agents when they are @mentioned
+    const availableAgents = useCoordinator
+      ? []
+      : mentionedAgentIds.filter((id) => !processingAgentIds.has(id));
+
+    // If agents are mentioned but all are busy, notify user and don't proceed
+    if (!useCoordinator && availableAgents.length === 0) {
+      toast.warning(
+        'All mentioned agents are currently busy — your message was not sent to them.'
+      );
+      return;
     }
 
-    // Filter out any agents that are already processing
-    const availableAgents = agentsToCall.filter(
-      (id) => !processingAgentIds.has(id)
-    );
-    if (availableAgents.length === 0) return;
-
     // Create optimistic message (stableKey prevents flash on confirmation)
-    // Use crypto.randomUUID() to avoid ID collisions on rapid sends
-    const optimisticId = `pending-${crypto.randomUUID()}`;
+    // Generate unique ID to avoid collisions on rapid sends
+    const optimisticId = `pending-${generateUUID()}`;
     addMessage({
       id: optimisticId,
       chatId: teamChat.chatId,
@@ -695,13 +731,17 @@ export function useTeamChat(): UseTeamChatReturn {
       }
 
       // First, save user message to team chat (happens once for all agents)
+      // Pass targetIds for message routing (empty = coordinator, otherwise = agent IDs)
       const response = await fetch('/api/agents/team-chat/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          targetIds: mentionedAgentIds, // Empty array = coordinator, agent IDs = specific agents
+        }),
       });
 
       if (!response.ok) {
@@ -712,10 +752,143 @@ export function useTeamChat(): UseTeamChatReturn {
         return;
       }
 
-      // Call available agents in parallel (skip any that are already processing)
+      // Check if a title was generated for this conversation (first message)
+      const responseData = (await response.json()) as {
+        success?: boolean;
+        message?: unknown;
+        generatedTitle?: string | null;
+      };
+
+      if (responseData.generatedTitle) {
+        // Update conversation title in the list (like manual rename does)
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === teamChat.chatId
+              ? { ...c, name: responseData.generatedTitle as string }
+              : c
+          )
+        );
+      }
+
+      // =========================================================================
+      // COORDINATOR PATH: When no agents are mentioned
+      // =========================================================================
+      if (useCoordinator) {
+        // Add thinking placeholder message immediately
+        const thinkingId = `thinking-coordinator-${generateUUID()}`;
+        addMessage({
+          id: thinkingId,
+          chatId: teamChat.chatId,
+          content: '',
+          senderId: COORDINATOR_SENDER_ID,
+          type: MessageTypeEnum.COORDINATOR,
+          createdAt: new Date().toISOString(),
+          stableKey: thinkingId,
+          isThinking: true,
+        });
+
+        // Scroll to show thinking indicator
+        setTimeout(() => scrollToBottom('instant'), 50);
+
+        try {
+          const coordinatorResponse = await fetch(
+            '/api/agents/team-chat/coordinator',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                content,
+                teamChatId: teamChat.chatId,
+              }),
+            }
+          );
+
+          if (coordinatorResponse.ok) {
+            const data = (await coordinatorResponse.json()) as {
+              success?: boolean;
+              messageId?: string;
+              response?: string;
+              pointsCost?: number;
+              type?: string;
+              isLLMFailure?: boolean;
+              metadata?: MessageMetadata | null;
+            };
+
+            // Update thinking message with actual response
+            if (data.response && data.messageId) {
+              updateMessage(thinkingId, {
+                id: data.messageId,
+                content: data.response,
+                isThinking: false,
+                stableKey: data.messageId,
+                metadata: data.metadata,
+              });
+            } else {
+              // No response - remove thinking bubble
+              removeMessage(thinkingId);
+            }
+
+            // Show toast for coordinator response
+            if (data.isLLMFailure) {
+              toast.warning(
+                'Coordinator had trouble understanding. No points charged.'
+              );
+            } else if (data.pointsCost && data.pointsCost > 0) {
+              toast.success(
+                `Coordinator response (-${data.pointsCost} points)`
+              );
+            }
+          } else {
+            // Remove thinking bubble on error
+            removeMessage(thinkingId);
+
+            let errorMessage = 'Coordinator failed to respond';
+            try {
+              // Read body once and parse JSON from text to avoid body consumption issues
+              const responseText = await coordinatorResponse.text();
+              if (responseText) {
+                try {
+                  const errorData = JSON.parse(responseText) as {
+                    error?: string;
+                    message?: string;
+                  };
+                  errorMessage =
+                    errorData.error ||
+                    errorData.message ||
+                    'Coordinator failed to respond';
+                } catch {
+                  // JSON parse failed - use raw text as fallback
+                  errorMessage = responseText || 'Invalid coordinator response';
+                }
+              }
+            } catch {
+              errorMessage = 'Invalid coordinator response';
+            }
+
+            if (errorMessage.toLowerCase().includes('insufficient')) {
+              toast.error('Insufficient points. Deposit to continue.');
+            } else {
+              toast.error(`Coordinator: ${errorMessage}`);
+            }
+          }
+        } catch (err) {
+          // Remove thinking bubble on network error
+          removeMessage(thinkingId);
+          toast.error('Coordinator: Connection error. Please try again.');
+          console.error('Coordinator error:', err);
+        }
+
+        return; // Exit early - don't proceed to agent calls
+      }
+
+      // =========================================================================
+      // AGENT PATH: When specific agents are @mentioned
+      // =========================================================================
+
       // Mark agents as processing
-      // Note: We keep the selection so user can continue chatting with same agents
-      // They can remove processing agents via X button if they want to unblock
       setProcessingAgentIds((prev) => {
         const next = new Set(prev);
         for (const id of availableAgents) {
@@ -728,8 +901,33 @@ export function useTeamChat(): UseTeamChatReturn {
       const ownerName = user.displayName || user.username || 'User';
       const ownerUsername = user.username || '';
 
+      // Create thinking message IDs for each agent (for tracking)
+      const thinkingIds = new Map<string, string>();
+
+      // Add thinking placeholder messages for all agents immediately
+      for (const agentId of availableAgents) {
+        const thinkingId = `thinking-${agentId}-${generateUUID()}`;
+        thinkingIds.set(agentId, thinkingId);
+        addMessage({
+          id: thinkingId,
+          chatId: teamChat.chatId,
+          content: '',
+          senderId: agentId,
+          type: 'user',
+          createdAt: new Date().toISOString(),
+          stableKey: thinkingId,
+          isThinking: true,
+        });
+      }
+
+      // Scroll to show thinking indicators
+      setTimeout(() => scrollToBottom('instant'), 50);
+
       // Call each available agent in parallel
       const agentCalls = availableAgents.map(async (agentId) => {
+        // Get the thinking message ID for this agent
+        const thinkingId = thinkingIds.get(agentId)!;
+
         // Create AbortController for this agent (for stop functionality)
         const controller = new AbortController();
         abortControllersRef.current.set(agentId, controller);
@@ -764,22 +962,21 @@ export function useTeamChat(): UseTeamChatReturn {
               pointsCost?: number;
               balanceAfter?: number;
               isLLMFailure?: boolean;
+              metadata?: MessageMetadata | null;
             };
 
-            // Add agent response message IMMEDIATELY from JSON response
-            // This prevents the delay from waiting for SSE broadcast
-            // stableKey prevents duplicate if SSE also delivers the same message
-            // Note: Auto-scroll is handled by the realtimeMessages.length effect
+            // Update thinking message with actual response
             if (data.response && data.messageId) {
-              addMessage({
+              updateMessage(thinkingId, {
                 id: data.messageId,
-                chatId: teamChat.chatId,
                 content: data.response,
-                senderId: agentId,
-                type: 'user',
-                createdAt: new Date().toISOString(),
+                isThinking: false,
                 stableKey: data.messageId,
+                metadata: data.metadata,
               });
+            } else {
+              // No response - remove thinking bubble
+              removeMessage(thinkingId);
             }
 
             // Show toast based on response type
@@ -810,6 +1007,9 @@ export function useTeamChat(): UseTeamChatReturn {
               });
             }
           } else {
+            // Remove thinking bubble on error
+            removeMessage(thinkingId);
+
             // Handle error response from backend
             try {
               const errorData = (await agentResponse.json()) as {
@@ -833,6 +1033,9 @@ export function useTeamChat(): UseTeamChatReturn {
             }
           }
         } catch (err) {
+          // Remove thinking bubble on error
+          removeMessage(thinkingId);
+
           // Don't show toast for abort errors - they're expected when user stops
           if (err instanceof Error && err.name === 'AbortError') {
             // User cancelled, no need to notify
@@ -873,10 +1076,10 @@ export function useTeamChat(): UseTeamChatReturn {
     messageInput,
     sending,
     user,
-    selectedAgentIds,
     processingAgentIds,
     getAccessToken,
     addMessage,
+    updateMessage,
     removeMessage,
     sendTypingIndicator,
     scrollToBottom,
@@ -914,10 +1117,42 @@ export function useTeamChat(): UseTeamChatReturn {
 
   /**
    * Create a new conversation (New Chat)
+   * If the most recently created chat is empty, switches to it instead
    */
   const createConversation = useCallback(
     async (title?: string) => {
-      if (!user) return;
+      if (!user || !teamChat) return;
+
+      // Find the most recently created conversation (sorted by createdAt desc)
+      const sortedConversations = [...conversations].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const mostRecentChat = sortedConversations[0];
+
+      // Check if most recent chat is empty (name === null means no messages yet)
+      if (mostRecentChat && mostRecentChat.name === null) {
+        // If already on this empty chat, just show a toast
+        if (mostRecentChat.id === teamChat.chatId) {
+          toast.info('Current chat is already empty');
+          return;
+        }
+
+        // Switch to the existing empty chat instead of creating a new one
+        // Update active state in conversations list
+        setConversations((prev) =>
+          prev.map((c) => ({ ...c, isActive: c.id === mostRecentChat.id }))
+        );
+
+        // Update team chat with the empty chat's ID
+        setTeamChat((prev) =>
+          prev ? { ...prev, chatId: mostRecentChat.id } : prev
+        );
+
+        // Clear messages (useChatMessages will refetch for new chatId)
+        clearMessages();
+        return;
+      }
 
       try {
         const token = await getAccessToken();
@@ -960,7 +1195,7 @@ export function useTeamChat(): UseTeamChatReturn {
         toast.error('Failed to create conversation');
       }
     },
-    [user, getAccessToken, clearMessages]
+    [user, teamChat, conversations, getAccessToken, clearMessages]
   );
 
   /**
@@ -1129,14 +1364,11 @@ export function useTeamChat(): UseTeamChatReturn {
     messagesEndRef,
     topSentinelRef,
     messagesContainerRef,
-    // Agent selection
-    selectedAgentIds,
+    // Agent processing state
     processingAgentIds,
-    toggleAgentSelection,
-    selectAgent,
-    selectAllAgents,
-    deselectAllAgents,
     stopAgent,
+    // Tag agent in input (for sidebar click)
+    tagAgentInInput,
     // Actions
     sendMessage,
     refresh: fetchTeamChat,

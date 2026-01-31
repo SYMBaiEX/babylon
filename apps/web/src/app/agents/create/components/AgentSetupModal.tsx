@@ -25,6 +25,8 @@ interface AgentSetupModalProps {
   onClose: () => void;
   profileData: ProfileFormData;
   onSave: (data: ProfileFormData) => void;
+  /** When true, hides the close button to prevent no-op clicks */
+  hideCloseButton?: boolean;
 }
 
 export function AgentSetupModal({
@@ -32,6 +34,7 @@ export function AgentSetupModal({
   onClose,
   profileData,
   onSave,
+  hideCloseButton = false,
 }: AgentSetupModalProps) {
   const { getAccessToken } = useAuth();
   const [localData, setLocalData] = useState<ProfileFormData>(profileData);
@@ -247,13 +250,15 @@ export function AgentSetupModal({
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-border border-b bg-background px-4 py-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-full p-2 transition-colors hover:bg-muted"
-              aria-label="Close"
-            >
-              <XIcon className="h-5 w-5" />
-            </button>
+            {!hideCloseButton && (
+              <button
+                onClick={onClose}
+                className="shrink-0 rounded-full p-2 transition-colors hover:bg-muted"
+                aria-label="Close"
+              >
+                <XIcon className="h-5 w-5" />
+              </button>
+            )}
             <h2 className="truncate font-bold text-lg">Set Up Your Agent</h2>
           </div>
           <button

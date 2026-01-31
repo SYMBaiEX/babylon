@@ -5,6 +5,7 @@
  * Similar to what users see on the /feed page.
  */
 
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -14,6 +15,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 /**
  * Format relative time (e.g., "2h ago", "15m ago")
@@ -37,6 +43,7 @@ interface FeedPost {
   authorId: string;
   authorName: string;
   authorUsername?: string;
+  authorProfileImageUrl?: string | null;
   timestamp: string;
   likeCount?: number;
   commentCount?: number;
@@ -125,10 +132,14 @@ export const checkFeedPostsAction: Action = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const response = await fetch(`${baseUrl}/api/posts?limit=${limit}`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      let response: Response;
+      try {
+        response = await fetch(`${baseUrl}/api/posts?limit=${limit}`, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to fetch feed: ${response.status}`);
@@ -162,6 +173,7 @@ export const checkFeedPostsAction: Action = {
         content: post.content,
         authorName: post.authorName || post.authorUsername || 'Unknown',
         authorId: post.authorId,
+        authorProfileImageUrl: post.authorProfileImageUrl,
         timeAgo: getTimeAgo(new Date(post.timestamp)),
         likeCount: post.likeCount ?? 0,
         commentCount: post.commentCount ?? 0,
@@ -203,7 +215,18 @@ export const checkFeedPostsAction: Action = {
             commentCount: p.commentCount,
           })),
         },
-      };
+        // Tag for sidebar display
+        tag: {
+          type: 'feed',
+          label: 'Feed',
+          icon: 'Newspaper',
+          data: {
+            posts: formattedPosts,
+            count: feedPosts.length,
+            hasMore: data.hasMore,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_FEED_POSTS] Error:', errorMsg);

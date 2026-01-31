@@ -72,7 +72,13 @@ function HighlightedText({
     parts.push(text.slice(lastIndex));
   }
 
-  return <>{parts}</>;
+  // Add trailing space to match textarea behavior
+  return (
+    <>
+      {parts}
+      {'\u00A0'}
+    </>
+  );
 }
 
 export interface MessageInputProps {
@@ -137,6 +143,9 @@ export function MessageInput({
     return set;
   }, [mentionableMembers]);
 
+  // Reference for the highlight overlay to sync scroll
+  const highlightRef = useRef<HTMLDivElement>(null);
+
   // Resize textarea based on content
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current;
@@ -151,6 +160,14 @@ export function MessageInput({
   useEffect(() => {
     resizeTextarea();
   }, [value, resizeTextarea]);
+
+  // Sync scroll position between textarea and highlight overlay
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  }, []);
 
   // Handle selecting a member from autocomplete - inserts plain @username
   const handleSelectMember = useCallback(
@@ -305,14 +322,16 @@ export function MessageInput({
         />
       )}
 
-      <div className="flex items-end gap-2 md:gap-3">
-        {/* Textarea with optional highlight overlay */}
+      {/* Input container with send button inside */}
+      <div className="relative">
+        {/* Textarea with optional highlight overlay for mentions */}
         {mentionsEnabled ? (
-          <div className="relative min-h-[44px] flex-1">
+          <>
             {/* Highlight overlay - renders mentions with styling */}
             <div
+              ref={highlightRef}
               className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm',
+                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl px-4 py-4 pr-14 text-sm',
                 'text-foreground'
               )}
               aria-hidden="true"
@@ -328,6 +347,7 @@ export function MessageInput({
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
+              onScroll={handleScroll}
               aria-label="Message input, use @ to mention members"
               placeholder={placeholderText}
               disabled={sending || disabled}
@@ -337,14 +357,14 @@ export function MessageInput({
               autoCorrect="off"
               autoCapitalize="off"
               className={cn(
-                'relative z-10 max-h-40 min-h-[44px] w-full resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
+                'relative z-10 max-h-40 min-h-[56px] w-full resize-none overflow-y-auto rounded-xl px-4 py-4 pr-14 text-sm',
                 'message-input bg-sidebar-accent/50',
                 'text-transparent caret-foreground placeholder:text-muted-foreground',
                 'outline-none focus:ring-2 focus:ring-primary/50',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             />
-          </div>
+          </>
         ) : (
           /* Simple textarea without highlight overlay */
           <textarea
@@ -356,7 +376,7 @@ export function MessageInput({
             disabled={sending || disabled}
             rows={1}
             className={cn(
-              'max-h-40 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-lg px-4 py-3 text-sm',
+              'max-h-40 min-h-[56px] w-full resize-none overflow-y-auto rounded-xl px-4 py-4 pr-14 text-sm',
               'message-input bg-sidebar-accent/50',
               'text-foreground placeholder:text-muted-foreground',
               'outline-none focus:ring-2 focus:ring-primary/50',
@@ -364,14 +384,16 @@ export function MessageInput({
             )}
           />
         )}
+
+        {/* Send button - positioned inside input, vertically centered */}
         <button
           type="button"
           onClick={onSend}
           disabled={!value.trim() || sending || disabled}
           className={cn(
-            'flex h-[44px] items-center gap-2 rounded-lg px-4 py-3 font-semibold md:gap-3',
-            'chat-button bg-sidebar-accent/50 text-primary',
-            'transition-all duration-300',
+            '-translate-y-1/2 absolute top-1/2 right-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg',
+            'text-primary transition-all duration-200',
+            'hover:bg-muted',
             'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'
           )}
         >

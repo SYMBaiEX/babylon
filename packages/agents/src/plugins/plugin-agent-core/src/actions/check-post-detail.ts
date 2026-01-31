@@ -5,7 +5,20 @@
  * Shows IDs for each comment so agent can reference them for replies.
  */
 
-import { and, comments, db, desc, eq, isNull, posts, users } from '@babylon/db';
+import {
+  and,
+  comments,
+  count,
+  db,
+  desc,
+  eq,
+  isNull,
+  posts,
+  shares,
+  users,
+} from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -16,6 +29,11 @@ import type {
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
 
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
+
 interface CommentWithAuthor {
   id: string;
   content: string;
@@ -23,6 +41,7 @@ interface CommentWithAuthor {
   parentCommentId: string | null;
   createdAt: Date;
   authorName: string;
+  authorProfileImageUrl?: string | null;
 }
 
 interface CommentThread {
@@ -204,6 +223,7 @@ export const checkPostDetailAction: Action = {
           createdAt: posts.createdAt,
           authorUsername: users.username,
           authorDisplayName: users.displayName,
+          authorProfileImageUrl: users.profileImageUrl,
         })
         .from(posts)
         .leftJoin(users, eq(posts.authorId, users.id))
@@ -228,32 +248,88 @@ export const checkPostDetailAction: Action = {
           createdAt: comments.createdAt,
           authorUsername: users.username,
           authorDisplayName: users.displayName,
+          authorProfileImageUrl: users.profileImageUrl,
         })
         .from(comments)
         .leftJoin(users, eq(comments.authorId, users.id))
         .where(and(eq(comments.postId, postId), isNull(comments.deletedAt)))
         .orderBy(desc(comments.createdAt));
 
+      // Helper to get author info from StaticDataRegistry or user data
+      const getAuthorInfo = (
+        authorId: string,
+        userDisplayName: string | null,
+        userUsername: string | null,
+        userProfileImageUrl: string | null
+      ): { name: string; profileImageUrl: string | null } => {
+        // Check if this is an actor/NPC
+        const actor = StaticDataRegistry.getActor(authorId);
+        if (actor) {
+          return {
+            name: actor.name,
+            profileImageUrl: actor.profileImageUrl || null,
+          };
+        }
+
+        // Check if this is an organization
+        const org = StaticDataRegistry.getOrganization(authorId);
+        if (org) {
+          return {
+            name: org.name,
+            profileImageUrl: org.imageUrl || null,
+          };
+        }
+
+        // Fall back to user data
+        return {
+          name: userDisplayName || userUsername || 'Unknown',
+          profileImageUrl: userProfileImageUrl,
+        };
+      };
+
       // Transform to our format
       const commentsWithAuthor: CommentWithAuthor[] = postComments.map(
-        (c: (typeof postComments)[number]) => ({
-          id: c.id,
-          content: c.content,
-          authorId: c.authorId,
-          parentCommentId: c.parentCommentId,
-          createdAt: c.createdAt,
-          authorName: c.authorDisplayName || c.authorUsername || 'User',
-        })
+        (c: (typeof postComments)[number]) => {
+          const authorInfo = getAuthorInfo(
+            c.authorId,
+            c.authorDisplayName,
+            c.authorUsername,
+            c.authorProfileImageUrl
+          );
+          return {
+            id: c.id,
+            content: c.content,
+            authorId: c.authorId,
+            parentCommentId: c.parentCommentId,
+            createdAt: c.createdAt,
+            authorName: authorInfo.name,
+            authorProfileImageUrl: authorInfo.profileImageUrl,
+          };
+        }
       );
 
       // Build comment tree
       const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
       const { formatted: formattedComments } = formatCommentTree(commentTree);
 
+      // Get share count
+      const [shareResult] = await db
+        .select({ count: count() })
+        .from(shares)
+        .where(eq(shares.postId, postId));
+      const shareCount = shareResult?.count ?? 0;
+
+      // Get post author info
+      const postAuthorInfo = getAuthorInfo(
+        post.authorId,
+        post.authorDisplayName,
+        post.authorUsername,
+        post.authorProfileImageUrl
+      );
       const postAuthorName =
-        post.authorId === agentUserId
-          ? 'You'
-          : post.authorDisplayName || post.authorUsername || 'User';
+        post.authorId === agentUserId ? 'You' : postAuthorInfo.name;
+      const postAuthorProfileImageUrl =
+        post.authorId === agentUserId ? null : postAuthorInfo.profileImageUrl;
 
       // Build formatted view
       const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
@@ -276,7 +352,8 @@ ${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComm
             content: post.content,
             author: postAuthorName,
             authorId: post.authorId,
-            createdAt: post.createdAt,
+            authorProfileImageUrl: postAuthorProfileImageUrl,
+            createdAt: post.createdAt.toISOString(),
           },
           comments: commentsWithAuthor,
         },
@@ -284,8 +361,28 @@ ${postComments.length > 0 ? `COMMENTS (${postComments.length}):\n${formattedComm
           formattedView,
           postId: post.id,
           commentCount: postComments.length,
+          shareCount,
         },
-      };
+        // Tag for sidebar display (simplified - no comments)
+        tag: {
+          type: 'post',
+          label: 'Post',
+          icon: 'FileText',
+          entityId: post.id,
+          data: {
+            post: {
+              id: post.id,
+              content: post.content,
+              author: postAuthorName,
+              authorId: post.authorId,
+              authorProfileImageUrl: postAuthorProfileImageUrl,
+              createdAt: post.createdAt.toISOString(),
+            },
+            commentCount: postComments.length,
+            shareCount,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_POST_DETAIL] Error:', errorMsg);

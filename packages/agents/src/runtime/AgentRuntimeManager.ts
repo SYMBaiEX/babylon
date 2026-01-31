@@ -18,7 +18,11 @@ import {
   loadActorById,
   StaticDataRegistry,
 } from '@babylon/engine';
-import { GROQ_MODELS } from '@babylon/shared';
+import {
+  COORDINATOR_RUNTIME_ID as COORDINATOR_RUNTIME_ID_STRING,
+  COORDINATOR_SYSTEM_PROMPT,
+  GROQ_MODELS,
+} from '@babylon/shared';
 import {
   AgentRuntime,
   type Character,
@@ -40,6 +44,7 @@ import {
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { userCorePlugin } from '../plugins/plugin-user-core/src';
 import { agentRegistry } from '../services/agent-registry.service';
 import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
@@ -62,6 +67,12 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
+
+/** Pending runtime creation promises to prevent race conditions */
+const pendingRuntimePromises = new Map<string, Promise<AgentRuntime>>();
+
+/** Coordinator runtime ID cast to UUID type for ElizaOS */
+const COORDINATOR_RUNTIME_ID = COORDINATOR_RUNTIME_ID_STRING as UUID;
 
 /**
  * Creates adapter stub methods for ElizaOS runtime.
@@ -672,6 +683,10 @@ export class AgentRuntimeManager {
     }
     await Promise.all(pluginRegistrationPromises);
 
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
+
     // Wrap and enhance with Babylon plugin
     // Use userId for USER_CONTROLLED agents (User table lookup), agentId for NPCs
     const babylonAgentId = userId || agentId;
@@ -760,6 +775,151 @@ export class AgentRuntimeManager {
   }
 
   /**
+   * Get or create the global coordinator runtime.
+   *
+   * The coordinator is a shared runtime used for team chat when no agents are tagged.
+   * It uses plugin-user-core (limited actions) instead of plugin-agent-core.
+   *
+   * @returns The global coordinator runtime instance
+   */
+  public async getCoordinatorRuntime(): Promise<AgentRuntime> {
+    // Check cache first
+    if (globalRuntimes.has(COORDINATOR_RUNTIME_ID)) {
+      logger.debug(
+        'Using cached coordinator runtime',
+        undefined,
+        'AgentRuntimeManager'
+      );
+      return globalRuntimes.get(COORDINATOR_RUNTIME_ID)!;
+    }
+
+    // Check if there's already a pending creation to avoid race conditions
+    const pendingPromise = pendingRuntimePromises.get(COORDINATOR_RUNTIME_ID);
+    if (pendingPromise) {
+      logger.debug(
+        'Waiting for pending coordinator runtime creation',
+        undefined,
+        'AgentRuntimeManager'
+      );
+      return pendingPromise;
+    }
+
+    // Create new coordinator runtime with pending-promise guard
+    const creationPromise = (async () => {
+      try {
+        const runtime = await this.createCoordinatorRuntime();
+
+        // Cache it
+        globalRuntimes.set(COORDINATOR_RUNTIME_ID, runtime);
+
+        logger.info(
+          'Coordinator runtime created and cached',
+          undefined,
+          'AgentRuntimeManager'
+        );
+
+        return runtime;
+      } finally {
+        // Clear pending entry on completion or error
+        pendingRuntimePromises.delete(COORDINATOR_RUNTIME_ID);
+      }
+    })();
+
+    // Store the pending promise so concurrent callers await it
+    pendingRuntimePromises.set(COORDINATOR_RUNTIME_ID, creationPromise);
+
+    return creationPromise;
+  }
+
+  /**
+   * Create the global coordinator runtime.
+   *
+   * Key differences from agent runtimes:
+   * - Uses plugin-user-core instead of plugin-agent-core
+   * - Has limited actions (read-only, informational)
+   * - Does not have Babylon plugin enhancement (no agent-specific features)
+   * - Shared across all users
+   */
+  private async createCoordinatorRuntime(): Promise<AgentRuntime> {
+    // Database configuration
+    const dbPort = process.env.POSTGRES_DEV_PORT || 5432;
+    const postgresUrl =
+      process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      `postgres://postgres:password@localhost:${dbPort}/babylon`;
+
+    // Create trajectory logger for coordinator
+    const trajectoryLogger = new TrajectoryLoggerService();
+    trajectoryLoggers.set(COORDINATOR_RUNTIME_ID, trajectoryLogger);
+
+    // Character configuration for coordinator
+    const character: Character = {
+      name: 'Coordinator',
+      system: COORDINATOR_SYSTEM_PROMPT,
+      bio: [
+        'Team chat coordinator for Babylon - helps users understand and coordinate their AI agents',
+      ],
+      messageExamples: [],
+      plugins: [],
+      settings: this.getModelSettings(),
+    };
+
+    // Plugins for coordinator - uses userCorePlugin instead of agentCorePlugin
+    // Note: openaiPlugin is intentionally omitted for coordinator as it uses read-only
+    // actions (userCorePlugin) and doesn't require the full capabilities of OpenAI models.
+    // The coordinator relies on Groq/Anthropic for cost efficiency with its limited scope.
+    const plugins: Plugin[] = [
+      userCorePlugin as Plugin, // Limited actions for coordinator
+      trajectoryLoggerPlugin as Plugin,
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+    ];
+
+    const runtimeConfig = {
+      character,
+      agentId: COORDINATOR_RUNTIME_ID,
+      plugins,
+      settings: {
+        ...character.settings,
+        POSTGRES_URL: postgresUrl,
+      },
+    };
+
+    const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime;
+
+    runtime.currentModel = 'groq';
+
+    // Stub adapter methods - Babylon uses its own DB
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
+
+    // Configure logger
+    this.configureLogger(runtime, 'Coordinator');
+
+    // Register plugins
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    for (const plugin of plugins) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
+
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
+
+    // Store trajectory logger reference
+    runtime.trajectoryLogger = trajectoryLogger;
+
+    // NOTE: We intentionally do NOT call enhanceWithBabylon here
+    // The coordinator doesn't need agent-specific Babylon features
+
+    return runtime;
+  }
+
+  /**
    * Get trajectory logger for an agent
    */
   public getTrajectoryLogger(
@@ -818,6 +978,9 @@ export const agentRuntimeManager = {
   },
   async getRuntime(agentUserId: string) {
     return getManagerInstance().getRuntime(agentUserId);
+  },
+  async getCoordinatorRuntime() {
+    return getManagerInstance().getCoordinatorRuntime();
   },
   getTrajectoryLogger(agentUserId: string) {
     return getManagerInstance().getTrajectoryLogger(agentUserId);

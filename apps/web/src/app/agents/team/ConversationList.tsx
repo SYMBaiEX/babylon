@@ -1,16 +1,8 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Check,
-  Loader2,
-  MessageCircle,
-  MessageSquarePlus,
-  Pencil,
-  X,
-} from 'lucide-react';
+import { Check, Loader2, MessageCircle, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
 
 /** Conversation info */
 interface ConversationInfo {
@@ -19,6 +11,35 @@ interface ConversationInfo {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+}
+
+/**
+ * Get display name for a conversation.
+ * Returns the actual name if set, or a fallback using createdAt timestamp.
+ */
+function getConversationDisplayName(conversation: ConversationInfo): string {
+  if (conversation.name) return conversation.name;
+
+  // Fallback: "New Chat - Jan 30, 1:55 AM"
+  // Guard against invalid/missing createdAt
+  const date = new Date(conversation.createdAt);
+  if (isNaN(date.getTime())) {
+    return 'New Chat';
+  }
+
+  // Use browser locale if available, otherwise undefined for system default
+  const locale =
+    typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const dateStr = date.toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `New Chat - ${dateStr}, ${timeStr}`;
 }
 
 interface ConversationListProps {
@@ -72,7 +93,8 @@ export function ConversationList({
     e.stopPropagation(); // Prevent selecting the conversation
     if (!onRenameConversation) return;
     setEditingId(conversation.id);
-    setEditValue(conversation.name || '');
+    // Use display name as initial edit value
+    setEditValue(getConversationDisplayName(conversation));
   };
 
   const handleSaveRename = async () => {
@@ -105,23 +127,22 @@ export function ConversationList({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Header with New Chat button */}
-      <div className="flex items-center justify-between px-3">
-        <h3 className="font-medium text-foreground text-sm">Conversations</h3>
-        <Button
-          variant="ghost"
-          size="sm"
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-foreground text-sm">Chats</h3>
+        <button
+          type="button"
           onClick={onNewChat}
-          className="h-7 gap-1.5 px-2 text-xs"
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="New chat"
         >
-          <MessageSquarePlus className="h-3.5 w-3.5" />
-          New Chat
-        </Button>
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Conversation list */}
-      <div className="max-h-[200px] space-y-1 overflow-y-auto px-1">
+      <div className="max-h-[200px] space-y-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -191,7 +212,7 @@ export function ConversationList({
                     onClick={() => handleSelectConversation(conversation.id)}
                     className="flex-1 truncate text-left text-sm"
                   >
-                    {conversation.name || 'Untitled'}
+                    {getConversationDisplayName(conversation)}
                   </button>
                   {onRenameConversation && (
                     <button

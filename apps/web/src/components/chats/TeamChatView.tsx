@@ -1,9 +1,15 @@
 'use client';
 
-import { cn } from '@babylon/shared';
-import { Brain, Loader2, MessageCircle, Radio, Users, X } from 'lucide-react';
+import type { MessageTag } from '@babylon/shared';
+import {
+  Brain,
+  MessageCircle,
+  PanelLeft,
+  PanelRight,
+  Radio,
+  Users,
+} from 'lucide-react';
 import React from 'react';
-import { Avatar } from '@/components/shared/Avatar';
 import { Separator } from '@/components/shared/Separator';
 import { FeedbackMessages } from './FeedbackMessages';
 import type { MentionableAgent } from './MentionAutocomplete';
@@ -85,14 +91,6 @@ function ThinkingIndicator({
   );
 }
 
-/** Info for a selected agent chip */
-interface SelectedAgentInfo {
-  id: string;
-  displayName: string;
-  profileImageUrl?: string | null;
-  isProcessing: boolean;
-}
-
 interface TeamChatViewProps {
   chatDetails: ChatDetails | null;
   currentUserId: string | undefined;
@@ -118,12 +116,16 @@ interface TeamChatViewProps {
   onShowMembers?: () => void;
   /** Callback when messages container is scrolled (for auto-scroll tracking) */
   onScroll?: (container: HTMLDivElement) => void;
-  /** Selected agents for parallel execution */
-  selectedAgents?: SelectedAgentInfo[];
-  /** Callback when an agent chip is removed */
-  onRemoveSelectedAgent?: (agentId: string) => void;
-  /** Whether any selected agent is processing (disables input) */
-  hasProcessingSelected?: boolean;
+  /** Left sidebar collapsed state */
+  leftSidebarCollapsed?: boolean;
+  /** Callback to toggle left sidebar */
+  onToggleLeftSidebar?: () => void;
+  /** Right sidebar open state */
+  rightSidebarOpen?: boolean;
+  /** Callback to toggle right sidebar */
+  onToggleRightSidebar?: () => void;
+  /** Callback when a message tag is clicked */
+  onTagClick?: (tag: MessageTag) => void;
 }
 
 /**
@@ -151,9 +153,11 @@ export function TeamChatView({
   thinkingAgents = [],
   onShowMembers,
   onScroll,
-  selectedAgents = [],
-  onRemoveSelectedAgent,
-  hasProcessingSelected = false,
+  leftSidebarCollapsed = false,
+  onToggleLeftSidebar,
+  rightSidebarOpen = false,
+  onToggleRightSidebar,
+  onTagClick,
 }: TeamChatViewProps) {
   // Empty state when no chat selected
   if (!chatDetails) {
@@ -161,7 +165,7 @@ export function TeamChatView({
       <div className="flex h-full flex-1 items-center justify-center">
         <div className="max-w-md p-8 text-center text-muted-foreground">
           <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
-          <h3 className="mb-2 font-bold text-foreground text-xl">Agents</h3>
+          <h3 className="mb-2 font-bold text-foreground text-xl">Chat</h3>
           <p className="text-sm">Loading your team chat...</p>
         </div>
       </div>
@@ -173,12 +177,24 @@ export function TeamChatView({
       {/* Chat Header - Fixed */}
       <div className="shrink-0">
         <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">Agents</h2>
-            <p className="text-muted-foreground text-sm">
-              {chatDetails.participants.length} member
-              {chatDetails.participants.length !== 1 ? 's' : ''}
-            </p>
+          <div className="flex items-center gap-3">
+            {/* Left sidebar toggle - desktop only */}
+            {onToggleLeftSidebar && (
+              <button
+                onClick={onToggleLeftSidebar}
+                className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+                aria-label={
+                  leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
+                }
+              >
+                <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            )}
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">
+                {chatDetails.chat.name || 'Chat'}
+              </h2>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Mobile members button */}
@@ -204,6 +220,16 @@ export function TeamChatView({
                 {sseConnected ? 'Live' : 'Connecting...'}
               </span>
             </div>
+            {/* Right sidebar toggle */}
+            {onToggleRightSidebar && (
+              <button
+                onClick={onToggleRightSidebar}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
+              >
+                <PanelRight className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -229,6 +255,7 @@ export function TeamChatView({
           authenticated={authenticated}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}
+          onTagClick={onTagClick}
         />
       </div>
 
@@ -254,49 +281,6 @@ export function TeamChatView({
           <Separator />
         </div>
 
-        {/* Selected Agents Chips - shown above input when agents are selected */}
-        {selectedAgents.length > 0 && (
-          <div className="scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex items-center gap-2 overflow-x-auto px-4 pt-3">
-            <span className="shrink-0 text-muted-foreground text-xs">
-              Send to:
-            </span>
-            {selectedAgents.map((agent) => (
-              <div
-                key={agent.id}
-                className={cn(
-                  'flex shrink-0 items-center gap-1.5 rounded-full py-1 pr-2 pl-1 text-sm',
-                  agent.isProcessing
-                    ? 'bg-blue-500/20 text-blue-500'
-                    : 'bg-muted text-foreground'
-                )}
-              >
-                <Avatar
-                  id={agent.id}
-                  src={agent.profileImageUrl ?? undefined}
-                  name={agent.displayName}
-                  size="sm"
-                />
-                <span className="max-w-[100px] truncate font-medium">
-                  {agent.displayName}
-                </span>
-                {agent.isProcessing && (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                )}
-                {onRemoveSelectedAgent && (
-                  <button
-                    type="button"
-                    onClick={() => onRemoveSelectedAgent(agent.id)}
-                    className="rounded-full p-0.5 hover:bg-background/50"
-                    aria-label={`Remove ${agent.displayName}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Message Input with @mention support */}
         <MessageInput
           value={messageInput}
@@ -304,14 +288,7 @@ export function TeamChatView({
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
-          disabled={hasProcessingSelected}
-          placeholder={
-            hasProcessingSelected
-              ? 'Waiting for agents to finish... (remove to unblock)'
-              : selectedAgents.length > 0
-                ? `Message ${selectedAgents.length === 1 ? selectedAgents[0]?.displayName : `${selectedAgents.length} agents`}...`
-                : 'No agents selected - will send to all agents'
-          }
+          placeholder="Ask the swarm...(Type @ to mention agents)"
           mentionableMembers={agents}
         />
       </div>

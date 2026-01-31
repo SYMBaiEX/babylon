@@ -9,7 +9,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -58,6 +58,8 @@ interface PerpTradingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /** Default side to preselect when modal opens */
+  defaultSide?: TradeSide;
 }
 
 export function PerpTradingModal({
@@ -65,9 +67,10 @@ export function PerpTradingModal({
   isOpen,
   onClose,
   onSuccess,
+  defaultSide = 'long',
 }: PerpTradingModalProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
-  const [side, setSide] = useState<TradeSide>('long');
+  const [side, setSide] = useState<TradeSide>(defaultSide);
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,20 @@ export function PerpTradingModal({
     loading: balanceLoading,
     refresh: refreshBalance,
   } = useWalletBalance(isOpen ? user?.id : null);
+
+  // Track previous isOpen to detect open transition
+  const prevIsOpenRef = useRef(false);
+
+  // Reset side only when modal actually opens (isOpen transitions from false to true)
+  useEffect(() => {
+    const prevIsOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    // Only reset when transitioning from closed to open
+    if (!prevIsOpen && isOpen) {
+      setSide(defaultSide);
+    }
+  }, [isOpen, defaultSide]);
 
   // Body scroll lock using counter-based approach for multi-modal safety
   useBodyScrollLock(isOpen);

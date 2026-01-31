@@ -17,6 +17,7 @@ import {
   users,
 } from '@babylon/db';
 import { WalletService } from '@babylon/engine';
+import type { MessageTag } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -26,6 +27,11 @@ import type {
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Extended ActionResult with optional tag for UI */
+interface ActionResultWithTag extends ActionResult {
+  tag?: MessageTag;
+}
 
 export const checkPnlAction: Action = {
   name: 'CHECK_PNL',
@@ -155,52 +161,73 @@ export const checkPnlAction: Action = {
         'CheckPnL'
       );
 
+      // Format data for tag
+      const formattedPredictionPositions = predictionPositions.map((p) => ({
+        id: p.id,
+        marketId: p.marketId,
+        side: p.side ? 'YES' : 'NO',
+        shares: Number(p.shares),
+        avgPrice: Number(p.avgPrice),
+        question: p.question?.substring(0, 80) || 'Unknown',
+      }));
+
+      const formattedPerpPositions = perpPositionsList.map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        side: p.side,
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        leverage: p.leverage,
+      }));
+
+      const formattedRecentTrades = recentTrades.map((t) => ({
+        action: t.action,
+        ticker: t.ticker || t.marketId || '',
+        amount: Number(t.amount),
+        pnl: t.pnl ? Number(t.pnl) : null,
+      }));
+
       return {
         success: true,
         text: `Retrieved P&L: $${balance.toFixed(2)} balance, ${totalPositions} open positions.`,
         data: {
           balance,
           lifetimePnL,
-          predictionPositions: predictionPositions.map((p) => ({
-            id: p.id,
-            marketId: p.marketId,
-            side: p.side ? 'YES' : 'NO',
-            shares: Number(p.shares),
-            avgPrice: Number(p.avgPrice),
-          })),
-          perpPositions: perpPositionsList.map((p) => ({
-            id: p.id,
-            ticker: p.ticker,
-            side: p.side,
-            size: Number(p.size),
-            entryPrice: Number(p.entryPrice),
-            leverage: p.leverage,
-          })),
-          recentTrades: recentTrades.length,
+          predictionPositions: formattedPredictionPositions,
+          perpPositions: formattedPerpPositions,
+          recentTrades: formattedRecentTrades,
         },
         values: {
           balance,
           lifetimePnL,
-          predictionPositions: predictionPositions.map((p) => ({
+          predictionPositions: formattedPredictionPositions.map((p) => ({
             id: p.id,
-            question: p.question?.substring(0, 80) || 'Unknown',
-            side: p.side ? 'YES' : 'NO',
-            shares: Number(p.shares),
+            question: p.question,
+            side: p.side,
+            shares: p.shares,
           })),
-          perpPositions: perpPositionsList.map((p) => ({
+          perpPositions: formattedPerpPositions.map((p) => ({
             id: p.id,
             ticker: p.ticker,
             side: p.side,
-            size: Number(p.size),
+            size: p.size,
           })),
-          recentTrades: recentTrades.map((t) => ({
-            action: t.action,
-            ticker: t.ticker || t.marketId,
-            amount: Number(t.amount),
-            pnl: t.pnl ? Number(t.pnl) : null,
-          })),
+          recentTrades: formattedRecentTrades,
         },
-      };
+        // Tag for sidebar display
+        tag: {
+          type: 'agent-pnl',
+          label: 'Portfolio',
+          icon: 'Wallet',
+          data: {
+            balance,
+            lifetimePnL,
+            predictionPositions: formattedPredictionPositions,
+            perpPositions: formattedPerpPositions,
+            recentTrades: formattedRecentTrades,
+          },
+        },
+      } as ActionResultWithTag;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[CHECK_PNL] Error:', errorMsg);

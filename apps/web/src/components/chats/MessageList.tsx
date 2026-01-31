@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  COORDINATOR_INFO,
+  COORDINATOR_SENDER_ID,
+  type MessageTag,
+} from '@babylon/shared';
 import { Loader2, MessageCircle } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -10,10 +15,18 @@ import { MessageTypeEnum } from './types';
 
 /**
  * Determines the message type for rendering.
- * Uses message.type field if available (new messages), falls back to default user type.
+ * Checks senderId first (for coordinator detection), then falls back to type field.
+ *
+ * Note: Coordinator messages are stored with type='user' in DB (no coordinator enum),
+ * so we must check senderId first to properly identify them.
  */
 function getMessageType(message: Message): MessageType {
-  // Prefer explicit type field (new messages after migration)
+  // Check for coordinator messages by senderId first
+  // (DB doesn't have 'coordinator' type, so they're stored as 'user')
+  if (message.senderId === COORDINATOR_SENDER_ID) {
+    return MessageTypeEnum.COORDINATOR;
+  }
+  // Use explicit type field if available
   if (message.type) {
     return message.type;
   }
@@ -30,6 +43,8 @@ interface MessageListProps {
   authenticated: boolean;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  /** Callback when a message tag is clicked */
+  onTagClick?: (tag: MessageTag) => void;
 }
 
 export function MessageList({
@@ -42,6 +57,7 @@ export function MessageList({
   authenticated,
   topSentinelRef,
   messagesEndRef,
+  onTagClick,
 }: MessageListProps) {
   // Extract usernames from participants for @mention formatting
   // Only usernames that exist in the chat will be formatted as mentions
@@ -96,6 +112,27 @@ export function MessageList({
           case MessageTypeEnum.SYSTEM:
             return <SystemMessage key={key} message={msg} />;
 
+          case MessageTypeEnum.COORDINATOR: {
+            // Coordinator messages: show with bubble using coordinator info
+            const coordinatorSender: ChatParticipant = {
+              id: COORDINATOR_INFO.id,
+              displayName: COORDINATOR_INFO.displayName,
+              username: COORDINATOR_INFO.username,
+              profileImageUrl: COORDINATOR_INFO.profileImageUrl,
+            };
+            return (
+              <MessageBubble
+                key={key}
+                message={msg}
+                sender={coordinatorSender}
+                isCurrentUser={false}
+                validMentions={validMentions}
+                isThinking={msg.isThinking}
+                onTagClick={onTagClick}
+              />
+            );
+          }
+
           case MessageTypeEnum.USER:
           default: {
             const sender = participants.find((p) => p.id === msg.senderId);
@@ -110,6 +147,8 @@ export function MessageList({
                 sender={sender}
                 isCurrentUser={isCurrentUser}
                 validMentions={validMentions}
+                isThinking={msg.isThinking}
+                onTagClick={onTagClick}
               />
             );
           }
