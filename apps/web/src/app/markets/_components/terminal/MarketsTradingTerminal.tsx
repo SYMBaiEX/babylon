@@ -288,7 +288,9 @@ function PredictionMarketHeader({
       <div
         className={cn(
           'flex items-center gap-2',
-          isCompact ? 'flex-wrap justify-between' : 'flex-col gap-2 lg:items-end'
+          isCompact
+            ? 'flex-wrap justify-between'
+            : 'flex-col gap-2 lg:items-end'
         )}
       >
         <div className="flex items-center gap-2">
@@ -607,11 +609,26 @@ export function MarketsTradingTerminal({
     isFavorite,
   ]);
 
-  // Ensure a default selection
+  // Ensure a default selection and sync URL when auto-selecting
   useEffect(() => {
     if (rows.length === 0) return;
+
+    const selectAndUpdateUrl = (key: MarketKey | null) => {
+      setSelected(key);
+      if (key) {
+        const next = new URLSearchParams(searchParams.toString());
+        next.set('marketKind', key.kind);
+        next.set('marketId', key.id);
+        next.set('filter', filter);
+        next.delete('tab');
+        next.delete('tabs');
+        next.delete('side');
+        router.replace(`/markets?${next.toString()}`, { scroll: false });
+      }
+    };
+
     if (!selected) {
-      setSelected(rows[0]?.key ?? null);
+      selectAndUpdateUrl(rows[0]?.key ?? null);
       return;
     }
     const stillVisible = rows.some(
@@ -619,8 +636,8 @@ export function MarketsTradingTerminal({
         row.key.kind === selected.kind &&
         row.key.id.toString() === selected.id.toString()
     );
-    if (!stillVisible) setSelected(rows[0]?.key ?? null);
-  }, [selected, rows]);
+    if (!stillVisible) selectAndUpdateUrl(rows[0]?.key ?? null);
+  }, [selected, rows, router, searchParams, filter]);
 
   const selectedPerp = useMemo(() => {
     if (!selected || selected.kind !== 'perp') return null;
@@ -888,6 +905,10 @@ export function MarketsTradingTerminal({
     if (predictionTradeMode === 'buy') {
       if (predictionAmountNum < 1) {
         toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
+        return;
+      }
+      if (!predictionBuyCalculation) {
+        toast.error('Unable to calculate buy quote.');
         return;
       }
     } else {
@@ -1316,7 +1337,10 @@ export function MarketsTradingTerminal({
                   {predictionState?.resolutionDescription?.trim()
                     ? predictionState.resolutionDescription
                     : `Scenario ${predictionState?.scenario ?? ''}${
-                        formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)
+                        formatDate(
+                          predictionState?.endDate ??
+                            predictionState?.resolutionDate
+                        )
                           ? ` • Ends ${formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)}`
                           : ''
                       }`}
@@ -1669,7 +1693,7 @@ export function MarketsTradingTerminal({
                 predictionSubmitting ||
                 (predictionTradeMode === 'buy' &&
                   authenticated &&
-                  predictionAmountNum < 1) ||
+                  (predictionAmountNum < 1 || !predictionBuyCalculation)) ||
                 (predictionTradeMode === 'sell' &&
                   authenticated &&
                   (maxSellShares <= 0 ||
@@ -1684,7 +1708,7 @@ export function MarketsTradingTerminal({
                 (predictionSubmitting ||
                   (predictionTradeMode === 'buy' &&
                     authenticated &&
-                    predictionAmountNum < 1) ||
+                    (predictionAmountNum < 1 || !predictionBuyCalculation)) ||
                   (predictionTradeMode === 'sell' &&
                     authenticated &&
                     (maxSellShares <= 0 ||
@@ -2372,11 +2396,16 @@ export function MarketsTradingTerminal({
                   {predictionState?.scenario ?? '—'}
                 </span>
               </div>
-              {formatDate(predictionState?.endDate ?? predictionState?.resolutionDate) && (
+              {formatDate(
+                predictionState?.endDate ?? predictionState?.resolutionDate
+              ) && (
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-muted-foreground">Ends</span>
                   <span className="font-mono text-foreground tabular-nums">
-                    {formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)}
+                    {formatDate(
+                      predictionState?.endDate ??
+                        predictionState?.resolutionDate
+                    )}
                   </span>
                 </div>
               )}
