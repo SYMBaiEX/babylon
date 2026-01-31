@@ -15,7 +15,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
-import { MemberTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group creation modal.
@@ -367,7 +366,6 @@ export function CreateGroupModal({
                       <span className="text-sm">
                         {member.displayName || member.username || 'Unknown'}
                       </span>
-                      <MemberTypeBadge type={member.type} />
                       <button
                         onClick={() => handleRemoveMember(member.id)}
                         className="ml-1 text-muted-foreground hover:text-foreground"
