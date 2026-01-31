@@ -48,12 +48,10 @@ export class PersistentTaskStore extends ExtendedTaskStore {
         const taskKey = `task:${task.id}`;
         const serialized = JSON.stringify(task);
 
-        await setCache(
-          TASK_CACHE_NAMESPACE,
-          taskKey,
-          serialized,
-          DEFAULT_TTL_SECONDS
-        );
+        await setCache(taskKey, serialized, {
+          namespace: TASK_CACHE_NAMESPACE,
+          ttl: DEFAULT_TTL_SECONDS,
+        });
 
         // Update indexes for efficient querying
         await this.updateIndexes(task);
@@ -83,7 +81,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     if (await isRedisAvailable()) {
       try {
         const taskKey = `task:${taskId}`;
-        const cached = await getCache<string>(TASK_CACHE_NAMESPACE, taskKey);
+        const cached = await getCache<string>(taskKey, {
+          namespace: TASK_CACHE_NAMESPACE,
+        });
 
         if (cached) {
           task = JSON.parse(cached) as Task;
@@ -174,7 +174,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     indexKey: string
   ): Promise<Array<{ taskId: string; timestamp: number }>> {
     try {
-      const cached = await getCache<string>(TASK_INDEX_NAMESPACE, indexKey);
+      const cached = await getCache<string>(indexKey, {
+        namespace: TASK_INDEX_NAMESPACE,
+      });
       if (cached) {
         return JSON.parse(cached);
       }
@@ -192,12 +194,10 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     index: Array<{ taskId: string; timestamp: number }>
   ): Promise<void> {
     try {
-      await setCache(
-        TASK_INDEX_NAMESPACE,
-        indexKey,
-        JSON.stringify(index),
-        DEFAULT_TTL_SECONDS
-      );
+      await setCache(indexKey, JSON.stringify(index), {
+        namespace: TASK_INDEX_NAMESPACE,
+        ttl: DEFAULT_TTL_SECONDS,
+      });
     } catch {
       logger.debug('Failed to set index in Redis', { indexKey }, 'A2A');
     }
