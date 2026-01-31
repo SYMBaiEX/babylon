@@ -840,6 +840,51 @@ export function MarketsTradingTerminal({
     );
   }, [predictionPositions, selectedPredictionId]);
 
+  const selectedPredictionShares = useMemo(() => {
+    let yesShares = 0;
+    let noShares = 0;
+    for (const position of selectedPredictionPositions) {
+      if (position.side === 'YES') yesShares += position.shares;
+      if (position.side === 'NO') noShares += position.shares;
+    }
+    return { yesShares, noShares };
+  }, [selectedPredictionPositions]);
+
+  const canSellPrediction =
+    authenticated &&
+    (selectedPredictionShares.yesShares >= 0.01 ||
+      selectedPredictionShares.noShares >= 0.01);
+
+  useEffect(() => {
+    if (predictionTradeMode !== 'sell') return;
+    if (canSellPrediction) return;
+    setPredictionTradeMode('buy');
+    setPredictionSellShares('');
+  }, [canSellPrediction, predictionTradeMode]);
+
+  useEffect(() => {
+    if (predictionTradeMode !== 'sell') return;
+    if (!canSellPrediction) return;
+    const canSellThisSide =
+      predictionSide === 'yes'
+        ? selectedPredictionShares.yesShares >= 0.01
+        : selectedPredictionShares.noShares >= 0.01;
+    if (canSellThisSide) return;
+    const canSellOtherSide =
+      predictionSide === 'yes'
+        ? selectedPredictionShares.noShares >= 0.01
+        : selectedPredictionShares.yesShares >= 0.01;
+    if (!canSellOtherSide) return;
+    setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
+    setPredictionSellShares('');
+  }, [
+    canSellPrediction,
+    predictionSide,
+    predictionTradeMode,
+    selectedPredictionShares.noShares,
+    selectedPredictionShares.yesShares,
+  ]);
+
   const selectedPerpPositions = useMemo(() => {
     if (!selectedPerp) return [];
     return perpPositions.filter(
@@ -1540,8 +1585,17 @@ export function MarketsTradingTerminal({
               <button
                 type="button"
                 onClick={() => setPredictionSide('yes')}
+                disabled={
+                  predictionTradeMode === 'sell' &&
+                  canSellPrediction &&
+                  selectedPredictionShares.yesShares < 0.01
+                }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
+                    canSellPrediction &&
+                    selectedPredictionShares.yesShares < 0.01 &&
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
                     ? 'bg-blue-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1552,8 +1606,17 @@ export function MarketsTradingTerminal({
               <button
                 type="button"
                 onClick={() => setPredictionSide('no')}
+                disabled={
+                  predictionTradeMode === 'sell' &&
+                  canSellPrediction &&
+                  selectedPredictionShares.noShares < 0.01
+                }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
+                    canSellPrediction &&
+                    selectedPredictionShares.noShares < 0.01 &&
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
                     ? 'bg-violet-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1563,35 +1626,37 @@ export function MarketsTradingTerminal({
               </button>
             </div>
 
-            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
-              <button
-                type="button"
-                onClick={() => setPredictionTradeMode('buy')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'buy'
-                    ? 'bg-green-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                BUY
-              </button>
-              <button
-                type="button"
-                onClick={() => setPredictionTradeMode('sell')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'sell'
-                    ? 'bg-red-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                SELL
-              </button>
-            </div>
+            {canSellPrediction && (
+              <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPredictionTradeMode('buy')}
+                  className={cn(
+                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    predictionTradeMode === 'buy'
+                      ? 'bg-green-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  BUY
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPredictionTradeMode('sell')}
+                  className={cn(
+                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    predictionTradeMode === 'sell'
+                      ? 'bg-red-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  SELL
+                </button>
+              </div>
+            )}
 
             {predictionTradeMode === 'buy' ? (
-              <div className="mt-4">
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                     Amount
@@ -1611,7 +1676,7 @@ export function MarketsTradingTerminal({
                 />
               </div>
             ) : (
-              <div className="mt-4">
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                     Shares
