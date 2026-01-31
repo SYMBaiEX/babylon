@@ -17,6 +17,8 @@ import { agentRuntimeManager, teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
   broadcastChatMessage,
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
   withErrorHandling,
 } from '@babylon/api';
 import { db, eq, messages, users } from '@babylon/db';
@@ -204,6 +206,24 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   const user = await authenticateUser(req);
+
+  // Rate limit coordinator requests (same as regular messages)
+  const rateCheck = await checkRateLimitAsync(
+    user.id,
+    RATE_LIMIT_CONFIGS.SEND_MESSAGE
+  );
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Rate limit exceeded. Please wait before sending another message.',
+      },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateCheck.retryAfter ?? 60) },
+      }
+    );
+  }
 
   // Validate team chat ownership
   const isValidTeamChat = await teamChatService.validateTeamChatOwnership(

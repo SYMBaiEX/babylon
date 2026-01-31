@@ -72,6 +72,7 @@ import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
 import {
   FeedPanel,
+  PanelErrorBoundary,
   PerpsPanel,
   PnlPanel,
   PostPanel,
@@ -787,7 +788,11 @@ export default function TeamChatPage() {
                 );
               }
 
-              return <div key={tab.id}>{content}</div>;
+              return (
+                <PanelErrorBoundary key={tab.id}>
+                  {content}
+                </PanelErrorBoundary>
+              );
             })}
         </RightSidebar>
       )}
