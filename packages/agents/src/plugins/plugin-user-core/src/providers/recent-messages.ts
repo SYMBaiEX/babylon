@@ -85,7 +85,7 @@ export const coordinatorRecentMessagesProvider: Provider = {
     // Query messages relevant to coordinator:
     // 1. User messages that target coordinator (targetIds contains 'coordinator')
     // 2. Coordinator's own responses (senderId = 'coordinator')
-    let recentMsgs: typeof messagesTable.$inferSelect[];
+    let recentMsgs: (typeof messagesTable.$inferSelect)[];
     try {
       recentMsgs = await db
         .select()
