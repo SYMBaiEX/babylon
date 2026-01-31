@@ -138,15 +138,20 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     // Store task ID in context index
     const contextIndexKey = `context:${contextId}`;
     const contextIndex = await this.getIndex(contextIndexKey);
-    contextIndex.push({ taskId: task.id, timestamp });
+
+    // Remove existing entry for this task to prevent duplicates
+    const filteredContextIndex = contextIndex.filter(
+      (item) => item.taskId !== task.id
+    );
+    filteredContextIndex.push({ taskId: task.id, timestamp });
 
     // Keep index sorted and limited
-    contextIndex.sort((a, b) => b.timestamp - a.timestamp);
-    if (contextIndex.length > 1000) {
-      contextIndex.splice(1000);
+    filteredContextIndex.sort((a, b) => b.timestamp - a.timestamp);
+    if (filteredContextIndex.length > 1000) {
+      filteredContextIndex.splice(1000);
     }
 
-    await this.setIndex(contextIndexKey, contextIndex);
+    await this.setIndex(contextIndexKey, filteredContextIndex);
 
     // Store task ID in status index
     const statusIndexKey = `status:${status}`;

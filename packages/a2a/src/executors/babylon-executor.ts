@@ -826,16 +826,20 @@ export class BabylonAgentExecutor implements AgentExecutor {
       },
     });
 
-    // Get like counts for each comment (simplified)
+    // Get like counts for all comments in a single aggregated query
     const commentIds = comments.map((c) => c.id);
     const likeCountMap = new Map<string, number>();
 
-    // Fetch like counts individually (groupBy has typing issues)
-    for (const commentId of commentIds) {
-      const count = await db.reaction.count({
-        where: { commentId, type: 'like' },
-      });
-      likeCountMap.set(commentId, count);
+    if (commentIds.length > 0) {
+      const likeCounts = (await db.reaction.groupBy({
+        by: ['commentId'],
+        where: { commentId: { in: commentIds }, type: 'like' },
+        _count: { id: true },
+      })) as Array<{ commentId: string; _count: { id: number } }>;
+
+      for (const lc of likeCounts) {
+        likeCountMap.set(lc.commentId, lc._count.id);
+      }
     }
 
     return {
@@ -3412,12 +3416,13 @@ export class BabylonAgentExecutor implements AgentExecutor {
       const noShares = Number(market.noShares ?? 0);
       const total = yesShares + noShares;
 
+      // CPMM formula: yesPrice = noShares/total, noPrice = yesShares/total
       return {
         marketId,
         type: 'prediction',
         prices: {
-          yes: total > 0 ? yesShares / total : 0.5,
-          no: total > 0 ? noShares / total : 0.5,
+          yes: total > 0 ? noShares / total : 0.5,
+          no: total > 0 ? yesShares / total : 0.5,
         },
         timestamp: new Date().toISOString(),
       };
@@ -3450,8 +3455,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
           timestamp: new Date().toISOString(),
         };
       }
-    } catch {
-      // Fall through to not found error
+    } catch (error) {
+      console.error(
+        `[getMarketPrices] Failed to query perpMarketSnapshots for marketId=${marketId}:`,
+        error
+      );
+      throw error;
     }
 
     throw new Error(`Market not found: ${marketId}`);
