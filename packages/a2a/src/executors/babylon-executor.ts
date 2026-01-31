@@ -3554,11 +3554,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     // Get the pending payment request first
     const pendingRequest = await x402.getPaymentRequest(requestId);
     if (!pendingRequest) {
-      logger.warn(
-        'Payment request not found',
-        { requestId, txHash },
-        'A2A'
-      );
+      logger.warn('Payment request not found', { requestId, txHash }, 'A2A');
       return {
         success: false,
         error: 'Payment request not found or expired',
