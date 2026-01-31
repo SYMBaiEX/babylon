@@ -170,12 +170,16 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
       void fetchTagPosts({ append: true });
       return;
     }
+    // Guard for global mode to avoid duplicate fetches
+    if (!globalHasMore || globalLoadingMore) return;
     if (!globalCursor) return;
     void fetchGlobalPosts(globalCursor, true);
   }, [
     fetchGlobalPosts,
     fetchTagPosts,
     globalCursor,
+    globalHasMore,
+    globalLoadingMore,
     tagHasMore,
     tagLoadingMore,
     tagMode,

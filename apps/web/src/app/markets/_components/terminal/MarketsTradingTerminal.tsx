@@ -180,6 +180,13 @@ function formatYesPct(raw: number): string {
   return `${rounded.toFixed(clamped >= 10 ? 0 : 1)}%`;
 }
 
+function formatDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString();
+}
+
 function computeYesPctFromShares(
   market: PredictionMarketTerminalState
 ): number {
@@ -188,6 +195,161 @@ function computeYesPctFromShares(
   const total = yes + no;
   if (total <= 0) return 50;
   return (yes / total) * 100;
+}
+
+/** Reusable time range selector for market charts */
+function TimeRangeSelector({
+  timeRange,
+  onTimeRangeChange,
+}: {
+  timeRange: MarketTimeRange;
+  onTimeRangeChange: (range: MarketTimeRange) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
+      {MARKET_TIME_RANGES.map((range) => (
+        <button
+          key={range}
+          type="button"
+          onClick={() => onTimeRangeChange(range)}
+          className={cn(
+            'rounded px-2 py-1 transition-colors',
+            timeRange === range
+              ? 'bg-foreground text-background'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {range}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Reusable prediction market header for mobile/desktop views */
+function PredictionMarketHeader({
+  predictionState,
+  yesPct,
+  timeRange,
+  onTimeRangeChange,
+  onDetailsClick,
+  variant = 'default',
+}: {
+  predictionState: PredictionMarketTerminalState | null;
+  yesPct: number;
+  timeRange: MarketTimeRange;
+  onTimeRangeChange: (range: MarketTimeRange) => void;
+  onDetailsClick: () => void;
+  variant?: 'default' | 'compact';
+}) {
+  const isCompact = variant === 'compact';
+  const titleClass = isCompact
+    ? 'whitespace-normal break-words font-bold text-sm leading-snug'
+    : 'whitespace-normal break-words font-bold text-foreground text-lg leading-snug';
+
+  return (
+    <div
+      className={cn(
+        'shrink-0 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md',
+        isCompact ? 'space-y-2' : ''
+      )}
+    >
+      <div
+        className={cn(
+          'flex gap-3',
+          isCompact
+            ? 'items-start justify-between'
+            : 'flex-col lg:flex-row lg:items-start lg:justify-between'
+        )}
+      >
+        <div className="min-w-0">
+          <div className={titleClass}>
+            {predictionState?.text ?? 'Prediction market'}
+          </div>
+          <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+            {predictionState?.resolutionDescription?.trim()
+              ? predictionState.resolutionDescription
+              : `Scenario ${predictionState?.scenario ?? ''}`}
+          </div>
+        </div>
+        {isCompact ? (
+          <button
+            type="button"
+            onClick={onDetailsClick}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            aria-label="View market details"
+            title="Details"
+          >
+            <Info size={14} />
+          </button>
+        ) : null}
+      </div>
+
+      <div
+        className={cn(
+          'flex items-center gap-2',
+          isCompact ? 'flex-wrap justify-between' : 'flex-col gap-2 lg:items-end'
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
+            YES {formatYesPct(yesPct)}
+          </div>
+          <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
+            NO {formatYesPct(100 - yesPct)}
+          </div>
+          {!isCompact && (
+            <button
+              type="button"
+              onClick={onDetailsClick}
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              aria-label="View market details"
+              title="Details"
+            >
+              <Info size={14} />
+            </button>
+          )}
+        </div>
+        <TimeRangeSelector
+          timeRange={timeRange}
+          onTimeRangeChange={onTimeRangeChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Reusable perp market header for mobile/desktop views */
+function PerpMarketHeader({
+  selectedPerp,
+  timeRange,
+  onTimeRangeChange,
+  variant = 'default',
+}: {
+  selectedPerp: PerpMarket;
+  timeRange: MarketTimeRange;
+  onTimeRangeChange: (range: MarketTimeRange) => void;
+  variant?: 'default' | 'compact';
+}) {
+  const isCompact = variant === 'compact';
+  const titleClass = isCompact
+    ? 'font-bold text-foreground text-sm'
+    : 'font-bold text-foreground text-lg';
+
+  return (
+    <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
+      <div className="min-w-0">
+        <div className={titleClass}>${selectedPerp.ticker}</div>
+        <div className="truncate text-muted-foreground text-xs">
+          {selectedPerp.name}
+        </div>
+      </div>
+      <TimeRangeSelector
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+      />
+    </div>
+  );
 }
 
 export function MarketsTradingTerminal({
@@ -781,15 +943,11 @@ export function MarketsTradingTerminal({
           ? `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/buy`
           : `/api/markets/predictions/${encodeURIComponent(predictionState.id.toString())}/sell`;
 
+      // Note: sellPosition is validated earlier in this function for sell mode
       const body =
         predictionTradeMode === 'buy'
           ? { side: predictionSide, amount: predictionAmountNum }
-          : (() => {
-              if (!sellPosition) {
-                throw new Error('No sellable position for this side.');
-              }
-              return { shares: clampedSellShares, positionId: sellPosition.id };
-            })();
+          : { shares: clampedSellShares, positionId: sellPosition!.id };
 
       const response = await fetch(url, {
         method: 'POST',
@@ -1158,12 +1316,8 @@ export function MarketsTradingTerminal({
                   {predictionState?.resolutionDescription?.trim()
                     ? predictionState.resolutionDescription
                     : `Scenario ${predictionState?.scenario ?? ''}${
-                        (predictionState?.endDate ??
-                        predictionState?.resolutionDate)
-                          ? ` • Ends ${new Date(
-                              (predictionState.endDate ??
-                                predictionState.resolutionDate) as string
-                            ).toLocaleString()}`
+                        formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)
+                          ? ` • Ends ${formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)}`
                           : ''
                       }`}
                 </div>
@@ -1822,59 +1976,14 @@ export function MarketsTradingTerminal({
               <div className="relative flex w-full shrink-0 basis-[34%] flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
-                    <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="whitespace-normal break-words font-bold text-sm leading-snug">
-                            {predictionState?.text ?? 'Prediction market'}
-                          </div>
-                          <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
-                            {predictionState?.resolutionDescription?.trim()
-                              ? predictionState.resolutionDescription
-                              : `Scenario ${predictionState?.scenario ?? ''}`}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setPredictionDetailsOpen(true)}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                          aria-label="View market details"
-                          title="Details"
-                        >
-                          <Info size={14} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
-                            YES {formatYesPct(predictionYesPct)}
-                          </div>
-                          <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
-                            NO {formatYesPct(100 - predictionYesPct)}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                          {MARKET_TIME_RANGES.map((range) => (
-                            <button
-                              key={range}
-                              type="button"
-                              onClick={() => setPredictionTimeRange(range)}
-                              className={cn(
-                                'rounded px-2 py-1 transition-colors',
-                                predictionTimeRange === range
-                                  ? 'bg-foreground text-background'
-                                  : 'text-muted-foreground hover:text-foreground'
-                              )}
-                            >
-                              {range}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
+                    <PredictionMarketHeader
+                      predictionState={predictionState}
+                      yesPct={predictionYesPct}
+                      timeRange={predictionTimeRange}
+                      onTimeRangeChange={setPredictionTimeRange}
+                      onDetailsClick={() => setPredictionDetailsOpen(true)}
+                      variant="compact"
+                    />
                     <div className="min-h-0 flex-1 p-2">
                       <PredictionProbabilityChart
                         data={predictionHistory}
@@ -1887,33 +1996,12 @@ export function MarketsTradingTerminal({
                   </>
                 ) : selectedPerp ? (
                   <>
-                    <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                      <div className="min-w-0">
-                        <div className="font-bold text-foreground text-sm">
-                          ${selectedPerp.ticker}
-                        </div>
-                        <div className="truncate text-muted-foreground text-xs">
-                          {selectedPerp.name}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                        {MARKET_TIME_RANGES.map((range) => (
-                          <button
-                            key={range}
-                            type="button"
-                            onClick={() => setPerpTimeRange(range)}
-                            className={cn(
-                              'rounded px-2 py-1 transition-colors',
-                              perpTimeRange === range
-                                ? 'bg-foreground text-background'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            {range}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <PerpMarketHeader
+                      selectedPerp={selectedPerp}
+                      timeRange={perpTimeRange}
+                      onTimeRangeChange={setPerpTimeRange}
+                      variant="compact"
+                    />
                     <div className="min-h-0 flex-1 p-2">
                       <PerpPriceChart
                         data={perpHistory.map((p) => ({
@@ -2201,59 +2289,14 @@ export function MarketsTradingTerminal({
               <div className="flex h-full flex-col pt-safe pb-safe">
                 {selected?.kind === 'prediction' ? (
                   <>
-                    <div className="shrink-0 space-y-2 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="whitespace-normal break-words font-bold text-sm leading-snug">
-                            {predictionState?.text ?? 'Prediction market'}
-                          </div>
-                          <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
-                            {predictionState?.resolutionDescription?.trim()
-                              ? predictionState.resolutionDescription
-                              : `Scenario ${predictionState?.scenario ?? ''}`}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setPredictionDetailsOpen(true)}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                          aria-label="View market details"
-                          title="Details"
-                        >
-                          <Info size={14} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
-                            YES {formatYesPct(predictionYesPct)}
-                          </div>
-                          <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
-                            NO {formatYesPct(100 - predictionYesPct)}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                          {MARKET_TIME_RANGES.map((range) => (
-                            <button
-                              key={range}
-                              type="button"
-                              onClick={() => setPredictionTimeRange(range)}
-                              className={cn(
-                                'rounded px-2 py-1 transition-colors',
-                                predictionTimeRange === range
-                                  ? 'bg-foreground text-background'
-                                  : 'text-muted-foreground hover:text-foreground'
-                              )}
-                            >
-                              {range}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
+                    <PredictionMarketHeader
+                      predictionState={predictionState}
+                      yesPct={predictionYesPct}
+                      timeRange={predictionTimeRange}
+                      onTimeRangeChange={setPredictionTimeRange}
+                      onDetailsClick={() => setPredictionDetailsOpen(true)}
+                      variant="compact"
+                    />
                     <div className="min-h-0 flex-1 p-2">
                       <PredictionProbabilityChart
                         data={predictionHistory}
@@ -2266,33 +2309,12 @@ export function MarketsTradingTerminal({
                   </>
                 ) : selectedPerp ? (
                   <>
-                    <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b bg-background/40 px-4 py-3 backdrop-blur-md">
-                      <div className="min-w-0">
-                        <div className="font-bold text-foreground text-sm">
-                          ${selectedPerp.ticker}
-                        </div>
-                        <div className="truncate text-muted-foreground text-xs">
-                          {selectedPerp.name}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                        {MARKET_TIME_RANGES.map((range) => (
-                          <button
-                            key={range}
-                            type="button"
-                            onClick={() => setPerpTimeRange(range)}
-                            className={cn(
-                              'rounded px-2 py-1 transition-colors',
-                              perpTimeRange === range
-                                ? 'bg-foreground text-background'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            {range}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <PerpMarketHeader
+                      selectedPerp={selectedPerp}
+                      timeRange={perpTimeRange}
+                      onTimeRangeChange={setPerpTimeRange}
+                      variant="compact"
+                    />
                     <div className="min-h-0 flex-1 p-2">
                       <PerpPriceChart
                         data={perpHistory.map((p) => ({
@@ -2350,15 +2372,11 @@ export function MarketsTradingTerminal({
                   {predictionState?.scenario ?? '—'}
                 </span>
               </div>
-              {(predictionState?.endDate ??
-                predictionState?.resolutionDate) && (
+              {formatDate(predictionState?.endDate ?? predictionState?.resolutionDate) && (
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-muted-foreground">Ends</span>
                   <span className="font-mono text-foreground tabular-nums">
-                    {new Date(
-                      (predictionState?.endDate ??
-                        predictionState?.resolutionDate) as string
-                    ).toLocaleString()}
+                    {formatDate(predictionState?.endDate ?? predictionState?.resolutionDate)}
                   </span>
                 </div>
               )}
