@@ -38,7 +38,7 @@ const ALLOWED_IMAGE_DOMAINS = [
   'res.cloudinary.com',
   'babylon-storage.s3.amazonaws.com',
   'storage.googleapis.com',
-  'cdn.babylon.game',
+  'cdn.babylon.market',
 ];
 
 /**

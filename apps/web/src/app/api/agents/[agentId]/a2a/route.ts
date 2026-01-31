@@ -463,7 +463,9 @@ export async function POST(
 
     // Handle tasks/resubscribe with SSE response using SDK's resubscribe method
     if (body.method === 'tasks/resubscribe') {
-      const params = body.params as { id?: string; taskId?: string } | undefined;
+      const params = body.params as
+        | { id?: string; taskId?: string }
+        | undefined;
       const taskId = params?.id || params?.taskId;
 
       if (!taskId) {

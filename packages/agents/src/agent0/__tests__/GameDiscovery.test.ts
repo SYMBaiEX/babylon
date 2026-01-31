@@ -5,20 +5,21 @@
  */
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import type { SubgraphAgent } from '../SubgraphClient';
 
 // Mock SubgraphClient
 const mockSubgraphClient = {
-  getGamePlatforms: mock(async () => []),
-  getAgent: mock(async () => null),
+  getGamePlatforms: mock(async (): Promise<SubgraphAgent[]> => []),
+  getAgent: mock(async (): Promise<SubgraphAgent | null> => null),
 };
 
 // Mock IPFSPublisher
 const mockIpfsPublisher = {
   fetchMetadata: mock(async () => ({
     endpoints: {
-      a2a: 'https://babylon.game/a2a',
-      mcp: 'https://babylon.game/mcp',
-      api: 'https://babylon.game/api',
+      a2a: 'https://babylon.market/a2a',
+      mcp: 'https://babylon.market/mcp',
+      api: 'https://babylon.market/api',
     },
     capabilities: {
       markets: ['prediction'],
@@ -47,7 +48,7 @@ mock.module('../IPFSPublisher', () => ({
 const { GameDiscoveryService } = await import('../GameDiscovery');
 
 describe('GameDiscoveryService', () => {
-  let discovery: GameDiscoveryService;
+  let discovery: InstanceType<typeof GameDiscoveryService>;
 
   beforeEach(() => {
     // Reset mocks
@@ -85,21 +86,23 @@ describe('GameDiscoveryService', () => {
   test('discoverGames returns games from subgraph', async () => {
     mockSubgraphClient.getGamePlatforms.mockResolvedValue([
       {
+        id: 'agent-1',
         tokenId: 1,
         name: 'Babylon',
         type: 'game-platform',
         metadataCID: 'QmTestCID',
-        a2aEndpoint: 'https://babylon.game/a2a',
-        mcpEndpoint: 'https://babylon.game/mcp',
-        reputation: { trustScore: 85 },
+        walletAddress: '0x1234567890abcdef',
+        a2aEndpoint: 'https://babylon.market/a2a',
+        mcpEndpoint: 'https://babylon.market/mcp',
+        reputation: { totalBets: 100, winningBets: 85, trustScore: 85, accuracyScore: 85 },
       },
     ]);
 
     mockIpfsPublisher.fetchMetadata.mockResolvedValue({
       endpoints: {
-        a2a: 'https://babylon.game/a2a',
-        mcp: 'https://babylon.game/mcp',
-        api: 'https://babylon.game/api',
+        a2a: 'https://babylon.market/a2a',
+        mcp: 'https://babylon.market/mcp',
+        api: 'https://babylon.market/api',
       },
       capabilities: {
         markets: ['prediction', 'perpetuals'],
@@ -117,7 +120,7 @@ describe('GameDiscoveryService', () => {
     expect(games).toHaveLength(1);
     expect(games[0]?.name).toBe('Babylon');
     expect(games[0]?.tokenId).toBe(1);
-    expect(games[0]?.endpoints.a2a).toBe('https://babylon.game/a2a');
+    expect(games[0]?.endpoints.a2a).toBe('https://babylon.market/a2a');
     expect(games[0]?.capabilities.markets).toContain('prediction');
   });
 
@@ -139,19 +142,21 @@ describe('GameDiscoveryService', () => {
 
   test('getGameByTokenId returns game for valid token', async () => {
     mockSubgraphClient.getAgent.mockResolvedValue({
+      id: 'agent-1',
       tokenId: 1,
       name: 'Babylon',
       type: 'game-platform',
       metadataCID: 'QmTestCID',
-      a2aEndpoint: 'https://babylon.game/a2a',
-      mcpEndpoint: 'https://babylon.game/mcp',
+      walletAddress: '0x1234567890abcdef',
+      a2aEndpoint: 'https://babylon.market/a2a',
+      mcpEndpoint: 'https://babylon.market/mcp',
     });
 
     mockIpfsPublisher.fetchMetadata.mockResolvedValue({
       endpoints: {
-        a2a: 'https://babylon.game/a2a',
-        mcp: 'https://babylon.game/mcp',
-        api: 'https://babylon.game/api',
+        a2a: 'https://babylon.market/a2a',
+        mcp: 'https://babylon.market/mcp',
+        api: 'https://babylon.market/api',
       },
       capabilities: {
         markets: ['prediction'],
@@ -170,16 +175,20 @@ describe('GameDiscoveryService', () => {
   test('filters games by type', async () => {
     mockSubgraphClient.getGamePlatforms.mockResolvedValue([
       {
+        id: 'agent-1',
         tokenId: 1,
         name: 'Game 1',
         type: 'game-platform',
         metadataCID: 'QmCID1',
+        walletAddress: '0x1111111111111111',
       },
       {
+        id: 'agent-2',
         tokenId: 2,
         name: 'Game 2',
         type: 'trading-platform',
         metadataCID: 'QmCID2',
+        walletAddress: '0x2222222222222222',
       },
     ]);
 

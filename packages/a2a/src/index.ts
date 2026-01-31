@@ -14,7 +14,7 @@
  * import { A2AClient } from '@a2a-js/sdk/client';
  *
  * const client = new A2AClient({
- *   endpoint: 'https://babylon.game/api/a2a',
+ *   endpoint: 'https://babylon.market/api/a2a',
  *   agentCard: babylonAgentCard
  * });
  * ```

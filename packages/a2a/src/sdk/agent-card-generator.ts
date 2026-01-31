@@ -97,7 +97,7 @@ function createAgentCardObject(
 
     provider: {
       organization: 'Babylon',
-      url: 'https://babylon.game',
+      url: 'https://babylon.market',
     },
 
     iconUrl: profileImageUrl || `${BASE_URL}/logo.svg`,

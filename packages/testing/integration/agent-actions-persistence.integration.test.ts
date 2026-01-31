@@ -96,7 +96,7 @@ describe('Agent Actions Persistence Integration', () => {
           ],
           provider: {
             organization: 'Babylon',
-            url: 'https://babylon.game',
+            url: 'https://babylon.market',
           },
           iconUrl: `${baseUrl}/logo.svg`,
           version: '1.0.0',

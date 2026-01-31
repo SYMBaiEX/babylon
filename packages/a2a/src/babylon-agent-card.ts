@@ -31,7 +31,7 @@ export const babylonAgentCard: AgentCard = {
 
   provider: {
     organization: 'Babylon',
-    url: 'https://babylon.game',
+    url: 'https://babylon.market',
   },
 
   iconUrl: `${BASE_URL}/logo.svg`,

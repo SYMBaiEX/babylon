@@ -643,7 +643,7 @@ async function registerBabylonCrossChain() {
  type: 'game-platform',
  endpoints: {
  mcp: 'https://babylon.market/mcp',
- a2a: 'wss://babylon.game/ws/a2a',
+ a2a: 'wss://babylon.market/ws/a2a',
  api: 'https://babylon.market/api'
  },
  capabilities: {
@@ -666,7 +666,7 @@ async function registerBabylonCrossChain() {
  
  const baseTx = await baseRegistry.registerAgent(
  'Babylon Prediction Markets',
- 'wss://babylon.game/ws/a2a',
+ 'wss://babylon.market/ws/a2a',
  capabilitiesHash,
  agent0Result.metadataCID
  )
