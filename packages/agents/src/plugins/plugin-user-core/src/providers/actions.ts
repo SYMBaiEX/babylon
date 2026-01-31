@@ -53,6 +53,15 @@ function formatActionsWithParams(actions: Action[]): string {
 }
 
 /**
+ * Formats actions with only name and description (no parameters).
+ */
+function formatActionsWithoutParams(actions: Action[]): string {
+  return actions
+    .map((action) => `## ${action.name}\n${action.description}`)
+    .join('\n\n---\n\n');
+}
+
+/**
  * Coordinator Actions Provider
  *
  * Provides list of available actions that validate for the current message context.
@@ -88,6 +97,12 @@ export const coordinatorActionsProvider: Provider = {
         ? `# Available Actions\n\n${formatActionsWithParams(actionsData)}`
         : '';
 
+    // Actions with only descriptions (no parameters)
+    const actionsWithDescriptions =
+      actionsData.length > 0
+        ? `# Available Actions\n\n${formatActionsWithoutParams(actionsData)}`
+        : '';
+
     return {
       data: {
         actionsData,
@@ -95,6 +110,7 @@ export const coordinatorActionsProvider: Provider = {
       values: {
         actionNames,
         actionsWithParams,
+        actionsWithDescriptions,
         actionCount: actionsData.length,
       },
       text: actionsWithParams || 'No actions available.',

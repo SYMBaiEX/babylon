@@ -151,6 +151,10 @@ Babylon is a social prediction market platform. You help users understand it and
 
 ---
 
+{{actionsWithDescriptions}}
+
+---
+
 # Actions You Completed
 {{#if actionCount}}
 {{actionResults}}
@@ -479,15 +483,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
     // Use resultHolder as the single source of truth for action results
     // The callback in processActions captures the result; no fallback to runtime internals
-    const actionResult = resultHolder.result;
+    let actionResult = resultHolder.result;
 
     // Default to false if result is missing to avoid masking silent failures
     if (!actionResult) {
-      logger.warn(
-        `[Coordinator] Action ${action} completed without a result - treating as failure`,
-        { action, parameters: actionParams },
-        'CoordinatorChat'
-      );
+      const cachedState = (
+        runtime as unknown as { stateCache?: Map<string, unknown> }
+      ).stateCache?.get(`${elizaMessage.id}_action_results`) as
+        | {
+            values?: {
+              actionResults?: Array<{
+                success?: boolean;
+                text?: string;
+                values?: Record<string, unknown>;
+              }>;
+            };
+          }
+        | undefined;
+      const actionResultsFromCache = cachedState?.values?.actionResults || [];
+      actionResult =
+        actionResultsFromCache.length > 0
+          ? (actionResultsFromCache[0] ?? null)
+          : null;
     }
     const success = actionResult?.success ?? false;
 
