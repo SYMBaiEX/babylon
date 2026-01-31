@@ -268,9 +268,17 @@ export default function TeamChatPage() {
     [teamChat?.agents]
   );
 
-  // Close a right sidebar tab - pure updater, side effects handled by useEffect
+  // Close a right sidebar tab - auto-closes sidebar when last tab is closed
   const closeRightTab = useCallback((tabId: string) => {
-    setRightSidebarTabs((prev) => prev.filter((t) => t.id !== tabId));
+    setRightSidebarTabs((prev) => {
+      const newTabs = prev.filter((t) => t.id !== tabId);
+      // Close sidebar if this was the last tab
+      if (newTabs.length === 0) {
+        // Schedule to avoid state update during render
+        queueMicrotask(() => setRightSidebarOpen(false));
+      }
+      return newTabs;
+    });
   }, []);
 
   // Effect to sync activeRightTabId when tabs change (e.g., after closing)
@@ -283,11 +291,7 @@ export default function TeamChatPage() {
       const lastTab = rightSidebarTabs[rightSidebarTabs.length - 1];
       setActiveRightTabId(lastTab?.id ?? null);
     }
-    // Close sidebar if no tabs remain
-    if (rightSidebarTabs.length === 0 && rightSidebarOpen) {
-      setRightSidebarOpen(false);
-    }
-  }, [rightSidebarTabs, activeRightTabId, rightSidebarOpen]);
+  }, [rightSidebarTabs, activeRightTabId]);
 
   // Toggle right sidebar
   const toggleRightSidebar = useCallback(() => {
