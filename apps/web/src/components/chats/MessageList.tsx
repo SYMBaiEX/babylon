@@ -44,7 +44,7 @@ interface MessageListProps {
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   /** Callback when a message tag is clicked */
-  onTagClick?: (tag: MessageTag) => void;
+  onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
 
 export function MessageList({

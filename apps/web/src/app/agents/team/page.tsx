@@ -299,12 +299,14 @@ export default function TeamChatPage() {
   }, []);
 
   // Handle tag click from message bubble - opens panel in right sidebar
-  // Reuses existing tab if same type (and entityId for single-item views)
-  const handleTagClick = useCallback((tag: MessageTag) => {
-    // Compute the expected tab ID
+  // Uses messageId to create unique tabs for list views from different messages
+  const handleTagClick = useCallback((tag: MessageTag, messageId: string) => {
+    // Compute the tab ID
+    // - For single-item views (with entityId): share tab across messages (e.g., same market)
+    // - For list views (no entityId): unique per message to prevent overwrites
     const tabId = tag.entityId
       ? `${tag.type}-id-${tag.entityId}`
-      : `${tag.type}-list`;
+      : `${tag.type}-list-${messageId}`;
 
     setRightSidebarTabs((prev) => {
       // Check if a matching tab already exists
