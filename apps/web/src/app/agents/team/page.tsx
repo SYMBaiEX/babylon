@@ -789,9 +789,7 @@ export default function TeamChatPage() {
               }
 
               return (
-                <PanelErrorBoundary key={tab.id}>
-                  {content}
-                </PanelErrorBoundary>
+                <PanelErrorBoundary key={tab.id}>{content}</PanelErrorBoundary>
               );
             })}
         </RightSidebar>

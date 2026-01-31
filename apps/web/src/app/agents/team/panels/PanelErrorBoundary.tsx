@@ -45,7 +45,8 @@ export class PanelErrorBoundary extends Component<Props, State> {
               Unable to display panel
             </p>
             <p className="text-muted-foreground text-xs">
-              {this.state.error?.message || 'An error occurred while rendering this content.'}
+              {this.state.error?.message ||
+                'An error occurred while rendering this content.'}
             </p>
           </div>
           <button

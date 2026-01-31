@@ -216,7 +216,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: 'Rate limit exceeded. Please wait before sending another message.',
+        error:
+          'Rate limit exceeded. Please wait before sending another message.',
       },
       {
         status: 429,
