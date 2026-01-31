@@ -15,7 +15,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
-import { MemberTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group creation modal.
@@ -29,18 +28,20 @@ interface Member {
   type: 'user' | 'agent' | 'npc';
 }
 
-type SearchTab = 'users' | 'agents';
+type SearchTab = 'users' | 'npcs';
 
 /**
  * Create group modal component for creating new user groups.
  *
  * Provides a form interface for creating groups with name input and
- * member selection. Includes tabbed search for users and agents/NPCs.
- * Creates both group and associated chat on creation.
+ * member selection. Includes tabbed search for users (including user-created
+ * agents) and NPCs. Creates both group and associated chat on creation.
  *
  * Features:
  * - Group name input
- * - Tabbed search (Users / Agents & NPCs)
+ * - Tabbed search (Users / NPCs)
+ * - Users tab includes human users and user-created agents
+ * - NPCs tab includes only system NPCs
  * - Member selection with type badges
  * - Auto-generated group names
  * - Form validation
@@ -93,7 +94,7 @@ export function CreateGroupModal({
     }
   }, [isOpen]);
 
-  // Search for users or agents based on active tab
+  // Search for users or NPCs based on active tab
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
@@ -106,9 +107,11 @@ export function CreateGroupModal({
         const token = await getAccessToken();
 
         // Use different endpoint based on active tab
+        // Users tab includes human users + user-created agents
+        // NPCs tab only includes NPCs
         const endpoint =
           activeTab === 'users'
-            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}&includeAgents=true`
             : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
 
         const response = await fetch(endpoint, {
@@ -127,26 +130,34 @@ export function CreateGroupModal({
                     displayName: string | null;
                     username: string | null;
                     profileImageUrl: string | null;
+                    isAgent?: boolean;
                   }) => ({
-                    ...u,
-                    type: 'user' as const,
+                    id: u.id,
+                    displayName: u.displayName,
+                    username: u.username,
+                    profileImageUrl: u.profileImageUrl,
+                    // Distinguish between human users and user-created agents
+                    type: u.isAgent ? ('agent' as const) : ('user' as const),
                   })
                 )
-              : (data.agents || []).map(
-                  (a: {
-                    id: string;
-                    displayName: string | null;
-                    username: string | null;
-                    profileImageUrl: string | null;
-                    type: 'agent' | 'npc';
-                  }) => ({
-                    id: a.id,
-                    displayName: a.displayName,
-                    username: a.username,
-                    profileImageUrl: a.profileImageUrl,
-                    type: a.type,
-                  })
-                );
+              : // Filter to only include NPCs (not user-created agents)
+                (data.agents || [])
+                  .filter((a: { type: 'agent' | 'npc' }) => a.type === 'npc')
+                  .map(
+                    (a: {
+                      id: string;
+                      displayName: string | null;
+                      username: string | null;
+                      profileImageUrl: string | null;
+                      type: 'agent' | 'npc';
+                    }) => ({
+                      id: a.id,
+                      displayName: a.displayName,
+                      username: a.username,
+                      profileImageUrl: a.profileImageUrl,
+                      type: a.type,
+                    })
+                  );
           setSearchResults(results);
         } else {
           setSearchResults([]);
@@ -346,14 +357,15 @@ export function CreateGroupModal({
                       className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                     >
                       <Avatar
-                        imageUrl={member.profileImageUrl || undefined}
+                        id={member.id}
+                        src={member.profileImageUrl || undefined}
                         name={member.username || member.displayName || '?'}
+                        type={member.type === 'npc' ? 'actor' : 'user'}
                         size="sm"
                       />
                       <span className="text-sm">
                         {member.displayName || member.username || 'Unknown'}
                       </span>
-                      <MemberTypeBadge type={member.type} />
                       <button
                         onClick={() => handleRemoveMember(member.id)}
                         className="ml-1 text-muted-foreground hover:text-foreground"
@@ -385,16 +397,16 @@ export function CreateGroupModal({
                   Users
                 </button>
                 <button
-                  onClick={() => handleTabChange('agents')}
+                  onClick={() => handleTabChange('npcs')}
                   className={cn(
                     'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors',
-                    activeTab === 'agents'
+                    activeTab === 'npcs'
                       ? 'bg-background font-medium text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   <Bot className="h-4 w-4" />
-                  Agents & NPCs
+                  NPCs
                 </button>
               </div>
 
@@ -406,7 +418,7 @@ export function CreateGroupModal({
                   placeholder={
                     activeTab === 'users'
                       ? 'Search users by name...'
-                      : 'Search agents and NPCs...'
+                      : 'Search NPCs by name...'
                   }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -438,14 +450,15 @@ export function CreateGroupModal({
                       disabled={!!isSelected}
                     >
                       <Avatar
-                        imageUrl={member.profileImageUrl || undefined}
+                        id={member.id}
+                        src={member.profileImageUrl || undefined}
                         name={member.username || member.displayName || '?'}
+                        type={member.type === 'npc' ? 'actor' : 'user'}
                         size="sm"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center truncate font-medium text-sm">
+                        <div className="truncate font-medium text-sm">
                           {member.displayName || member.username || 'Unknown'}
-                          <MemberTypeBadge type={member.type} />
                         </div>
                         {member.username && (
                           <div className="truncate text-muted-foreground text-xs">
@@ -466,15 +479,14 @@ export function CreateGroupModal({
               searchResults.length === 0 &&
               !searching && (
                 <div className="py-4 text-center text-muted-foreground text-sm">
-                  No {activeTab === 'users' ? 'users' : 'agents or NPCs'} found
+                  No {activeTab === 'users' ? 'users' : 'NPCs'} found
                 </div>
               )}
 
             {!searchQuery && selectedMembers.length === 0 && (
               <div className="rounded-lg border border-border border-dashed bg-sidebar py-4 text-center text-muted-foreground text-sm">
                 <p>
-                  Search for{' '}
-                  {activeTab === 'users' ? 'users' : 'agents and NPCs'} to add
+                  Search for {activeTab === 'users' ? 'users' : 'NPCs'} to add
                   to your group
                 </p>
                 <p className="mt-1 text-xs">

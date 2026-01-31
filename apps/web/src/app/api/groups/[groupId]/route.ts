@@ -87,11 +87,14 @@ export const GET = withErrorHandling(
         updatedAt: group.updatedAt,
         members: memberUsers.map((u) => {
           const membership = members.find((m) => m.userId === u.id);
+          // Determine member type: NPC (isActor), Agent (isAgent), or User
+          const memberType = u.isActor ? 'npc' : u.isAgent ? 'agent' : 'user';
           return {
             id: u.id,
             displayName: u.displayName,
             username: u.username,
             profileImageUrl: u.profileImageUrl,
+            memberType,
             role: membership?.role ?? 'member',
             isAdmin:
               membership?.role === 'admin' || membership?.role === 'owner',
