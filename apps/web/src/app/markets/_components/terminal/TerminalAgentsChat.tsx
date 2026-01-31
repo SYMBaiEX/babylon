@@ -61,6 +61,7 @@ export function TerminalAgentsChat() {
         authenticated={authenticated}
         sseConnected={sseConnected}
         hideHeader
+        density="compact"
         loading={loading}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}

@@ -1807,13 +1807,14 @@ export function MarketsTradingTerminal({
             </div>
           ) : selected?.kind === 'prediction' ? (
             <div className="h-full overflow-auto">
-              {selectedPredictionPositions.length > 0 ? (
-                <PredictionPositionsList
-                  positions={selectedPredictionPositions}
-                  onPositionSold={async () => {
-                    invalidateUserPositions();
-                    invalidateWalletBalance();
-                    await Promise.all([
+	              {selectedPredictionPositions.length > 0 ? (
+	                <PredictionPositionsList
+	                  positions={selectedPredictionPositions}
+	                  density="compact"
+	                  onPositionSold={async () => {
+	                    invalidateUserPositions();
+	                    invalidateWalletBalance();
+	                    await Promise.all([
                       refreshPredictionPositions(),
                       refreshPerpPositions(),
                       refreshWalletBalance(),
@@ -1829,13 +1830,14 @@ export function MarketsTradingTerminal({
             </div>
           ) : (
             <div className="h-full overflow-auto">
-              {selectedPerpPositions.length > 0 ? (
-                <PerpPositionsList
-                  positions={selectedPerpPositions}
-                  onPositionClosed={async () => {
-                    invalidateUserPositions();
-                    invalidateWalletBalance();
-                    await Promise.all([
+	              {selectedPerpPositions.length > 0 ? (
+	                <PerpPositionsList
+	                  positions={selectedPerpPositions}
+	                  density="compact"
+	                  onPositionClosed={async () => {
+	                    invalidateUserPositions();
+	                    invalidateWalletBalance();
+	                    await Promise.all([
                       refreshPerpPositions(),
                       refreshPredictionPositions(),
                       refreshWalletBalance(),
@@ -1851,21 +1853,23 @@ export function MarketsTradingTerminal({
             </div>
           )
         ) : selected?.kind === 'prediction' ? (
-          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
-            <AssetTradesFeed
-              marketType="prediction"
-              assetId={selected.id}
-              containerRef={desktopTradesContainerRef}
-            />
-          </div>
-        ) : selectedPerp ? (
-          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
-            <AssetTradesFeed
-              marketType="perp"
-              assetId={selectedPerp.ticker}
-              containerRef={desktopTradesContainerRef}
-            />
-          </div>
+	          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
+	            <AssetTradesFeed
+	              marketType="prediction"
+	              assetId={selected.id}
+	              containerRef={desktopTradesContainerRef}
+	              density="compact"
+	            />
+	          </div>
+	        ) : selectedPerp ? (
+	          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
+	            <AssetTradesFeed
+	              marketType="perp"
+	              assetId={selectedPerp.ticker}
+	              containerRef={desktopTradesContainerRef}
+	              density="compact"
+	            />
+	          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
             Select a market to see trades.
@@ -2156,13 +2160,14 @@ export function MarketsTradingTerminal({
                       Log in to view positions.
                     </div>
                   ) : selected?.kind === 'prediction' ? (
-                    <div className="h-full overflow-auto overscroll-contain">
-                      <PredictionPositionsList
-                        positions={selectedPredictionPositions}
-                        onPositionSold={async () => {
-                          invalidateUserPositions();
-                          invalidateWalletBalance();
-                          await Promise.all([
+	                    <div className="h-full overflow-auto overscroll-contain">
+	                      <PredictionPositionsList
+	                        positions={selectedPredictionPositions}
+	                        density="compact"
+	                        onPositionSold={async () => {
+	                          invalidateUserPositions();
+	                          invalidateWalletBalance();
+	                          await Promise.all([
                             refreshPredictionPositions(),
                             refreshPerpPositions(),
                             refreshWalletBalance(),
@@ -2172,13 +2177,14 @@ export function MarketsTradingTerminal({
                       />
                     </div>
                   ) : (
-                    <div className="h-full overflow-auto overscroll-contain">
-                      <PerpPositionsList
-                        positions={selectedPerpPositions}
-                        onPositionClosed={async () => {
-                          invalidateUserPositions();
-                          invalidateWalletBalance();
-                          await Promise.all([
+	                    <div className="h-full overflow-auto overscroll-contain">
+	                      <PerpPositionsList
+	                        positions={selectedPerpPositions}
+	                        density="compact"
+	                        onPositionClosed={async () => {
+	                          invalidateUserPositions();
+	                          invalidateWalletBalance();
+	                          await Promise.all([
                             refreshPerpPositions(),
                             refreshPredictionPositions(),
                             refreshWalletBalance(),
@@ -2192,24 +2198,26 @@ export function MarketsTradingTerminal({
                   <div
                     ref={mobileTradesContainerRef}
                     className="h-full overflow-auto overscroll-contain"
-                  >
-                    <AssetTradesFeed
-                      marketType="prediction"
-                      assetId={selected.id}
-                      containerRef={mobileTradesContainerRef}
-                    />
-                  </div>
-                ) : selectedPerp ? (
+	                  >
+	                    <AssetTradesFeed
+	                      marketType="prediction"
+	                      assetId={selected.id}
+	                      containerRef={mobileTradesContainerRef}
+	                      density="compact"
+	                    />
+	                  </div>
+	                ) : selectedPerp ? (
                   <div
                     ref={mobileTradesContainerRef}
                     className="h-full overflow-auto overscroll-contain"
-                  >
-                    <AssetTradesFeed
-                      marketType="perp"
-                      assetId={selectedPerp.ticker}
-                      containerRef={mobileTradesContainerRef}
-                    />
-                  </div>
+	                  >
+	                    <AssetTradesFeed
+	                      marketType="perp"
+	                      assetId={selectedPerp.ticker}
+	                      containerRef={mobileTradesContainerRef}
+	                      density="compact"
+	                    />
+	                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                     Select a market to see trades.

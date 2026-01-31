@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageTag } from '@babylon/shared';
+import { cn, type MessageTag } from '@babylon/shared';
 import {
   Brain,
   MessageCircle,
@@ -31,7 +31,13 @@ interface ThinkingAgentInfo {
 }
 
 /** Typing indicator component - shows bouncing dots for users typing */
-function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
+function TypingIndicator({
+  typingUsers,
+  density,
+}: {
+  typingUsers: TypingUserInfo[];
+  density: 'default' | 'compact';
+}) {
   const first = typingUsers[0];
   const second = typingUsers[1];
 
@@ -45,7 +51,14 @@ function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
         : `${first.displayName} and ${typingUsers.length - 1} others are typing...`;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground text-sm">
+    <div
+      className={cn(
+        'flex items-center gap-2 text-muted-foreground',
+        density === 'compact'
+          ? 'px-3 py-1.5 text-sm md:text-xs'
+          : 'px-4 py-2 text-sm'
+      )}
+    >
       <span className="flex gap-1">
         <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
           •
@@ -68,17 +81,27 @@ function TypingIndicator({ typingUsers }: { typingUsers: TypingUserInfo[] }) {
  */
 function ThinkingIndicator({
   thinkingAgents,
+  density,
 }: {
   thinkingAgents: ThinkingAgentInfo[];
+  density: 'default' | 'compact';
 }) {
   if (thinkingAgents.length === 0) return null;
 
   return (
-    <div className="space-y-1 px-4 py-2">
+    <div
+      className={cn(
+        'space-y-1',
+        density === 'compact' ? 'px-3 py-1.5' : 'px-4 py-2'
+      )}
+    >
       {thinkingAgents.map((agent) => (
         <div
           key={agent.agentId}
-          className="flex items-center gap-2 text-blue-500 text-sm"
+          className={cn(
+            'flex items-center gap-2 text-blue-500',
+            density === 'compact' ? 'text-sm md:text-xs' : 'text-sm'
+          )}
         >
           <Brain className="h-4 w-4 animate-pulse" />
           <span className="font-medium">{agent.agentName}</span>
@@ -98,6 +121,7 @@ interface TeamChatViewProps {
   sseConnected: boolean;
   /** When embedding in another container that already has a header (e.g. terminal tabs). */
   hideHeader?: boolean;
+  density?: 'default' | 'compact';
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
@@ -141,6 +165,7 @@ export function TeamChatView({
   authenticated,
   sseConnected,
   hideHeader = false,
+  density = 'default',
   loading,
   isLoadingMore,
   hasMore,
@@ -162,6 +187,7 @@ export function TeamChatView({
   onToggleRightSidebar,
   onTagClick,
 }: TeamChatViewProps) {
+  const compact = density === 'compact';
   // Empty state when no chat selected
   if (!chatDetails) {
     return (
@@ -247,7 +273,10 @@ export function TeamChatView({
       {/* Messages - Scrollable */}
       <div
         data-chat-messages-container
-        className="relative min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-3"
+        className={cn(
+          'relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden',
+          compact ? 'space-y-2 px-3 py-2' : 'space-y-4 px-4 py-3'
+        )}
         onScroll={(e) => onScroll?.(e.currentTarget)}
       >
         <MessageList
@@ -260,6 +289,7 @@ export function TeamChatView({
           authenticated={authenticated}
           topSentinelRef={topSentinelRef}
           messagesEndRef={messagesEndRef}
+          density={density}
           onTagClick={onTagClick}
         />
       </div>
@@ -268,12 +298,12 @@ export function TeamChatView({
       <div className="shrink-0">
         {/* Thinking Indicator - shown when agents are processing complex queries */}
         {thinkingAgents.length > 0 && (
-          <ThinkingIndicator thinkingAgents={thinkingAgents} />
+          <ThinkingIndicator thinkingAgents={thinkingAgents} density={density} />
         )}
 
         {/* Typing Indicator - shown when users/agents are typing simple responses */}
         {typingUsers.length > 0 && (
-          <TypingIndicator typingUsers={typingUsers} />
+          <TypingIndicator typingUsers={typingUsers} density={density} />
         )}
 
         {/* Feedback Messages */}
@@ -282,7 +312,7 @@ export function TeamChatView({
         )}
 
         {/* Input Separator */}
-        <div className="px-4">
+        <div className={compact ? 'px-3' : 'px-4'}>
           <Separator />
         </div>
 
@@ -293,6 +323,7 @@ export function TeamChatView({
           onSend={onSendMessage}
           sending={sending}
           authenticated={authenticated}
+          density={density}
           placeholder="Ask the swarm...(Type @ to mention agents)"
           mentionableMembers={agents}
         />

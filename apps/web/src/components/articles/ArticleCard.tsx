@@ -28,15 +28,18 @@ const _ArticleCardPostSchema = z.object({
 export type ArticleCardProps = {
   post: z.infer<typeof _ArticleCardPostSchema>;
   className?: string;
+  density?: 'default' | 'compact';
   onClick?: () => void;
 };
 
 export const ArticleCard = memo(function ArticleCard({
   post,
   className,
+  density = 'default',
   onClick,
 }: ArticleCardProps) {
   const router = useRouter();
+  const compact = density === 'compact';
   const publishedDate = new Date(post.timestamp);
   const now = new Date();
   const diffMs = now.getTime() - publishedDate.getTime();
@@ -72,7 +75,7 @@ export const ArticleCard = memo(function ArticleCard({
   return (
     <article
       className={cn(
-        'px-4 py-4',
+        compact ? 'px-3 py-3' : 'px-4 py-4',
         'cursor-pointer transition-all duration-200 hover:bg-muted/30',
         'w-full overflow-hidden',
         'border-border border-b',
@@ -100,7 +103,12 @@ export const ArticleCard = memo(function ArticleCard({
         {/* Right column: All content */}
         <div className="min-w-0 flex-1">
           {/* Author row: Name · @handle · Category | timeAgo right-aligned */}
-          <div className="mb-2 flex items-center justify-between gap-1.5 text-[15px] leading-tight">
+          <div
+            className={cn(
+              'flex items-center justify-between gap-1.5 leading-tight',
+              compact ? 'mb-1 text-[15px] md:text-[13px]' : 'mb-2 text-[15px]'
+            )}
+          >
             <div className="flex min-w-0 items-center gap-1.5">
               <Link
                 href={`/profile/${post.authorId}`}
@@ -128,7 +136,10 @@ export const ArticleCard = memo(function ArticleCard({
               )}
             </div>
             <time
-              className="shrink-0 text-[15px] text-muted-foreground"
+              className={cn(
+                'shrink-0 text-muted-foreground',
+                compact ? 'text-[15px] md:text-[13px]' : 'text-[15px]'
+              )}
               title={publishedDate.toLocaleString()}
             >
               {timeAgo}
@@ -149,12 +160,24 @@ export const ArticleCard = memo(function ArticleCard({
           )}
 
           {/* Article Title */}
-          <h2 className="mb-1.5 line-clamp-2 font-bold text-foreground text-lg leading-tight">
+          <h2
+            className={cn(
+              'line-clamp-2 font-bold text-foreground leading-tight',
+              compact ? 'mb-1 text-lg md:text-base' : 'mb-1.5 text-lg'
+            )}
+          >
             {post.articleTitle || 'Untitled Article'}
           </h2>
 
           {/* Summary */}
-          <p className="mb-3 line-clamp-2 text-muted-foreground text-sm leading-relaxed">
+          <p
+            className={cn(
+              'line-clamp-2 text-muted-foreground',
+              compact
+                ? 'mb-2 text-sm leading-snug md:text-xs'
+                : 'mb-3 text-sm leading-relaxed'
+            )}
+          >
             {post.content}
           </p>
 
@@ -165,7 +188,14 @@ export const ArticleCard = memo(function ArticleCard({
                 {post.byline}
               </span>
             )}
-            <span className="text-[#0066FF] text-sm">Read Full Article →</span>
+            <span
+              className={cn(
+                'text-[#0066FF]',
+                compact ? 'text-sm md:text-xs' : 'text-sm'
+              )}
+            >
+              Read Full Article →
+            </span>
           </div>
         </div>
       </div>

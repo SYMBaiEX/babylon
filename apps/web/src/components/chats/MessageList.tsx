@@ -43,6 +43,7 @@ interface MessageListProps {
   authenticated: boolean;
   topSentinelRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  density?: 'default' | 'compact';
   /** Callback when a message tag is clicked */
   onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
@@ -57,6 +58,7 @@ export function MessageList({
   authenticated,
   topSentinelRef,
   messagesEndRef,
+  density = 'default',
   onTagClick,
 }: MessageListProps) {
   // Extract usernames from participants for @mention formatting
@@ -128,6 +130,7 @@ export function MessageList({
                 isCurrentUser={false}
                 validMentions={validMentions}
                 isThinking={msg.isThinking}
+                density={density}
                 onTagClick={onTagClick}
               />
             );
@@ -148,6 +151,7 @@ export function MessageList({
                 isCurrentUser={isCurrentUser}
                 validMentions={validMentions}
                 isThinking={msg.isThinking}
+                density={density}
                 onTagClick={onTagClick}
               />
             );

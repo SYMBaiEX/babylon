@@ -89,6 +89,7 @@ export interface PostCardProps {
     commentPreviews?: CommentPreviewData[];
   };
   className?: string;
+  density?: 'default' | 'compact';
   onCommentClick?: () => void;
   showInteractions?: boolean;
   showCommentPreviews?: boolean;
@@ -99,6 +100,7 @@ export interface PostCardProps {
 export const PostCard = memo(function PostCard({
   post,
   className,
+  density = 'default',
   onCommentClick,
   showInteractions = true,
   showCommentPreviews = true,
@@ -108,6 +110,8 @@ export const PostCard = memo(function PostCard({
   const router = useRouter();
   const { fontSize } = useFontSize();
   const { user } = useAuth();
+  const compact = density === 'compact';
+  const densityScale = compact ? 0.9 : 1;
 
   const postDate = new Date(post.timestamp);
   const now = new Date();
@@ -220,7 +224,7 @@ export const PostCard = memo(function PostCard({
     return (
       <article
         className={cn(
-          'px-4 py-3',
+          compact ? 'px-3 py-2' : 'px-4 py-3',
           'w-full overflow-hidden',
           'border-border border-b',
           className
@@ -236,7 +240,7 @@ export const PostCard = memo(function PostCard({
   return (
     <article
       className={cn(
-        'px-4 py-4',
+        compact ? 'px-3 py-3' : 'px-4 py-4',
         !isDetail &&
           'cursor-pointer transition-all duration-200 hover:bg-muted/30',
         'w-full overflow-hidden',
@@ -244,7 +248,7 @@ export const PostCard = memo(function PostCard({
         className
       )}
       style={{
-        fontSize: `${fontSize}rem`,
+        fontSize: `${fontSize * densityScale}rem`,
       }}
       onClick={!isDetail ? handleCardClick : undefined}
     >

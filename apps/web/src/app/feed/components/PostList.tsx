@@ -15,6 +15,7 @@ interface PostListProps {
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
+  density?: 'default' | 'compact';
 }
 
 /**
@@ -32,6 +33,7 @@ export const PostList = memo(function PostList({
   hasMore,
   loadingMore,
   onLoadMore,
+  density = 'default',
 }: PostListProps) {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -144,10 +146,11 @@ export const PostList = memo(function PostList({
         return (
           <div key={`post-wrapper-${post.id}-${i}`}>
             {postData.type === 'article' ? (
-              <ArticleCard post={postData} />
+              <ArticleCard post={postData} density={density} />
             ) : (
               <PostCard
                 post={postData}
+                density={density}
                 showCommentInputBar={false}
                 onCommentClick={() => {
                   router.push(`/post/${post.id}`);
