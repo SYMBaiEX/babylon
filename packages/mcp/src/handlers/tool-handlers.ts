@@ -6,15 +6,17 @@
  * This bypasses the need for Privy JWT tokens since MCP API key authentication
  * provides the userId directly.
  *
+ * PRODUCTION FEATURES:
+ * - Rate limiting: All trading/transfer operations check rate limits
+ * - Retry logic: Transient failures are retried with exponential backoff
+ * - Error logging: Failures are logged with context for debugging
+ * - Metrics tracking: Operation success/failure counts are tracked
+ * - Idempotency: Transfer operations support idempotency keys
+ *
  * ARCHITECTURE NOTES:
  * - Direct service calls eliminate HTTP overhead for internal operations
  * - Authorization is enforced at the handler level before service calls
  * - Transactions use row-level locking to prevent race conditions
- *
- * RATE LIMITING CONSIDERATION:
- * Direct service calls bypass any HTTP API rate limiting. If rate limiting
- * is required for MCP operations, it should be implemented at the MCP
- * handler layer (e.g., in the MCP server's tool dispatch logic).
  *
  * REFERRER FEES:
  * MCP tool responses report `referrerPaid: 0` because:
@@ -60,7 +62,13 @@ import {
   generateSnowflakeId,
   getAPIBaseUrl,
   logger,
+  retryIfRetryable,
 } from '@babylon/shared';
+import {
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  RateLimitError,
+} from '@babylon/api';
 
 /**
  * Safe fetch helper that validates response status and returns typed JSON.
@@ -109,6 +117,154 @@ async function safeFetchRequired<T>(
   if (result === null) {
     throw new Error('API returned empty response when data was expected');
   }
+  return result;
+}
+
+// ============================================================================
+// Production Operation Helpers
+// ============================================================================
+
+/**
+ * Metrics counter for MCP operations.
+ * Tracks success/failure counts for monitoring.
+ */
+const mcpMetrics = {
+  operations: new Map<string, { success: number; failure: number }>(),
+
+  record(operation: string, success: boolean): void {
+    const stats = this.operations.get(operation) ?? { success: 0, failure: 0 };
+    if (success) {
+      stats.success++;
+    } else {
+      stats.failure++;
+    }
+    this.operations.set(operation, stats);
+  },
+
+  getStats(): Record<string, { success: number; failure: number }> {
+    return Object.fromEntries(this.operations);
+  },
+};
+
+/**
+ * Execute a critical operation with retry, error logging, and metrics.
+ * Use for operations that should be retried on transient failures.
+ */
+async function executeWithRetry<T>(
+  operationName: string,
+  operation: () => Promise<T>,
+  context: { agentId: string; userId: string }
+): Promise<T> {
+  const startTime = Date.now();
+  try {
+    const result = await retryIfRetryable(operation, {
+      maxAttempts: 3,
+      initialDelayMs: 100,
+      maxDelayMs: 2000,
+      onRetry: (attempt, error, delayMs) => {
+        logger.warn(`${operationName} retry attempt ${attempt}`, {
+          agentId: context.agentId,
+          error: error.message,
+          delayMs,
+        }, 'MCP');
+      },
+    });
+    mcpMetrics.record(operationName, true);
+    logger.debug(`${operationName} completed`, {
+      agentId: context.agentId,
+      durationMs: Date.now() - startTime,
+    }, 'MCP');
+    return result;
+  } catch (error) {
+    mcpMetrics.record(operationName, false);
+    logger.error(`${operationName} failed`, {
+      agentId: context.agentId,
+      userId: context.userId,
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - startTime,
+    }, 'MCP');
+    throw error;
+  }
+}
+
+/**
+ * Check rate limit for an MCP operation.
+ * Throws RateLimitError if limit exceeded.
+ */
+async function checkMcpRateLimit(
+  userId: string,
+  operation:
+    | 'buy_prediction'
+    | 'sell_prediction'
+    | 'open_position'
+    | 'close_position'
+    | 'transfer'
+    | 'post'
+): Promise<void> {
+  const configMap: Record<string, (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]> = {
+    buy_prediction: RATE_LIMIT_CONFIGS.BUY_PREDICTION,
+    sell_prediction: RATE_LIMIT_CONFIGS.SELL_PREDICTION,
+    open_position: RATE_LIMIT_CONFIGS.OPEN_POSITION,
+    close_position: RATE_LIMIT_CONFIGS.CLOSE_POSITION,
+    transfer: RATE_LIMIT_CONFIGS.DEFAULT, // Use default for transfers
+    post: RATE_LIMIT_CONFIGS.CREATE_POST,
+  };
+  const config = configMap[operation];
+  if (!config) return;
+
+  const result = await checkRateLimitAsync(userId, config);
+  if (!result.allowed) {
+    throw new RateLimitError(
+      `Rate limit exceeded for ${operation}. Try again in ${result.retryAfter} seconds.`,
+      result.retryAfter
+    );
+  }
+}
+
+/**
+ * Idempotency key cache for preventing duplicate operations.
+ * Uses a simple in-memory map with TTL.
+ */
+const idempotencyCache = new Map<string, { result: unknown; expiresAt: number }>();
+
+/**
+ * Execute an operation with idempotency protection.
+ * If the same idempotencyKey is seen within TTL, returns cached result.
+ */
+async function executeWithIdempotency<T>(
+  idempotencyKey: string | undefined,
+  operation: () => Promise<T>,
+  ttlMs: number = 60000 // 1 minute default
+): Promise<T> {
+  // If no idempotency key, just execute
+  if (!idempotencyKey) {
+    return operation();
+  }
+
+  // Check cache
+  const cached = idempotencyCache.get(idempotencyKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    logger.debug('Idempotency cache hit', { idempotencyKey }, 'MCP');
+    return cached.result as T;
+  }
+
+  // Execute and cache
+  const result = await operation();
+  idempotencyCache.set(idempotencyKey, {
+    result,
+    expiresAt: Date.now() + ttlMs,
+  });
+
+  // Cleanup expired entries periodically
+  if (idempotencyCache.size > 1000) {
+    const now = Date.now();
+    for (const [key, value] of idempotencyCache) {
+      if (value.expiresAt < now) {
+        idempotencyCache.delete(key);
+      }
+    }
+  }
+
   return result;
 }
 
@@ -578,13 +734,17 @@ export async function executePlaceBet(
   agent: AuthenticatedAgent,
   args: PlaceBetArgs
 ): Promise<PlaceBetResult> {
-  logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP');
+  // Rate limit check
+  await checkMcpRateLimit(agent.userId, 'buy_prediction');
 
-  // Validate and convert uppercase side to lowercase for service
-  const side = validatePredictionSide(args.side);
+  return executeWithRetry(
+    'place_bet',
+    async () => {
+      // Validate and convert uppercase side to lowercase for service
+      const side = validatePredictionSide(args.side);
 
-  const service = buildPredictionService(args.marketId);
-  const result = await service.buy({
+      const service = buildPredictionService(args.marketId);
+      const result = await service.buy({
     userId: agent.userId,
     marketId: args.marketId,
     side,
@@ -602,13 +762,16 @@ export async function executePlaceBet(
       avgPrice: result.avgPrice,
       totalCost: result.totalCost ?? 0,
     },
-    market: result.market,
-    fee: {
-      amount: result.feePaid,
-      referrerPaid: 0,
+      market: result.market,
+      fee: {
+        amount: result.feePaid,
+        referrerPaid: 0,
+      },
+      newBalance: balance.balance,
+    };
     },
-    newBalance: balance.balance,
-  };
+    { agentId: agent.agentId, userId: agent.userId }
+  );
 }
 
 /**
@@ -693,42 +856,46 @@ export async function executeClosePosition(
   agent: AuthenticatedAgent,
   args: ClosePositionArgs
 ): Promise<ClosePositionResult> {
-  logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
+  await checkMcpRateLimit(agent.userId, 'close_position');
 
-  // Note: positionId validation is handled by Zod schema before this handler
+  return executeWithRetry(
+    'close_position',
+    async () => {
+      const service = buildPerpService();
+      const result = await service.closePosition({
+        userId: agent.userId,
+        positionId: args.positionId,
+      });
 
-  const service = buildPerpService();
-  const result = await service.closePosition({
-    userId: agent.userId,
-    positionId: args.positionId,
-  });
+      const { grossSettlement, netSettlement } = calculateSettlement({
+        marginPaid: result.marginPaid,
+        realizedPnL: result.realizedPnL,
+        feePaid: result.feePaid,
+      });
 
-  const { grossSettlement, netSettlement } = calculateSettlement({
-    marginPaid: result.marginPaid,
-    realizedPnL: result.realizedPnL,
-    feePaid: result.feePaid,
-  });
-
-  return {
-    position: {
-      positionId: args.positionId,
-      ticker: result.ticker,
-      side: resolvePerpSide(result.side),
-      size: result.size,
-      entryPrice: result.entryPrice ?? 0,
-      exitPrice: result.exitPrice ?? 0,
+      return {
+        position: {
+          positionId: args.positionId,
+          ticker: result.ticker,
+          side: resolvePerpSide(result.side),
+          size: result.size,
+          entryPrice: result.entryPrice ?? 0,
+          exitPrice: result.exitPrice ?? 0,
+        },
+        grossSettlement,
+        netSettlement,
+        marginReturned: result.marginPaid ?? 0,
+        pnl: result.realizedPnL ?? 0,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        wasLiquidated: false,
+        newBalance: result.balance ?? 0,
+      };
     },
-    grossSettlement,
-    netSettlement,
-    marginReturned: result.marginPaid ?? 0,
-    pnl: result.realizedPnL ?? 0,
-    fee: {
-      amount: result.feePaid,
-      referrerPaid: 0,
-    },
-    wasLiquidated: false,
-    newBalance: result.balance ?? 0,
-  };
+    { agentId: agent.agentId, userId: agent.userId }
+  );
 }
 
 /**
@@ -812,37 +979,42 @@ export async function executeBuyShares(
   agent: AuthenticatedAgent,
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
-  logger.info(`Agent ${agent.agentId} buying shares:`, args, 'MCP');
+  await checkMcpRateLimit(agent.userId, 'buy_prediction');
 
-  // Validate and convert uppercase outcome to lowercase for service
-  const side = validatePredictionSide(args.outcome);
+  return executeWithRetry(
+    'buy_shares',
+    async () => {
+      const side = validatePredictionSide(args.outcome);
 
-  const service = buildPredictionService(args.marketId);
-  const result = await service.buy({
-    userId: agent.userId,
-    marketId: args.marketId,
-    side,
-    amount: args.amount,
-  });
+      const service = buildPredictionService(args.marketId);
+      const result = await service.buy({
+        userId: agent.userId,
+        marketId: args.marketId,
+        side,
+        amount: args.amount,
+      });
 
-  const balance = await WalletService.getBalance(agent.userId);
+      const balance = await WalletService.getBalance(agent.userId);
 
-  return {
-    position: {
-      id: result.positionId,
-      marketId: args.marketId,
-      side: PREDICTION_SIDE_MAP[side],
-      shares: result.shares,
-      avgPrice: result.avgPrice,
-      totalCost: result.totalCost ?? 0,
+      return {
+        position: {
+          id: result.positionId,
+          marketId: args.marketId,
+          side: PREDICTION_SIDE_MAP[side],
+          shares: result.shares,
+          avgPrice: result.avgPrice,
+          totalCost: result.totalCost ?? 0,
+        },
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: balance.balance,
+      };
     },
-    market: result.market,
-    fee: {
-      amount: result.feePaid,
-      referrerPaid: 0,
-    },
-    newBalance: balance.balance,
-  };
+    { agentId: agent.agentId, userId: agent.userId }
+  );
 }
 
 /**
@@ -852,43 +1024,49 @@ export async function executeSellShares(
   agent: AuthenticatedAgent,
   args: SellSharesArgs
 ): Promise<SellSharesResult> {
-  logger.info(`Agent ${agent.agentId} selling shares:`, args, 'MCP');
+  await checkMcpRateLimit(agent.userId, 'sell_prediction');
 
-  const position = await db.position.findUnique({
-    where: { id: args.positionId },
-  });
-  if (!position || position.userId !== agent.userId) {
-    throw new Error('Position not found or access denied');
-  }
-  if (!position.marketId) {
-    throw new Error('Position has no associated market');
-  }
+  return executeWithRetry(
+    'sell_shares',
+    async () => {
+      const position = await db.position.findUnique({
+        where: { id: args.positionId },
+      });
+      if (!position || position.userId !== agent.userId) {
+        throw new Error('Position not found or access denied');
+      }
+      if (!position.marketId) {
+        throw new Error('Position has no associated market');
+      }
 
-  const service = buildPredictionService(position.marketId);
-  const result = await service.sell({
-    userId: agent.userId,
-    marketId: position.marketId,
-    shares: args.shares,
-    positionId: args.positionId,
-  });
+      const service = buildPredictionService(position.marketId);
+      const result = await service.sell({
+        userId: agent.userId,
+        marketId: position.marketId,
+        shares: args.shares,
+        positionId: args.positionId,
+      });
 
-  const balance = await WalletService.getBalance(agent.userId);
+      const balance = await WalletService.getBalance(agent.userId);
 
-  return {
-    sharesSold: args.shares,
-    grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
-    netProceeds: result.netProceeds ?? 0,
-    pnl: result.pnl ?? 0,
-    market: result.market,
-    fee: {
-      amount: result.feePaid,
-      referrerPaid: 0,
+      return {
+        sharesSold: args.shares,
+        grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
+        netProceeds: result.netProceeds ?? 0,
+        pnl: result.pnl ?? 0,
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        remainingShares: result.remainingShares ?? 0,
+        positionClosed: result.positionClosed ?? false,
+        newBalance: balance.balance,
+        positionId: result.positionId,
+      };
     },
-    remainingShares: result.remainingShares ?? 0,
-    positionClosed: result.positionClosed ?? false,
-    newBalance: balance.balance,
-    positionId: result.positionId,
-  };
+    { agentId: agent.agentId, userId: agent.userId }
+  );
 }
 
 /**
@@ -898,40 +1076,42 @@ export async function executeOpenPosition(
   agent: AuthenticatedAgent,
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
-  logger.info(`Agent ${agent.agentId} opening perp position:`, args, 'MCP');
+  await checkMcpRateLimit(agent.userId, 'open_position');
 
-  // Note: Input validation (ticker, amount, leverage bounds) is handled by
-  // Zod schema in tool-args-validation.ts before this handler is called.
-  // Market-specific leverage limits are enforced by PerpMarketService.
+  return executeWithRetry(
+    'open_position',
+    async () => {
+      // Convert side to lowercase for service layer
+      const side = validatePerpSide(args.side);
 
-  // Convert side to lowercase for service layer
-  const side = validatePerpSide(args.side);
+      const service = buildPerpService();
+      const result = await service.openPosition({
+        userId: agent.userId,
+        ticker: args.ticker,
+        side,
+        size: args.amount,
+        leverage: args.leverage,
+      });
 
-  const service = buildPerpService();
-  const result = await service.openPosition({
-    userId: agent.userId,
-    ticker: args.ticker,
-    side,
-    size: args.amount,
-    leverage: args.leverage,
-  });
-
-  return {
-    position: {
-      positionId: result.positionId,
-      ticker: result.ticker,
-      side: resolvePerpSide(result.side),
-      size: result.size,
-      leverage: result.leverage,
-      entryPrice: result.entryPrice ?? 0,
+      return {
+        position: {
+          positionId: result.positionId,
+          ticker: result.ticker,
+          side: resolvePerpSide(result.side),
+          size: result.size,
+          leverage: result.leverage,
+          entryPrice: result.entryPrice ?? 0,
+        },
+        marginPaid: result.marginPaid ?? 0,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: result.balance ?? 0,
+      };
     },
-    marginPaid: result.marginPaid ?? 0,
-    fee: {
-      amount: result.feePaid,
-      referrerPaid: 0,
-    },
-    newBalance: result.balance ?? 0,
-  };
+    { agentId: agent.agentId, userId: agent.userId }
+  );
 }
 
 /**
@@ -2970,125 +3150,138 @@ export async function executeGetFavoritePosts(
 
 /**
  * Execute transfer_points tool
+ *
+ * Production features:
+ * - Rate limiting to prevent abuse
+ * - Idempotency protection against duplicate requests
+ * - Retry with exponential backoff for transient failures
+ * - Error logging for debugging
+ * - Metrics tracking for monitoring
  */
 export async function executeTransferPoints(
   agent: AuthenticatedAgent,
-  args: TransferPointsArgs
+  args: TransferPointsArgs & { idempotencyKey?: string }
 ): Promise<TransferPointsResult> {
-  logger.info(`Agent ${agent.agentId} transferring points:`, args, 'MCP');
+  // Rate limit check
+  await checkMcpRateLimit(agent.userId, 'transfer');
 
   const senderId = agent.userId;
-  const { recipientId, amount, message } = args;
-
-  // Note: Input validation (recipientId, amount > 0, integer) is handled by
-  // Zod schema in tool-args-validation.ts before this handler is called.
+  const { recipientId, amount, message, idempotencyKey } = args;
 
   // Business logic: Prevent self-transfers (fast check before any DB queries)
   if (senderId === recipientId) {
     throw new Error('Cannot send points to yourself');
   }
 
-  // Generate transaction IDs before the transaction
-  const senderTxId = await generateSnowflakeId();
-  const recipientTxId = await generateSnowflakeId();
+  // Execute with idempotency and retry protection
+  return executeWithIdempotency(idempotencyKey, async () => {
+    return executeWithRetry(
+      'transfer_points',
+      async () => {
+        // Generate transaction IDs before the transaction
+        const senderTxId = await generateSnowflakeId();
+        const recipientTxId = await generateSnowflakeId();
 
-  // Perform the entire transfer in a single transaction
-  // This reduces DB round trips from 4 queries to 2 queries
-  await db.$transaction(async (tx) => {
-    // Fetch both sender and recipient inside transaction for consistency
-    const [sender, recipient] = await Promise.all([
-      tx.user.findUnique({
-        where: { id: senderId },
-        select: {
-          id: true,
-          reputationPoints: true,
-          displayName: true,
-          username: true,
-        },
-      }),
-      tx.user.findUnique({
-        where: { id: recipientId },
-        select: {
-          id: true,
-          reputationPoints: true,
-          displayName: true,
-          username: true,
-        },
-      }),
-    ]);
+        // Perform the entire transfer in a single transaction
+        await db.$transaction(async (tx) => {
+          // Fetch both sender and recipient inside transaction for consistency
+          const [sender, recipient] = await Promise.all([
+            tx.user.findUnique({
+              where: { id: senderId },
+              select: {
+                id: true,
+                reputationPoints: true,
+                displayName: true,
+                username: true,
+              },
+            }),
+            tx.user.findUnique({
+              where: { id: recipientId },
+              select: {
+                id: true,
+                reputationPoints: true,
+                displayName: true,
+                username: true,
+              },
+            }),
+          ]);
 
-    if (!sender) {
-      throw new Error('Sender not found');
-    }
-    if (!recipient) {
-      throw new Error('Recipient not found');
-    }
+          if (!sender) {
+            throw new Error('Sender not found');
+          }
+          if (!recipient) {
+            throw new Error('Recipient not found');
+          }
 
-    // Check balance inside transaction
-    if (sender.reputationPoints < amount) {
-      throw new Error(
-        `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
-      );
-    }
+          // Check balance inside transaction
+          if (sender.reputationPoints < amount) {
+            throw new Error(
+              `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
+            );
+          }
 
-    const senderPointsBefore = sender.reputationPoints;
-    const recipientPointsBefore = recipient.reputationPoints;
+          const senderPointsBefore = sender.reputationPoints;
+          const recipientPointsBefore = recipient.reputationPoints;
 
-    // Deduct from sender using atomic decrement
-    const updatedSender = await tx.user.update({
-      where: { id: senderId },
-      data: {
-        reputationPoints: { decrement: amount },
-      },
-    });
+          // Deduct from sender using atomic decrement
+          const updatedSender = await tx.user.update({
+            where: { id: senderId },
+            data: {
+              reputationPoints: { decrement: amount },
+            },
+          });
 
-    // Add to recipient using atomic increment
-    const updatedRecipient = await tx.user.update({
-      where: { id: recipientId },
-      data: { reputationPoints: { increment: amount } },
-    });
+          // Add to recipient using atomic increment
+          const updatedRecipient = await tx.user.update({
+            where: { id: recipientId },
+            data: { reputationPoints: { increment: amount } },
+          });
 
-    // Create transaction record for sender (negative)
-    await tx.pointsTransaction.create({
-      data: {
-        id: senderTxId,
-        userId: senderId,
-        amount: -amount,
-        pointsBefore: senderPointsBefore,
-        pointsAfter: updatedSender.reputationPoints,
-        reason: 'transfer_sent',
-        metadata: JSON.stringify({
+          // Create transaction record for sender (negative)
+          await tx.pointsTransaction.create({
+            data: {
+              id: senderTxId,
+              userId: senderId,
+              amount: -amount,
+              pointsBefore: senderPointsBefore,
+              pointsAfter: updatedSender.reputationPoints,
+              reason: 'transfer_sent',
+              metadata: JSON.stringify({
+                recipientId,
+                recipientName: recipient.displayName || recipient.username,
+                message,
+              }),
+            },
+          });
+
+          // Create transaction record for recipient (positive)
+          await tx.pointsTransaction.create({
+            data: {
+              id: recipientTxId,
+              userId: recipientId,
+              amount: amount,
+              pointsBefore: recipientPointsBefore,
+              pointsAfter: updatedRecipient.reputationPoints,
+              reason: 'transfer_received',
+              metadata: JSON.stringify({
+                senderId,
+                senderName: sender.displayName || sender.username,
+                message,
+              }),
+            },
+          });
+        });
+
+        return {
+          success: true,
+          transactionId: senderTxId,
+          amount,
           recipientId,
-          recipientName: recipient.displayName || recipient.username,
-          message,
-        }),
+        };
       },
-    });
-
-    // Create transaction record for recipient (positive)
-    await tx.pointsTransaction.create({
-      data: {
-        id: recipientTxId,
-        userId: recipientId,
-        amount: amount,
-        pointsBefore: recipientPointsBefore,
-        pointsAfter: updatedRecipient.reputationPoints,
-        reason: 'transfer_received',
-        metadata: JSON.stringify({
-          senderId,
-          senderName: sender.displayName || sender.username,
-          message,
-        }),
-      },
-    });
+      { agentId: agent.agentId, userId: agent.userId }
+    );
   });
-
-  return {
-    success: true,
-    transactionId: senderTxId,
-    amount,
-    recipientId,
-  };
 }
 
 // ============================================================================
