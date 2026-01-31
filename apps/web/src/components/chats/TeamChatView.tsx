@@ -125,7 +125,7 @@ interface TeamChatViewProps {
   /** Callback to toggle right sidebar */
   onToggleRightSidebar?: () => void;
   /** Callback when a message tag is clicked */
-  onTagClick?: (tag: MessageTag) => void;
+  onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
 
 /**

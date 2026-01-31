@@ -56,7 +56,7 @@ interface MessageBubbleProps {
   /** Whether this message is showing "Thinking..." placeholder state */
   isThinking?: boolean;
   /** Callback when a tag is clicked - opens sidebar with tag data */
-  onTagClick?: (tag: MessageTag) => void;
+  onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
 
 export function MessageBubble({
@@ -176,7 +176,7 @@ export function MessageBubble({
                       <button
                         key={`${tag.type}-${tag.entityId ?? i}`}
                         type="button"
-                        onClick={() => onTagClick?.(tag)}
+                        onClick={() => onTagClick?.(tag, message.id)}
                         className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
                       >
                         {IconComponent && (
