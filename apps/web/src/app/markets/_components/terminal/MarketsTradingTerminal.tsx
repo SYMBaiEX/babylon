@@ -1222,15 +1222,15 @@ export function MarketsTradingTerminal({
           </div>
         ) : (
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-background/70 text-muted-foreground backdrop-blur-md">
+            <thead className="sr-only">
               <tr className="border-white/5 border-b">
-                <th className="w-10 px-3 py-2" />
+                <th className="w-10 px-3 py-2">Favorite</th>
                 <th className="px-2 py-2">Market</th>
                 <th className="px-2 py-2 text-right">Value</th>
                 <th className="px-3 py-2 text-right">24h</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="border-white/5 border-t">
               {rows.map((row) => {
                 const active =
                   selected?.kind === row.key.kind &&
