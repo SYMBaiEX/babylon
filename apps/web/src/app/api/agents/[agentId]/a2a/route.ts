@@ -80,6 +80,7 @@ import {
   generateAgentCardSync,
   type JsonRpcRequest,
   type ListTasksParams,
+  PersistentTaskStore,
   RateLimiter,
 } from '@babylon/a2a';
 import { getAgentConfig } from '@babylon/agents';
@@ -109,7 +110,8 @@ async function getAgentJsonRpcHandler(
 ): Promise<JsonRpcTransportHandler> {
   if (!agentJsonRpcHandlers.has(agentId)) {
     if (!agentRequestHandlers.has(agentId)) {
-      const taskStore = new ExtendedTaskStore();
+      // Use PersistentTaskStore for Redis-backed persistence across instances
+      const taskStore = new PersistentTaskStore();
       // Create executor scoped to this agent
       const executor = new BabylonAgentExecutor();
       const eventBusManager = new DefaultExecutionEventBusManager();
@@ -343,6 +345,222 @@ export async function POST(
         result: {
           tasks: tasks.tasks,
           nextPageToken: tasks.nextPageToken,
+        },
+      });
+    }
+
+    // Handle tasks/get manually - SDK expects params.id but clients may send params.taskId
+    if (body.method === 'tasks/get') {
+      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+        requestHandler: {
+          taskStore: ExtendedTaskStore;
+        };
+      };
+      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+
+      const params = body.params as
+        | { id?: string; taskId?: string }
+        | undefined;
+      const taskId = params?.id || params?.taskId;
+
+      if (!taskId) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: taskId or id is required',
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      const task = await taskStore.load(taskId);
+
+      if (!task) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: `Task not found: ${taskId}`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: task,
+      });
+    }
+
+    // Handle tasks/cancel manually - SDK expects params.id but clients may send params.taskId
+    if (body.method === 'tasks/cancel') {
+      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+        requestHandler: {
+          taskStore: ExtendedTaskStore;
+        };
+      };
+      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+
+      const params = body.params as
+        | { id?: string; taskId?: string }
+        | undefined;
+      const taskId = params?.id || params?.taskId;
+
+      if (!taskId) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: taskId or id is required',
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      const task = await taskStore.load(taskId);
+
+      if (!task) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: `Task not found: ${taskId}`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      // Update task status to canceled
+      const canceledTask = {
+        ...task,
+        status: {
+          state: 'canceled' as const,
+          timestamp: new Date().toISOString(),
+          message: 'Task canceled by user',
+        },
+      };
+      await taskStore.save(canceledTask);
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: canceledTask,
+      });
+    }
+
+    // Handle tasks/resubscribe with SSE response
+    if (body.method === 'tasks/resubscribe') {
+      const params = body.params as
+        | { id?: string; taskId?: string }
+        | undefined;
+      const taskId = params?.id || params?.taskId;
+
+      if (!taskId) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: taskId or id is required',
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+        requestHandler: {
+          taskStore: ExtendedTaskStore;
+        };
+      };
+      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+
+      const task = await taskStore.load(taskId);
+
+      if (!task) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: `Task not found: ${taskId}`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      // Return SSE stream with current task state
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          // Send current task status
+          controller.enqueue(
+            encoder.encode(
+              `event: task-status\ndata: ${JSON.stringify({
+                taskId: task.id,
+                contextId: task.contextId,
+                status: task.status,
+              })}\n\n`
+            )
+          );
+
+          // If task has artifacts, send them
+          if (task.artifacts && task.artifacts.length > 0) {
+            for (const artifact of task.artifacts) {
+              controller.enqueue(
+                encoder.encode(
+                  `event: task-artifact\ndata: ${JSON.stringify({
+                    taskId: task.id,
+                    artifact,
+                  })}\n\n`
+                )
+              );
+            }
+          }
+
+          // If task is complete, send final event
+          if (['completed', 'failed', 'canceled'].includes(task.status.state)) {
+            controller.enqueue(
+              encoder.encode(
+                `event: task-status\ndata: ${JSON.stringify({
+                  taskId: task.id,
+                  status: task.status,
+                  final: true,
+                })}\n\n`
+              )
+            );
+          }
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
         },
       });
     }

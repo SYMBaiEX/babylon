@@ -81,16 +81,17 @@ import {
   type AuthResult,
   BabylonAgentExecutor,
   babylonAgentCard,
-  ExtendedTaskStore,
   getServerApiKey,
+  PersistentTaskStore,
   validateApiKeyAsync,
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 
-// Initialize A2A protocol components
-const taskStore = new ExtendedTaskStore();
+// Initialize A2A protocol components with Redis-backed persistence
+const taskStore = new PersistentTaskStore();
 const executor = new BabylonAgentExecutor();
 const eventBusManager = new DefaultExecutionEventBusManager();
 const requestHandler = new DefaultRequestHandler(
@@ -148,6 +149,140 @@ async function checkApiKey(request: NextRequest): Promise<{
   }
 
   return { authResult };
+}
+
+/**
+ * Handle message/stream with Server-Sent Events response
+ *
+ * Creates a task, executes it, and streams status updates via SSE.
+ */
+async function handleMessageStream(
+  body: Record<string, unknown>,
+  authResult: AuthResult | undefined
+): Promise<Response> {
+  const encoder = new TextEncoder();
+  const taskId = uuidv4();
+  const contextId = authResult?.userId || 'anonymous';
+
+  // Extract message from params
+  const params = body.params as { message?: { parts?: unknown[] } } | undefined;
+  const message = params?.message;
+
+  if (!message) {
+    return new Response(
+      encoder.encode(
+        `event: error\ndata: ${JSON.stringify({ error: 'message is required' })}\n\n`
+      ),
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      }
+    );
+  }
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Send task submission event
+      controller.enqueue(
+        encoder.encode(
+          `event: task-status\ndata: ${JSON.stringify({
+            taskId,
+            contextId,
+            status: { state: 'submitted', timestamp: new Date().toISOString() },
+          })}\n\n`
+        )
+      );
+
+      try {
+        // Create the event bus for this execution
+        const eventBus = eventBusManager.createEventBus();
+
+        // Subscribe to events
+        eventBus.subscribe((event) => {
+          if ('status' in event) {
+            controller.enqueue(
+              encoder.encode(
+                `event: task-status\ndata: ${JSON.stringify({
+                  taskId: event.taskId,
+                  status: event.status,
+                })}\n\n`
+              )
+            );
+          } else if ('artifact' in event) {
+            controller.enqueue(
+              encoder.encode(
+                `event: task-artifact\ndata: ${JSON.stringify({
+                  taskId: event.taskId,
+                  artifact: event.artifact,
+                })}\n\n`
+              )
+            );
+          }
+        });
+
+        // Execute the operation
+        await executor.execute(
+          {
+            task: {
+              id: taskId,
+              contextId,
+              status: {
+                state: 'submitted',
+                timestamp: new Date().toISOString(),
+              },
+            },
+            message: message as { parts?: unknown[] },
+            isCancelled: () => false,
+          },
+          eventBus
+        );
+
+        // Send completion event
+        controller.enqueue(
+          encoder.encode(
+            `event: task-status\ndata: ${JSON.stringify({
+              taskId,
+              status: {
+                state: 'completed',
+                timestamp: new Date().toISOString(),
+              },
+              final: true,
+            })}\n\n`
+          )
+        );
+      } catch (error) {
+        // Send error event
+        controller.enqueue(
+          encoder.encode(
+            `event: task-status\ndata: ${JSON.stringify({
+              taskId,
+              status: {
+                state: 'failed',
+                timestamp: new Date().toISOString(),
+                message:
+                  error instanceof Error ? error.message : 'Unknown error',
+              },
+              final: true,
+            })}\n\n`
+          )
+        );
+      }
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
 
 /**
@@ -272,6 +407,11 @@ export async function POST(request: NextRequest) {
         operation: body.params?.message?.parts?.[0]?.data?.operation,
       });
     }
+  }
+
+  // Handle message/stream with SSE response
+  if (body.method === 'message/stream') {
+    return handleMessageStream(body, authResult);
   }
 
   // Use the JSON-RPC transport handler
