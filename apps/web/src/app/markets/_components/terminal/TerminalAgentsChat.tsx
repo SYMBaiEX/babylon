@@ -9,6 +9,7 @@ export function TerminalAgentsChat() {
   const {
     teamChat,
     chatDetails,
+    loading,
     sending,
     error,
     sseConnected,
@@ -63,7 +64,7 @@ export function TerminalAgentsChat() {
         authenticated={authenticated}
         sseConnected={sseConnected}
         hideHeader
-        loading={false}
+        loading={loading}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         messageInput={messageInput}

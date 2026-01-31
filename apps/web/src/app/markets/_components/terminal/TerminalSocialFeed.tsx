@@ -1,7 +1,13 @@
 'use client';
 
 import { cn, type FeedPost } from '@babylon/shared';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { PostList } from '@/app/feed/components/PostList';
 import { useFeedPosts } from '@/app/feed/hooks/useFeedPosts';
 import { FeedSkeleton } from '@/components/shared/Skeleton';
@@ -43,8 +49,12 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
   } = useFeedPosts({ enabled: !tagMode });
 
   useEffect(() => {
+    const controller = new AbortController();
     const loadActorNames = async () => {
-      const response = await fetch('/api/actors');
+      const response = await fetch('/api/actors', {
+        signal: controller.signal,
+      }).catch(() => null);
+      if (!response) return;
       if (!response.ok) return;
       const data = (await response.json()) as {
         actors?: Array<{ id: string; name: string }>;
@@ -56,7 +66,11 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
       setActorNames(nameMap);
     };
     void loadActorNames();
+    return () => controller.abort();
   }, []);
+
+  const tagOffsetRef = useRef(tagOffset);
+  tagOffsetRef.current = tagOffset;
 
   const fetchTagPosts = useCallback(
     async ({ append }: { append: boolean }) => {
@@ -70,7 +84,7 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
       inFlightTagRef.current = controller;
 
       const limit = 20;
-      const offset = append ? tagOffset : 0;
+      const offset = append ? tagOffsetRef.current : 0;
 
       const response = await fetch(
         `/api/trending/${encodeURIComponent(tag)}?limit=${limit}&offset=${offset}`,
@@ -133,7 +147,7 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
       setTagLoading(false);
       setTagLoadingMore(false);
     },
-    [tag, tagOffset]
+    [tag]
   );
 
   useEffect(() => {
@@ -203,7 +217,7 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
           </div>
         ) : (
           <PostList
-            posts={posts as FeedPost[]}
+            posts={posts}
             actorNames={actorNames}
             hasMore={hasMore}
             loadingMore={loadingMore}

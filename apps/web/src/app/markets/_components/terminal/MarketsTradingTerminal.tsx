@@ -397,9 +397,7 @@ export function MarketsTradingTerminal({
 
     const filtered = combined.filter((row) => {
       if (filter === 'favorites') {
-        const id =
-          row.key.kind === 'perp' ? row.key.id.toUpperCase() : row.key.id;
-        if (!favoritesSet.has(`${row.key.kind}:${id}`)) return false;
+        if (!isFavorite(row.key)) return false;
       } else if (filter !== 'all' && row.kind !== filter) {
         return false;
       }
@@ -444,7 +442,7 @@ export function MarketsTradingTerminal({
     filter,
     sortBy,
     sortDesc,
-    favoritesSet,
+    isFavorite,
   ]);
 
   // Ensure a default selection
