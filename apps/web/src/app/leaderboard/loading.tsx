@@ -1,5 +1,9 @@
 import { PageContainer } from '@/components/shared/PageContainer';
-import { LeaderboardSkeleton, Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
+import {
+  LeaderboardSkeleton,
+  Skeleton,
+  WidgetPanelSkeleton,
+} from '@/components/shared/Skeleton';
 
 export default function LeaderboardLoading() {
   return (
