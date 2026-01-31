@@ -2324,7 +2324,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom))] z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-2 font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
+          <div className="sticky bottom-14 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-2 font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
             {/* Minimal bottom nav */}
             <button
               type="button"
