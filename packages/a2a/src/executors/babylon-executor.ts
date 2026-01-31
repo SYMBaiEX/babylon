@@ -1798,54 +1798,67 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
     if (!name) throw new Error('name is required');
 
-    // Create group
+    // Generate all IDs before transaction
     const groupId = await generateSnowflakeId();
     const chatId = await generateSnowflakeId();
-
-    await db.group.create({
-      data: {
-        id: groupId,
-        name,
-        description: description || null,
-        ownerId: userId,
-        createdById: userId,
-        type: 'user',
-        updatedAt: new Date(),
-      },
-    });
-
-    // Create associated chat
-    await db.chat.create({
-      data: {
-        id: chatId,
-        name,
-        isGroup: true,
-        groupId,
-        updatedAt: new Date(),
-      },
-    });
-
-    // Add creator as participant
     const allMembers = [userId, ...memberIds.filter((id) => id !== userId)];
 
-    for (const memberId of allMembers) {
-      await db.chatParticipant.create({
+    // Pre-generate IDs for all participants and members
+    const memberData = await Promise.all(
+      allMembers.map(async (memberId) => ({
+        memberId,
+        chatParticipantId: await generateSnowflakeId(),
+        groupMemberId: await generateSnowflakeId(),
+        role: memberId === userId ? 'admin' : 'member',
+      }))
+    );
+
+    // Perform all operations atomically in a transaction
+    await db.$transaction(async (tx) => {
+      // Create group
+      await tx.group.create({
         data: {
-          id: await generateSnowflakeId(),
-          chatId,
-          userId: memberId,
+          id: groupId,
+          name,
+          description: description || null,
+          ownerId: userId,
+          createdById: userId,
+          type: 'user',
+          updatedAt: new Date(),
         },
       });
 
-      await db.groupMember.create({
+      // Create associated chat
+      await tx.chat.create({
         data: {
-          id: await generateSnowflakeId(),
+          id: chatId,
+          name,
+          isGroup: true,
           groupId,
-          userId: memberId,
-          role: memberId === userId ? 'admin' : 'member',
+          updatedAt: new Date(),
         },
       });
-    }
+
+      // Add all participants and members
+      for (const member of memberData) {
+        await tx.chatParticipant.create({
+          data: {
+            id: member.chatParticipantId,
+            chatId,
+            userId: member.memberId,
+          },
+        });
+
+        await tx.groupMember.create({
+          data: {
+            id: member.groupMemberId,
+            groupId,
+            userId: member.memberId,
+            role: member.role,
+          },
+        });
+      }
+    });
 
     return {
       success: true,
@@ -2009,36 +2022,44 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('Invite not found or already processed');
     }
 
-    // Update invite status
-    await db.groupInvite.update({
-      where: { id: inviteId },
-      data: { status: 'accepted', respondedAt: new Date() },
-    });
+    // Generate IDs before transaction to ensure they're ready
+    const groupMemberId = await generateSnowflakeId();
+    const chatParticipantId = await generateSnowflakeId();
 
-    // Add user to group
-    await db.groupMember.create({
-      data: {
-        id: await generateSnowflakeId(),
-        groupId: invite.groupId,
-        userId,
-        role: 'member',
-      },
-    });
+    // Perform all operations atomically in a transaction
+    await db.$transaction(async (tx) => {
+      // Update invite status
+      await tx.groupInvite.update({
+        where: { id: inviteId },
+        data: { status: 'accepted', respondedAt: new Date() },
+      });
 
-    // Add user to group chat
-    const chat = await db.chat.findFirst({
-      where: { groupId: invite.groupId },
-    });
-
-    if (chat) {
-      await db.chatParticipant.create({
+      // Add user to group
+      await tx.groupMember.create({
         data: {
-          id: await generateSnowflakeId(),
-          chatId: chat.id,
+          id: groupMemberId,
+          groupId: invite.groupId,
           userId,
+          role: 'member',
         },
       });
-    }
+
+      // Check for group chat within transaction
+      const chat = await tx.chat.findFirst({
+        where: { groupId: invite.groupId },
+      });
+
+      // Add user to group chat if it exists
+      if (chat) {
+        await tx.chatParticipant.create({
+          data: {
+            id: chatParticipantId,
+            chatId: chat.id,
+            userId,
+          },
+        });
+      }
+    });
 
     return { success: true, message: 'Group invite accepted' };
   }

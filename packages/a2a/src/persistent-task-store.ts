@@ -11,7 +11,12 @@
  */
 
 import type { Task } from '@a2a-js/sdk';
-import { getCache, isRedisAvailable, setCache } from '@babylon/api';
+import {
+  getCache,
+  getRedisClient,
+  isRedisAvailable,
+  setCache,
+} from '@babylon/api';
 import { logger } from '@babylon/shared';
 import {
   ExtendedTaskStore,
@@ -86,11 +91,37 @@ export class PersistentTaskStore extends ExtendedTaskStore {
         });
 
         if (cached) {
-          task = JSON.parse(cached) as Task;
-          // Restore to memory for fast subsequent access
-          await super.save(task);
-          this.memoryFallback.set(taskId, task);
-          return task;
+          try {
+            const parsed = JSON.parse(cached);
+            // Validate the parsed object has required Task properties
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              typeof parsed.id === 'string' &&
+              parsed.status &&
+              typeof parsed.status === 'object' &&
+              typeof parsed.status.state === 'string'
+            ) {
+              task = parsed as Task;
+              // Restore to memory for fast subsequent access
+              await super.save(task);
+              this.memoryFallback.set(taskId, task);
+              return task;
+            }
+            // Invalid task structure - treat as cache miss
+            logger.warn(
+              'Invalid task structure in Redis cache, treating as cache miss',
+              { taskId },
+              'A2A'
+            );
+          } catch (parseError) {
+            // Corrupted cache entry - treat as cache miss
+            logger.warn(
+              'Failed to parse task from Redis cache, treating as cache miss',
+              { taskId, error: String(parseError) },
+              'A2A'
+            );
+          }
         }
       } catch (error) {
         logger.warn(
@@ -126,104 +157,105 @@ export class PersistentTaskStore extends ExtendedTaskStore {
   }
 
   /**
-   * Update Redis indexes for efficient querying
+   * Update Redis indexes for efficient querying using atomic sorted set operations
    */
   private async updateIndexes(task: Task): Promise<void> {
+    const client = getRedisClient();
+    if (!client) return;
+
     const contextId = task.contextId || 'global';
     const status = task.status.state;
     const timestamp = task.status.timestamp
       ? new Date(task.status.timestamp).getTime()
       : Date.now();
 
-    // Store task ID in context index
-    const contextIndexKey = `context:${contextId}`;
-    const contextIndex = await this.getIndex(contextIndexKey);
+    const contextIndexKey = `${TASK_INDEX_NAMESPACE}:context:${contextId}`;
+    const statusIndexKey = `${TASK_INDEX_NAMESPACE}:status:${status}`;
+    const maxIndexSize = 1000;
 
-    // Remove existing entry for this task to prevent duplicates
-    const filteredContextIndex = contextIndex.filter(
-      (item) => item.taskId !== task.id
-    );
-    filteredContextIndex.push({ taskId: task.id, timestamp });
+    try {
+      // Use Redis MULTI/EXEC for atomic operations on both indexes
+      const pipeline = client.multi();
 
-    // Keep index sorted and limited
-    filteredContextIndex.sort((a, b) => b.timestamp - a.timestamp);
-    if (filteredContextIndex.length > 1000) {
-      filteredContextIndex.splice(1000);
+      // Add/update task in context index (sorted set with timestamp as score)
+      // ZADD with score=timestamp atomically adds or updates the entry
+      pipeline.zadd(contextIndexKey, timestamp, task.id);
+      // Trim to keep only the newest 1000 entries (remove lowest scores = oldest)
+      // ZREMRANGEBYRANK 0 -(maxIndexSize+1) removes all but the top maxIndexSize entries
+      pipeline.zremrangebyrank(contextIndexKey, 0, -(maxIndexSize + 1));
+      // Set TTL on the index key
+      pipeline.expire(contextIndexKey, DEFAULT_TTL_SECONDS);
+
+      // Add/update task in status index
+      pipeline.zadd(statusIndexKey, timestamp, task.id);
+      pipeline.zremrangebyrank(statusIndexKey, 0, -(maxIndexSize + 1));
+      pipeline.expire(statusIndexKey, DEFAULT_TTL_SECONDS);
+
+      // Execute all commands atomically
+      await pipeline.exec();
+    } catch (error) {
+      logger.debug(
+        'Failed to update indexes atomically in Redis',
+        { taskId: task.id, error: String(error) },
+        'A2A'
+      );
     }
-
-    await this.setIndex(contextIndexKey, filteredContextIndex);
-
-    // Store task ID in status index
-    const statusIndexKey = `status:${status}`;
-    const statusIndex = await this.getIndex(statusIndexKey);
-
-    // Remove old entry if exists
-    const existingIdx = statusIndex.findIndex((e) => e.taskId === task.id);
-    if (existingIdx >= 0) {
-      statusIndex.splice(existingIdx, 1);
-    }
-
-    statusIndex.push({ taskId: task.id, timestamp });
-    statusIndex.sort((a, b) => b.timestamp - a.timestamp);
-    if (statusIndex.length > 1000) {
-      statusIndex.splice(1000);
-    }
-
-    await this.setIndex(statusIndexKey, statusIndex);
   }
 
   /**
-   * Get an index from Redis
+   * Get an index from Redis sorted set
+   * Returns entries sorted by timestamp descending (newest first)
    */
-  private async getIndex(
+  private async getIndexFromSortedSet(
     indexKey: string
   ): Promise<Array<{ taskId: string; timestamp: number }>> {
+    const client = getRedisClient();
+    if (!client) return [];
+
     try {
-      const cached = await getCache<string>(indexKey, {
-        namespace: TASK_INDEX_NAMESPACE,
-      });
-      if (cached) {
-        return JSON.parse(cached);
+      // ZREVRANGE returns members sorted by score descending (newest first)
+      // with WITHSCORES to get the timestamps
+      const results = await client.zrevrange(indexKey, 0, -1, 'WITHSCORES');
+
+      // Results come as [member1, score1, member2, score2, ...]
+      const entries: Array<{ taskId: string; timestamp: number }> = [];
+      for (let i = 0; i < results.length; i += 2) {
+        const taskId = results[i];
+        const score = results[i + 1];
+        if (taskId && score) {
+          entries.push({
+            taskId,
+            timestamp: Number.parseFloat(score),
+          });
+        }
       }
+      return entries;
     } catch {
-      logger.debug('Failed to get index from Redis', { indexKey }, 'A2A');
+      logger.debug(
+        'Failed to get index from Redis sorted set',
+        { indexKey },
+        'A2A'
+      );
     }
     return [];
   }
 
   /**
-   * Set an index in Redis
-   */
-  private async setIndex(
-    indexKey: string,
-    index: Array<{ taskId: string; timestamp: number }>
-  ): Promise<void> {
-    try {
-      await setCache(indexKey, JSON.stringify(index), {
-        namespace: TASK_INDEX_NAMESPACE,
-        ttl: DEFAULT_TTL_SECONDS,
-      });
-    } catch {
-      logger.debug('Failed to set index in Redis', { indexKey }, 'A2A');
-    }
-  }
-
-  /**
-   * List tasks from Redis using indexes
+   * List tasks from Redis using sorted set indexes
    */
   private async listFromRedis(
     params: ListTasksParams
   ): Promise<ListTasksResult> {
     const contextId = params.contextId || 'global';
-    const contextIndexKey = `context:${contextId}`;
+    const contextIndexKey = `${TASK_INDEX_NAMESPACE}:context:${contextId}`;
 
-    // Get task IDs from context index
-    let taskEntries = await this.getIndex(contextIndexKey);
+    // Get task IDs from context index (sorted set)
+    let taskEntries = await this.getIndexFromSortedSet(contextIndexKey);
 
     // Filter by status if specified
     if (params.status) {
-      const statusIndexKey = `status:${params.status}`;
-      const statusIndex = await this.getIndex(statusIndexKey);
+      const statusIndexKey = `${TASK_INDEX_NAMESPACE}:status:${params.status}`;
+      const statusIndex = await this.getIndexFromSortedSet(statusIndexKey);
       const statusTaskIds = new Set(statusIndex.map((e) => e.taskId));
       taskEntries = taskEntries.filter((e) => statusTaskIds.has(e.taskId));
     }
@@ -235,11 +267,19 @@ export class PersistentTaskStore extends ExtendedTaskStore {
       );
     }
 
-    // Pagination
+    // Pagination with validated pageToken
     const pageSize = Math.min(params.pageSize || 10, 100);
-    const pageOffset = params.pageToken
-      ? Number.parseInt(params.pageToken, 10)
-      : 0;
+    let pageOffset = 0;
+
+    if (params.pageToken) {
+      const parsed = Number.parseInt(params.pageToken, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(
+          `Invalid pageToken: expected non-negative integer, got "${params.pageToken}"`
+        );
+      }
+      pageOffset = parsed;
+    }
 
     const totalSize = taskEntries.length;
     const paginatedEntries = taskEntries.slice(
