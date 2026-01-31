@@ -455,6 +455,9 @@ export function AgentSettingsSidebar({
                     <div className="text-[10px] text-muted-foreground">
                       {GROQ_MODELS.FREE.displayName}
                     </div>
+                    <div className="mt-0.5 text-[9px] text-muted-foreground/70">
+                      {GROQ_MODELS.FREE.description}
+                    </div>
                   </button>
                   <button
                     type="button"
@@ -471,6 +474,12 @@ export function AgentSettingsSidebar({
                   >
                     <div className="font-medium">Pro</div>
                     <div className="text-[10px] text-muted-foreground">
+                      {GROQ_MODELS.PRO.displayName}
+                    </div>
+                    <div className="mt-0.5 text-[9px] text-muted-foreground/70">
+                      {GROQ_MODELS.PRO.description}
+                    </div>
+                    <div className="mt-0.5 font-medium text-[#0066FF] text-[9px]">
                       {MODEL_TIER_POINTS_COST.pro} pt/msg
                     </div>
                   </button>
