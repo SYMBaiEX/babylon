@@ -384,9 +384,14 @@ export function AssetTradesFeed({
             key={i}
             className={cn('rounded-lg bg-muted/30', compact ? 'p-3' : 'p-4')}
           >
-            <div className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}>
+            <div
+              className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}
+            >
               <Skeleton
-                className={cn(compact ? 'h-8 w-8' : 'h-10 w-10', 'rounded-full')}
+                className={cn(
+                  compact ? 'h-8 w-8' : 'h-10 w-10',
+                  'rounded-full'
+                )}
               />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-32" />
@@ -429,7 +434,12 @@ export function AssetTradesFeed({
   if (trades.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className={cn('text-muted-foreground', compact ? 'text-xs' : 'text-sm')}>
+        <p
+          className={cn(
+            'text-muted-foreground',
+            compact ? 'text-xs' : 'text-sm'
+          )}
+        >
           No trades yet for this market
         </p>
       </div>
@@ -487,7 +497,12 @@ interface TradeCardProps {
   density: 'default' | 'compact';
 }
 
-function TradeCard({ trade, formatCurrency, formatTime, density }: TradeCardProps) {
+function TradeCard({
+  trade,
+  formatCurrency,
+  formatTime,
+  density,
+}: TradeCardProps) {
   const user = trade.user;
   const compact = density === 'compact';
   const profileUrl = user?.isActor
@@ -519,7 +534,9 @@ function TradeCard({ trade, formatCurrency, formatTime, density }: TradeCardProp
                 compact ? 'h-8 w-8' : 'h-10 w-10'
               )}
             >
-              <UserIcon className={cn(compact ? 'h-4 w-4' : 'h-5 w-5', 'text-primary')} />
+              <UserIcon
+                className={cn(compact ? 'h-4 w-4' : 'h-5 w-5', 'text-primary')}
+              />
             </div>
           )}
         </Link>
@@ -564,7 +581,11 @@ function TradeCard({ trade, formatCurrency, formatTime, density }: TradeCardProp
             />
           )}
           {trade.type === 'npc' && (
-            <NPCTradeContent trade={trade} formatCurrency={formatCurrency} density={density} />
+            <NPCTradeContent
+              trade={trade}
+              formatCurrency={formatCurrency}
+              density={density}
+            />
           )}
           {trade.type === 'balance' && (
             <BalanceTradeContent

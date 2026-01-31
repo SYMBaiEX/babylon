@@ -313,7 +313,10 @@ export function MessageInput({
   return (
     <div
       ref={containerRef}
-      className={cn('relative bg-background', compact ? 'px-3 py-2' : 'px-4 py-3')}
+      className={cn(
+        'relative bg-background',
+        compact ? 'px-3 py-2' : 'px-4 py-3'
+      )}
     >
       {/* Mention autocomplete dropdown */}
       {mentionsEnabled && (
@@ -338,7 +341,9 @@ export function MessageInput({
               ref={highlightRef}
               className={cn(
                 'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl pr-14',
-                compact ? 'px-3 py-2.5 text-sm md:text-xs' : 'px-4 py-4 text-sm',
+                compact
+                  ? 'px-3 py-2.5 text-sm md:text-xs'
+                  : 'px-4 py-4 text-sm',
                 'text-foreground'
               )}
               aria-hidden="true"
@@ -361,17 +366,17 @@ export function MessageInput({
               rows={1}
               spellCheck={false}
               autoComplete="off"
-	              autoCorrect="off"
-	              autoCapitalize="off"
-	              className={cn(
-	                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
-	                compact
-	                  ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-	                  : 'min-h-[56px] px-4 py-4 text-sm',
-	                'message-input bg-sidebar-accent/50',
-	                'text-transparent caret-foreground placeholder:text-muted-foreground',
-	                'outline-none focus:ring-2 focus:ring-primary/50',
-	                'disabled:cursor-not-allowed disabled:opacity-50'
+              autoCorrect="off"
+              autoCapitalize="off"
+              className={cn(
+                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+                compact
+                  ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
+                  : 'min-h-[56px] px-4 py-4 text-sm',
+                'message-input bg-sidebar-accent/50',
+                'text-transparent caret-foreground placeholder:text-muted-foreground',
+                'outline-none focus:ring-2 focus:ring-primary/50',
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             />
           </>
@@ -384,16 +389,16 @@ export function MessageInput({
             onKeyDown={handleKeyDown}
             placeholder={placeholderText}
             disabled={sending || disabled}
-	            rows={1}
-	            className={cn(
-	              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
-	              compact
-	                ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-	                : 'min-h-[56px] px-4 py-4 text-sm',
-	              'message-input bg-sidebar-accent/50',
-	              'text-foreground placeholder:text-muted-foreground',
-	              'outline-none focus:ring-2 focus:ring-primary/50',
-	              'disabled:cursor-not-allowed disabled:opacity-50'
+            rows={1}
+            className={cn(
+              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+              compact
+                ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
+                : 'min-h-[56px] px-4 py-4 text-sm',
+              'message-input bg-sidebar-accent/50',
+              'text-foreground placeholder:text-muted-foreground',
+              'outline-none focus:ring-2 focus:ring-primary/50',
+              'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           />
         )}

@@ -156,7 +156,12 @@ export function PredictionPositionsList({
 
   if (positions.length === 0) {
     return (
-      <div className={cn('text-center text-muted-foreground', compact ? 'py-6' : 'py-8')}>
+      <div
+        className={cn(
+          'text-center text-muted-foreground',
+          compact ? 'py-6' : 'py-8'
+        )}
+      >
         <p>No prediction positions</p>
         <p className={cn(compact ? 'mt-1 text-xs' : 'mt-1 text-sm')}>
           Buy YES or NO shares to start betting
@@ -183,7 +188,12 @@ export function PredictionPositionsList({
             key={position.id}
             className={cn('rounded bg-muted/40', compact ? 'p-3' : 'p-4')}
           >
-            <div className={cn('flex items-center justify-between', compact ? 'mb-2' : 'mb-3')}>
+            <div
+              className={cn(
+                'flex items-center justify-between',
+                compact ? 'mb-2' : 'mb-3'
+              )}
+            >
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
@@ -234,7 +244,9 @@ export function PredictionPositionsList({
             <p
               className={cn(
                 'font-medium text-foreground',
-                compact ? 'mb-2 text-sm leading-snug md:text-xs' : 'mb-3 text-sm'
+                compact
+                  ? 'mb-2 text-sm leading-snug md:text-xs'
+                  : 'mb-3 text-sm'
               )}
             >
               {position.question}
@@ -272,8 +284,8 @@ export function PredictionPositionsList({
               </div>
             </div>
 
-	            {!position.resolved ? (
-	              <button
+            {!position.resolved ? (
+              <button
                 onClick={() =>
                   handleSellClick(
                     position,
@@ -281,27 +293,27 @@ export function PredictionPositionsList({
                     unrealizedPnL,
                     pnlPercent
                   )
-	                }
-	                disabled={isSelling || position.shares < 0.01}
-	                className={cn(
-	                  'w-full cursor-pointer rounded bg-muted font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
-	                  compact ? 'py-1.5 text-sm md:text-xs' : 'py-2 text-sm'
-	                )}
-	              >
+                }
+                disabled={isSelling || position.shares < 0.01}
+                className={cn(
+                  'w-full cursor-pointer rounded bg-muted font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+                  compact ? 'py-1.5 text-sm md:text-xs' : 'py-2 text-sm'
+                )}
+              >
                 {isSelling
                   ? 'Selling...'
                   : position.shares < 0.01
                     ? 'Position Too Small'
                     : 'Sell Shares'}
               </button>
-	            ) : (
-	              <div
-	                className={cn(
-	                  'py-2 text-center font-medium',
-	                  compact ? 'text-sm md:text-xs' : 'text-sm'
-	                )}
-	              >
-	                <span className="text-muted-foreground">Resolved: </span>
+            ) : (
+              <div
+                className={cn(
+                  'py-2 text-center font-medium',
+                  compact ? 'text-sm md:text-xs' : 'text-sm'
+                )}
+              >
+                <span className="text-muted-foreground">Resolved: </span>
                 <span
                   className={
                     position.resolution ? 'text-green-600' : 'text-red-600'

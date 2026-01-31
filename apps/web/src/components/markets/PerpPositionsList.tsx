@@ -162,7 +162,12 @@ export function PerpPositionsList({
 
   if (positions.length === 0) {
     return (
-      <div className={cn('text-center text-muted-foreground', compact ? 'py-6' : 'py-8')}>
+      <div
+        className={cn(
+          'text-center text-muted-foreground',
+          compact ? 'py-6' : 'py-8'
+        )}
+      >
         <p>No open positions</p>
         <p className={cn(compact ? 'mt-1 text-xs' : 'mt-1 text-sm')}>
           Open a long or short position to get started

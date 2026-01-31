@@ -298,7 +298,10 @@ export function TeamChatView({
       <div className="shrink-0">
         {/* Thinking Indicator - shown when agents are processing complex queries */}
         {thinkingAgents.length > 0 && (
-          <ThinkingIndicator thinkingAgents={thinkingAgents} density={density} />
+          <ThinkingIndicator
+            thinkingAgents={thinkingAgents}
+            density={density}
+          />
         )}
 
         {/* Typing Indicator - shown when users/agents are typing simple responses */}
