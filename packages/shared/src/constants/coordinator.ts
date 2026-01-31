@@ -13,8 +13,11 @@ export const COORDINATOR_SENDER_ID = 'coordinator';
 
 /**
  * Coordinator runtime ID (UUID format for ElizaOS)
+ * Uses a deterministic non-nil UUID to avoid being treated as "no value" by systems
+ * that interpret the nil UUID (00000000-0000-0000-0000-000000000000) as empty/null.
+ * This is a sentinel identifier specifically for the coordinator runtime.
  */
-export const COORDINATOR_RUNTIME_ID = '00000000-0000-0000-0000-000000000000';
+export const COORDINATOR_RUNTIME_ID = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
 
 /**
  * Coordinator uses small model (free tier)

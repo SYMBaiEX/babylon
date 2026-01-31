@@ -13,7 +13,6 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../../shared/logger';
 
 /** Team member info */
 interface TeamMember {
@@ -58,53 +57,22 @@ export const coordinatorTeamMembersProvider: Provider = {
     }
 
     // Fetch all ACTIVE participants in the team chat
-    let participants: Array<{
-      id: string;
-      displayName: string | null;
-      username: string | null;
-      isAgent: boolean | null;
-    }>;
-    try {
-      participants = await db
-        .select({
-          id: users.id,
-          displayName: users.displayName,
-          username: users.username,
-          isAgent: users.isAgent,
-        })
-        .from(chatParticipants)
-        .innerJoin(users, eq(chatParticipants.userId, users.id))
-        .where(
-          and(
-            eq(chatParticipants.chatId, teamChatId),
-            eq(chatParticipants.isActive, true)
-          )
-        );
-    } catch (error) {
-      logger.error(
-        'Failed to fetch team chat participants',
-        {
-          teamChatId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'TeamMembersProvider'
+    // Fail-fast: let DB errors propagate to caller
+    const participants = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        username: users.username,
+        isAgent: users.isAgent,
+      })
+      .from(chatParticipants)
+      .innerJoin(users, eq(chatParticipants.userId, users.id))
+      .where(
+        and(
+          eq(chatParticipants.chatId, teamChatId),
+          eq(chatParticipants.isActive, true)
+        )
       );
-      // Return empty result on DB error for graceful degradation
-      return {
-        data: {
-          teamMembers: [],
-          memberCount: 0,
-          agentCount: 0,
-        },
-        values: {
-          teamMembers: 'Error loading team members.',
-          memberCount: 0,
-          agentCount: 0,
-          hasTeamMembers: false,
-        },
-        text: 'Error loading team members.',
-      };
-    }
 
     if (participants.length === 0) {
       return {

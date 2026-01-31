@@ -66,11 +66,11 @@ export const checkPerpsAction: Action = {
     [
       {
         name: 'user',
-        content: { text: 'Show me AAPL price' },
+        content: { text: 'Show me AIPPL price' },
       },
       {
         name: 'assistant',
-        content: { text: "I'll get the AAPL market details." },
+        content: { text: "I'll get the AIPPL market details." },
       },
     ],
     [

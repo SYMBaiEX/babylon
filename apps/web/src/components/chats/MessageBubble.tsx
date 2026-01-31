@@ -136,18 +136,26 @@ export function MessageBubble({
           )}
         >
           {isThinking ? (
-            <div className="flex items-center gap-1 text-muted-foreground">
+            <div
+              className="flex items-center gap-1 text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="sr-only">Agent is thinking</span>
               <span
                 className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
                 style={{ animationDelay: '0ms' }}
+                aria-hidden="true"
               />
               <span
                 className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
                 style={{ animationDelay: '150ms' }}
+                aria-hidden="true"
               />
               <span
                 className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
                 style={{ animationDelay: '300ms' }}
+                aria-hidden="true"
               />
             </div>
           ) : (

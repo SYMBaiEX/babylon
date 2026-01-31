@@ -175,14 +175,22 @@ export const checkRecentMarketTradesAction: Action = {
       'CheckRecentMarketTrades'
     );
 
+    // Compute counts from the finalized allTrades array so breakdown matches count
+    const finalNpcTradeCount = allTrades.filter(
+      (t) => t.traderType === 'NPC'
+    ).length;
+    const finalAgentTradeCount = allTrades.filter(
+      (t) => t.traderType === 'Agent'
+    ).length;
+
     return {
       success: true,
       text: `Retrieved ${allTrades.length} recent trades.`,
       data: {
         trades: allTrades,
         count: allTrades.length,
-        npcTradeCount: rawNpcTrades.length,
-        agentTradeCount: agentTradeResults.length,
+        npcTradeCount: finalNpcTradeCount,
+        agentTradeCount: finalAgentTradeCount,
       },
       values: {
         count: allTrades.length,

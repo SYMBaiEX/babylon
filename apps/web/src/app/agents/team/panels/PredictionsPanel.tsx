@@ -260,9 +260,9 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
               </div>
               <div className="mt-1.5 flex items-center justify-between text-xs">
                 <span className="text-green-500">
-                  {prediction.yesPercent}% YES
+                  {Math.round(yesClamped)}% YES
                 </span>
-                <span className="text-red-500">{prediction.noPercent}% NO</span>
+                <span className="text-red-500">{Math.round(noClamped)}% NO</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
                 {prediction.resolved ? (

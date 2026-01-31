@@ -164,10 +164,26 @@ export default function TeamChatPage() {
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false);
 
   // Set default agent for bottom panel when agents load
+  // Also validates that selected agent still exists (handles agent removal)
   useEffect(() => {
-    const firstAgent = teamChat?.agents[0];
-    if (firstAgent && !bottomPanelAgentId) {
-      setBottomPanelAgentId(firstAgent.id);
+    const agents = teamChat?.agents;
+    if (!agents || agents.length === 0) {
+      // No agents - clear selection
+      if (bottomPanelAgentId) {
+        setBottomPanelAgentId(null);
+      }
+      return;
+    }
+
+    // Check if current selection is still valid
+    const currentAgentExists = agents.some((a) => a.id === bottomPanelAgentId);
+
+    if (!bottomPanelAgentId || !currentAgentExists) {
+      // Set to first agent if no selection or selection is invalid
+      const firstAgent = agents[0];
+      if (firstAgent) {
+        setBottomPanelAgentId(firstAgent.id);
+      }
     }
   }, [teamChat?.agents, bottomPanelAgentId]);
 

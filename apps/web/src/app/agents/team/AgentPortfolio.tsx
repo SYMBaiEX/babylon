@@ -41,6 +41,17 @@ interface WalletResponse {
   transactions?: Transaction[];
 }
 
+/** Typed response for POST trading-balance success */
+interface TradingBalanceResponse {
+  message: string;
+  success?: boolean;
+}
+
+/** Typed error response */
+interface ErrorResponse {
+  error?: string;
+}
+
 /** Response from /api/agents/[agentId] */
 interface AgentResponse {
   agent?: {
@@ -116,64 +127,57 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
 
     setWalletLoading(true);
 
-    try {
-      // Fetch wallet data
-      const walletRes = await fetch(`/api/agents/${agentId}/trading-balance`, {
+    // Parallelize the two independent fetches
+    const [walletRes, agentRes] = await Promise.all([
+      fetch(`/api/agents/${agentId}/trading-balance`, {
         headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!walletRes.ok) {
-        logger.error(
-          'Failed to fetch wallet data',
-          { agentId, status: walletRes.status },
-          'AgentPortfolio'
-        );
-        toast.error('Failed to load wallet balance');
-      } else {
-        const data = (await walletRes.json()) as WalletResponse;
-        if (data.success) {
-          setBalanceInfo({
-            agentBalance: data.agentBalance.tradingBalance,
-            userBalance: data.userBalance,
-            lifetimePnL: data.agentBalance.lifetimePnL,
-            totalDeposited: data.agentBalance.totalDeposited ?? 0,
-            totalWithdrawn: data.agentBalance.totalWithdrawn ?? 0,
-          });
-          setTransactions(data.transactions ?? []);
-        }
-      }
-
-      // Fetch agent stats
-      const agentRes = await fetch(`/api/agents/${agentId}`, {
+      }),
+      fetch(`/api/agents/${agentId}`, {
         headers: { Authorization: `Bearer ${token}` },
-      });
+      }),
+    ]).finally(() => {
+      setWalletLoading(false);
+    });
 
-      if (!agentRes.ok) {
-        logger.error(
-          'Failed to fetch agent stats',
-          { agentId, status: agentRes.status },
-          'AgentPortfolio'
-        );
-        // Don't show toast for this - wallet balance is more important
-      } else {
-        const data = (await agentRes.json()) as AgentResponse;
-        if (data.agent) {
-          setAgentStats({
-            totalTrades: data.agent.totalTrades ?? 0,
-            profitableTrades: data.agent.profitableTrades ?? 0,
-            winRate: data.agent.winRate ?? 0,
-          });
-        }
-      }
-    } catch (err) {
+    // Check wallet response
+    if (!walletRes.ok) {
       logger.error(
-        'Failed to fetch portfolio data',
-        { agentId, error: err instanceof Error ? err.message : 'Unknown' },
+        'Failed to fetch wallet data',
+        { agentId, status: walletRes.status },
         'AgentPortfolio'
       );
-      toast.error('Failed to load portfolio data');
-    } finally {
-      setWalletLoading(false);
+      throw new Error(`Failed to fetch wallet data: ${walletRes.status}`);
+    }
+
+    const walletData = (await walletRes.json()) as WalletResponse;
+    if (walletData.success) {
+      setBalanceInfo({
+        agentBalance: walletData.agentBalance.tradingBalance,
+        userBalance: walletData.userBalance,
+        lifetimePnL: walletData.agentBalance.lifetimePnL,
+        totalDeposited: walletData.agentBalance.totalDeposited ?? 0,
+        totalWithdrawn: walletData.agentBalance.totalWithdrawn ?? 0,
+      });
+      setTransactions(walletData.transactions ?? []);
+    }
+
+    // Check agent response
+    if (!agentRes.ok) {
+      logger.error(
+        'Failed to fetch agent stats',
+        { agentId, status: agentRes.status },
+        'AgentPortfolio'
+      );
+      throw new Error(`Failed to fetch agent stats: ${agentRes.status}`);
+    }
+
+    const agentData = (await agentRes.json()) as AgentResponse;
+    if (agentData.agent) {
+      setAgentStats({
+        totalTrades: agentData.agent.totalTrades ?? 0,
+        profitableTrades: agentData.agent.profitableTrades ?? 0,
+        winRate: agentData.agent.winRate ?? 0,
+      });
     }
   }, [agentId, getAccessToken]);
 
@@ -221,18 +225,14 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Transaction failed');
+        const errorData = (await res.json()) as ErrorResponse;
+        throw new Error(errorData.error || 'Transaction failed');
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as TradingBalanceResponse;
       toast.success(data.message);
       setAmount('');
       await fetchData();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Transaction failed'
-      );
     } finally {
       setProcessing(false);
     }

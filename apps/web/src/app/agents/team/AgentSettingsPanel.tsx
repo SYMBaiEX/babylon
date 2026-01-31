@@ -48,38 +48,35 @@ export function AgentSettingsPanel({
       setLoading(true);
       setError(null);
 
-      try {
-        const token = await getAccessToken();
-        if (!token) {
-          if (!signal?.aborted) setError('Not authenticated');
-          return undefined;
-        }
+      const token = await getAccessToken();
+      if (!token) {
+        setError('Not authenticated');
+        setLoading(false);
+        return undefined;
+      }
 
-        const res = await fetch(`/api/agents/${agentId}`, {
+      let res: Response;
+      try {
+        res = await fetch(`/api/agents/${agentId}`, {
           headers: { Authorization: `Bearer ${token}` },
           signal,
         });
-
-        // Don't update state if request was aborted
-        if (signal?.aborted) return undefined;
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch agent');
-        }
-
-        const data = (await res.json()) as { agent: AgentSettingsData };
-        if (!signal?.aborted) setAgent(data.agent);
-        return { success: true };
-      } catch (err) {
-        // Ignore abort errors - they're expected on cleanup
-        if (err instanceof Error && err.name === 'AbortError') return undefined;
-        if (!signal?.aborted) {
-          setError(err instanceof Error ? err.message : 'Failed to load agent');
-        }
-        return undefined;
       } finally {
+        // Ensure loading is cleared even if fetch throws
         if (!signal?.aborted) setLoading(false);
       }
+
+      // Don't update state if request was aborted
+      if (signal?.aborted) return undefined;
+
+      if (!res.ok) {
+        setError('Failed to fetch agent');
+        return undefined;
+      }
+
+      const data = (await res.json()) as { agent: AgentSettingsData };
+      if (!signal?.aborted) setAgent(data.agent);
+      return { success: true };
     },
     [agentId, getAccessToken]
   );

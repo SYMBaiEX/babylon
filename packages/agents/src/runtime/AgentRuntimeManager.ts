@@ -865,6 +865,9 @@ export class AgentRuntimeManager {
     };
 
     // Plugins for coordinator - uses userCorePlugin instead of agentCorePlugin
+    // Note: openaiPlugin is intentionally omitted for coordinator as it uses read-only
+    // actions (userCorePlugin) and doesn't require the full capabilities of OpenAI models.
+    // The coordinator relies on Groq/Anthropic for cost efficiency with its limited scope.
     const plugins: Plugin[] = [
       userCorePlugin as Plugin, // Limited actions for coordinator
       trajectoryLoggerPlugin as Plugin,

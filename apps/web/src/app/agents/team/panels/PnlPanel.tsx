@@ -107,7 +107,7 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
               </div>
               <div className="mt-1.5 flex items-center justify-between text-muted-foreground text-xs">
                 <span>Size: {pos.size.toFixed(4)}</span>
-                {pos.entryPrice && (
+                {pos.entryPrice != null && (
                   <span>Entry: ${pos.entryPrice.toFixed(2)}</span>
                 )}
               </div>

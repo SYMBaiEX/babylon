@@ -362,48 +362,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       'CoordinatorChat'
     );
 
-    // Parse parameters with proper type validation
+    // Parse parameters with fail-fast validation (no silent fallbacks)
     let actionParams: Record<string, unknown> = {};
     if (parameters) {
       if (typeof parameters === 'string') {
-        try {
-          const parsed: unknown = JSON.parse(parameters);
-          // Ensure parsed result is an object
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            !Array.isArray(parsed)
-          ) {
-            actionParams = parsed as Record<string, unknown>;
-          } else {
-            logger.warn(
-              `[Coordinator] Parameters parsed but not an object`,
-              { parameters, parsedType: typeof parsed },
-              'CoordinatorChat'
-            );
-          }
-        } catch (parseError) {
-          // Log the parse error and continue with empty params
-          logger.warn(
-            `[Coordinator] Failed to parse parameters JSON`,
-            {
-              parameters,
-              error:
-                parseError instanceof Error
-                  ? parseError.message
-                  : String(parseError),
-            },
-            'CoordinatorChat'
+        // Fail-fast: let JSON.parse errors propagate
+        const parsed: unknown = JSON.parse(parameters);
+        // Validate the parsed result is a non-null object (not an array)
+        if (
+          typeof parsed !== 'object' ||
+          parsed === null ||
+          Array.isArray(parsed)
+        ) {
+          throw new Error(
+            `Invalid parameters: expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}. Original: ${parameters}`
           );
-          // actionParams remains empty Record<string, unknown>
         }
+        actionParams = parsed as Record<string, unknown>;
       } else if (typeof parameters === 'object' && parameters !== null) {
         actionParams = parameters as Record<string, unknown>;
       } else {
-        logger.warn(
-          `[Coordinator] Unexpected parameters type`,
-          { parametersType: typeof parameters },
-          'CoordinatorChat'
+        throw new Error(
+          `Unexpected parameters type: ${typeof parameters}`
         );
       }
     }
@@ -440,12 +420,6 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       content?: ActionResultContent;
     }
 
-    interface CachedActionState {
-      values?: {
-        actionResults?: ActionResultContent[];
-      };
-    }
-
     // Use object to allow mutation from callback
     const resultHolder: { result: ActionResultContent | null } = {
       result: null,
@@ -476,36 +450,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     );
 
-    // Fallback to state cache if callback didn't capture
-    let actionResult = resultHolder.result;
-    if (!actionResult) {
-      // Access stateCache via public getter if available, otherwise use guarded internal access
-      const runtimeAny = runtime as unknown as Record<string, unknown>;
-      let cachedState: CachedActionState | undefined;
-
-      if (typeof runtimeAny.getCachedActionResults === 'function') {
-        // Use public API if available
-        const results = runtimeAny.getCachedActionResults(elizaMessage.id) as
-          | ActionResultContent[]
-          | undefined;
-        if (results && results.length > 0) {
-          actionResult = results[0] ?? null;
-        }
-      } else if (runtimeAny.stateCache instanceof Map) {
-        // Guarded fallback to internal stateCache
-        const stateCache = runtimeAny.stateCache as Map<
-          string,
-          CachedActionState
-        >;
-        cachedState = stateCache.get(`${elizaMessage.id}_action_results`);
-        const actionResultsFromCache = cachedState?.values?.actionResults || [];
-        actionResult =
-          actionResultsFromCache.length > 0
-            ? (actionResultsFromCache[0] ?? null)
-            : null;
-      }
-      // If neither method works, actionResult remains null (already handled downstream)
-    }
+    // Use resultHolder as the single source of truth for action results
+    // The callback in processActions captures the result; no fallback to runtime internals
+    const actionResult = resultHolder.result;
     const success = actionResult?.success ?? true;
 
     traceActionResults.push({

@@ -23,7 +23,6 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
-import { logger } from '../../../../shared/logger';
 
 /**
  * Format timestamp to relative time string
@@ -85,48 +84,26 @@ export const coordinatorRecentMessagesProvider: Provider = {
     // Query messages relevant to coordinator:
     // 1. User messages that target coordinator (targetIds contains 'coordinator')
     // 2. Coordinator's own responses (senderId = 'coordinator')
-    let recentMsgs: (typeof messagesTable.$inferSelect)[];
-    try {
-      recentMsgs = await db
-        .select()
-        .from(messagesTable)
-        .where(
-          and(
-            eq(messagesTable.chatId, teamChatId),
-            or(
-              // Coordinator's own messages
-              eq(messagesTable.senderId, COORDINATOR_SENDER_ID),
-              // User messages targeting coordinator (use @> for GIN index efficiency)
-              and(
-                eq(messagesTable.senderId, ownerId),
-                sql`${messagesTable.targetIds} @> ARRAY[${COORDINATOR_SENDER_ID}]`
-              )
+    // Fail-fast: let DB errors propagate to caller
+    const recentMsgs = await db
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          eq(messagesTable.chatId, teamChatId),
+          or(
+            // Coordinator's own messages
+            eq(messagesTable.senderId, COORDINATOR_SENDER_ID),
+            // User messages targeting coordinator (use @> for GIN index efficiency)
+            and(
+              eq(messagesTable.senderId, ownerId),
+              sql`${messagesTable.targetIds} @> ARRAY[${COORDINATOR_SENDER_ID}]`
             )
           )
         )
-        .orderBy(desc(messagesTable.createdAt))
-        .limit(15);
-    } catch (error) {
-      logger.error(
-        'Failed to fetch recent messages for coordinator',
-        {
-          teamChatId,
-          ownerId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'RecentMessagesProvider'
-      );
-      // Return empty result on DB error for graceful degradation
-      return {
-        data: { recentMessages: [], messageCount: 0 },
-        values: {
-          recentMessages: 'Error loading conversation history.',
-          messageCount: 0,
-          hasHistory: false,
-        },
-        text: 'Error loading conversation history.',
-      };
-    }
+      )
+      .orderBy(desc(messagesTable.createdAt))
+      .limit(15);
 
     if (recentMsgs.length === 0) {
       return {

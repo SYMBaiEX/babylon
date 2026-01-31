@@ -254,15 +254,15 @@ export function AgentCreate({
       <AgentSetupModal
         isOpen={true}
         onClose={() => {
-          // Close action should dismiss the modal, not advance the wizard
-          // If onBack is provided, use it; otherwise do nothing (modal stays open)
-          // This prevents confusing UX where close button advances the form
+          // Close action should dismiss the modal
+          // If onBack is provided, use it to navigate back
           if (onBack) {
             onBack();
           }
-          // When onBack is not provided, the close button is effectively disabled
-          // Users must use the Save button to proceed
+          // Note: When onBack is not provided, the modal will be rendered without
+          // a close button (hideCloseButton prop handles this below)
         }}
+        hideCloseButton={!onBack}
         profileData={profileData}
         onSave={handleProfileSave}
       />
