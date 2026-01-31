@@ -334,21 +334,32 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     const statusIndexKey = `${TASK_INDEX_NAMESPACE}:status:${status}`;
 
     try {
+      // Check current cardinality to avoid unnecessary trimming operations
+      const [contextCardinality, statusCardinality] = await Promise.all([
+        client.zcard(contextIndexKey),
+        client.zcard(statusIndexKey),
+      ]);
+
       // Use Redis MULTI/EXEC for atomic operations on both indexes
       const pipeline = client.multi();
 
       // Add/update task in context index (sorted set with timestamp as score)
       // ZADD with score=timestamp atomically adds or updates the entry
       pipeline.zadd(contextIndexKey, timestamp, task.id);
-      // Trim to keep only the newest MAX_INDEX_SIZE entries (remove lowest scores = oldest)
-      // ZREMRANGEBYRANK 0 -(MAX_INDEX_SIZE+1) removes all but the top MAX_INDEX_SIZE entries
-      pipeline.zremrangebyrank(contextIndexKey, 0, -(MAX_INDEX_SIZE + 1));
+      // Only trim if index exceeds MAX_INDEX_SIZE to avoid unnecessary operations
+      if (contextCardinality >= MAX_INDEX_SIZE) {
+        // ZREMRANGEBYRANK 0 -(MAX_INDEX_SIZE+1) removes all but the top MAX_INDEX_SIZE entries
+        pipeline.zremrangebyrank(contextIndexKey, 0, -(MAX_INDEX_SIZE + 1));
+      }
       // Set TTL on the index key
       pipeline.expire(contextIndexKey, DEFAULT_TTL_SECONDS);
 
       // Add/update task in status index
       pipeline.zadd(statusIndexKey, timestamp, task.id);
-      pipeline.zremrangebyrank(statusIndexKey, 0, -(MAX_INDEX_SIZE + 1));
+      // Only trim if index exceeds MAX_INDEX_SIZE
+      if (statusCardinality >= MAX_INDEX_SIZE) {
+        pipeline.zremrangebyrank(statusIndexKey, 0, -(MAX_INDEX_SIZE + 1));
+      }
       pipeline.expire(statusIndexKey, DEFAULT_TTL_SECONDS);
 
       // Execute all commands atomically

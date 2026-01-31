@@ -417,7 +417,7 @@ export async function POST(
       return NextResponse.json({
         jsonrpc: '2.0',
         id: body.id ?? null,
-        result: task,
+        result: { task },
       });
     }
 
@@ -457,7 +457,7 @@ export async function POST(
       return NextResponse.json({
         jsonrpc: '2.0',
         id: body.id ?? null,
-        result: canceledTask,
+        result: { task: canceledTask },
       });
     }
 
@@ -506,8 +506,21 @@ export async function POST(
 
       const stream = new ReadableStream({
         async start(controller) {
+          // Wire abort signal to cancel the stream when client disconnects
+          const abortHandler = () => {
+            try {
+              controller.close();
+            } catch {
+              // Controller may already be closed
+            }
+          };
+          req.signal.addEventListener('abort', abortHandler);
+
           try {
             for await (const event of eventGenerator) {
+              // Check if request was aborted
+              if (req.signal.aborted) break;
+
               // Determine event type based on 'kind' property from SDK types
               if ('kind' in event) {
                 if (event.kind === 'status-update') {
@@ -552,11 +565,24 @@ export async function POST(
               'A2A'
             );
           } finally {
+            req.signal.removeEventListener('abort', abortHandler);
             try {
               controller.close();
             } catch {
               // Controller may already be closed
             }
+          }
+        },
+        async cancel(reason) {
+          // Cleanup: terminate the async generator when stream is cancelled
+          try {
+            await eventGenerator.return(reason);
+          } catch (error) {
+            logger.debug(
+              'Error terminating event generator',
+              { error: String(error), taskId },
+              'A2A'
+            );
           }
         },
       });
