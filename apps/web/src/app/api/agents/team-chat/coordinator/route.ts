@@ -248,7 +248,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Coordinator uses small model (free, no points deduction)
-  const modelType = ModelType.TEXT_LARGE;
+  const modelType = ModelType.TEXT_SMALL;
 
   // Get coordinator runtime
   const runtime = await agentRuntimeManager.getCoordinatorRuntime();
