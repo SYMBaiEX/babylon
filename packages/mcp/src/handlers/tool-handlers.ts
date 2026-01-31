@@ -695,10 +695,7 @@ export async function executeClosePosition(
 ): Promise<ClosePositionResult> {
   logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
 
-  // Validate positionId
-  if (!args.positionId || typeof args.positionId !== 'string') {
-    throw new Error('positionId is required and must be a string');
-  }
+  // Note: positionId validation is handled by Zod schema before this handler
 
   const service = buildPerpService();
   const result = await service.closePosition({
@@ -903,22 +900,11 @@ export async function executeOpenPosition(
 ): Promise<OpenPositionResult> {
   logger.info(`Agent ${agent.agentId} opening perp position:`, args, 'MCP');
 
-  // Validate inputs
-  if (!args.ticker || typeof args.ticker !== 'string') {
-    throw new Error('ticker is required and must be a string');
-  }
-  if (typeof args.amount !== 'number' || args.amount <= 0) {
-    throw new Error('amount must be a positive number');
-  }
-  if (
-    typeof args.leverage !== 'number' ||
-    args.leverage < 1 ||
-    args.leverage > 100
-  ) {
-    throw new Error('leverage must be a number between 1 and 100');
-  }
+  // Note: Input validation (ticker, amount, leverage bounds) is handled by
+  // Zod schema in tool-args-validation.ts before this handler is called.
+  // Market-specific leverage limits are enforced by PerpMarketService.
 
-  // Validate and convert side to lowercase for service
+  // Convert side to lowercase for service layer
   const side = validatePerpSide(args.side);
 
   const service = buildPerpService();
@@ -2994,18 +2980,10 @@ export async function executeTransferPoints(
   const senderId = agent.userId;
   const { recipientId, amount, message } = args;
 
-  // Validate inputs
-  if (!recipientId || typeof recipientId !== 'string') {
-    throw new Error('recipientId is required and must be a string');
-  }
-  if (typeof amount !== 'number' || amount <= 0) {
-    throw new Error('amount must be a positive number');
-  }
-  if (!Number.isInteger(amount)) {
-    throw new Error('amount must be a whole number (no decimals)');
-  }
+  // Note: Input validation (recipientId, amount > 0, integer) is handled by
+  // Zod schema in tool-args-validation.ts before this handler is called.
 
-  // Prevent self-transfers (fast check before any DB queries)
+  // Business logic: Prevent self-transfers (fast check before any DB queries)
   if (senderId === recipientId) {
     throw new Error('Cannot send points to yourself');
   }
