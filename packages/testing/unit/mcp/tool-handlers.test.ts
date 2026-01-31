@@ -196,8 +196,8 @@ describe('MCP Tool Handlers - Validation Logic', () => {
     });
 
     it('should allow transfer to different user', () => {
-      const senderId = 'user-123';
-      const recipientId = 'user-456';
+      const senderId: string = 'user-123';
+      const recipientId: string = 'user-456';
 
       const isSelfTransfer = senderId === recipientId;
       expect(isSelfTransfer).toBe(false);

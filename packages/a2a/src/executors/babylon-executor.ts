@@ -36,6 +36,7 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
+import { X402Manager } from '../payments/x402-manager';
 import type { JsonRpcRequest } from '../types/a2a';
 
 /**
@@ -516,6 +517,19 @@ export class BabylonAgentExecutor implements AgentExecutor {
       // Points operations
       case 'points.transfer':
         return this.transferPoints(command.params, context);
+      // Markets - additional operations
+      case 'markets.get_market_data':
+        return this.getMarketData(command.params);
+      case 'markets.get_market_prices':
+        return this.getMarketPrices(command.params);
+      // Payments (x402)
+      case 'payments.request':
+        return this.paymentRequest(command.params, context);
+      case 'payments.receipt':
+        return this.paymentReceipt(command.params, context);
+      // Moderation - appeal without escrow
+      case 'moderation.appeal_ban':
+        return this.appealBan(command.params, context);
       default:
         throw new Error(`Unsupported operation: ${command.operation}`);
     }
@@ -3355,6 +3369,335 @@ export class BabylonAgentExecutor implements AgentExecutor {
         amount,
       },
       newBalance: updatedSender?.reputationPoints ?? 0,
+    };
+  }
+
+  /**
+   * Get detailed market data for a specific prediction market
+   */
+  private async getMarketData(
+    params: Record<string, JsonValue>
+  ): Promise<ExecutorOperationResult> {
+    const marketId = String(params.marketId ?? '');
+    if (!marketId) throw new Error('marketId is required');
+
+    const baseUrl = getAPIBaseUrl();
+    const response = await fetch(
+      `${baseUrl}/api/markets/predictions/${encodeURIComponent(marketId)}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get market data: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return { market: data };
+  }
+
+  /**
+   * Get real-time market prices
+   */
+  private async getMarketPrices(
+    params: Record<string, JsonValue>
+  ): Promise<ExecutorOperationResult> {
+    const marketId = String(params.marketId ?? '');
+    if (!marketId) throw new Error('marketId is required');
+
+    // Try prediction market first
+    const predictionService = this.buildPredictionService(marketId);
+    const market = await predictionService.getMarket(marketId);
+
+    if (market) {
+      const yesShares = Number(market.yesShares ?? 0);
+      const noShares = Number(market.noShares ?? 0);
+      const total = yesShares + noShares;
+
+      return {
+        marketId,
+        type: 'prediction',
+        prices: {
+          yes: total > 0 ? yesShares / total : 0.5,
+          no: total > 0 ? noShares / total : 0.5,
+        },
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // Try perpetual market using database query
+    try {
+      const drizzle = getRawDrizzle();
+      const perps = await drizzle
+        .select({
+          ticker: perpMarketSnapshots.ticker,
+          currentPrice: perpMarketSnapshots.currentPrice,
+          change24h: perpMarketSnapshots.change24h,
+        })
+        .from(perpMarketSnapshots)
+        .limit(100);
+
+      const perp = perps.find(
+        (p) => p.ticker.toUpperCase() === marketId.toUpperCase()
+      );
+
+      if (perp) {
+        return {
+          marketId: perp.ticker,
+          type: 'perpetual',
+          prices: {
+            current: perp.currentPrice,
+            change24h: perp.change24h ?? 0,
+          },
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch {
+      // Fall through to not found error
+    }
+
+    throw new Error(`Market not found: ${marketId}`);
+  }
+
+  /**
+   * Get or create the X402 payment manager instance
+   */
+  private getX402Manager(): X402Manager {
+    const rpcUrl =
+      process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org';
+    return new X402Manager({ rpcUrl });
+  }
+
+  /**
+   * Create a payment request (x402)
+   *
+   * Creates a blockchain-verified payment request using the x402 micropayment protocol.
+   * The request is stored with an expiration time and can be verified against on-chain transactions.
+   */
+  private async paymentRequest(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const to = String(params.to ?? '');
+    const amount = String(params.amount ?? '');
+    const service = String(params.service ?? '');
+
+    if (!to) throw new Error('to address is required');
+    if (!amount) throw new Error('amount is required (in wei)');
+    if (!service) throw new Error('service identifier is required');
+
+    // Validate amount is a valid number
+    try {
+      BigInt(amount);
+    } catch {
+      throw new Error('amount must be a valid integer in wei');
+    }
+
+    const userId = context.contextId || context.taskId;
+    const metadata = params.metadata as
+      | Record<string, string | number | boolean | null>
+      | undefined;
+
+    const x402 = this.getX402Manager();
+
+    // Create payment request via X402Manager
+    const paymentRequest = await x402.createPaymentRequest(
+      userId,
+      to,
+      amount,
+      service,
+      metadata
+    );
+
+    logger.info(
+      'Payment request created',
+      { requestId: paymentRequest.requestId, userId, service, amount },
+      'A2A'
+    );
+
+    return {
+      success: true,
+      paymentRequest: {
+        requestId: paymentRequest.requestId,
+        from: paymentRequest.from,
+        to: paymentRequest.to,
+        amount: paymentRequest.amount,
+        service: paymentRequest.service,
+        metadata: paymentRequest.metadata ?? {},
+        expiresAt: new Date(paymentRequest.expiresAt).toISOString(),
+        status: 'pending',
+      },
+    };
+  }
+
+  /**
+   * Verify a payment receipt (x402)
+   *
+   * Verifies a blockchain transaction against a pending payment request.
+   * Checks transaction hash, sender, recipient, and amount on-chain.
+   */
+  private async paymentReceipt(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const requestId = String(params.requestId ?? '');
+    const txHash = String(params.txHash ?? '');
+
+    if (!requestId) throw new Error('requestId is required');
+    if (!txHash) throw new Error('txHash is required');
+
+    // Validate txHash format (should be 0x prefixed hex)
+    if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+      throw new Error('txHash must be a valid 66-character hex string (0x...)');
+    }
+
+    const x402 = this.getX402Manager();
+
+    // Get the pending payment request first
+    const pendingRequest = await x402.getPaymentRequest(requestId);
+    if (!pendingRequest) {
+      logger.warn(
+        'Payment request not found',
+        { requestId, txHash },
+        'A2A'
+      );
+      return {
+        success: false,
+        error: 'Payment request not found or expired',
+        receipt: {
+          requestId,
+          txHash,
+          status: 'failed',
+          error: 'Payment request not found or expired',
+        },
+      };
+    }
+
+    // Verify payment on-chain with full verification params
+    const result = await x402.verifyPayment({
+      requestId,
+      txHash,
+      from: pendingRequest.from,
+      to: pendingRequest.to,
+      amount: pendingRequest.amount,
+      timestamp: Date.now(),
+      confirmed: true, // Will be verified by the manager
+    });
+
+    if (!result.verified) {
+      logger.warn(
+        'Payment verification failed',
+        { requestId, txHash, error: result.error },
+        'A2A'
+      );
+      return {
+        success: false,
+        error: result.error ?? 'Payment verification failed',
+        receipt: {
+          requestId,
+          txHash,
+          status: 'failed',
+          error: result.error ?? 'Payment verification failed',
+        },
+      };
+    }
+
+    logger.info(
+      'Payment verified successfully',
+      { requestId, txHash, contextId: context.contextId },
+      'A2A'
+    );
+
+    return {
+      success: true,
+      receipt: {
+        requestId,
+        txHash,
+        status: 'verified',
+        verifiedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Appeal a ban (without escrow)
+   *
+   * Submits a ban appeal for strict review. Users get one free appeal.
+   * For additional appeals, use moderation.appeal_ban_with_escrow which requires staking.
+   */
+  private async appealBan(
+    params: Record<string, JsonValue>,
+    context: RequestContext
+  ): Promise<ExecutorOperationResult> {
+    const reason = String(params.reason ?? '');
+
+    if (!reason || reason.length < 10) {
+      throw new Error('Appeal reason must be at least 10 characters');
+    }
+    if (reason.length > 2000) {
+      throw new Error('Appeal reason must be at most 2000 characters');
+    }
+
+    const userId = context.contextId || context.taskId;
+
+    // Get user with all appeal-related fields
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        isBanned: true,
+        appealCount: true,
+        appealStaked: true,
+        appealStatus: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.isBanned) {
+      throw new Error('User is not banned');
+    }
+
+    // Check if already used free appeal (matches MCP logic)
+    if ((user.appealCount ?? 0) >= 1 && !user.appealStaked) {
+      throw new Error(
+        'You have already used your free appeal. Use moderation.appeal_ban_with_escrow to stake $10 for a second review.'
+      );
+    }
+
+    // Check if already in human review
+    if (user.appealStaked && user.appealStatus === 'human_review') {
+      throw new Error(
+        'Your appeal is already in human review. Please wait for a decision.'
+      );
+    }
+
+    // Submit appeal for strict review (first appeal)
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        appealCount: (user.appealCount ?? 0) + 1,
+        appealStatus: 'strict_review',
+        appealSubmittedAt: new Date(),
+      },
+    });
+
+    logger.info(
+      'Ban appeal submitted for strict review',
+      { userId, reason: reason.slice(0, 100) },
+      'A2A'
+    );
+
+    return {
+      success: true,
+      message:
+        'Appeal submitted for strict review. Please note: full AI evaluation is only available via the web interface.',
+      appeal: {
+        userId,
+        status: 'strict_review',
+        appealCount: (user.appealCount ?? 0) + 1,
+        submittedAt: new Date().toISOString(),
+      },
     };
   }
 }

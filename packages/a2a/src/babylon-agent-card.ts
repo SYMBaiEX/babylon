@@ -232,6 +232,20 @@ export const babylonAgentCard: AgentCard = {
       inputModes: ['application/json'],
       outputModes: ['application/json'],
     },
+    {
+      id: 'payments',
+      name: 'Payments (x402)',
+      description:
+        'Request and verify on-chain payments using the x402 micropayment protocol.',
+      tags: ['payments', 'x402', 'crypto', 'transactions'],
+      examples: [
+        'Request a payment for a service',
+        'Verify a payment transaction',
+        'Get payment receipt',
+      ],
+      inputModes: ['application/json'],
+      outputModes: ['application/json'],
+    },
   ],
 
   supportsAuthenticatedExtendedCard: false,
