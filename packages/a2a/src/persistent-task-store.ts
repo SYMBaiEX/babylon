@@ -27,6 +27,7 @@ import {
 const TASK_CACHE_NAMESPACE = 'a2a:tasks';
 const TASK_INDEX_NAMESPACE = 'a2a:task-index';
 const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const MAX_INDEX_SIZE = 1000; // Maximum entries per index
 
 /**
  * Persistent task store with Redis backing
@@ -136,6 +137,95 @@ export class PersistentTaskStore extends ExtendedTaskStore {
   }
 
   /**
+   * Load multiple tasks in batch using Redis mget for efficiency
+   * Falls back to individual loads for cache misses
+   */
+  private async loadBatch(taskIds: string[]): Promise<Map<string, Task>> {
+    const results = new Map<string, Task>();
+    if (taskIds.length === 0) return results;
+
+    // First check memory
+    const missingIds: string[] = [];
+    for (const taskId of taskIds) {
+      // Check in-memory first (from parent)
+      const memTask = await super.load(taskId);
+      if (memTask) {
+        results.set(taskId, memTask);
+        continue;
+      }
+
+      // Check memory fallback
+      const fallbackTask = this.memoryFallback.get(taskId);
+      if (fallbackTask) {
+        results.set(taskId, fallbackTask);
+        continue;
+      }
+
+      missingIds.push(taskId);
+    }
+
+    // Batch fetch remaining from Redis using mget
+    if (missingIds.length > 0 && (await isRedisAvailable())) {
+      const client = getRedisClient();
+      if (client) {
+        try {
+          const keys = missingIds.map(
+            (id) => `${TASK_CACHE_NAMESPACE}:task:${id}`
+          );
+          const values = await client.mget(...keys);
+
+          for (let i = 0; i < missingIds.length; i++) {
+            const taskId = missingIds[i];
+            const cached = values[i];
+            if (taskId && cached) {
+              try {
+                const parsed = JSON.parse(cached);
+                // Validate the parsed object has required Task properties
+                if (
+                  parsed &&
+                  typeof parsed === 'object' &&
+                  typeof parsed.id === 'string' &&
+                  parsed.status &&
+                  typeof parsed.status === 'object' &&
+                  typeof parsed.status.state === 'string'
+                ) {
+                  const task = parsed as Task;
+                  results.set(taskId, task);
+                  // Restore to memory for fast subsequent access
+                  await super.save(task);
+                  this.memoryFallback.set(taskId, task);
+                }
+              } catch {
+                // Skip invalid entries
+                logger.debug(
+                  'Failed to parse task in batch load',
+                  { taskId },
+                  'A2A'
+                );
+              }
+            }
+          }
+        } catch (error) {
+          logger.warn(
+            'Failed to batch load tasks from Redis, falling back to individual loads',
+            { error: String(error) },
+            'A2A'
+          );
+          // Fallback to individual loads for remaining
+          for (const taskId of missingIds) {
+            if (!results.has(taskId)) {
+              const task = await this.load(taskId);
+              if (task) results.set(taskId, task);
+            }
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * List tasks with optional Redis-backed querying
    */
   async list(params: ListTasksParams = {}): Promise<ListTasksResult> {
@@ -171,7 +261,6 @@ export class PersistentTaskStore extends ExtendedTaskStore {
 
     const contextIndexKey = `${TASK_INDEX_NAMESPACE}:context:${contextId}`;
     const statusIndexKey = `${TASK_INDEX_NAMESPACE}:status:${status}`;
-    const maxIndexSize = 1000;
 
     try {
       // Use Redis MULTI/EXEC for atomic operations on both indexes
@@ -180,15 +269,15 @@ export class PersistentTaskStore extends ExtendedTaskStore {
       // Add/update task in context index (sorted set with timestamp as score)
       // ZADD with score=timestamp atomically adds or updates the entry
       pipeline.zadd(contextIndexKey, timestamp, task.id);
-      // Trim to keep only the newest 1000 entries (remove lowest scores = oldest)
-      // ZREMRANGEBYRANK 0 -(maxIndexSize+1) removes all but the top maxIndexSize entries
-      pipeline.zremrangebyrank(contextIndexKey, 0, -(maxIndexSize + 1));
+      // Trim to keep only the newest MAX_INDEX_SIZE entries (remove lowest scores = oldest)
+      // ZREMRANGEBYRANK 0 -(MAX_INDEX_SIZE+1) removes all but the top MAX_INDEX_SIZE entries
+      pipeline.zremrangebyrank(contextIndexKey, 0, -(MAX_INDEX_SIZE + 1));
       // Set TTL on the index key
       pipeline.expire(contextIndexKey, DEFAULT_TTL_SECONDS);
 
       // Add/update task in status index
       pipeline.zadd(statusIndexKey, timestamp, task.id);
-      pipeline.zremrangebyrank(statusIndexKey, 0, -(maxIndexSize + 1));
+      pipeline.zremrangebyrank(statusIndexKey, 0, -(MAX_INDEX_SIZE + 1));
       pipeline.expire(statusIndexKey, DEFAULT_TTL_SECONDS);
 
       // Execute all commands atomically
@@ -287,10 +376,14 @@ export class PersistentTaskStore extends ExtendedTaskStore {
       pageOffset + pageSize
     );
 
-    // Load tasks
+    // Load tasks in batch to avoid N+1 queries
+    const taskIds = paginatedEntries.map((e) => e.taskId);
+    const loadedTasks = await this.loadBatch(taskIds);
+
+    // Process loaded tasks
     const tasks: Task[] = [];
-    for (const entry of paginatedEntries) {
-      const task = await this.load(entry.taskId);
+    for (const taskId of taskIds) {
+      const task = loadedTasks.get(taskId);
       if (task) {
         // Process task (trim history, remove artifacts if needed)
         const processed = { ...task };

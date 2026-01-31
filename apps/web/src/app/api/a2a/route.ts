@@ -155,6 +155,7 @@ async function checkApiKey(request: NextRequest): Promise<{
  * Handle message/stream with Server-Sent Events response
  *
  * Creates a task, executes it, and streams status updates via SSE.
+ * Tasks are persisted to the task store for consistency with non-streaming tasks.
  */
 async function handleMessageStream(
   body: Record<string, unknown>,
@@ -183,6 +184,19 @@ async function handleMessageStream(
     );
   }
 
+  // Create initial task and persist to store for tasks/get and tasks/resubscribe
+  const initialTask = {
+    kind: 'task' as const,
+    id: taskId,
+    contextId,
+    status: {
+      state: 'submitted' as const,
+      timestamp: new Date().toISOString(),
+    },
+    artifacts: [] as Array<{ name?: string; parts: unknown[] }>,
+  };
+  await taskStore.save(initialTask);
+
   const stream = new ReadableStream({
     async start(controller) {
       // Send task submission event
@@ -200,6 +214,9 @@ async function handleMessageStream(
         // Create the event bus for this execution
         const eventBus = eventBusManager.createEventBus();
 
+        // Track artifacts for final task save
+        const artifacts: Array<{ name?: string; parts: unknown[] }> = [];
+
         // Subscribe to events
         eventBus.subscribe((event) => {
           if ('status' in event) {
@@ -212,6 +229,7 @@ async function handleMessageStream(
               )
             );
           } else if ('artifact' in event) {
+            artifacts.push(event.artifact as { name?: string; parts: unknown[] });
             controller.enqueue(
               encoder.encode(
                 `event: task-artifact\ndata: ${JSON.stringify({
@@ -240,6 +258,19 @@ async function handleMessageStream(
           eventBus
         );
 
+        // Update task to completed and save
+        const completedTask = {
+          kind: 'task' as const,
+          id: taskId,
+          contextId,
+          status: {
+            state: 'completed' as const,
+            timestamp: new Date().toISOString(),
+          },
+          artifacts,
+        };
+        await taskStore.save(completedTask);
+
         // Send completion event
         controller.enqueue(
           encoder.encode(
@@ -254,6 +285,20 @@ async function handleMessageStream(
           )
         );
       } catch (error) {
+        // Update task to failed and save
+        const failedTask = {
+          kind: 'task' as const,
+          id: taskId,
+          contextId,
+          status: {
+            state: 'failed' as const,
+            timestamp: new Date().toISOString(),
+            message: error instanceof Error ? error.message : 'Unknown error',
+          },
+          artifacts: [] as Array<{ name?: string; parts: unknown[] }>,
+        };
+        await taskStore.save(failedTask);
+
         // Send error event
         controller.enqueue(
           encoder.encode(

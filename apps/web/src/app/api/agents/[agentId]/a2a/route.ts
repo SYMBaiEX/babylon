@@ -105,6 +105,49 @@ function getAgentRateLimiter(agentId: string): RateLimiter {
   return agentRateLimiters.get(agentId)!;
 }
 
+/**
+ * Helper to extract taskId and taskStore from request body and agent handler.
+ * Consolidates duplicated code across tasks/get, tasks/cancel, and tasks/resubscribe.
+ *
+ * @returns Object with taskStore and taskId, or errorResponse if validation fails
+ */
+async function getTaskStoreAndTaskId(
+  body: JsonRpcRequest,
+  agentId: string
+): Promise<
+  | { taskStore: ExtendedTaskStore; taskId: string; errorResponse?: never }
+  | { errorResponse: NextResponse; taskStore?: never; taskId?: never }
+> {
+  const params = body.params as { id?: string; taskId?: string } | undefined;
+  const taskId = params?.id || params?.taskId;
+
+  if (!taskId) {
+    return {
+      errorResponse: NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: body.id ?? null,
+          error: {
+            code: -32602,
+            message: 'Invalid params: taskId or id is required',
+          },
+        },
+        { status: 400 }
+      ),
+    };
+  }
+
+  const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+  const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+    requestHandler: {
+      taskStore: ExtendedTaskStore;
+    };
+  };
+  const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+
+  return { taskStore, taskId };
+}
+
 async function getAgentJsonRpcHandler(
   agentId: string
 ): Promise<JsonRpcTransportHandler> {
@@ -351,33 +394,10 @@ export async function POST(
 
     // Handle tasks/get manually - SDK expects params.id but clients may send params.taskId
     if (body.method === 'tasks/get') {
-      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-        requestHandler: {
-          taskStore: ExtendedTaskStore;
-        };
-      };
-      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+      const result = await getTaskStoreAndTaskId(body, agentId);
+      if (result.errorResponse) return result.errorResponse;
 
-      const params = body.params as
-        | { id?: string; taskId?: string }
-        | undefined;
-      const taskId = params?.id || params?.taskId;
-
-      if (!taskId) {
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            id: body.id ?? null,
-            error: {
-              code: -32602,
-              message: 'Invalid params: taskId or id is required',
-            },
-          },
-          { status: 400 }
-        );
-      }
-
+      const { taskStore, taskId } = result;
       const task = await taskStore.load(taskId);
 
       if (!task) {
@@ -403,33 +423,10 @@ export async function POST(
 
     // Handle tasks/cancel manually - SDK expects params.id but clients may send params.taskId
     if (body.method === 'tasks/cancel') {
-      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-        requestHandler: {
-          taskStore: ExtendedTaskStore;
-        };
-      };
-      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+      const result = await getTaskStoreAndTaskId(body, agentId);
+      if (result.errorResponse) return result.errorResponse;
 
-      const params = body.params as
-        | { id?: string; taskId?: string }
-        | undefined;
-      const taskId = params?.id || params?.taskId;
-
-      if (!taskId) {
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            id: body.id ?? null,
-            error: {
-              code: -32602,
-              message: 'Invalid params: taskId or id is required',
-            },
-          },
-          { status: 400 }
-        );
-      }
-
+      const { taskStore, taskId } = result;
       const task = await taskStore.load(taskId);
 
       if (!task) {
@@ -452,7 +449,6 @@ export async function POST(
         status: {
           state: 'canceled' as const,
           timestamp: new Date().toISOString(),
-          message: 'Task canceled by user',
         },
       };
       await taskStore.save(canceledTask);
@@ -466,33 +462,10 @@ export async function POST(
 
     // Handle tasks/resubscribe with SSE response
     if (body.method === 'tasks/resubscribe') {
-      const params = body.params as
-        | { id?: string; taskId?: string }
-        | undefined;
-      const taskId = params?.id || params?.taskId;
+      const result = await getTaskStoreAndTaskId(body, agentId);
+      if (result.errorResponse) return result.errorResponse;
 
-      if (!taskId) {
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            id: body.id ?? null,
-            error: {
-              code: -32602,
-              message: 'Invalid params: taskId or id is required',
-            },
-          },
-          { status: 400 }
-        );
-      }
-
-      const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
-      const handlerWithRequestHandler = jsonRpcHandler as unknown as {
-        requestHandler: {
-          taskStore: ExtendedTaskStore;
-        };
-      };
-      const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
-
+      const { taskStore, taskId } = result;
       const task = await taskStore.load(taskId);
 
       if (!task) {
@@ -524,9 +497,9 @@ export async function POST(
             )
           );
 
-          // If task has artifacts, send them
+          // If task has artifacts, send them (filter out null/undefined)
           if (task.artifacts && task.artifacts.length > 0) {
-            for (const artifact of task.artifacts) {
+            for (const artifact of task.artifacts.filter(Boolean)) {
               controller.enqueue(
                 encoder.encode(
                   `event: task-artifact\ndata: ${JSON.stringify({

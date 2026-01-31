@@ -1325,7 +1325,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
   // Trading Operations
 
-  private buildPredictionService(_marketId: string) {
+  private buildPredictionService() {
     return new PredictionMarketService({
       db: new PredictionDbAdapter(),
       wallet: {
@@ -1420,7 +1420,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (amount <= 0) throw new Error('amount must be positive');
 
     const side = outcome === 'YES' ? 'yes' : 'no';
-    const service = this.buildPredictionService(marketId);
+    const service = this.buildPredictionService();
     const result = await service.buy({
       userId,
       marketId,
@@ -1470,7 +1470,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('Position has no associated market');
     }
 
-    const service = this.buildPredictionService(position.marketId);
+    const service = this.buildPredictionService();
     const result = await service.sell({
       userId,
       marketId: position.marketId,
@@ -3429,7 +3429,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (!marketId) throw new Error('marketId is required');
 
     // Try prediction market first
-    const predictionService = this.buildPredictionService(marketId);
+    const predictionService = this.buildPredictionService();
     const market = await predictionService.getMarket(marketId);
 
     if (market) {
