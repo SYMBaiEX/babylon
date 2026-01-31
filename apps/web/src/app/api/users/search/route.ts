@@ -77,6 +77,9 @@
  *                         type: string
  *                       bio:
  *                         type: string
+ *                       isAgent:
+ *                         type: boolean
+ *                         description: Present when includeAgents=true, indicates if this is a user-created agent
  *       401:
  *         description: Unauthorized
  *
@@ -189,6 +192,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         username: true,
         profileImageUrl: true,
         bio: true,
+        // Include isAgent when agents are included to distinguish them from humans
+        ...(includeAgents && { isAgent: true }),
       },
       take: 20, // Limit results
       orderBy: [

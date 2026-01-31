@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuthStore } from '@/stores/authStore';
-import { GroupTypeBadge, MemberTypeBadge } from './MemberTypeBadge';
+import { GroupTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group management modal.
@@ -30,6 +30,7 @@ interface Member {
   displayName: string | null;
   username: string | null;
   profileImageUrl: string | null;
+  memberType: 'user' | 'agent' | 'npc';
   isAdmin: boolean;
   joinedAt: Date | string;
 }
@@ -59,18 +60,20 @@ interface SearchResult {
   type: 'user' | 'agent' | 'npc';
 }
 
-type SearchTab = 'users' | 'agents';
+type SearchTab = 'users' | 'npcs';
 
 /**
  * Group management modal component for managing group members and settings.
  *
  * Provides comprehensive group management interface including member list,
- * adding/removing members with tabbed search (users and agents/NPCs),
- * promoting/demoting admins, and deleting groups.
+ * adding/removing members with tabbed search (users including user-created
+ * agents, and NPCs), promoting/demoting admins, and deleting groups.
  *
  * Features:
  * - Member list display with type badges
- * - Tabbed search for adding members (Users / Agents & NPCs)
+ * - Tabbed search for adding members (Users / NPCs)
+ * - Users tab includes human users and user-created agents
+ * - NPCs tab includes only system NPCs
  * - Remove member functionality
  * - Promote/demote admin functionality
  * - Delete group functionality
@@ -149,7 +152,7 @@ export function GroupManagementModal({
     loadGroupDetails();
   }, [isOpen, groupId, getAccessToken]);
 
-  // Search for users or agents based on active tab
+  // Search for users or NPCs based on active tab
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
@@ -162,9 +165,11 @@ export function GroupManagementModal({
         const token = await getAccessToken();
 
         // Use different endpoint based on active tab
+        // Users tab includes human users + user-created agents
+        // NPCs tab only includes NPCs
         const endpoint =
           activeTab === 'users'
-            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}&includeAgents=true`
             : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
 
         const response = await fetch(endpoint, {
@@ -190,14 +195,21 @@ export function GroupManagementModal({
                       displayName: string | null;
                       username: string | null;
                       profileImageUrl: string | null;
+                      isAgent?: boolean;
                     }) => ({
-                      ...u,
-                      type: 'user' as const,
+                      id: u.id,
+                      displayName: u.displayName,
+                      username: u.username,
+                      profileImageUrl: u.profileImageUrl,
+                      // Distinguish between human users and user-created agents
+                      type: u.isAgent ? ('agent' as const) : ('user' as const),
                     })
                   )
-              : (data.agents || [])
+              : // Filter to only include NPCs (not user-created agents)
+                (data.agents || [])
                   .filter(
-                    (a: { id: string }) => !existingMemberIds.includes(a.id)
+                    (a: { id: string; type: 'agent' | 'npc' }) =>
+                      !existingMemberIds.includes(a.id) && a.type === 'npc'
                   )
                   .map(
                     (a: {
@@ -622,16 +634,16 @@ export function GroupManagementModal({
                           Users
                         </button>
                         <button
-                          onClick={() => handleTabChange('agents')}
+                          onClick={() => handleTabChange('npcs')}
                           className={cn(
                             'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                            activeTab === 'agents'
+                            activeTab === 'npcs'
                               ? 'bg-sidebar font-medium text-foreground shadow-sm'
                               : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
                           <Bot className="h-3.5 w-3.5" />
-                          Agents & NPCs
+                          NPCs
                         </button>
                       </div>
 
@@ -643,7 +655,7 @@ export function GroupManagementModal({
                           placeholder={
                             activeTab === 'users'
                               ? 'Search users...'
-                              : 'Search agents and NPCs...'
+                              : 'Search NPCs...'
                           }
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -665,18 +677,19 @@ export function GroupManagementModal({
                               className="flex w-full items-center gap-2 p-2.5 text-left transition-colors hover:bg-sidebar disabled:opacity-50"
                             >
                               <Avatar
-                                imageUrl={result.profileImageUrl || undefined}
+                                id={result.id}
+                                src={result.profileImageUrl || undefined}
                                 name={
                                   result.username || result.displayName || '?'
                                 }
+                                type={result.type === 'npc' ? 'actor' : 'user'}
                                 size="sm"
                               />
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center truncate font-medium text-sm">
+                                <div className="truncate font-medium text-sm">
                                   {result.displayName ||
                                     result.username ||
                                     'Unknown'}
-                                  <MemberTypeBadge type={result.type} />
                                 </div>
                                 {result.username && (
                                   <div className="truncate text-muted-foreground text-xs">
@@ -696,9 +709,7 @@ export function GroupManagementModal({
                         searchResults.length === 0 &&
                         !searching && (
                           <div className="py-2 text-center text-muted-foreground text-sm">
-                            No{' '}
-                            {activeTab === 'users' ? 'users' : 'agents or NPCs'}{' '}
-                            found
+                            No {activeTab === 'users' ? 'users' : 'NPCs'} found
                           </div>
                         )}
                     </div>
@@ -714,8 +725,12 @@ export function GroupManagementModal({
                           className="flex items-center gap-3 rounded-lg border border-border bg-sidebar p-3 transition-colors hover:bg-sidebar/80"
                         >
                           <Avatar
-                            imageUrl={member.profileImageUrl || undefined}
+                            id={member.id}
+                            src={member.profileImageUrl || undefined}
                             name={member.username || member.displayName || '?'}
+                            type={
+                              member.memberType === 'npc' ? 'actor' : 'user'
+                            }
                             size="md"
                           />
                           <div className="min-w-0 flex-1">
