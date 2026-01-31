@@ -190,6 +190,11 @@ function formatDate(dateStr: string | undefined | null): string {
 function computeYesPctFromShares(
   market: PredictionMarketTerminalState
 ): number {
+  // Prefer CPMM-derived probability from SSE when available
+  if (market.yesProbability != null) {
+    return market.yesProbability * 100;
+  }
+  // Fallback to share-ratio calculation
   const yes = Number(market.yesShares ?? 0);
   const no = Number(market.noShares ?? 0);
   const total = yes + no;
@@ -583,8 +588,12 @@ export function MarketsTradingTerminal({
       }
 
       if (sortBy === 'change') {
-        const valA = a.change24hPct ?? Number.NEGATIVE_INFINITY;
-        const valB = b.change24hPct ?? Number.NEGATIVE_INFINITY;
+        // Use direction-aware sentinel so nulls always sort last
+        const sentinel = sortDesc
+          ? Number.NEGATIVE_INFINITY
+          : Number.POSITIVE_INFINITY;
+        const valA = a.change24hPct ?? sentinel;
+        const valB = b.change24hPct ?? sentinel;
         const byChange = compareNumbers(valA, valB);
         if (byChange !== 0) return byChange;
       } else if (sortBy === 'openInterest') {
