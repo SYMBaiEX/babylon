@@ -262,7 +262,9 @@ export function PredictionsPanel({ data }: PredictionsPanelProps) {
                 <span className="text-green-500">
                   {Math.round(yesClamped)}% YES
                 </span>
-                <span className="text-red-500">{Math.round(noClamped)}% NO</span>
+                <span className="text-red-500">
+                  {Math.round(noClamped)}% NO
+                </span>
               </div>
               <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
                 {prediction.resolved ? (

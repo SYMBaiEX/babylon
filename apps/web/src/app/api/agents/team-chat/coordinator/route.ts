@@ -382,9 +382,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       } else if (typeof parameters === 'object' && parameters !== null) {
         actionParams = parameters as Record<string, unknown>;
       } else {
-        throw new Error(
-          `Unexpected parameters type: ${typeof parameters}`
-        );
+        throw new Error(`Unexpected parameters type: ${typeof parameters}`);
       }
     }
 
