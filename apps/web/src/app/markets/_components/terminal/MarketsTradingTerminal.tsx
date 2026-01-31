@@ -454,6 +454,14 @@ export function MarketsTradingTerminal({
   const [isMobileMarketListOpen, setIsMobileMarketListOpen] = useState(false);
   const [isMobileTradeSheetOpen, setIsMobileTradeSheetOpen] = useState(false);
   const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+
+  const openMobilePanel = useCallback((tab?: BottomTab) => {
+    if (tab) setBottomTab(tab);
+    setIsMobilePanelOpen(true);
+    setIsMobileMarketListOpen(false);
+    setIsMobileTradeSheetOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!isFullscreen) return undefined;
@@ -1411,6 +1419,7 @@ export function MarketsTradingTerminal({
               timeRange={predictionTimeRange}
               onTimeRangeChange={setPredictionTimeRange}
               showHeader={false}
+              height="fill"
             />
           </div>
         </>
@@ -2075,9 +2084,9 @@ export function MarketsTradingTerminal({
       {/* Mobile */}
       <div className="relative flex h-full flex-col overflow-hidden overscroll-none md:hidden">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="relative flex w-full shrink-0 basis-[34%] flex-col border-white/5 border-b">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="contents">
+              <div className="relative flex min-h-0 w-full flex-1 flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <PredictionMarketHeader
@@ -2095,6 +2104,7 @@ export function MarketsTradingTerminal({
                         timeRange={predictionTimeRange}
                         onTimeRangeChange={setPredictionTimeRange}
                         showHeader={false}
+                        height="fill"
                       />
                     </div>
                   </>
@@ -2145,7 +2155,101 @@ export function MarketsTradingTerminal({
                 )}
               </div>
 
-              <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
+              <div className="shrink-0 border-white/5 border-t bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={() => openMobilePanel()}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-full border border-white/10 bg-background/40 px-4 py-2',
+                    'text-left text-foreground text-sm transition-colors hover:bg-muted/20',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                  )}
+                  aria-label="Open panel"
+                >
+                  <span className="font-bold">Panel</span>
+                  <span className="text-muted-foreground">
+                    •{' '}
+                    {bottomTab === 'agent'
+                      ? 'Agents'
+                      : bottomTab === 'social'
+                        ? 'Social'
+                        : bottomTab === 'portfolio'
+                          ? 'Portfolio'
+                          : bottomTab === 'positions'
+                            ? 'Positions'
+                            : 'Trades'}
+                  </span>
+                  <span className="ml-auto font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    Open
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
+            {/* Minimal bottom nav */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobilePanelOpen(false);
+                setIsMobileTradeSheetOpen(false);
+                setIsMobileMarketListOpen(true);
+              }}
+              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
+            >
+              Markets
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobilePanelOpen(false);
+                setIsMobileMarketListOpen(false);
+                setIsMobileTradeSheetOpen(true);
+              }}
+              disabled={!selected}
+              className={cn(
+                'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
+                selected
+                  ? 'bg-foreground text-background active:scale-95'
+                  : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
+              )}
+            >
+              Trade
+            </button>
+            <button
+              type="button"
+              onClick={authenticated ? onRequestBuyPoints : login}
+              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
+            >
+              {authenticated ? (
+                <>
+                  <span className="font-semibold">Balance</span>
+                  <span className="font-mono text-[11px] tabular-nums">
+                    {balanceLoading ? '—' : formatBalance(balance)}
+                  </span>
+                </>
+              ) : (
+                'Log in'
+              )}
+            </button>
+          </div>
+
+          {isMobilePanelOpen && (
+            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-50 flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
+              <div className="flex items-center justify-between border-white/5 border-b p-4">
+                <h2 className="font-bold text-lg">Panel</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsMobilePanelOpen(false)}
+                  className="rounded-full p-2 transition-colors hover:bg-muted/20"
+                  aria-label="Close panel"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
                 <div className="flex min-w-0 flex-1">
                   <button
                     type="button"
@@ -2352,47 +2456,7 @@ export function MarketsTradingTerminal({
                 ) : null}
               </div>
             </div>
-          </div>
-
-          <div className="sticky bottom-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
-            {/* Minimal bottom nav */}
-            <button
-              type="button"
-              onClick={() => setIsMobileMarketListOpen(true)}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
-            >
-              Markets
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMobileTradeSheetOpen(true)}
-              disabled={!selected}
-              className={cn(
-                'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
-                selected
-                  ? 'bg-foreground text-background active:scale-95'
-                  : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
-              )}
-            >
-              Trade
-            </button>
-            <button
-              type="button"
-              onClick={authenticated ? onRequestBuyPoints : login}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
-            >
-              {authenticated ? (
-                <>
-                  <span className="font-semibold">Balance</span>
-                  <span className="font-mono text-[11px] tabular-nums">
-                    {balanceLoading ? '—' : formatBalance(balance)}
-                  </span>
-                </>
-              ) : (
-                'Log in'
-              )}
-            </button>
-          </div>
+          )}
 
           {isMobileMarketListOpen && (
             <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-50 flex animate-in flex-col bg-background duration-200">
@@ -2472,6 +2536,7 @@ export function MarketsTradingTerminal({
                         timeRange={predictionTimeRange}
                         onTimeRangeChange={setPredictionTimeRange}
                         showHeader={false}
+                        height="fill"
                       />
                     </div>
                   </>

@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import type { ISeriesApi, Time } from 'lightweight-charts';
 import { AreaSeries, LineSeries } from 'lightweight-charts';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -49,6 +50,12 @@ interface PredictionProbabilityChartProps {
   showBrush?: boolean;
   /** Whether to show the built-in header (probabilities + range controls). Defaults to true. */
   showHeader?: boolean;
+  /**
+   * Chart sizing behavior.
+   * - fixed: uses a fixed-height chart (good for pages)
+   * - fill: stretches to the available parent height (good for flex layouts like the terminal)
+   */
+  height?: 'fixed' | 'fill';
 }
 
 /**
@@ -75,11 +82,13 @@ export function PredictionProbabilityChart({
   timeRange,
   onTimeRangeChange,
   showHeader = true,
+  height = 'fixed',
 }: PredictionProbabilityChartProps) {
   const [chartInitError, setChartInitError] = useState<string | null>(null);
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
   const noSeries = useRef<ISeriesApi<'Line'> | null>(null);
   const seriesInitialized = useRef(false);
+  const fillHeight = height === 'fill';
 
   const { chartContainerRef, chart } = useLightweightChart({
     rightPriceScale: {
@@ -262,7 +271,12 @@ export function PredictionProbabilityChart({
   // Loading state when no data
   if (!data.length) {
     return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center text-muted-foreground',
+          fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
+        )}
+      >
         <div className="text-center">
           <div className="text-sm">Loading chart data...</div>
         </div>
@@ -272,7 +286,12 @@ export function PredictionProbabilityChart({
 
   if (chartInitError) {
     return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+      <div
+        className={cn(
+          'flex items-center justify-center text-muted-foreground',
+          fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
+        )}
+      >
         <div className="text-center">
           <div className="text-sm">Chart unavailable</div>
           <div className="mt-1 text-xs">{chartInitError}</div>
@@ -282,9 +301,16 @@ export function PredictionProbabilityChart({
   }
 
   return (
-    <div className={showHeader ? 'w-full space-y-3' : 'w-full'} key={marketId}>
+    <div
+      className={cn(
+        'w-full',
+        showHeader && !fillHeight && 'space-y-3',
+        fillHeight && 'flex h-full min-h-0 flex-col gap-3'
+      )}
+      key={marketId}
+    >
       {showHeader && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-blue-400" />
@@ -319,10 +345,13 @@ export function PredictionProbabilityChart({
       )}
 
       {/* Chart container */}
-      <div className="relative">
+      <div className={cn('relative', fillHeight && 'min-h-0 flex-1')}>
         <div
           ref={chartContainerRef}
-          className="h-[400px] w-full rounded-lg bg-muted/10"
+          className={cn(
+            'w-full rounded-lg bg-muted/10',
+            fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
+          )}
         />
         {!chart && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -341,7 +370,7 @@ export function PredictionProbabilityChart({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 px-1 text-muted-foreground text-xs">
+      <div className="flex shrink-0 items-center justify-center gap-6 px-1 text-muted-foreground text-xs">
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
