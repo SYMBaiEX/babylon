@@ -109,7 +109,11 @@ function BottomNavContent() {
   ];
 
   return (
-    <nav className="fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden">
+    <nav
+      id="app-bottom-nav"
+      data-bottom-nav
+      className="fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden"
+    >
       {/* Navigation Items */}
       <div className="safe-area-bottom flex h-14 items-center justify-between px-4">
         <div className="flex flex-1 items-center justify-around">

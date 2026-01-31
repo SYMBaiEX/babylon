@@ -456,12 +456,46 @@ export function MarketsTradingTerminal({
   const [isMobileTradeSheetOpen, setIsMobileTradeSheetOpen] = useState(false);
   const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
 
   const openMobilePanel = useCallback((tab?: BottomTab) => {
     if (tab) setBottomTab(tab);
     setIsMobilePanelOpen(true);
     setIsMobileMarketListOpen(false);
     setIsMobileTradeSheetOpen(false);
+  }, []);
+
+  const mobileBottomDockOffset = useMemo(() => {
+    // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
+    // We only need to offset by the *extra* height beyond 56px (e.g. iOS safe-area).
+    return Math.max(0, mobileBottomNavHeight - 56);
+  }, [mobileBottomNavHeight]);
+
+  useEffect(() => {
+    const bottomNav = document.getElementById('app-bottom-nav');
+    if (!bottomNav) {
+      setMobileBottomNavHeight(0);
+      return;
+    }
+
+    const updateHeight = () => {
+      setMobileBottomNavHeight(bottomNav.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => updateHeight())
+        : null;
+
+    resizeObserver?.observe(bottomNav);
+    window.addEventListener('resize', updateHeight, { passive: true });
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
   }, []);
 
   useEffect(() => {
@@ -2220,156 +2254,161 @@ export function MarketsTradingTerminal({
                   </button>
                 )}
               </div>
-
-              <div className="shrink-0 border-white/5 border-t bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
-                <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-background/40 p-1">
-                  <div className="flex min-w-0 flex-1">
-                    <button
-                      type="button"
-                      onClick={() => openMobilePanel('agent')}
-                      className={cn(
-                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                        bottomTab === 'agent'
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      aria-label="Open Agents panel"
-                    >
-                      Agents
-                      {bottomTab === 'agent' && (
-                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openMobilePanel('social')}
-                      className={cn(
-                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                        bottomTab === 'social'
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      aria-label="Open Social panel"
-                    >
-                      Social
-                      {bottomTab === 'social' && (
-                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openMobilePanel('portfolio')}
-                      className={cn(
-                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                        bottomTab === 'portfolio'
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      aria-label="Open Portfolio panel"
-                    >
-                      Portf.
-                      {bottomTab === 'portfolio' && (
-                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openMobilePanel('positions')}
-                      className={cn(
-                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                        bottomTab === 'positions'
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      aria-label="Open Positions panel"
-                    >
-                      Pos.
-                      {bottomTab === 'positions' && (
-                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openMobilePanel('trades')}
-                      className={cn(
-                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                        bottomTab === 'trades'
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                      aria-label="Open Trades panel"
-                    >
-                      Trades
-                      {bottomTab === 'trades' && (
-                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                      )}
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel()}
-                    className={cn(
-                      'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                      'text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-                    )}
-                    aria-label="Open panel"
-                    title="Open panel"
-                  >
-                    <ChevronUp size={18} />
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 
-          <div className="sticky bottom-14 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-2 font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
-            {/* Minimal bottom nav */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsMobilePanelOpen(false);
-                setIsMobileTradeSheetOpen(false);
-                setIsMobileMarketListOpen(true);
-              }}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
-            >
-              Markets
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsMobilePanelOpen(false);
-                setIsMobileMarketListOpen(false);
-                setIsMobileTradeSheetOpen(true);
-              }}
-              disabled={!selected}
-              className={cn(
-                'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
-                selected
-                  ? 'bg-foreground text-background active:scale-95'
-                  : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
-              )}
-            >
-              Trade
-            </button>
-            <button
-              type="button"
-              onClick={authenticated ? onRequestBuyPoints : login}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
-            >
-              {authenticated ? (
-                <>
-                  <span className="font-semibold">Balance</span>
-                  <span className="font-mono text-[11px] tabular-nums">
-                    {balanceLoading ? '—' : formatBalance(balance)}
-                  </span>
-                </>
-              ) : (
-                'Log in'
-              )}
-            </button>
+          <div
+            className="sticky z-40 w-full select-none overflow-hidden rounded-t-[20px] border-white/5 border-t bg-background shadow-[0_-5px_15px_rgba(0,0,0,0.12)]"
+            style={{ bottom: mobileBottomDockOffset }}
+          >
+            <div className="border-white/5 border-b bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
+              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-background/40 p-1">
+                <div className="flex min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('agent')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'agent'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Agents panel"
+                  >
+                    Agents
+                    {bottomTab === 'agent' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('social')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'social'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Social panel"
+                  >
+                    Social
+                    {bottomTab === 'social' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('portfolio')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'portfolio'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Portfolio panel"
+                  >
+                    Portf.
+                    {bottomTab === 'portfolio' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('positions')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'positions'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Positions panel"
+                  >
+                    Pos.
+                    {bottomTab === 'positions' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('trades')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'trades'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Trades panel"
+                  >
+                    Trades
+                    {bottomTab === 'trades' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openMobilePanel()}
+                  className={cn(
+                    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+                    'text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                  )}
+                  aria-label="Open panel"
+                  title="Open panel"
+                >
+                  <ChevronUp size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex h-[72px] items-center justify-between px-2 pb-2 font-medium text-[10px] text-muted-foreground">
+              {/* Minimal bottom nav */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobilePanelOpen(false);
+                  setIsMobileTradeSheetOpen(false);
+                  setIsMobileMarketListOpen(true);
+                }}
+                className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
+              >
+                Markets
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobilePanelOpen(false);
+                  setIsMobileMarketListOpen(false);
+                  setIsMobileTradeSheetOpen(true);
+                }}
+                disabled={!selected}
+                className={cn(
+                  'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
+                  selected
+                    ? 'bg-foreground text-background active:scale-95'
+                    : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
+                )}
+              >
+                Trade
+              </button>
+              <button
+                type="button"
+                onClick={authenticated ? onRequestBuyPoints : login}
+                className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
+              >
+                {authenticated ? (
+                  <>
+                    <span className="font-semibold">Balance</span>
+                    <span className="font-mono text-[11px] tabular-nums">
+                      {balanceLoading ? '—' : formatBalance(balance)}
+                    </span>
+                  </>
+                ) : (
+                  'Log in'
+                )}
+              </button>
+            </div>
           </div>
 
           {isMobilePanelOpen && (
