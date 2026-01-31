@@ -135,8 +135,7 @@ export const checkFeedPostsAction: Action = {
     const limit = Math.min(Math.max(actionParams?.limit ?? 10, 1), 50);
 
     // Fetch posts from the API with timeout to prevent hanging
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout

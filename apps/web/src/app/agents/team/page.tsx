@@ -276,7 +276,10 @@ export default function TeamChatPage() {
   // Effect to sync activeRightTabId when tabs change (e.g., after closing)
   useEffect(() => {
     // If active tab no longer exists, select the last remaining tab or clear
-    if (activeRightTabId && !rightSidebarTabs.some((t) => t.id === activeRightTabId)) {
+    if (
+      activeRightTabId &&
+      !rightSidebarTabs.some((t) => t.id === activeRightTabId)
+    ) {
       const lastTab = rightSidebarTabs[rightSidebarTabs.length - 1];
       setActiveRightTabId(lastTab?.id ?? null);
     }
