@@ -2324,7 +2324,7 @@ export function MarketsTradingTerminal({
             </div>
           </div>
 
-          <div className="sticky bottom-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
+          <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom))] z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-2 font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
             {/* Minimal bottom nav */}
             <button
               type="button"
@@ -2373,7 +2373,7 @@ export function MarketsTradingTerminal({
           </div>
 
           {isMobilePanelOpen && (
-            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-50 flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
+            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
               <div className="flex items-center justify-between border-white/5 border-b p-4">
                 <h2 className="font-bold text-lg">Panel</h2>
                 <button
@@ -2596,7 +2596,7 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileMarketListOpen && (
-            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-50 flex animate-in flex-col bg-background duration-200">
+            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background duration-200">
               <div className="flex items-center justify-between border-white/5 border-b p-4">
                 <h2 className="font-bold text-lg">Markets</h2>
                 <button
@@ -2613,7 +2613,7 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileTradeSheetOpen && (
-            <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            <div className="fixed inset-0 z-[70] flex flex-col justify-end">
               <button
                 type="button"
                 aria-label="Close trade sheet"
@@ -2640,7 +2640,7 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileChartFullscreen && (
-            <div className="fixed inset-0 z-[60] bg-background">
+            <div className="fixed inset-0 z-[80] bg-background">
               <button
                 type="button"
                 aria-label="Close fullscreen chart"
