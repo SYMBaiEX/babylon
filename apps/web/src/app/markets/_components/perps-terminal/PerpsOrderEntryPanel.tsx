@@ -22,16 +22,18 @@ import {
   useWalletBalance,
 } from '@/stores/walletBalanceStore';
 import type { PerpMarket } from '@/types/markets';
-import { formatPrice } from '../../_lib/formatters';
+import { formatBalance, formatPrice } from '../../_lib/formatters';
 
 interface PerpsOrderEntryPanelProps {
   market: PerpMarket | null;
   initialSide?: 'long' | 'short';
+  onRequestBuyPoints?: () => void;
 }
 
 export function PerpsOrderEntryPanel({
   market,
   initialSide,
+  onRequestBuyPoints,
 }: PerpsOrderEntryPanelProps) {
   const { user, authenticated, login, getAccessToken } = useAuth();
   const userId = authenticated ? (user?.id ?? null) : null;
@@ -298,7 +300,16 @@ export function PerpsOrderEntryPanel({
               {balanceLoading ? (
                 <Skeleton className="h-5 w-20" />
               ) : (
-                formatPrice(balance)
+                formatBalance(balance)
+              )}
+              {onRequestBuyPoints && (
+                <button
+                  type="button"
+                  onClick={onRequestBuyPoints}
+                  className="ml-2 rounded bg-muted/20 px-2 py-1 font-sans text-[10px] text-muted-foreground uppercase tracking-wider transition-colors hover:bg-muted/30 hover:text-foreground"
+                >
+                  Buy
+                </button>
               )}
             </div>
           </div>
@@ -318,7 +329,7 @@ export function PerpsOrderEntryPanel({
       </div>
 
       {/* Order form */}
-      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(72px+env(safe-area-inset-bottom)+24px)]">
+      <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <div className="flex items-center justify-between">
           <div className="font-semibold text-sm">Place Order</div>
           <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">

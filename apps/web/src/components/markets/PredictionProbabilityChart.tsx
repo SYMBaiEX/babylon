@@ -47,6 +47,8 @@ interface PredictionProbabilityChartProps {
   onTimeRangeChange: (range: MarketTimeRange) => void;
   /** Whether to show brush selector (unused, for future) */
   showBrush?: boolean;
+  /** Whether to show the built-in header (probabilities + range controls). Defaults to true. */
+  showHeader?: boolean;
 }
 
 /**
@@ -72,6 +74,7 @@ export function PredictionProbabilityChart({
   marketId,
   timeRange,
   onTimeRangeChange,
+  showHeader = true,
 }: PredictionProbabilityChartProps) {
   const [chartInitError, setChartInitError] = useState<string | null>(null);
   const yesSeries = useRef<ISeriesApi<'Area'> | null>(null);
@@ -157,7 +160,7 @@ export function PredictionProbabilityChart({
       setChartInitError(null);
 
       const yesOptions = {
-        ...AREA_STYLES.green,
+        ...AREA_STYLES.bluePastel,
         priceFormat: {
           type: 'custom' as const,
           formatter: (price: number) => `${price.toFixed(1)}%`,
@@ -166,7 +169,7 @@ export function PredictionProbabilityChart({
       };
 
       const noOptions = {
-        ...LINE_STYLES.red,
+        ...LINE_STYLES.violetPastel,
         priceFormat: {
           type: 'custom' as const,
           formatter: (price: number) => `${price.toFixed(1)}%`,
@@ -279,41 +282,41 @@ export function PredictionProbabilityChart({
   }
 
   return (
-    <div className="w-full space-y-3" key={marketId}>
-      {/* Header with probabilities and time range selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-green-600" />
-            <span className="font-semibold text-sm">
-              YES {currentProbability.toFixed(1)}%
-            </span>
+    <div className={showHeader ? 'w-full space-y-3' : 'w-full'} key={marketId}>
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-blue-400" />
+              <span className="font-semibold text-sm">
+                YES {currentProbability.toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-violet-500" />
+              <span className="font-semibold text-sm">
+                NO {(100 - currentProbability).toFixed(1)}%
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-600" />
-            <span className="font-semibold text-sm">
-              NO {(100 - currentProbability).toFixed(1)}%
-            </span>
-          </div>
-        </div>
 
-        {/* Time range selector */}
-        <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
-          {MARKET_TIME_RANGES.map((range) => (
-            <button
-              key={range}
-              onClick={() => onTimeRangeChange(range)}
-              className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
-                timeRange === range
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {range}
-            </button>
-          ))}
+          <div className="flex items-center gap-1 rounded-md bg-muted/30 p-1">
+            {MARKET_TIME_RANGES.map((range) => (
+              <button
+                key={range}
+                onClick={() => onTimeRangeChange(range)}
+                className={`cursor-pointer rounded px-2 py-1 text-xs transition-colors ${
+                  timeRange === range
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Chart container */}
       <div className="relative">
@@ -342,14 +345,14 @@ export function PredictionProbabilityChart({
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#22c55e' }}
+            style={{ backgroundColor: '#60a5fa' }}
           />
           <span>YES Probability</span>
         </div>
         <div className="flex items-center gap-2">
           <div
             className="h-0.5 w-4 rounded"
-            style={{ backgroundColor: '#ef4444' }}
+            style={{ backgroundColor: '#8b5cf6' }}
           />
           <span>NO Probability</span>
         </div>

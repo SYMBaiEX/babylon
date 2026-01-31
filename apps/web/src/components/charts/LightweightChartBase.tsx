@@ -106,6 +106,17 @@ export const AREA_STYLES = {
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<AreaSeriesOptions>,
+  bluePastel: {
+    lineColor: '#60a5fa', // blue-400
+    topColor: 'rgba(96, 165, 250, 0.22)',
+    bottomColor: 'rgba(96, 165, 250, 0.02)',
+    lineWidth: 2,
+    crosshairMarkerVisible: true,
+    crosshairMarkerRadius: 4,
+    crosshairMarkerBackgroundColor: '#60a5fa',
+    crosshairMarkerBorderColor: '#ffffff',
+    crosshairMarkerBorderWidth: 2,
+  } satisfies DeepPartial<AreaSeriesOptions>,
 };
 
 /**
@@ -127,6 +138,15 @@ export const LINE_STYLES = {
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
     crosshairMarkerBackgroundColor: '#ef4444',
+    crosshairMarkerBorderColor: '#ffffff',
+    crosshairMarkerBorderWidth: 2,
+  } satisfies DeepPartial<LineSeriesOptions>,
+  violetPastel: {
+    color: '#8b5cf6', // violet-500 (a bit less pastel)
+    lineWidth: 2,
+    crosshairMarkerVisible: true,
+    crosshairMarkerRadius: 4,
+    crosshairMarkerBackgroundColor: '#8b5cf6',
     crosshairMarkerBorderColor: '#ffffff',
     crosshairMarkerBorderWidth: 2,
   } satisfies DeepPartial<LineSeriesOptions>,

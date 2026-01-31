@@ -50,7 +50,10 @@ export const useMarketWatchlistStore = create<MarketWatchlistState>()(
       partialize: (state) => ({ favorites: state.favorites }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        state.favoritesSet = new Set(state.favorites ?? []);
+        // Use setState to properly notify subscribers after rehydration
+        useMarketWatchlistStore.setState({
+          favoritesSet: new Set(state.favorites ?? []),
+        });
       },
     }
   )

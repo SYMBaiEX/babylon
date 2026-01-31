@@ -96,6 +96,8 @@ interface TeamChatViewProps {
   currentUserId: string | undefined;
   authenticated: boolean;
   sseConnected: boolean;
+  /** When embedding in another container that already has a header (e.g. terminal tabs). */
+  hideHeader?: boolean;
   loading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
@@ -138,6 +140,7 @@ export function TeamChatView({
   currentUserId,
   authenticated,
   sseConnected,
+  hideHeader = false,
   loading,
   isLoadingMore,
   hasMore,
@@ -175,69 +178,71 @@ export function TeamChatView({
   return (
     <div className="flex h-full flex-col">
       {/* Chat Header - Fixed */}
-      <div className="shrink-0">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            {/* Left sidebar toggle - desktop only */}
-            {onToggleLeftSidebar && (
-              <button
-                onClick={onToggleLeftSidebar}
-                className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
-                aria-label={
-                  leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
-                }
-              >
-                <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
-              </button>
-            )}
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">
-                {chatDetails.chat.name || 'Chat'}
-              </h2>
+      {!hideHeader && (
+        <div className="shrink-0">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              {/* Left sidebar toggle - desktop only */}
+              {onToggleLeftSidebar && (
+                <button
+                  onClick={onToggleLeftSidebar}
+                  className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+                  aria-label={
+                    leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
+                  }
+                >
+                  <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              )}
+              <div>
+                <h2 className="font-semibold text-foreground text-lg">
+                  {chatDetails.chat.name || 'Agents'}
+                </h2>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Mobile members button */}
+              {onShowMembers && (
+                <button
+                  onClick={onShowMembers}
+                  className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
+                  aria-label="Show team members"
+                >
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </button>
+              )}
+              {/* Connection status */}
+              <div className="flex items-center gap-2">
+                <Radio
+                  className={
+                    sseConnected
+                      ? 'h-4 w-4 text-green-500'
+                      : 'h-4 w-4 text-muted-foreground'
+                  }
+                />
+                <span className="text-muted-foreground text-sm">
+                  {sseConnected ? 'Live' : 'Connecting...'}
+                </span>
+              </div>
+              {/* Right sidebar toggle */}
+              {onToggleRightSidebar && (
+                <button
+                  onClick={onToggleRightSidebar}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
+                >
+                  <PanelRight className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Mobile members button */}
-            {onShowMembers && (
-              <button
-                onClick={onShowMembers}
-                className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
-                aria-label="Show team members"
-              >
-                <Users className="h-5 w-5 text-muted-foreground" />
-              </button>
-            )}
-            {/* Connection status */}
-            <div className="flex items-center gap-2">
-              <Radio
-                className={
-                  sseConnected
-                    ? 'h-4 w-4 text-green-500'
-                    : 'h-4 w-4 text-muted-foreground'
-                }
-              />
-              <span className="text-muted-foreground text-sm">
-                {sseConnected ? 'Live' : 'Connecting...'}
-              </span>
-            </div>
-            {/* Right sidebar toggle */}
-            {onToggleRightSidebar && (
-              <button
-                onClick={onToggleRightSidebar}
-                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
-              >
-                <PanelRight className="h-4 w-4" strokeWidth={1.5} />
-              </button>
-            )}
-          </div>
-        </div>
 
-        {/* Header Separator */}
-        <div className="px-4">
-          <Separator />
+          {/* Header Separator */}
+          <div className="px-4">
+            <Separator />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Messages - Scrollable */}
       <div
