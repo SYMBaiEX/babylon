@@ -444,6 +444,89 @@ const PREDICTION_SIDE_MAP: Record<'yes' | 'no', 'YES' | 'NO'> = {
 };
 
 /**
+ * Build perp market service
+ */
+function buildPerpService() {
+  return new PerpMarketService({
+    db: new PerpDbAdapter(),
+    wallet: {
+      debit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      credit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+        await WalletService.recordPnL(userId, pnl, reason, relatedId);
+      },
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
+}
+
+/**
+ * Type-safe mapping from lowercase perp side to uppercase MCP API side
+ */
+const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
+  long: 'LONG',
+  short: 'SHORT',
+};
+
+/**
+ * Validate and convert prediction side input to lowercase.
+ * Provides defensive runtime validation instead of just type assertions.
+ */
+function validatePredictionSide(side: string): 'yes' | 'no' {
+  const lower = side.toLowerCase();
+  if (lower !== 'yes' && lower !== 'no') {
+    throw new Error(`Invalid prediction side: ${side}. Expected 'YES' or 'NO'.`);
+  }
+  return lower;
+}
+
+/**
+ * Validate and convert perp side input to lowercase.
+ * Provides defensive runtime validation instead of just type assertions.
+ */
+function validatePerpSide(side: string): 'long' | 'short' {
+  const lower = side.toLowerCase();
+  if (lower !== 'long' && lower !== 'short') {
+    throw new Error(
+      `Invalid perp side: ${side}. Expected 'LONG' or 'SHORT'.`
+    );
+  }
+  return lower;
+}
+
+/**
  * Execute place_bet tool
  */
 export async function executePlaceBet(
@@ -452,8 +535,8 @@ export async function executePlaceBet(
 ): Promise<PlaceBetResult> {
   logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP');
 
-  // Convert uppercase side to lowercase for service
-  const side = args.side.toLowerCase() as 'yes' | 'no';
+  // Validate and convert uppercase side to lowercase for service
+  const side = validatePredictionSide(args.side);
 
   const service = buildPredictionService(args.marketId);
   const result = await service.buy({
@@ -687,8 +770,8 @@ export async function executeBuyShares(
 ): Promise<BuySharesResult> {
   logger.info(`Agent ${agent.agentId} buying shares:`, args, 'MCP');
 
-  // Convert uppercase outcome to lowercase for service
-  const side = args.outcome.toLowerCase() as 'yes' | 'no';
+  // Validate and convert uppercase outcome to lowercase for service
+  const side = validatePredictionSide(args.outcome);
 
   const service = buildPredictionService(args.marketId);
   const result = await service.buy({
@@ -765,63 +848,6 @@ export async function executeSellShares(
 }
 
 /**
- * Build perp market service
- */
-function buildPerpService() {
-  return new PerpMarketService({
-    db: new PerpDbAdapter(),
-    wallet: {
-      debit: async ({ userId, amount, reason, description, relatedId }) => {
-        await WalletService.debit(
-          userId,
-          amount,
-          reason,
-          description ?? '',
-          relatedId
-        );
-      },
-      credit: async ({ userId, amount, reason, description, relatedId }) => {
-        await WalletService.credit(
-          userId,
-          amount,
-          reason,
-          description ?? '',
-          relatedId
-        );
-      },
-      recordPnL: async ({ userId, pnl, reason, relatedId }) => {
-        await WalletService.recordPnL(userId, pnl, reason, relatedId);
-      },
-      getBalance: (userId: string) => WalletService.getBalance(userId),
-    },
-    fees: {
-      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
-      platformShare: FEE_CONFIG.PLATFORM_SHARE,
-      referrerShare: FEE_CONFIG.REFERRER_SHARE,
-      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
-    },
-    feeProcessor: {
-      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
-        FeeService.processTradingFee(
-          userId,
-          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
-          amount,
-          positionId,
-          relatedId
-        ),
-    },
-  });
-}
-
-/**
- * Type-safe mapping from lowercase perp side to uppercase MCP API side
- */
-const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
-  long: 'LONG',
-  short: 'SHORT',
-};
-
-/**
  * Execute open_position tool
  */
 export async function executeOpenPosition(
@@ -830,8 +856,8 @@ export async function executeOpenPosition(
 ): Promise<OpenPositionResult> {
   logger.info(`Agent ${agent.agentId} opening perp position:`, args, 'MCP');
 
-  // Convert side to lowercase for service
-  const side = args.side.toLowerCase() as 'long' | 'short';
+  // Validate and convert side to lowercase for service
+  const side = validatePerpSide(args.side);
 
   const service = buildPerpService();
   const result = await service.openPosition({
@@ -2732,8 +2758,8 @@ export async function executeAppealBan(
   return {
     success: true,
     message:
-      'Appeal submitted for review. Please note: full AI evaluation is only available via the web interface.',
-    appealStatus: 'submitted',
+      'Appeal submitted for strict review. Please note: full AI evaluation is only available via the web interface.',
+    appealStatus: 'strict_review',
   };
 }
 
@@ -2906,75 +2932,56 @@ export async function executeTransferPoints(
   const senderId = agent.userId;
   const { recipientId, amount, message } = args;
 
-  // Prevent self-transfers
+  // Prevent self-transfers (fast check before any DB queries)
   if (senderId === recipientId) {
     throw new Error('Cannot send points to yourself');
-  }
-
-  // Verify sender and recipient exist
-  const [sender, recipient] = await Promise.all([
-    db.user.findUnique({
-      where: { id: senderId },
-      select: {
-        id: true,
-        reputationPoints: true,
-        displayName: true,
-        username: true,
-      },
-    }),
-    db.user.findUnique({
-      where: { id: recipientId },
-      select: {
-        id: true,
-        reputationPoints: true,
-        displayName: true,
-        username: true,
-      },
-    }),
-  ]);
-
-  if (!sender) {
-    throw new Error('Sender not found');
-  }
-  if (!recipient) {
-    throw new Error('Recipient not found');
   }
 
   // Generate transaction IDs before the transaction
   const senderTxId = await generateSnowflakeId();
   const recipientTxId = await generateSnowflakeId();
 
-  // Perform the transfer in a transaction with balance check inside
-  // This prevents race conditions where two concurrent transfers could overdraw
+  // Perform the entire transfer in a single transaction
+  // This reduces DB round trips from 4 queries to 2 queries
   await db.$transaction(async (tx) => {
-    // Re-fetch both sender and recipient inside transaction to get consistent pre-transfer values
-    const [currentSender, currentRecipient] = await Promise.all([
+    // Fetch both sender and recipient inside transaction for consistency
+    const [sender, recipient] = await Promise.all([
       tx.user.findUnique({
         where: { id: senderId },
-        select: { reputationPoints: true },
+        select: {
+          id: true,
+          reputationPoints: true,
+          displayName: true,
+          username: true,
+        },
       }),
       tx.user.findUnique({
         where: { id: recipientId },
-        select: { reputationPoints: true },
+        select: {
+          id: true,
+          reputationPoints: true,
+          displayName: true,
+          username: true,
+        },
       }),
     ]);
 
-    if (!currentSender) {
+    if (!sender) {
       throw new Error('Sender not found');
     }
-    if (!currentRecipient) {
+    if (!recipient) {
       throw new Error('Recipient not found');
     }
 
     // Check balance inside transaction
-    if (currentSender.reputationPoints < amount) {
+    if (sender.reputationPoints < amount) {
       throw new Error(
-        `Insufficient points. You have ${currentSender.reputationPoints} points, but tried to send ${amount} points.`
+        `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
       );
     }
 
-    const senderPointsBefore = currentSender.reputationPoints;
-    const recipientPointsBefore = currentRecipient.reputationPoints;
+    const senderPointsBefore = sender.reputationPoints;
+    const recipientPointsBefore = recipient.reputationPoints;
 
     // Deduct from sender using atomic decrement
     const updatedSender = await tx.user.update({
