@@ -412,6 +412,7 @@ export const GET = withErrorHandling(
         senderId: msg.senderId,
         type: msg.type,
         createdAt: msg.createdAt,
+        metadata: msg.metadata,
       })),
       participants: participantsInfo,
       pagination: {

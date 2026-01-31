@@ -1,11 +1,33 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, type MessageTag, type MessageTagIcon } from '@babylon/shared';
+import {
+  ChevronRight,
+  FileText,
+  Newspaper,
+  PiggyBank,
+  Target,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
 import { Avatar } from '@/components/shared/Avatar';
 import type { ChatParticipant, Message } from './types';
 import { getProfilePath } from './types';
+
+/** Map icon names to Lucide components */
+const TAG_ICONS: Record<
+  MessageTagIcon,
+  React.ComponentType<{ className?: string }>
+> = {
+  TrendingUp,
+  Target,
+  FileText,
+  Newspaper,
+  Wallet,
+  PiggyBank,
+};
 
 /**
  * Extracts the displayable content from a message, stripping `<think>...</think>` reasoning blocks.
@@ -31,6 +53,10 @@ interface MessageBubbleProps {
   isCurrentUser: boolean;
   /** Valid usernames for @mention formatting (case-sensitive) */
   validMentions?: string[];
+  /** Whether this message is showing "Thinking..." placeholder state */
+  isThinking?: boolean;
+  /** Callback when a tag is clicked - opens sidebar with tag data */
+  onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
 
 export function MessageBubble({
@@ -38,6 +64,8 @@ export function MessageBubble({
   sender,
   isCurrentUser,
   validMentions,
+  isThinking,
+  onTagClick,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
@@ -107,9 +135,62 @@ export function MessageBubble({
               : 'rounded-tl-sm bg-sidebar-accent/50'
           )}
         >
-          <Response className="text-foreground" validMentions={validMentions}>
-            {getDisplayContent(message.content)}
-          </Response>
+          {isThinking ? (
+            <div
+              className="flex items-center gap-1 text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="sr-only">Agent is thinking</span>
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '0ms' }}
+                aria-hidden="true"
+              />
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '150ms' }}
+                aria-hidden="true"
+              />
+              <span
+                className="inline-block h-2 w-2 animate-bounce rounded-full bg-current"
+                style={{ animationDelay: '300ms' }}
+                aria-hidden="true"
+              />
+            </div>
+          ) : (
+            <>
+              <Response
+                className="text-foreground"
+                validMentions={validMentions}
+              >
+                {getDisplayContent(message.content)}
+              </Response>
+
+              {/* Action Tags - Pill-style chips with icons */}
+              {message.metadata?.tags && message.metadata.tags.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2 border-muted/30 border-t pt-3">
+                  {message.metadata.tags.map((tag, i) => {
+                    const IconComponent = TAG_ICONS[tag.icon];
+                    return (
+                      <button
+                        key={`${tag.type}-${tag.entityId ?? i}`}
+                        type="button"
+                        onClick={() => onTagClick?.(tag, message.id)}
+                        className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
+                      >
+                        {IconComponent && (
+                          <IconComponent className="h-3.5 w-3.5" />
+                        )}
+                        <span>{tag.label}</span>
+                        <ChevronRight className="h-3 w-3 opacity-50 transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -1,9 +1,11 @@
+import type { MessageMetadata } from '@babylon/shared';
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -25,7 +27,14 @@ export const groupTypeEnum = pgEnum('group_type', [
 ]);
 
 // Enum for message types
-export const messageTypeEnum = pgEnum('message_type', ['user', 'system']);
+// - 'user': Regular user messages
+// - 'system': System-generated messages (announcements, etc.)
+// - 'coordinator': Coordinator assistant messages in team chat
+export const messageTypeEnum = pgEnum('message_type', [
+  'user',
+  'system',
+  'coordinator',
+]);
 
 // Chat
 export const chats = pgTable(
@@ -98,11 +107,22 @@ export const messages = pgTable(
     content: text('content').notNull(),
     type: messageTypeEnum('type').notNull().default('user'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    // Target IDs for team chat message routing
+    // - For user messages: IDs of @mentioned agents, or ['coordinator'] if no mentions
+    // - For agent/coordinator responses: null (they don't target anyone)
+    // - For non-team-chat messages: null
+    targetIds: text('targetIds').array(),
+    // Metadata for action tags (displayed as clickable buttons on messages)
+    // Contains tags from actions like CHECK_PERPS, CHECK_PREDICTIONS, etc.
+    metadata: jsonb('metadata').$type<MessageMetadata>(),
   },
   (table) => [
     index('Message_chatId_createdAt_idx').on(table.chatId, table.createdAt),
     index('Message_senderId_idx').on(table.senderId),
     index('Message_type_idx').on(table.type),
+    // GIN index for efficient array containment queries (@>, <@, &&)
+    // Must match the migration (0030_add_message_target_ids.sql)
+    index('Message_targetIds_idx').using('gin', table.targetIds),
   ]
 );
 

@@ -33,13 +33,21 @@ enum Step {
   Settings = 3,
 }
 
+/** Agent data returned on successful creation */
+interface AgentCreateResult {
+  id: string;
+  username?: string;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+  modelTier?: 'free' | 'pro';
+  virtualBalance?: number;
+}
+
 interface AgentCreateProps {
   /** Called when back is pressed on step 1 */
   onBack?: () => void;
-  /** Back button label for step 1 */
-  backLabel?: string;
   /** Called when agent is successfully created */
-  onSuccess?: (agent: { id: string; username?: string }) => void;
+  onSuccess?: (agent: AgentCreateResult) => void;
   /** Whether to show in compact mode (no page padding) */
   compact?: boolean;
 }
@@ -52,7 +60,6 @@ interface AgentCreateProps {
  */
 export function AgentCreate({
   onBack,
-  backLabel = 'Back',
   onSuccess,
   compact = false,
 }: AgentCreateProps) {
@@ -238,8 +245,15 @@ export function AgentCreate({
     clearDraft();
     toast.success('Agent created successfully!');
 
-    // Call success callback with agent info
-    onSuccess?.({ id: agentId, username: profileData.username });
+    // Call success callback with agent info including all relevant fields
+    onSuccess?.({
+      id: agentId,
+      username: profileData.username,
+      displayName: profileData.displayName || null,
+      profileImageUrl: profileData.profileImageUrl || null,
+      modelTier: settingsData.modelTier,
+      virtualBalance: agentData.initialDeposit,
+    });
   }, [
     profileData,
     agentData,
@@ -251,24 +265,40 @@ export function AgentCreate({
 
   const containerClass = compact ? '' : 'mx-auto max-w-4xl pb-24';
 
-  return (
+  // Step 1 uses its own modal UI
+  if (currentStep === Step.Profile) {
+    return (
+      <AgentSetupModal
+        isOpen={true}
+        onClose={() => {
+          // Close action should dismiss the modal
+          // If onBack is provided, use it to navigate back
+          if (onBack) {
+            onBack();
+          }
+          // Note: When onBack is not provided, the modal will be rendered without
+          // a close button (hideCloseButton prop handles this below)
+        }}
+        hideCloseButton={!onBack}
+        profileData={profileData}
+        onSave={handleProfileSave}
+      />
+    );
+  }
+
+  // Steps 2 and 3 content
+  const stepsContent = (
     <div className={containerClass}>
-      {/* Header */}
+      {/* Header - only shown for Steps 2 and 3 */}
       <div className="mb-8">
         <button
           onClick={() => {
-            if (currentStep === Step.Profile) {
-              onBack?.();
-            } else {
-              setCurrentStep((prev) => prev - 1);
-            }
+            setCurrentStep((prev) => prev - 1);
           }}
           className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-5 w-5" />
-          <span>
-            {currentStep === Step.Profile ? backLabel : 'Previous Step'}
-          </span>
+          <span>Previous Step</span>
         </button>
         <div className="flex items-center gap-3">
           <Bot className="h-6 w-6 text-[#0066FF]" />
@@ -277,54 +307,15 @@ export function AgentCreate({
             <p className="text-muted-foreground">
               {currentStep === Step.Prompts
                 ? "Configure your agent's personality and prompts"
-                : currentStep === Step.Settings
-                  ? "Set up your agent's capabilities"
-                  : 'Configure your autonomous trading agent'}
+                : "Set up your agent's capabilities"}
             </p>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      {currentStep === Step.Settings ? (
-        // Step 3: Full-width settings (no sidebar)
-        <div className="space-y-6">
-          <AgentSettingsStep
-            settings={settingsData}
-            onSettingsChange={setSettingsData}
-          />
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 border-border border-t pt-6">
-            <button
-              onClick={() => setCurrentStep(Step.Prompts)}
-              disabled={isCreating}
-              className={cn(
-                'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                'text-muted-foreground hover:bg-muted hover:text-foreground',
-                'disabled:cursor-not-allowed disabled:opacity-50'
-              )}
-            >
-              Back
-            </button>
-            <button
-              onClick={handleCreate}
-              disabled={isCreating}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                'disabled:cursor-not-allowed disabled:opacity-50'
-              )}
-            >
-              {isCreating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Create Agent'
-              )}
-            </button>
-          </div>
-        </div>
-      ) : (
+      {currentStep === Step.Prompts && (
         // Step 2: Grid layout with sidebar
         <div className="grid gap-8 lg:grid-cols-3">
           {/* Profile Preview - Left Column */}
@@ -363,78 +354,145 @@ export function AgentCreate({
 
           {/* Configuration - Right Column */}
           <div className="space-y-6 lg:col-span-2">
-            {/* Step 2: Prompts Configuration */}
-            {currentStep === Step.Prompts && (
+            {isInitialized ? (
               <>
-                {isInitialized ? (
-                  <>
-                    <AgentConfigForm
-                      agentData={agentData}
-                      generatingField={generatingField}
-                      maxDeposit={maxDeposit}
-                      onFieldChange={updateAgentField}
-                      onRegenerate={regenerateField}
-                    />
+                <AgentConfigForm
+                  agentData={agentData}
+                  generatingField={generatingField}
+                  maxDeposit={maxDeposit}
+                  onFieldChange={updateAgentField}
+                  onRegenerate={regenerateField}
+                />
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-3 border-border border-t pt-6">
-                      <button
-                        onClick={onBack}
-                        className={cn(
-                          'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                          'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        )}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleContinueToSettings}
-                        disabled={!isInitialized}
-                        className={cn(
-                          'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                          'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                          'disabled:cursor-not-allowed disabled:opacity-50'
-                        )}
-                      >
-                        Continue
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-32" />
-                      <Skeleton className="h-32 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-24" />
-                      <Skeleton className="h-24 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-36" />
-                      <Skeleton className="h-28 w-full" />
-                    </div>
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-28" />
-                      <Skeleton className="h-10 w-full" />
-                    </div>
-                  </div>
-                )}
+                {/* Actions */}
+                <div className="flex justify-end gap-3 border-border border-t pt-6">
+                  {onBack && (
+                    <button
+                      onClick={() => onBack()}
+                      className={cn(
+                        'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                        'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={handleContinueToSettings}
+                    disabled={!isInitialized}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
+                      'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                      'disabled:cursor-not-allowed disabled:opacity-50'
+                    )}
+                  >
+                    Continue
+                  </button>
+                </div>
               </>
+            ) : (
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-32 w-full" />
+                </div>
+                <div className="space-y-4">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+                <div className="space-y-4">
+                  <Skeleton className="h-6 w-36" />
+                  <Skeleton className="h-28 w-full" />
+                </div>
+                <div className="space-y-4">
+                  <Skeleton className="h-6 w-28" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Profile Modal - Step 1 */}
-      {currentStep === Step.Profile && (
-        <AgentSetupModal
-          isOpen={currentStep === Step.Profile}
-          onClose={() => onBack?.()}
-          profileData={profileData}
-          onSave={handleProfileSave}
-        />
+      {currentStep === Step.Settings && (
+        // Step 3: Full-width settings (no sidebar)
+        <div className="space-y-6">
+          <AgentSettingsStep
+            settings={settingsData}
+            onSettingsChange={setSettingsData}
+          />
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 border-border border-t pt-6">
+            <button
+              onClick={() => setCurrentStep(Step.Prompts)}
+              disabled={isCreating}
+              className={cn(
+                'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
+                'text-muted-foreground hover:bg-muted hover:text-foreground',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              Back
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={isCreating}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
+                'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {isCreating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Create Agent'
+              )}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
+
+  // In compact mode (embedded in Command Center), wrap in modal-style container
+  if (compact) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/60 p-4 backdrop-blur-sm">
+        <div
+          className="relative max-h-[90vh] w-full min-w-[800px] max-w-5xl overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Close button - only rendered when onBack is provided */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Close"
+            >
+              <span className="sr-only">Close</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+          {stepsContent}
+        </div>
+      </div>
+    );
+  }
+
+  return stepsContent;
 }

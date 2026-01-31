@@ -293,26 +293,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   <GamePlaybackManager />
                   <ThemedPrivyProvider>
                     <FarcasterMiniAppProvider>
-                        {/* PostHog user identification */}
-                        <PostHogIdentifier />
-                        {/* Capture referral code from URL if present */}
-                        <Suspense fallback={null}>
-                          <ReferralCaptureProvider />
-                        </Suspense>
-                        {/* Onboarding provider for username setup */}
-                        <OnboardingProvider>
-                          {/* Game guide provider for first-time tutorial */}
-                          <GameGuideProvider>
-                            <WidgetRefreshProvider>
-                              {mounted ? (
-                                <Fragment>{children}</Fragment>
-                              ) : (
-                                <div className="min-h-screen bg-sidebar" />
-                              )}
-                            </WidgetRefreshProvider>
-                          </GameGuideProvider>
-                        </OnboardingProvider>
-                      </FarcasterMiniAppProvider>
+                      {/* PostHog user identification */}
+                      <PostHogIdentifier />
+                      {/* Capture referral code from URL if present */}
+                      <Suspense fallback={null}>
+                        <ReferralCaptureProvider />
+                      </Suspense>
+                      {/* Onboarding provider for username setup */}
+                      <OnboardingProvider>
+                        {/* Game guide provider for first-time tutorial */}
+                        <GameGuideProvider>
+                          <WidgetRefreshProvider>
+                            {mounted ? (
+                              <Fragment>{children}</Fragment>
+                            ) : (
+                              <div className="min-h-screen bg-sidebar" />
+                            )}
+                          </WidgetRefreshProvider>
+                        </GameGuideProvider>
+                      </OnboardingProvider>
+                    </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
                 </QueryClientProvider>
               </FontSizeProvider>

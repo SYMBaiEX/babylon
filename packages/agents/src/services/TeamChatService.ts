@@ -25,8 +25,10 @@ import {
   generateSnowflakeId,
   groupMembers,
   groups,
+  isNull,
   messages,
   ne,
+  sql,
   type User,
   users,
   withTransaction,
@@ -38,11 +40,35 @@ const TEAM_CHAT_NAME = 'Agents';
 const TEAM_CHAT_DESCRIPTION = 'Coordinate all your agents in one place';
 
 /**
- * Generate a chat name with date and time
- * Format: "Chat Jan 24, 10:30 AM"
+ * Format a date for display in chat names.
+ * Used for UI fallback when chat.name is null.
+ * Format: "Jan 24, 10:30 AM"
  */
-function generateChatName(date: Date = new Date()): string {
-  return `Chat ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+export function formatChatDate(date: Date): string {
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateStr}, ${timeStr}`;
+}
+
+/**
+ * Get display name for a chat.
+ * Returns the actual name if set, or a fallback using createdAt.
+ */
+export function getChatDisplayName(chat: {
+  name: string | null;
+  createdAt: Date | string;
+}): string {
+  if (chat.name) return chat.name;
+  const date =
+    chat.createdAt instanceof Date ? chat.createdAt : new Date(chat.createdAt);
+  return `New Chat - ${formatChatDate(date)}`;
 }
 
 /**
@@ -127,9 +153,10 @@ export class TeamChatService {
         });
 
         // 2. Create the initial Chat linked to the group
+        // name is null to indicate it needs LLM-generated title after first message
         await tx.insert(chats).values({
           id: chatId,
-          name: generateChatName(now),
+          name: null,
           description: null,
           isGroup: true,
           groupId,
@@ -817,8 +844,8 @@ export class TeamChatService {
         generateSnowflakeId(),
       ]);
 
-      // Generate default title if not provided
-      const chatTitle = title || generateChatName(now);
+      // Use provided title, or null to indicate LLM should generate after first message
+      const chatTitle = title || null;
 
       // 1. Create new Chat linked to the same Group
       const [newChat] = await tx
@@ -968,6 +995,172 @@ export class TeamChatService {
       { newTitle },
       'TeamChatService'
     );
+  }
+
+  /**
+   * Check if a chat needs a title to be generated.
+   * Returns true if name is null (indicating auto-generation needed).
+   * Validates ownership before returning the result.
+   *
+   * @param chatId - The chat ID to check
+   * @param userId - The user ID to validate ownership
+   * @returns Whether the chat needs a title, or false if user doesn't own the chat
+   */
+  async chatNeedsTitle(chatId: string, userId: string): Promise<boolean> {
+    // Validate ownership first
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      logger.warn(
+        `chatNeedsTitle: User does not have a team chat`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    // Query with ownership validation
+    const [chat] = await db
+      .select({ name: chats.name })
+      .from(chats)
+      .where(and(eq(chats.id, chatId), eq(chats.groupId, teamChat.groupId)))
+      .limit(1);
+
+    if (!chat) {
+      logger.warn(
+        `chatNeedsTitle: Chat not found or not owned by user`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    return chat.name === null;
+  }
+
+  /**
+   * Update a chat's title (used for LLM-generated titles).
+   * Validates ownership before updating.
+   *
+   * @param chatId - The chat ID to update
+   * @param title - The new title
+   * @param userId - The user ID to validate ownership
+   */
+  async updateChatTitle(
+    chatId: string,
+    title: string,
+    userId: string
+  ): Promise<void> {
+    // Validate ownership using team chat
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      throw new Error('Team chat not found for user');
+    }
+
+    // Verify the chat belongs to this team's group
+    const [chat] = await db
+      .select()
+      .from(chats)
+      .where(and(eq(chats.id, chatId), eq(chats.groupId, teamChat.groupId)))
+      .limit(1);
+
+    if (!chat) {
+      throw new Error('Chat not found or does not belong to this team');
+    }
+
+    await db
+      .update(chats)
+      .set({ name: title, updatedAt: new Date() })
+      .where(eq(chats.id, chatId));
+
+    logger.info(
+      `Updated chat title via LLM generation`,
+      { chatId, title, userId },
+      'TeamChatService'
+    );
+  }
+
+  /**
+   * Atomically update a chat's title only if it's currently null.
+   * This prevents race conditions where multiple first messages try to set the title.
+   * Validates ownership before updating.
+   *
+   * @param chatId - The chat ID to update
+   * @param title - The new title
+   * @param userId - The user ID to validate ownership
+   * @returns true if title was updated, false if it was already set or unauthorized
+   */
+  async updateChatTitleIfNull(
+    chatId: string,
+    title: string,
+    userId: string
+  ): Promise<boolean> {
+    // Validate ownership using team chat
+    const teamChat = await this.getTeamChat(userId);
+    if (!teamChat) {
+      logger.warn(
+        `Cannot update chat title: team chat not found for user`,
+        { chatId, userId },
+        'TeamChatService'
+      );
+      return false;
+    }
+
+    // Atomic update with ownership check included in WHERE clause
+    // Use .returning() to check if any rows were updated
+    const result = await db
+      .update(chats)
+      .set({ name: title, updatedAt: new Date() })
+      .where(
+        and(
+          eq(chats.id, chatId),
+          isNull(chats.name),
+          eq(chats.groupId, teamChat.groupId)
+        )
+      )
+      .returning({ id: chats.id });
+
+    const updated = result.length > 0;
+
+    if (updated) {
+      logger.info(
+        `Atomically set chat title via LLM generation`,
+        { chatId, title, userId },
+        'TeamChatService'
+      );
+    }
+
+    return updated;
+  }
+
+  /**
+   * Get the count of user messages in a chat.
+   * Used to determine if this is the first message (for title generation).
+   * Validates chat ownership before returning the count.
+   *
+   * @param chatId - The chat ID
+   * @param userId - The user ID to validate ownership (optional for backwards compat, will be required)
+   * @returns Number of user messages
+   * @throws Error if userId is provided and doesn't own the chat
+   */
+  async getUserMessageCount(chatId: string, userId?: string): Promise<number> {
+    // If userId is provided, validate ownership
+    if (userId) {
+      const isOwner = await this.validateTeamChatOwnership(userId, chatId);
+      if (!isOwner) {
+        throw new Error('Unauthorized: User does not own this chat');
+      }
+    }
+
+    const result = await db
+      .select({ count: sql<string>`count(*)` })
+      .from(messages)
+      .where(and(eq(messages.chatId, chatId), eq(messages.type, 'user')));
+
+    // COUNT may be returned as string at runtime; convert to number
+    const countValue = result[0]?.count;
+    return typeof countValue === 'string'
+      ? parseInt(countValue, 10)
+      : (countValue ?? 0);
   }
 
   /**

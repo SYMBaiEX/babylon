@@ -10,6 +10,7 @@
 export const MessageTypeEnum = {
   USER: 'user',
   SYSTEM: 'system',
+  COORDINATOR: 'coordinator',
 } as const;
 
 export type MessageType =

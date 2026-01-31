@@ -23,3 +23,4 @@ export * from './retry';
 export * from './singleton';
 export * from './snowflake';
 export * from './ui';
+export * from './uuid';

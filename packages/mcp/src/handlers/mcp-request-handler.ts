@@ -162,28 +162,52 @@ export class MCPRequestHandler {
       );
     }
 
-    // Execute tool
-    const toolResult = await executeTool(
-      params.name,
-      params.arguments as StringRecord<JsonValue>,
-      agent
-    );
+    // Execute tool with proper error handling per MCP spec
+    // Tool execution errors should return isError: true, not protocol errors
+    try {
+      const toolResult = await executeTool(
+        params.name,
+        params.arguments as StringRecord<JsonValue>,
+        agent
+      );
 
-    // Convert tool result to MCP content format
-    const content = this.convertToolResultToContent(
-      toolResult as unknown as JsonValue
-    );
+      // Convert tool result to MCP content format
+      const content = this.convertToolResultToContent(
+        toolResult as unknown as JsonValue
+      );
 
-    const result: ToolCallResult = {
-      content,
-      isError: false,
-    };
+      const result: ToolCallResult = {
+        content,
+        isError: false,
+      };
 
-    return {
-      jsonrpc: '2.0',
-      id: request.id,
-      result: result as unknown as JsonRpcResult,
-    };
+      return {
+        jsonrpc: '2.0',
+        id: request.id,
+        result: result as unknown as JsonRpcResult,
+      };
+    } catch (error) {
+      // Per MCP spec: Tool execution errors should be reported in tool results
+      // with isError: true, not as JSON-RPC protocol errors
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+
+      const result: ToolCallResult = {
+        content: [
+          {
+            type: 'text',
+            text: `Tool execution failed: ${errorMessage}`,
+          },
+        ],
+        isError: true,
+      };
+
+      return {
+        jsonrpc: '2.0',
+        id: request.id,
+        result: result as unknown as JsonRpcResult,
+      };
+    }
   }
 
   /**

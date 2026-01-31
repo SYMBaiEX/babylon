@@ -6,7 +6,7 @@
  * Provides high-level functions for broadcasting to channels and chat rooms.
  */
 
-import { logger } from '@babylon/shared';
+import { logger, type MessageMetadata } from '@babylon/shared';
 import { publishEvent, type RealtimeChannel } from '../realtime';
 import type { JsonValue } from '../types';
 
@@ -85,6 +85,7 @@ export async function broadcastChatMessage(
     createdAt: string;
     isGameChat?: boolean;
     isDMChat?: boolean;
+    metadata?: MessageMetadata | null;
   }
 ): Promise<void> {
   logger.info(
@@ -92,9 +93,10 @@ export async function broadcastChatMessage(
     { chatId, messageId: message.id },
     'Realtime'
   );
+  // Cast to JsonValue for type compatibility - metadata may contain complex nested types
   await broadcastToChannel(`chat:${chatId}`, {
     type: 'new_message',
-    message,
+    message: message as unknown as JsonValue,
   });
 }
 
@@ -197,6 +199,27 @@ export async function broadcastAgentActivity(
   await broadcastToChannel(`agent:${agentId}`, {
     type: `agent_${activityType}`,
     activity: activity as unknown as JsonValue,
+  });
+}
+
+/**
+ * Broadcast chat title update to a chat room.
+ * Used when LLM generates a title for a new conversation.
+ */
+export async function broadcastChatTitleUpdate(
+  chatId: string,
+  newTitle: string
+): Promise<void> {
+  logger.info(
+    'Broadcasting chat title update',
+    { chatId, newTitle },
+    'Realtime'
+  );
+  await broadcastToChannel(`chat:${chatId}`, {
+    type: 'title_updated',
+    chatId,
+    title: newTitle,
+    timestamp: Date.now(),
   });
 }
 

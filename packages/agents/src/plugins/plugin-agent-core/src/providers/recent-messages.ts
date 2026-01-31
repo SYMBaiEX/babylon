@@ -4,7 +4,7 @@
  * Provides conversation history from Babylon's database.
  *
  * In team chat mode: Queries the `messages` table filtered to only
- * messages between the user (owner) and this specific agent.
+ * messages that target this specific agent (via targetIds) and the agent's responses.
  *
  * In regular DM mode: Queries the `agentMessages` table (legacy behavior).
  */
@@ -14,8 +14,9 @@ import {
   db,
   desc,
   eq,
-  inArray,
   messages as messagesTable,
+  or,
+  sql,
 } from '@babylon/db';
 import type {
   IAgentRuntime,
@@ -74,110 +75,110 @@ export const recentMessagesProvider: Provider = {
     const ownerId = state?.values?.ownerId as string | undefined;
     const isTeamChatMode = !!teamChatId && !!ownerId;
 
-    try {
-      let formattedMessages: string;
-      let messageCount: number;
-      let rawMessages: unknown[];
+    let formattedMessages: string;
+    let messageCount: number;
+    // DrizzleMessageRow shape from messages table; AgentMessage from Prisma
+    type DrizzleMessageRow = typeof messagesTable.$inferSelect;
+    type AgentMessage = { role: string; content: string; createdAt: Date };
+    let rawMessages: Array<DrizzleMessageRow | AgentMessage>;
 
-      if (isTeamChatMode) {
-        // Team chat mode: Query messages table, filter to user + this agent only
-        // This gives the agent focused context on their 1:1 conversation within the team chat
-        const recentMsgs = await db
-          .select()
-          .from(messagesTable)
-          .where(
-            and(
-              eq(messagesTable.chatId, teamChatId),
-              inArray(messagesTable.senderId, [ownerId, agentUserId])
+    if (isTeamChatMode) {
+      // Team chat mode: Query messages that target this agent
+      // 1. User messages where targetIds contains this agent's ID
+      // 2. This agent's own responses
+      const recentMsgs = await db
+        .select()
+        .from(messagesTable)
+        .where(
+          and(
+            eq(messagesTable.chatId, teamChatId),
+            or(
+              // Agent's own messages
+              eq(messagesTable.senderId, agentUserId),
+              // User messages targeting this agent (use @> for GIN index efficiency)
+              and(
+                eq(messagesTable.senderId, ownerId),
+                sql`${messagesTable.targetIds} @> ARRAY[${agentUserId}]`
+              )
             )
           )
-          .orderBy(desc(messagesTable.createdAt))
-          .limit(10);
+        )
+        .orderBy(desc(messagesTable.createdAt))
+        .limit(10);
 
-        rawMessages = recentMsgs;
-        messageCount = recentMsgs.length;
+      rawMessages = recentMsgs;
+      messageCount = recentMsgs.length;
 
-        if (recentMsgs.length === 0) {
-          return {
-            data: { recentMessages: [], messageCount: 0 },
-            values: {
-              recentMessages:
-                'No previous conversation history with this user.',
-              messageCount: 0,
-              hasHistory: false,
-            },
-            text: 'No previous conversation history with this user.',
-          };
-        }
-
-        // Format messages (oldest first for conversation flow)
-        formattedMessages = recentMsgs
-          .reverse()
-          .map((msg) => {
-            const speaker = msg.senderId === ownerId ? 'User' : 'You';
-            const time = formatTime(msg.createdAt);
-            const relativeTime = formatRelativeTime(msg.createdAt);
-            return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
-          })
-          .join('\n');
-      } else {
-        // Legacy DM mode: Query agentMessages table
-        const messages = await db.agentMessage.findMany({
-          where: { agentUserId },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        });
-
-        rawMessages = messages;
-        messageCount = messages.length;
-
-        if (messages.length === 0) {
-          return {
-            data: { recentMessages: [], messageCount: 0 },
-            values: {
-              recentMessages: 'No previous conversation history.',
-              messageCount: 0,
-              hasHistory: false,
-            },
-            text: 'No previous conversation history.',
-          };
-        }
-
-        // Format messages (oldest first for conversation flow)
-        formattedMessages = messages
-          .reverse()
-          .map((msg) => {
-            const speaker = msg.role === 'user' ? 'User' : 'Agent';
-            const time = formatTime(msg.createdAt);
-            const relativeTime = formatRelativeTime(msg.createdAt);
-            return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
-          })
-          .join('\n');
+      if (recentMsgs.length === 0) {
+        return {
+          data: { recentMessages: [], messageCount: 0 },
+          values: {
+            recentMessages: 'No previous conversation history with this user.',
+            messageCount: 0,
+            hasHistory: false,
+          },
+          text: 'No previous conversation history with this user.',
+        };
       }
 
-      return {
-        data: {
-          recentMessages: rawMessages,
-          messageCount,
-        },
-        values: {
-          recentMessages: formattedMessages,
-          messageCount,
-          hasHistory: true,
-        },
-        text: formattedMessages,
-      };
-    } catch (error) {
-      console.error('[RecentMessagesProvider] Error fetching messages:', error);
-      return {
-        data: { recentMessages: [], messageCount: 0 },
-        values: {
-          recentMessages: 'Error retrieving conversation history.',
-          messageCount: 0,
-          hasHistory: false,
-        },
-        text: 'Error retrieving conversation history.',
-      };
+      // Format messages (oldest first for conversation flow)
+      // Use spread to create a copy before reversing to avoid mutating the original array
+      formattedMessages = [...recentMsgs]
+        .reverse()
+        .map((msg) => {
+          const speaker = msg.senderId === ownerId ? 'User' : 'You';
+          const time = formatTime(msg.createdAt);
+          const relativeTime = formatRelativeTime(msg.createdAt);
+          return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
+        })
+        .join('\n');
+    } else {
+      // Legacy DM mode: Query agentMessages table
+      const messages = await db.agentMessage.findMany({
+        where: { agentUserId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+
+      rawMessages = messages;
+      messageCount = messages.length;
+
+      if (messages.length === 0) {
+        return {
+          data: { recentMessages: [], messageCount: 0 },
+          values: {
+            recentMessages: 'No previous conversation history.',
+            messageCount: 0,
+            hasHistory: false,
+          },
+          text: 'No previous conversation history.',
+        };
+      }
+
+      // Format messages (oldest first for conversation flow)
+      // Use spread to create a copy before reversing to avoid mutating the original array
+      formattedMessages = [...messages]
+        .reverse()
+        .map((msg) => {
+          const speaker = msg.role === 'user' ? 'User' : 'Agent';
+          const time = formatTime(msg.createdAt);
+          const relativeTime = formatRelativeTime(msg.createdAt);
+          return `${time} (${relativeTime}) ${speaker}: ${msg.content}`;
+        })
+        .join('\n');
     }
+
+    return {
+      data: {
+        recentMessages: rawMessages,
+        messageCount,
+      },
+      values: {
+        recentMessages: formattedMessages,
+        messageCount,
+        hasHistory: true,
+      },
+      text: formattedMessages,
+    };
   },
 };

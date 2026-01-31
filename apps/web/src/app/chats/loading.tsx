@@ -16,7 +16,10 @@ export default function ChatsLoading() {
             {/* Filter tabs */}
             <div className="mb-4 flex items-center border-border border-b">
               {['All', 'DMs', 'Groups'].map((label) => (
-                <div key={label} className="min-h-[44px] flex-1 py-3 text-center">
+                <div
+                  key={label}
+                  className="min-h-[44px] flex-1 py-3 text-center"
+                >
                   <Skeleton className="mx-auto h-4 w-12" />
                 </div>
               ))}

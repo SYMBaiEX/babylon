@@ -611,6 +611,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               senderId: otherUserDetails.id,
               type: 'user' as const,
               createdAt: agentLastMsg.createdAt,
+              targetIds: null, // Not applicable for DM messages
+              metadata: null, // Not applicable for DM messages
             };
           }
         }

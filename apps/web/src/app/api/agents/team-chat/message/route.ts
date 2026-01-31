@@ -9,6 +9,8 @@
  * Agent responses are triggered separately by the frontend calling /api/agents/[agentId]/chat
  * for each selected agent (parallel execution model).
  *
+ * On the first user message, an LLM-generated title is created for the conversation.
+ *
  * @openapi
  * /api/agents/team-chat/message:
  *   post:
@@ -41,6 +43,7 @@
  *         description: No team chat exists
  */
 
+import { createGroq } from '@ai-sdk/groq';
 import { teamChatService } from '@babylon/agents';
 import {
   authenticateUser,
@@ -49,10 +52,107 @@ import {
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
 import { db, generateSnowflakeId, messages } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { COORDINATOR_SENDER_ID, logger } from '@babylon/shared';
+import { generateText } from 'ai';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+
+// =============================================================================
+// Title Generation
+// =============================================================================
+
+/**
+ * Generate a chat title from the first user message using LLM.
+ * Returns the generated title or null if generation failed.
+ */
+async function generateAndUpdateChatTitle(
+  chatId: string,
+  firstMessage: string,
+  userId: string
+): Promise<string | null> {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      logger.warn(
+        'GROQ_API_KEY not set, skipping title generation',
+        { chatId },
+        'TeamChatMessageAPI'
+      );
+      return null;
+    }
+
+    const groq = createGroq({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+
+    const prompt = `Create a brief chat title (2-5 words) that captures the topic of this message.
+
+Rules:
+- Just the topic, no meta commentary (NOT "Question about X" or "User asks about X")
+- No quotes, prefixes, or formatting
+
+Message: "${firstMessage.slice(0, 200)}"
+
+Title:`;
+
+    // Add timeout to prevent hanging on slow API responses
+    const GENERATE_TIMEOUT_MS = 10000;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(
+      () => abortController.abort(),
+      GENERATE_TIMEOUT_MS
+    );
+
+    let result: { text: string };
+    try {
+      result = await generateText({
+        model: groq('llama-3.1-8b-instant'),
+        prompt,
+        temperature: 0.7,
+        maxOutputTokens: 50,
+        abortSignal: abortController.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const title = result.text.trim().slice(0, 50);
+
+    if (title) {
+      // Use atomic update to prevent race conditions when multiple first messages
+      // arrive simultaneously - only the first one to update will succeed
+      const updated = await teamChatService.updateChatTitleIfNull(
+        chatId,
+        title,
+        userId
+      );
+      if (updated) {
+        logger.info(
+          'Generated chat title from first message',
+          { chatId, title },
+          'TeamChatMessageAPI'
+        );
+        return title;
+      }
+      // Another message already set the title - this is fine, no error needed
+      logger.debug(
+        'Chat title already set by concurrent request',
+        { chatId },
+        'TeamChatMessageAPI'
+      );
+      return null;
+    }
+    return null;
+  } catch (error) {
+    logger.error(
+      'Failed to generate chat title',
+      { chatId, error: error instanceof Error ? error.message : 'Unknown' },
+      'TeamChatMessageAPI'
+    );
+    return null;
+  }
+}
 
 // =============================================================================
 // Request Validation
@@ -64,6 +164,10 @@ const messageSchema = z.object({
     .string()
     .min(1, 'Message content is required')
     .max(4000, 'Message too long. Maximum 4000 characters allowed.'),
+  // Target IDs for message routing in team chat
+  // - Array of agent IDs when @mentioning agents
+  // - Empty array or undefined = coordinator (no @mentions)
+  targetIds: z.array(z.string()).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -105,7 +209,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { content } = parseResult.data;
+  const { content, targetIds: providedTargetIds } = parseResult.data;
 
   // Get user's team chat
   const teamChat = await teamChatService.getTeamChat(user.id);
@@ -121,6 +225,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Determine target IDs for message routing
+  // If no agents are @mentioned (empty array or undefined), target the coordinator
+  const targetIds =
+    providedTargetIds && providedTargetIds.length > 0
+      ? providedTargetIds
+      : [COORDINATOR_SENDER_ID];
+
   // Create the message
   const messageId = await generateSnowflakeId();
   const now = new Date();
@@ -132,6 +243,7 @@ export async function POST(req: NextRequest) {
     content: content.trim(),
     type: 'user',
     createdAt: now,
+    targetIds,
   });
 
   logger.info(
@@ -152,6 +264,28 @@ export async function POST(req: NextRequest) {
     isDMChat: false,
   });
 
+  // Generate chat title on first message
+  // Check if chat needs title (name is null) and this is the first user message
+  let generatedTitle: string | null = null;
+  const needsTitle = await teamChatService.chatNeedsTitle(
+    teamChat.chatId,
+    user.id
+  );
+  if (needsTitle) {
+    const messageCount = await teamChatService.getUserMessageCount(
+      teamChat.chatId,
+      user.id
+    );
+    // Only generate on first message (count is 1 after insert)
+    if (messageCount === 1) {
+      generatedTitle = await generateAndUpdateChatTitle(
+        teamChat.chatId,
+        content.trim(),
+        user.id
+      );
+    }
+  }
+
   // Note: Agent responses are now triggered by the frontend calling
   // /api/agents/[agentId]/chat for each selected agent (parallel execution).
   // The old broadcastToAllAgents flow has been removed to prevent duplicate responses.
@@ -167,6 +301,8 @@ export async function POST(req: NextRequest) {
         type: 'user',
         createdAt: now.toISOString(),
       },
+      // Include generated title if one was created
+      generatedTitle,
     },
     { status: 201 }
   );

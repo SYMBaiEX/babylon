@@ -27,6 +27,8 @@ export {
 export * from './groups';
 // Social interaction types
 export * from './interactions';
+// Message tag types (for action result tags on messages)
+export * from './message-tags';
 // Message types (chat/system)
 export * from './messages';
 // Agent monitoring types

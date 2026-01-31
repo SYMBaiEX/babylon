@@ -24,9 +24,6 @@ export function TerminalAgentsChat() {
     topSentinelRef,
     sendMessage,
     handleScroll,
-    selectedAgentIds,
-    processingAgentIds,
-    toggleAgentSelection,
   } = useTeamChat();
 
   if (!authenticated) {
@@ -95,21 +92,6 @@ export function TerminalAgentsChat() {
         typingUsers={typingUsers}
         thinkingAgents={thinkingAgents}
         onScroll={handleScroll}
-        selectedAgents={
-          teamChat?.agents
-            .filter((a) => selectedAgentIds.has(a.id))
-            .map((a) => ({
-              id: a.id,
-              displayName: a.displayName || a.username || 'Agent',
-              profileImageUrl: a.profileImageUrl,
-              isProcessing: processingAgentIds.has(a.id),
-            })) || []
-        }
-        onRemoveSelectedAgent={toggleAgentSelection}
-        hasProcessingSelected={
-          selectedAgentIds.size > 0 &&
-          Array.from(selectedAgentIds).some((id) => processingAgentIds.has(id))
-        }
       />
     </div>
   );
