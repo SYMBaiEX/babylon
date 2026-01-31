@@ -88,7 +88,6 @@ import {
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 
 // Initialize A2A protocol components with Redis-backed persistence
 const taskStore = new PersistentTaskStore();
@@ -149,185 +148,6 @@ async function checkApiKey(request: NextRequest): Promise<{
   }
 
   return { authResult };
-}
-
-/**
- * Handle message/stream with Server-Sent Events response
- *
- * Creates a task, executes it, and streams status updates via SSE.
- * Tasks are persisted to the task store for consistency with non-streaming tasks.
- */
-async function handleMessageStream(
-  body: Record<string, unknown>,
-  authResult: AuthResult | undefined
-): Promise<Response> {
-  const encoder = new TextEncoder();
-  const taskId = uuidv4();
-  const contextId = authResult?.userId || 'anonymous';
-
-  // Extract message from params
-  const params = body.params as { message?: { parts?: unknown[] } } | undefined;
-  const message = params?.message;
-
-  if (!message) {
-    return new Response(
-      encoder.encode(
-        `event: error\ndata: ${JSON.stringify({ error: 'message is required' })}\n\n`
-      ),
-      {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
-      }
-    );
-  }
-
-  // Create initial task and persist to store for tasks/get and tasks/resubscribe
-  const initialTask = {
-    kind: 'task' as const,
-    id: taskId,
-    contextId,
-    status: {
-      state: 'submitted' as const,
-      timestamp: new Date().toISOString(),
-    },
-    artifacts: [] as Array<{ name?: string; parts: unknown[] }>,
-  };
-  await taskStore.save(initialTask);
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      // Send task submission event
-      controller.enqueue(
-        encoder.encode(
-          `event: task-status\ndata: ${JSON.stringify({
-            taskId,
-            contextId,
-            status: { state: 'submitted', timestamp: new Date().toISOString() },
-          })}\n\n`
-        )
-      );
-
-      try {
-        // Create the event bus for this execution
-        const eventBus = eventBusManager.createEventBus();
-
-        // Track artifacts for final task save
-        const artifacts: Array<{ name?: string; parts: unknown[] }> = [];
-
-        // Subscribe to events
-        eventBus.subscribe((event) => {
-          if ('status' in event) {
-            controller.enqueue(
-              encoder.encode(
-                `event: task-status\ndata: ${JSON.stringify({
-                  taskId: event.taskId,
-                  status: event.status,
-                })}\n\n`
-              )
-            );
-          } else if ('artifact' in event) {
-            artifacts.push(event.artifact as { name?: string; parts: unknown[] });
-            controller.enqueue(
-              encoder.encode(
-                `event: task-artifact\ndata: ${JSON.stringify({
-                  taskId: event.taskId,
-                  artifact: event.artifact,
-                })}\n\n`
-              )
-            );
-          }
-        });
-
-        // Execute the operation
-        await executor.execute(
-          {
-            task: {
-              id: taskId,
-              contextId,
-              status: {
-                state: 'submitted',
-                timestamp: new Date().toISOString(),
-              },
-            },
-            message: message as { parts?: unknown[] },
-            isCancelled: () => false,
-          },
-          eventBus
-        );
-
-        // Update task to completed and save
-        const completedTask = {
-          kind: 'task' as const,
-          id: taskId,
-          contextId,
-          status: {
-            state: 'completed' as const,
-            timestamp: new Date().toISOString(),
-          },
-          artifacts,
-        };
-        await taskStore.save(completedTask);
-
-        // Send completion event
-        controller.enqueue(
-          encoder.encode(
-            `event: task-status\ndata: ${JSON.stringify({
-              taskId,
-              status: {
-                state: 'completed',
-                timestamp: new Date().toISOString(),
-              },
-              final: true,
-            })}\n\n`
-          )
-        );
-      } catch (error) {
-        // Update task to failed and save
-        const failedTask = {
-          kind: 'task' as const,
-          id: taskId,
-          contextId,
-          status: {
-            state: 'failed' as const,
-            timestamp: new Date().toISOString(),
-            message: error instanceof Error ? error.message : 'Unknown error',
-          },
-          artifacts: [] as Array<{ name?: string; parts: unknown[] }>,
-        };
-        await taskStore.save(failedTask);
-
-        // Send error event
-        controller.enqueue(
-          encoder.encode(
-            `event: task-status\ndata: ${JSON.stringify({
-              taskId,
-              status: {
-                state: 'failed',
-                timestamp: new Date().toISOString(),
-                message:
-                  error instanceof Error ? error.message : 'Unknown error',
-              },
-              final: true,
-            })}\n\n`
-          )
-        );
-      }
-
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  });
 }
 
 /**
@@ -454,12 +274,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Handle message/stream with SSE response
-  if (body.method === 'message/stream') {
-    return handleMessageStream(body, authResult);
-  }
-
-  // Use the JSON-RPC transport handler
+  // Delegate all A2A methods to the SDK's JSON-RPC transport handler
+  // This includes message/send, message/stream, tasks/get, tasks/list, etc.
+  // The SDK handles task persistence, streaming, and event bus management internally
   const response = await jsonRpcHandler.handle(body);
 
   return NextResponse.json(response, {
