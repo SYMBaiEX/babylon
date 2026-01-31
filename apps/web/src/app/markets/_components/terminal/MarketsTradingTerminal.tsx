@@ -9,6 +9,7 @@ import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
+  ChevronUp,
   Filter,
   Info,
   Maximize2,
@@ -2156,33 +2157,104 @@ export function MarketsTradingTerminal({
               </div>
 
               <div className="shrink-0 border-white/5 border-t bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={() => openMobilePanel()}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-full border border-white/10 bg-background/40 px-4 py-2',
-                    'text-left text-foreground text-sm transition-colors hover:bg-muted/20',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-                  )}
-                  aria-label="Open panel"
-                >
-                  <span className="font-bold">Panel</span>
-                  <span className="text-muted-foreground">
-                    •{' '}
-                    {bottomTab === 'agent'
-                      ? 'Agents'
-                      : bottomTab === 'social'
-                        ? 'Social'
-                        : bottomTab === 'portfolio'
-                          ? 'Portfolio'
-                          : bottomTab === 'positions'
-                            ? 'Positions'
-                            : 'Trades'}
-                  </span>
-                  <span className="ml-auto font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                    Open
-                  </span>
-                </button>
+                <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-background/40 p-1">
+                  <div className="flex min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => openMobilePanel('agent')}
+                      className={cn(
+                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                        bottomTab === 'agent'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                      aria-label="Open Agents panel"
+                    >
+                      Agents
+                      {bottomTab === 'agent' && (
+                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMobilePanel('social')}
+                      className={cn(
+                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                        bottomTab === 'social'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                      aria-label="Open Social panel"
+                    >
+                      Social
+                      {bottomTab === 'social' && (
+                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMobilePanel('portfolio')}
+                      className={cn(
+                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                        bottomTab === 'portfolio'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                      aria-label="Open Portfolio panel"
+                    >
+                      Portf.
+                      {bottomTab === 'portfolio' && (
+                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMobilePanel('positions')}
+                      className={cn(
+                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                        bottomTab === 'positions'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                      aria-label="Open Positions panel"
+                    >
+                      Pos.
+                      {bottomTab === 'positions' && (
+                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMobilePanel('trades')}
+                      className={cn(
+                        'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                        bottomTab === 'trades'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                      aria-label="Open Trades panel"
+                    >
+                      Trades
+                      {bottomTab === 'trades' && (
+                        <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel()}
+                    className={cn(
+                      'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+                      'text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                    )}
+                    aria-label="Open panel"
+                    title="Open panel"
+                  >
+                    <ChevronUp size={18} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
