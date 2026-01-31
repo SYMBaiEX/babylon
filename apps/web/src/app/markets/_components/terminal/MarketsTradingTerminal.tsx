@@ -650,13 +650,17 @@ export function MarketsTradingTerminal({
   const predictionBuyCalculation = useMemo(() => {
     if (!predictionEffectiveShares) return null;
     if (predictionAmountNum <= 0) return null;
-    return PredictionPricing.calculateBuyWithFees(
-      predictionEffectiveShares.yesShares,
-      predictionEffectiveShares.noShares,
-      predictionSide,
-      predictionAmountNum,
-      FEE_CONFIG.TRADING_FEE_RATE
-    );
+    try {
+      return PredictionPricing.calculateBuyWithFees(
+        predictionEffectiveShares.yesShares,
+        predictionEffectiveShares.noShares,
+        predictionSide,
+        predictionAmountNum,
+        FEE_CONFIG.TRADING_FEE_RATE
+      );
+    } catch {
+      return null;
+    }
   }, [predictionEffectiveShares, predictionSide, predictionAmountNum]);
 
   const sellPosition = useMemo(() => {
@@ -682,13 +686,17 @@ export function MarketsTradingTerminal({
     if (!predictionEffectiveShares) return null;
     if (!sellPosition) return null;
     if (clampedSellShares <= 0) return null;
-    return PredictionPricing.calculateSellWithFees(
-      predictionEffectiveShares.yesShares,
-      predictionEffectiveShares.noShares,
-      predictionSide,
-      clampedSellShares,
-      FEE_CONFIG.TRADING_FEE_RATE
-    );
+    try {
+      return PredictionPricing.calculateSellWithFees(
+        predictionEffectiveShares.yesShares,
+        predictionEffectiveShares.noShares,
+        predictionSide,
+        clampedSellShares,
+        FEE_CONFIG.TRADING_FEE_RATE
+      );
+    } catch {
+      return null;
+    }
   }, [
     predictionEffectiveShares,
     predictionSide,
@@ -729,6 +737,10 @@ export function MarketsTradingTerminal({
         toast.error('Minimum sell is 0.01 shares');
         return;
       }
+      if (!predictionSellCalculation) {
+        toast.error('Unable to calculate sell quote.');
+        return;
+      }
     }
     setConfirmDialogOpen(true);
   };
@@ -746,6 +758,10 @@ export function MarketsTradingTerminal({
       }
       if (clampedSellShares < 0.01) {
         toast.error('Minimum sell is 0.01 shares');
+        return;
+      }
+      if (!predictionSellCalculation) {
+        toast.error('Unable to calculate sell quote.');
         return;
       }
     }
@@ -1502,7 +1518,9 @@ export function MarketsTradingTerminal({
                   predictionAmountNum < 1) ||
                 (predictionTradeMode === 'sell' &&
                   authenticated &&
-                  (maxSellShares <= 0 || clampedSellShares < 0.01))
+                  (maxSellShares <= 0 ||
+                    clampedSellShares < 0.01 ||
+                    !predictionSellCalculation))
               }
               className={cn(
                 'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
@@ -1515,7 +1533,9 @@ export function MarketsTradingTerminal({
                     predictionAmountNum < 1) ||
                   (predictionTradeMode === 'sell' &&
                     authenticated &&
-                    (maxSellShares <= 0 || clampedSellShares < 0.01))) &&
+                    (maxSellShares <= 0 ||
+                      clampedSellShares < 0.01 ||
+                      !predictionSellCalculation))) &&
                   'cursor-not-allowed opacity-50'
               )}
             >

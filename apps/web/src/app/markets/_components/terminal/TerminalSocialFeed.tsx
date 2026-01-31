@@ -1,13 +1,7 @@
 'use client';
 
 import { cn, type FeedPost } from '@babylon/shared';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PostList } from '@/app/feed/components/PostList';
 import { useFeedPosts } from '@/app/feed/hooks/useFeedPosts';
 import { FeedSkeleton } from '@/components/shared/Skeleton';
@@ -91,6 +85,11 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
         { signal: controller.signal }
       ).catch(() => null);
 
+      // Guard: if this request was superseded by a newer one, bail out
+      if (inFlightTagRef.current !== controller || controller.signal.aborted) {
+        return;
+      }
+
       if (!response) {
         setTagLoading(false);
         setTagLoadingMore(false);
@@ -120,6 +119,11 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
         posts?: FeedPost[];
         total?: number;
       };
+
+      // Guard again after async json parsing
+      if (inFlightTagRef.current !== controller || controller.signal.aborted) {
+        return;
+      }
 
       if (!data.success) {
         setTagLoading(false);
