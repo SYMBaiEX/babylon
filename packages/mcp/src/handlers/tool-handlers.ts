@@ -389,7 +389,10 @@ async function executeWithIdempotency<T>(
       // Redis error - fall through to in-memory fallback
       logger.warn(
         'Redis idempotency cache error, using fallback',
-        { idempotencyKey, error: error instanceof Error ? error.message : String(error) },
+        {
+          idempotencyKey,
+          error: error instanceof Error ? error.message : String(error),
+        },
         'MCP'
       );
     }
@@ -400,11 +403,7 @@ async function executeWithIdempotency<T>(
     | IdempotencyCacheEntry<T>
     | undefined;
   if (cached && cached.expiresAt > Date.now()) {
-    logger.debug(
-      'Idempotency cache hit (fallback)',
-      { idempotencyKey },
-      'MCP'
-    );
+    logger.debug('Idempotency cache hit (fallback)', { idempotencyKey }, 'MCP');
     return cached.result;
   }
 
@@ -1377,9 +1376,7 @@ export async function executeGetTradeHistory(
 ): Promise<GetTradeHistoryResult> {
   // Enforce self-only access: users can only fetch their own trade history
   if (args.userId && args.userId !== agent.userId) {
-    throw new Error(
-      'Unauthorized: You can only access your own trade history'
-    );
+    throw new Error('Unauthorized: You can only access your own trade history');
   }
 
   // Use the authenticated agent's userId for the query
