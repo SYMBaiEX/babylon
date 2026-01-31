@@ -260,8 +260,12 @@ export class BabylonAgentExecutor implements AgentExecutor {
    * Rate limiters for sensitive operations
    * Separate limiters for different operation types to allow independent tuning
    */
-  private tradingRateLimiter = new RateLimiter(RATE_LIMITS.TRADING_OPS_PER_MINUTE);
-  private transferRateLimiter = new RateLimiter(RATE_LIMITS.TRANSFER_OPS_PER_MINUTE);
+  private tradingRateLimiter = new RateLimiter(
+    RATE_LIMITS.TRADING_OPS_PER_MINUTE
+  );
+  private transferRateLimiter = new RateLimiter(
+    RATE_LIMITS.TRANSFER_OPS_PER_MINUTE
+  );
 
   /**
    * Check rate limit and throw if exceeded
@@ -1656,7 +1660,9 @@ export class BabylonAgentExecutor implements AgentExecutor {
     } catch (error) {
       clearTimeout(timer);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Request to fetch trades timed out after ${timeoutMs}ms`);
+        throw new Error(
+          `Request to fetch trades timed out after ${timeoutMs}ms`
+        );
       }
       throw error;
     }
