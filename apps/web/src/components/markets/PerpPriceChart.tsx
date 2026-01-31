@@ -99,6 +99,9 @@ export function PerpPriceChart({
     },
   });
 
+  const hasData = data.length > 0;
+  const unavailableReason = chartInitError ?? chartBaseError;
+
   // Filter and prepare data based on time range
   const chartData = useMemo(() => {
     if (!data.length) return [];
@@ -282,39 +285,6 @@ export function PerpPriceChart({
     }
   }, [currentPrice]);
 
-  // Loading state when no data
-  if (!data.length) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Loading chart data...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartInitError) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Chart unavailable</div>
-          <div className="mt-1 text-xs">{chartInitError}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartBaseError) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Chart unavailable</div>
-          <div className="mt-1 text-xs">{chartBaseError}</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={cn(
@@ -371,14 +341,29 @@ export function PerpPriceChart({
           ref={chartContainerRef}
           className="h-[400px] w-full rounded-lg bg-muted/10"
         />
-        {!chart && (
+        {!chart && !unavailableReason && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               Initializing chart…
             </div>
           </div>
         )}
-        {chartData.length === 0 && data.length > 0 && (
+        {!hasData && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Loading chart data…
+            </div>
+          </div>
+        )}
+        {unavailableReason && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-center text-muted-foreground text-sm">
+              <div className="font-semibold">Chart unavailable</div>
+              <div className="mt-1 text-xs">{unavailableReason}</div>
+            </div>
+          </div>
+        )}
+        {chartData.length === 0 && hasData && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               No data in selected time range

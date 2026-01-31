@@ -90,7 +90,11 @@ export function PredictionProbabilityChart({
   const seriesInitialized = useRef(false);
   const fillHeight = height === 'fill';
 
-  const { chartContainerRef, chart } = useLightweightChart({
+  const {
+    chartContainerRef,
+    chart,
+    error: chartBaseError,
+  } = useLightweightChart({
     rightPriceScale: {
       scaleMargins: { top: 0.1, bottom: 0.1 },
       autoScale: true,
@@ -160,6 +164,9 @@ export function PredictionProbabilityChart({
     const latest = sorted[0];
     return latest ? latest.yesPrice * 100 : 50;
   }, [data]);
+
+  const hasData = data.length > 0;
+  const unavailableReason = chartInitError ?? chartBaseError;
 
   // Initialize series when chart is ready
   useEffect(() => {
@@ -268,46 +275,14 @@ export function PredictionProbabilityChart({
     }
   }, [chart, chartData]);
 
-  // Loading state when no data
-  if (!data.length) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center text-muted-foreground',
-          fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
-        )}
-      >
-        <div className="text-center">
-          <div className="text-sm">Loading chart data...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartInitError) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center text-muted-foreground',
-          fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
-        )}
-      >
-        <div className="text-center">
-          <div className="text-sm">Chart unavailable</div>
-          <div className="mt-1 text-xs">{chartInitError}</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
+      data-market-id={marketId}
       className={cn(
         'w-full',
         showHeader && !fillHeight && 'space-y-3',
         fillHeight && 'flex h-full min-h-0 flex-col gap-3'
       )}
-      key={marketId}
     >
       {showHeader && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
@@ -353,14 +328,29 @@ export function PredictionProbabilityChart({
             fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
           )}
         />
-        {!chart && (
+        {!chart && !unavailableReason && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               Initializing chart…
             </div>
           </div>
         )}
-        {chartData.yes.length === 0 && data.length > 0 && (
+        {!hasData && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Loading chart data…
+            </div>
+          </div>
+        )}
+        {unavailableReason && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-center text-muted-foreground text-sm">
+              <div className="font-semibold">Chart unavailable</div>
+              <div className="mt-1 text-xs">{unavailableReason}</div>
+            </div>
+          </div>
+        )}
+        {chartData.yes.length === 0 && hasData && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               No data in selected time range
