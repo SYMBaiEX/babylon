@@ -8,15 +8,17 @@
  *
  * PRODUCTION FEATURES:
  * - Rate limiting: All trading/transfer operations check rate limits
- * - Retry logic: Transient failures are retried with exponential backoff
+ * - Retry logic: Transient failures are retried with exponential backoff (idempotent ops only)
  * - Error logging: Failures are logged with context for debugging
  * - Metrics tracking: Operation success/failure counts are tracked
- * - Idempotency: Transfer operations support idempotency keys
+ * - Idempotency: Transfer operations support idempotency keys (Redis-backed, distributed)
  *
  * ARCHITECTURE NOTES:
  * - Direct service calls eliminate HTTP overhead for internal operations
  * - Authorization is enforced at the handler level before service calls
  * - Transactions use row-level locking to prevent race conditions
+ * - Idempotency cache uses Redis for distributed protection across instances,
+ *   with in-memory fallback when Redis is unavailable
  *
  * REFERRER FEES:
  * MCP tool responses report `referrerPaid: 0` because:
@@ -37,8 +39,11 @@ import {
 } from '@babylon/a2a';
 import {
   checkRateLimitAsync,
+  getCache,
+  isRedisAvailable,
   RATE_LIMIT_CONFIGS,
   RateLimitError,
+  setCache,
 } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
@@ -147,38 +152,76 @@ const mcpMetrics = {
 };
 
 /**
- * Execute a critical operation with retry, error logging, and metrics.
- * Use for operations that should be retried on transient failures.
+ * Options for executeWithRetry function.
+ */
+interface ExecuteWithRetryOptions {
+  /** The agent ID for logging/metrics */
+  agentId: string;
+  /** The user ID for logging/metrics */
+  userId: string;
+  /**
+   * Whether the operation is idempotent and safe to retry.
+   * Only idempotent operations will be retried on transient failures.
+   * @default false
+   */
+  isIdempotent?: boolean;
+  /**
+   * Optional idempotency key. If provided, implies the operation is idempotent.
+   * Used for logging retry attempts.
+   */
+  idempotencyKey?: string;
+}
+
+/**
+ * Execute a critical operation with optional retry, error logging, and metrics.
+ * Only retries when the operation is explicitly marked as idempotent or has an idempotency key.
+ * Non-idempotent operations (trades, transfers) are executed once to avoid duplicates.
  */
 async function executeWithRetry<T>(
   operationName: string,
   operation: () => Promise<T>,
-  context: { agentId: string; userId: string }
+  options: ExecuteWithRetryOptions
 ): Promise<T> {
+  const { agentId, userId, isIdempotent = false, idempotencyKey } = options;
   const startTime = Date.now();
+
+  // Determine if we should retry: only if explicitly idempotent or has idempotency key
+  const shouldRetry = isIdempotent || !!idempotencyKey;
+
   try {
-    const result = await retryIfRetryable(operation, {
-      maxAttempts: 3,
-      initialDelayMs: 100,
-      maxDelayMs: 2000,
-      onRetry: (attempt, error, delayMs) => {
-        logger.warn(
-          `${operationName} retry attempt ${attempt}`,
-          {
-            agentId: context.agentId,
-            error: error.message,
-            delayMs,
-          },
-          'MCP'
-        );
-      },
-    });
+    let result: T;
+
+    if (shouldRetry) {
+      // Safe to retry - use retry logic
+      result = await retryIfRetryable(operation, {
+        maxAttempts: 3,
+        initialDelayMs: 100,
+        maxDelayMs: 2000,
+        onRetry: (attempt, error, delayMs) => {
+          logger.warn(
+            `${operationName} retry attempt ${attempt}`,
+            {
+              agentId,
+              idempotencyKey,
+              error: error.message,
+              delayMs,
+            },
+            'MCP'
+          );
+        },
+      });
+    } else {
+      // Not idempotent - execute once only to avoid duplicate side effects
+      result = await operation();
+    }
+
     mcpMetrics.record(operationName, true);
     logger.debug(
       `${operationName} completed`,
       {
-        agentId: context.agentId,
+        agentId,
         durationMs: Date.now() - startTime,
+        retried: shouldRetry,
       },
       'MCP'
     );
@@ -188,8 +231,9 @@ async function executeWithRetry<T>(
     logger.error(
       `${operationName} failed`,
       {
-        agentId: context.agentId,
-        userId: context.userId,
+        agentId,
+        userId,
+        idempotencyKey,
         error: error instanceof Error ? error.message : String(error),
         durationMs: Date.now() - startTime,
       },
@@ -246,53 +290,55 @@ interface IdempotencyCacheEntry<T = unknown> {
 }
 
 /**
- * Idempotency key cache for preventing duplicate operations.
- * Uses a simple in-memory map with TTL.
- * Note: Stores heterogeneous result types, using generic interface with unknown default.
+ * Cache key prefix for MCP idempotency operations.
  */
-const idempotencyCache = new Map<string, IdempotencyCacheEntry>();
+const IDEMPOTENCY_CACHE_NAMESPACE = 'mcp:idempotency';
 
 /**
- * Background cleanup interval in milliseconds (30 seconds).
+ * In-memory fallback cache for when Redis is unavailable.
+ * Used to maintain idempotency protection even during Redis outages.
+ *
+ * Note: This fallback only provides single-instance protection and won't
+ * work across multiple server instances. For production horizontal scaling,
+ * ensure Redis is highly available.
  */
-const IDEMPOTENCY_CLEANUP_INTERVAL_MS = 30_000;
+const idempotencyFallbackCache = new Map<string, IdempotencyCacheEntry>();
 
 /**
- * Maximum entries to scan per cleanup pass to avoid blocking event loop.
+ * Background cleanup interval for in-memory fallback cache (60 seconds).
+ * Only needed for the fallback cache; Redis handles TTL expiration automatically.
  */
-const IDEMPOTENCY_CLEANUP_BATCH_SIZE = 100;
+const FALLBACK_CLEANUP_INTERVAL_MS = 60_000;
 
 /**
- * Background periodic cleaner for idempotency cache.
- * Scans and deletes expired entries in batches to avoid blocking the event loop.
+ * Background periodic cleaner for in-memory fallback cache.
+ * Only cleans up when Redis is unavailable and fallback cache is in use.
  */
-const idempotencyCleanupInterval = setInterval(() => {
+const fallbackCleanupInterval = setInterval(() => {
+  if (idempotencyFallbackCache.size === 0) return;
+
   const now = Date.now();
-  let scanned = 0;
-
-  for (const [key, entry] of idempotencyCache) {
+  for (const [key, entry] of idempotencyFallbackCache) {
     if (entry.expiresAt < now) {
-      idempotencyCache.delete(key);
-    }
-    scanned++;
-    // Limit batch size to avoid blocking event loop for too long
-    if (scanned >= IDEMPOTENCY_CLEANUP_BATCH_SIZE) {
-      break;
+      idempotencyFallbackCache.delete(key);
     }
   }
-}, IDEMPOTENCY_CLEANUP_INTERVAL_MS);
+}, FALLBACK_CLEANUP_INTERVAL_MS);
 
 // Ensure the interval doesn't prevent process from exiting
-if (typeof idempotencyCleanupInterval.unref === 'function') {
-  idempotencyCleanupInterval.unref();
+if (typeof fallbackCleanupInterval.unref === 'function') {
+  fallbackCleanupInterval.unref();
 }
 
 /**
  * Execute an operation with idempotency protection.
  * If the same idempotencyKey is seen within TTL, returns cached result.
  *
+ * Uses Redis for distributed idempotency across server instances.
+ * Falls back to in-memory cache when Redis is unavailable.
+ *
  * @template T - The result type of the operation
- * @param idempotencyKey - Optional key for idempotency check
+ * @param idempotencyKey - Optional key for idempotency check (should be scoped by user/operation)
  * @param operation - The async operation to execute
  * @param ttlMs - Time-to-live for cached results in milliseconds (default: 60000)
  * @returns The result of the operation, either freshly computed or from cache
@@ -307,22 +353,68 @@ async function executeWithIdempotency<T>(
     return operation();
   }
 
-  // Check cache
-  const cached = idempotencyCache.get(idempotencyKey) as
+  const ttlSeconds = Math.ceil(ttlMs / 1000);
+
+  // Try Redis first for distributed idempotency
+  if (isRedisAvailable()) {
+    try {
+      // Check Redis cache
+      const cached = await getCache<IdempotencyCacheEntry<T>>(idempotencyKey, {
+        namespace: IDEMPOTENCY_CACHE_NAMESPACE,
+      });
+
+      if (cached && cached.expiresAt > Date.now()) {
+        logger.debug(
+          'Idempotency cache hit (Redis)',
+          { idempotencyKey },
+          'MCP'
+        );
+        return cached.result;
+      }
+
+      // Execute and cache in Redis
+      const result = await operation();
+      const entry: IdempotencyCacheEntry<T> = {
+        result,
+        expiresAt: Date.now() + ttlMs,
+      };
+
+      await setCache(idempotencyKey, entry, {
+        namespace: IDEMPOTENCY_CACHE_NAMESPACE,
+        ttl: ttlSeconds,
+      });
+
+      return result;
+    } catch (error) {
+      // Redis error - fall through to in-memory fallback
+      logger.warn(
+        'Redis idempotency cache error, using fallback',
+        { idempotencyKey, error: error instanceof Error ? error.message : String(error) },
+        'MCP'
+      );
+    }
+  }
+
+  // In-memory fallback when Redis is unavailable
+  const cached = idempotencyFallbackCache.get(idempotencyKey) as
     | IdempotencyCacheEntry<T>
     | undefined;
   if (cached && cached.expiresAt > Date.now()) {
-    logger.debug('Idempotency cache hit', { idempotencyKey }, 'MCP');
+    logger.debug(
+      'Idempotency cache hit (fallback)',
+      { idempotencyKey },
+      'MCP'
+    );
     return cached.result;
   }
 
-  // Execute and cache
+  // Execute and cache in memory
   const result = await operation();
   const entry: IdempotencyCacheEntry<T> = {
     result,
     expiresAt: Date.now() + ttlMs,
   };
-  idempotencyCache.set(idempotencyKey, entry as IdempotencyCacheEntry);
+  idempotencyFallbackCache.set(idempotencyKey, entry as IdempotencyCacheEntry);
 
   return result;
 }
@@ -829,7 +921,7 @@ export async function executePlaceBet(
         newBalance: balance.balance,
       };
     },
-    { agentId: agent.agentId, userId: agent.userId }
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
 }
 
@@ -953,7 +1045,7 @@ export async function executeClosePosition(
         newBalance: result.balance ?? 0,
       };
     },
-    { agentId: agent.agentId, userId: agent.userId }
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
 }
 
@@ -1072,7 +1164,7 @@ export async function executeBuyShares(
         newBalance: balance.balance,
       };
     },
-    { agentId: agent.agentId, userId: agent.userId }
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
 }
 
@@ -1124,7 +1216,7 @@ export async function executeSellShares(
         positionId: result.positionId,
       };
     },
-    { agentId: agent.agentId, userId: agent.userId }
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
 }
 
@@ -1169,7 +1261,7 @@ export async function executeOpenPosition(
         newBalance: result.balance ?? 0,
       };
     },
-    { agentId: agent.agentId, userId: agent.userId }
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
 }
 
@@ -1276,17 +1368,29 @@ export async function executeGetTrades(
  * 1. Positions contain accurate side information (YES/NO boolean)
  * 2. Balance transactions don't store the actual side of the trade
  * 3. This provides useful trading context for MCP agents
+ *
+ * Security: Only allows fetching the authenticated user's own trade history.
  */
 export async function executeGetTradeHistory(
-  _agent: AuthenticatedAgent,
+  agent: AuthenticatedAgent,
   args: GetTradeHistoryArgs
 ): Promise<GetTradeHistoryResult> {
-  logger.info(`Getting trade history for user: ${args.userId}`, {}, 'MCP');
+  // Enforce self-only access: users can only fetch their own trade history
+  if (args.userId && args.userId !== agent.userId) {
+    throw new Error(
+      'Unauthorized: You can only access your own trade history'
+    );
+  }
+
+  // Use the authenticated agent's userId for the query
+  const userId = agent.userId;
+
+  logger.info(`Getting trade history for user: ${userId}`, {}, 'MCP');
 
   // Query positions which contain the actual side (YES/NO), shares, and price
   const positions = await db.position.findMany({
     where: {
-      userId: args.userId,
+      userId,
     },
     orderBy: { updatedAt: 'desc' },
     take: args.limit || 20,
@@ -3232,8 +3336,13 @@ export async function executeTransferPoints(
     throw new Error('Cannot send points to yourself');
   }
 
+  // Namespace the idempotency key by user and operation to prevent cross-user cache collisions
+  const scopedIdempotencyKey = idempotencyKey
+    ? `transfer:${senderId}:${idempotencyKey}`
+    : undefined;
+
   // Execute with idempotency and retry protection
-  return executeWithIdempotency(idempotencyKey, async () => {
+  return executeWithIdempotency(scopedIdempotencyKey, async () => {
     return executeWithRetry(
       'transfer_points',
       async () => {
@@ -3338,7 +3447,12 @@ export async function executeTransferPoints(
           recipientId,
         };
       },
-      { agentId: agent.agentId, userId: agent.userId }
+      {
+        agentId: agent.agentId,
+        userId: agent.userId,
+        // Safe to retry when protected by idempotency key
+        idempotencyKey: scopedIdempotencyKey,
+      }
     );
   });
 }
