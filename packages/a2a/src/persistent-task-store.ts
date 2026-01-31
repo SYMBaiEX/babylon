@@ -238,13 +238,67 @@ export class PersistentTaskStore extends ExtendedTaskStore {
   }
 
   /**
+   * Merge two ListTasksResult sets, deduplicating by task id
+   */
+  private mergeListResults(
+    redisResult: ListTasksResult,
+    memoryResult: ListTasksResult
+  ): ListTasksResult {
+    // Create a map to deduplicate by task id, preferring Redis (more persistent)
+    const taskMap = new Map<string, Task>();
+
+    // Add memory tasks first (will be overwritten by Redis if duplicate)
+    for (const task of memoryResult.tasks) {
+      taskMap.set(task.id, task);
+    }
+
+    // Add/overwrite with Redis tasks
+    for (const task of redisResult.tasks) {
+      taskMap.set(task.id, task);
+    }
+
+    // Convert back to array and sort by timestamp (most recent first)
+    const mergedTasks = Array.from(taskMap.values()).sort((a, b) => {
+      const aTime = a.status.timestamp
+        ? new Date(a.status.timestamp).getTime()
+        : 0;
+      const bTime = b.status.timestamp
+        ? new Date(b.status.timestamp).getTime()
+        : 0;
+      return bTime - aTime;
+    });
+
+    // Use the larger pageSize and combine totals (deduplicated)
+    const pageSize = Math.max(redisResult.pageSize, memoryResult.pageSize);
+    const paginatedTasks = mergedTasks.slice(0, pageSize);
+
+    return {
+      tasks: paginatedTasks,
+      totalSize: taskMap.size,
+      pageSize,
+      // Use Redis nextPageToken if available, otherwise memory's
+      nextPageToken: redisResult.nextPageToken || memoryResult.nextPageToken,
+    };
+  }
+
+  /**
    * List tasks with optional Redis-backed querying
    */
   async list(params: ListTasksParams = {}): Promise<ListTasksResult> {
     // If Redis is available and we have a contextId filter, try Redis first
     if ((await isRedisAvailable()) && params.contextId) {
       try {
-        return await this.listFromRedis(params);
+        const redisResult = await this.listFromRedis(params);
+
+        // If Redis returned empty results, try merging with in-memory
+        if (redisResult.tasks.length === 0) {
+          const memoryResult = await super.list(params);
+          if (memoryResult.tasks.length > 0) {
+            return this.mergeListResults(redisResult, memoryResult);
+          }
+        }
+
+        return redisResult;
       } catch (error) {
         logger.warn(
           'Failed to list tasks from Redis, falling back to memory',

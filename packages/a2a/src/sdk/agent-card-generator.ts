@@ -105,7 +105,7 @@ function createAgentCardObject(
     documentationUrl: `${BASE_URL}/docs`,
 
     capabilities: {
-      streaming: false, // Streaming not yet implemented (message/stream, tasks/resubscribe)
+      streaming: true,
       pushNotifications: false,
       stateTransitionHistory: true,
     },

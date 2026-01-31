@@ -67,6 +67,7 @@
  * ```
  */
 
+import type { Task } from '@a2a-js/sdk';
 import type { DefaultRequestHandler as DefaultRequestHandlerType } from '@a2a-js/sdk/server';
 import {
   DefaultExecutionEventBusManager,
@@ -76,7 +77,6 @@ import {
 import {
   BabylonAgentExecutor,
   ErrorCode,
-  ExtendedTaskStore,
   generateAgentCardSync,
   type JsonRpcRequest,
   type ListTasksParams,
@@ -115,7 +115,7 @@ async function getTaskStoreAndTaskId(
   body: JsonRpcRequest,
   agentId: string
 ): Promise<
-  | { taskStore: ExtendedTaskStore; taskId: string; errorResponse?: never }
+  | { taskStore: PersistentTaskStore; taskId: string; errorResponse?: never }
   | { errorResponse: NextResponse; taskStore?: never; taskId?: never }
 > {
   const params = body.params as { id?: string; taskId?: string } | undefined;
@@ -140,7 +140,7 @@ async function getTaskStoreAndTaskId(
   const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
   const handlerWithRequestHandler = jsonRpcHandler as unknown as {
     requestHandler: {
-      taskStore: ExtendedTaskStore;
+      taskStore: PersistentTaskStore;
     };
   };
   const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
@@ -309,7 +309,7 @@ export async function POST(
       // These properties exist at runtime but aren't in the public types
       const handlerWithRequestHandler = jsonRpcHandler as unknown as {
         requestHandler: {
-          taskStore: ExtendedTaskStore;
+          taskStore: PersistentTaskStore;
         };
       };
       const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
@@ -461,71 +461,101 @@ export async function POST(
       });
     }
 
-    // Handle tasks/resubscribe with SSE response
+    // Handle tasks/resubscribe with SSE response using SDK's resubscribe method
     if (body.method === 'tasks/resubscribe') {
-      const result = await getTaskStoreAndTaskId(body, agentId);
-      if (result.errorResponse) return result.errorResponse;
+      const params = body.params as { id?: string; taskId?: string } | undefined;
+      const taskId = params?.id || params?.taskId;
 
-      const { taskStore, taskId } = result;
-      const task = await taskStore.load(taskId);
+      if (!taskId) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32602,
+              message: 'Invalid params: taskId or id is required',
+            },
+          },
+          { status: 400 }
+        );
+      }
 
-      if (!task) {
+      // Get the request handler to access resubscribe method
+      await getAgentJsonRpcHandler(agentId); // Ensures handler is initialized
+      const requestHandler = agentRequestHandlers.get(agentId);
+
+      if (!requestHandler) {
         return NextResponse.json(
           {
             jsonrpc: '2.0',
             id: body.id ?? null,
             error: {
               code: -32001,
-              message: `Task not found: ${taskId}`,
+              message: 'Request handler not available',
             },
           },
-          { status: 404 }
+          { status: 500 }
         );
       }
 
-      // Return SSE stream with current task state
+      // Use SDK's resubscribe which returns AsyncGenerator<Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent>
       const encoder = new TextEncoder();
-      const stream = new ReadableStream({
-        start(controller) {
-          // Send current task status
-          controller.enqueue(
-            encoder.encode(
-              `event: task-status\ndata: ${JSON.stringify({
-                taskId: task.id,
-                contextId: task.contextId,
-                status: task.status,
-              })}\n\n`
-            )
-          );
+      const eventGenerator = requestHandler.resubscribe({ id: taskId });
 
-          // If task has artifacts, send them (filter out null/undefined)
-          if (task.artifacts && task.artifacts.length > 0) {
-            for (const artifact of task.artifacts.filter(Boolean)) {
-              controller.enqueue(
-                encoder.encode(
-                  `event: task-artifact\ndata: ${JSON.stringify({
-                    taskId: task.id,
-                    artifact,
-                  })}\n\n`
-                )
-              );
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const event of eventGenerator) {
+              // Determine event type based on 'kind' property from SDK types
+              if ('kind' in event) {
+                if (event.kind === 'status-update') {
+                  controller.enqueue(
+                    encoder.encode(
+                      `event: task-status\ndata: ${JSON.stringify({
+                        taskId: event.taskId,
+                        contextId: event.contextId,
+                        status: event.status,
+                        final: event.final,
+                      })}\n\n`
+                    )
+                  );
+                } else if (event.kind === 'artifact-update') {
+                  controller.enqueue(
+                    encoder.encode(
+                      `event: task-artifact\ndata: ${JSON.stringify({
+                        taskId: event.taskId,
+                        artifact: event.artifact,
+                      })}\n\n`
+                    )
+                  );
+                }
+              } else {
+                // It's a Task object - send as initial state
+                const taskEvent = event as Task;
+                controller.enqueue(
+                  encoder.encode(
+                    `event: task-status\ndata: ${JSON.stringify({
+                      taskId: taskEvent.id,
+                      contextId: taskEvent.contextId,
+                      status: taskEvent.status,
+                    })}\n\n`
+                  )
+                );
+              }
+            }
+          } catch (error) {
+            logger.error(
+              'Error in resubscribe stream',
+              { error: String(error), taskId },
+              'A2A'
+            );
+          } finally {
+            try {
+              controller.close();
+            } catch {
+              // Controller may already be closed
             }
           }
-
-          // If task is complete, send final event
-          if (['completed', 'failed', 'canceled'].includes(task.status.state)) {
-            controller.enqueue(
-              encoder.encode(
-                `event: task-status\ndata: ${JSON.stringify({
-                  taskId: task.id,
-                  status: task.status,
-                  final: true,
-                })}\n\n`
-              )
-            );
-          }
-
-          controller.close();
         },
       });
 
