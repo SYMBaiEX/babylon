@@ -35,6 +35,11 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '@babylon/a2a';
+import {
+  checkRateLimitAsync,
+  RATE_LIMIT_CONFIGS,
+  RateLimitError,
+} from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   PredictionDbAdapter,
@@ -64,11 +69,6 @@ import {
   logger,
   retryIfRetryable,
 } from '@babylon/shared';
-import {
-  checkRateLimitAsync,
-  RATE_LIMIT_CONFIGS,
-  RateLimitError,
-} from '@babylon/api';
 
 /**
  * Safe fetch helper that validates response status and returns typed JSON.
@@ -162,27 +162,39 @@ async function executeWithRetry<T>(
       initialDelayMs: 100,
       maxDelayMs: 2000,
       onRetry: (attempt, error, delayMs) => {
-        logger.warn(`${operationName} retry attempt ${attempt}`, {
-          agentId: context.agentId,
-          error: error.message,
-          delayMs,
-        }, 'MCP');
+        logger.warn(
+          `${operationName} retry attempt ${attempt}`,
+          {
+            agentId: context.agentId,
+            error: error.message,
+            delayMs,
+          },
+          'MCP'
+        );
       },
     });
     mcpMetrics.record(operationName, true);
-    logger.debug(`${operationName} completed`, {
-      agentId: context.agentId,
-      durationMs: Date.now() - startTime,
-    }, 'MCP');
+    logger.debug(
+      `${operationName} completed`,
+      {
+        agentId: context.agentId,
+        durationMs: Date.now() - startTime,
+      },
+      'MCP'
+    );
     return result;
   } catch (error) {
     mcpMetrics.record(operationName, false);
-    logger.error(`${operationName} failed`, {
-      agentId: context.agentId,
-      userId: context.userId,
-      error: error instanceof Error ? error.message : String(error),
-      durationMs: Date.now() - startTime,
-    }, 'MCP');
+    logger.error(
+      `${operationName} failed`,
+      {
+        agentId: context.agentId,
+        userId: context.userId,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startTime,
+      },
+      'MCP'
+    );
     throw error;
   }
 }
@@ -201,7 +213,10 @@ async function checkMcpRateLimit(
     | 'transfer'
     | 'post'
 ): Promise<void> {
-  const configMap: Record<string, (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]> = {
+  const configMap: Record<
+    string,
+    (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]
+  > = {
     buy_prediction: RATE_LIMIT_CONFIGS.BUY_PREDICTION,
     sell_prediction: RATE_LIMIT_CONFIGS.SELL_PREDICTION,
     open_position: RATE_LIMIT_CONFIGS.OPEN_POSITION,
@@ -225,7 +240,10 @@ async function checkMcpRateLimit(
  * Idempotency key cache for preventing duplicate operations.
  * Uses a simple in-memory map with TTL.
  */
-const idempotencyCache = new Map<string, { result: unknown; expiresAt: number }>();
+const idempotencyCache = new Map<
+  string,
+  { result: unknown; expiresAt: number }
+>();
 
 /**
  * Execute an operation with idempotency protection.
@@ -745,30 +763,30 @@ export async function executePlaceBet(
 
       const service = buildPredictionService(args.marketId);
       const result = await service.buy({
-    userId: agent.userId,
-    marketId: args.marketId,
-    side,
-    amount: args.amount,
-  });
+        userId: agent.userId,
+        marketId: args.marketId,
+        side,
+        amount: args.amount,
+      });
 
-  const balance = await WalletService.getBalance(agent.userId);
+      const balance = await WalletService.getBalance(agent.userId);
 
-  return {
-    position: {
-      id: result.positionId,
-      marketId: args.marketId,
-      side: PREDICTION_SIDE_MAP[side],
-      shares: result.shares,
-      avgPrice: result.avgPrice,
-      totalCost: result.totalCost ?? 0,
-    },
-      market: result.market,
-      fee: {
-        amount: result.feePaid,
-        referrerPaid: 0,
-      },
-      newBalance: balance.balance,
-    };
+      return {
+        position: {
+          id: result.positionId,
+          marketId: args.marketId,
+          side: PREDICTION_SIDE_MAP[side],
+          shares: result.shares,
+          avgPrice: result.avgPrice,
+          totalCost: result.totalCost ?? 0,
+        },
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: balance.balance,
+      };
     },
     { agentId: agent.agentId, userId: agent.userId }
   );
