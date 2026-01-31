@@ -237,22 +237,70 @@ async function checkMcpRateLimit(
 }
 
 /**
+ * Generic interface for idempotency cache entries.
+ * @template T - The type of the cached result
+ */
+interface IdempotencyCacheEntry<T = unknown> {
+  result: T;
+  expiresAt: number;
+}
+
+/**
  * Idempotency key cache for preventing duplicate operations.
  * Uses a simple in-memory map with TTL.
+ * Note: Stores heterogeneous result types, using generic interface with unknown default.
  */
-const idempotencyCache = new Map<
-  string,
-  { result: unknown; expiresAt: number }
->();
+const idempotencyCache = new Map<string, IdempotencyCacheEntry>();
+
+/**
+ * Background cleanup interval in milliseconds (30 seconds).
+ */
+const IDEMPOTENCY_CLEANUP_INTERVAL_MS = 30_000;
+
+/**
+ * Maximum entries to scan per cleanup pass to avoid blocking event loop.
+ */
+const IDEMPOTENCY_CLEANUP_BATCH_SIZE = 100;
+
+/**
+ * Background periodic cleaner for idempotency cache.
+ * Scans and deletes expired entries in batches to avoid blocking the event loop.
+ */
+const idempotencyCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  let scanned = 0;
+
+  for (const [key, entry] of idempotencyCache) {
+    if (entry.expiresAt < now) {
+      idempotencyCache.delete(key);
+    }
+    scanned++;
+    // Limit batch size to avoid blocking event loop for too long
+    if (scanned >= IDEMPOTENCY_CLEANUP_BATCH_SIZE) {
+      break;
+    }
+  }
+}, IDEMPOTENCY_CLEANUP_INTERVAL_MS);
+
+// Ensure the interval doesn't prevent process from exiting
+if (typeof idempotencyCleanupInterval.unref === 'function') {
+  idempotencyCleanupInterval.unref();
+}
 
 /**
  * Execute an operation with idempotency protection.
  * If the same idempotencyKey is seen within TTL, returns cached result.
+ *
+ * @template T - The result type of the operation
+ * @param idempotencyKey - Optional key for idempotency check
+ * @param operation - The async operation to execute
+ * @param ttlMs - Time-to-live for cached results in milliseconds (default: 60000)
+ * @returns The result of the operation, either freshly computed or from cache
  */
 async function executeWithIdempotency<T>(
   idempotencyKey: string | undefined,
   operation: () => Promise<T>,
-  ttlMs: number = 60000 // 1 minute default
+  ttlMs: number = 60_000 // 1 minute default
 ): Promise<T> {
   // If no idempotency key, just execute
   if (!idempotencyKey) {
@@ -260,28 +308,21 @@ async function executeWithIdempotency<T>(
   }
 
   // Check cache
-  const cached = idempotencyCache.get(idempotencyKey);
+  const cached = idempotencyCache.get(idempotencyKey) as
+    | IdempotencyCacheEntry<T>
+    | undefined;
   if (cached && cached.expiresAt > Date.now()) {
     logger.debug('Idempotency cache hit', { idempotencyKey }, 'MCP');
-    return cached.result as T;
+    return cached.result;
   }
 
   // Execute and cache
   const result = await operation();
-  idempotencyCache.set(idempotencyKey, {
+  const entry: IdempotencyCacheEntry<T> = {
     result,
     expiresAt: Date.now() + ttlMs,
-  });
-
-  // Cleanup expired entries periodically
-  if (idempotencyCache.size > 1000) {
-    const now = Date.now();
-    for (const [key, value] of idempotencyCache) {
-      if (value.expiresAt < now) {
-        idempotencyCache.delete(key);
-      }
-    }
-  }
+  };
+  idempotencyCache.set(idempotencyKey, entry as IdempotencyCacheEntry);
 
   return result;
 }
