@@ -138,30 +138,35 @@ export class PersistentTaskStore extends ExtendedTaskStore {
 
   /**
    * Load multiple tasks in batch using Redis mget for efficiency
-   * Falls back to individual loads for cache misses
+   * Uses parallel loading for memory checks and single mget for Redis
    */
   private async loadBatch(taskIds: string[]): Promise<Map<string, Task>> {
     const results = new Map<string, Task>();
     if (taskIds.length === 0) return results;
 
-    // First check memory
-    const missingIds: string[] = [];
-    for (const taskId of taskIds) {
+    // First check memory in parallel
+    const memoryCheckPromises = taskIds.map(async (taskId) => {
       // Check in-memory first (from parent)
       const memTask = await super.load(taskId);
-      if (memTask) {
-        results.set(taskId, memTask);
-        continue;
-      }
+      if (memTask) return { taskId, task: memTask };
 
       // Check memory fallback
       const fallbackTask = this.memoryFallback.get(taskId);
-      if (fallbackTask) {
-        results.set(taskId, fallbackTask);
-        continue;
-      }
+      if (fallbackTask) return { taskId, task: fallbackTask };
 
-      missingIds.push(taskId);
+      return { taskId, task: null };
+    });
+
+    const memoryResults = await Promise.all(memoryCheckPromises);
+
+    // Collect results and identify missing IDs
+    const missingIds: string[] = [];
+    for (const { taskId, task } of memoryResults) {
+      if (task) {
+        results.set(taskId, task);
+      } else {
+        missingIds.push(taskId);
+      }
     }
 
     // Batch fetch remaining from Redis using mget
@@ -207,15 +212,22 @@ export class PersistentTaskStore extends ExtendedTaskStore {
           }
         } catch (error) {
           logger.warn(
-            'Failed to batch load tasks from Redis, falling back to individual loads',
+            'Failed to batch load tasks from Redis, falling back to parallel individual loads',
             { error: String(error) },
             'A2A'
           );
-          // Fallback to individual loads for remaining
-          for (const taskId of missingIds) {
-            if (!results.has(taskId)) {
+          // Fallback to parallel individual loads for remaining using Promise.allSettled
+          const fallbackPromises = missingIds
+            .filter((id) => !results.has(id))
+            .map(async (taskId) => {
               const task = await this.load(taskId);
-              if (task) results.set(taskId, task);
+              return { taskId, task };
+            });
+
+          const fallbackResults = await Promise.allSettled(fallbackPromises);
+          for (const result of fallbackResults) {
+            if (result.status === 'fulfilled' && result.value.task) {
+              results.set(result.value.taskId, result.value.task);
             }
           }
         }
@@ -255,9 +267,14 @@ export class PersistentTaskStore extends ExtendedTaskStore {
 
     const contextId = task.contextId || 'global';
     const status = task.status.state;
-    const timestamp = task.status.timestamp
-      ? new Date(task.status.timestamp).getTime()
-      : Date.now();
+    // Parse timestamp with fallback to Date.now() if invalid/NaN
+    let timestamp = Date.now();
+    if (task.status.timestamp) {
+      const parsed = new Date(task.status.timestamp).getTime();
+      if (Number.isFinite(parsed)) {
+        timestamp = parsed;
+      }
+    }
 
     const contextIndexKey = `${TASK_INDEX_NAMESPACE}:context:${contextId}`;
     const statusIndexKey = `${TASK_INDEX_NAMESPACE}:status:${status}`;

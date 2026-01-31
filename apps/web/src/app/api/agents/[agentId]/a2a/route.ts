@@ -443,10 +443,11 @@ export async function POST(
         );
       }
 
-      // Update task status to canceled
+      // Update task status to canceled, preserving existing status fields
       const canceledTask = {
         ...task,
         status: {
+          ...(task.status || {}),
           state: 'canceled' as const,
           timestamp: new Date().toISOString(),
         },

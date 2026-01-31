@@ -38,6 +38,18 @@ import {
 } from '../handlers/escrow-handlers';
 import { X402Manager } from '../payments/x402-manager';
 import type { JsonRpcRequest } from '../types/a2a';
+import { RateLimiter } from '../utils/rate-limiter';
+
+/**
+ * Rate limit configuration for sensitive operations
+ * These limits are per-user, per-minute
+ */
+const RATE_LIMITS = {
+  /** Trading operations: buy/sell shares, open/close positions */
+  TRADING_OPS_PER_MINUTE: 20,
+  /** Points transfer operations */
+  TRANSFER_OPS_PER_MINUTE: 10,
+} as const;
 
 /**
  * Main executor implementing all Babylon game operations
@@ -244,6 +256,33 @@ type ExecutorOperationResult =
   | JsonValue;
 
 export class BabylonAgentExecutor implements AgentExecutor {
+  /**
+   * Rate limiters for sensitive operations
+   * Separate limiters for different operation types to allow independent tuning
+   */
+  private tradingRateLimiter = new RateLimiter(RATE_LIMITS.TRADING_OPS_PER_MINUTE);
+  private transferRateLimiter = new RateLimiter(RATE_LIMITS.TRANSFER_OPS_PER_MINUTE);
+
+  /**
+   * Check rate limit and throw if exceeded
+   * @param limiter - The rate limiter to check
+   * @param userId - The user ID to check limits for
+   * @param operationType - Description for error message
+   */
+  private checkRateLimit(
+    limiter: RateLimiter,
+    userId: string,
+    operationType: string
+  ): void {
+    if (!limiter.checkLimit(userId)) {
+      const remaining = limiter.getTokens(userId);
+      throw new Error(
+        `Rate limit exceeded for ${operationType}. ` +
+          `Please wait before trying again. Remaining: ${remaining}`
+      );
+    }
+  }
+
   /**
    * Execute operation directly without A2A HTTP protocol
    * Used for server-side internal calls to bypass Vercel serverless HTTP limitations
@@ -1410,6 +1449,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
+
+    // Rate limit check for trading operations
+    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+
     const marketId = String(params.marketId ?? '');
     const outcome = String(params.outcome ?? '').toUpperCase();
     const amount = Number(params.amount ?? 0);
@@ -1454,6 +1497,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
+
+    // Rate limit check for trading operations
+    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+
     const positionId = String(params.positionId ?? '');
     const shares = Number(params.shares ?? 0);
 
@@ -1503,6 +1550,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
+
+    // Rate limit check for trading operations
+    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+
     const ticker = String(params.ticker ?? '');
     const sideParam = String(params.side ?? '').toLowerCase();
     const amount = Number(params.amount ?? 0);
@@ -1549,6 +1600,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
+
+    // Rate limit check for trading operations
+    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+
     const positionId = String(params.positionId ?? '');
 
     if (!positionId) throw new Error('positionId is required');
@@ -1590,7 +1645,22 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (marketId) url.searchParams.set('marketId', marketId);
     url.searchParams.set('limit', limit.toString());
 
-    const response = await fetch(url.toString());
+    const controller = new AbortController();
+    const timeoutMs = 30000; // 30 second timeout
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), { signal: controller.signal });
+      clearTimeout(timer);
+    } catch (error) {
+      clearTimeout(timer);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request to fetch trades timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to fetch trades: ${response.statusText}`);
     }
@@ -3332,6 +3402,14 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const senderId = context.contextId || context.taskId;
+
+    // Rate limit check for transfer operations (stricter limit)
+    this.checkRateLimit(
+      this.transferRateLimiter,
+      senderId,
+      'points transfer operations'
+    );
+
     const recipientId = String(params.recipientId ?? params.userId ?? '');
     const amount = Number(params.amount ?? 0);
 
@@ -3407,16 +3485,32 @@ export class BabylonAgentExecutor implements AgentExecutor {
     if (!marketId) throw new Error('marketId is required');
 
     const baseUrl = getAPIBaseUrl();
-    const response = await fetch(
-      `${baseUrl}/api/markets/predictions/${encodeURIComponent(marketId)}`
-    );
+    const controller = new AbortController();
+    const timeoutMs = 30000; // 30 second timeout
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`Failed to get market data: ${response.statusText}`);
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/markets/predictions/${encodeURIComponent(marketId)}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        throw new Error(`Failed to get market data: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return { market: data };
+    } catch (error) {
+      clearTimeout(timer);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          `Request to get market data timed out after ${timeoutMs}ms`
+        );
+      }
+      throw error;
     }
-
-    const data = await response.json();
-    return { market: data };
   }
 
   /**
