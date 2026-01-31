@@ -40,6 +40,20 @@ type ActionTraceResult = ActionResult & {
 };
 
 /**
+ * Type guard for ActionTraceResult
+ * Validates that an object has the required shape
+ */
+function isActionTraceResult(value: unknown): value is ActionTraceResult {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.actionType === 'string' &&
+    typeof obj.timestamp === 'number' &&
+    typeof obj.success === 'boolean'
+  );
+}
+
+/**
  * Format action results for LLM context
  */
 function formatActionResults(results: ActionTraceResult[]): string {
@@ -86,8 +100,19 @@ export const coordinatorActionStateProvider: Provider = {
     _message: Memory,
     state: State
   ): Promise<ProviderResult> => {
-    const actionResults = (state.data?.actionResults ||
-      []) as ActionTraceResult[];
+    // Safely validate action results from state with runtime type checking
+    const rawResults = state.data?.actionResults;
+    let actionResults: ActionTraceResult[] = [];
+
+    if (Array.isArray(rawResults)) {
+      actionResults = rawResults.filter(isActionTraceResult);
+      // Warn if some items were filtered out due to invalid shape
+      if (actionResults.length !== rawResults.length) {
+        console.warn(
+          `[ACTION_STATE] Filtered ${rawResults.length - actionResults.length} invalid action results`
+        );
+      }
+    }
 
     const formattedResults = formatActionResults(actionResults);
 

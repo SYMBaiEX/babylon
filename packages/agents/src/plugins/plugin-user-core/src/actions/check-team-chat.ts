@@ -11,11 +11,17 @@ import type {
   Action,
   ActionResult,
   HandlerCallback,
+  HandlerOptions,
   IAgentRuntime,
   Memory,
   State,
 } from '@elizaos/core';
 import { logger } from '../../../../shared/logger';
+
+/** Options for check team chat action */
+interface CheckTeamChatOptions extends HandlerOptions {
+  limit?: number;
+}
 
 export const checkTeamChatAction: Action = {
   name: 'CHECK_TEAM_CHAT',
@@ -63,7 +69,7 @@ export const checkTeamChatAction: Action = {
     _runtime: IAgentRuntime,
     _message: Memory,
     state?: State,
-    _options?: Record<string, unknown>,
+    _options?: CheckTeamChatOptions,
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const teamChatId = state?.values?.teamChatId as string | undefined;

@@ -63,15 +63,15 @@ export function AgentSettingsPanel({
         });
       } catch (fetchError) {
         // Fetch threw (network error, aborted, etc.)
+        // Set error message; loading will be cleared by finally block
         if (!signal?.aborted) {
           const errorMessage =
             fetchError instanceof Error ? fetchError.message : 'Network error';
           setError(`Failed to fetch agent: ${errorMessage}`);
-          setLoading(false);
         }
         return undefined;
       } finally {
-        // Ensure loading is cleared even if fetch throws
+        // Ensure loading is cleared for all code paths
         if (!signal?.aborted) setLoading(false);
       }
 
@@ -84,7 +84,21 @@ export function AgentSettingsPanel({
         return undefined;
       }
 
-      const data = (await res.json()) as { agent: AgentSettingsData };
+      // Parse JSON with error handling for malformed responses
+      let data: { agent: AgentSettingsData };
+      try {
+        data = (await res.json()) as { agent: AgentSettingsData };
+      } catch (parseError) {
+        if (!signal?.aborted) {
+          const errorMessage =
+            parseError instanceof Error
+              ? parseError.message
+              : 'Unknown parse error';
+          setError(`Invalid server response: ${errorMessage}`);
+        }
+        return { success: false };
+      }
+
       if (!signal?.aborted) setAgent(data.agent);
       return { success: true };
     },

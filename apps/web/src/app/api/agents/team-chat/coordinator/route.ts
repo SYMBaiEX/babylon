@@ -400,8 +400,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           );
         }
         actionParams = parsed as Record<string, unknown>;
-      } else if (typeof parameters === 'object' && parameters !== null) {
+      } else if (
+        typeof parameters === 'object' &&
+        parameters !== null &&
+        !Array.isArray(parameters)
+      ) {
         actionParams = parameters as Record<string, unknown>;
+      } else if (Array.isArray(parameters)) {
+        throw new Error(
+          `Invalid parameters: expected object, got array. Original: ${JSON.stringify(parameters)}`
+        );
       } else {
         throw new Error(`Unexpected parameters type: ${typeof parameters}`);
       }
@@ -549,8 +557,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       extractedText = summary?.text as string | undefined;
 
       // Fallback: Try regex if parseKeyValueXml fails
+      // Match proper <text>...</text> tags with non-greedy capture
       if (!extractedText) {
-        const textMatch = summaryResponse.match(/<?\/?text>([^<]+)/i);
+        const textMatch = summaryResponse.match(
+          /<text\b[^>]*?>([\s\S]*?)<\/text>/i
+        );
         if (textMatch?.[1]) {
           extractedText = textMatch[1].trim();
         }

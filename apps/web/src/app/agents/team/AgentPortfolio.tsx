@@ -139,7 +139,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       setWalletLoading(false);
     });
 
-    // Check wallet response
+    // Validate both responses before committing any state
     if (!walletRes.ok) {
       logger.error(
         'Failed to fetch wallet data',
@@ -149,7 +149,20 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       throw new Error(`Failed to fetch wallet data: ${walletRes.status}`);
     }
 
+    if (!agentRes.ok) {
+      logger.error(
+        'Failed to fetch agent stats',
+        { agentId, status: agentRes.status },
+        'AgentPortfolio'
+      );
+      throw new Error(`Failed to fetch agent stats: ${agentRes.status}`);
+    }
+
+    // Parse both responses after validation
     const walletData = (await walletRes.json()) as WalletResponse;
+    const agentData = (await agentRes.json()) as AgentResponse;
+
+    // Commit state only after both fetches are validated and parsed
     if (walletData.success) {
       setBalanceInfo({
         agentBalance: walletData.agentBalance.tradingBalance,
@@ -161,17 +174,6 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       setTransactions(walletData.transactions ?? []);
     }
 
-    // Check agent response
-    if (!agentRes.ok) {
-      logger.error(
-        'Failed to fetch agent stats',
-        { agentId, status: agentRes.status },
-        'AgentPortfolio'
-      );
-      throw new Error(`Failed to fetch agent stats: ${agentRes.status}`);
-    }
-
-    const agentData = (await agentRes.json()) as AgentResponse;
     if (agentData.agent) {
       setAgentStats({
         totalTrades: agentData.agent.totalTrades ?? 0,
@@ -256,6 +258,11 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       toast.success(data.message);
       setAmount('');
       await fetchData();
+    } catch (error) {
+      // Handle network errors and other exceptions from fetch
+      const errorMessage =
+        error instanceof Error ? error.message : 'Network error';
+      toast.error(errorMessage);
     } finally {
       setProcessing(false);
     }

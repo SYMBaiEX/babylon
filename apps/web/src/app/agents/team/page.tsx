@@ -268,36 +268,23 @@ export default function TeamChatPage() {
     [teamChat?.agents]
   );
 
-  // Close a right sidebar tab
-  const closeRightTab = useCallback(
-    (tabId: string) => {
-      // Compute new state values before updating
-      let newActiveId: string | null = null;
-      let shouldClosePanel = false;
+  // Close a right sidebar tab - pure updater, side effects handled by useEffect
+  const closeRightTab = useCallback((tabId: string) => {
+    setRightSidebarTabs((prev) => prev.filter((t) => t.id !== tabId));
+  }, []);
 
-      setRightSidebarTabs((prev) => {
-        const newTabs = prev.filter((t) => t.id !== tabId);
-
-        // Determine new active tab and whether to close sidebar
-        if (activeRightTabId === tabId) {
-          const lastTab = newTabs[newTabs.length - 1];
-          newActiveId = lastTab?.id ?? null;
-          shouldClosePanel = newTabs.length === 0;
-        }
-
-        return newTabs;
-      });
-
-      // Update other state outside the updater to avoid race conditions
-      if (activeRightTabId === tabId) {
-        setActiveRightTabId(newActiveId);
-        if (shouldClosePanel) {
-          setRightSidebarOpen(false);
-        }
-      }
-    },
-    [activeRightTabId]
-  );
+  // Effect to sync activeRightTabId when tabs change (e.g., after closing)
+  useEffect(() => {
+    // If active tab no longer exists, select the last remaining tab or clear
+    if (activeRightTabId && !rightSidebarTabs.some((t) => t.id === activeRightTabId)) {
+      const lastTab = rightSidebarTabs[rightSidebarTabs.length - 1];
+      setActiveRightTabId(lastTab?.id ?? null);
+    }
+    // Close sidebar if no tabs remain
+    if (rightSidebarTabs.length === 0 && rightSidebarOpen) {
+      setRightSidebarOpen(false);
+    }
+  }, [rightSidebarTabs, activeRightTabId, rightSidebarOpen]);
 
   // Toggle right sidebar
   const toggleRightSidebar = useCallback(() => {

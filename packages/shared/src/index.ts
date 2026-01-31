@@ -68,6 +68,7 @@ export * from './utils/singleton';
 export * from './utils/snowflake';
 // UI utilities (cn function for Tailwind)
 export * from './utils/ui';
+// UUID generation (cross-browser compatible UUID v4)
 export * from './utils/uuid';
 
 // =============================================================================
