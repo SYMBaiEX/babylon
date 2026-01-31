@@ -423,6 +423,14 @@ function buildPredictionService(marketId: string) {
 }
 
 /**
+ * Type-safe mapping from lowercase prediction side to uppercase MCP API side
+ */
+const PREDICTION_SIDE_MAP: Record<'yes' | 'no', 'YES' | 'NO'> = {
+  yes: 'YES',
+  no: 'NO',
+};
+
+/**
  * Execute place_bet tool
  */
 export async function executePlaceBet(
@@ -448,7 +456,7 @@ export async function executePlaceBet(
     position: {
       id: result.positionId,
       marketId: args.marketId,
-      side: args.side,
+      side: PREDICTION_SIDE_MAP[side],
       shares: result.shares,
       avgPrice: result.avgPrice,
       totalCost: result.totalCost ?? 0,
@@ -683,7 +691,7 @@ export async function executeBuyShares(
     position: {
       id: result.positionId,
       marketId: args.marketId,
-      side: args.outcome,
+      side: PREDICTION_SIDE_MAP[side],
       shares: result.shares,
       avgPrice: result.avgPrice,
       totalCost: result.totalCost ?? 0,
@@ -2915,14 +2923,23 @@ export async function executeTransferPoints(
   // Perform the transfer in a transaction with balance check inside
   // This prevents race conditions where two concurrent transfers could overdraw
   await db.$transaction(async (tx) => {
-    // Re-fetch sender inside transaction with row-level lock to prevent race conditions
-    const currentSender = await tx.user.findUnique({
-      where: { id: senderId },
-      select: { reputationPoints: true },
-    });
+    // Re-fetch both sender and recipient inside transaction to get consistent pre-transfer values
+    const [currentSender, currentRecipient] = await Promise.all([
+      tx.user.findUnique({
+        where: { id: senderId },
+        select: { reputationPoints: true },
+      }),
+      tx.user.findUnique({
+        where: { id: recipientId },
+        select: { reputationPoints: true },
+      }),
+    ]);
 
     if (!currentSender) {
       throw new Error('Sender not found');
+    }
+    if (!currentRecipient) {
+      throw new Error('Recipient not found');
     }
 
     // Check balance inside transaction
@@ -2933,20 +2950,20 @@ export async function executeTransferPoints(
     }
 
     const senderPointsBefore = currentSender.reputationPoints;
-    const recipientPointsBefore = recipient.reputationPoints;
+    const recipientPointsBefore = currentRecipient.reputationPoints;
 
-    // Deduct from sender
+    // Deduct from sender using atomic decrement
     const updatedSender = await tx.user.update({
       where: { id: senderId },
       data: {
-        reputationPoints: Number(currentSender.reputationPoints) - amount,
+        reputationPoints: { decrement: amount },
       },
     });
 
-    // Add to recipient
+    // Add to recipient using atomic increment
     const updatedRecipient = await tx.user.update({
       where: { id: recipientId },
-      data: { reputationPoints: Number(recipient.reputationPoints) + amount },
+      data: { reputationPoints: { increment: amount } },
     });
 
     // Create transaction record for sender (negative)
