@@ -94,7 +94,12 @@ describe('GameDiscoveryService', () => {
         walletAddress: '0x1234567890abcdef',
         a2aEndpoint: 'https://babylon.market/a2a',
         mcpEndpoint: 'https://babylon.market/mcp',
-        reputation: { totalBets: 100, winningBets: 85, trustScore: 85, accuracyScore: 85 },
+        reputation: {
+          totalBets: 100,
+          winningBets: 85,
+          trustScore: 85,
+          accuracyScore: 85,
+        },
       },
     ]);
 
