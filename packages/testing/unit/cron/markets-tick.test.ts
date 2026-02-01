@@ -1024,7 +1024,7 @@ describe('Sub-Market Duration Constraints', () => {
     expect(getMaxSubMarketDuration(parentEndTime, now)).toBeNull();
   });
 
-  test('should return null when parent ends exactly at minimum + buffer', () => {
+  test('should return minimum when parent ends exactly at minimum + buffer', () => {
     const now = Date.now();
     // Parent ends in exactly 20 minutes (15 min min + 5 min buffer)
     // This is the edge case - should return null because remaining = 15 which is not > 15
