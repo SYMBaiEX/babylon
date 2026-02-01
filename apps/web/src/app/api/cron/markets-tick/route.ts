@@ -795,7 +795,10 @@ export async function POST(_req: NextRequest) {
           );
 
         const activeSubMarketCount = subMarketCountResult?.count ?? 0;
-        const subMarketsNeeded = Math.max(0, MAX_SUB_MARKETS - activeSubMarketCount);
+        const subMarketsNeeded = Math.max(
+          0,
+          MAX_SUB_MARKETS - activeSubMarketCount
+        );
 
         logger.info(
           'Sub-market status',
