@@ -289,7 +289,7 @@ function getConstrainedSubMarketDuration(
 
   // Generate random duration between MIN and the constrained MAX
   return (
-    Math.floor(Math.random() * (maxDuration - SUB_MARKET_MIN_DURATION_MS)) +
+    Math.floor(secureRandom() * (maxDuration - SUB_MARKET_MIN_DURATION_MS)) +
     SUB_MARKET_MIN_DURATION_MS
   );
 }
@@ -407,13 +407,13 @@ function selectRelevantMediaOrg(
     return { org, weight };
   });
 
+  // Build weight map for O(1) lookup instead of O(n) find per org
+  const weightMap = new Map(scored.map((s) => [s.org.id, s.weight]));
+
   // Use weighted selection
   return weightedPick(
     scored.map((s) => s.org),
-    (org) => {
-      const found = scored.find((s) => s.org.id === org.id);
-      return found?.weight ?? 1.0;
-    }
+    (org) => weightMap.get(org.id) ?? 1.0
   );
 }
 
@@ -844,6 +844,33 @@ export async function POST(_req: NextRequest) {
             .limit(createCount)
             .for('update', { skipLocked: true });
 
+          // Re-verify sub-market count after acquiring locks to prevent race condition
+          // Another concurrent tick may have created sub-markets between our initial count and lock acquisition
+          const [refreshedCountResult] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(timeframedMarkets)
+            .where(
+              and(
+                eq(timeframedMarkets.isActive, true),
+                isNotNull(timeframedMarkets.parentMarketId)
+              )
+            );
+
+          const refreshedSubMarketCount = refreshedCountResult?.count ?? 0;
+          if (refreshedSubMarketCount >= MAX_SUB_MARKETS) {
+            logger.info(
+              'Sub-market cap reached after lock acquisition, aborting creation',
+              {
+                initialCount: activeSubMarketCount,
+                refreshedCount: refreshedSubMarketCount,
+                max: MAX_SUB_MARKETS,
+              },
+              'MarketsTick'
+            );
+            gapFillingSkippedDueToMax = true;
+            return;
+          }
+
           // Create sub-markets for each parent, respecting deadline and parent's remaining time
           let skippedDueToInsufficientTime = 0;
           for (const parentMarket of parentMarkets) {
@@ -859,16 +886,16 @@ export async function POST(_req: NextRequest) {
             try {
               // Check if parent has enough remaining time for a sub-market
               // Sub-market must end before parent resolves (with buffer)
-              const now = Date.now();
+              const nowMs = Date.now();
               const duration = getConstrainedSubMarketDuration(
                 parentMarket.endTime,
-                now
+                nowMs
               );
 
               if (duration === null) {
                 // Parent doesn't have enough remaining time for a sub-market
                 const remainingMinutes = Math.round(
-                  (parentMarket.endTime.getTime() - now) / 60000
+                  (parentMarket.endTime.getTime() - nowMs) / 60000
                 );
                 logger.debug(
                   'Skipping parent market - insufficient remaining time',
@@ -915,7 +942,7 @@ export async function POST(_req: NextRequest) {
                     duration: Math.round(duration / 60000),
                     timeframe: inferSubMarketTimeframe(duration),
                     parentEndsInMinutes: Math.round(
-                      (parentMarket.endTime.getTime() - now) / 60000
+                      (parentMarket.endTime.getTime() - nowMs) / 60000
                     ),
                   },
                   'MarketsTick'
