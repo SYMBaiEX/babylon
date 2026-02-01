@@ -144,17 +144,20 @@ function MobileTabBar({
             type="button"
             onClick={() => onSelect(tab)}
             className={cn(
-              'relative flex h-9 shrink-0 items-center justify-center rounded-xl px-3 font-bold text-[11px] transition-colors',
+              'relative flex h-9 shrink-0 items-center justify-center rounded-xl px-3 font-bold text-[11px] transition-colors duration-200',
               activeTab === tab
                 ? 'bg-muted/20 text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
             aria-current={activeTab === tab ? 'page' : undefined}
           >
-            {MOBILE_TAB_LABELS[tab]}
-            {activeTab === tab && (
-              <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-            )}
+              {MOBILE_TAB_LABELS[tab]}
+            <div
+              className={cn(
+                'absolute right-2 bottom-0 left-2 h-0.5 origin-center rounded-full bg-foreground transition-transform duration-200',
+                activeTab === tab ? 'scale-x-100' : 'scale-x-0'
+              )}
+            />
           </button>
         ))}
       </div>
@@ -534,6 +537,7 @@ export function MarketsTradingTerminal({
   const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
+  const [mobileChartAnimationKey, setMobileChartAnimationKey] = useState(0);
 
   // Cooldown state to prevent refresh spam (protects backend at scale)
   const [refreshOnCooldown, setRefreshOnCooldown] = useState(false);
@@ -560,6 +564,7 @@ export function MarketsTradingTerminal({
       setIsMobileChartFullscreen(false);
 
       if (tab === 'chart') {
+        setMobileChartAnimationKey((k) => k + 1);
         setIsMobilePanelOpen(false);
         setIsMobileMarketListOpen(false);
         setIsMobileTradeSheetOpen(false);
@@ -2380,7 +2385,10 @@ export function MarketsTradingTerminal({
                 ) : null}
 
                 {selected?.kind === 'prediction' ? (
-                  <div className="min-h-0 flex-1 p-2">
+                  <div
+                    key={mobileChartAnimationKey}
+                    className="min-h-0 flex-1 p-2"
+                  >
                     <PredictionProbabilityChart
                       data={predictionHistory}
                       marketId={selectedPredictionId ?? 'unknown'}
@@ -2391,7 +2399,10 @@ export function MarketsTradingTerminal({
                     />
                   </div>
                 ) : selectedPerp ? (
-                  <div className="min-h-0 flex-1 p-2">
+                  <div
+                    key={mobileChartAnimationKey}
+                    className="min-h-0 flex-1 p-2"
+                  >
                     <PerpPriceChart
                       data={perpHistory.map((p) => ({
                         time: p.time,
