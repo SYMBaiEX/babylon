@@ -145,7 +145,11 @@ export function TerminalPortfolio({
               )}
               aria-label="Refresh portfolio"
               aria-busy={portfolioLoading}
-              title={refreshDisabled ? 'Please wait before refreshing again' : 'Refresh'}
+              title={
+                refreshDisabled
+                  ? 'Please wait before refreshing again'
+                  : 'Refresh'
+              }
             >
               <RefreshCw
                 className={cn(

@@ -984,7 +984,12 @@ export function MarketsTradingTerminal({
     if (canSellPrediction) return;
     setPredictionTradeMode('buy');
     setPredictionSellShares('');
-  }, [canSellPrediction, predictionTradeMode, setPredictionTradeMode, setPredictionSellShares]);
+  }, [
+    canSellPrediction,
+    predictionTradeMode,
+    setPredictionTradeMode,
+    setPredictionSellShares,
+  ]);
 
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
