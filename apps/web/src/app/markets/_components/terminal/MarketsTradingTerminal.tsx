@@ -2387,7 +2387,7 @@ export function MarketsTradingTerminal({
                 {selected?.kind === 'prediction' ? (
                   <div
                     key={mobileChartAnimationKey}
-                    className="min-h-0 flex-1 p-2"
+                    className="fade-in min-h-0 flex-1 animate-in p-2 duration-200"
                   >
                     <PredictionProbabilityChart
                       data={predictionHistory}
@@ -2401,7 +2401,7 @@ export function MarketsTradingTerminal({
                 ) : selectedPerp ? (
                   <div
                     key={mobileChartAnimationKey}
-                    className="min-h-0 flex-1 p-2"
+                    className="fade-in min-h-0 flex-1 animate-in p-2 duration-200"
                   >
                     <PerpPriceChart
                       data={perpHistory.map((p) => ({
@@ -2505,7 +2505,10 @@ export function MarketsTradingTerminal({
                 />
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div
+                key={bottomTab}
+                className="fade-in min-h-0 flex-1 animate-in overflow-hidden duration-150"
+              >
                 {bottomTab === 'agent' ? (
                   <TerminalAgentsChat />
                 ) : bottomTab === 'social' ? (
