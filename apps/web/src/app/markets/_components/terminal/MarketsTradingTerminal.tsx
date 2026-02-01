@@ -151,7 +151,7 @@ function MobileTabBar({
             )}
             aria-current={activeTab === tab ? 'page' : undefined}
           >
-              {MOBILE_TAB_LABELS[tab]}
+            {MOBILE_TAB_LABELS[tab]}
             <div
               className={cn(
                 'absolute right-2 bottom-0 left-2 h-0.5 origin-center rounded-full bg-foreground transition-transform duration-200',
