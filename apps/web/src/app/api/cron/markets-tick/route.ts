@@ -32,8 +32,11 @@
  */
 
 import {
+  CACHE_KEYS,
+  DEFAULT_TTLS,
   DistributedLockService,
   getCacheOrFetch,
+  invalidateCache,
   recordCronExecution,
   relayCronToStaging,
   verifyCronAuth,
@@ -154,8 +157,10 @@ const SYSTEM_MARKET_FEES = {
 /**
  * Market structure configuration - maintains exactly 10 active markets
  * with staggered timeframes for constant activity.
+ *
+ * Exported for testing purposes.
  */
-const MARKET_STRUCTURE: Record<
+export const MARKET_STRUCTURE: Record<
   string,
   { count: number; durationMs: number; label: string }
 > = {
@@ -212,6 +217,12 @@ const MARKET_STRUCTURE: Record<
  * Sub-markets are shorter duration markets linked to main markets.
  */
 const MAX_SUB_MARKETS = 10;
+
+/**
+ * Maximum sub-markets to create per tick.
+ * Allows faster ramp-up while preventing overload in a single tick.
+ */
+const MAX_SUB_MARKETS_PER_TICK = 5;
 
 /**
  * Minimum duration for sub-markets: 15 minutes
@@ -627,10 +638,21 @@ export async function POST(_req: NextRequest) {
         'MarketsTick'
       );
 
-      // Create sub-markets if needed (one per tick to avoid overloading)
+      // Create sub-markets if needed (up to MAX_SUB_MARKETS_PER_TICK per tick)
       if (subMarketsNeeded > 0 && Date.now() < deadline) {
-        // Pick a random active main market as parent
-        const [parentMarket] = await db
+        const createCount = Math.min(
+          subMarketsNeeded,
+          MAX_SUB_MARKETS_PER_TICK
+        );
+
+        logger.info(
+          `Creating up to ${createCount} sub-markets this tick`,
+          { needed: subMarketsNeeded, creating: createCount },
+          'MarketsTick'
+        );
+
+        // Pick random active main markets as parents (one per sub-market to create)
+        const parentMarkets = await db
           .select()
           .from(timeframedMarkets)
           .where(
@@ -640,9 +662,19 @@ export async function POST(_req: NextRequest) {
             )
           )
           .orderBy(sql`RANDOM()`)
-          .limit(1);
+          .limit(createCount);
 
-        if (parentMarket) {
+        // Create sub-markets for each parent, respecting deadline
+        for (const parentMarket of parentMarkets) {
+          if (Date.now() > deadline) {
+            logger.info(
+              'Deadline reached, stopping sub-market creation',
+              { created: results.subMarketsCreated },
+              'MarketsTick'
+            );
+            break;
+          }
+
           try {
             const duration = getRandomSubMarketDuration();
             // Extract parent market data with proper typing for arc relevance
@@ -780,11 +812,12 @@ async function getActiveMarketsByTimeframe(): Promise<
   >
 > {
   // Query timeframedMarkets directly - isActive is the source of truth
-  // Include startTime to calculate duration for granular timeframe inference
+  // Include granularTimeframe for direct grouping, with startTime as fallback for legacy markets
   const activeTimeframedMarkets = await db
     .select({
       id: timeframedMarkets.id,
       questionId: timeframedMarkets.questionId,
+      granularTimeframe: timeframedMarkets.granularTimeframe,
       startTime: timeframedMarkets.startTime,
       endTime: timeframedMarkets.endTime,
     })
@@ -796,16 +829,17 @@ async function getActiveMarketsByTimeframe(): Promise<
       )
     );
 
-  // Group by GRANULAR timeframe derived from duration (not stored DB bucket)
+  // Group by stored granularTimeframe, falling back to inference for legacy markets
   const grouped: Record<
     string,
     Array<{ id: string; questionId: string | null; endTime: Date }>
   > = {};
 
   for (const m of activeTimeframedMarkets) {
-    // Calculate duration and infer granular timeframe
-    const durationMs = m.endTime.getTime() - m.startTime.getTime();
-    const tf = inferGranularTimeframe(durationMs);
+    // Use stored granularTimeframe if available, otherwise infer from duration (legacy fallback)
+    const tf =
+      m.granularTimeframe ??
+      inferGranularTimeframe(m.endTime.getTime() - m.startTime.getTime());
 
     if (!grouped[tf]) {
       grouped[tf] = [];
@@ -1215,6 +1249,11 @@ async function resolveMarket(
     })
     .where(eq(timeframedMarkets.questionId, market.id));
 
+  // Invalidate active markets cache since market is no longer active
+  await invalidateCache('main_markets', {
+    namespace: CACHE_KEYS.ACTIVE_MARKETS,
+  });
+
   logger.info(
     `Resolved ${market.timeframe} market completely`,
     {
@@ -1257,25 +1296,39 @@ async function createMarketForTimeframe(
       return false;
     }
 
-    // Query active main markets and filter by duration matching this granular timeframe
-    const activeMarkets = await db
-      .select({
-        id: timeframedMarkets.id,
-        startTime: timeframedMarkets.startTime,
-        endTime: timeframedMarkets.endTime,
-      })
-      .from(timeframedMarkets)
-      .where(
-        and(
-          eq(timeframedMarkets.isActive, true),
-          isNull(timeframedMarkets.parentMarketId) // Only count main markets, not sub-markets
-        )
-      );
+    // Query active main markets with Redis caching for performance
+    // Cache reduces DB queries from up to 10 (one per timeframe) to 1 per TTL window
+    const activeMarkets = await getCacheOrFetch(
+      'main_markets',
+      async () => {
+        return db
+          .select({
+            id: timeframedMarkets.id,
+            granularTimeframe: timeframedMarkets.granularTimeframe,
+            startTime: timeframedMarkets.startTime,
+            endTime: timeframedMarkets.endTime,
+          })
+          .from(timeframedMarkets)
+          .where(
+            and(
+              eq(timeframedMarkets.isActive, true),
+              isNull(timeframedMarkets.parentMarketId) // Only count main markets, not sub-markets
+            )
+          );
+      },
+      {
+        namespace: CACHE_KEYS.ACTIVE_MARKETS,
+        ttl: DEFAULT_TTLS.ACTIVE_MARKETS,
+      }
+    );
 
-    // Count markets matching this granular timeframe by duration
+    // Count markets matching this granular timeframe
+    // Use stored granularTimeframe if available, fall back to inference for legacy markets
     const currentCount = activeMarkets.filter((m) => {
-      const marketDurationMs = m.endTime.getTime() - m.startTime.getTime();
-      return inferGranularTimeframe(marketDurationMs) === timeframe;
+      const tf =
+        m.granularTimeframe ??
+        inferGranularTimeframe(m.endTime.getTime() - m.startTime.getTime());
+      return tf === timeframe;
     }).length;
 
     const targetCount = config.count;
@@ -1424,6 +1477,7 @@ async function createMarketForTimeframe(
         id: timeframedMarketId,
         questionId,
         timeframe: mapTimeframeToDbType(timeframe),
+        granularTimeframe: timeframe, // Store precise timeframe key ('15m', '30m', etc.)
         category: inferCategory(questionData.text),
         startTime: now,
         endTime: resolutionDate,
@@ -1488,6 +1542,11 @@ async function createMarketForTimeframe(
     // - markets-tick focuses on market lifecycle
     // - npc-tick handles all NPC behavior independently
     // - No inline LLM calls for NPC decisions
+
+    // Invalidate active markets cache so next creation uses fresh data
+    await invalidateCache('main_markets', {
+      namespace: CACHE_KEYS.ACTIVE_MARKETS,
+    });
 
     return true;
   } catch (error) {
@@ -1589,8 +1648,10 @@ function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
  * allowing accurate gap-filling with correct durations.
  *
  * Uses threshold-based matching with 10% tolerance to handle minor variations.
+ *
+ * Exported for testing purposes.
  */
-function inferGranularTimeframe(durationMs: number): string {
+export function inferGranularTimeframe(durationMs: number): string {
   // Sort entries by duration ascending to find the best match
   const sortedEntries = Object.entries(MARKET_STRUCTURE).sort(
     (a, b) => a[1].durationMs - b[1].durationMs
@@ -1891,6 +1952,7 @@ async function createSubMarket(
         id: timeframedMarketId,
         questionId,
         timeframe: mapTimeframeToDbType(timeframe),
+        granularTimeframe: timeframe, // Store precise timeframe key ('15m', '30m', etc.)
         category: parentMarket.category, // Inherit from parent (already validated)
         parentMarketId: parentMarket.id,
         rootMarketId: parentMarket.rootMarketId ?? parentMarket.id, // Use parent's root or parent itself

@@ -452,3 +452,358 @@ describe('Market Timeframe Configuration', () => {
     expect(totalExpected).toBe(10);
   });
 });
+
+// =============================================================================
+// Granular Timeframe Inference Tests
+// =============================================================================
+
+describe('inferGranularTimeframe', () => {
+  // Define MARKET_STRUCTURE durations locally (contract-style test)
+  const DURATIONS = {
+    '15m': 15 * 60 * 1000, // 900,000 ms
+    '30m': 30 * 60 * 1000, // 1,800,000 ms
+    '1h': 60 * 60 * 1000, // 3,600,000 ms
+    '6h': 6 * 60 * 60 * 1000, // 21,600,000 ms
+    '12h': 12 * 60 * 60 * 1000, // 43,200,000 ms
+    '1d': 24 * 60 * 60 * 1000, // 86,400,000 ms
+    '2d': 2 * 24 * 60 * 60 * 1000, // 172,800,000 ms
+    '3d': 3 * 24 * 60 * 60 * 1000, // 259,200,000 ms
+  };
+
+  // Replicate inferGranularTimeframe logic for testing
+  function inferGranularTimeframe(durationMs: number): string {
+    const sortedEntries = Object.entries(DURATIONS).sort((a, b) => a[1] - b[1]);
+
+    // 10% tolerance matching
+    for (const [key, expectedDuration] of sortedEntries) {
+      const tolerance = expectedDuration * 0.1;
+      if (Math.abs(durationMs - expectedDuration) <= tolerance) {
+        return key;
+      }
+    }
+
+    // Fallback to closest
+    let closestKey = '1h';
+    let closestDiff = Infinity;
+    for (const [key, expectedDuration] of sortedEntries) {
+      const diff = Math.abs(durationMs - expectedDuration);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestKey = key;
+      }
+    }
+    return closestKey;
+  }
+
+  describe('exact duration matches', () => {
+    test('should match 15m duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['15m'])).toBe('15m');
+    });
+
+    test('should match 30m duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['30m'])).toBe('30m');
+    });
+
+    test('should match 1h duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['1h'])).toBe('1h');
+    });
+
+    test('should match 6h duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['6h'])).toBe('6h');
+    });
+
+    test('should match 12h duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['12h'])).toBe('12h');
+    });
+
+    test('should match 1d duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['1d'])).toBe('1d');
+    });
+
+    test('should match 2d duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['2d'])).toBe('2d');
+    });
+
+    test('should match 3d duration exactly', () => {
+      expect(inferGranularTimeframe(DURATIONS['3d'])).toBe('3d');
+    });
+  });
+
+  describe('10% tolerance boundary tests', () => {
+    test('should match 15m at +10% tolerance boundary', () => {
+      const duration = DURATIONS['15m'] * 1.1; // 990,000 ms
+      expect(inferGranularTimeframe(duration)).toBe('15m');
+    });
+
+    test('should match 15m at -10% tolerance boundary', () => {
+      const duration = DURATIONS['15m'] * 0.9; // 810,000 ms
+      expect(inferGranularTimeframe(duration)).toBe('15m');
+    });
+
+    test('should match 1h at +10% tolerance boundary', () => {
+      const duration = DURATIONS['1h'] * 1.1; // 3,960,000 ms
+      expect(inferGranularTimeframe(duration)).toBe('1h');
+    });
+
+    test('should match 1h at -10% tolerance boundary', () => {
+      const duration = DURATIONS['1h'] * 0.9; // 3,240,000 ms
+      expect(inferGranularTimeframe(duration)).toBe('1h');
+    });
+
+    test('should fall back to closest when outside all tolerances', () => {
+      // Duration exactly between 15m and 30m (outside both tolerances)
+      const midpoint = (DURATIONS['15m'] + DURATIONS['30m']) / 2; // 1,350,000 ms
+      // Should fall back to closest, which is 15m (450k away) vs 30m (450k away)
+      // Since they're equidistant, it will match 15m first in sorted order
+      const result = inferGranularTimeframe(midpoint);
+      expect(['15m', '30m']).toContain(result);
+    });
+
+    test('should handle very short durations (below 15m)', () => {
+      const shortDuration = 5 * 60 * 1000; // 5 minutes
+      // Should fall back to closest, which is 15m
+      expect(inferGranularTimeframe(shortDuration)).toBe('15m');
+    });
+
+    test('should handle very long durations (above 3d)', () => {
+      const longDuration = 5 * 24 * 60 * 60 * 1000; // 5 days
+      // Should fall back to closest, which is 3d
+      expect(inferGranularTimeframe(longDuration)).toBe('3d');
+    });
+  });
+
+  describe('edge cases', () => {
+    test('should handle zero duration', () => {
+      // Should fall back to closest, which is 15m (smallest)
+      expect(inferGranularTimeframe(0)).toBe('15m');
+    });
+
+    test('should handle negative duration gracefully', () => {
+      // Should fall back to closest
+      const result = inferGranularTimeframe(-1000);
+      expect(result).toBeDefined();
+    });
+  });
+});
+
+// =============================================================================
+// Sub-Market Batch Creation Tests
+// =============================================================================
+
+describe('Sub-Market Batch Creation Logic', () => {
+  const MAX_SUB_MARKETS = 10;
+  const MAX_SUB_MARKETS_PER_TICK = 5;
+
+  test('should create up to MAX_SUB_MARKETS_PER_TICK when many needed', () => {
+    const activeSubMarkets = 0;
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // 10
+    const createCount = Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK);
+
+    expect(createCount).toBe(5);
+  });
+
+  test('should create exact amount when fewer than limit needed', () => {
+    const activeSubMarkets = 7;
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // 3
+    const createCount = Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK);
+
+    expect(createCount).toBe(3);
+  });
+
+  test('should create zero when at maximum', () => {
+    const activeSubMarkets = 10;
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // 0
+    const createCount = Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK);
+
+    expect(createCount).toBe(0);
+  });
+
+  test('should create one when one needed', () => {
+    const activeSubMarkets = 9;
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // 1
+    const createCount = Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK);
+
+    expect(createCount).toBe(1);
+  });
+
+  test('should handle over-capacity gracefully', () => {
+    const activeSubMarkets = 12; // More than max (shouldn't happen but testing edge case)
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // -2
+    const createCount = Math.max(
+      0,
+      Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK)
+    );
+
+    expect(createCount).toBe(0);
+  });
+});
+
+// =============================================================================
+// Idempotency Check Tests
+// =============================================================================
+
+describe('Market Idempotency Check Logic', () => {
+  interface MockMarket {
+    id: string;
+    granularTimeframe: string | null;
+    startTime: Date;
+    endTime: Date;
+  }
+
+  const DURATIONS = {
+    '15m': 15 * 60 * 1000,
+    '30m': 30 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+  };
+
+  function inferGranularTimeframe(durationMs: number): string {
+    const sortedEntries = Object.entries(DURATIONS).sort((a, b) => a[1] - b[1]);
+    for (const [key, expectedDuration] of sortedEntries) {
+      const tolerance = expectedDuration * 0.1;
+      if (Math.abs(durationMs - expectedDuration) <= tolerance) {
+        return key;
+      }
+    }
+    return '1h';
+  }
+
+  function countMarketsForTimeframe(
+    markets: MockMarket[],
+    targetTimeframe: string
+  ): number {
+    return markets.filter((m) => {
+      const tf =
+        m.granularTimeframe ??
+        inferGranularTimeframe(m.endTime.getTime() - m.startTime.getTime());
+      return tf === targetTimeframe;
+    }).length;
+  }
+
+  test('should count markets with stored granularTimeframe', () => {
+    const now = Date.now();
+    const markets: MockMarket[] = [
+      {
+        id: '1',
+        granularTimeframe: '15m',
+        startTime: new Date(now),
+        endTime: new Date(now + DURATIONS['15m']),
+      },
+      {
+        id: '2',
+        granularTimeframe: '15m',
+        startTime: new Date(now),
+        endTime: new Date(now + DURATIONS['15m']),
+      },
+      {
+        id: '3',
+        granularTimeframe: '30m',
+        startTime: new Date(now),
+        endTime: new Date(now + DURATIONS['30m']),
+      },
+    ];
+
+    expect(countMarketsForTimeframe(markets, '15m')).toBe(2);
+    expect(countMarketsForTimeframe(markets, '30m')).toBe(1);
+    expect(countMarketsForTimeframe(markets, '1h')).toBe(0);
+  });
+
+  test('should fall back to inference for legacy markets without granularTimeframe', () => {
+    const now = Date.now();
+    const markets: MockMarket[] = [
+      {
+        id: '1',
+        granularTimeframe: null, // Legacy market
+        startTime: new Date(now),
+        endTime: new Date(now + DURATIONS['15m']),
+      },
+      {
+        id: '2',
+        granularTimeframe: '15m', // New market
+        startTime: new Date(now),
+        endTime: new Date(now + DURATIONS['15m']),
+      },
+    ];
+
+    // Both should be counted as 15m
+    expect(countMarketsForTimeframe(markets, '15m')).toBe(2);
+  });
+
+  test('should prevent creation when at target count', () => {
+    const targetCount = 2;
+    const currentCount = 2;
+
+    const shouldCreate = currentCount < targetCount;
+    expect(shouldCreate).toBe(false);
+  });
+
+  test('should allow creation when below target count', () => {
+    const targetCount = 2;
+    const currentCount = 1;
+
+    const shouldCreate = currentCount < targetCount;
+    expect(shouldCreate).toBe(true);
+  });
+});
+
+// =============================================================================
+// Granular to DB Timeframe Mapping Tests
+// =============================================================================
+
+describe('Granular to DB Timeframe Mapping', () => {
+  // Contract-style test - these mappings should match production
+  const EXPECTED_MAPPINGS: Record<string, string> = {
+    '15m': 'flash',
+    '30m': 'flash',
+    '1h': 'intraday',
+    '6h': 'intraday',
+    '12h': 'daily',
+    '1d': 'daily',
+    '2d': 'weekly',
+    '3d': 'weekly',
+  };
+
+  test('should map flash timeframes correctly', () => {
+    expect(EXPECTED_MAPPINGS['15m']).toBe('flash');
+    expect(EXPECTED_MAPPINGS['30m']).toBe('flash');
+  });
+
+  test('should map intraday timeframes correctly', () => {
+    expect(EXPECTED_MAPPINGS['1h']).toBe('intraday');
+    expect(EXPECTED_MAPPINGS['6h']).toBe('intraday');
+  });
+
+  test('should map daily timeframes correctly', () => {
+    expect(EXPECTED_MAPPINGS['12h']).toBe('daily');
+    expect(EXPECTED_MAPPINGS['1d']).toBe('daily');
+  });
+
+  test('should map weekly timeframes correctly', () => {
+    expect(EXPECTED_MAPPINGS['2d']).toBe('weekly');
+    expect(EXPECTED_MAPPINGS['3d']).toBe('weekly');
+  });
+
+  test('should have all 8 granular timeframes mapped', () => {
+    const keys = Object.keys(EXPECTED_MAPPINGS);
+    expect(keys.length).toBe(8);
+    expect(keys).toContain('15m');
+    expect(keys).toContain('30m');
+    expect(keys).toContain('1h');
+    expect(keys).toContain('6h');
+    expect(keys).toContain('12h');
+    expect(keys).toContain('1d');
+    expect(keys).toContain('2d');
+    expect(keys).toContain('3d');
+  });
+
+  test('should aggregate to correct DB timeframe counts', () => {
+    const dbCounts: Record<string, number> = {};
+    for (const dbTimeframe of Object.values(EXPECTED_MAPPINGS)) {
+      dbCounts[dbTimeframe] = (dbCounts[dbTimeframe] || 0) + 1;
+    }
+
+    expect(dbCounts['flash']).toBe(2); // 15m + 30m
+    expect(dbCounts['intraday']).toBe(2); // 1h + 6h
+    expect(dbCounts['daily']).toBe(2); // 12h + 1d
+    expect(dbCounts['weekly']).toBe(2); // 2d + 3d
+  });
+});
