@@ -1232,25 +1232,29 @@ async function createMarketForTimeframe(
   const resolutionDate = new Date(now.getTime() + durationMs);
 
   try {
-    // IDEMPOTENCY CHECK: Verify we haven't exceeded the limit for this timeframe
+    // IDEMPOTENCY CHECK: Verify we haven't exceeded the limit for this DB timeframe type
     // This prevents duplicate creation from concurrent cron executions or stale counts
+    // NOTE: Multiple MARKET_STRUCTURE keys map to the same DB type (e.g., 15m and 30m → flash),
+    // so we compare against the aggregated target for that DB type, not the individual timeframe's count
+    const dbTimeframe = mapTimeframeToDbType(timeframe);
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(timeframedMarkets)
       .where(
         and(
-          eq(timeframedMarkets.timeframe, mapTimeframeToDbType(timeframe)),
-          eq(timeframedMarkets.isActive, true)
+          eq(timeframedMarkets.timeframe, dbTimeframe),
+          eq(timeframedMarkets.isActive, true),
+          isNull(timeframedMarkets.parentMarketId) // Only count main markets, not sub-markets
         )
       );
 
     const currentCount = countResult?.count ?? 0;
-    const targetCount = MARKET_STRUCTURE[timeframe]?.count ?? 1;
+    const targetCount = getTargetCountForDbTimeframe(dbTimeframe);
 
     if (currentCount >= targetCount) {
       logger.info(
-        `Skipping ${timeframe} market creation - already at limit`,
-        { currentCount, targetCount, timeframe },
+        `Skipping ${timeframe} market creation - already at limit for ${dbTimeframe}`,
+        { currentCount, targetCount, timeframe, dbTimeframe },
         'MarketsTick'
       );
       return false;
@@ -1293,8 +1297,15 @@ async function createMarketForTimeframe(
     // Arc plan is used for:
     // 1. Determining signal direction in events (via timeframe-arc-processor)
     // 2. Identifying insider/deceiver NPCs for authentic posting
+    // Filter actors by role or tier (fallback for actors without role defined)
     const actors = StaticDataRegistry.getAllActors()
-      .filter((a) => a.role === 'main' || a.role === 'supporting')
+      .filter(
+        (a) =>
+          a.role === 'main' ||
+          a.role === 'supporting' ||
+          a.tier === 'S_TIER' ||
+          a.tier === 'A_TIER'
+      )
       .slice(0, 30)
       .map((a) => ({
         id: a.id,
@@ -1533,9 +1544,15 @@ function inferCategory(questionText: string): MarketCategory {
 /**
  * Map our timeframe strings to database MarketTimeframe enum values
  */
-function mapTimeframeToDbType(
-  timeframe: string
-): 'flash' | 'intraday' | 'daily' | 'weekly' | 'monthly' | 'quarterly' {
+type DbTimeframe =
+  | 'flash'
+  | 'intraday'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'quarterly';
+
+function mapTimeframeToDbType(timeframe: string): DbTimeframe {
   switch (timeframe) {
     case '15m':
     case '30m':
@@ -1551,6 +1568,21 @@ function mapTimeframeToDbType(
     default:
       return 'weekly';
   }
+}
+
+/**
+ * Get the aggregated target count for a DB timeframe type.
+ * Since multiple MARKET_STRUCTURE keys map to the same DB type (e.g., 15m and 30m → flash),
+ * we need to sum all counts for that DB type when checking idempotency.
+ */
+function getTargetCountForDbTimeframe(dbTimeframe: DbTimeframe): number {
+  let total = 0;
+  for (const [key, config] of Object.entries(MARKET_STRUCTURE)) {
+    if (mapTimeframeToDbType(key) === dbTimeframe) {
+      total += config.count;
+    }
+  }
+  return total;
 }
 
 /**
@@ -1823,6 +1855,7 @@ async function createSubMarket(
 /**
  * Create a feed post announcing a new sub-market.
  * Uses a media organization to make the announcement.
+ * Links the post to the question via relatedQuestion for analytics/filtering.
  */
 async function createSubMarketPost(
   questionId: string,
@@ -1843,6 +1876,13 @@ async function createSubMarketPost(
       return;
     }
 
+    // Query the questionNumber to link the post to the question
+    const [questionData] = await db
+      .select({ questionNumber: questions.questionNumber })
+      .from(questions)
+      .where(eq(questions.id, questionId))
+      .limit(1);
+
     const postId = await generateSnowflakeId();
     const durationLabel = 'short-term';
 
@@ -1852,11 +1892,17 @@ async function createSubMarketPost(
       content: `📊 NEW MARKET: "${questionText}"\n\nA new ${durationLabel} prediction market is now open. Trade now before it closes!`,
       timestamp: new Date(),
       type: 'market_announcement',
+      relatedQuestion: questionData?.questionNumber ?? null,
     });
 
     logger.debug(
       'Created sub-market announcement post',
-      { postId, questionId, orgId: mediaOrg.id },
+      {
+        postId,
+        questionId,
+        questionNumber: questionData?.questionNumber,
+        orgId: mediaOrg.id,
+      },
       'MarketsTick'
     );
   } catch (error) {

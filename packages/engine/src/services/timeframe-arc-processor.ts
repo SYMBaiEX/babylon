@@ -40,6 +40,7 @@ import {
   timeframedMarkets,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { SUB_MARKET_CONFIG } from '../config/runtime-config';
 import { secureRandom } from '../utils/entropy';
 import { formatError } from '../utils/error-utils';
 import { clamp01 } from '../utils/math-utils';
@@ -215,16 +216,18 @@ export class TimeframeArcProcessor {
                   arcState: market.arcState,
                 });
 
-                // Sub-market spawning disabled - now managed by markets-tick
-                // to enforce global limit of 10 sub-markets with controlled creation
-                // See: apps/web/src/app/api/cron/markets-tick/route.ts
-                // const spawned = await this.trySpawnSubMarket(
-                //   market,
-                //   event.eventType
-                // );
-                // if (spawned) {
-                //   result.subMarketsSpawned++;
-                // }
+                // Event-based sub-market spawning is controlled by feature flag
+                // Default is disabled - markets are created via the cron job (markets-tick)
+                // Enable ENABLE_EVENT_BASED_SUB_MARKETS=true for dynamic spawning during gameplay
+                if (SUB_MARKET_CONFIG.enableEventBasedSpawning) {
+                  const spawned = await this.trySpawnSubMarket(
+                    market,
+                    event.eventType
+                  );
+                  if (spawned) {
+                    result.subMarketsSpawned++;
+                  }
+                }
               }
             }
           } catch (error) {

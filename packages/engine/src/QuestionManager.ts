@@ -111,6 +111,27 @@ import { clamp } from './utils/math-utils';
 import { shuffleArray } from './utils/randomization';
 import { worldFactsService } from './world-facts-service';
 
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Determines if an actor is eligible for question generation.
+ * Actors are eligible if they have a main/supporting role OR are S/A tier.
+ * This handles cases where actors may not have a role defined but do have a tier.
+ */
+function isEligibleActor(actor: {
+  role?: string | null;
+  tier?: string | null;
+}): boolean {
+  return (
+    actor.role === 'main' ||
+    actor.role === 'supporting' ||
+    actor.tier === 'S_TIER' ||
+    actor.tier === 'A_TIER'
+  );
+}
+
 /**
  * Parameters for question generation
  *
@@ -385,15 +406,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       .join('\n');
 
     // Shuffle actors and organizations to add variety to prompts
-    const shuffledActors = shuffleArray(
-      actors.filter(
-        (a) =>
-          a.role === 'main' ||
-          a.role === 'supporting' ||
-          a.tier === 'S_TIER' ||
-          a.tier === 'A_TIER'
-      )
-    );
+    const shuffledActors = shuffleArray(actors.filter(isEligibleActor));
     const actorsList = shuffledActors
       .slice(0, 20)
       .map((a) => `- ${a.name}: ${a.description}`)
@@ -1035,13 +1048,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       // Get actors (main and supporting roles, with tier fallback) from static registry
       Promise.resolve(
         StaticDataRegistry.getAllActors()
-          .filter(
-            (a) =>
-              a.role === 'main' ||
-              a.role === 'supporting' ||
-              a.tier === 'S_TIER' ||
-              a.tier === 'A_TIER'
-          )
+          .filter(isEligibleActor)
           .slice(0, 30)
           .map((a) => ({
             id: a.id,
@@ -1444,13 +1451,7 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
 
       // Create and persist arc plan for this question
       const allActors = StaticDataRegistry.getAllActors()
-        .filter(
-          (a) =>
-            a.role === 'main' ||
-            a.role === 'supporting' ||
-            a.tier === 'S_TIER' ||
-            a.tier === 'A_TIER'
-        )
+        .filter(isEligibleActor)
         .slice(0, 30)
         .map((a) => ({
           id: a.id,
@@ -1629,13 +1630,7 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
       // Get actors (with tier fallback since many actors don't have role defined)
       Promise.resolve(
         StaticDataRegistry.getAllActors()
-          .filter(
-            (a) =>
-              a.role === 'main' ||
-              a.role === 'supporting' ||
-              a.tier === 'S_TIER' ||
-              a.tier === 'A_TIER'
-          )
+          .filter(isEligibleActor)
           .slice(0, 20)
           .map((a) => ({
             id: a.id,
