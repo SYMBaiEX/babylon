@@ -74,9 +74,9 @@ import {
   publishOracleReveals,
   QuestionManager,
   resolveQuestionPayouts,
-  secureRandom,
   SignalExtractionService,
   StaticDataRegistry,
+  secureRandom,
   timeframeArcPlanner,
   weightedPick,
 } from '@babylon/engine';
@@ -921,7 +921,9 @@ export async function POST(_req: NextRequest) {
             } catch (error) {
               logger.error(
                 'Failed to create sub-market',
-                { error: error instanceof Error ? error.message : String(error) },
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                },
                 'MarketsTick'
               );
             }
@@ -2263,7 +2265,7 @@ async function createSubMarketPost(
           parentMarketContext.affiliatedOrgIds,
           parentMarketContext.category
         )
-      : mediaOrgs[Math.floor(secureRandom() * mediaOrgs.length)] ?? null;
+      : (mediaOrgs[Math.floor(secureRandom() * mediaOrgs.length)] ?? null);
 
     if (!mediaOrg) {
       logger.warn(
