@@ -280,7 +280,8 @@ export function PredictionProbabilityChart({
       data-market-id={marketId}
       className={cn(
         'w-full',
-        showHeader && !fillHeight && 'space-y-3',
+        ((showHeader && !fillHeight) || (!showHeader && fillHeight)) &&
+          'space-y-3',
         fillHeight && 'flex h-full min-h-0 flex-col gap-3'
       )}
     >

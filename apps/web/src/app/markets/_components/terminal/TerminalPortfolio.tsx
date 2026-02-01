@@ -130,12 +130,16 @@ export function TerminalPortfolio({
             )}
             <button
               type="button"
-              onClick={onRefresh}
+              onClick={!portfolioLoading ? onRefresh : undefined}
+              disabled={portfolioLoading}
               className={cn(
-                'inline-flex items-center gap-1 rounded bg-muted/20 px-2 py-1 font-semibold text-[10px] uppercase tracking-wider transition-colors hover:bg-muted/30',
-                portfolioLoading ? 'text-muted-foreground' : 'text-foreground'
+                'inline-flex items-center gap-1 rounded bg-muted/20 px-2 py-1 font-semibold text-[10px] uppercase tracking-wider transition-colors',
+                portfolioLoading
+                  ? 'cursor-not-allowed text-muted-foreground opacity-50'
+                  : 'text-foreground hover:bg-muted/30'
               )}
               aria-label="Refresh portfolio"
+              aria-busy={portfolioLoading}
               title="Refresh"
             >
               <RefreshCw
