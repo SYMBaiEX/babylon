@@ -386,7 +386,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
 
     // Shuffle actors and organizations to add variety to prompts
     const shuffledActors = shuffleArray(
-      actors.filter((a) => a.role === 'main' || a.role === 'supporting')
+      actors.filter((a) => a.role === 'main' || a.role === 'supporting' || a.tier === 'S_TIER' || a.tier === 'A_TIER')
     );
     const actorsList = shuffledActors
       .slice(0, 20)
@@ -1026,10 +1026,10 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         )
         .orderBy(desc(questions.updatedAt))
         .limit(10),
-      // Get actors (main and supporting roles) from static registry
+      // Get actors (main and supporting roles, with tier fallback) from static registry
       Promise.resolve(
         StaticDataRegistry.getAllActors()
-          .filter((a) => a.role === 'main' || a.role === 'supporting')
+          .filter((a) => a.role === 'main' || a.role === 'supporting' || a.tier === 'S_TIER' || a.tier === 'A_TIER')
           .slice(0, 30)
           .map((a) => ({
             id: a.id,
@@ -1432,7 +1432,7 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
 
       // Create and persist arc plan for this question
       const allActors = StaticDataRegistry.getAllActors()
-        .filter((a) => a.role === 'main' || a.role === 'supporting')
+        .filter((a) => a.role === 'main' || a.role === 'supporting' || a.tier === 'S_TIER' || a.tier === 'A_TIER')
         .slice(0, 30)
         .map((a) => ({
           id: a.id,
@@ -1608,10 +1608,10 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         .where(eq(questions.status, 'active'))
         .orderBy(desc(questions.createdAt))
         .limit(20),
-      // Get actors
+      // Get actors (with tier fallback since many actors don't have role defined)
       Promise.resolve(
         StaticDataRegistry.getAllActors()
-          .filter((a) => a.role === 'main' || a.role === 'supporting')
+          .filter((a) => a.role === 'main' || a.role === 'supporting' || a.tier === 'S_TIER' || a.tier === 'A_TIER')
           .slice(0, 20)
           .map((a) => ({
             id: a.id,

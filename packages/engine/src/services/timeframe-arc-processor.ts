@@ -215,14 +215,16 @@ export class TimeframeArcProcessor {
                   arcState: market.arcState,
                 });
 
-                // Check for sub-market spawning
-                const spawned = await this.trySpawnSubMarket(
-                  market,
-                  event.eventType
-                );
-                if (spawned) {
-                  result.subMarketsSpawned++;
-                }
+                // Sub-market spawning disabled - now managed by markets-tick
+                // to enforce global limit of 10 sub-markets with controlled creation
+                // See: apps/web/src/app/api/cron/markets-tick/route.ts
+                // const spawned = await this.trySpawnSubMarket(
+                //   market,
+                //   event.eventType
+                // );
+                // if (spawned) {
+                //   result.subMarketsSpawned++;
+                // }
               }
             }
           } catch (error) {
