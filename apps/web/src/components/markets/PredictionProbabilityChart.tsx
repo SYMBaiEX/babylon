@@ -328,35 +328,33 @@ export function PredictionProbabilityChart({
             fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
           )}
         />
-        {!chart && !unavailableReason && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
-              Initializing chart…
-            </div>
-          </div>
-        )}
-        {!hasData && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
-              Loading chart data…
-            </div>
-          </div>
-        )}
-        {unavailableReason && (
+        {/* Overlay states are mutually exclusive - priority: unavailable > loading > initializing > empty */}
+        {unavailableReason ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-center text-muted-foreground text-sm">
               <div className="font-semibold">Chart unavailable</div>
               <div className="mt-1 text-xs">{unavailableReason}</div>
             </div>
           </div>
-        )}
-        {chartData.yes.length === 0 && hasData && (
+        ) : !hasData ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Loading chart data…
+            </div>
+          </div>
+        ) : !chart ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Initializing chart…
+            </div>
+          </div>
+        ) : chartData.yes.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               No data in selected time range
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Legend */}

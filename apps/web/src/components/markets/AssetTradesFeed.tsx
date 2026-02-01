@@ -14,7 +14,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
 
@@ -497,7 +497,8 @@ interface TradeCardProps {
   density: 'default' | 'compact';
 }
 
-function TradeCard({
+/** Memoized trade card to prevent unnecessary re-renders in large lists */
+const TradeCard = memo(function TradeCard({
   trade,
   formatCurrency,
   formatTime,
@@ -598,7 +599,7 @@ function TradeCard({
       </div>
     </div>
   );
-}
+});
 
 function PositionTradeContent({
   trade,

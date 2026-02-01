@@ -15,6 +15,35 @@ function formatSignedBalance(value: number): string {
   return `${sign}${formatBalance(Math.abs(value))}`;
 }
 
+/** Props for the TerminalPortfolio component */
+interface TerminalPortfolioProps {
+  authenticated: boolean;
+  onLogin: () => void;
+  onRequestBuyPoints?: (() => void) | null;
+  balance: number;
+  balanceLoading: boolean;
+  portfolio: PortfolioBreakdownSnapshot | null;
+  portfolioLoading: boolean;
+  portfolioError: string | null;
+  onRefresh: () => void;
+  perpPositions: DisplayPerpPosition[];
+  predictionPositions: UserPredictionPosition[];
+  onPerpPositionClosed: () => Promise<void>;
+  onPredictionPositionSold: () => Promise<void>;
+}
+
+/** Helper to format portfolio values with loading state */
+function formatPortfolioValue(
+  isLoading: boolean,
+  portfolio: PortfolioBreakdownSnapshot | null,
+  getValue: (p: PortfolioBreakdownSnapshot) => number | string,
+  formatter: (v: number) => string = formatBalance
+): string {
+  if (isLoading || !portfolio) return '—';
+  const value = getValue(portfolio);
+  return typeof value === 'number' ? formatter(value) : value;
+}
+
 function StatCard({
   label,
   value,
@@ -52,21 +81,7 @@ export function TerminalPortfolio({
   predictionPositions,
   onPerpPositionClosed,
   onPredictionPositionSold,
-}: {
-  authenticated: boolean;
-  onLogin: () => void;
-  onRequestBuyPoints?: (() => void) | null;
-  balance: number;
-  balanceLoading: boolean;
-  portfolio: PortfolioBreakdownSnapshot | null;
-  portfolioLoading: boolean;
-  portfolioError: string | null;
-  onRefresh: () => void;
-  perpPositions: DisplayPerpPosition[];
-  predictionPositions: UserPredictionPosition[];
-  onPerpPositionClosed: () => Promise<void>;
-  onPredictionPositionSold: () => Promise<void>;
-}) {
+}: TerminalPortfolioProps) {
   if (!authenticated) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center">
@@ -147,63 +162,64 @@ export function TerminalPortfolio({
           />
           <StatCard
             label="Total PnL"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatSignedBalance(portfolio.totalPnL)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.totalPnL,
+              formatSignedBalance
+            )}
             valueClassName={pnlValueClass}
           />
           <StatCard
             label="Total Assets"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatBalance(portfolio.totalAssets)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.totalAssets
+            )}
           />
           <StatCard
             label="Available"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatBalance(portfolio.available)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.available
+            )}
           />
         </div>
 
         <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
           <StatCard
             label="Agents"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatBalance(portfolio.agents)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.agents
+            )}
           />
           <StatCard
             label="Positions"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatBalance(portfolio.positions)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.positions
+            )}
           />
           <StatCard
             label="Agent Count"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : portfolio.agentCount.toLocaleString()
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.agentCount.toLocaleString()
+            )}
           />
           <StatCard
             label="Original"
-            value={
-              portfolioLoading || !portfolio
-                ? '—'
-                : formatBalance(portfolio.originalAmount)
-            }
+            value={formatPortfolioValue(
+              portfolioLoading,
+              portfolio,
+              (p) => p.originalAmount
+            )}
           />
         </div>
       </div>

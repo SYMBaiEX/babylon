@@ -465,6 +465,55 @@ export function MarketsTradingTerminal({
     setIsMobileTradeSheetOpen(false);
   }, []);
 
+  // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
+  const handlePortfolioRefresh = useCallback(() => {
+    invalidateUserPositions();
+    invalidateWalletBalance();
+    void Promise.allSettled([
+      refreshPortfolio(),
+      refreshPredictionPositions(),
+      refreshPerpPositions(),
+      refreshWalletBalance(),
+    ]);
+  }, [
+    refreshPortfolio,
+    refreshPredictionPositions,
+    refreshPerpPositions,
+    refreshWalletBalance,
+  ]);
+
+  const handlePerpPositionClosed = useCallback(async () => {
+    invalidateUserPositions();
+    invalidateWalletBalance();
+    await Promise.all([
+      refreshPerpPositions(),
+      refreshPredictionPositions(),
+      refreshWalletBalance(),
+      refreshPortfolio(),
+    ]);
+  }, [
+    refreshPerpPositions,
+    refreshPredictionPositions,
+    refreshWalletBalance,
+    refreshPortfolio,
+  ]);
+
+  const handlePredictionPositionSold = useCallback(async () => {
+    invalidateUserPositions();
+    invalidateWalletBalance();
+    await Promise.all([
+      refreshPredictionPositions(),
+      refreshPerpPositions(),
+      refreshWalletBalance(),
+      refreshPortfolio(),
+    ]);
+  }, [
+    refreshPredictionPositions,
+    refreshPerpPositions,
+    refreshWalletBalance,
+    refreshPortfolio,
+  ]);
+
   const mobileBottomDockOffset = useMemo(() => {
     // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
     // We only need to offset by the *extra* height beyond 56px (e.g. iOS safe-area).
@@ -1934,38 +1983,11 @@ export function MarketsTradingTerminal({
             portfolio={portfolioPnL}
             portfolioLoading={portfolioLoading}
             portfolioError={portfolioError}
-            onRefresh={() => {
-              invalidateUserPositions();
-              invalidateWalletBalance();
-              void Promise.allSettled([
-                refreshPortfolio(),
-                refreshPredictionPositions(),
-                refreshPerpPositions(),
-                refreshWalletBalance(),
-              ]);
-            }}
+            onRefresh={handlePortfolioRefresh}
             perpPositions={perpPositions}
             predictionPositions={predictionPositions}
-            onPerpPositionClosed={async () => {
-              invalidateUserPositions();
-              invalidateWalletBalance();
-              await Promise.all([
-                refreshPerpPositions(),
-                refreshPredictionPositions(),
-                refreshWalletBalance(),
-                refreshPortfolio(),
-              ]);
-            }}
-            onPredictionPositionSold={async () => {
-              invalidateUserPositions();
-              invalidateWalletBalance();
-              await Promise.all([
-                refreshPredictionPositions(),
-                refreshPerpPositions(),
-                refreshWalletBalance(),
-                refreshPortfolio(),
-              ]);
-            }}
+            onPerpPositionClosed={handlePerpPositionClosed}
+            onPredictionPositionSold={handlePredictionPositionSold}
           />
         ) : bottomTab === 'positions' ? (
           !authenticated ? (
@@ -2528,38 +2550,11 @@ export function MarketsTradingTerminal({
                     portfolio={portfolioPnL}
                     portfolioLoading={portfolioLoading}
                     portfolioError={portfolioError}
-                    onRefresh={() => {
-                      invalidateUserPositions();
-                      invalidateWalletBalance();
-                      void Promise.allSettled([
-                        refreshPortfolio(),
-                        refreshPredictionPositions(),
-                        refreshPerpPositions(),
-                        refreshWalletBalance(),
-                      ]);
-                    }}
+                    onRefresh={handlePortfolioRefresh}
                     perpPositions={perpPositions}
                     predictionPositions={predictionPositions}
-                    onPerpPositionClosed={async () => {
-                      invalidateUserPositions();
-                      invalidateWalletBalance();
-                      await Promise.all([
-                        refreshPerpPositions(),
-                        refreshPredictionPositions(),
-                        refreshWalletBalance(),
-                        refreshPortfolio(),
-                      ]);
-                    }}
-                    onPredictionPositionSold={async () => {
-                      invalidateUserPositions();
-                      invalidateWalletBalance();
-                      await Promise.all([
-                        refreshPredictionPositions(),
-                        refreshPerpPositions(),
-                        refreshWalletBalance(),
-                        refreshPortfolio(),
-                      ]);
-                    }}
+                    onPerpPositionClosed={handlePerpPositionClosed}
+                    onPredictionPositionSold={handlePredictionPositionSold}
                   />
                 ) : bottomTab === 'positions' ? (
                   !authenticated ? (
