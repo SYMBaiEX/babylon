@@ -225,7 +225,10 @@ export class PersistentTaskStore extends ExtendedTaskStore {
             // Invalid task structure - treat as cache miss
             logger.warn(
               'Invalid task structure in Redis cache, treating as cache miss',
-              { taskId, validationErrors: TaskSchema.safeParse(parsed).error?.issues },
+              {
+                taskId,
+                validationErrors: TaskSchema.safeParse(parsed).error?.issues,
+              },
               'A2A'
             );
           } catch (parseError) {
