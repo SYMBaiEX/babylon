@@ -29,7 +29,10 @@ export type { ListTasksParams, ListTasksResult } from './extended-task-store';
 export { ExtendedTaskStore } from './extended-task-store';
 export * from './handlers/escrow-handlers';
 export * from './payments';
-export { PersistentTaskStore } from './persistent-task-store';
+export {
+  PersistentTaskStore,
+  type TaskStatusUpdate,
+} from './persistent-task-store';
 export {
   generateAgentCard,
   generateAgentCardSync,
