@@ -68,6 +68,7 @@ import {
 } from '@babylon/db';
 import {
   BabylonLLMClient,
+  isEligibleActor,
   mapGranularToDbTimeframe,
   publishOracleCommitments,
   publishOracleReveals,
@@ -247,12 +248,24 @@ function getRandomSubMarketDuration(): number {
 
 /**
  * Infer the appropriate timeframe label for a sub-market based on duration.
+ * Sub-markets can range from 15min to 3 hours (SUB_MARKET_MAX_DURATION_MS).
+ *
+ * Returns the closest timeframe bucket:
+ * - 15m: up to 22.5 minutes (midpoint between 15m and 30m)
+ * - 30m: 22.5 to 45 minutes (midpoint between 30m and 1h)
+ * - 1h: 45 minutes to 1.5 hours (midpoint between 1h and 2h)
+ * - 2h: 1.5 to 2.5 hours (midpoint between 2h and 3h)
+ * - 3h: above 2.5 hours
  */
-function inferSubMarketTimeframe(durationMs: number): '15m' | '30m' | '1h' {
-  const hours = durationMs / (60 * 60 * 1000);
-  if (hours <= 0.25) return '15m';
-  if (hours <= 0.5) return '30m';
-  return '1h';
+function inferSubMarketTimeframe(
+  durationMs: number
+): '15m' | '30m' | '1h' | '2h' | '3h' {
+  const minutes = durationMs / (60 * 1000);
+  if (minutes <= 22.5) return '15m';
+  if (minutes <= 45) return '30m';
+  if (minutes <= 90) return '1h';
+  if (minutes <= 150) return '2h';
+  return '3h';
 }
 
 // TimeframeCategory is now handled by QuestionManager.generateTimeframeQuestion()
@@ -1383,13 +1396,7 @@ async function createMarketForTimeframe(
     // 2. Identifying insider/deceiver NPCs for authentic posting
     // Filter actors by role or tier (fallback for actors without role defined)
     const actors = StaticDataRegistry.getAllActors()
-      .filter(
-        (a) =>
-          a.role === 'main' ||
-          a.role === 'supporting' ||
-          a.tier === 'S_TIER' ||
-          a.tier === 'A_TIER'
-      )
+      .filter(isEligibleActor)
       .slice(0, 30)
       .map((a) => ({
         id: a.id,
@@ -1867,13 +1874,7 @@ async function createSubMarket(
       : parentOrgIds;
 
     const actors = StaticDataRegistry.getAllActors()
-      .filter(
-        (a) =>
-          a.role === 'main' ||
-          a.role === 'supporting' ||
-          a.tier === 'S_TIER' ||
-          a.tier === 'A_TIER'
-      )
+      .filter(isEligibleActor)
       .slice(0, 30)
       .map((a) => ({
         id: a.id,

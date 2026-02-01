@@ -389,6 +389,82 @@ describe('Markets Tick Integration', () => {
       const afterSubCount = await countActiveMainMarkets();
       expect(afterSubCount).toBe(initialCount + 1); // Only +1, not +2
     });
+
+    test('should exclude sub-markets from gap-filling even with many sub-markets', async () => {
+      if (!dbAvailable) {
+        console.log('Skipping - database not available');
+        return;
+      }
+
+      const initialCount = await countActiveMainMarkets();
+
+      // Create a parent main market
+      const { marketId: parentMarketId } = await createTestMarket({
+        timeframe: 'flash',
+        isActive: true,
+      });
+
+      // Create 10 sub-markets to simulate the MAX_SUB_MARKETS scenario
+      const subMarketCount = 10;
+      for (let i = 0; i < subMarketCount; i++) {
+        const subMarketId = await generateSnowflakeId();
+        const subQuestionId = await generateSnowflakeId();
+
+        const [maxResult] = await db
+          .select({ max: sql<number>`COALESCE(MAX("questionNumber"), 0)` })
+          .from(questions);
+        const nextQuestionNumber = (maxResult?.max ?? 0) + 1;
+
+        await db.insert(questions).values({
+          id: subQuestionId,
+          questionNumber: nextQuestionNumber,
+          text: `Integration test: Sub-market ${i + 1}`,
+          scenarioId: 1,
+          outcome: true,
+          rank: 1,
+          createdDate: new Date(),
+          resolutionDate: new Date(Date.now() + (15 + i * 5) * 60 * 1000),
+          status: 'active',
+          updatedAt: new Date(),
+        });
+        testIds.questionIds.push(subQuestionId);
+
+        const subNow = new Date();
+        await db.insert(timeframedMarkets).values({
+          id: subMarketId,
+          questionId: subQuestionId,
+          parentMarketId,
+          timeframe: 'flash',
+          startTime: subNow,
+          endTime: new Date(Date.now() + (15 + i * 5) * 60 * 1000),
+          isActive: true,
+          isResolved: false,
+          arcStateEnteredAt: subNow,
+        });
+        testIds.marketIds.push(subMarketId);
+      }
+
+      // Count active markets - should still only count the 1 main market
+      const afterManySubsCount = await countActiveMainMarkets();
+      expect(afterManySubsCount).toBe(initialCount + 1);
+
+      // Verify total active markets (main + sub) is 11
+      const [totalResult] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(timeframedMarkets)
+        .where(eq(timeframedMarkets.isActive, true));
+      const totalActive = totalResult?.count ?? 0;
+
+      // Total should include all created markets (1 main + 10 subs)
+      expect(totalActive).toBeGreaterThanOrEqual(initialCount + 1 + subMarketCount);
+
+      // Gap-filling logic uses countActiveMainMarkets(), which excludes sub-markets
+      // This verifies that even with 10 sub-markets, gap-filling would still trigger
+      // based on the main market count, not the total count
+      const gapFillShouldTrigger =
+        afterManySubsCount < 10; // MARKET_STRUCTURE total is 10
+      expect(gapFillShouldTrigger).toBe(true);
+    });
   });
 
   describe('Market Timeframe Distribution', () => {

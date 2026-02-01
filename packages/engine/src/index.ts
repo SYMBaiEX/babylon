@@ -217,6 +217,7 @@ export {
 export * from './prompts';
 // Question Manager
 export {
+  isEligibleActor,
   type QuestionCreationParams,
   QuestionManager,
 } from './QuestionManager';

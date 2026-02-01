@@ -119,8 +119,10 @@ import { worldFactsService } from './world-facts-service';
  * Determines if an actor is eligible for question generation.
  * Actors are eligible if they have a main/supporting role OR are S/A tier.
  * This handles cases where actors may not have a role defined but do have a tier.
+ *
+ * Exported for reuse in other modules (e.g., markets-tick).
  */
-function isEligibleActor(actor: {
+export function isEligibleActor(actor: {
   role?: string | null;
   tier?: string | null;
 }): boolean {
