@@ -18,6 +18,7 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server';
+import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
 import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
 import {
   PredictionDbAdapter,
@@ -28,8 +29,8 @@ import { perpMarketSnapshots } from '@babylon/db/schema';
 import { WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
 import {
-  checkUserInput,
   ContentValidator,
+  checkUserInput,
   generateSnowflakeId,
   getAPIBaseUrl,
   logger,
@@ -42,12 +43,11 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
-import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
 import { X402Manager } from '../payments/x402-manager';
 import type { JsonRpcRequest } from '../types/a2a';
 import {
-  OffsetPaginationSchema,
   type OffsetPaginationParams,
+  OffsetPaginationSchema,
 } from '../validation';
 
 /**
@@ -1699,7 +1699,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     url.searchParams.set('limit', limit.toString());
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => controller.abort(),
+      DEFAULT_FETCH_TIMEOUT_MS
+    );
 
     let response: Response;
     try {
@@ -3553,7 +3556,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
     const baseUrl = getAPIBaseUrl();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => controller.abort(),
+      DEFAULT_FETCH_TIMEOUT_MS
+    );
 
     try {
       const response = await fetch(

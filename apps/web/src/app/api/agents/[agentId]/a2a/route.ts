@@ -113,7 +113,9 @@ function getAgentRateLimiter(agentId: string): RateLimiter {
  */
 function getTaskIdFromParams(
   body: JsonRpcRequest
-): { taskId: string; errorResponse?: never } | { errorResponse: NextResponse; taskId?: never } {
+):
+  | { taskId: string; errorResponse?: never }
+  | { errorResponse: NextResponse; taskId?: never } {
   const params = body.params as { id?: string; taskId?: string } | undefined;
   const taskId = params?.id || params?.taskId;
 
