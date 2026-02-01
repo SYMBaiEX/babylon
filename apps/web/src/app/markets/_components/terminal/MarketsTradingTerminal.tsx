@@ -593,9 +593,9 @@ export function MarketsTradingTerminal({
       return () => {};
     }
 
-    // SSR safety for ResizeObserver
+    // ResizeObserver may not exist in older browsers
     const resizeObserver =
-      typeof window !== 'undefined' && typeof ResizeObserver !== 'undefined'
+      typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => updateHeight())
         : null;
 
@@ -1006,34 +1006,34 @@ export function MarketsTradingTerminal({
     authenticated &&
     (sellablePositions.hasSellableYes || sellablePositions.hasSellableNo);
 
+  // Consolidated sell mode effect - handles both mode switching and side switching
+  // to prevent cascading state updates from separate effects
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
-    if (canSellPrediction) return;
-    setPredictionTradeMode('buy');
-    setPredictionSellShares('');
-  }, [
-    canSellPrediction,
-    predictionTradeMode,
-    setPredictionTradeMode,
-    setPredictionSellShares,
-  ]);
 
-  useEffect(() => {
-    if (predictionTradeMode !== 'sell') return;
-    if (!canSellPrediction) return;
-    // Check if current side has any sellable positions (not just aggregated shares)
+    // If can't sell at all, switch to buy mode
+    if (!canSellPrediction) {
+      setPredictionTradeMode('buy');
+      setPredictionSellShares('');
+      return;
+    }
+
+    // If can sell but not on current side, switch to the other side
     const canSellThisSide =
       predictionSide === 'yes'
         ? sellablePositions.hasSellableYes
         : sellablePositions.hasSellableNo;
-    if (canSellThisSide) return;
-    const canSellOtherSide =
-      predictionSide === 'yes'
-        ? sellablePositions.hasSellableNo
-        : sellablePositions.hasSellableYes;
-    if (!canSellOtherSide) return;
-    setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
-    setPredictionSellShares('');
+
+    if (!canSellThisSide) {
+      const canSellOtherSide =
+        predictionSide === 'yes'
+          ? sellablePositions.hasSellableNo
+          : sellablePositions.hasSellableYes;
+      if (canSellOtherSide) {
+        setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
+        setPredictionSellShares('');
+      }
+    }
   }, [
     canSellPrediction,
     predictionSide,

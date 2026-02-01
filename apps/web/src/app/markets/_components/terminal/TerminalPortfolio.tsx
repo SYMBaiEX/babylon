@@ -109,8 +109,13 @@ export function TerminalPortfolio({
     );
   }
 
+  // Use neutral color when portfolio data is not yet loaded
   const pnlValueClass =
-    (portfolio?.totalPnL ?? 0) >= 0 ? 'text-green-500' : 'text-red-500';
+    portfolio?.totalPnL == null
+      ? 'text-muted-foreground'
+      : portfolio.totalPnL >= 0
+        ? 'text-green-500'
+        : 'text-red-500';
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -138,9 +143,7 @@ export function TerminalPortfolio({
             )}
             <button
               type="button"
-              onClick={
-                !portfolioLoading && !refreshDisabled ? onRefresh : undefined
-              }
+              onClick={onRefresh}
               disabled={portfolioLoading || refreshDisabled}
               className={cn(
                 'inline-flex items-center gap-1 rounded bg-muted/20 px-2 py-1 font-semibold text-[10px] uppercase tracking-wider transition-colors',
