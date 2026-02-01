@@ -150,6 +150,7 @@ export function PerpsTerminalBottomPanel({
             {filteredPositions.length > 0 ? (
               <PerpPositionsList
                 positions={filteredPositions}
+                density="compact"
                 onPositionClosed={handlePositionClosed}
               />
             ) : (
@@ -164,6 +165,7 @@ export function PerpsTerminalBottomPanel({
               marketType="perp"
               assetId={ticker}
               containerRef={containerRef}
+              density="compact"
             />
           </div>
         ) : (

@@ -48,6 +48,12 @@ interface PerpPriceChartProps {
   showBrush?: boolean;
   /** Whether to show the header (price + range controls). Defaults to true. */
   showHeader?: boolean;
+  /**
+   * Chart sizing behavior.
+   * - fixed: uses a fixed-height chart (good for pages)
+   * - fill: stretches to the available parent height (good for flex layouts like the terminal)
+   */
+  height?: 'fixed' | 'fill';
   /** Optional className for the container */
   className?: string;
 }
@@ -77,6 +83,7 @@ export function PerpPriceChart({
   timeRange,
   onTimeRangeChange,
   showHeader = true,
+  height = 'fixed',
   className,
 }: PerpPriceChartProps) {
   const [chartInitError, setChartInitError] = useState<string | null>(null);
@@ -98,6 +105,10 @@ export function PerpPriceChart({
       priceFormatter: (price: number) => formatChartPrice(price, true),
     },
   });
+
+  const fillHeight = height === 'fill';
+  const hasData = data.length > 0;
+  const unavailableReason = chartInitError ?? chartBaseError;
 
   // Filter and prepare data based on time range
   const chartData = useMemo(() => {
@@ -282,50 +293,18 @@ export function PerpPriceChart({
     }
   }, [currentPrice]);
 
-  // Loading state when no data
-  if (!data.length) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Loading chart data...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartInitError) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Chart unavailable</div>
-          <div className="mt-1 text-xs">{chartInitError}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartBaseError) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="text-sm">Chart unavailable</div>
-          <div className="mt-1 text-xs">{chartBaseError}</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={cn(
-        'flex h-full w-full flex-col',
-        showHeader ? 'space-y-3' : '',
+        'flex w-full',
+        fillHeight ? 'h-full min-h-0 flex-col gap-3' : 'h-full flex-col',
+        showHeader && !fillHeight ? 'space-y-3' : '',
         className
       )}
     >
       {/* Header with price info and time range selector */}
       {showHeader && (
-        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 px-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-3">
             <div>
               <div className="font-bold text-2xl">
@@ -366,25 +345,41 @@ export function PerpPriceChart({
       )}
 
       {/* Chart container */}
-      <div className="relative">
+      <div className={cn('relative', fillHeight && 'min-h-0 flex-1')}>
         <div
           ref={chartContainerRef}
-          className="h-[400px] w-full rounded-lg bg-muted/10"
+          className={cn(
+            'w-full rounded-lg bg-muted/10',
+            fillHeight ? 'h-full min-h-[240px]' : 'h-[400px]'
+          )}
         />
-        {!chart && (
+        {/* Overlay states are mutually exclusive - priority: unavailable > loading > initializing > empty */}
+        {unavailableReason ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-center text-muted-foreground text-sm">
+              <div className="font-semibold">Chart unavailable</div>
+              <div className="mt-1 text-xs">{unavailableReason}</div>
+            </div>
+          </div>
+        ) : !hasData ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
+              Loading chart data…
+            </div>
+          </div>
+        ) : !chart ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               Initializing chart…
             </div>
           </div>
-        )}
-        {chartData.length === 0 && data.length > 0 && (
+        ) : chartData.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg bg-card/90 px-4 py-2 text-muted-foreground text-sm">
               No data in selected time range
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

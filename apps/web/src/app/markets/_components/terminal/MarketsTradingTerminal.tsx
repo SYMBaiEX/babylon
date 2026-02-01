@@ -9,6 +9,7 @@ import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
+  ChevronUp,
   Filter,
   Info,
   Maximize2,
@@ -45,6 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpHistory } from '@/hooks/usePerpHistory';
+import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import type {
   PredictionResolutionSSE,
@@ -84,11 +86,41 @@ import { MARKET_TIME_RANGES } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
 import { PerpsOrderEntryPanel } from '../perps-terminal/PerpsOrderEntryPanel';
 import { TerminalAgentsChat } from './TerminalAgentsChat';
+import { TerminalPortfolio } from './TerminalPortfolio';
 import { TerminalSocialFeed } from './TerminalSocialFeed';
 
 type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
 type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
-type BottomTab = 'agent' | 'social' | 'positions' | 'trades';
+type BottomTab = 'agent' | 'social' | 'portfolio' | 'positions' | 'trades';
+
+/** Base height of the bottom nav (matches app layout's pb-14) */
+const BOTTOM_NAV_BASE_HEIGHT = 56;
+
+/** Minimum shares threshold for sellable positions */
+const MIN_SELLABLE_SHARES = 0.01;
+
+/** Cooldown period between portfolio refreshes to prevent API spam (ms) */
+const REFRESH_COOLDOWN_MS = 5000;
+
+/**
+ * Labels for each bottom tab - used for dynamic mobile panel title and accessibility.
+ * Centralizing these ensures consistency between button labels and panel headers.
+ */
+const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
+  agent: 'Agents',
+  social: 'Social',
+  portfolio: 'Portfolio',
+  positions: 'Positions',
+  trades: 'Trades',
+};
+
+/*
+ * Z-INDEX STACKING CONTEXT (documentation only - Tailwind requires static class names)
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * z-40:   Mobile bottom dock bar
+ * z-[70]: Mobile panel overlay (above dock), trade sheet, market list
+ * z-[80]: Modal dialogs and fullscreen chart overlay
+ */
 
 interface MarketsTradingTerminalProps {
   onRequestBuyPoints?: () => void;
@@ -403,6 +435,12 @@ export function MarketsTradingTerminal({
     positions: predictionPositions,
     refresh: refreshPredictionPositions,
   } = usePredictionPositions(userId);
+  const {
+    data: portfolioPnL,
+    loading: portfolioLoading,
+    error: portfolioError,
+    refresh: refreshPortfolio,
+  } = usePortfolioPnL();
 
   const [filter, setFilter] = useState<MarketsFilter>(() =>
     parseFilter(searchParams)
@@ -446,6 +484,129 @@ export function MarketsTradingTerminal({
   const [isMobileMarketListOpen, setIsMobileMarketListOpen] = useState(false);
   const [isMobileTradeSheetOpen, setIsMobileTradeSheetOpen] = useState(false);
   const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
+
+  // Cooldown state to prevent refresh spam (protects backend at scale)
+  const [refreshOnCooldown, setRefreshOnCooldown] = useState(false);
+  const refreshCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshCooldownRef.current) {
+        clearTimeout(refreshCooldownRef.current);
+      }
+    };
+  }, []);
+
+  const openMobilePanel = useCallback((tab?: BottomTab) => {
+    if (tab) setBottomTab(tab);
+    setIsMobilePanelOpen(true);
+    setIsMobileMarketListOpen(false);
+    setIsMobileTradeSheetOpen(false);
+  }, []);
+
+  // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
+  const handlePortfolioRefresh = useCallback(() => {
+    // Prevent refresh if on cooldown
+    if (refreshOnCooldown) return;
+
+    invalidateUserPositions();
+    invalidateWalletBalance();
+    void Promise.allSettled([
+      refreshPortfolio(),
+      refreshPredictionPositions(),
+      refreshPerpPositions(),
+      refreshWalletBalance(),
+    ]);
+
+    // Start cooldown to prevent rapid successive refreshes
+    setRefreshOnCooldown(true);
+    refreshCooldownRef.current = setTimeout(() => {
+      setRefreshOnCooldown(false);
+    }, REFRESH_COOLDOWN_MS);
+  }, [
+    refreshOnCooldown,
+    refreshPortfolio,
+    refreshPredictionPositions,
+    refreshPerpPositions,
+    refreshWalletBalance,
+  ]);
+
+  // Shared helper to refresh all position-related data after a trade/close action
+  const refreshAllPositionData = useCallback(async () => {
+    invalidateUserPositions();
+    invalidateWalletBalance();
+    await Promise.all([
+      refreshPerpPositions(),
+      refreshPredictionPositions(),
+      refreshWalletBalance(),
+      refreshPortfolio(),
+    ]);
+  }, [
+    refreshPerpPositions,
+    refreshPredictionPositions,
+    refreshWalletBalance,
+    refreshPortfolio,
+  ]);
+
+  const handlePerpPositionClosed = useCallback(async () => {
+    await refreshAllPositionData();
+  }, [refreshAllPositionData]);
+
+  const handlePredictionPositionSold = useCallback(async () => {
+    await refreshAllPositionData();
+  }, [refreshAllPositionData]);
+
+  const mobileBottomDockOffset = useMemo(() => {
+    // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
+    // We only need to offset by the *extra* height beyond that (e.g. iOS safe-area).
+    return Math.max(0, mobileBottomNavHeight - BOTTOM_NAV_BASE_HEIGHT);
+  }, [mobileBottomNavHeight]);
+
+  // Track the height of the app's fixed BottomNav to properly position the mobile dock.
+  // We use DOM query because BottomNav is rendered in the app layout outside this component's
+  // React tree, so we can't use props/context. The 'app-bottom-nav' ID is set in BottomNav.tsx.
+  useEffect(() => {
+    // SSR safety: ensure we're in browser environment
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const bottomNav = document.getElementById('app-bottom-nav');
+
+    // Define update function outside conditional for consistent cleanup
+    const updateHeight = () => {
+      if (bottomNav) {
+        setMobileBottomNavHeight(bottomNav.getBoundingClientRect().height);
+      } else {
+        setMobileBottomNavHeight(0);
+      }
+    };
+
+    // Initial measurement
+    updateHeight();
+
+    // If no bottomNav found, still return cleanup (currently no-op but consistent pattern)
+    if (!bottomNav) {
+      return () => {};
+    }
+
+    // ResizeObserver may not exist in older browsers
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => updateHeight())
+        : null;
+
+    resizeObserver?.observe(bottomNav);
+    window.addEventListener('resize', updateHeight, { passive: true });
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isFullscreen) return undefined;
@@ -823,6 +984,64 @@ export function MarketsTradingTerminal({
     );
   }, [predictionPositions, selectedPredictionId]);
 
+  // Compute sellable positions per side - only positions with shares >= MIN_SELLABLE_SHARES
+  // are actually sellable. We check individual positions, not aggregated totals, because
+  // a user might have multiple small positions that sum above threshold but none are sellable.
+  const sellablePositions = useMemo(() => {
+    const sellableYes = selectedPredictionPositions.filter(
+      (p) => p.side === 'YES' && p.shares >= MIN_SELLABLE_SHARES
+    );
+    const sellableNo = selectedPredictionPositions.filter(
+      (p) => p.side === 'NO' && p.shares >= MIN_SELLABLE_SHARES
+    );
+    return {
+      hasSellableYes: sellableYes.length > 0,
+      hasSellableNo: sellableNo.length > 0,
+      sellableYesCount: sellableYes.length,
+      sellableNoCount: sellableNo.length,
+    };
+  }, [selectedPredictionPositions]);
+
+  const canSellPrediction =
+    authenticated &&
+    (sellablePositions.hasSellableYes || sellablePositions.hasSellableNo);
+
+  // Consolidated sell mode effect - handles both mode switching and side switching
+  // to prevent cascading state updates from separate effects
+  useEffect(() => {
+    if (predictionTradeMode !== 'sell') return;
+
+    // If can't sell at all, switch to buy mode
+    if (!canSellPrediction) {
+      setPredictionTradeMode('buy');
+      setPredictionSellShares('');
+      return;
+    }
+
+    // If can sell but not on current side, switch to the other side
+    const canSellThisSide =
+      predictionSide === 'yes'
+        ? sellablePositions.hasSellableYes
+        : sellablePositions.hasSellableNo;
+
+    if (!canSellThisSide) {
+      const canSellOtherSide =
+        predictionSide === 'yes'
+          ? sellablePositions.hasSellableNo
+          : sellablePositions.hasSellableYes;
+      if (canSellOtherSide) {
+        setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
+        setPredictionSellShares('');
+      }
+    }
+  }, [
+    canSellPrediction,
+    predictionSide,
+    predictionTradeMode,
+    sellablePositions.hasSellableNo,
+    sellablePositions.hasSellableYes,
+  ]);
+
   const selectedPerpPositions = useMemo(() => {
     if (!selectedPerp) return [];
     return perpPositions.filter(
@@ -854,7 +1073,7 @@ export function MarketsTradingTerminal({
   const sellPosition = useMemo(() => {
     const wantedSide = predictionSide.toUpperCase() as 'YES' | 'NO';
     const candidates = selectedPredictionPositions.filter(
-      (p) => p.side === wantedSide && p.shares >= 0.01
+      (p) => p.side === wantedSide && p.shares >= MIN_SELLABLE_SHARES
     );
     if (candidates.length === 0) return null;
     const first = candidates[0];
@@ -925,8 +1144,8 @@ export function MarketsTradingTerminal({
         toast.error('No sellable position for this side.');
         return;
       }
-      if (clampedSellShares < 0.01) {
-        toast.error('Minimum sell is 0.01 shares');
+      if (clampedSellShares < MIN_SELLABLE_SHARES) {
+        toast.error(`Minimum sell is ${MIN_SELLABLE_SHARES} shares`);
         return;
       }
       if (!predictionSellCalculation) {
@@ -948,8 +1167,8 @@ export function MarketsTradingTerminal({
         toast.error('No sellable position for this side.');
         return;
       }
-      if (clampedSellShares < 0.01) {
-        toast.error('Minimum sell is 0.01 shares');
+      if (clampedSellShares < MIN_SELLABLE_SHARES) {
+        toast.error(`Minimum sell is ${MIN_SELLABLE_SHARES} shares`);
         return;
       }
       if (!predictionSellCalculation) {
@@ -1035,6 +1254,7 @@ export function MarketsTradingTerminal({
         refreshPerpPositions(),
         refreshWalletBalance(),
         refreshPredictionHistory(),
+        refreshPortfolio(),
       ]);
     } catch (error) {
       const message =
@@ -1222,15 +1442,15 @@ export function MarketsTradingTerminal({
           </div>
         ) : (
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-background/70 text-muted-foreground backdrop-blur-md">
+            <thead className="sr-only">
               <tr className="border-white/5 border-b">
-                <th className="w-10 px-3 py-2" />
+                <th className="w-10 px-3 py-2">Favorite</th>
                 <th className="px-2 py-2">Market</th>
                 <th className="px-2 py-2 text-right">Value</th>
                 <th className="px-3 py-2 text-right">24h</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="border-white/5 border-t">
               {rows.map((row) => {
                 const active =
                   selected?.kind === row.key.kind &&
@@ -1403,6 +1623,7 @@ export function MarketsTradingTerminal({
               timeRange={predictionTimeRange}
               onTimeRangeChange={setPredictionTimeRange}
               showHeader={false}
+              height="fill"
             />
           </div>
         </>
@@ -1443,6 +1664,7 @@ export function MarketsTradingTerminal({
               timeRange={perpTimeRange}
               onTimeRangeChange={setPerpTimeRange}
               showHeader={false}
+              height="fill"
               className="h-full"
             />
           </div>
@@ -1522,8 +1744,17 @@ export function MarketsTradingTerminal({
               <button
                 type="button"
                 onClick={() => setPredictionSide('yes')}
+                disabled={
+                  predictionTradeMode === 'sell' &&
+                  canSellPrediction &&
+                  !sellablePositions.hasSellableYes
+                }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
+                    canSellPrediction &&
+                    !sellablePositions.hasSellableYes &&
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
                     ? 'bg-blue-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1534,8 +1765,17 @@ export function MarketsTradingTerminal({
               <button
                 type="button"
                 onClick={() => setPredictionSide('no')}
+                disabled={
+                  predictionTradeMode === 'sell' &&
+                  canSellPrediction &&
+                  !sellablePositions.hasSellableNo
+                }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  predictionTradeMode === 'sell' &&
+                    canSellPrediction &&
+                    !sellablePositions.hasSellableNo &&
+                    'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
                     ? 'bg-violet-500 text-white'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1545,35 +1785,37 @@ export function MarketsTradingTerminal({
               </button>
             </div>
 
-            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
-              <button
-                type="button"
-                onClick={() => setPredictionTradeMode('buy')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'buy'
-                    ? 'bg-green-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                BUY
-              </button>
-              <button
-                type="button"
-                onClick={() => setPredictionTradeMode('sell')}
-                className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
-                  predictionTradeMode === 'sell'
-                    ? 'bg-red-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                SELL
-              </button>
-            </div>
+            {canSellPrediction && (
+              <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPredictionTradeMode('buy')}
+                  className={cn(
+                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    predictionTradeMode === 'buy'
+                      ? 'bg-green-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  BUY
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPredictionTradeMode('sell')}
+                  className={cn(
+                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    predictionTradeMode === 'sell'
+                      ? 'bg-red-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  SELL
+                </button>
+              </div>
+            )}
 
             {predictionTradeMode === 'buy' ? (
-              <div className="mt-4">
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                     Amount
@@ -1593,13 +1835,13 @@ export function MarketsTradingTerminal({
                 />
               </div>
             ) : (
-              <div className="mt-4">
+              <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                     Shares
                   </label>
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>Min 0.01</span>
+                    <span>Min {MIN_SELLABLE_SHARES}</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -1618,7 +1860,7 @@ export function MarketsTradingTerminal({
                   type="number"
                   value={predictionSellShares}
                   onChange={(e) => setPredictionSellShares(e.target.value)}
-                  min={0.01}
+                  min={MIN_SELLABLE_SHARES}
                   step="0.01"
                   className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder={
@@ -1706,7 +1948,7 @@ export function MarketsTradingTerminal({
                 (predictionTradeMode === 'sell' &&
                   authenticated &&
                   (maxSellShares <= 0 ||
-                    clampedSellShares < 0.01 ||
+                    clampedSellShares < MIN_SELLABLE_SHARES ||
                     !predictionSellCalculation))
               }
               className={cn(
@@ -1721,7 +1963,7 @@ export function MarketsTradingTerminal({
                   (predictionTradeMode === 'sell' &&
                     authenticated &&
                     (maxSellShares <= 0 ||
-                      clampedSellShares < 0.01 ||
+                      clampedSellShares < MIN_SELLABLE_SHARES ||
                       !predictionSellCalculation))) &&
                   'cursor-not-allowed opacity-50'
               )}
@@ -1769,6 +2011,12 @@ export function MarketsTradingTerminal({
             Social
           </TabButton>
           <TabButton
+            active={bottomTab === 'portfolio'}
+            onClick={() => setBottomTab('portfolio')}
+          >
+            Portfolio
+          </TabButton>
+          <TabButton
             active={bottomTab === 'positions'}
             onClick={() => setBottomTab('positions')}
           >
@@ -1800,6 +2048,23 @@ export function MarketsTradingTerminal({
               selected?.kind === 'perp' ? (selectedPerp?.ticker ?? null) : null
             }
           />
+        ) : bottomTab === 'portfolio' ? (
+          <TerminalPortfolio
+            authenticated={authenticated}
+            onLogin={login}
+            onRequestBuyPoints={onRequestBuyPoints ?? null}
+            balance={balance}
+            balanceLoading={balanceLoading}
+            portfolio={portfolioPnL}
+            portfolioLoading={portfolioLoading}
+            portfolioError={portfolioError}
+            onRefresh={handlePortfolioRefresh}
+            refreshDisabled={refreshOnCooldown}
+            perpPositions={perpPositions}
+            predictionPositions={predictionPositions}
+            onPerpPositionClosed={handlePerpPositionClosed}
+            onPredictionPositionSold={handlePredictionPositionSold}
+          />
         ) : bottomTab === 'positions' ? (
           !authenticated ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
@@ -1810,6 +2075,7 @@ export function MarketsTradingTerminal({
               {selectedPredictionPositions.length > 0 ? (
                 <PredictionPositionsList
                   positions={selectedPredictionPositions}
+                  density="compact"
                   onPositionSold={async () => {
                     invalidateUserPositions();
                     invalidateWalletBalance();
@@ -1832,6 +2098,7 @@ export function MarketsTradingTerminal({
               {selectedPerpPositions.length > 0 ? (
                 <PerpPositionsList
                   positions={selectedPerpPositions}
+                  density="compact"
                   onPositionClosed={async () => {
                     invalidateUserPositions();
                     invalidateWalletBalance();
@@ -1850,27 +2117,37 @@ export function MarketsTradingTerminal({
               )}
             </div>
           )
-        ) : selected?.kind === 'prediction' ? (
-          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
-            <AssetTradesFeed
-              marketType="prediction"
-              assetId={selected.id}
-              containerRef={desktopTradesContainerRef}
-            />
-          </div>
-        ) : selectedPerp ? (
-          <div ref={desktopTradesContainerRef} className="h-full overflow-auto">
-            <AssetTradesFeed
-              marketType="perp"
-              assetId={selectedPerp.ticker}
-              containerRef={desktopTradesContainerRef}
-            />
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-            Select a market to see trades.
-          </div>
-        )}
+        ) : bottomTab === 'trades' ? (
+          selected?.kind === 'prediction' ? (
+            <div
+              ref={desktopTradesContainerRef}
+              className="h-full overflow-auto"
+            >
+              <AssetTradesFeed
+                marketType="prediction"
+                assetId={selected.id}
+                containerRef={desktopTradesContainerRef}
+                density="compact"
+              />
+            </div>
+          ) : selectedPerp ? (
+            <div
+              ref={desktopTradesContainerRef}
+              className="h-full overflow-auto"
+            >
+              <AssetTradesFeed
+                marketType="perp"
+                assetId={selectedPerp.ticker}
+                containerRef={desktopTradesContainerRef}
+                density="compact"
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+              Select a market to see trades.
+            </div>
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -1970,9 +2247,11 @@ export function MarketsTradingTerminal({
                     ? 'AGENTS'
                     : bottomTab === 'social'
                       ? 'SOCIAL'
-                      : bottomTab === 'positions'
-                        ? 'POSITIONS'
-                        : 'TRADES'}
+                      : bottomTab === 'portfolio'
+                        ? 'PORTFOLIO'
+                        : bottomTab === 'positions'
+                          ? 'POSITIONS'
+                          : 'TRADES'}
                 </span>
                 <span className="text-[10px]">▲</span>
               </button>
@@ -2004,9 +2283,9 @@ export function MarketsTradingTerminal({
       {/* Mobile */}
       <div className="relative flex h-full flex-col overflow-hidden overscroll-none md:hidden">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="relative flex w-full shrink-0 basis-[34%] flex-col border-white/5 border-b">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="contents">
+              <div className="relative flex min-h-0 w-full flex-1 flex-col border-white/5 border-b">
                 {selected?.kind === 'prediction' ? (
                   <>
                     <PredictionMarketHeader
@@ -2024,6 +2303,7 @@ export function MarketsTradingTerminal({
                         timeRange={predictionTimeRange}
                         onTimeRangeChange={setPredictionTimeRange}
                         showHeader={false}
+                        height="fill"
                       />
                     </div>
                   </>
@@ -2046,6 +2326,7 @@ export function MarketsTradingTerminal({
                         timeRange={perpTimeRange}
                         onTimeRangeChange={setPerpTimeRange}
                         showHeader={false}
+                        height="fill"
                         className="h-full"
                       />
                     </div>
@@ -2073,8 +2354,180 @@ export function MarketsTradingTerminal({
                   </button>
                 )}
               </div>
+            </div>
+          </div>
 
-              <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
+          <div
+            className="sticky z-40 w-full select-none overflow-hidden rounded-t-[20px] border-white/5 border-t bg-background shadow-[0_-5px_15px_rgba(0,0,0,0.12)]"
+            style={{ bottom: mobileBottomDockOffset }}
+          >
+            <div className="border-white/5 border-b bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
+              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-background/40 p-1">
+                <div className="flex min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('agent')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'agent'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Agents panel"
+                  >
+                    Agents
+                    {bottomTab === 'agent' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('social')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'social'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Social panel"
+                  >
+                    Social
+                    {bottomTab === 'social' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('portfolio')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'portfolio'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Portfolio panel"
+                  >
+                    Portf.
+                    {bottomTab === 'portfolio' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('positions')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'positions'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Positions panel"
+                  >
+                    Pos.
+                    {bottomTab === 'positions' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMobilePanel('trades')}
+                    className={cn(
+                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
+                      bottomTab === 'trades'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label="Open Trades panel"
+                  >
+                    Trades
+                    {bottomTab === 'trades' && (
+                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
+                    )}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openMobilePanel()}
+                  className={cn(
+                    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+                    'text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                  )}
+                  aria-label="Open panel"
+                  title="Open panel"
+                >
+                  <ChevronUp size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex h-[72px] items-center justify-between px-2 pb-2 font-medium text-[10px] text-muted-foreground">
+              {/* Minimal bottom nav */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobilePanelOpen(false);
+                  setIsMobileTradeSheetOpen(false);
+                  setIsMobileMarketListOpen(true);
+                }}
+                className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
+              >
+                Markets
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobilePanelOpen(false);
+                  setIsMobileMarketListOpen(false);
+                  setIsMobileTradeSheetOpen(true);
+                }}
+                disabled={!selected}
+                className={cn(
+                  'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
+                  selected
+                    ? 'bg-foreground text-background active:scale-95'
+                    : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
+                )}
+              >
+                Trade
+              </button>
+              <button
+                type="button"
+                onClick={authenticated ? onRequestBuyPoints : login}
+                className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
+              >
+                {authenticated ? (
+                  <>
+                    <span className="font-semibold">Balance</span>
+                    <span className="font-mono text-[11px] tabular-nums">
+                      {balanceLoading ? '—' : formatBalance(balance)}
+                    </span>
+                  </>
+                ) : (
+                  'Log in'
+                )}
+              </button>
+            </div>
+          </div>
+
+          {isMobilePanelOpen && (
+            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
+              <div className="flex items-center justify-between border-white/5 border-b p-4">
+                <h2 className="font-bold text-lg">
+                  {BOTTOM_TAB_LABELS[bottomTab]} Panel
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsMobilePanelOpen(false)}
+                  className="rounded-full p-2 transition-colors hover:bg-muted/20"
+                  aria-label="Close panel"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
                 <div className="flex min-w-0 flex-1">
                   <button
                     type="button"
@@ -2103,6 +2556,21 @@ export function MarketsTradingTerminal({
                   >
                     Social
                     {bottomTab === 'social' && (
+                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBottomTab('portfolio')}
+                    className={cn(
+                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
+                      bottomTab === 'portfolio'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    Portfolio
+                    {bottomTab === 'portfolio' && (
                       <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
                     )}
                   </button>
@@ -2150,6 +2618,23 @@ export function MarketsTradingTerminal({
                         : null
                     }
                   />
+                ) : bottomTab === 'portfolio' ? (
+                  <TerminalPortfolio
+                    authenticated={authenticated}
+                    onLogin={login}
+                    onRequestBuyPoints={onRequestBuyPoints ?? null}
+                    balance={balance}
+                    balanceLoading={balanceLoading}
+                    portfolio={portfolioPnL}
+                    portfolioLoading={portfolioLoading}
+                    portfolioError={portfolioError}
+                    onRefresh={handlePortfolioRefresh}
+                    refreshDisabled={refreshOnCooldown}
+                    perpPositions={perpPositions}
+                    predictionPositions={predictionPositions}
+                    onPerpPositionClosed={handlePerpPositionClosed}
+                    onPredictionPositionSold={handlePredictionPositionSold}
+                  />
                 ) : bottomTab === 'positions' ? (
                   !authenticated ? (
                     <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
@@ -2159,6 +2644,7 @@ export function MarketsTradingTerminal({
                     <div className="h-full overflow-auto overscroll-contain">
                       <PredictionPositionsList
                         positions={selectedPredictionPositions}
+                        density="compact"
                         onPositionSold={async () => {
                           invalidateUserPositions();
                           invalidateWalletBalance();
@@ -2175,6 +2661,7 @@ export function MarketsTradingTerminal({
                     <div className="h-full overflow-auto overscroll-contain">
                       <PerpPositionsList
                         positions={selectedPerpPositions}
+                        density="compact"
                         onPositionClosed={async () => {
                           invalidateUserPositions();
                           invalidateWalletBalance();
@@ -2188,79 +2675,43 @@ export function MarketsTradingTerminal({
                       />
                     </div>
                   )
-                ) : selected?.kind === 'prediction' ? (
-                  <div
-                    ref={mobileTradesContainerRef}
-                    className="h-full overflow-auto overscroll-contain"
-                  >
-                    <AssetTradesFeed
-                      marketType="prediction"
-                      assetId={selected.id}
-                      containerRef={mobileTradesContainerRef}
-                    />
-                  </div>
-                ) : selectedPerp ? (
-                  <div
-                    ref={mobileTradesContainerRef}
-                    className="h-full overflow-auto overscroll-contain"
-                  >
-                    <AssetTradesFeed
-                      marketType="perp"
-                      assetId={selectedPerp.ticker}
-                      containerRef={mobileTradesContainerRef}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                    Select a market to see trades.
-                  </div>
-                )}
+                ) : bottomTab === 'trades' ? (
+                  selected?.kind === 'prediction' ? (
+                    <div
+                      ref={mobileTradesContainerRef}
+                      className="h-full overflow-auto overscroll-contain"
+                    >
+                      <AssetTradesFeed
+                        marketType="prediction"
+                        assetId={selected.id}
+                        containerRef={mobileTradesContainerRef}
+                        density="compact"
+                      />
+                    </div>
+                  ) : selectedPerp ? (
+                    <div
+                      ref={mobileTradesContainerRef}
+                      className="h-full overflow-auto overscroll-contain"
+                    >
+                      <AssetTradesFeed
+                        marketType="perp"
+                        assetId={selectedPerp.ticker}
+                        containerRef={mobileTradesContainerRef}
+                        density="compact"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                      Select a market to see trades.
+                    </div>
+                  )
+                ) : null}
               </div>
             </div>
-          </div>
-
-          <div className="sticky bottom-0 z-40 flex h-[72px] w-full select-none items-center justify-between rounded-t-[20px] border-white/5 border-t bg-background px-2 pb-safe font-medium text-[10px] text-muted-foreground shadow-[0_-5px_15px_rgba(0,0,0,0.12)]">
-            {/* Minimal bottom nav */}
-            <button
-              type="button"
-              onClick={() => setIsMobileMarketListOpen(true)}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 font-bold text-foreground"
-            >
-              Markets
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMobileTradeSheetOpen(true)}
-              disabled={!selected}
-              className={cn(
-                'mx-2 inline-flex h-10 flex-[1.5] items-center justify-center rounded-full px-4 font-bold text-sm transition-all',
-                selected
-                  ? 'bg-foreground text-background active:scale-95'
-                  : 'cursor-not-allowed bg-muted/40 text-muted-foreground'
-              )}
-            >
-              Trade
-            </button>
-            <button
-              type="button"
-              onClick={authenticated ? onRequestBuyPoints : login}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 transition-colors hover:text-foreground"
-            >
-              {authenticated ? (
-                <>
-                  <span className="font-semibold">Balance</span>
-                  <span className="font-mono text-[11px] tabular-nums">
-                    {balanceLoading ? '—' : formatBalance(balance)}
-                  </span>
-                </>
-              ) : (
-                'Log in'
-              )}
-            </button>
-          </div>
+          )}
 
           {isMobileMarketListOpen && (
-            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-50 flex animate-in flex-col bg-background duration-200">
+            <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background duration-200">
               <div className="flex items-center justify-between border-white/5 border-b p-4">
                 <h2 className="font-bold text-lg">Markets</h2>
                 <button
@@ -2277,7 +2728,7 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileTradeSheetOpen && (
-            <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            <div className="fixed inset-0 z-[70] flex flex-col justify-end">
               <button
                 type="button"
                 aria-label="Close trade sheet"
@@ -2304,7 +2755,7 @@ export function MarketsTradingTerminal({
           )}
 
           {isMobileChartFullscreen && (
-            <div className="fixed inset-0 z-[60] bg-background">
+            <div className="fixed inset-0 z-[80] bg-background">
               <button
                 type="button"
                 aria-label="Close fullscreen chart"
@@ -2337,6 +2788,7 @@ export function MarketsTradingTerminal({
                         timeRange={predictionTimeRange}
                         onTimeRangeChange={setPredictionTimeRange}
                         showHeader={false}
+                        height="fill"
                       />
                     </div>
                   </>
@@ -2359,6 +2811,7 @@ export function MarketsTradingTerminal({
                         timeRange={perpTimeRange}
                         onTimeRangeChange={setPerpTimeRange}
                         showHeader={false}
+                        height="fill"
                         className="h-full"
                       />
                     </div>

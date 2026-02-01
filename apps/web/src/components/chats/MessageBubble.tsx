@@ -55,6 +55,7 @@ interface MessageBubbleProps {
   validMentions?: string[];
   /** Whether this message is showing "Thinking..." placeholder state */
   isThinking?: boolean;
+  density?: 'default' | 'compact';
   /** Callback when a tag is clicked - opens sidebar with tag data */
   onTagClick?: (tag: MessageTag, messageId: string) => void;
 }
@@ -65,15 +66,18 @@ export function MessageBubble({
   isCurrentUser,
   validMentions,
   isThinking,
+  density = 'default',
   onTagClick,
 }: MessageBubbleProps) {
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
+  const compact = density === 'compact';
 
   return (
     <div
       className={cn(
-        'flex gap-3',
+        'flex',
+        compact ? 'gap-2' : 'gap-3',
         isCurrentUser ? 'justify-end' : 'items-start'
       )}
     >
@@ -86,13 +90,18 @@ export function MessageBubble({
             id={sender.id}
             name={senderName}
             type="user"
-            size="md"
+            size={compact ? 'sm' : 'md'}
             imageUrl={sender.profileImageUrl}
           />
         </Link>
       )}
       {!isCurrentUser && !sender && (
-        <Avatar id={message.senderId} name={senderName} type="user" size="md" />
+        <Avatar
+          id={message.senderId}
+          name={senderName}
+          type="user"
+          size={compact ? 'sm' : 'md'}
+        />
       )}
       <div
         className={cn(
@@ -104,13 +113,21 @@ export function MessageBubble({
           {!isCurrentUser && sender && (
             <Link
               href={getProfilePath(sender)}
-              className="font-bold text-foreground text-sm transition-colors hover:text-primary"
+              className={cn(
+                'font-bold text-foreground transition-colors hover:text-primary',
+                compact ? 'text-sm md:text-xs' : 'text-sm'
+              )}
             >
               {senderName}
             </Link>
           )}
           {!isCurrentUser && !sender && (
-            <span className="font-bold text-foreground text-sm">
+            <span
+              className={cn(
+                'font-bold text-foreground',
+                compact ? 'text-sm md:text-xs' : 'text-sm'
+              )}
+            >
               {senderName}
             </span>
           )}
@@ -129,7 +146,8 @@ export function MessageBubble({
         </div>
         <div
           className={cn(
-            'message-bubble max-w-full overflow-x-auto break-words rounded-2xl px-4 py-3 text-sm',
+            'message-bubble max-w-full overflow-x-auto break-words rounded-2xl',
+            compact ? 'px-3 py-2 text-sm md:text-xs' : 'px-4 py-3 text-sm',
             isCurrentUser
               ? 'rounded-tr-sm bg-primary/20'
               : 'rounded-tl-sm bg-sidebar-accent/50'

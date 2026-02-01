@@ -87,6 +87,7 @@ export interface MessageInputProps {
   onSend: () => void;
   sending: boolean;
   authenticated: boolean;
+  density?: 'default' | 'compact';
   /** Additional disabled condition (e.g., insufficient points for agent chat) */
   disabled?: boolean;
   /** Custom placeholder text */
@@ -107,6 +108,7 @@ export function MessageInput({
   onSend,
   sending,
   authenticated,
+  density = 'default',
   disabled = false,
   placeholder,
   mentionableMembers,
@@ -293,10 +295,11 @@ export function MessageInput({
 
   // Determine placeholder text
   const placeholderText = placeholder || 'Type a message...';
+  const compact = density === 'compact';
 
   if (!authenticated) {
     return (
-      <div className="bg-background px-4 py-3">
+      <div className={cn('bg-background', compact ? 'px-3 py-2' : 'px-4 py-3')}>
         <div className="text-center">
           <p className="mb-3 text-muted-foreground text-sm">
             Log in to send messages
@@ -308,7 +311,13 @@ export function MessageInput({
   }
 
   return (
-    <div ref={containerRef} className="relative bg-background px-4 py-3">
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative bg-background',
+        compact ? 'px-3 py-2' : 'px-4 py-3'
+      )}
+    >
       {/* Mention autocomplete dropdown */}
       {mentionsEnabled && (
         <MentionAutocomplete
@@ -331,7 +340,10 @@ export function MessageInput({
             <div
               ref={highlightRef}
               className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl px-4 py-4 pr-14 text-sm',
+                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl pr-14',
+                compact
+                  ? 'px-3 py-2.5 text-sm md:text-xs'
+                  : 'px-4 py-4 text-sm',
                 'text-foreground'
               )}
               aria-hidden="true"
@@ -357,7 +369,10 @@ export function MessageInput({
               autoCorrect="off"
               autoCapitalize="off"
               className={cn(
-                'relative z-10 max-h-40 min-h-[56px] w-full resize-none overflow-y-auto rounded-xl px-4 py-4 pr-14 text-sm',
+                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+                compact
+                  ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
+                  : 'min-h-[56px] px-4 py-4 text-sm',
                 'message-input bg-sidebar-accent/50',
                 'text-transparent caret-foreground placeholder:text-muted-foreground',
                 'outline-none focus:ring-2 focus:ring-primary/50',
@@ -376,7 +391,10 @@ export function MessageInput({
             disabled={sending || disabled}
             rows={1}
             className={cn(
-              'max-h-40 min-h-[56px] w-full resize-none overflow-y-auto rounded-xl px-4 py-4 pr-14 text-sm',
+              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+              compact
+                ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
+                : 'min-h-[56px] px-4 py-4 text-sm',
               'message-input bg-sidebar-accent/50',
               'text-foreground placeholder:text-muted-foreground',
               'outline-none focus:ring-2 focus:ring-primary/50',

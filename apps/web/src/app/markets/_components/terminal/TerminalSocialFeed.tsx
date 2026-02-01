@@ -220,7 +220,7 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
         {loading ? (
           <FeedSkeleton count={6} />
         ) : posts.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
             No posts yet.
           </div>
         ) : (
@@ -230,6 +230,7 @@ export function TerminalSocialFeed({ perpTicker }: TerminalSocialFeedProps) {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={onLoadMore}
+            density="compact"
           />
         )}
       </div>

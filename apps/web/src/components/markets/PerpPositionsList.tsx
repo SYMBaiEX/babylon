@@ -48,12 +48,15 @@ type PerpPosition = DisplayPerpPosition;
 interface PerpPositionsListProps {
   positions: PerpPosition[];
   onPositionClosed?: () => void;
+  density?: 'default' | 'compact';
 }
 
 export function PerpPositionsList({
   positions,
   onPositionClosed,
+  density = 'default',
 }: PerpPositionsListProps) {
+  const compact = density === 'compact';
   const [closingId, setClosingId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingClose, setPendingClose] = useState<{
@@ -159,9 +162,14 @@ export function PerpPositionsList({
 
   if (positions.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground">
+      <div
+        className={cn(
+          'text-center text-muted-foreground',
+          compact ? 'py-6' : 'py-8'
+        )}
+      >
         <p>No open positions</p>
-        <p className="mt-1 text-sm">
+        <p className={cn(compact ? 'mt-1 text-xs' : 'mt-1 text-sm')}>
           Open a long or short position to get started
         </p>
       </div>
@@ -169,7 +177,7 @@ export function PerpPositionsList({
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
       {positionsWithPnL.map(
         ({
           position,
@@ -185,12 +193,18 @@ export function PerpPositionsList({
             <div
               key={position.id}
               className={cn(
-                'rounded p-4 transition-all',
+                'rounded transition-all',
+                compact ? 'p-3' : 'p-4',
                 isNearLiquidation ? 'bg-red-600/10' : 'bg-muted/40'
               )}
             >
               {/* Header */}
-              <div className="mb-3 flex items-center justify-between">
+              <div
+                className={cn(
+                  'flex items-center justify-between',
+                  compact ? 'mb-2' : 'mb-3'
+                )}
+              >
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
@@ -222,7 +236,7 @@ export function PerpPositionsList({
                 <div className="text-right">
                   <div
                     className={cn(
-                      'font-bold text-lg',
+                      compact ? 'font-bold text-base' : 'font-bold text-lg',
                       pnl >= 0 ? 'text-green-600' : 'text-red-600'
                     )}
                   >
@@ -243,7 +257,12 @@ export function PerpPositionsList({
 
               {/* Liquidation Warning */}
               {isNearLiquidation && (
-                <div className="mb-3 flex items-center gap-2 rounded bg-red-600/20 p-2">
+                <div
+                  className={cn(
+                    'flex items-center gap-2 rounded bg-red-600/20',
+                    compact ? 'mb-2 p-1.5' : 'mb-3 p-2'
+                  )}
+                >
                   <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-600" />
                   <p className="font-medium text-red-600 text-xs">
                     Near liquidation! {liquidationDistance.toFixed(2)}% away
@@ -252,7 +271,12 @@ export function PerpPositionsList({
               )}
 
               {/* Stats Grid */}
-              <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+              <div
+                className={cn(
+                  'grid grid-cols-2 text-xs',
+                  compact ? 'mb-2 gap-1.5' : 'mb-3 gap-2'
+                )}
+              >
                 <div>
                   <div className="text-muted-foreground">Entry</div>
                   <div className="font-medium text-foreground">

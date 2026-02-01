@@ -49,13 +49,16 @@ type PredictionPosition = UserPredictionPosition;
 interface PredictionPositionsListProps {
   positions: PredictionPosition[];
   onPositionSold?: () => void;
+  density?: 'default' | 'compact';
 }
 
 export function PredictionPositionsList({
   positions,
   onPositionSold,
+  density = 'default',
 }: PredictionPositionsListProps) {
   const { getAccessToken } = usePrivy();
+  const compact = density === 'compact';
   const [sellingId, setSellingId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingSell, setPendingSell] = useState<{
@@ -153,15 +156,22 @@ export function PredictionPositionsList({
 
   if (positions.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground">
+      <div
+        className={cn(
+          'text-center text-muted-foreground',
+          compact ? 'py-6' : 'py-8'
+        )}
+      >
         <p>No prediction positions</p>
-        <p className="mt-1 text-sm">Buy YES or NO shares to start betting</p>
+        <p className={cn(compact ? 'mt-1 text-xs' : 'mt-1 text-sm')}>
+          Buy YES or NO shares to start betting
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
       {positions.map((position) => {
         const currentValue =
           position.currentValue ?? position.shares * position.currentPrice;
@@ -174,8 +184,16 @@ export function PredictionPositionsList({
         const isSelling = sellingId === position.id;
 
         return (
-          <div key={position.id} className="rounded bg-muted/40 p-4">
-            <div className="mb-3 flex items-center justify-between">
+          <div
+            key={position.id}
+            className={cn('rounded bg-muted/40', compact ? 'p-3' : 'p-4')}
+          >
+            <div
+              className={cn(
+                'flex items-center justify-between',
+                compact ? 'mb-2' : 'mb-3'
+              )}
+            >
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
@@ -204,7 +222,7 @@ export function PredictionPositionsList({
               <div className="text-right">
                 <div
                   className={cn(
-                    'font-bold text-lg',
+                    compact ? 'font-bold text-base' : 'font-bold text-lg',
                     unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
                   )}
                 >
@@ -223,11 +241,23 @@ export function PredictionPositionsList({
               </div>
             </div>
 
-            <p className="mb-3 font-medium text-foreground text-sm">
+            <p
+              className={cn(
+                'font-medium text-foreground',
+                compact
+                  ? 'mb-2 text-sm leading-snug md:text-xs'
+                  : 'mb-3 text-sm'
+              )}
+            >
               {position.question}
             </p>
 
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+            <div
+              className={cn(
+                'grid grid-cols-2 text-xs',
+                compact ? 'mb-2 gap-1.5' : 'mb-3 gap-2'
+              )}
+            >
               <div>
                 <div className="text-muted-foreground">Shares</div>
                 <div className="font-medium text-foreground">
@@ -265,7 +295,10 @@ export function PredictionPositionsList({
                   )
                 }
                 disabled={isSelling || position.shares < 0.01}
-                className="w-full cursor-pointer rounded bg-muted py-2 font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                className={cn(
+                  'w-full cursor-pointer rounded bg-muted font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+                  compact ? 'py-1.5 text-sm md:text-xs' : 'py-2 text-sm'
+                )}
               >
                 {isSelling
                   ? 'Selling...'
@@ -274,7 +307,12 @@ export function PredictionPositionsList({
                     : 'Sell Shares'}
               </button>
             ) : (
-              <div className="py-2 text-center font-medium text-sm">
+              <div
+                className={cn(
+                  'py-2 text-center font-medium',
+                  compact ? 'text-sm md:text-xs' : 'text-sm'
+                )}
+              >
                 <span className="text-muted-foreground">Resolved: </span>
                 <span
                   className={
