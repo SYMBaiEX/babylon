@@ -551,6 +551,8 @@ export async function POST(_req: NextRequest) {
         'MarketsTick'
       );
     } else {
+      // Iterate over MARKET_STRUCTURE keys (granular timeframes like '15m', '30m', etc.)
+      // getActiveMarketsByTimeframe() now groups by granular timeframe derived from duration
       for (const [timeframe, config] of Object.entries(MARKET_STRUCTURE)) {
         if (Date.now() > deadline) break;
 
@@ -651,6 +653,7 @@ export async function POST(_req: NextRequest) {
                 (parentMarket.affiliatedActorIds as string[]) ?? [],
               affiliatedOrgIds:
                 (parentMarket.affiliatedOrgIds as string[]) ?? [],
+              rootMarketId: parentMarket.rootMarketId,
             };
             const created = await createSubMarket(
               parentMarketData,
@@ -703,11 +706,13 @@ export async function POST(_req: NextRequest) {
           activeMarketsQueryMs: metrics.getActiveMarketsMs,
           resolutionPhaseMs: metrics.resolutionMs,
           creationPhaseMs: metrics.creationMs,
+          subMarketCreationPhaseMs: metrics.subMarketCreationMs,
           overheadMs:
             durationMs -
             metrics.getActiveMarketsMs -
             metrics.resolutionMs -
-            metrics.creationMs,
+            metrics.creationMs -
+            metrics.subMarketCreationMs,
         },
       },
       'MarketsTick'
@@ -754,11 +759,14 @@ export async function POST(_req: NextRequest) {
 }
 
 /**
- * Get active markets grouped by timeframe
+ * Get active markets grouped by GRANULAR timeframe (e.g., '15m', '30m', '1h')
  *
- * IMPORTANT: Queries timeframedMarkets.isActive as the single source of truth.
- * Previously this queried the questions table and inferred timeframe from
- * resolutionDate, which caused incorrect counts for markets near expiration.
+ * IMPORTANT: Groups by granular timeframe derived from (endTime - startTime) duration,
+ * NOT by the stored DB bucket timeframe ('flash', 'intraday', etc.).
+ * This allows accurate gap-filling with correct durations for each MARKET_STRUCTURE key.
+ *
+ * Uses timeframedMarkets.isActive as the single source of truth for active status.
+ * Only counts MAIN markets (no parentMarketId) - sub-markets are tracked separately.
  */
 async function getActiveMarketsByTimeframe(): Promise<
   Record<
@@ -767,12 +775,12 @@ async function getActiveMarketsByTimeframe(): Promise<
   >
 > {
   // Query timeframedMarkets directly - isActive is the source of truth
-  // Only count MAIN markets (no parentMarketId) - sub-markets are tracked separately
+  // Include startTime to calculate duration for granular timeframe inference
   const activeTimeframedMarkets = await db
     .select({
       id: timeframedMarkets.id,
       questionId: timeframedMarkets.questionId,
-      timeframe: timeframedMarkets.timeframe,
+      startTime: timeframedMarkets.startTime,
       endTime: timeframedMarkets.endTime,
     })
     .from(timeframedMarkets)
@@ -783,14 +791,17 @@ async function getActiveMarketsByTimeframe(): Promise<
       )
     );
 
-  // Group by stored timeframe (not inferred)
+  // Group by GRANULAR timeframe derived from duration (not stored DB bucket)
   const grouped: Record<
     string,
     Array<{ id: string; questionId: string | null; endTime: Date }>
   > = {};
 
   for (const m of activeTimeframedMarkets) {
-    const tf = m.timeframe;
+    // Calculate duration and infer granular timeframe
+    const durationMs = m.endTime.getTime() - m.startTime.getTime();
+    const tf = inferGranularTimeframe(durationMs);
+
     if (!grouped[tf]) {
       grouped[tf] = [];
     }
@@ -1226,42 +1237,61 @@ async function createMarketForTimeframe(
   timeframe: string,
   durationMs: number,
   llmClient: BabylonLLMClient,
-  _gameState: GameState
+  gameState: GameState
 ): Promise<boolean> {
   const now = new Date();
   const resolutionDate = new Date(now.getTime() + durationMs);
 
   try {
-    // IDEMPOTENCY CHECK: Verify we haven't exceeded the limit for this DB timeframe type
+    // IDEMPOTENCY CHECK: Verify we haven't exceeded the limit for this GRANULAR timeframe
     // This prevents duplicate creation from concurrent cron executions or stale counts
-    // NOTE: Multiple MARKET_STRUCTURE keys map to the same DB type (e.g., 15m and 30m → flash),
-    // so we compare against the aggregated target for that DB type, not the individual timeframe's count
-    const dbTimeframe = mapTimeframeToDbType(timeframe);
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(timeframedMarkets)
-      .where(
-        and(
-          eq(timeframedMarkets.timeframe, dbTimeframe),
-          eq(timeframedMarkets.isActive, true),
-          isNull(timeframedMarkets.parentMarketId) // Only count main markets, not sub-markets
-        )
-      );
-
-    const currentCount = countResult?.count ?? 0;
-    const targetCount = getTargetCountForDbTimeframe(dbTimeframe);
-
-    if (currentCount >= targetCount) {
-      logger.info(
-        `Skipping ${timeframe} market creation - already at limit for ${dbTimeframe}`,
-        { currentCount, targetCount, timeframe, dbTimeframe },
+    // Count markets by duration to match the granular timeframe (e.g., 15m vs 30m)
+    const config = MARKET_STRUCTURE[timeframe];
+    if (!config) {
+      logger.warn(
+        `Unknown timeframe: ${timeframe}`,
+        {},
         'MarketsTick'
       );
       return false;
     }
 
+    // Query active main markets and filter by duration matching this granular timeframe
+    const activeMarkets = await db
+      .select({
+        id: timeframedMarkets.id,
+        startTime: timeframedMarkets.startTime,
+        endTime: timeframedMarkets.endTime,
+      })
+      .from(timeframedMarkets)
+      .where(
+        and(
+          eq(timeframedMarkets.isActive, true),
+          isNull(timeframedMarkets.parentMarketId) // Only count main markets, not sub-markets
+        )
+      );
+
+    // Count markets matching this granular timeframe by duration
+    const currentCount = activeMarkets.filter((m) => {
+      const marketDurationMs = m.endTime.getTime() - m.startTime.getTime();
+      return inferGranularTimeframe(marketDurationMs) === timeframe;
+    }).length;
+
+    const targetCount = config.count;
+
+    if (currentCount >= targetCount) {
+      logger.info(
+        `Skipping ${timeframe} market creation - already at limit`,
+        { currentCount, targetCount, timeframe },
+        'MarketsTick'
+      );
+      return false;
+    }
+
+    const dbTimeframe = mapTimeframeToDbType(timeframe);
+
     logger.info(
-      `Creating ${timeframe} market`,
+      `Creating ${timeframe} market (stored as ${dbTimeframe})`,
       {
         resolutionDate: resolutionDate.toISOString(),
         durationMs,
@@ -1379,6 +1409,8 @@ async function createMarketForTimeframe(
         marketId: questionId,
         initialLiquidity: DEFAULT_INITIAL_LIQUIDITY,
         description: questionData.resolutionCriteria,
+        gameId: gameState.id,
+        dayNumber: gameState.currentDay,
       });
 
       // Step 3: Register in timeframedMarkets table - this is the SINGLE SOURCE OF TRUTH
@@ -1571,18 +1603,39 @@ function mapTimeframeToDbType(timeframe: string): DbTimeframe {
 }
 
 /**
- * Get the aggregated target count for a DB timeframe type.
- * Since multiple MARKET_STRUCTURE keys map to the same DB type (e.g., 15m and 30m → flash),
- * we need to sum all counts for that DB type when checking idempotency.
+ * Infer the granular timeframe key (e.g., '15m', '30m', '1h') from a duration in milliseconds.
+ * This is used to properly group active markets by their intended MARKET_STRUCTURE key,
+ * allowing accurate gap-filling with correct durations.
+ *
+ * Uses threshold-based matching with 10% tolerance to handle minor variations.
  */
-function getTargetCountForDbTimeframe(dbTimeframe: DbTimeframe): number {
-  let total = 0;
-  for (const [key, config] of Object.entries(MARKET_STRUCTURE)) {
-    if (mapTimeframeToDbType(key) === dbTimeframe) {
-      total += config.count;
+function inferGranularTimeframe(durationMs: number): string {
+  // Sort entries by duration ascending to find the best match
+  const sortedEntries = Object.entries(MARKET_STRUCTURE).sort(
+    (a, b) => a[1].durationMs - b[1].durationMs
+  );
+
+  // Find the closest matching timeframe with 10% tolerance
+  for (const [key, config] of sortedEntries) {
+    const tolerance = config.durationMs * 0.1;
+    if (Math.abs(durationMs - config.durationMs) <= tolerance) {
+      return key;
     }
   }
-  return total;
+
+  // If no match found, find the closest one
+  let closestKey = '1h'; // Default fallback
+  let closestDiff = Infinity;
+
+  for (const [key, config] of sortedEntries) {
+    const diff = Math.abs(durationMs - config.durationMs);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestKey = key;
+    }
+  }
+
+  return closestKey;
 }
 
 /**
@@ -1638,6 +1691,7 @@ interface ParentMarketData {
   arcState: string;
   affiliatedActorIds: string[];
   affiliatedOrgIds: string[];
+  rootMarketId: string | null;
 }
 
 /**
@@ -1649,7 +1703,7 @@ async function createSubMarket(
   parentMarket: ParentMarketData,
   durationMs: number,
   llmClient: BabylonLLMClient,
-  _gameState: GameState
+  gameState: GameState
 ): Promise<boolean> {
   const now = new Date();
   const resolutionDate = new Date(now.getTime() + durationMs);
@@ -1802,16 +1856,20 @@ async function createSubMarket(
         marketId: questionId,
         initialLiquidity: DEFAULT_INITIAL_LIQUIDITY,
         description: questionData.resolutionCriteria,
+        gameId: gameState.id,
+        dayNumber: gameState.currentDay,
       });
 
       // Step 3: Register in timeframedMarkets with parentMarketId
       // Inherit category from parent to maintain arc relevance
+      // rootMarketId tracks the top-level parent for nested hierarchies
       await tx.insert(timeframedMarkets).values({
         id: timeframedMarketId,
         questionId,
         timeframe: mapTimeframeToDbType(timeframe),
         category: parentMarket.category as MarketCategory, // Inherit from parent
         parentMarketId: parentMarket.id,
+        rootMarketId: parentMarket.rootMarketId ?? parentMarket.id, // Use parent's root or parent itself
         startTime: now,
         endTime: resolutionDate,
         arcState: (arcPlan.phaseOrder[0] || 'setup') as ArcStateType,
@@ -1822,7 +1880,7 @@ async function createSubMarket(
     });
 
     // Create announcement post for the sub-market
-    await createSubMarketPost(questionId, questionData.text);
+    await createSubMarketPost(questionId, questionData.text, gameState);
 
     logger.info(
       `Created arc-relevant sub-market Q${questionNumber}`,
@@ -1856,10 +1914,12 @@ async function createSubMarket(
  * Create a feed post announcing a new sub-market.
  * Uses a media organization to make the announcement.
  * Links the post to the question via relatedQuestion for analytics/filtering.
+ * Sets gameId and dayNumber for consistency with other cron jobs.
  */
 async function createSubMarketPost(
   questionId: string,
-  questionText: string
+  questionText: string,
+  gameState: GameState
 ): Promise<void> {
   try {
     // Find a media organization to post from
@@ -1892,6 +1952,8 @@ async function createSubMarketPost(
       content: `📊 NEW MARKET: "${questionText}"\n\nA new ${durationLabel} prediction market is now open. Trade now before it closes!`,
       timestamp: new Date(),
       type: 'market_announcement',
+      gameId: gameState.id,
+      dayNumber: gameState.currentDay ?? 1,
       relatedQuestion: questionData?.questionNumber ?? null,
     });
 

@@ -48,6 +48,8 @@ export class PredictionMarketService {
     marketId: string;
     initialLiquidity?: number;
     description?: string | null;
+    gameId?: string | null;
+    dayNumber?: number | null;
   }): Promise<PredictionMarketRecord> {
     const existing = await this.db.getMarketById(input.marketId);
     if (existing) return existing;
@@ -59,7 +61,11 @@ export class PredictionMarketService {
     return this.db.createMarketFromQuestion(
       question,
       input.initialLiquidity ?? DEFAULT_LIQUIDITY,
-      { description: input.description }
+      {
+        description: input.description,
+        gameId: input.gameId,
+        dayNumber: input.dayNumber,
+      }
     );
   }
 

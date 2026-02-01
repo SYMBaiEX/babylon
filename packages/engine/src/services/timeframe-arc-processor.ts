@@ -216,6 +216,11 @@ export class TimeframeArcProcessor {
                   arcState: market.arcState,
                 });
 
+                // TODO: Monitor SUB_MARKET_CONFIG.enableEventBasedSpawning usage in production.
+                // If event-based spawning proves unnecessary after production testing,
+                // consider removing trySpawnSubMarket method and subMarketService import
+                // to simplify this processor.
+                //
                 // Event-based sub-market spawning is controlled by feature flag
                 // Default is disabled - markets are created via the cron job (markets-tick)
                 // Enable ENABLE_EVENT_BASED_SUB_MARKETS=true for dynamic spawning during gameplay
