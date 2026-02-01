@@ -456,13 +456,14 @@ describe('Markets Tick Integration', () => {
       const totalActive = totalResult?.count ?? 0;
 
       // Total should include all created markets (1 main + 10 subs)
-      expect(totalActive).toBeGreaterThanOrEqual(initialCount + 1 + subMarketCount);
+      expect(totalActive).toBeGreaterThanOrEqual(
+        initialCount + 1 + subMarketCount
+      );
 
       // Gap-filling logic uses countActiveMainMarkets(), which excludes sub-markets
       // This verifies that even with 10 sub-markets, gap-filling would still trigger
       // based on the main market count, not the total count
-      const gapFillShouldTrigger =
-        afterManySubsCount < 10; // MARKET_STRUCTURE total is 10
+      const gapFillShouldTrigger = afterManySubsCount < 10; // MARKET_STRUCTURE total is 10
       expect(gapFillShouldTrigger).toBe(true);
     });
   });
