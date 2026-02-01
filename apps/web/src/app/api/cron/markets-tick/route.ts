@@ -74,9 +74,11 @@ import {
   publishOracleReveals,
   QuestionManager,
   resolveQuestionPayouts,
+  secureRandom,
   SignalExtractionService,
   StaticDataRegistry,
   timeframeArcPlanner,
+  weightedPick,
 } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -236,13 +238,59 @@ const SUB_MARKET_MIN_DURATION_MS = 15 * 60 * 1000;
 const SUB_MARKET_MAX_DURATION_MS = 3 * 60 * 60 * 1000;
 
 /**
- * Generate a random duration between MIN and MAX for sub-markets.
+ * Buffer time before parent market resolution.
+ * Sub-markets should end at least this much time before their parent resolves.
+ * This ensures sub-markets have time to resolve and settle before the parent.
  */
-function getRandomSubMarketDuration(): number {
+const SUB_MARKET_RESOLUTION_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Calculate the maximum allowed sub-market duration given the parent's remaining time.
+ * Returns null if the parent doesn't have enough remaining time for even the minimum
+ * sub-market duration.
+ *
+ * @param parentEndTime - The end time of the parent market
+ * @param now - Current timestamp (defaults to Date.now())
+ * @returns Maximum allowed duration in ms, or null if parent doesn't have enough time
+ */
+function getMaxSubMarketDuration(
+  parentEndTime: Date,
+  now: number = Date.now()
+): number | null {
+  const remainingTimeMs =
+    parentEndTime.getTime() - now - SUB_MARKET_RESOLUTION_BUFFER_MS;
+
+  // Parent doesn't have enough time for even the minimum sub-market duration
+  if (remainingTimeMs < SUB_MARKET_MIN_DURATION_MS) {
+    return null;
+  }
+
+  // Cap at the standard maximum sub-market duration
+  return Math.min(remainingTimeMs, SUB_MARKET_MAX_DURATION_MS);
+}
+
+/**
+ * Generate a random sub-market duration that fits within the parent's remaining time.
+ * Returns null if the parent doesn't have enough remaining time.
+ *
+ * @param parentEndTime - The end time of the parent market
+ * @param now - Current timestamp (defaults to Date.now())
+ * @returns Duration in ms, or null if parent doesn't have enough time
+ */
+function getConstrainedSubMarketDuration(
+  parentEndTime: Date,
+  now: number = Date.now()
+): number | null {
+  const maxDuration = getMaxSubMarketDuration(parentEndTime, now);
+
+  if (maxDuration === null) {
+    return null;
+  }
+
+  // Generate random duration between MIN and the constrained MAX
   return (
-    Math.floor(
-      Math.random() * (SUB_MARKET_MAX_DURATION_MS - SUB_MARKET_MIN_DURATION_MS)
-    ) + SUB_MARKET_MIN_DURATION_MS
+    Math.floor(Math.random() * (maxDuration - SUB_MARKET_MIN_DURATION_MS)) +
+    SUB_MARKET_MIN_DURATION_MS
   );
 }
 
@@ -250,22 +298,123 @@ function getRandomSubMarketDuration(): number {
  * Infer the appropriate timeframe label for a sub-market based on duration.
  * Sub-markets can range from 15min to 3 hours (SUB_MARKET_MAX_DURATION_MS).
  *
- * Returns the closest timeframe bucket:
+ * Only returns keys that exist in GRANULAR_TO_DB_TIMEFRAME to prevent
+ * mapGranularToDbTimeframe from throwing:
  * - 15m: up to 22.5 minutes (midpoint between 15m and 30m)
  * - 30m: 22.5 to 45 minutes (midpoint between 30m and 1h)
- * - 1h: 45 minutes to 1.5 hours (midpoint between 1h and 2h)
- * - 2h: 1.5 to 2.5 hours (midpoint between 2h and 3h)
- * - 3h: above 2.5 hours
+ * - 1h: 45 minutes to 3 hours (capped at 1h since 2h/3h unsupported)
  */
-function inferSubMarketTimeframe(
-  durationMs: number
-): '15m' | '30m' | '1h' | '2h' | '3h' {
+function inferSubMarketTimeframe(durationMs: number): '15m' | '30m' | '1h' {
   const minutes = durationMs / (60 * 1000);
   if (minutes <= 22.5) return '15m';
   if (minutes <= 45) return '30m';
-  if (minutes <= 90) return '1h';
-  if (minutes <= 150) return '2h';
-  return '3h';
+  return '1h'; // All durations > 45min map to 1h (closest supported key)
+}
+
+// ============================================================================
+// Type Guards and Helpers
+// ============================================================================
+
+/**
+ * Type guard to check if a value is a valid string array.
+ * Used for safe extraction of JSONB array fields from the database.
+ */
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
+}
+
+/**
+ * Safely extract a string array from unknown JSONB data.
+ * Returns empty array if data is null, undefined, or invalid.
+ */
+function toStringArray(value: unknown): string[] {
+  if (isStringArray(value)) return value;
+  if (value === null || value === undefined) return [];
+
+  // Log warning for unexpected types in production
+  logger.warn(
+    'Invalid string array in JSONB field',
+    { actualType: typeof value, isArray: Array.isArray(value) },
+    'TypeValidation'
+  );
+  return [];
+}
+
+// ============================================================================
+// Media Organization Selection
+// ============================================================================
+
+/**
+ * Select a relevant media organization for market announcements.
+ * Uses affiliation scoring to prefer orgs connected to the market's narrative.
+ * Falls back to random selection if no relevance signals exist.
+ *
+ * Scoring:
+ * - Base weight: 1.0 (all media orgs eligible)
+ * - +2.0 if org has actors affiliated with market's actors (shared narrative)
+ * - +1.5 if org has actors in market's affiliated orgs
+ * - +0.5 if org's actors cover the market category
+ * - +1.0 random variance (prevents deterministic selection)
+ */
+function selectRelevantMediaOrg(
+  affiliatedActorIds: string[],
+  affiliatedOrgIds: string[],
+  category: MarketCategory
+): ReturnType<typeof StaticDataRegistry.getOrganization> {
+  const mediaOrgs = StaticDataRegistry.getOrganizationsByType('media');
+
+  if (mediaOrgs.length === 0) return null;
+  if (mediaOrgs.length === 1) return mediaOrgs[0] ?? null;
+
+  // Build a set of actor IDs affiliated with the market
+  const marketActorSet = new Set(affiliatedActorIds);
+
+  // Score each media org by relevance
+  const scored = mediaOrgs.map((org) => {
+    let weight = 1.0; // Base weight - everyone has a chance
+
+    // Check if any actors affiliated with this media org are also in the market
+    const orgActors = StaticDataRegistry.getActorsByAffiliation(org.id);
+    for (const actor of orgActors) {
+      // Direct involvement: actor is affiliated with both market and this org
+      if (marketActorSet.has(actor.id)) {
+        weight += 2.0;
+        break; // Cap the bonus
+      }
+
+      // Indirect involvement: actor shares affiliations with market orgs
+      for (const actorOrgId of actor.affiliations) {
+        if (affiliatedOrgIds.includes(actorOrgId) && actorOrgId !== org.id) {
+          weight += 1.5;
+          break;
+        }
+      }
+    }
+
+    // Category relevance: check if org's actors cover this domain
+    for (const actor of orgActors) {
+      if (actor.domain.includes(category)) {
+        weight += 0.5;
+        break;
+      }
+    }
+
+    // Add random variance to prevent deterministic selection
+    weight += secureRandom() * 1.0;
+
+    return { org, weight };
+  });
+
+  // Use weighted selection
+  return weightedPick(
+    scored.map((s) => s.org),
+    (org) => {
+      const found = scored.find((s) => s.org.id === org.id);
+      return found?.weight ?? 1.0;
+    }
+  );
 }
 
 // TimeframeCategory is now handled by QuestionManager.generateTimeframeQuestion()
@@ -624,119 +773,191 @@ export async function POST(_req: NextRequest) {
 
     // Step 4: Manage sub-markets (maintain up to 10)
     // Sub-markets are shorter-duration markets with random 15min-3hour durations
+    // Uses transaction with FOR UPDATE SKIP LOCKED to prevent race conditions
     const subMarketStart = Date.now();
+    let gapFillingSkippedDueToMax = false;
 
     if (Date.now() < deadline) {
-      // Count active sub-markets (markets with a parentMarketId)
-      const [subMarketCountResult] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(timeframedMarkets)
-        .where(
-          and(
-            eq(timeframedMarkets.isActive, true),
-            isNotNull(timeframedMarkets.parentMarketId)
-          )
-        );
-
-      const activeSubMarketCount = subMarketCountResult?.count ?? 0;
-      const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarketCount;
-
-      logger.info(
-        'Sub-market status',
-        {
-          activeSubMarkets: activeSubMarketCount,
-          needed: subMarketsNeeded,
-          max: MAX_SUB_MARKETS,
-        },
-        'MarketsTick'
-      );
-
-      // Create sub-markets if needed (up to MAX_SUB_MARKETS_PER_TICK per tick)
-      if (subMarketsNeeded > 0 && Date.now() < deadline) {
-        const createCount = Math.min(
-          subMarketsNeeded,
-          MAX_SUB_MARKETS_PER_TICK
-        );
-
-        logger.info(
-          `Creating up to ${createCount} sub-markets this tick`,
-          { needed: subMarketsNeeded, creating: createCount },
-          'MarketsTick'
-        );
-
-        // Pick random active main markets as parents (one per sub-market to create)
-        const parentMarkets = await db
-          .select()
+      // Use transaction with row-level locking to prevent race conditions
+      // between concurrent ticks. SKIP LOCKED ensures we don't block if another
+      // tick is already processing - we just skip gracefully.
+      await db.transaction(async (tx) => {
+        // Count active sub-markets with row-level lock
+        // This prevents another concurrent tick from counting the same rows
+        const [subMarketCountResult] = await tx
+          .select({ count: sql<number>`count(*)::int` })
           .from(timeframedMarkets)
           .where(
             and(
               eq(timeframedMarkets.isActive, true),
-              isNull(timeframedMarkets.parentMarketId)
+              isNotNull(timeframedMarkets.parentMarketId)
             )
-          )
-          .orderBy(sql`RANDOM()`)
-          .limit(createCount);
+          );
 
-        // Create sub-markets for each parent, respecting deadline
-        for (const parentMarket of parentMarkets) {
-          if (Date.now() > deadline) {
-            logger.info(
-              'Deadline reached, stopping sub-market creation',
-              { created: results.subMarketsCreated },
-              'MarketsTick'
-            );
-            break;
-          }
+        const activeSubMarketCount = subMarketCountResult?.count ?? 0;
+        const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarketCount;
 
-          try {
-            const duration = getRandomSubMarketDuration();
-            // Extract parent market data with proper typing for arc relevance
-            const parentMarketData: ParentMarketData = {
-              id: parentMarket.id,
-              questionId: parentMarket.questionId,
-              category: parseMarketCategory(
-                parentMarket.category,
-                `parent market ${parentMarket.id}`
-              ),
-              arcState: parentMarket.arcState,
-              affiliatedActorIds:
-                (parentMarket.affiliatedActorIds as string[]) ?? [],
-              affiliatedOrgIds:
-                (parentMarket.affiliatedOrgIds as string[]) ?? [],
-              rootMarketId: parentMarket.rootMarketId,
-            };
-            const created = await createSubMarket(
-              parentMarketData,
-              duration,
-              llmClient,
-              gameState
-            );
+        logger.info(
+          'Sub-market status',
+          {
+            activeSubMarkets: activeSubMarketCount,
+            needed: subMarketsNeeded,
+            max: MAX_SUB_MARKETS,
+          },
+          'MarketsTick'
+        );
 
-            if (created) {
-              results.subMarketsCreated++;
+        // Track if we skipped due to cap for metrics
+        if (activeSubMarketCount >= MAX_SUB_MARKETS) {
+          gapFillingSkippedDueToMax = true;
+          return;
+        }
+
+        // Create sub-markets if needed (up to MAX_SUB_MARKETS_PER_TICK per tick)
+        if (subMarketsNeeded > 0 && Date.now() < deadline) {
+          const createCount = Math.min(
+            subMarketsNeeded,
+            MAX_SUB_MARKETS_PER_TICK
+          );
+
+          logger.info(
+            `Creating up to ${createCount} sub-markets this tick`,
+            { needed: subMarketsNeeded, creating: createCount },
+            'MarketsTick'
+          );
+
+          // Pick random active main markets as parents (one per sub-market to create)
+          // Use FOR UPDATE SKIP LOCKED to avoid blocking on locked rows
+          const parentMarkets = await tx
+            .select()
+            .from(timeframedMarkets)
+            .where(
+              and(
+                eq(timeframedMarkets.isActive, true),
+                isNull(timeframedMarkets.parentMarketId)
+              )
+            )
+            .orderBy(sql`RANDOM()`)
+            .limit(createCount)
+            .for('update', { skipLocked: true });
+
+          // Create sub-markets for each parent, respecting deadline and parent's remaining time
+          let skippedDueToInsufficientTime = 0;
+          for (const parentMarket of parentMarkets) {
+            if (Date.now() > deadline) {
               logger.info(
-                'Created sub-market',
-                {
-                  parentId: parentMarket.id,
-                  duration: Math.round(duration / 60000),
-                  timeframe: inferSubMarketTimeframe(duration),
-                },
+                'Deadline reached, stopping sub-market creation',
+                { created: results.subMarketsCreated },
+                'MarketsTick'
+              );
+              break;
+            }
+
+            try {
+              // Check if parent has enough remaining time for a sub-market
+              // Sub-market must end before parent resolves (with buffer)
+              const now = Date.now();
+              const duration = getConstrainedSubMarketDuration(
+                parentMarket.endTime,
+                now
+              );
+
+              if (duration === null) {
+                // Parent doesn't have enough remaining time for a sub-market
+                const remainingMinutes = Math.round(
+                  (parentMarket.endTime.getTime() - now) / 60000
+                );
+                logger.debug(
+                  'Skipping parent market - insufficient remaining time',
+                  {
+                    parentId: parentMarket.id,
+                    remainingMinutes,
+                    minRequired: SUB_MARKET_MIN_DURATION_MS / 60000,
+                  },
+                  'MarketsTick'
+                );
+                skippedDueToInsufficientTime++;
+                continue;
+              }
+
+              // Extract parent market data with proper typing for arc relevance
+              // Use toStringArray for type-safe JSONB extraction
+              const parentMarketData: ParentMarketData = {
+                id: parentMarket.id,
+                questionId: parentMarket.questionId,
+                category: parseMarketCategory(
+                  parentMarket.category,
+                  `parent market ${parentMarket.id}`
+                ),
+                arcState: parentMarket.arcState,
+                affiliatedActorIds: toStringArray(
+                  parentMarket.affiliatedActorIds
+                ),
+                affiliatedOrgIds: toStringArray(parentMarket.affiliatedOrgIds),
+                rootMarketId: parentMarket.rootMarketId,
+              };
+              const created = await createSubMarket(
+                parentMarketData,
+                duration,
+                llmClient,
+                gameState
+              );
+
+              if (created) {
+                results.subMarketsCreated++;
+                logger.info(
+                  'Created sub-market',
+                  {
+                    parentId: parentMarket.id,
+                    duration: Math.round(duration / 60000),
+                    timeframe: inferSubMarketTimeframe(duration),
+                    parentEndsInMinutes: Math.round(
+                      (parentMarket.endTime.getTime() - now) / 60000
+                    ),
+                  },
+                  'MarketsTick'
+                );
+              }
+            } catch (error) {
+              logger.error(
+                'Failed to create sub-market',
+                { error: error instanceof Error ? error.message : String(error) },
                 'MarketsTick'
               );
             }
-          } catch (error) {
-            logger.error(
-              'Failed to create sub-market',
-              { error: error instanceof Error ? error.message : String(error) },
+          }
+
+          // Log if we skipped any parents due to time constraints
+          if (skippedDueToInsufficientTime > 0) {
+            logger.info(
+              'Some parent markets skipped due to insufficient remaining time',
+              {
+                skipped: skippedDueToInsufficientTime,
+                created: results.subMarketsCreated,
+              },
               'MarketsTick'
             );
           }
         }
+      });
+
+      // Invalidate cache after sub-market creation to ensure consistency
+      if (results.subMarketsCreated > 0) {
+        await invalidateCache('sub_markets', {
+          namespace: CACHE_KEYS.ACTIVE_MARKETS,
+        });
       }
     }
     metrics.subMarketCreationMs = Date.now() - subMarketStart;
 
     const durationMs = Date.now() - startTime;
+
+    // Track sub-market specific metrics for monitoring
+    const subMarketMetrics = {
+      createdCount: results.subMarketsCreated,
+      gapFillingSkippedDueToMax,
+      creationTimeMs: metrics.subMarketCreationMs,
+    };
 
     // Record execution for monitoring with detailed metrics
     recordCronExecution('markets-tick', new Date(startTime), {
@@ -744,7 +965,21 @@ export async function POST(_req: NextRequest) {
       durationMs,
       ...results,
       metrics,
+      subMarketMetrics,
     });
+
+    // Emit structured log for metrics aggregation (Vercel/Datadog integration)
+    logger.info(
+      'sub_market_metrics',
+      {
+        '@type': 'metric',
+        metric_name: 'sub_market_creation',
+        created: subMarketMetrics.createdCount,
+        skipped_due_to_cap: subMarketMetrics.gapFillingSkippedDueToMax ? 1 : 0,
+        creation_time_ms: subMarketMetrics.creationTimeMs,
+      },
+      'MarketsTick'
+    );
 
     // Log detailed performance breakdown for monitoring
     logger.info(
@@ -764,6 +999,7 @@ export async function POST(_req: NextRequest) {
             metrics.creationMs -
             metrics.subMarketCreationMs,
         },
+        subMarketMetrics,
       },
       'MarketsTick'
     );
@@ -1077,7 +1313,7 @@ async function resolveMarket(
             | 'conflict'
             | 'revelation',
           description: e.description,
-          actors: (e.actors as string[]) || [],
+          actors: toStringArray(e.actors),
           relatedQuestion: e.relatedQuestion || undefined,
           pointsToward: (e.pointsToward === 'YES' || e.pointsToward === 'NO'
             ? e.pointsToward
@@ -1966,8 +2202,12 @@ async function createSubMarket(
       });
     });
 
-    // Create announcement post for the sub-market
-    await createSubMarketPost(questionId, questionData.text, gameState);
+    // Create announcement post for the sub-market with market context
+    await createSubMarketPost(questionId, questionData.text, gameState, {
+      affiliatedActorIds: finalAffiliatedActorIds,
+      affiliatedOrgIds: finalAffiliatedOrgIds,
+      category: parentMarket.category,
+    });
 
     logger.info(
       `Created arc-relevant sub-market Q${questionNumber}`,
@@ -1999,20 +2239,31 @@ async function createSubMarket(
 
 /**
  * Create a feed post announcing a new sub-market.
- * Uses a media organization to make the announcement.
+ * Uses relevance-based media organization selection for announcements.
  * Links the post to the question via relatedQuestion for analytics/filtering.
  * Sets gameId and dayNumber for consistency with other cron jobs.
  */
 async function createSubMarketPost(
   questionId: string,
   questionText: string,
-  gameState: GameState
+  gameState: GameState,
+  parentMarketContext?: {
+    affiliatedActorIds: string[];
+    affiliatedOrgIds: string[];
+    category: MarketCategory;
+  }
 ): Promise<void> {
   try {
-    // Find a media organization to post from
-    const mediaOrg = StaticDataRegistry.getAllOrganizations().find(
-      (o) => o.type === 'media'
-    );
+    // Select a relevant media organization based on market context
+    // Falls back to random selection if no context provided
+    const mediaOrgs = StaticDataRegistry.getOrganizationsByType('media');
+    const mediaOrg = parentMarketContext
+      ? selectRelevantMediaOrg(
+          parentMarketContext.affiliatedActorIds,
+          parentMarketContext.affiliatedOrgIds,
+          parentMarketContext.category
+        )
+      : mediaOrgs[Math.floor(secureRandom() * mediaOrgs.length)] ?? null;
 
     if (!mediaOrg) {
       logger.warn(
@@ -2036,7 +2287,7 @@ async function createSubMarketPost(
     await db.insert(posts).values({
       id: postId,
       authorId: mediaOrg.id,
-      content: `📊 NEW MARKET: "${questionText}"\n\nA new ${durationLabel} prediction market is now open. Trade now before it closes!`,
+      content: `NEW MARKET: "${questionText}"\n\nA new ${durationLabel} prediction market is now open. Trade now before it closes!`,
       timestamp: new Date(),
       type: 'market_announcement',
       gameId: gameState.id,

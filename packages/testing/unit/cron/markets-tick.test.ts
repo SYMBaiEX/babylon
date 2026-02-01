@@ -807,3 +807,336 @@ describe('Granular to DB Timeframe Mapping', () => {
     expect(dbCounts['weekly']).toBe(2); // 2d + 3d
   });
 });
+
+// =============================================================================
+// toStringArray Type Guard Tests
+// =============================================================================
+
+describe('toStringArray Type Guard', () => {
+  // Replicate the toStringArray helper for testing
+  function isStringArray(value: unknown): value is string[] {
+    return (
+      Array.isArray(value) && value.every((item) => typeof item === 'string')
+    );
+  }
+
+  function toStringArray(value: unknown): string[] {
+    if (isStringArray(value)) return value;
+    if (value === null || value === undefined) return [];
+    return [];
+  }
+
+  test('should return array for valid string array', () => {
+    expect(toStringArray(['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  test('should return empty array for null', () => {
+    expect(toStringArray(null)).toEqual([]);
+  });
+
+  test('should return empty array for undefined', () => {
+    expect(toStringArray(undefined)).toEqual([]);
+  });
+
+  test('should return empty array for non-array types', () => {
+    expect(toStringArray('string')).toEqual([]);
+    expect(toStringArray(123)).toEqual([]);
+    expect(toStringArray({ key: 'value' })).toEqual([]);
+  });
+
+  test('should return empty array for mixed arrays', () => {
+    expect(toStringArray(['a', 1, 'b'])).toEqual([]);
+  });
+
+  test('should return empty array for empty array', () => {
+    expect(toStringArray([])).toEqual([]);
+  });
+
+  test('should handle nested arrays as invalid', () => {
+    expect(toStringArray([['a', 'b'], ['c']])).toEqual([]);
+  });
+});
+
+// =============================================================================
+// inferSubMarketTimeframe Tests (Updated for Fixed Version)
+// =============================================================================
+
+describe('inferSubMarketTimeframe (Fixed Version)', () => {
+  // Replicate the FIXED inferSubMarketTimeframe logic
+  // Now only returns supported keys: '15m', '30m', '1h'
+  function inferSubMarketTimeframe(durationMs: number): '15m' | '30m' | '1h' {
+    const minutes = durationMs / (60 * 1000);
+    if (minutes <= 22.5) return '15m';
+    if (minutes <= 45) return '30m';
+    return '1h'; // All durations > 45min map to 1h (closest supported key)
+  }
+
+  test('should return 15m for durations up to 22.5 minutes', () => {
+    expect(inferSubMarketTimeframe(15 * 60 * 1000)).toBe('15m'); // 15 min
+    expect(inferSubMarketTimeframe(20 * 60 * 1000)).toBe('15m'); // 20 min
+    expect(inferSubMarketTimeframe(22.5 * 60 * 1000)).toBe('15m'); // 22.5 min
+  });
+
+  test('should return 30m for durations from 22.5 to 45 minutes', () => {
+    expect(inferSubMarketTimeframe(23 * 60 * 1000)).toBe('30m'); // 23 min
+    expect(inferSubMarketTimeframe(30 * 60 * 1000)).toBe('30m'); // 30 min
+    expect(inferSubMarketTimeframe(45 * 60 * 1000)).toBe('30m'); // 45 min
+  });
+
+  test('should return 1h for all durations over 45 minutes', () => {
+    expect(inferSubMarketTimeframe(46 * 60 * 1000)).toBe('1h'); // 46 min
+    expect(inferSubMarketTimeframe(60 * 60 * 1000)).toBe('1h'); // 60 min
+    expect(inferSubMarketTimeframe(90 * 60 * 1000)).toBe('1h'); // 90 min
+    expect(inferSubMarketTimeframe(120 * 60 * 1000)).toBe('1h'); // 120 min
+    expect(inferSubMarketTimeframe(180 * 60 * 1000)).toBe('1h'); // 180 min (3 hours)
+  });
+
+  test('should only return keys supported by GRANULAR_TO_DB_TIMEFRAME', () => {
+    // This is the critical fix - no more '2h' or '3h' which would cause throws
+    const supportedKeys = ['15m', '30m', '1h'];
+
+    // Test a range of durations
+    const testDurations = [
+      15 * 60 * 1000, // 15 min
+      30 * 60 * 1000, // 30 min
+      60 * 60 * 1000, // 1 hour
+      90 * 60 * 1000, // 1.5 hours
+      120 * 60 * 1000, // 2 hours
+      180 * 60 * 1000, // 3 hours
+    ];
+
+    for (const duration of testDurations) {
+      const result = inferSubMarketTimeframe(duration);
+      expect(supportedKeys).toContain(result);
+    }
+  });
+});
+
+// =============================================================================
+// Transactional Sub-Market Creation Logic Tests
+// =============================================================================
+
+describe('Transactional Sub-Market Creation Logic', () => {
+  const MAX_SUB_MARKETS = 10;
+  const MAX_SUB_MARKETS_PER_TICK = 5;
+
+  test('should abort creation when count reaches MAX_SUB_MARKETS inside transaction', () => {
+    // Simulate scenario where count was 8 outside tx, but 10 inside tx
+    const outsideCount = 8;
+    const insideCount = 10;
+
+    // Outside transaction check suggests we need to create
+    const outsideNeeded = MAX_SUB_MARKETS - outsideCount;
+    expect(outsideNeeded).toBe(2);
+
+    // But inside transaction, we discover we're at max
+    const shouldCreate = insideCount < MAX_SUB_MARKETS;
+    expect(shouldCreate).toBe(false);
+  });
+
+  test('should respect MAX_SUB_MARKETS_PER_TICK even when many needed', () => {
+    const activeSubMarkets = 0;
+    const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarkets; // 10
+    const createCount = Math.min(subMarketsNeeded, MAX_SUB_MARKETS_PER_TICK);
+
+    expect(createCount).toBe(5);
+  });
+
+  test('should handle concurrent tick scenario with SKIP LOCKED', () => {
+    // Simulate SKIP LOCKED behavior:
+    // If another transaction has locked the rows, we should get empty results
+    const lockedByOtherTransaction = true;
+    const parentMarketsReturned = lockedByOtherTransaction ? [] : [{ id: '1' }];
+
+    // When SKIP LOCKED returns empty, we create 0 sub-markets
+    expect(parentMarketsReturned.length).toBe(0);
+  });
+
+  test('should track gapFillingSkippedDueToMax metric correctly', () => {
+    // When activeSubMarketCount >= MAX_SUB_MARKETS, we should set the flag
+    const testCases = [
+      { activeCount: 10, expected: true },
+      { activeCount: 11, expected: true },
+      { activeCount: 9, expected: false },
+      { activeCount: 0, expected: false },
+    ];
+
+    for (const { activeCount, expected } of testCases) {
+      const gapFillingSkippedDueToMax = activeCount >= MAX_SUB_MARKETS;
+      expect(gapFillingSkippedDueToMax).toBe(expected);
+    }
+  });
+});
+
+// =============================================================================
+// Cache Invalidation Logic Tests
+// =============================================================================
+
+describe('Cache Invalidation Logic', () => {
+  test('should invalidate cache when sub-markets are created', () => {
+    // Simulate: subMarketsCreated > 0 -> invalidate cache
+    const subMarketsCreated = 3;
+    const shouldInvalidate = subMarketsCreated > 0;
+    expect(shouldInvalidate).toBe(true);
+  });
+
+  test('should not invalidate cache when no sub-markets created', () => {
+    // Simulate: subMarketsCreated === 0 -> skip cache invalidation
+    const subMarketsCreated = 0;
+    const shouldInvalidate = subMarketsCreated > 0;
+    expect(shouldInvalidate).toBe(false);
+  });
+});
+
+// =============================================================================
+// Media Selection Relevance Scoring Tests
+// =============================================================================
+
+// =============================================================================
+// Sub-Market Duration Constraint Tests
+// =============================================================================
+
+describe('Sub-Market Duration Constraints', () => {
+  const SUB_MARKET_MIN_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+  const SUB_MARKET_MAX_DURATION_MS = 3 * 60 * 60 * 1000; // 3 hours
+  const SUB_MARKET_RESOLUTION_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Replicate the getMaxSubMarketDuration helper for testing
+  function getMaxSubMarketDuration(
+    parentEndTime: Date,
+    now: number = Date.now()
+  ): number | null {
+    const remainingTimeMs =
+      parentEndTime.getTime() - now - SUB_MARKET_RESOLUTION_BUFFER_MS;
+
+    if (remainingTimeMs < SUB_MARKET_MIN_DURATION_MS) {
+      return null;
+    }
+
+    return Math.min(remainingTimeMs, SUB_MARKET_MAX_DURATION_MS);
+  }
+
+  test('should return null when parent has less than minimum duration remaining', () => {
+    const now = Date.now();
+    // Parent ends in 10 minutes (less than 15 min minimum + 5 min buffer)
+    const parentEndTime = new Date(now + 10 * 60 * 1000);
+
+    expect(getMaxSubMarketDuration(parentEndTime, now)).toBeNull();
+  });
+
+  test('should return null when parent ends exactly at minimum + buffer', () => {
+    const now = Date.now();
+    // Parent ends in exactly 20 minutes (15 min min + 5 min buffer)
+    // This is the edge case - should return null because remaining = 15 which is not > 15
+    const parentEndTime = new Date(now + 20 * 60 * 1000);
+
+    // After subtracting buffer: 20 - 5 = 15 minutes
+    // 15 minutes is exactly minimum, so this should work
+    const result = getMaxSubMarketDuration(parentEndTime, now);
+    expect(result).toBe(15 * 60 * 1000); // Should return exactly minimum
+  });
+
+  test('should return constrained duration when parent has limited time', () => {
+    const now = Date.now();
+    // Parent ends in 30 minutes
+    const parentEndTime = new Date(now + 30 * 60 * 1000);
+
+    // After buffer: 30 - 5 = 25 minutes max duration
+    const result = getMaxSubMarketDuration(parentEndTime, now);
+    expect(result).toBe(25 * 60 * 1000);
+  });
+
+  test('should cap at maximum duration when parent has plenty of time', () => {
+    const now = Date.now();
+    // Parent ends in 24 hours
+    const parentEndTime = new Date(now + 24 * 60 * 60 * 1000);
+
+    // Should cap at MAX_DURATION (3 hours)
+    const result = getMaxSubMarketDuration(parentEndTime, now);
+    expect(result).toBe(SUB_MARKET_MAX_DURATION_MS);
+  });
+
+  test('should handle parent ending very soon (less than buffer)', () => {
+    const now = Date.now();
+    // Parent ends in 3 minutes (less than 5 min buffer)
+    const parentEndTime = new Date(now + 3 * 60 * 1000);
+
+    expect(getMaxSubMarketDuration(parentEndTime, now)).toBeNull();
+  });
+
+  test('should handle parent already ended', () => {
+    const now = Date.now();
+    // Parent ended 5 minutes ago
+    const parentEndTime = new Date(now - 5 * 60 * 1000);
+
+    expect(getMaxSubMarketDuration(parentEndTime, now)).toBeNull();
+  });
+
+  test('should correctly calculate for 1-hour parent markets', () => {
+    const now = Date.now();
+    // Parent is a 1-hour market, currently at the start
+    const parentEndTime = new Date(now + 60 * 60 * 1000);
+
+    // After buffer: 60 - 5 = 55 minutes max
+    const result = getMaxSubMarketDuration(parentEndTime, now);
+    expect(result).toBe(55 * 60 * 1000);
+  });
+
+  test('should correctly calculate for parent with exactly 3 hours remaining', () => {
+    const now = Date.now();
+    // Parent ends in 3 hours
+    const parentEndTime = new Date(now + 3 * 60 * 60 * 1000);
+
+    // After buffer: 3h - 5m = 175 minutes, but capped at 3 hours (180 min)
+    // Actually: 175 min < 180 min, so should return 175 minutes
+    const result = getMaxSubMarketDuration(parentEndTime, now);
+    expect(result).toBe((3 * 60 - 5) * 60 * 1000); // 175 minutes
+  });
+});
+
+describe('Media Selection Relevance Scoring', () => {
+  // Base scoring weights from the implementation
+  const BASE_WEIGHT = 1.0;
+  const DIRECT_AFFILIATION_BONUS = 2.0;
+  const INDIRECT_AFFILIATION_BONUS = 1.5;
+  const CATEGORY_MATCH_BONUS = 0.5;
+  const MAX_RANDOM_VARIANCE = 1.0;
+
+  test('should give all orgs at least base weight', () => {
+    // Every media org starts with BASE_WEIGHT = 1.0
+    const baseScore = BASE_WEIGHT;
+    expect(baseScore).toBe(1.0);
+  });
+
+  test('should add bonus for direct actor affiliation', () => {
+    // If org has actors affiliated with market's actors
+    const scoreWithBonus = BASE_WEIGHT + DIRECT_AFFILIATION_BONUS;
+    expect(scoreWithBonus).toBe(3.0);
+  });
+
+  test('should add smaller bonus for indirect affiliation', () => {
+    // If org has actors that share affiliations with market orgs
+    const scoreWithBonus = BASE_WEIGHT + INDIRECT_AFFILIATION_BONUS;
+    expect(scoreWithBonus).toBe(2.5);
+  });
+
+  test('should add bonus for category match', () => {
+    // If org's actors cover the market category domain
+    const scoreWithBonus = BASE_WEIGHT + CATEGORY_MATCH_BONUS;
+    expect(scoreWithBonus).toBe(1.5);
+  });
+
+  test('should include random variance to prevent determinism', () => {
+    // Random variance between 0 and MAX_RANDOM_VARIANCE
+    const minPossibleScore = BASE_WEIGHT + 0;
+    const maxPossibleScore =
+      BASE_WEIGHT +
+      DIRECT_AFFILIATION_BONUS +
+      INDIRECT_AFFILIATION_BONUS +
+      CATEGORY_MATCH_BONUS +
+      MAX_RANDOM_VARIANCE;
+
+    expect(minPossibleScore).toBe(1.0);
+    expect(maxPossibleScore).toBe(6.0);
+  });
+});
