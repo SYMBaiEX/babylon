@@ -97,7 +97,7 @@ function createAgentCardObject(
 
     provider: {
       organization: 'Babylon',
-      url: 'https://babylon.game',
+      url: 'https://babylon.market',
     },
 
     iconUrl: profileImageUrl || `${BASE_URL}/logo.svg`,
@@ -105,7 +105,7 @@ function createAgentCardObject(
     documentationUrl: `${BASE_URL}/docs`,
 
     capabilities: {
-      streaming: false, // Streaming not yet implemented (message/stream, tasks/resubscribe)
+      streaming: true,
       pushNotifications: false,
       stateTransitionHistory: true,
     },

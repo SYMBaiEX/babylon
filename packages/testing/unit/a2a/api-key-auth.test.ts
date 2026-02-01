@@ -70,7 +70,7 @@ describe('A2A API Key Authentication', () => {
     it('should return false for remote hosts', () => {
       expect(isLocalHost('example.com')).toBe(false);
       expect(isLocalHost('192.168.1.1')).toBe(false);
-      expect(isLocalHost('api.babylon.game')).toBe(false);
+      expect(isLocalHost('api.babylon.market')).toBe(false);
     });
 
     it('should return false for null/undefined', () => {
@@ -104,7 +104,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should authenticate valid server API key', () => {
-      const request = mockRequest('valid-api-key', 'api.babylon.game');
+      const request = mockRequest('valid-api-key', 'api.babylon.market');
       const result = validateApiKey(request, {
         serverApiKey: 'valid-api-key',
         allowLocalhost: false,
@@ -116,7 +116,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should reject invalid API key', () => {
-      const request = mockRequest('wrong-key', 'api.babylon.game');
+      const request = mockRequest('wrong-key', 'api.babylon.market');
       const result = validateApiKey(request, {
         serverApiKey: 'correct-key',
         allowLocalhost: false,
@@ -128,7 +128,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should reject missing API key on non-localhost', () => {
-      const request = mockRequest(null, 'api.babylon.game');
+      const request = mockRequest(null, 'api.babylon.market');
       const result = validateApiKey(request, {
         serverApiKey: 'test-key',
         allowLocalhost: false,
@@ -139,7 +139,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should reject when no server key configured and key provided', () => {
-      const request = mockRequest('any-key', 'api.babylon.game');
+      const request = mockRequest('any-key', 'api.babylon.market');
       const result = validateApiKey(request, {
         serverApiKey: undefined,
         allowLocalhost: false,
@@ -160,7 +160,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should authenticate valid user API key', async () => {
-      const request = mockRequest('valid-user-key-123', 'api.babylon.game');
+      const request = mockRequest('valid-user-key-123', 'api.babylon.market');
       const result = await validateApiKeyAsync(request, {
         serverApiKey: 'different-server-key',
         allowLocalhost: false,
@@ -174,7 +174,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should reject invalid user API key', async () => {
-      const request = mockRequest('invalid-user-key', 'api.babylon.game');
+      const request = mockRequest('invalid-user-key', 'api.babylon.market');
       const result = await validateApiKeyAsync(request, {
         serverApiKey: 'different-server-key',
         allowLocalhost: false,
@@ -187,7 +187,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should prefer server key over user key', async () => {
-      const request = mockRequest('server-secret-key', 'api.babylon.game');
+      const request = mockRequest('server-secret-key', 'api.babylon.market');
       const result = await validateApiKeyAsync(request, {
         serverApiKey: 'server-secret-key',
         allowLocalhost: false,
@@ -201,7 +201,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should skip user key check when allowUserApiKeys is false', async () => {
-      const request = mockRequest('valid-user-key-123', 'api.babylon.game');
+      const request = mockRequest('valid-user-key-123', 'api.babylon.market');
       const result = await validateApiKeyAsync(request, {
         serverApiKey: 'different-server-key',
         allowLocalhost: false,
@@ -226,7 +226,7 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should reject missing API key on non-localhost', async () => {
-      const request = mockRequest(null, 'api.babylon.game');
+      const request = mockRequest(null, 'api.babylon.market');
       const result = await validateApiKeyAsync(request, {
         serverApiKey: 'test-key',
         allowLocalhost: false,
@@ -238,8 +238,8 @@ describe('A2A API Key Authentication', () => {
     });
 
     it('should call validateUserApiKey for each request with user key', async () => {
-      const request1 = mockRequest('valid-user-key-456', 'api.babylon.game');
-      const request2 = mockRequest('valid-user-key-456', 'api.babylon.game');
+      const request1 = mockRequest('valid-user-key-456', 'api.babylon.market');
+      const request2 = mockRequest('valid-user-key-456', 'api.babylon.market');
 
       // First call
       const result1 = await validateApiKeyAsync(request1, {

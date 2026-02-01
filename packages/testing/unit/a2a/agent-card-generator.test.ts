@@ -91,7 +91,7 @@ describe('Agent Card Generator', () => {
       const card = generateAgentCardSync(mockAgent);
 
       expect(card.provider?.organization).toBe('Babylon');
-      expect(card.provider?.url).toBe('https://babylon.game');
+      expect(card.provider?.url).toBe('https://babylon.market');
     });
 
     it('should prefer JSONRPC transport', () => {

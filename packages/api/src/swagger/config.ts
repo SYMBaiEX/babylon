@@ -28,7 +28,7 @@ export const swaggerDefinition = {
       ? []
       : [
           {
-            url: 'https://babylon.game',
+            url: 'https://babylon.market',
             description: 'Production server',
           },
         ]),

@@ -375,7 +375,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       version: '1.0.0',
       type: 'agent',
       endpoints: {
-        a2a: endpoint || 'wss://babylon.game/ws/a2a',
+        a2a: endpoint || 'wss://babylon.market/ws/a2a',
         api: `https://babylon.market/api/agents/${agentId}`,
       },
       capabilities: {

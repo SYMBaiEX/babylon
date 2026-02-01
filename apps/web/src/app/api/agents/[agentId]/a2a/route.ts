@@ -67,6 +67,7 @@
  * ```
  */
 
+import type { Task } from '@a2a-js/sdk';
 import type { DefaultRequestHandler as DefaultRequestHandlerType } from '@a2a-js/sdk/server';
 import {
   DefaultExecutionEventBusManager,
@@ -76,10 +77,10 @@ import {
 import {
   BabylonAgentExecutor,
   ErrorCode,
-  ExtendedTaskStore,
   generateAgentCardSync,
   type JsonRpcRequest,
   type ListTasksParams,
+  PersistentTaskStore,
   RateLimiter,
 } from '@babylon/a2a';
 import { getAgentConfig } from '@babylon/agents';
@@ -104,12 +105,75 @@ function getAgentRateLimiter(agentId: string): RateLimiter {
   return agentRateLimiters.get(agentId)!;
 }
 
+/**
+ * Helper to extract and validate taskId from request body params.
+ * Handles both 'id' and 'taskId' parameter names.
+ *
+ * @returns Object with taskId, or errorResponse if validation fails
+ */
+function getTaskIdFromParams(
+  body: JsonRpcRequest
+):
+  | { taskId: string; errorResponse?: never }
+  | { errorResponse: NextResponse; taskId?: never } {
+  const params = body.params as { id?: string; taskId?: string } | undefined;
+  const taskId = params?.id || params?.taskId;
+
+  if (!taskId) {
+    return {
+      errorResponse: NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: body.id ?? null,
+          error: {
+            code: -32602,
+            message: 'Invalid params: taskId or id is required',
+          },
+        },
+        { status: 400 }
+      ),
+    };
+  }
+
+  return { taskId };
+}
+
+/**
+ * Helper to extract taskId and taskStore from request body and agent handler.
+ * Consolidates duplicated code across tasks/get, tasks/cancel, and tasks/resubscribe.
+ *
+ * @returns Object with taskStore and taskId, or errorResponse if validation fails
+ */
+async function getTaskStoreAndTaskId(
+  body: JsonRpcRequest,
+  agentId: string
+): Promise<
+  | { taskStore: PersistentTaskStore; taskId: string; errorResponse?: never }
+  | { errorResponse: NextResponse; taskStore?: never; taskId?: never }
+> {
+  const taskIdResult = getTaskIdFromParams(body);
+  if (taskIdResult.errorResponse) {
+    return { errorResponse: taskIdResult.errorResponse };
+  }
+
+  const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
+  const handlerWithRequestHandler = jsonRpcHandler as unknown as {
+    requestHandler: {
+      taskStore: PersistentTaskStore;
+    };
+  };
+  const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
+
+  return { taskStore, taskId: taskIdResult.taskId };
+}
+
 async function getAgentJsonRpcHandler(
   agentId: string
 ): Promise<JsonRpcTransportHandler> {
   if (!agentJsonRpcHandlers.has(agentId)) {
     if (!agentRequestHandlers.has(agentId)) {
-      const taskStore = new ExtendedTaskStore();
+      // Use PersistentTaskStore for Redis-backed persistence across instances
+      const taskStore = new PersistentTaskStore();
       // Create executor scoped to this agent
       const executor = new BabylonAgentExecutor();
       const eventBusManager = new DefaultExecutionEventBusManager();
@@ -264,7 +328,7 @@ export async function POST(
       // These properties exist at runtime but aren't in the public types
       const handlerWithRequestHandler = jsonRpcHandler as unknown as {
         requestHandler: {
-          taskStore: ExtendedTaskStore;
+          taskStore: PersistentTaskStore;
         };
       };
       const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
@@ -343,6 +407,196 @@ export async function POST(
         result: {
           tasks: tasks.tasks,
           nextPageToken: tasks.nextPageToken,
+        },
+      });
+    }
+
+    // Handle tasks/get manually - SDK expects params.id but clients may send params.taskId
+    if (body.method === 'tasks/get') {
+      const result = await getTaskStoreAndTaskId(body, agentId);
+      if (result.errorResponse) return result.errorResponse;
+
+      const { taskStore, taskId } = result;
+      const task = await taskStore.load(taskId);
+
+      if (!task) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: `Task not found: ${taskId}`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: { task },
+      });
+    }
+
+    // Handle tasks/cancel manually - SDK expects params.id but clients may send params.taskId
+    if (body.method === 'tasks/cancel') {
+      const result = await getTaskStoreAndTaskId(body, agentId);
+      if (result.errorResponse) return result.errorResponse;
+
+      const { taskStore, taskId } = result;
+
+      // Use atomic updateStatus to avoid load-modify-save race conditions
+      const canceledTask = await taskStore.updateStatus(taskId, {
+        state: 'canceled',
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!canceledTask) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: `Task not found: ${taskId}`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        jsonrpc: '2.0',
+        id: body.id ?? null,
+        result: { task: canceledTask },
+      });
+    }
+
+    // Handle tasks/resubscribe with SSE response using SDK's resubscribe method
+    if (body.method === 'tasks/resubscribe') {
+      const taskIdResult = getTaskIdFromParams(body);
+      if (taskIdResult.errorResponse) {
+        return taskIdResult.errorResponse;
+      }
+      const taskId = taskIdResult.taskId;
+
+      // Get the request handler to access resubscribe method
+      await getAgentJsonRpcHandler(agentId); // Ensures handler is initialized
+      const requestHandler = agentRequestHandlers.get(agentId);
+
+      if (!requestHandler) {
+        return NextResponse.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id ?? null,
+            error: {
+              code: -32001,
+              message: 'Request handler not available',
+            },
+          },
+          { status: 500 }
+        );
+      }
+
+      // Use SDK's resubscribe which returns AsyncGenerator<Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent>
+      const encoder = new TextEncoder();
+      const eventGenerator = requestHandler.resubscribe({ id: taskId });
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          // Wire abort signal to cancel the stream when client disconnects
+          const abortHandler = () => {
+            // Terminate the async generator first
+            eventGenerator.return(undefined).catch(() => {
+              // Ignore errors from terminating generator
+            });
+            try {
+              controller.close();
+            } catch {
+              // Controller may already be closed
+            }
+          };
+          req.signal.addEventListener('abort', abortHandler);
+
+          try {
+            for await (const event of eventGenerator) {
+              // Check if request was aborted
+              if (req.signal.aborted) break;
+
+              // Determine event type based on 'kind' property from SDK types
+              if ('kind' in event) {
+                if (event.kind === 'status-update') {
+                  controller.enqueue(
+                    encoder.encode(
+                      `event: task-status\ndata: ${JSON.stringify({
+                        taskId: event.taskId,
+                        contextId: event.contextId,
+                        status: event.status,
+                        final: event.final,
+                      })}\n\n`
+                    )
+                  );
+                } else if (event.kind === 'artifact-update') {
+                  controller.enqueue(
+                    encoder.encode(
+                      `event: task-artifact\ndata: ${JSON.stringify({
+                        taskId: event.taskId,
+                        artifact: event.artifact,
+                      })}\n\n`
+                    )
+                  );
+                }
+              } else {
+                // It's a Task object - send as initial state
+                const taskEvent = event as Task;
+                controller.enqueue(
+                  encoder.encode(
+                    `event: task-status\ndata: ${JSON.stringify({
+                      taskId: taskEvent.id,
+                      contextId: taskEvent.contextId,
+                      status: taskEvent.status,
+                    })}\n\n`
+                  )
+                );
+              }
+            }
+          } catch (error) {
+            logger.error(
+              'Error in resubscribe stream',
+              { error: String(error), taskId },
+              'A2A'
+            );
+          } finally {
+            req.signal.removeEventListener('abort', abortHandler);
+            try {
+              controller.close();
+            } catch {
+              // Controller may already be closed
+            }
+          }
+        },
+        async cancel(reason) {
+          // Cleanup: terminate the async generator when stream is cancelled
+          try {
+            await eventGenerator.return(reason);
+          } catch (error) {
+            logger.debug(
+              'Error terminating event generator',
+              { error: String(error), taskId },
+              'A2A'
+            );
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
         },
       });
     }

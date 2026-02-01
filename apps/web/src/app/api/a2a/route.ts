@@ -81,16 +81,16 @@ import {
   type AuthResult,
   BabylonAgentExecutor,
   babylonAgentCard,
-  ExtendedTaskStore,
   getServerApiKey,
+  PersistentTaskStore,
   validateApiKeyAsync,
 } from '@babylon/a2a';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-// Initialize A2A protocol components
-const taskStore = new ExtendedTaskStore();
+// Initialize A2A protocol components with Redis-backed persistence
+const taskStore = new PersistentTaskStore();
 const executor = new BabylonAgentExecutor();
 const eventBusManager = new DefaultExecutionEventBusManager();
 const requestHandler = new DefaultRequestHandler(
@@ -274,7 +274,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Use the JSON-RPC transport handler
+  // Delegate all A2A methods to the SDK's JSON-RPC transport handler
+  // This includes message/send, message/stream, tasks/get, tasks/list, etc.
+  // The SDK handles task persistence, streaming, and event bus management internally
   const response = await jsonRpcHandler.handle(body);
 
   return NextResponse.json(response, {
