@@ -207,10 +207,8 @@ export function TerminalPortfolio({
           />
           <StatCard
             label="Agent Count"
-            value={formatPortfolioValue(
-              portfolioLoading,
-              portfolio,
-              (p) => p.agentCount.toLocaleString()
+            value={formatPortfolioValue(portfolioLoading, portfolio, (p) =>
+              p.agentCount.toLocaleString()
             )}
           />
           <StatCard
