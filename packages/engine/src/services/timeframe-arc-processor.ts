@@ -48,10 +48,7 @@ import {
   getEventCooldownMs,
   getEventMultiplier,
   getStateBoundaries,
-  TIMEFRAME_CONFIGS,
 } from './market-timeframes';
-import { StaticDataRegistry } from './static-data-registry';
-import { subMarketService } from './sub-market-service';
 
 // =============================================================================
 // TYPES
@@ -75,7 +72,6 @@ export interface TimeframeTickResult {
   marketsProcessed: number;
   transitionsOccurred: number;
   eventsGenerated: number;
-  subMarketsSpawned: number;
   errors: string[];
   /** Whether a catastrophic failure occurred during processing */
   failed?: boolean;
@@ -151,7 +147,6 @@ export class TimeframeArcProcessor {
       marketsProcessed: 0,
       transitionsOccurred: 0,
       eventsGenerated: 0,
-      subMarketsSpawned: 0,
       errors: [],
       eventTriggers: [],
     };
@@ -214,15 +209,6 @@ export class TimeframeArcProcessor {
                   timeframe: market.timeframe,
                   arcState: market.arcState,
                 });
-
-                // Check for sub-market spawning
-                const spawned = await this.trySpawnSubMarket(
-                  market,
-                  event.eventType
-                );
-                if (spawned) {
-                  result.subMarketsSpawned++;
-                }
               }
             }
           } catch (error) {
@@ -245,7 +231,6 @@ export class TimeframeArcProcessor {
           processed: result.marketsProcessed,
           transitions: result.transitionsOccurred,
           events: result.eventsGenerated,
-          spawns: result.subMarketsSpawned,
           errors: result.errors.length,
         },
         'TimeframeArcProcessor'
@@ -383,69 +368,6 @@ export class TimeframeArcProcessor {
       eventType,
       marketId: market.id,
     };
-  }
-
-  /**
-   * Try to spawn a sub-market from an event
-   */
-  async trySpawnSubMarket(
-    market: TimeframedMarket,
-    eventType: string
-  ): Promise<boolean> {
-    const config = TIMEFRAME_CONFIGS[market.timeframe];
-    if (!config.canSpawnChildren) {
-      return false;
-    }
-
-    try {
-      // Get affiliated organization data for template variables
-      const affiliatedOrgIds = (market.affiliatedOrgIds as string[]) ?? [];
-      let orgName = 'Organization';
-      let ticker = 'TICK';
-
-      const firstOrgId = affiliatedOrgIds[0];
-      if (firstOrgId) {
-        const org = StaticDataRegistry.getOrganization(firstOrgId);
-        if (org) {
-          orgName = org.name;
-          ticker = org.ticker ?? 'TICK';
-        }
-      }
-
-      // Generate threshold based on event type and market category
-      const thresholdMap: Record<string, string> = {
-        price_move: '2',
-        volume_surge: '3',
-        breakout: '5',
-        peak_activity: '4',
-        decisive_move: '3',
-      };
-      const threshold = thresholdMap[eventType] ?? '2';
-
-      const result = await subMarketService.trySpawnFromEvent({
-        parentMarketId: market.id,
-        eventType,
-        category: market.category,
-        timeframe: market.timeframe,
-        templateVars: {
-          org: orgName,
-          ticker,
-          threshold,
-        },
-      });
-
-      return result.spawned;
-    } catch (error) {
-      logger.warn(
-        `Failed to spawn sub-market`,
-        {
-          marketId: market.id,
-          error: formatError(error),
-        },
-        'TimeframeArcProcessor'
-      );
-      return false;
-    }
   }
 
   /**

@@ -284,6 +284,9 @@ export const timeframedMarkets = pgTable(
       .$type<MarketCategory>()
       .notNull()
       .default('general'),
+    // Granular timeframe for precise market duration tracking ('15m', '30m', '1h', etc.)
+    // Eliminates need to infer from duration, preventing misclassification at boundaries
+    granularTimeframe: text('granularTimeframe'),
 
     // Hierarchy (self-referential foreign keys)
     parentMarketId: text('parentMarketId').references(
@@ -331,6 +334,7 @@ export const timeframedMarkets = pgTable(
     index('TimeframedMarket_rootMarketId_idx').on(t.rootMarketId),
     index('TimeframedMarket_timeframe_idx').on(t.timeframe),
     index('TimeframedMarket_category_idx').on(t.category),
+    index('TimeframedMarket_granularTimeframe_idx').on(t.granularTimeframe),
     index('TimeframedMarket_isActive_idx').on(t.isActive),
     index('TimeframedMarket_endTime_idx').on(t.endTime),
     index('TimeframedMarket_startTime_endTime_idx').on(t.startTime, t.endTime),

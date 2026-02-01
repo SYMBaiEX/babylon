@@ -24,6 +24,8 @@ export interface PredictionMarketRecord {
   id: string;
   question: string;
   description?: string | null;
+  gameId?: string | null;
+  dayNumber?: number | null;
   yesShares: number;
   noShares: number;
   liquidity: number;
@@ -78,7 +80,11 @@ export interface PredictionDbPort {
   createMarketFromQuestion(
     question: QuestionRecord,
     initialLiquidity: number,
-    options?: { description?: string | null }
+    options?: {
+      description?: string | null;
+      gameId?: string | null;
+      dayNumber?: number | null;
+    }
   ): Promise<PredictionMarketRecord>;
   updateMarketState(
     marketId: string,

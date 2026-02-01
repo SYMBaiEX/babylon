@@ -153,7 +153,6 @@ export interface GameTickResult {
     marketsProcessed: number;
     transitionsOccurred: number;
     eventsGenerated: number;
-    subMarketsSpawned: number;
     errors: string[];
     eventTriggers: Array<{
       marketId: string;
@@ -663,7 +662,6 @@ export async function executeGameTick(
           processed: timeframeStats.marketsProcessed,
           transitions: timeframeStats.transitionsOccurred,
           events: timeframeStats.eventsGenerated,
-          spawns: timeframeStats.subMarketsSpawned,
         },
         'GameTick'
       );

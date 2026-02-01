@@ -65,6 +65,17 @@ export const ENV_CONFIG = {
   isDevelopment: nodeEnv === 'development',
 } as const;
 
+/**
+ * Sub-market configuration for controlling market spawning behavior.
+ * Event-based spawning is disabled by default - markets are created via the cron job.
+ * Enable event-based spawning for more dynamic market creation during gameplay.
+ */
+export const SUB_MARKET_CONFIG = {
+  /** Enable event-based sub-market spawning (in addition to cron-based) */
+  enableEventBasedSpawning:
+    process.env.ENABLE_EVENT_BASED_SUB_MARKETS === 'true',
+} as const;
+
 export function hasTimeRemaining(deadline: number): boolean {
   return Date.now() < deadline;
 }
@@ -84,4 +95,5 @@ export const RUNTIME_CONFIG = {
   worldFacts: WORLD_FACTS_CONFIG,
   blockchain: BLOCKCHAIN_CONFIG,
   env: ENV_CONFIG,
+  subMarket: SUB_MARKET_CONFIG,
 } as const;

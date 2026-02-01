@@ -57,6 +57,7 @@ export const CACHE_KEYS = {
   ORGANIZATION: 'org',
   MARKET: 'market',
   MARKETS_LIST: 'markets:list',
+  ACTIVE_MARKETS: 'markets:active', // Active markets for idempotency checks
   TRENDING_TAGS: 'trending:tags',
   WIDGET: 'widget',
   NFT_OWNERSHIP: 'nft:ownership',
@@ -83,6 +84,7 @@ export const DEFAULT_TTLS = {
   USER_BALANCE: 30, // 30 seconds (financial data, keep fresh)
   MARKET: 60, // 1 minute
   MARKETS_LIST: 60, // 1 minute
+  ACTIVE_MARKETS: 30, // 30 seconds (short for cron consistency)
 
   // Moderate change frequency - medium TTL
   USER: 300, // 5 minutes

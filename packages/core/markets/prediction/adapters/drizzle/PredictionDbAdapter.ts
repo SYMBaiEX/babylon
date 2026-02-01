@@ -150,7 +150,11 @@ export class PredictionDbAdapter implements PredictionDbPort {
   async createMarketFromQuestion(
     question: QuestionRecord,
     initialLiquidity: number,
-    options?: { description?: string | null }
+    options?: {
+      description?: string | null;
+      gameId?: string | null;
+      dayNumber?: number | null;
+    }
   ): Promise<PredictionMarketRecord> {
     const now = new Date();
     const liquidityHalf = initialLiquidity / 2;
@@ -158,8 +162,8 @@ export class PredictionDbAdapter implements PredictionDbPort {
       id: question.id,
       question: question.text,
       description: options?.description ?? null,
-      gameId: 'continuous',
-      dayNumber: null,
+      gameId: options?.gameId ?? 'continuous',
+      dayNumber: options?.dayNumber ?? null,
       yesShares: String(liquidityHalf),
       noShares: String(liquidityHalf),
       liquidity: String(initialLiquidity),

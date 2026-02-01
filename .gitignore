@@ -105,6 +105,9 @@ circular-deps.*
 .metrics/
 **/MARKETS_FRONTEND_AUDIT.md
 
+# Local utility scripts (not tracked in version control)
+scripts/cleanup-excess-markets.ts
+
 # Continuous Claude cache (local only)
 .claude/cache/
 .claude/tsc-cache/
