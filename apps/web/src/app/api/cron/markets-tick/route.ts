@@ -1248,11 +1248,7 @@ async function createMarketForTimeframe(
     // Count markets by duration to match the granular timeframe (e.g., 15m vs 30m)
     const config = MARKET_STRUCTURE[timeframe];
     if (!config) {
-      logger.warn(
-        `Unknown timeframe: ${timeframe}`,
-        {},
-        'MarketsTick'
-      );
+      logger.warn(`Unknown timeframe: ${timeframe}`, {}, 'MarketsTick');
       return false;
     }
 
