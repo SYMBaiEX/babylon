@@ -26,12 +26,31 @@ process.env.NODE_ENV = 'test';
 process.env.BUN_ENV = 'test';
 process.env.LLM_TIMEOUT_MS = '30000';
 
+// Define mock types inline (matches LLMGenerateJSONOptions and LLMJsonSchema from @babylon/engine)
+interface MockLLMGenerateJSONOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  format?: 'xml' | 'json';
+  promptType?: string;
+  promptTemplate?: string;
+}
+
+interface MockLLMJsonSchema {
+  required?: string[];
+  properties?: Record<string, unknown>;
+}
+
 // Mock LLM client BEFORE importing the route
 mock.module('@babylon/engine', async () => {
   const actualEngine = await import('@babylon/engine');
 
   const createMockClient = () => ({
-    generateJSON: async (_prompt: string, _options?: unknown) => {
+    generateJSON: async <T>(
+      _prompt: string,
+      _schema?: MockLLMJsonSchema,
+      _options?: MockLLMGenerateJSONOptions
+    ): Promise<T> => {
       // Return deterministic question data for market creation
       return {
         text: 'Integration test: Will the market resolve correctly?',
@@ -39,7 +58,7 @@ mock.module('@babylon/engine', async () => {
         resolutionCriteria: 'Test criteria for resolution',
         affiliatedActorIds: [],
         affiliatedOrgIds: [],
-      };
+      } as T;
     },
     complete: async () => 'Mock completion response',
   });
@@ -90,6 +109,10 @@ import {
   sql,
   timeframedMarkets,
 } from '@babylon/db';
+import {
+  GRANULAR_TO_DB_TIMEFRAME,
+  mapGranularToDbTimeframe,
+} from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Set timeout to 120 seconds for integration tests (market creation can be slow)
@@ -107,29 +130,26 @@ const testIds = {
 /**
  * Clean up all test data created during tests.
  * Deletes in reverse dependency order.
+ * Errors propagate to fail fast and surface cleanup issues.
  */
 async function cleanupTestData(): Promise<void> {
-  try {
-    // Delete posts first (they may reference questions)
-    if (testIds.postIds.length > 0) {
-      await db.delete(posts).where(inArray(posts.id, testIds.postIds));
-    }
+  // Delete posts first (they may reference questions)
+  if (testIds.postIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, testIds.postIds));
+  }
 
-    // Delete markets (they reference questions)
-    if (testIds.marketIds.length > 0) {
-      await db
-        .delete(timeframedMarkets)
-        .where(inArray(timeframedMarkets.id, testIds.marketIds));
-    }
+  // Delete markets (they reference questions)
+  if (testIds.marketIds.length > 0) {
+    await db
+      .delete(timeframedMarkets)
+      .where(inArray(timeframedMarkets.id, testIds.marketIds));
+  }
 
-    // Delete questions last
-    if (testIds.questionIds.length > 0) {
-      await db
-        .delete(questions)
-        .where(inArray(questions.id, testIds.questionIds));
-    }
-  } catch (error) {
-    console.warn('[Test Cleanup] Error during cleanup:', error);
+  // Delete questions last
+  if (testIds.questionIds.length > 0) {
+    await db
+      .delete(questions)
+      .where(inArray(questions.id, testIds.questionIds));
   }
 }
 
@@ -373,29 +393,20 @@ describe('Markets Tick Integration', () => {
 
   describe('Market Timeframe Distribution', () => {
     test('should have correct DB timeframe mapping', () => {
-      // Test the mapping logic (this doesn't need database)
-      const mappings: Record<string, string> = {
-        '15m': 'flash',
-        '30m': 'flash',
-        '1h': 'intraday',
-        '6h': 'intraday',
-        '12h': 'daily',
-        '1d': 'daily',
-        '2d': 'weekly',
-        '3d': 'weekly',
-      };
+      // Test the mapping logic using the production mapping from @babylon/engine
+      // This ensures the test fails if the production mapping changes
 
-      // Verify expected aggregations
-      const flashCount = Object.entries(mappings).filter(
+      // Verify expected aggregations from the production mapping
+      const flashCount = Object.entries(GRANULAR_TO_DB_TIMEFRAME).filter(
         ([, v]) => v === 'flash'
       ).length;
-      const intradayCount = Object.entries(mappings).filter(
+      const intradayCount = Object.entries(GRANULAR_TO_DB_TIMEFRAME).filter(
         ([, v]) => v === 'intraday'
       ).length;
-      const dailyCount = Object.entries(mappings).filter(
+      const dailyCount = Object.entries(GRANULAR_TO_DB_TIMEFRAME).filter(
         ([, v]) => v === 'daily'
       ).length;
-      const weeklyCount = Object.entries(mappings).filter(
+      const weeklyCount = Object.entries(GRANULAR_TO_DB_TIMEFRAME).filter(
         ([, v]) => v === 'weekly'
       ).length;
 
@@ -447,6 +458,7 @@ describe('Markets Tick Integration', () => {
 describe('Idempotency Check Logic', () => {
   test('should aggregate target counts by DB timeframe', () => {
     // This tests the logic without requiring database
+    // Uses the production mapping function from @babylon/engine
     // MARKET_STRUCTURE has these counts:
     // 15m: 2, 30m: 2 -> flash total: 4
     // 1h: 1, 6h: 1 -> intraday total: 2
@@ -464,28 +476,11 @@ describe('Idempotency Check Logic', () => {
       '3d': { count: 1 },
     };
 
-    function mapTimeframeToDbType(timeframe: string): string {
-      switch (timeframe) {
-        case '15m':
-        case '30m':
-          return 'flash';
-        case '1h':
-        case '6h':
-          return 'intraday';
-        case '12h':
-        case '1d':
-          return 'daily';
-        case '2d':
-        case '3d':
-        default:
-          return 'weekly';
-      }
-    }
-
+    // Uses the production mapping function that throws on unknown timeframe
     function getTargetCountForDbTimeframe(dbTimeframe: string): number {
       let total = 0;
       for (const [key, config] of Object.entries(marketStructure)) {
-        if (mapTimeframeToDbType(key) === dbTimeframe) {
+        if (mapGranularToDbTimeframe(key) === dbTimeframe) {
           total += config.count;
         }
       }
@@ -496,5 +491,11 @@ describe('Idempotency Check Logic', () => {
     expect(getTargetCountForDbTimeframe('intraday')).toBe(2);
     expect(getTargetCountForDbTimeframe('daily')).toBe(2);
     expect(getTargetCountForDbTimeframe('weekly')).toBe(2);
+  });
+
+  test('should throw on unknown timeframe', () => {
+    expect(() => mapGranularToDbTimeframe('invalid-timeframe')).toThrow(
+      'Unsupported granular timeframe: invalid-timeframe'
+    );
   });
 });

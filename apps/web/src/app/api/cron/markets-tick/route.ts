@@ -55,6 +55,7 @@ import {
   isNull,
   lte,
   type MarketCategory,
+  type MarketTimeframe,
   max,
   posts,
   questions,
@@ -64,6 +65,7 @@ import {
 } from '@babylon/db';
 import {
   BabylonLLMClient,
+  mapGranularToDbTimeframe,
   publishOracleCommitments,
   publishOracleReveals,
   QuestionManager,
@@ -647,7 +649,10 @@ export async function POST(_req: NextRequest) {
             const parentMarketData: ParentMarketData = {
               id: parentMarket.id,
               questionId: parentMarket.questionId,
-              category: parentMarket.category,
+              category: parseMarketCategory(
+                parentMarket.category,
+                `parent market ${parentMarket.id}`
+              ),
               arcState: parentMarket.arcState,
               affiliatedActorIds:
                 (parentMarket.affiliatedActorIds as string[]) ?? [],
@@ -1570,32 +1575,12 @@ function inferCategory(questionText: string): MarketCategory {
 }
 
 /**
- * Map our timeframe strings to database MarketTimeframe enum values
+ * Map our timeframe strings to database MarketTimeframe enum values.
+ * Delegates to the shared mapping function from @babylon/engine which
+ * throws on unknown timeframes to fail fast.
  */
-type DbTimeframe =
-  | 'flash'
-  | 'intraday'
-  | 'daily'
-  | 'weekly'
-  | 'monthly'
-  | 'quarterly';
-
-function mapTimeframeToDbType(timeframe: string): DbTimeframe {
-  switch (timeframe) {
-    case '15m':
-    case '30m':
-      return 'flash';
-    case '1h':
-    case '6h':
-      return 'intraday';
-    case '12h':
-    case '1d':
-      return 'daily';
-    case '2d':
-    case '3d':
-    default:
-      return 'weekly';
-  }
+function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
+  return mapGranularToDbTimeframe(timeframe);
 }
 
 /**
@@ -1678,12 +1663,55 @@ function getDefaultDuration(timeframe: string): number {
 // ============================================================================
 
 /**
+ * Valid MarketCategory values for runtime validation
+ */
+const VALID_MARKET_CATEGORIES: readonly MarketCategory[] = [
+  'tech',
+  'crypto',
+  'politics',
+  'sports',
+  'business',
+  'entertainment',
+  'science',
+  'general',
+] as const;
+
+/**
+ * Type guard to check if a string is a valid MarketCategory
+ */
+function isMarketCategory(value: unknown): value is MarketCategory {
+  return (
+    typeof value === 'string' &&
+    VALID_MARKET_CATEGORIES.includes(value as MarketCategory)
+  );
+}
+
+/**
+ * Parse a string to MarketCategory with validation.
+ * Returns the validated category or 'general' as fallback with a warning.
+ */
+function parseMarketCategory(
+  value: string | null | undefined,
+  context?: string
+): MarketCategory {
+  if (isMarketCategory(value)) {
+    return value;
+  }
+  logger.warn(
+    `Invalid MarketCategory "${value}"${context ? ` in ${context}` : ''}, defaulting to "general"`,
+    { invalidValue: value, context },
+    'MarketsTick'
+  );
+  return 'general';
+}
+
+/**
  * Full parent market data needed for arc-relevant sub-market creation
  */
 interface ParentMarketData {
   id: string;
   questionId: string | null;
-  category: string;
+  category: MarketCategory;
   arcState: string;
   affiliatedActorIds: string[];
   affiliatedOrgIds: string[];
@@ -1863,7 +1891,7 @@ async function createSubMarket(
         id: timeframedMarketId,
         questionId,
         timeframe: mapTimeframeToDbType(timeframe),
-        category: parentMarket.category as MarketCategory, // Inherit from parent
+        category: parentMarket.category, // Inherit from parent (already validated)
         parentMarketId: parentMarket.id,
         rootMarketId: parentMarket.rootMarketId ?? parentMarket.id, // Use parent's root or parent itself
         startTime: now,

@@ -170,6 +170,11 @@ export {
   setTokenUsageCallback,
   type TokenUsageCallback,
 } from './llm/openai-client';
+export {
+  type LLMGenerateJSONOptions,
+  type LLMJsonClient,
+  type LLMJsonSchema,
+} from './llm/types';
 export { parseXML, type XMLParseResult } from './llm/xml-parser';
 // Market Decision Engine
 export { MarketDecisionEngine } from './MarketDecisionEngine';
