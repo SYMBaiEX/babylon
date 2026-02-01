@@ -118,7 +118,6 @@ async function getActiveSubMarkets(): Promise<MarketInfo[]> {
     .orderBy(desc(timeframedMarkets.startTime));
 }
 
-
 async function displayCurrentState(): Promise<{
   total: number;
   excess: number;
@@ -173,8 +172,11 @@ async function displayCurrentState(): Promise<{
   console.log('='.repeat(60));
   const subMarketCount = activeSubMarkets.length;
   const subMarketExcess = Math.max(0, subMarketCount - MAX_SUB_MARKETS);
-  const subStatus = subMarketExcess > 0 ? `⚠️  +${subMarketExcess} excess` : '✅';
-  console.log(`  Sub-markets: ${subMarketCount}/${MAX_SUB_MARKETS} ${subStatus}`);
+  const subStatus =
+    subMarketExcess > 0 ? `⚠️  +${subMarketExcess} excess` : '✅';
+  console.log(
+    `  Sub-markets: ${subMarketCount}/${MAX_SUB_MARKETS} ${subStatus}`
+  );
 
   console.log('-'.repeat(60));
   const grandTotal = total + subMarketCount;
@@ -183,9 +185,12 @@ async function displayCurrentState(): Promise<{
   const totalExcess = excess + subMarketExcess;
 
   if (totalExcess > 0) {
-    console.log(`\n⚠️  Found ${totalExcess} excess markets that should be deactivated`);
+    console.log(
+      `\n⚠️  Found ${totalExcess} excess markets that should be deactivated`
+    );
     if (excess > 0) console.log(`    - ${excess} excess main markets`);
-    if (subMarketExcess > 0) console.log(`    - ${subMarketExcess} excess sub-markets`);
+    if (subMarketExcess > 0)
+      console.log(`    - ${subMarketExcess} excess sub-markets`);
   } else if (total < EXPECTED_TOTAL) {
     console.log(
       `\n⚠️  Missing ${EXPECTED_TOTAL - total} main markets - run markets-tick to create them`
@@ -201,9 +206,7 @@ async function fixExcessMarkets(dryRun: boolean): Promise<void> {
   const activeMainMarkets = await getActiveMainMarketsByTimeframe();
   const activeSubMarkets = await getActiveSubMarkets();
 
-  console.log(
-    `\n${dryRun ? '🔍 DRY RUN - ' : '🔧 '}Fixing excess markets...`
-  );
+  console.log(`\n${dryRun ? '🔍 DRY RUN - ' : '🔧 '}Fixing excess markets...`);
   console.log('='.repeat(60));
 
   let totalDeactivated = 0;
@@ -299,7 +302,7 @@ async function fixExcessMarkets(dryRun: boolean): Promise<void> {
 
   // Fix excess sub-markets (keep only the 10 most recent)
   console.log('\n  SUB-MARKETS:');
-  
+
   const subMarketExcess = activeSubMarkets.length - MAX_SUB_MARKETS;
   if (subMarketExcess > 0) {
     // Sub-markets are already sorted by startTime DESC, so we keep the newest ones
@@ -339,7 +342,9 @@ async function fixExcessMarkets(dryRun: boolean): Promise<void> {
       totalDeactivated++;
     }
   } else {
-    console.log(`\n  No excess sub-markets (${activeSubMarkets.length}/${MAX_SUB_MARKETS})`);
+    console.log(
+      `\n  No excess sub-markets (${activeSubMarkets.length}/${MAX_SUB_MARKETS})`
+    );
   }
 
   console.log('\n' + '-'.repeat(60));
@@ -377,7 +382,9 @@ async function main(): Promise<void> {
         console.log('\n✅ No excess markets to fix');
       }
     } else if (totalExcess > 0) {
-      console.log('\n💡 To fix, run with --dry-run to preview or --fix to apply');
+      console.log(
+        '\n💡 To fix, run with --dry-run to preview or --fix to apply'
+      );
     }
 
     // Show final state if we made changes

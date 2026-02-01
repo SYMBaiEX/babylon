@@ -8,9 +8,9 @@
  */
 
 import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { formatError } from '../../utils/error-utils';
 import type { GeneratedGame } from '../../GameGenerator';
 import { GameGenerator } from '../../GameGenerator';
+import { formatError } from '../../utils/error-utils';
 
 setDefaultTimeout(600000);
 

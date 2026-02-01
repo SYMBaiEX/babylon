@@ -190,7 +190,10 @@ mock.module('@babylon/db', () => ({
   desc: (): SqlCondition => ({}),
   isNull: (): SqlCondition => ({}),
   isNotNull: (): SqlCondition => ({}),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings.join('?'), values }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    sql: strings.join('?'),
+    values,
+  }),
   max: (col: unknown) => ({ _aggregation: 'max', column: col }),
   // Use real generateSnowflakeId from @babylon/shared to avoid polluting other tests
   generateSnowflakeId: async () => {

@@ -225,9 +225,11 @@ const SUB_MARKET_MAX_DURATION_MS = 3 * 60 * 60 * 1000;
  * Generate a random duration between MIN and MAX for sub-markets.
  */
 function getRandomSubMarketDuration(): number {
-  return Math.floor(
-    Math.random() * (SUB_MARKET_MAX_DURATION_MS - SUB_MARKET_MIN_DURATION_MS)
-  ) + SUB_MARKET_MIN_DURATION_MS;
+  return (
+    Math.floor(
+      Math.random() * (SUB_MARKET_MAX_DURATION_MS - SUB_MARKET_MIN_DURATION_MS)
+    ) + SUB_MARKET_MIN_DURATION_MS
+  );
 }
 
 /**
@@ -528,7 +530,10 @@ export async function POST(_req: NextRequest) {
       'Updated market distribution after resolution phase',
       {
         distribution: Object.fromEntries(
-          Object.entries(updatedActiveMarkets).map(([tf, markets]) => [tf, markets.length])
+          Object.entries(updatedActiveMarkets).map(([tf, markets]) => [
+            tf,
+            markets.length,
+          ])
         ),
         total: updatedTotalMarkets,
         expected: expectedTotalMarkets,
@@ -610,7 +615,11 @@ export async function POST(_req: NextRequest) {
 
       logger.info(
         'Sub-market status',
-        { activeSubMarkets: activeSubMarketCount, needed: subMarketsNeeded, max: MAX_SUB_MARKETS },
+        {
+          activeSubMarkets: activeSubMarketCount,
+          needed: subMarketsNeeded,
+          max: MAX_SUB_MARKETS,
+        },
         'MarketsTick'
       );
 
@@ -638,8 +647,10 @@ export async function POST(_req: NextRequest) {
               questionId: parentMarket.questionId,
               category: parentMarket.category,
               arcState: parentMarket.arcState,
-              affiliatedActorIds: (parentMarket.affiliatedActorIds as string[]) ?? [],
-              affiliatedOrgIds: (parentMarket.affiliatedOrgIds as string[]) ?? [],
+              affiliatedActorIds:
+                (parentMarket.affiliatedActorIds as string[]) ?? [],
+              affiliatedOrgIds:
+                (parentMarket.affiliatedOrgIds as string[]) ?? [],
             };
             const created = await createSubMarket(
               parentMarketData,
@@ -1247,7 +1258,12 @@ async function createMarketForTimeframe(
 
     logger.info(
       `Creating ${timeframe} market`,
-      { resolutionDate: resolutionDate.toISOString(), durationMs, currentCount, targetCount },
+      {
+        resolutionDate: resolutionDate.toISOString(),
+        durationMs,
+        currentCount,
+        targetCount,
+      },
       'MarketsTick'
     );
 
@@ -1656,7 +1672,11 @@ async function createSubMarket(
     if (!questionData) {
       logger.warn(
         'Failed to generate question for sub-market',
-        { parentId: parentMarket.id, timeframe, category: parentMarket.category },
+        {
+          parentId: parentMarket.id,
+          timeframe,
+          category: parentMarket.category,
+        },
         'MarketsTick'
       );
       return false;
@@ -1676,7 +1696,13 @@ async function createSubMarket(
       : parentOrgIds;
 
     const actors = StaticDataRegistry.getAllActors()
-      .filter((a) => a.role === 'main' || a.role === 'supporting' || a.tier === 'S_TIER' || a.tier === 'A_TIER')
+      .filter(
+        (a) =>
+          a.role === 'main' ||
+          a.role === 'supporting' ||
+          a.tier === 'S_TIER' ||
+          a.tier === 'A_TIER'
+      )
       .slice(0, 30)
       .map((a) => ({
         id: a.id,
