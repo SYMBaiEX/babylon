@@ -1150,8 +1150,6 @@ describe('parseMarketCategory Type Narrowing', () => {
     'sports',
     'science',
     'business',
-    'entertainment',
-    'science',
     'general',
   ] as const;
 
