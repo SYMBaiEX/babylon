@@ -9,6 +9,11 @@ import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 import type { DisplayPerpPosition } from '@/types/markets';
 import { formatBalance } from '../../_lib/formatters';
 
+/**
+ * Formats a balance with explicit +/- sign prefix.
+ * Uses Math.abs() to ensure formatBalance receives a positive value,
+ * then manually prepends the sign to avoid double-negative display.
+ */
 function formatSignedBalance(value: number): string {
   if (value === 0) return formatBalance(0);
   const sign = value > 0 ? '+' : '-';

@@ -102,7 +102,10 @@ const MIN_SELLABLE_SHARES = 0.01;
 /** Cooldown period between portfolio refreshes to prevent API spam (ms) */
 const REFRESH_COOLDOWN_MS = 5000;
 
-/** Labels for each bottom tab for accessibility */
+/**
+ * Labels for each bottom tab - used for dynamic mobile panel title and accessibility.
+ * Centralizing these ensures consistency between button labels and panel headers.
+ */
 const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
   agent: 'Agents',
   social: 'Social',
@@ -110,6 +113,14 @@ const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
   positions: 'Positions',
   trades: 'Trades',
 };
+
+/*
+ * Z-INDEX STACKING CONTEXT (documentation only - Tailwind requires static class names)
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * z-40:   Mobile bottom dock bar
+ * z-[70]: Mobile panel overlay (above dock), trade sheet, market list
+ * z-[80]: Modal dialogs and fullscreen chart overlay
+ */
 
 interface MarketsTradingTerminalProps {
   onRequestBuyPoints?: () => void;
@@ -523,7 +534,8 @@ export function MarketsTradingTerminal({
     refreshWalletBalance,
   ]);
 
-  const handlePerpPositionClosed = useCallback(async () => {
+  // Shared helper to refresh all position-related data after a trade/close action
+  const refreshAllPositionData = useCallback(async () => {
     invalidateUserPositions();
     invalidateWalletBalance();
     await Promise.all([
@@ -539,21 +551,13 @@ export function MarketsTradingTerminal({
     refreshPortfolio,
   ]);
 
+  const handlePerpPositionClosed = useCallback(async () => {
+    await refreshAllPositionData();
+  }, [refreshAllPositionData]);
+
   const handlePredictionPositionSold = useCallback(async () => {
-    invalidateUserPositions();
-    invalidateWalletBalance();
-    await Promise.all([
-      refreshPredictionPositions(),
-      refreshPerpPositions(),
-      refreshWalletBalance(),
-      refreshPortfolio(),
-    ]);
-  }, [
-    refreshPredictionPositions,
-    refreshPerpPositions,
-    refreshWalletBalance,
-    refreshPortfolio,
-  ]);
+    await refreshAllPositionData();
+  }, [refreshAllPositionData]);
 
   const mobileBottomDockOffset = useMemo(() => {
     // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
@@ -561,21 +565,37 @@ export function MarketsTradingTerminal({
     return Math.max(0, mobileBottomNavHeight - BOTTOM_NAV_BASE_HEIGHT);
   }, [mobileBottomNavHeight]);
 
+  // Track the height of the app's fixed BottomNav to properly position the mobile dock.
+  // We use DOM query because BottomNav is rendered in the app layout outside this component's
+  // React tree, so we can't use props/context. The 'app-bottom-nav' ID is set in BottomNav.tsx.
   useEffect(() => {
-    const bottomNav = document.getElementById('app-bottom-nav');
-    if (!bottomNav) {
-      setMobileBottomNavHeight(0);
-      return undefined;
+    // SSR safety: ensure we're in browser environment
+    if (typeof window === 'undefined') {
+      return () => {};
     }
 
+    const bottomNav = document.getElementById('app-bottom-nav');
+
+    // Define update function outside conditional for consistent cleanup
     const updateHeight = () => {
-      setMobileBottomNavHeight(bottomNav.getBoundingClientRect().height);
+      if (bottomNav) {
+        setMobileBottomNavHeight(bottomNav.getBoundingClientRect().height);
+      } else {
+        setMobileBottomNavHeight(0);
+      }
     };
 
+    // Initial measurement
     updateHeight();
 
+    // If no bottomNav found, still return cleanup (currently no-op but consistent pattern)
+    if (!bottomNav) {
+      return () => {};
+    }
+
+    // SSR safety for ResizeObserver
     const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
+      typeof window !== 'undefined' && typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => updateHeight())
         : null;
 
@@ -964,20 +984,27 @@ export function MarketsTradingTerminal({
     );
   }, [predictionPositions, selectedPredictionId]);
 
-  const selectedPredictionShares = useMemo(() => {
-    let yesShares = 0;
-    let noShares = 0;
-    for (const position of selectedPredictionPositions) {
-      if (position.side === 'YES') yesShares += position.shares;
-      if (position.side === 'NO') noShares += position.shares;
-    }
-    return { yesShares, noShares };
+  // Compute sellable positions per side - only positions with shares >= MIN_SELLABLE_SHARES
+  // are actually sellable. We check individual positions, not aggregated totals, because
+  // a user might have multiple small positions that sum above threshold but none are sellable.
+  const sellablePositions = useMemo(() => {
+    const sellableYes = selectedPredictionPositions.filter(
+      (p) => p.side === 'YES' && p.shares >= MIN_SELLABLE_SHARES
+    );
+    const sellableNo = selectedPredictionPositions.filter(
+      (p) => p.side === 'NO' && p.shares >= MIN_SELLABLE_SHARES
+    );
+    return {
+      hasSellableYes: sellableYes.length > 0,
+      hasSellableNo: sellableNo.length > 0,
+      sellableYesCount: sellableYes.length,
+      sellableNoCount: sellableNo.length,
+    };
   }, [selectedPredictionPositions]);
 
   const canSellPrediction =
     authenticated &&
-    (selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES ||
-      selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES);
+    (sellablePositions.hasSellableYes || sellablePositions.hasSellableNo);
 
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
@@ -994,15 +1021,16 @@ export function MarketsTradingTerminal({
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
     if (!canSellPrediction) return;
+    // Check if current side has any sellable positions (not just aggregated shares)
     const canSellThisSide =
       predictionSide === 'yes'
-        ? selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES
-        : selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES;
+        ? sellablePositions.hasSellableYes
+        : sellablePositions.hasSellableNo;
     if (canSellThisSide) return;
     const canSellOtherSide =
       predictionSide === 'yes'
-        ? selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES
-        : selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES;
+        ? sellablePositions.hasSellableNo
+        : sellablePositions.hasSellableYes;
     if (!canSellOtherSide) return;
     setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
     setPredictionSellShares('');
@@ -1010,8 +1038,8 @@ export function MarketsTradingTerminal({
     canSellPrediction,
     predictionSide,
     predictionTradeMode,
-    selectedPredictionShares.noShares,
-    selectedPredictionShares.yesShares,
+    sellablePositions.hasSellableNo,
+    sellablePositions.hasSellableYes,
   ]);
 
   const selectedPerpPositions = useMemo(() => {
@@ -1719,13 +1747,13 @@ export function MarketsTradingTerminal({
                 disabled={
                   predictionTradeMode === 'sell' &&
                   canSellPrediction &&
-                  selectedPredictionShares.yesShares < MIN_SELLABLE_SHARES
+                  !sellablePositions.hasSellableYes
                 }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
-                    selectedPredictionShares.yesShares < MIN_SELLABLE_SHARES &&
+                    !sellablePositions.hasSellableYes &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
                     ? 'bg-blue-500 text-white'
@@ -1740,13 +1768,13 @@ export function MarketsTradingTerminal({
                 disabled={
                   predictionTradeMode === 'sell' &&
                   canSellPrediction &&
-                  selectedPredictionShares.noShares < MIN_SELLABLE_SHARES
+                  !sellablePositions.hasSellableNo
                 }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
-                    selectedPredictionShares.noShares < MIN_SELLABLE_SHARES &&
+                    !sellablePositions.hasSellableNo &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
                     ? 'bg-violet-500 text-white'
