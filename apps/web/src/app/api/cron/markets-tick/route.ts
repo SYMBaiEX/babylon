@@ -795,7 +795,7 @@ export async function POST(_req: NextRequest) {
           );
 
         const activeSubMarketCount = subMarketCountResult?.count ?? 0;
-        const subMarketsNeeded = MAX_SUB_MARKETS - activeSubMarketCount;
+        const subMarketsNeeded = Math.max(0, MAX_SUB_MARKETS - activeSubMarketCount);
 
         logger.info(
           'Sub-market status',
@@ -1547,6 +1547,13 @@ async function createMarketForTimeframe(
       return false;
     }
 
+    // Invalidate cache before idempotency check to prevent race conditions
+    // If two cron ticks start within the cache TTL window, both could read stale counts
+    // and attempt to create duplicate markets for the same timeframe
+    await invalidateCache('main_markets', {
+      namespace: CACHE_KEYS.ACTIVE_MARKETS,
+    });
+
     // Query active main markets with Redis caching for performance
     // Cache reduces DB queries from up to 10 (one per timeframe) to 1 per TTL window
     const activeMarkets = await getCacheOrFetch(
@@ -1994,7 +2001,9 @@ function isMarketCategory(value: unknown): value is MarketCategory {
 
 /**
  * Parse a string to MarketCategory with validation.
- * Returns the validated category or 'general' as fallback with a warning.
+ * Returns the validated category or 'general' as fallback.
+ * - null, undefined, or empty string: silently returns 'general' (missing data)
+ * - invalid non-empty string: logs warning and returns 'general'
  */
 function parseMarketCategory(
   value: string | null | undefined,
@@ -2003,6 +2012,11 @@ function parseMarketCategory(
   if (isMarketCategory(value)) {
     return value;
   }
+  // Treat null, undefined, and empty string as missing data - no warning needed
+  if (value === null || value === undefined || value === '') {
+    return 'general';
+  }
+  // Only warn for invalid non-empty strings (likely a bug or data corruption)
   logger.warn(
     `Invalid MarketCategory "${value}"${context ? ` in ${context}` : ''}, defaulting to "general"`,
     { invalidValue: value, context },

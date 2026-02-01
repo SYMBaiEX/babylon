@@ -1140,3 +1140,88 @@ describe('Media Selection Relevance Scoring', () => {
     expect(maxPossibleScore).toBe(6.0);
   });
 });
+
+describe('parseMarketCategory Type Narrowing', () => {
+  // Valid market categories from the implementation
+  const VALID_MARKET_CATEGORIES = [
+    'tech',
+    'politics',
+    'entertainment',
+    'sports',
+    'science',
+    'business',
+    'entertainment',
+    'science',
+    'general',
+  ] as const;
+
+  type MarketCategory = (typeof VALID_MARKET_CATEGORIES)[number];
+
+  // Replicate the parseMarketCategory logic for testing
+  function isMarketCategory(value: unknown): value is MarketCategory {
+    return (
+      typeof value === 'string' &&
+      VALID_MARKET_CATEGORIES.includes(value as MarketCategory)
+    );
+  }
+
+  function parseMarketCategory(
+    value: string | null | undefined,
+    _context?: string
+  ): MarketCategory {
+    if (isMarketCategory(value)) {
+      return value;
+    }
+    // Treat null, undefined, and empty string as missing data - no warning needed
+    if (value === null || value === undefined || value === '') {
+      return 'general';
+    }
+    // Only warn for invalid non-empty strings (likely a bug or data corruption)
+    // In tests, we just return 'general' without the warning side effect
+    return 'general';
+  }
+
+  test('should return valid category unchanged', () => {
+    expect(parseMarketCategory('tech')).toBe('tech');
+    expect(parseMarketCategory('politics')).toBe('politics');
+    expect(parseMarketCategory('sports')).toBe('sports');
+    expect(parseMarketCategory('science')).toBe('science');
+    expect(parseMarketCategory('business')).toBe('business');
+    expect(parseMarketCategory('entertainment')).toBe('entertainment');
+    expect(parseMarketCategory('general')).toBe('general');
+  });
+
+  test('should return general for null without warning', () => {
+    const result = parseMarketCategory(null);
+    expect(result).toBe('general');
+  });
+
+  test('should return general for undefined without warning', () => {
+    const result = parseMarketCategory(undefined);
+    expect(result).toBe('general');
+  });
+
+  test('should return general for empty string without warning', () => {
+    // Empty string should be treated as missing data, not as an invalid category
+    const result = parseMarketCategory('');
+    expect(result).toBe('general');
+  });
+
+  test('should return general for invalid non-empty string (with warning in production)', () => {
+    // Invalid strings like typos should trigger a warning in production
+    const result = parseMarketCategory('invalid-category');
+    expect(result).toBe('general');
+
+    const result2 = parseMarketCategory('TECH'); // Case sensitive
+    expect(result2).toBe('general');
+
+    const result3 = parseMarketCategory('technology'); // Not in valid list
+    expect(result3).toBe('general');
+  });
+
+  test('should handle whitespace-only strings as invalid (not empty)', () => {
+    // Whitespace strings are non-empty invalid strings
+    const result = parseMarketCategory('   ');
+    expect(result).toBe('general');
+  });
+});

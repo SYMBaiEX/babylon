@@ -576,3 +576,176 @@ describe('Idempotency Check Logic', () => {
     );
   });
 });
+
+// ============ POST HANDLER INTEGRATION TESTS ============
+// These tests exercise the actual HTTP endpoint behavior with a test database
+
+describe('POST Handler Integration', () => {
+  // Import the POST handler dynamically to ensure mocks are applied
+  let POST: (request: Request) => Promise<Response>;
+  let GET: (request: Request) => Promise<Response>;
+
+  beforeAll(async () => {
+    // Dynamic import after mocks are set up
+    const routeModule = await import(
+      '@babylon/web/src/app/api/cron/markets-tick/route'
+    );
+    POST = routeModule.POST;
+    GET = routeModule.GET;
+  });
+
+  test('should return valid JSON response structure', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    // Create a request with valid cron authorization header
+    const request = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+      },
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const data = await response.json();
+    expect(data).toHaveProperty('success');
+    expect(typeof data.success).toBe('boolean');
+  });
+
+  test('should include performance metrics in response', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    const request = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+      },
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    // If not skipped, should have metrics
+    if (!data.skipped) {
+      expect(data).toHaveProperty('metrics');
+      if (data.metrics) {
+        expect(typeof data.metrics.totalMs).toBe('number');
+      }
+    }
+  });
+
+  test('should include duration in response', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    const request = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+      },
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    // Response should always include some timing information
+    // Either in metrics.totalMs or as durationMs for skipped responses
+    const hasTiming =
+      data.metrics?.totalMs !== undefined || data.durationMs !== undefined;
+    expect(hasTiming || data.skipped).toBe(true);
+  });
+
+  test('GET should delegate to POST and return equivalent response', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+    };
+
+    const getRequest = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'GET',
+      headers,
+    });
+
+    const postRequest = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers,
+    });
+
+    const getResponse = await GET(getRequest);
+    const postResponse = await POST(postRequest);
+
+    expect(getResponse.status).toBe(postResponse.status);
+
+    const getData = await getResponse.json();
+    const postData = await postResponse.json();
+
+    // Both should have success field with same type
+    expect(typeof getData.success).toBe(typeof postData.success);
+  });
+
+  test('should skip when game is not running', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    // This test relies on the game state in the database
+    // If there's no running game, the response should indicate skipped
+    const request = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+      },
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    // Should either succeed or be skipped with a reason
+    expect(data.success).toBe(true);
+    if (data.skipped) {
+      expect(data.reason).toBeDefined();
+      expect(typeof data.reason).toBe('string');
+    }
+  });
+
+  test('should return complete execution metrics when not skipped', async () => {
+    if (!dbAvailable) {
+      console.log('Skipping - database not available');
+      return;
+    }
+
+    const request = new Request('http://localhost/api/cron/markets-tick', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
+      },
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+
+    // If execution completed (not skipped), verify metrics structure
+    if (!data.skipped && data.metrics) {
+      // Check for expected metric fields
+      expect(data.metrics).toHaveProperty('totalMs');
+      expect(typeof data.metrics.totalMs).toBe('number');
+      expect(data.metrics.totalMs).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
