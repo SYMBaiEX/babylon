@@ -1305,6 +1305,15 @@ export class BabylonAgentExecutor implements AgentExecutor {
       params.limit
     );
 
+    // Get total count before pagination
+    const total = await db.follow.count({
+      where: { followingId: userId },
+    });
+
+    if (total === 0) {
+      return { followers: [], total: 0 };
+    }
+
     const follows = await db.follow.findMany({
       where: { followingId: userId },
       skip: offset,
@@ -1316,7 +1325,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const followerIds = follows.map((f) => f.followerId);
 
     if (followerIds.length === 0) {
-      return { followers: [], total: 0 };
+      return { followers: [], total };
     }
 
     const users = await db.user.findMany({
@@ -1336,7 +1345,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
         displayName: u.displayName,
         profileImageUrl: u.profileImageUrl,
       })),
-      total: followerIds.length,
+      total,
     };
   }
 
@@ -1351,6 +1360,15 @@ export class BabylonAgentExecutor implements AgentExecutor {
       params.limit
     );
 
+    // Get total count before pagination
+    const total = await db.follow.count({
+      where: { followerId: userId },
+    });
+
+    if (total === 0) {
+      return { following: [], total: 0 };
+    }
+
     const follows = await db.follow.findMany({
       where: { followerId: userId },
       skip: offset,
@@ -1362,7 +1380,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const followingIds = follows.map((f) => f.followingId);
 
     if (followingIds.length === 0) {
-      return { following: [], total: 0 };
+      return { following: [], total };
     }
 
     const users = await db.user.findMany({
@@ -1382,7 +1400,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
         displayName: u.displayName,
         profileImageUrl: u.profileImageUrl,
       })),
-      total: followingIds.length,
+      total,
     };
   }
 
@@ -3643,9 +3661,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
         };
       }
     } catch (error) {
-      console.error(
-        `[getMarketPrices] Failed to query perpMarketSnapshots for marketId=${marketId}:`,
-        error
+      logger.error(
+        'Failed to query perpMarketSnapshots for marketId',
+        { error, marketId },
+        'A2A'
       );
       throw error;
     }

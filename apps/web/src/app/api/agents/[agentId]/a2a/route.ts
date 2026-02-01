@@ -446,9 +446,14 @@ export async function POST(
       if (result.errorResponse) return result.errorResponse;
 
       const { taskStore, taskId } = result;
-      const task = await taskStore.load(taskId);
 
-      if (!task) {
+      // Use atomic updateStatus to avoid load-modify-save race conditions
+      const canceledTask = await taskStore.updateStatus(taskId, {
+        state: 'canceled',
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!canceledTask) {
         return NextResponse.json(
           {
             jsonrpc: '2.0',
@@ -461,17 +466,6 @@ export async function POST(
           { status: 404 }
         );
       }
-
-      // Update task status to canceled, preserving existing status fields
-      const canceledTask = {
-        ...task,
-        status: {
-          ...(task.status || {}),
-          state: 'canceled' as const,
-          timestamp: new Date().toISOString(),
-        },
-      };
-      await taskStore.save(canceledTask);
 
       return NextResponse.json({
         jsonrpc: '2.0',

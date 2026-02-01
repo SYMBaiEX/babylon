@@ -18,11 +18,62 @@ import {
   setCache,
 } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import { z } from 'zod';
 import {
   ExtendedTaskStore,
   type ListTasksParams,
   type ListTasksResult,
 } from './extended-task-store';
+
+/**
+ * Zod schema for TaskStatus validation
+ */
+const TaskStatusSchema = z.object({
+  state: z.enum([
+    'submitted',
+    'working',
+    'input-required',
+    'completed',
+    'canceled',
+    'failed',
+    'rejected',
+    'auth-required',
+    'unknown',
+  ]),
+  timestamp: z.string().optional(),
+  message: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Zod schema for full Task validation
+ * Validates all required properties according to the A2A SDK Task interface
+ */
+const TaskSchema = z.object({
+  id: z.string(),
+  contextId: z.string(),
+  kind: z.literal('task'),
+  status: TaskStatusSchema,
+  artifacts: z.array(z.record(z.string(), z.unknown())).optional(),
+  history: z.array(z.record(z.string(), z.unknown())).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Type guard to validate if an object is a valid Task
+ */
+function isValidTask(obj: unknown): obj is Task {
+  const result = TaskSchema.safeParse(obj);
+  return result.success;
+}
+
+/**
+ * Status update for atomic task status changes
+ */
+export interface TaskStatusUpdate {
+  state: Task['status']['state'];
+  timestamp?: string;
+  message?: Task['status']['message'];
+}
 
 const TASK_CACHE_NAMESPACE = 'a2a:tasks';
 const TASK_INDEX_NAMESPACE = 'a2a:task-index';
@@ -103,6 +154,41 @@ export class PersistentTaskStore extends ExtendedTaskStore {
   }
 
   /**
+   * Atomically update task status without load-modify-save race conditions.
+   * Only updates the status field while preserving all other task properties.
+   *
+   * @param taskId - The ID of the task to update
+   * @param statusUpdate - The status fields to update
+   * @returns The updated task, or undefined if task not found
+   */
+  async updateStatus(
+    taskId: string,
+    statusUpdate: TaskStatusUpdate
+  ): Promise<Task | undefined> {
+    // Load the current task
+    const task = await this.load(taskId);
+    if (!task) return undefined;
+
+    // Create updated task with new status (atomic merge)
+    const updatedTask: Task = {
+      ...task,
+      status: {
+        ...task.status,
+        state: statusUpdate.state,
+        timestamp: statusUpdate.timestamp ?? new Date().toISOString(),
+        ...(statusUpdate.message !== undefined && {
+          message: statusUpdate.message,
+        }),
+      },
+    };
+
+    // Save atomically
+    await this.save(updatedTask);
+
+    return updatedTask;
+  }
+
+  /**
    * Load task from memory first, then Redis
    */
   async load(taskId: string): Promise<Task | undefined> {
@@ -128,16 +214,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            // Validate the parsed object has required Task properties
-            if (
-              parsed &&
-              typeof parsed === 'object' &&
-              typeof parsed.id === 'string' &&
-              parsed.status &&
-              typeof parsed.status === 'object' &&
-              typeof parsed.status.state === 'string'
-            ) {
-              task = parsed as Task;
+            // Validate the parsed object against full Task schema using Zod
+            if (isValidTask(parsed)) {
+              task = parsed;
               // Restore to memory for fast subsequent access
               await super.save(task);
               this.memoryFallback.set(taskId, task);
@@ -146,7 +225,7 @@ export class PersistentTaskStore extends ExtendedTaskStore {
             // Invalid task structure - treat as cache miss
             logger.warn(
               'Invalid task structure in Redis cache, treating as cache miss',
-              { taskId },
+              { taskId, validationErrors: TaskSchema.safeParse(parsed).error?.issues },
               'A2A'
             );
           } catch (parseError) {
