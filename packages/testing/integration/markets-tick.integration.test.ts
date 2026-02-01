@@ -84,6 +84,7 @@ import {
   eq,
   inArray,
   isNull,
+  type MarketTimeframe,
   posts,
   questions,
   sql,
@@ -153,7 +154,7 @@ async function ensureTestGame(): Promise<{ id: string; isRunning: boolean }> {
  * Create a test market directly in the database.
  */
 async function createTestMarket(options: {
-  timeframe: string;
+  timeframe: MarketTimeframe;
   isActive?: boolean;
   endTime?: Date;
 }): Promise<{ marketId: string; questionId: string }> {
@@ -287,8 +288,8 @@ describe('Markets Tick Integration', () => {
         .where(eq(timeframedMarkets.id, marketId));
 
       expect(market).toBeDefined();
-      expect(market.questionId).toBe(questionId);
-      expect(market.isActive).toBe(true);
+      expect(market!.questionId).toBe(questionId);
+      expect(market!.isActive).toBe(true);
 
       // Cleanup will happen in afterEach
     });
