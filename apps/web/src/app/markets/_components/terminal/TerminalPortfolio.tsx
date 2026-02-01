@@ -26,6 +26,8 @@ interface TerminalPortfolioProps {
   portfolioLoading: boolean;
   portfolioError: string | null;
   onRefresh: () => void;
+  /** When true, disables refresh button (e.g., during cooldown) without showing loading spinner */
+  refreshDisabled?: boolean;
   perpPositions: DisplayPerpPosition[];
   predictionPositions: UserPredictionPosition[];
   onPerpPositionClosed: () => Promise<void>;
@@ -77,6 +79,7 @@ export function TerminalPortfolio({
   portfolioLoading,
   portfolioError,
   onRefresh,
+  refreshDisabled = false,
   perpPositions,
   predictionPositions,
   onPerpPositionClosed,
@@ -130,17 +133,19 @@ export function TerminalPortfolio({
             )}
             <button
               type="button"
-              onClick={!portfolioLoading ? onRefresh : undefined}
-              disabled={portfolioLoading}
+              onClick={
+                !portfolioLoading && !refreshDisabled ? onRefresh : undefined
+              }
+              disabled={portfolioLoading || refreshDisabled}
               className={cn(
                 'inline-flex items-center gap-1 rounded bg-muted/20 px-2 py-1 font-semibold text-[10px] uppercase tracking-wider transition-colors',
-                portfolioLoading
+                portfolioLoading || refreshDisabled
                   ? 'cursor-not-allowed text-muted-foreground opacity-50'
                   : 'text-foreground hover:bg-muted/30'
               )}
               aria-label="Refresh portfolio"
               aria-busy={portfolioLoading}
-              title="Refresh"
+              title={refreshDisabled ? 'Please wait before refreshing again' : 'Refresh'}
             >
               <RefreshCw
                 className={cn(

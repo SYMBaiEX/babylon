@@ -93,6 +93,24 @@ type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
 type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
 type BottomTab = 'agent' | 'social' | 'portfolio' | 'positions' | 'trades';
 
+/** Base height of the bottom nav (matches app layout's pb-14) */
+const BOTTOM_NAV_BASE_HEIGHT = 56;
+
+/** Minimum shares threshold for sellable positions */
+const MIN_SELLABLE_SHARES = 0.01;
+
+/** Cooldown period between portfolio refreshes to prevent API spam (ms) */
+const REFRESH_COOLDOWN_MS = 5000;
+
+/** Labels for each bottom tab for accessibility */
+const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
+  agent: 'Agents',
+  social: 'Social',
+  portfolio: 'Portfolio',
+  positions: 'Positions',
+  trades: 'Trades',
+};
+
 interface MarketsTradingTerminalProps {
   onRequestBuyPoints?: () => void;
 }
@@ -458,6 +476,19 @@ export function MarketsTradingTerminal({
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
 
+  // Cooldown state to prevent refresh spam (protects backend at scale)
+  const [refreshOnCooldown, setRefreshOnCooldown] = useState(false);
+  const refreshCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshCooldownRef.current) {
+        clearTimeout(refreshCooldownRef.current);
+      }
+    };
+  }, []);
+
   const openMobilePanel = useCallback((tab?: BottomTab) => {
     if (tab) setBottomTab(tab);
     setIsMobilePanelOpen(true);
@@ -467,6 +498,9 @@ export function MarketsTradingTerminal({
 
   // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
   const handlePortfolioRefresh = useCallback(() => {
+    // Prevent refresh if on cooldown
+    if (refreshOnCooldown) return;
+
     invalidateUserPositions();
     invalidateWalletBalance();
     void Promise.allSettled([
@@ -475,7 +509,14 @@ export function MarketsTradingTerminal({
       refreshPerpPositions(),
       refreshWalletBalance(),
     ]);
+
+    // Start cooldown to prevent rapid successive refreshes
+    setRefreshOnCooldown(true);
+    refreshCooldownRef.current = setTimeout(() => {
+      setRefreshOnCooldown(false);
+    }, REFRESH_COOLDOWN_MS);
   }, [
+    refreshOnCooldown,
     refreshPortfolio,
     refreshPredictionPositions,
     refreshPerpPositions,
@@ -516,15 +557,15 @@ export function MarketsTradingTerminal({
 
   const mobileBottomDockOffset = useMemo(() => {
     // The app layout uses `pb-14` (56px) to reserve space for the fixed BottomNav.
-    // We only need to offset by the *extra* height beyond 56px (e.g. iOS safe-area).
-    return Math.max(0, mobileBottomNavHeight - 56);
+    // We only need to offset by the *extra* height beyond that (e.g. iOS safe-area).
+    return Math.max(0, mobileBottomNavHeight - BOTTOM_NAV_BASE_HEIGHT);
   }, [mobileBottomNavHeight]);
 
   useEffect(() => {
     const bottomNav = document.getElementById('app-bottom-nav');
     if (!bottomNav) {
       setMobileBottomNavHeight(0);
-      return;
+      return undefined;
     }
 
     const updateHeight = () => {
@@ -935,28 +976,28 @@ export function MarketsTradingTerminal({
 
   const canSellPrediction =
     authenticated &&
-    (selectedPredictionShares.yesShares >= 0.01 ||
-      selectedPredictionShares.noShares >= 0.01);
+    (selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES ||
+      selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES);
 
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
     if (canSellPrediction) return;
     setPredictionTradeMode('buy');
     setPredictionSellShares('');
-  }, [canSellPrediction, predictionTradeMode]);
+  }, [canSellPrediction, predictionTradeMode, setPredictionTradeMode, setPredictionSellShares]);
 
   useEffect(() => {
     if (predictionTradeMode !== 'sell') return;
     if (!canSellPrediction) return;
     const canSellThisSide =
       predictionSide === 'yes'
-        ? selectedPredictionShares.yesShares >= 0.01
-        : selectedPredictionShares.noShares >= 0.01;
+        ? selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES
+        : selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES;
     if (canSellThisSide) return;
     const canSellOtherSide =
       predictionSide === 'yes'
-        ? selectedPredictionShares.noShares >= 0.01
-        : selectedPredictionShares.yesShares >= 0.01;
+        ? selectedPredictionShares.noShares >= MIN_SELLABLE_SHARES
+        : selectedPredictionShares.yesShares >= MIN_SELLABLE_SHARES;
     if (!canSellOtherSide) return;
     setPredictionSide((prev) => (prev === 'yes' ? 'no' : 'yes'));
     setPredictionSellShares('');
@@ -999,7 +1040,7 @@ export function MarketsTradingTerminal({
   const sellPosition = useMemo(() => {
     const wantedSide = predictionSide.toUpperCase() as 'YES' | 'NO';
     const candidates = selectedPredictionPositions.filter(
-      (p) => p.side === wantedSide && p.shares >= 0.01
+      (p) => p.side === wantedSide && p.shares >= MIN_SELLABLE_SHARES
     );
     if (candidates.length === 0) return null;
     const first = candidates[0];
@@ -1070,8 +1111,8 @@ export function MarketsTradingTerminal({
         toast.error('No sellable position for this side.');
         return;
       }
-      if (clampedSellShares < 0.01) {
-        toast.error('Minimum sell is 0.01 shares');
+      if (clampedSellShares < MIN_SELLABLE_SHARES) {
+        toast.error(`Minimum sell is ${MIN_SELLABLE_SHARES} shares`);
         return;
       }
       if (!predictionSellCalculation) {
@@ -1093,8 +1134,8 @@ export function MarketsTradingTerminal({
         toast.error('No sellable position for this side.');
         return;
       }
-      if (clampedSellShares < 0.01) {
-        toast.error('Minimum sell is 0.01 shares');
+      if (clampedSellShares < MIN_SELLABLE_SHARES) {
+        toast.error(`Minimum sell is ${MIN_SELLABLE_SHARES} shares`);
         return;
       }
       if (!predictionSellCalculation) {
@@ -1180,6 +1221,7 @@ export function MarketsTradingTerminal({
         refreshPerpPositions(),
         refreshWalletBalance(),
         refreshPredictionHistory(),
+        refreshPortfolio(),
       ]);
     } catch (error) {
       const message =
@@ -1672,13 +1714,13 @@ export function MarketsTradingTerminal({
                 disabled={
                   predictionTradeMode === 'sell' &&
                   canSellPrediction &&
-                  selectedPredictionShares.yesShares < 0.01
+                  selectedPredictionShares.yesShares < MIN_SELLABLE_SHARES
                 }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
-                    selectedPredictionShares.yesShares < 0.01 &&
+                    selectedPredictionShares.yesShares < MIN_SELLABLE_SHARES &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
                     ? 'bg-blue-500 text-white'
@@ -1693,13 +1735,13 @@ export function MarketsTradingTerminal({
                 disabled={
                   predictionTradeMode === 'sell' &&
                   canSellPrediction &&
-                  selectedPredictionShares.noShares < 0.01
+                  selectedPredictionShares.noShares < MIN_SELLABLE_SHARES
                 }
                 className={cn(
                   'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
-                    selectedPredictionShares.noShares < 0.01 &&
+                    selectedPredictionShares.noShares < MIN_SELLABLE_SHARES &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
                     ? 'bg-violet-500 text-white'
@@ -1766,7 +1808,7 @@ export function MarketsTradingTerminal({
                     Shares
                   </label>
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>Min 0.01</span>
+                    <span>Min {MIN_SELLABLE_SHARES}</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -1785,7 +1827,7 @@ export function MarketsTradingTerminal({
                   type="number"
                   value={predictionSellShares}
                   onChange={(e) => setPredictionSellShares(e.target.value)}
-                  min={0.01}
+                  min={MIN_SELLABLE_SHARES}
                   step="0.01"
                   className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder={
@@ -1873,7 +1915,7 @@ export function MarketsTradingTerminal({
                 (predictionTradeMode === 'sell' &&
                   authenticated &&
                   (maxSellShares <= 0 ||
-                    clampedSellShares < 0.01 ||
+                    clampedSellShares < MIN_SELLABLE_SHARES ||
                     !predictionSellCalculation))
               }
               className={cn(
@@ -1888,7 +1930,7 @@ export function MarketsTradingTerminal({
                   (predictionTradeMode === 'sell' &&
                     authenticated &&
                     (maxSellShares <= 0 ||
-                      clampedSellShares < 0.01 ||
+                      clampedSellShares < MIN_SELLABLE_SHARES ||
                       !predictionSellCalculation))) &&
                   'cursor-not-allowed opacity-50'
               )}
@@ -1984,6 +2026,7 @@ export function MarketsTradingTerminal({
             portfolioLoading={portfolioLoading}
             portfolioError={portfolioError}
             onRefresh={handlePortfolioRefresh}
+            refreshDisabled={refreshOnCooldown}
             perpPositions={perpPositions}
             predictionPositions={predictionPositions}
             onPerpPositionClosed={handlePerpPositionClosed}
@@ -2438,7 +2481,9 @@ export function MarketsTradingTerminal({
           {isMobilePanelOpen && (
             <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
               <div className="flex items-center justify-between border-white/5 border-b p-4">
-                <h2 className="font-bold text-lg">Panel</h2>
+                <h2 className="font-bold text-lg">
+                  {BOTTOM_TAB_LABELS[bottomTab]} Panel
+                </h2>
                 <button
                   type="button"
                   onClick={() => setIsMobilePanelOpen(false)}
@@ -2551,6 +2596,7 @@ export function MarketsTradingTerminal({
                     portfolioLoading={portfolioLoading}
                     portfolioError={portfolioError}
                     onRefresh={handlePortfolioRefresh}
+                    refreshDisabled={refreshOnCooldown}
                     perpPositions={perpPositions}
                     predictionPositions={predictionPositions}
                     onPerpPositionClosed={handlePerpPositionClosed}
