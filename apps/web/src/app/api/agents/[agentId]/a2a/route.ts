@@ -106,18 +106,14 @@ function getAgentRateLimiter(agentId: string): RateLimiter {
 }
 
 /**
- * Helper to extract taskId and taskStore from request body and agent handler.
- * Consolidates duplicated code across tasks/get, tasks/cancel, and tasks/resubscribe.
+ * Helper to extract and validate taskId from request body params.
+ * Handles both 'id' and 'taskId' parameter names.
  *
- * @returns Object with taskStore and taskId, or errorResponse if validation fails
+ * @returns Object with taskId, or errorResponse if validation fails
  */
-async function getTaskStoreAndTaskId(
-  body: JsonRpcRequest,
-  agentId: string
-): Promise<
-  | { taskStore: PersistentTaskStore; taskId: string; errorResponse?: never }
-  | { errorResponse: NextResponse; taskStore?: never; taskId?: never }
-> {
+function getTaskIdFromParams(
+  body: JsonRpcRequest
+): { taskId: string; errorResponse?: never } | { errorResponse: NextResponse; taskId?: never } {
   const params = body.params as { id?: string; taskId?: string } | undefined;
   const taskId = params?.id || params?.taskId;
 
@@ -137,6 +133,27 @@ async function getTaskStoreAndTaskId(
     };
   }
 
+  return { taskId };
+}
+
+/**
+ * Helper to extract taskId and taskStore from request body and agent handler.
+ * Consolidates duplicated code across tasks/get, tasks/cancel, and tasks/resubscribe.
+ *
+ * @returns Object with taskStore and taskId, or errorResponse if validation fails
+ */
+async function getTaskStoreAndTaskId(
+  body: JsonRpcRequest,
+  agentId: string
+): Promise<
+  | { taskStore: PersistentTaskStore; taskId: string; errorResponse?: never }
+  | { errorResponse: NextResponse; taskStore?: never; taskId?: never }
+> {
+  const taskIdResult = getTaskIdFromParams(body);
+  if (taskIdResult.errorResponse) {
+    return { errorResponse: taskIdResult.errorResponse };
+  }
+
   const jsonRpcHandler = await getAgentJsonRpcHandler(agentId);
   const handlerWithRequestHandler = jsonRpcHandler as unknown as {
     requestHandler: {
@@ -145,7 +162,7 @@ async function getTaskStoreAndTaskId(
   };
   const taskStore = handlerWithRequestHandler.requestHandler.taskStore;
 
-  return { taskStore, taskId };
+  return { taskStore, taskId: taskIdResult.taskId };
 }
 
 async function getAgentJsonRpcHandler(
@@ -463,24 +480,11 @@ export async function POST(
 
     // Handle tasks/resubscribe with SSE response using SDK's resubscribe method
     if (body.method === 'tasks/resubscribe') {
-      const params = body.params as
-        | { id?: string; taskId?: string }
-        | undefined;
-      const taskId = params?.id || params?.taskId;
-
-      if (!taskId) {
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            id: body.id ?? null,
-            error: {
-              code: -32602,
-              message: 'Invalid params: taskId or id is required',
-            },
-          },
-          { status: 400 }
-        );
+      const taskIdResult = getTaskIdFromParams(body);
+      if (taskIdResult.errorResponse) {
+        return taskIdResult.errorResponse;
       }
+      const taskId = taskIdResult.taskId;
 
       // Get the request handler to access resubscribe method
       await getAgentJsonRpcHandler(agentId); // Ensures handler is initialized
@@ -508,6 +512,10 @@ export async function POST(
         async start(controller) {
           // Wire abort signal to cancel the stream when client disconnects
           const abortHandler = () => {
+            // Terminate the async generator first
+            eventGenerator.return(undefined).catch(() => {
+              // Ignore errors from terminating generator
+            });
             try {
               controller.close();
             } catch {

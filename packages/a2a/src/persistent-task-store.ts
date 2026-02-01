@@ -26,8 +26,13 @@ import {
 
 const TASK_CACHE_NAMESPACE = 'a2a:tasks';
 const TASK_INDEX_NAMESPACE = 'a2a:task-index';
-const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
-const MAX_INDEX_SIZE = 1000; // Maximum entries per index
+
+// Environment-configurable constants with sensible defaults (12-Factor App pattern)
+const DEFAULT_TTL_SECONDS =
+  Number(process.env.A2A_TASK_TTL_SECONDS) || 7 * 24 * 60 * 60; // 7 days
+const MAX_INDEX_SIZE = Number(process.env.A2A_MAX_INDEX_SIZE) || 1000; // Maximum entries per index
+const CLEANUP_INTERVAL_MS =
+  Number(process.env.A2A_CLEANUP_INTERVAL_MS) || 60 * 60 * 1000; // 1 hour
 
 /**
  * Persistent task store with Redis backing
@@ -37,11 +42,37 @@ const MAX_INDEX_SIZE = 1000; // Maximum entries per index
  */
 export class PersistentTaskStore extends ExtendedTaskStore {
   private memoryFallback: Map<string, Task> = new Map();
+  private lastCleanup = Date.now();
+
+  /**
+   * Periodically clean up old entries from memoryFallback to prevent memory leaks.
+   * Only runs if CLEANUP_INTERVAL_MS has passed since last cleanup.
+   */
+  private maybeCleanupMemory(): void {
+    const now = Date.now();
+    if (now - this.lastCleanup < CLEANUP_INTERVAL_MS) {
+      return;
+    }
+    this.lastCleanup = now;
+
+    const cutoff = now - DEFAULT_TTL_SECONDS * 1000;
+    for (const [taskId, task] of this.memoryFallback.entries()) {
+      const taskTime = task.status.timestamp
+        ? new Date(task.status.timestamp).getTime()
+        : 0;
+      if (taskTime < cutoff || !Number.isFinite(taskTime)) {
+        this.memoryFallback.delete(taskId);
+      }
+    }
+  }
 
   /**
    * Save task to both in-memory and Redis
    */
   async save(task: Task): Promise<void> {
+    // Periodically clean up old entries
+    this.maybeCleanupMemory();
+
     // Always save to parent (in-memory)
     await super.save(task);
 
@@ -75,6 +106,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
    * Load task from memory first, then Redis
    */
   async load(taskId: string): Promise<Task | undefined> {
+    // Periodically clean up old entries
+    this.maybeCleanupMemory();
+
     // Check in-memory first (from parent)
     let task = await super.load(taskId);
     if (task) return task;
@@ -179,6 +213,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
           );
           const values = await client.mget(...keys);
 
+          // Collect save promises for parallel execution
+          const savePromises: Promise<void>[] = [];
+
           for (let i = 0; i < missingIds.length; i++) {
             const taskId = missingIds[i];
             const cached = values[i];
@@ -196,8 +233,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
                 ) {
                   const task = parsed as Task;
                   results.set(taskId, task);
-                  // Restore to memory for fast subsequent access
-                  await super.save(task);
+                  // Collect save promise without awaiting (parallel execution)
+                  savePromises.push(super.save(task));
+                  // Set memory fallback synchronously
                   this.memoryFallback.set(taskId, task);
                 }
               } catch {
@@ -210,6 +248,9 @@ export class PersistentTaskStore extends ExtendedTaskStore {
               }
             }
           }
+
+          // Await all saves in parallel (use allSettled for isolation)
+          await Promise.allSettled(savePromises);
         } catch (error) {
           logger.warn(
             'Failed to batch load tasks from Redis, falling back to parallel individual loads',
@@ -271,13 +312,14 @@ export class PersistentTaskStore extends ExtendedTaskStore {
     // Use the larger pageSize and combine totals (deduplicated)
     const pageSize = Math.max(redisResult.pageSize, memoryResult.pageSize);
     const paginatedTasks = mergedTasks.slice(0, pageSize);
+    const hasMore = mergedTasks.length > pageSize;
 
     return {
       tasks: paginatedTasks,
       totalSize: taskMap.size,
       pageSize,
-      // Use Redis nextPageToken if available, otherwise memory's
-      nextPageToken: redisResult.nextPageToken || memoryResult.nextPageToken,
+      // Compute nextPageToken based on merged results, not source offsets
+      nextPageToken: hasMore ? String(pageSize) : '',
     };
   }
 

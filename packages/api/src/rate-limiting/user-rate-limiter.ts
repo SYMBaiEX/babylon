@@ -180,6 +180,13 @@ export const RATE_LIMIT_CONFIGS = {
     actionType: 'external_agent_register',
   }, // 5 registrations per hour per user
 
+  // A2A transfer operations (stricter limit for points/token transfers)
+  A2A_TRANSFER_OPS: {
+    maxRequests: Number(process.env.A2A_TRANSFER_RATE_LIMIT) || 10,
+    windowMs: 60000,
+    actionType: 'a2a_transfer_ops',
+  }, // 10 transfers per minute (configurable via env)
+
   // Default fallback
   DEFAULT: { maxRequests: 30, windowMs: 60000, actionType: 'default' }, // 30 requests per minute
 } as const;

@@ -27,7 +27,13 @@ import { db, getRawDrizzle } from '@babylon/db';
 import { perpMarketSnapshots } from '@babylon/db/schema';
 import { WalletService } from '@babylon/engine';
 import type { JsonValue } from '@babylon/shared';
-import { generateSnowflakeId, getAPIBaseUrl, logger } from '@babylon/shared';
+import {
+  checkUserInput,
+  ContentValidator,
+  generateSnowflakeId,
+  getAPIBaseUrl,
+  logger,
+} from '@babylon/shared';
 import { v4 as uuidv4 } from 'uuid';
 import {
   handleAppealBanWithEscrow,
@@ -36,20 +42,20 @@ import {
   handleRefundEscrowPayment,
   handleVerifyEscrowPayment,
 } from '../handlers/escrow-handlers';
+import { checkRateLimitAsync, RATE_LIMIT_CONFIGS } from '@babylon/api';
 import { X402Manager } from '../payments/x402-manager';
 import type { JsonRpcRequest } from '../types/a2a';
-import { RateLimiter } from '../utils/rate-limiter';
+import {
+  OffsetPaginationSchema,
+  type OffsetPaginationParams,
+} from '../validation';
 
 /**
- * Rate limit configuration for sensitive operations
- * These limits are per-user, per-minute
+ * Default timeout for external API fetch operations (in milliseconds)
+ * Configurable via A2A_FETCH_TIMEOUT_MS environment variable
  */
-const RATE_LIMITS = {
-  /** Trading operations: buy/sell shares, open/close positions */
-  TRADING_OPS_PER_MINUTE: 20,
-  /** Points transfer operations */
-  TRANSFER_OPS_PER_MINUTE: 10,
-} as const;
+const DEFAULT_FETCH_TIMEOUT_MS =
+  Number(process.env.A2A_FETCH_TIMEOUT_MS) || 30000;
 
 /**
  * Main executor implementing all Babylon game operations
@@ -257,34 +263,72 @@ type ExecutorOperationResult =
 
 export class BabylonAgentExecutor implements AgentExecutor {
   /**
-   * Rate limiters for sensitive operations
-   * Separate limiters for different operation types to allow independent tuning
-   */
-  private tradingRateLimiter = new RateLimiter(
-    RATE_LIMITS.TRADING_OPS_PER_MINUTE
-  );
-  private transferRateLimiter = new RateLimiter(
-    RATE_LIMITS.TRANSFER_OPS_PER_MINUTE
-  );
-
-  /**
-   * Check rate limit and throw if exceeded
-   * @param limiter - The rate limiter to check
+   * Check rate limit and throw if exceeded.
+   * Uses the centralized @babylon/api rate limiter with Redis backing.
+   *
    * @param userId - The user ID to check limits for
-   * @param operationType - Description for error message
+   * @param config - Rate limit configuration from RATE_LIMIT_CONFIGS
    */
-  private checkRateLimit(
-    limiter: RateLimiter,
+  private async checkRateLimit(
     userId: string,
-    operationType: string
-  ): void {
-    if (!limiter.checkLimit(userId)) {
-      const remaining = limiter.getTokens(userId);
+    config: (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]
+  ): Promise<void> {
+    const result = await checkRateLimitAsync(userId, config);
+    if (!result.allowed) {
       throw new Error(
-        `Rate limit exceeded for ${operationType}. ` +
-          `Please wait before trying again. Remaining: ${remaining}`
+        `Rate limit exceeded for ${config.actionType}. ` +
+          `Retry after ${result.retryAfter ?? 60}s. Remaining: ${result.remaining ?? 0}`
       );
     }
+  }
+
+  /**
+   * Validates and sanitizes user-provided content.
+   * Uses existing @babylon/shared utilities for consistency.
+   *
+   * @param content - The content to validate
+   * @param context - Context for error messages (e.g., 'Post content', 'Comment')
+   * @returns Sanitized content string
+   * @throws Error if content fails validation
+   */
+  private validateUserContent(content: unknown, context: string): string {
+    // Step 1: Structural validation (type, empty check, length limit)
+    ContentValidator.validatePostContent(content, context);
+
+    // Step 2: Sanitize (remove null bytes, control characters)
+    const sanitized = ContentValidator.sanitizeContent(content);
+
+    // Step 3: Safety check (profanity, injection, spam)
+    const safetyCheck = checkUserInput(sanitized);
+    if (!safetyCheck.safe) {
+      throw new Error(`${context}: ${safetyCheck.reason}`);
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Validates pagination parameters (offset/limit) for list operations.
+   * Uses Zod schema with coercion for flexible input handling.
+   *
+   * @param offset - The offset value (can be string or number)
+   * @param limit - The limit value (can be string or number)
+   * @returns Validated pagination params with defaults applied
+   * @throws Error if pagination params are invalid
+   */
+  private validatePaginationParams(
+    offset: unknown,
+    limit: unknown
+  ): OffsetPaginationParams {
+    const result = OffsetPaginationSchema.safeParse({ offset, limit });
+
+    if (!result.success) {
+      throw new Error(
+        `Pagination error: ${result.error.issues[0]?.message ?? 'Invalid params'}`
+      );
+    }
+
+    return result.data;
   }
 
   /**
@@ -628,11 +672,8 @@ export class BabylonAgentExecutor implements AgentExecutor {
     params: Record<string, JsonValue>,
     context: RequestContext
   ) {
-    const content =
-      typeof params.content === 'string' ? params.content.trim() : '';
-    if (!content) {
-      throw new Error('content is required');
-    }
+    // Validate and sanitize content (checks type, length, profanity, injection)
+    const content = this.validateUserContent(params.content, 'Post content');
 
     const post = await db.post.create({
       data: {
@@ -901,10 +942,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const postId = String(params.postId ?? '');
-    const content = String(params.content ?? '').trim();
+    // Validate and sanitize content (checks type, length, profanity, injection)
+    const content = this.validateUserContent(params.content, 'Comment');
 
     if (!postId) throw new Error('postId is required');
-    if (!content) throw new Error('content is required');
 
     const userId = context.contextId || context.taskId;
 
@@ -1259,10 +1300,14 @@ export class BabylonAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const userId =
       String(params.userId ?? '') || context.contextId || context.taskId;
-    const limit = this.parsePositiveInt(params.limit, 50, 100);
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     const follows = await db.follow.findMany({
       where: { followingId: userId },
+      skip: offset,
       take: limit,
       orderBy: { createdAt: 'desc' },
       select: { followerId: true },
@@ -1301,10 +1346,14 @@ export class BabylonAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const userId =
       String(params.userId ?? '') || context.contextId || context.taskId;
-    const limit = this.parsePositiveInt(params.limit, 50, 100);
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     const follows = await db.follow.findMany({
       where: { followerId: userId },
+      skip: offset,
       take: limit,
       orderBy: { createdAt: 'desc' },
       select: { followingId: true },
@@ -1455,7 +1504,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const userId = context.contextId || context.taskId;
 
     // Rate limit check for trading operations
-    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+    await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.BUY_PREDICTION);
 
     const marketId = String(params.marketId ?? '');
     const outcome = String(params.outcome ?? '').toUpperCase();
@@ -1503,7 +1552,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const userId = context.contextId || context.taskId;
 
     // Rate limit check for trading operations
-    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+    await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.SELL_PREDICTION);
 
     const positionId = String(params.positionId ?? '');
     const shares = Number(params.shares ?? 0);
@@ -1556,7 +1605,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const userId = context.contextId || context.taskId;
 
     // Rate limit check for trading operations
-    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+    await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.OPEN_POSITION);
 
     const ticker = String(params.ticker ?? '');
     const sideParam = String(params.side ?? '').toLowerCase();
@@ -1606,7 +1655,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const userId = context.contextId || context.taskId;
 
     // Rate limit check for trading operations
-    this.checkRateLimit(this.tradingRateLimiter, userId, 'trading operations');
+    await this.checkRateLimit(userId, RATE_LIMIT_CONFIGS.CLOSE_POSITION);
 
     const positionId = String(params.positionId ?? '');
 
@@ -1650,8 +1699,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     url.searchParams.set('limit', limit.toString());
 
     const controller = new AbortController();
-    const timeoutMs = 30000; // 30 second timeout
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT_MS);
 
     let response: Response;
     try {
@@ -1661,7 +1709,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       clearTimeout(timer);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
-          `Request to fetch trades timed out after ${timeoutMs}ms`
+          `Request to fetch trades timed out after ${DEFAULT_FETCH_TIMEOUT_MS}ms`
         );
       }
       throw error;
@@ -1783,8 +1831,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
     const chatId = String(params.chatId ?? '');
-    const limit = this.parsePositiveInt(params.limit, 50, 100);
-    const offset = this.parsePositiveInt(params.offset, 0, 10000);
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     if (!chatId) throw new Error('chatId is required');
 
@@ -1826,10 +1876,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
     const chatId = String(params.chatId ?? '');
-    const content = String(params.content ?? '').trim();
+    // Validate and sanitize content (checks type, length, profanity, injection)
+    const content = this.validateUserContent(params.content, 'Message');
 
     if (!chatId) throw new Error('chatId is required');
-    if (!content) throw new Error('content is required');
 
     // Verify user is a participant
     const participant = await db.chatParticipant.findFirst({
@@ -2262,8 +2312,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
       throw new Error('tag is required');
     }
 
-    const limit = this.parsePositiveInt(params.limit, 20, 50);
-    const offset = this.parsePositiveInt(params.offset, 0, 1000);
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     // Find the tag by name
     const tag = await db.tag.findFirst({
@@ -2688,31 +2740,36 @@ export class BabylonAgentExecutor implements AgentExecutor {
       return { success: false, message: 'User is already blocked' };
     }
 
-    // Create block
-    const block = await db.userBlock.create({
-      data: {
-        id: await generateSnowflakeId(),
-        blockerId: agentId,
-        blockedId: targetUserId,
-        reason: reason || null,
-      },
-    });
+    // Use transaction to ensure block creation and follow deletions are atomic
+    const block = await db.$transaction(async (tx) => {
+      // Create block
+      const newBlock = await tx.userBlock.create({
+        data: {
+          id: await generateSnowflakeId(),
+          blockerId: agentId,
+          blockedId: targetUserId,
+          reason: reason || null,
+        },
+      });
 
-    // Unfollow if following (bidirectional - delete both directions)
-    await Promise.all([
-      db.follow.deleteMany({
-        where: {
-          followerId: agentId,
-          followingId: targetUserId,
-        },
-      }),
-      db.follow.deleteMany({
-        where: {
-          followerId: targetUserId,
-          followingId: agentId,
-        },
-      }),
-    ]);
+      // Unfollow if following (bidirectional - delete both directions)
+      await Promise.all([
+        tx.follow.deleteMany({
+          where: {
+            followerId: agentId,
+            followingId: targetUserId,
+          },
+        }),
+        tx.follow.deleteMany({
+          where: {
+            followerId: targetUserId,
+            followingId: agentId,
+          },
+        }),
+      ]);
+
+      return newBlock;
+    });
 
     return { success: true, message: 'User blocked successfully', block };
   }
@@ -2901,8 +2958,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
-    const limit = params.limit ? Number(params.limit) : 20;
-    const offset = params.offset ? Number(params.offset) : 0;
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     // Fetch blocks without include (Drizzle custom client has issues with include)
     const [blocksRaw, total] = await Promise.all([
@@ -2963,8 +3022,10 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const agentId = context.contextId || context.taskId;
-    const limit = params.limit ? Number(params.limit) : 20;
-    const offset = params.offset ? Number(params.offset) : 0;
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     // Fetch mutes without include (Drizzle custom client has issues with include)
     const [mutesRaw, total] = await Promise.all([
@@ -3148,10 +3209,14 @@ export class BabylonAgentExecutor implements AgentExecutor {
     context: RequestContext
   ): Promise<ExecutorOperationResult> {
     const userId = context.contextId || context.taskId;
-    const limit = this.parsePositiveInt(params.limit, 20, 100);
+    const { offset, limit } = this.validatePaginationParams(
+      params.offset,
+      params.limit
+    );
 
     const referrals = await db.user.findMany({
       where: { referredBy: userId },
+      skip: offset,
       take: limit,
       orderBy: { createdAt: 'desc' },
       select: {
@@ -3410,11 +3475,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
     const senderId = context.contextId || context.taskId;
 
     // Rate limit check for transfer operations (stricter limit)
-    this.checkRateLimit(
-      this.transferRateLimiter,
-      senderId,
-      'points transfer operations'
-    );
+    await this.checkRateLimit(senderId, RATE_LIMIT_CONFIGS.A2A_TRANSFER_OPS);
 
     const recipientId = String(params.recipientId ?? params.userId ?? '');
     const amount = Number(params.amount ?? 0);
@@ -3492,8 +3553,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
 
     const baseUrl = getAPIBaseUrl();
     const controller = new AbortController();
-    const timeoutMs = 30000; // 30 second timeout
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT_MS);
 
     try {
       const response = await fetch(
@@ -3512,7 +3572,7 @@ export class BabylonAgentExecutor implements AgentExecutor {
       clearTimeout(timer);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
-          `Request to get market data timed out after ${timeoutMs}ms`
+          `Request to get market data timed out after ${DEFAULT_FETCH_TIMEOUT_MS}ms`
         );
       }
       throw error;
