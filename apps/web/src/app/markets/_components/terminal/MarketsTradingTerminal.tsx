@@ -580,7 +580,12 @@ export function MarketsTradingTerminal({
 
       openMobilePanel(tab);
     },
-    [openMobilePanel, isMobilePanelOpen, isMobileMarketListOpen, isMobileTradeSheetOpen]
+    [
+      openMobilePanel,
+      isMobilePanelOpen,
+      isMobileMarketListOpen,
+      isMobileTradeSheetOpen,
+    ]
   );
 
   // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
