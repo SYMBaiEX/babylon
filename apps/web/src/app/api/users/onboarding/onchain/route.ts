@@ -90,6 +90,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     | OnchainRequestBody
     | Record<string, JsonValue>;
 
+  if (!userJwt) {
+    throw new BusinessLogicError(
+      'Authentication required. Missing Privy access token.',
+      'AUTH_REQUIRED'
+    );
+  }
+
   const txHash =
     typeof (body as OnchainRequestBody).txHash === 'string'
       ? (body as OnchainRequestBody).txHash?.trim() || null

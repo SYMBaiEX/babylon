@@ -13,6 +13,17 @@ export type SendSponsoredEvmTransactionInput = {
   chainId?: number;
 };
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const json = Buffer.from(parts[1] ?? '', 'base64url').toString('utf8');
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendSponsoredEvmTransaction({
   userJwt,
   walletId,
@@ -22,6 +33,26 @@ export async function sendSponsoredEvmTransaction({
   caip2 = `eip155:${CHAIN.id}`,
   chainId = CHAIN.id,
 }: SendSponsoredEvmTransactionInput): Promise<{ hash: Hex; caip2: string }> {
+  const payload = decodeJwtPayload(userJwt);
+  if (!payload) {
+    throw new Error(
+      'Invalid Privy user JWT format. Ensure you are passing a Privy access token (JWT).'
+    );
+  }
+
+  const tokenAud = payload.aud;
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (typeof appId === 'string') {
+    const audMatches =
+      tokenAud === appId ||
+      (Array.isArray(tokenAud) && tokenAud.includes(appId));
+    if (!audMatches) {
+      throw new Error(
+        'Privy token audience mismatch. Ensure NEXT_PUBLIC_PRIVY_APP_ID matches the token issuer app.'
+      );
+    }
+  }
+
   const privy = getPrivyNodeClient();
 
   const authorizationContext: AuthorizationContext = {
