@@ -216,6 +216,8 @@ export default function TeamChatPage() {
     if (!bottomPanelEntityId && user?.id) {
       setBottomPanelEntityId(user.id);
       setBottomPanelEntityType('user');
+      // Set default tab to 'wallet' for user (activity/logs not available)
+      setBottomPanelTab('wallet');
       return;
     }
 
@@ -228,6 +230,8 @@ export default function TeamChatPage() {
         if (user?.id) {
           setBottomPanelEntityId(user.id);
           setBottomPanelEntityType('user');
+          // Set default tab to 'wallet' for user (activity/logs not available)
+          setBottomPanelTab('wallet');
         } else {
           setBottomPanelEntityId(null);
           setBottomPanelEntityType(null);
@@ -241,9 +245,12 @@ export default function TeamChatPage() {
     (id: string, type: EntityType) => {
       setBottomPanelEntityId(id);
       setBottomPanelEntityType(type);
-      // If switching to user and on logs tab, switch to activity
-      if (type === 'user' && bottomPanelTab === 'logs') {
-        setBottomPanelTab('activity');
+      // If switching to user and on logs or activity tab, switch to wallet
+      if (
+        type === 'user' &&
+        (bottomPanelTab === 'logs' || bottomPanelTab === 'activity')
+      ) {
+        setBottomPanelTab('wallet');
       }
     },
     [bottomPanelTab]
@@ -709,19 +716,10 @@ export default function TeamChatPage() {
       >
         {bottomPanelEntityId && bottomPanelEntityType && (
           <>
-            {/* Activity Tab */}
-            {bottomPanelTab === 'activity' && (
-              <div className="p-4">
-                {bottomPanelEntityType === 'user' ? (
-                  // User: Show aggregate activity from all agents
-                  <AgentActivityFeed
-                    limit={20}
-                    showAgent={true}
-                    showConnectionStatus={false}
-                    emptyMessage="No agent activity yet. Your agents' trades, posts, and comments will appear here."
-                  />
-                ) : (
-                  // Agent: Show single agent activity
+            {/* Activity Tab - only for agents */}
+            {bottomPanelTab === 'activity' &&
+              bottomPanelEntityType === 'agent' && (
+                <div className="p-4">
                   <AgentActivityFeed
                     agentId={bottomPanelEntityId}
                     limit={20}
@@ -729,9 +727,8 @@ export default function TeamChatPage() {
                     showConnectionStatus={false}
                     emptyMessage="No activity from this agent yet."
                   />
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
             {/* Wallet Tab */}
             {bottomPanelTab === 'wallet' &&

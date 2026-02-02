@@ -2,10 +2,11 @@
 
 import { cn, logger } from '@babylon/shared';
 import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
-import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   usePerpPositions,
   usePredictionPositions,
@@ -128,7 +129,7 @@ export function AgentPnL(props: AgentPnLProps) {
   return <AgentPnLView agentId={props.agentId} entityName={entityName} />;
 }
 
-/** User P&L view - uses usePortfolioPnL and userPositionsStore */
+/** User P&L view - shows only user's personal positions (excludes agents) */
 function UserPnL({
   userId,
   entityName,
@@ -136,24 +137,29 @@ function UserPnL({
   userId: string;
   entityName: string;
 }) {
+  const router = useRouter();
   const [expandedSections, setExpandedSections] = useState<
     Set<'predictions' | 'perps'>
   >(new Set(['predictions', 'perps']));
 
-  // Fetch user portfolio data
-  const { data: portfolioData, loading: portfolioLoading } = usePortfolioPnL();
+  // Fetch user wallet balance (personal only, excludes agents)
+  const {
+    balance,
+    lifetimePnL,
+    loading: balanceLoading,
+  } = useWalletBalance(userId);
 
-  // Fetch user positions
+  // Fetch user positions (personal only)
   const { positions: perpsData, loading: perpsLoading } =
     usePerpPositions(userId);
   const { positions: predictionsData, loading: predictionsLoading } =
     usePredictionPositions(userId);
 
-  const loading = portfolioLoading || perpsLoading || predictionsLoading;
+  const loading = balanceLoading || perpsLoading || predictionsLoading;
 
-  // Ensure arrays even if data is undefined
-  const perps = perpsData ?? [];
-  const predictions = predictionsData ?? [];
+  // Filter to only user's personal positions (exclude agent positions)
+  const perps = (perpsData ?? []).filter((p) => !p.isAgentPosition);
+  const predictions = (predictionsData ?? []).filter((p) => !p.isAgentPosition);
 
   const toggleSection = useCallback((section: 'predictions' | 'perps') => {
     setExpandedSections((prev) => {
@@ -175,22 +181,26 @@ function UserPnL({
     );
   }
 
-  const totalPnL = portfolioData?.totalPnL ?? 0;
-  const isProfitable = totalPnL >= 0;
-  const totalAssets = portfolioData?.totalAssets ?? 0;
-  const positionsValue = portfolioData?.positions ?? 0;
-
-  // Calculate unrealized P&L from positions
+  // Calculate unrealized P&L from user's own positions only
   let unrealizedPnL = 0;
+  let positionsValue = 0;
   for (const pos of predictions) {
     const unrealized = Number(pos.unrealizedPnL);
     if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
+    const currentVal = Number(pos.currentValue);
+    if (Number.isFinite(currentVal)) positionsValue += currentVal;
   }
   for (const pos of perps) {
     const unrealized = Number(pos.unrealizedPnL);
     if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
+    const size = Number(pos.size);
+    if (Number.isFinite(size)) positionsValue += size;
   }
-  const realizedPnL = totalPnL - unrealizedPnL;
+
+  // Total P&L = realized (lifetime) + unrealized (from positions)
+  const totalPnL = lifetimePnL + unrealizedPnL;
+  const isProfitable = totalPnL >= 0;
+  const realizedPnL = lifetimePnL;
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -268,12 +278,8 @@ function UserPnL({
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">
-              Total Assets
-            </div>
-            <div className="font-semibold text-sm">
-              {totalAssets.toFixed(0)}
-            </div>
+            <div className="text-[10px] text-muted-foreground">Balance</div>
+            <div className="font-semibold text-sm">{balance.toFixed(0)}</div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Positions</div>
@@ -312,9 +318,13 @@ function UserPnL({
               >
                 <div className="space-y-1">
                   {predictions.map((pos) => (
-                    <div
+                    <button
+                      type="button"
                       key={pos.id}
-                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                      onClick={() =>
+                        router.push(`/markets/predictions/${pos.marketId}`)
+                      }
+                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium">
@@ -324,12 +334,12 @@ function UserPnL({
                           <span
                             className={cn(
                               'font-medium',
-                              pos.side === 'yes'
+                              pos.side === 'YES'
                                 ? 'text-green-600'
                                 : 'text-red-600'
                             )}
                           >
-                            {pos.side.toUpperCase()}
+                            {pos.side}
                           </span>
                           <span>{Number(pos.shares).toFixed(2)} shares</span>
                         </div>
@@ -347,7 +357,7 @@ function UserPnL({
                           {Number(pos.unrealizedPnL).toFixed(2)}
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CollapsibleSection>
@@ -363,9 +373,13 @@ function UserPnL({
               >
                 <div className="space-y-1">
                   {perps.map((pos) => (
-                    <div
+                    <button
+                      type="button"
                       key={pos.id}
-                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                      onClick={() =>
+                        router.push(`/markets/perps/${pos.ticker}`)
+                      }
+                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="font-medium">{pos.ticker}</div>
@@ -399,7 +413,7 @@ function UserPnL({
                           {Number(pos.unrealizedPnL).toFixed(2)}
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CollapsibleSection>
@@ -419,6 +433,7 @@ function AgentPnLView({
   agentId: string;
   entityName: string;
 }) {
+  const router = useRouter();
   const { getAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<
@@ -662,9 +677,13 @@ function AgentPnLView({
               >
                 <div className="space-y-1">
                   {predictions.map((pos) => (
-                    <div
+                    <button
+                      type="button"
                       key={pos.id}
-                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                      onClick={() =>
+                        router.push(`/markets/predictions/${pos.marketId}`)
+                      }
+                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium">
@@ -674,12 +693,12 @@ function AgentPnLView({
                           <span
                             className={cn(
                               'font-medium',
-                              pos.side === 'yes'
+                              pos.side === 'YES'
                                 ? 'text-green-600'
                                 : 'text-red-600'
                             )}
                           >
-                            {pos.side.toUpperCase()}
+                            {pos.side}
                           </span>
                           <span>{pos.shares.toFixed(2)} shares</span>
                         </div>
@@ -697,7 +716,7 @@ function AgentPnLView({
                           {pos.unrealizedPnL.toFixed(2)}
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CollapsibleSection>
@@ -713,9 +732,13 @@ function AgentPnLView({
               >
                 <div className="space-y-1">
                   {perps.map((pos) => (
-                    <div
+                    <button
+                      type="button"
                       key={pos.id}
-                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                      onClick={() =>
+                        router.push(`/markets/perps/${pos.ticker}`)
+                      }
+                      className="flex w-full items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="font-medium">{pos.ticker}</div>
@@ -749,7 +772,7 @@ function AgentPnLView({
                           {pos.unrealizedPnL.toFixed(2)}
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CollapsibleSection>

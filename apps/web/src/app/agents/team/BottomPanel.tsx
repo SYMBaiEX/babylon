@@ -44,6 +44,8 @@ interface BottomPanelProps {
 /**
  * Bottom panel with tabs for Activity, Wallet, PnL, and Logs.
  * Supports viewing both user and agent data.
+ * - Agent: Shows all 4 tabs (Activity, Wallet, PnL, Logs)
+ * - User: Shows only Wallet and PnL tabs
  * Spans full width, collapsible, and resizable.
  */
 export function BottomPanel({
@@ -105,9 +107,9 @@ export function BottomPanel({
     { id: 'pnl', label: 'PnL' },
     { id: 'logs', label: 'Logs' },
   ];
-  // Hide Logs tab for user
+  // Hide Logs and Activity tabs for user
   const tabs = isUserSelected
-    ? allTabs.filter((t) => t.id !== 'logs')
+    ? allTabs.filter((t) => t.id !== 'logs' && t.id !== 'activity')
     : allTabs;
 
   // Handle tab click - if clicking active tab while open, collapse

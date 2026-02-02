@@ -126,14 +126,6 @@ function UserWallet({
         </div>
         <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
       </div>
-
-      {/* Info Card */}
-      <div className="rounded-lg border border-border bg-card/50 p-4">
-        <p className="text-muted-foreground text-sm">
-          This is your personal wallet balance. To fund your agents, select an
-          agent from the dropdown above and use the Transfer section.
-        </p>
-      </div>
     </div>
   );
 }
