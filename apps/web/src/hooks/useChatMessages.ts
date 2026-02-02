@@ -427,7 +427,16 @@ export function useChatMessages(chatId: string | null) {
   }, [isConnected, chatId]);
 
   const addMessage = useCallback((message: ChatMessage) => {
-    setMessages((prev) => replaceOptimisticMessage(prev, message));
+    // Optimistic/thinking messages should be appended directly without replacement logic
+    // Only confirmed messages (from SSE) should go through replacement to match their optimistic
+    if (
+      message.id.startsWith('pending-') ||
+      message.id.startsWith('thinking-')
+    ) {
+      setMessages((prev) => [...prev, message]);
+    } else {
+      setMessages((prev) => replaceOptimisticMessage(prev, message));
+    }
   }, []);
 
   const updateMessage = useCallback(
