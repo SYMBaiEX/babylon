@@ -1391,8 +1391,12 @@ function createDiscourseActionDeck(
  * Algorithm:
  * 1. Build result array one element at a time
  * 2. For each position, find candidates that differ from the last selected item
- * 3. Pick randomly from valid candidates
- * 4. If no valid candidates (edge case with many same items), fall back to any remaining
+ * 3. Apply safety check: only pick candidates whose removal keeps a valid ordering possible
+ * 4. Pick randomly from safe candidates (fall back to valid, then any if needed)
+ *
+ * Dead-end prevention: Before selecting a candidate, we verify that removing it
+ * won't make the remaining items impossible to arrange without consecutive duplicates.
+ * A valid arrangement requires maxCount <= ceil(length / 2).
  *
  * @param arr Array to shuffle
  * @param random RNG function
@@ -1402,6 +1406,12 @@ function shuffleWithNoConsecutive<T>(arr: T[], random: () => number): T[] {
 
   const result: T[] = [];
   const remaining = [...arr];
+
+  // Track counts of each value for efficient dead-end detection
+  const countByValue = new Map<T, number>();
+  for (const item of remaining) {
+    countByValue.set(item, (countByValue.get(item) ?? 0) + 1);
+  }
 
   while (remaining.length > 0) {
     const lastItem = result[result.length - 1];
@@ -1414,13 +1424,39 @@ function shuffleWithNoConsecutive<T>(arr: T[], random: () => number): T[] {
       }
     }
 
-    // If no valid candidates (edge case), fall back to any remaining
+    // Filter to safe candidates: those whose removal keeps ordering possible
+    // A valid non-consecutive ordering requires maxCount <= ceil(length / 2)
+    const safeCandidates = validIndices.filter((idx) => {
+      const value = remaining[idx];
+      const newLength = remaining.length - 1;
+      if (newLength === 0) return true; // Last item, always safe
+
+      // Simulate removal: find max count after removing this value
+      let maxCountAfter = 0;
+      for (const [v, count] of countByValue) {
+        const newCount = v === value ? count - 1 : count;
+        if (newCount > maxCountAfter) maxCountAfter = newCount;
+      }
+
+      // Safe if max count <= ceil(newLength / 2)
+      return maxCountAfter <= Math.ceil(newLength / 2);
+    });
+
+    // Use safe candidates if any, otherwise fall back to valid, then any
     const candidates =
-      validIndices.length > 0 ? validIndices : remaining.map((_, idx) => idx);
+      safeCandidates.length > 0
+        ? safeCandidates
+        : validIndices.length > 0
+          ? validIndices
+          : remaining.map((_, idx) => idx);
 
     // Pick random from candidates
     const pickIdx = candidates[Math.floor(random() * candidates.length)]!;
-    result.push(remaining[pickIdx]!);
+    const pickedValue = remaining[pickIdx]!;
+    result.push(pickedValue);
+
+    // Update counts and remaining array
+    countByValue.set(pickedValue, (countByValue.get(pickedValue) ?? 1) - 1);
     remaining.splice(pickIdx, 1);
   }
 
@@ -1599,8 +1635,7 @@ export async function generateNPCRepliesFromPreviousTicks(
   const actionAssignments = postActionAssignments.map((assignment) => ({
     ...assignment,
     shouldQuote:
-      assignment.isOriginalPost &&
-      quoteDeck[quoteDeckIndex++] === 'quote',
+      assignment.isOriginalPost && quoteDeck[quoteDeckIndex++] === 'quote',
   }));
 
   const quoteCount = quoteDeck.filter((a) => a === 'quote').length;
@@ -1642,49 +1677,50 @@ export async function generateNPCRepliesFromPreviousTicks(
         availableEngagers[Math.floor(random() * availableEngagers.length)];
       if (!engager) return { type: 'none' as const, success: false };
 
-    // Get staggered timestamp for this action (or use base timestamp)
-    const actionTimestamp = options.getTimestamp?.() ?? timestamp;
+      // Get staggered timestamp for this action (or use base timestamp)
+      const actionTimestamp = options.getTimestamp?.() ?? timestamp;
 
-    let success = false;
-    if (shouldQuote) {
-      success = await generateNPCQuotePost(
-        llmClient,
-        engager,
-        originalPost,
-        worldFactsContext,
-        actionTimestamp,
-        currentDay
-      );
-    } else {
-      success = await generateNPCReplyToPost(
-        llmClient,
-        engager,
-        originalPost,
-        worldFactsContext,
-        actionTimestamp,
-        currentDay
-      );
+      let success = false;
+      if (shouldQuote) {
+        success = await generateNPCQuotePost(
+          llmClient,
+          engager,
+          originalPost,
+          worldFactsContext,
+          actionTimestamp,
+          currentDay
+        );
+      } else {
+        success = await generateNPCReplyToPost(
+          llmClient,
+          engager,
+          originalPost,
+          worldFactsContext,
+          actionTimestamp,
+          currentDay
+        );
+      }
+
+      // Record interaction for cooldown tracking if successful
+      if (success) {
+        recordNPCInteraction(engager.id, originalPost.authorId);
+        logger.debug(
+          'Recorded NPC interaction for cooldown',
+          {
+            replier: engager.name,
+            target: originalPost.authorName,
+            type: shouldQuote ? 'quote' : 'reply',
+          },
+          'PostGeneration'
+        );
+      }
+
+      return {
+        type: shouldQuote ? ('quote' as const) : ('reply' as const),
+        success,
+      };
     }
-
-    // Record interaction for cooldown tracking if successful
-    if (success) {
-      recordNPCInteraction(engager.id, originalPost.authorId);
-      logger.debug(
-        'Recorded NPC interaction for cooldown',
-        {
-          replier: engager.name,
-          target: originalPost.authorName,
-          type: shouldQuote ? 'quote' : 'reply',
-        },
-        'PostGeneration'
-      );
-    }
-
-    return {
-      type: shouldQuote ? ('quote' as const) : ('reply' as const),
-      success,
-    };
-  });
+  );
 
   const results = await Promise.allSettled(discoursePromises);
 

@@ -23,12 +23,22 @@ import { describe, expect, test } from 'bun:test';
 /**
  * Fisher-Yates shuffle with constraint: no consecutive same values.
  * This is a copy of the function from post-generation-helpers.ts for testing.
+ *
+ * Includes dead-end prevention: before selecting a candidate, we verify that
+ * removing it won't make the remaining items impossible to arrange without
+ * consecutive duplicates (maxCount <= ceil(length / 2)).
  */
 function shuffleWithNoConsecutive<T>(arr: T[], random: () => number): T[] {
   if (arr.length <= 1) return [...arr];
 
   const result: T[] = [];
   const remaining = [...arr];
+
+  // Track counts of each value for efficient dead-end detection
+  const countByValue = new Map<T, number>();
+  for (const item of remaining) {
+    countByValue.set(item, (countByValue.get(item) ?? 0) + 1);
+  }
 
   while (remaining.length > 0) {
     const lastItem = result[result.length - 1];
@@ -41,13 +51,36 @@ function shuffleWithNoConsecutive<T>(arr: T[], random: () => number): T[] {
       }
     }
 
-    // If no valid candidates (edge case), fall back to any remaining
+    // Filter to safe candidates: those whose removal keeps ordering possible
+    const safeCandidates = validIndices.filter((idx) => {
+      const value = remaining[idx];
+      const newLength = remaining.length - 1;
+      if (newLength === 0) return true;
+
+      let maxCountAfter = 0;
+      for (const [v, count] of countByValue) {
+        const newCount = v === value ? count - 1 : count;
+        if (newCount > maxCountAfter) maxCountAfter = newCount;
+      }
+
+      return maxCountAfter <= Math.ceil(newLength / 2);
+    });
+
+    // Use safe candidates if any, otherwise fall back to valid, then any
     const candidates =
-      validIndices.length > 0 ? validIndices : remaining.map((_, idx) => idx);
+      safeCandidates.length > 0
+        ? safeCandidates
+        : validIndices.length > 0
+          ? validIndices
+          : remaining.map((_, idx) => idx);
 
     // Pick random from candidates
     const pickIdx = candidates[Math.floor(random() * candidates.length)]!;
-    result.push(remaining[pickIdx]!);
+    const pickedValue = remaining[pickIdx]!;
+    result.push(pickedValue);
+
+    // Update counts and remaining array
+    countByValue.set(pickedValue, (countByValue.get(pickedValue) ?? 1) - 1);
     remaining.splice(pickIdx, 1);
   }
 
@@ -198,6 +231,66 @@ describe('shuffleWithNoConsecutive', () => {
     const result2 = shuffleWithNoConsecutive(input, createSeededRandom(123));
 
     expect(result1).toEqual(result2);
+  });
+
+  // Dead-end prevention tests
+  test('prevents dead-ends with 3a-2b distribution (solvable)', () => {
+    // 3 'a' and 2 'b' - this IS solvable: a-b-a-b-a
+    // The safety check should prevent picking both 'b' values early
+    for (const seed of [1, 2, 3, 4, 5, 10, 20, 50, 100]) {
+      const random = createSeededRandom(seed);
+      const input = ['a', 'a', 'a', 'b', 'b'];
+      const result = shuffleWithNoConsecutive(input, random);
+
+      // Should have no consecutive same values
+      for (let i = 1; i < result.length; i++) {
+        expect(result[i]).not.toBe(result[i - 1]);
+      }
+    }
+  });
+
+  test('handles 4a-1b distribution (impossible) gracefully', () => {
+    // 4 'a' and 1 'b' - impossible to fully satisfy (max 3 non-consecutive)
+    const random = createSeededRandom(42);
+    const input = ['a', 'a', 'a', 'a', 'b'];
+    const result = shuffleWithNoConsecutive(input, random);
+
+    // Should preserve all elements
+    expect(result.length).toBe(5);
+    expect(result.filter((x) => x === 'a').length).toBe(4);
+    expect(result.filter((x) => x === 'b').length).toBe(1);
+
+    // Should still include the 'b'
+    expect(result).toContain('b');
+  });
+
+  test('handles 5a-2b distribution (solvable)', () => {
+    // 5 'a' and 2 'b' - NOT solvable: max interleaving is a-b-a-b-a-a-a
+    // But wait: 5 + 2 = 7, ceil(7/2) = 4, and max count is 5 > 4, so NOT solvable
+    // Actually let's check: a-b-a-b-a-a-a has consecutive 'a's at the end
+    const random = createSeededRandom(42);
+    const input = ['a', 'a', 'a', 'a', 'a', 'b', 'b'];
+    const result = shuffleWithNoConsecutive(input, random);
+
+    // Should preserve all elements
+    expect(result.length).toBe(7);
+    expect(result.filter((x) => x === 'a').length).toBe(5);
+    expect(result.filter((x) => x === 'b').length).toBe(2);
+  });
+
+  test('handles 4a-3b distribution (solvable)', () => {
+    // 4 'a' and 3 'b' - this IS solvable: a-b-a-b-a-b-a
+    // 7 items, ceil(7/2) = 4, max count is 4 = 4, so solvable
+    for (const seed of [1, 5, 10, 42, 100]) {
+      const random = createSeededRandom(seed);
+      const input = ['a', 'a', 'a', 'a', 'b', 'b', 'b'];
+      const result = shuffleWithNoConsecutive(input, random);
+
+      // Should have no consecutive same values
+      for (let i = 1; i < result.length; i++) {
+        expect(result[i]).not.toBe(result[i - 1]);
+      }
+    }
   });
 });
 
