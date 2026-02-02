@@ -41,14 +41,14 @@ export async function sendSponsoredEvmTransaction({
   }
 
   const tokenAud = payload.aud;
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const appId = process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   if (typeof appId === 'string') {
     const audMatches =
       tokenAud === appId ||
       (Array.isArray(tokenAud) && tokenAud.includes(appId));
     if (!audMatches) {
       throw new Error(
-        'Privy token audience mismatch. Ensure NEXT_PUBLIC_PRIVY_APP_ID matches the token issuer app.'
+        'Privy token audience mismatch. Ensure PRIVY_APP_ID / NEXT_PUBLIC_PRIVY_APP_ID matches the token issuer app.'
       );
     }
   }

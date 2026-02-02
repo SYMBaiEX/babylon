@@ -387,6 +387,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
   const privyId = authUser.privyId ?? authUser.userId;
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
+  const clientEmbeddedWalletAddressRaw =
+    request.headers.get('x-embedded-wallet-address');
+  const clientEmbeddedWalletAddress =
+    typeof clientEmbeddedWalletAddressRaw === 'string' &&
+    /^0x[a-fA-F0-9]{40}$/.test(clientEmbeddedWalletAddressRaw.trim())
+      ? clientEmbeddedWalletAddressRaw.trim().toLowerCase()
+      : null;
 
   // Extract referralCode from query params (passed from frontend)
   const { searchParams } = new URL(request.url);
@@ -785,18 +792,42 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Failed to create or find user record');
   }
 
-  // Backfill embedded wallet info (address + wallet id) if missing.
-  if (!dbUser.walletAddress || !dbUser.privyWalletId) {
+  // Backfill/sync embedded wallet info (address + wallet id).
+  // - Missing values: backfill.
+  // - Mismatch vs client's embedded wallet address: resync (e.g. after user deletion / session relink).
+  const dbWalletLower = dbUser.walletAddress?.toLowerCase() ?? null;
+  const shouldBackfillWallet = !dbWalletLower || !dbUser.privyWalletId;
+  const shouldResyncWallet =
+    !!clientEmbeddedWalletAddress &&
+    clientEmbeddedWalletAddress !== dbWalletLower;
+
+  if (shouldBackfillWallet || shouldResyncWallet) {
     const { privyWalletId, embeddedWalletAddress } =
       await resolveEmbeddedWallet(privyId);
 
-    if (privyWalletId || embeddedWalletAddress) {
+    const resolvedAddress = embeddedWalletAddress?.toLowerCase() ?? null;
+
+    if (shouldResyncWallet && resolvedAddress) {
+      if (resolvedAddress !== clientEmbeddedWalletAddress) {
+        logger.warn(
+          'Client embedded wallet address mismatch; using Privy embedded wallet address',
+          {
+            userId: dbUser.id,
+            dbWalletAddress: dbUser.walletAddress,
+            clientEmbeddedWalletAddress,
+            privyEmbeddedWalletAddress: resolvedAddress,
+          },
+          'GET /api/users/me'
+        );
+      }
+    }
+
+    if (privyWalletId || resolvedAddress) {
       const [updated] = await db
         .update(users)
         .set({
           privyWalletId: privyWalletId ?? dbUser.privyWalletId,
-          walletAddress:
-            embeddedWalletAddress?.toLowerCase() ?? dbUser.walletAddress,
+          walletAddress: resolvedAddress ?? dbUser.walletAddress,
           updatedAt: new Date(),
         })
         .where(eq(users.id, dbUser.id))

@@ -80,10 +80,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const headerToken = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
     : undefined;
-  // Prefer the Authorization header when present, since Privy server-side wallet
-  // actions require an exchangeable user JWT (access token), and the cookie may
-  // be an auth token depending on configuration.
-  const userJwt = headerToken ?? cookieToken ?? null;
+  // Prefer the HttpOnly `privy-token` cookie when present. With Privy cookies enabled,
+  // this cookie contains the user's access token (JWT) and is the most reliable source.
+  // Fall back to the Authorization header for external clients/agents.
+  const userJwt = cookieToken ?? headerToken ?? null;
 
   const authUser = await authenticate(request);
   const body = (await request.json()) as

@@ -61,6 +61,7 @@ export function OnboardingProvider({
     needsOnboarding,
     needsOnchain,
     loadingProfile,
+    embeddedWalletReady,
     refresh,
     logout,
   } = useAuth();
@@ -697,7 +698,7 @@ export function OnboardingProvider({
   );
 
   useLayoutEffect(() => {
-    const walletReady = true;
+    const walletReady = embeddedWalletReady;
 
     if (
       stage !== 'ONCHAIN' ||
@@ -725,6 +726,7 @@ export function OnboardingProvider({
     isSubmitting,
     submitOnchain,
     onchainReferralCode,
+    embeddedWalletReady,
   ]);
 
   const handleRetryOnchain = useCallback(async () => {
@@ -759,7 +761,7 @@ export function OnboardingProvider({
         stage={stage}
         isSubmitting={isSubmitting}
         error={error}
-        isWalletReady={Boolean(user?.walletAddress)}
+        isWalletReady={embeddedWalletReady}
         onSubmitProfile={handleProfileSubmit}
         onRetryOnchain={handleRetryOnchain}
         onComplete={handleComplete}
