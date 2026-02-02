@@ -136,7 +136,7 @@ After training, push your model to HuggingFace Hub:
 
 ```bash
 # Set push configuration
-export HF_PUSH_REPO=elizaos/ishtar-qwen3-4b-grpo-v0.1
+export HF_PUSH_REPO=elizaos/ishtar-qwen2.5-3b-grpo-v0.1
 export HF_MODEL_CODENAME=ishtar
 export HF_TOKEN=your-token
 

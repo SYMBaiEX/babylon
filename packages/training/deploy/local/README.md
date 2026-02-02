@@ -42,7 +42,7 @@ cp ../env.example ../.env
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--image <image>` | Docker image | `revlentless/babylon-training:0.2.0` |
+| `--image <image>` | Docker image | `revlentless/babylon-training:latest` |
 | `--env-file <path>` | Environment file | `../deploy/.env` |
 | `--profile <profile>` | GPU profile | `12gb` |
 | `--steps <n>` | Training steps | `100` |
@@ -86,7 +86,7 @@ The script automatically mounts:
 Set these environment variables before training:
 
 ```bash
-export HF_PUSH_REPO=elizaos/ishtar-qwen3-4b-grpo-v0.1
+export HF_PUSH_REPO=elizaos/ishtar-qwen2.5-3b-grpo-v0.1
 export HF_MODEL_CODENAME=ishtar
 export HF_TOKEN=your-hf-token
 
@@ -99,17 +99,17 @@ export HF_TOKEN=your-hf-token
 After training, run benchmarks in a containerized environment:
 
 ```bash
-# Quick benchmark with trained model
-./benchmark.sh
+# Quick benchmark with trained model (base-model must match training!)
+./benchmark.sh --model gilgamesh-local-001 --base-model Qwen/Qwen2.5-0.5B-Instruct
 
 # Benchmark specific checkpoint
-./benchmark.sh --model step_500
+./benchmark.sh --model step_500 --base-model Qwen/Qwen2.5-0.5B-Instruct
 
 # Specific scenario
-./benchmark.sh --scenario bear-market
+./benchmark.sh --model gilgamesh-local-001 --scenario bear-market
 
 # Full benchmark (22-day scenarios)
-./benchmark.sh --full
+./benchmark.sh --model gilgamesh-local-001 --full
 
 # Interactive shell for debugging
 ./benchmark.sh --interactive
@@ -123,6 +123,8 @@ Benchmark results are saved to `../../benchmark-results/`.
 |--------|-------------|---------|
 | `--image <image>` | Docker image | `revlentless/babylon-benchmark:latest` |
 | `--model <name>` | Model in trained_models/ | `final_model` |
+| `--base-model <name>` | Base model for vLLM (must match training!) | `Qwen/Qwen2.5-0.5B-Instruct` |
+| `--hf-model <id>` | HuggingFace model to benchmark | - |
 | `--scenario <id>` | Specific scenario | all |
 | `--quick` | Quick mode (7-day scenarios) | default |
 | `--full` | Full mode (22-day scenarios) | - |

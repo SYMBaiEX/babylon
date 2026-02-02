@@ -25,14 +25,19 @@ python setup.py logs <pod-id>
 ### Benchmarking
 
 ```bash
-# Benchmark a HuggingFace model
-python setup.py benchmark --gpu h100 --hf-model elizaos/ishtar-v0.1 --quick
-
-# Benchmark with specific scenario
-python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --scenario bear-market
+# Benchmark a HuggingFace model (--base-model must match training!)
+python setup.py benchmark \
+  --gpu 4090 \
+  --hf-model elizaos/gilgamesh-test-3060 \
+  --base-model Qwen/Qwen2.5-0.5B-Instruct \
+  --quick
 
 # Use spot instance (cheaper)
-python setup.py benchmark --gpu 4090 --hf-model elizaos/ishtar-v0.1 --spot --community
+python setup.py benchmark \
+  --gpu 4090 \
+  --hf-model elizaos/gilgamesh-test-3060 \
+  --base-model Qwen/Qwen2.5-0.5B-Instruct \
+  --spot --community
 ```
 
 ## Usage
@@ -106,11 +111,12 @@ python setup.py logs <pod-id>
 --gpu         GPU type (required): 4090, l40s, a100, h100, h200
 --image       Docker image (required)
 --env-file    Path to .env file (recommended)
+--hf-dataset  HuggingFace dataset ID (recommended for cloud)
 --name        Pod name (default: babylon-<gpu>)
 --gpus        Number of GPUs (default: 1)
 --steps       Training steps (default: from env or 1000)
 --profile     Training profile (default: auto from GPU)
---db          DATABASE_URL (overrides env file)
+--min-agents-per-window  Min trajectories per window (default: 1)
 --wandb       WANDB_API_KEY (overrides env file)
 --hf-token    HF_TOKEN (overrides env file)
 --spot        Use spot instance (cheaper, may interrupt)
@@ -121,7 +127,8 @@ python setup.py logs <pod-id>
 
 ```
 --gpu         GPU type (required): 4090, l40s, a100, h100, h200
---hf-model    HuggingFace model ID to benchmark (e.g., elizaos/ishtar-v0.1)
+--hf-model    HuggingFace model ID to benchmark (e.g., elizaos/gilgamesh-test-3060)
+--base-model  Base model for vLLM (must match training, e.g., Qwen/Qwen2.5-0.5B-Instruct)
 --model       Path to model inside container (alternative to --hf-model)
 --image       Docker image (default: revlentless/babylon-benchmark:latest)
 --env-file    Path to .env file
@@ -139,10 +146,22 @@ Uses the master [`../env.example`](../env.example). Key variables:
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL with trajectory data |
+| `RUNPOD_API_KEY` | RunPod API access (required) |
+| `HF_TOKEN` | Private model/dataset access (required for private repos) |
 | `WANDB_API_KEY` | Experiment tracking |
-| `RUNPOD_API_KEY` | RunPod API access |
-| `HF_TOKEN` | Private model access |
+| `HF_TRAJECTORY_DATASET` | HuggingFace dataset for training data |
+
+### Data Source Note
+
+**RunPod pods often cannot reach local/private databases.** Use `--hf-dataset` to load training data from HuggingFace instead:
+
+```bash
+python setup.py train \
+  --gpu h100 \
+  --image yourorg/babylon-training:latest \
+  --env-file .env \
+  --hf-dataset elizaos/enkidu-trajectories-raw
+```
 
 ## Example Workflows
 
@@ -156,7 +175,7 @@ cd packages/training/deploy/docker
 
 # 2. Configure
 cp ../env.example .env
-# Edit .env with DATABASE_URL, WANDB_API_KEY, etc.
+# Edit .env with HF_TOKEN, WANDB_API_KEY, RUNPOD_API_KEY
 
 # 3. Deploy
 cd ../runpod
@@ -172,21 +191,24 @@ python setup.py stop <pod-id>
 ### Benchmark Workflow
 
 ```bash
-# 1. Benchmark a freshly trained model on HuggingFace
+# 1. Benchmark a trained model on HuggingFace
 python setup.py benchmark \
   --gpu 4090 \
-  --hf-model elizaos/ishtar-v0.1 \
+  --hf-model elizaos/gilgamesh-test-3060 \
+  --base-model Qwen/Qwen2.5-0.5B-Instruct \
   --quick
 
 # 2. Run full benchmark suite (all scenarios)
 python setup.py benchmark \
   --gpu h100 \
-  --hf-model elizaos/ishtar-v0.1
+  --hf-model elizaos/gilgamesh-test-h100 \
+  --base-model Qwen/Qwen2.5-14B-Instruct
 
 # 3. Run specific scenario
 python setup.py benchmark \
   --gpu 4090 \
-  --hf-model elizaos/ishtar-v0.1 \
+  --hf-model elizaos/gilgamesh-test-3060 \
+  --base-model Qwen/Qwen2.5-0.5B-Instruct \
   --scenario bear-market \
   --spot
 
