@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type BottomPanelTab = 'activity' | 'portfolio' | 'logs';
+export type BottomPanelTab = 'activity' | 'wallet' | 'pnl' | 'logs';
 
 interface AgentOption {
   id: string;
@@ -36,7 +36,7 @@ interface BottomPanelProps {
 }
 
 /**
- * Bottom panel with tabs for Activity, Portfolio, and Logs.
+ * Bottom panel with tabs for Activity, Wallet, PnL, and Logs.
  * Spans full width, collapsible, and resizable.
  */
 export function BottomPanel({
@@ -124,7 +124,8 @@ export function BottomPanel({
 
   const tabs: { id: BottomPanelTab; label: string }[] = [
     { id: 'activity', label: 'Activity' },
-    { id: 'portfolio', label: 'Wallet' },
+    { id: 'wallet', label: 'Wallet' },
+    { id: 'pnl', label: 'PnL' },
     { id: 'logs', label: 'Logs' },
   ];
 

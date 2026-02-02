@@ -60,6 +60,7 @@ import { Separator } from '@/components/shared/Separator';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
+import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
 import { AgentSettingsPanel } from './AgentSettingsPanel';
 import {
@@ -697,13 +698,29 @@ export default function TeamChatPage() {
                 />
               </div>
             )}
-            {bottomPanelTab === 'portfolio' &&
+            {bottomPanelTab === 'wallet' &&
               (() => {
                 const bottomAgent = teamChat?.agents.find(
                   (a) => a.id === bottomPanelAgentId
                 );
                 return (
                   <AgentPortfolio
+                    agentId={bottomPanelAgentId}
+                    agentName={
+                      bottomAgent?.displayName ||
+                      bottomAgent?.username ||
+                      'Agent'
+                    }
+                  />
+                );
+              })()}
+            {bottomPanelTab === 'pnl' &&
+              (() => {
+                const bottomAgent = teamChat?.agents.find(
+                  (a) => a.id === bottomPanelAgentId
+                );
+                return (
+                  <AgentPnL
                     agentId={bottomPanelAgentId}
                     agentName={
                       bottomAgent?.displayName ||

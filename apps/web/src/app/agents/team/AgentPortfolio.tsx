@@ -12,7 +12,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
-import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Transaction {
@@ -49,23 +48,14 @@ interface ErrorResponse {
   error?: string;
 }
 
-/** Response from /api/agents/[agentId] */
-interface AgentResponse {
-  agent?: {
-    totalTrades?: number;
-    profitableTrades?: number;
-    winRate?: number;
-  };
-}
-
 interface AgentPortfolioProps {
   agentId: string;
   agentName: string;
 }
 
 /**
- * Merged Portfolio component combining Performance stats + Wallet functionality.
- * Optimized for the bottom panel with a compact, horizontal layout.
+ * Wallet component for managing agent balance and transfers.
+ * Shows balance, deposit/withdraw, and transaction history.
  */
 export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   const { getAccessToken } = useAuth();
@@ -80,37 +70,9 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   const [balanceInfo, setBalanceInfo] = useState({
     agentBalance: 0,
     userBalance: 0,
-    lifetimePnL: 0,
-    totalDeposited: 0,
-    totalWithdrawn: 0,
   });
 
-  // Agent stats from API
-  const [agentStats, setAgentStats] = useState({
-    totalTrades: 0,
-    profitableTrades: 0,
-    winRate: 0,
-  });
-
-  // Use shared hook for P&L calculation
-  const {
-    realizedPnL,
-    unrealizedPnL,
-    totalPnL,
-    pointsInPositions,
-    isProfitable,
-    loading: positionsLoading,
-    predictions,
-    perps,
-  } = useAgentTotalPnL({
-    agentId,
-    availableBalance: balanceInfo.agentBalance,
-    totalDeposited: balanceInfo.totalDeposited,
-    totalWithdrawn: balanceInfo.totalWithdrawn,
-    realizedPnL: balanceInfo.lifetimePnL.toString(),
-  });
-
-  // Fetch balance, transactions, and agent stats
+  // Fetch balance and transactions
   const fetchData = useCallback(async () => {
     const token = await getAccessToken();
     if (!token) {
@@ -120,70 +82,42 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
 
     setWalletLoading(true);
 
-    // Parallelize the two independent fetches
-    const [walletRes, agentRes] = await Promise.all([
-      fetch(`/api/agents/${agentId}/trading-balance`, {
+    try {
+      const walletRes = await fetch(`/api/agents/${agentId}/trading-balance`, {
         headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`/api/agents/${agentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    ]).finally(() => {
-      setWalletLoading(false);
-    });
+      });
 
-    // Validate both responses before committing any state
-    if (!walletRes.ok) {
+      if (!walletRes.ok) {
+        logger.error(
+          'Failed to fetch wallet data',
+          { agentId, status: walletRes.status },
+          'AgentPortfolio'
+        );
+        return;
+      }
+
+      const walletData = (await walletRes.json()) as WalletResponse;
+
+      if (walletData.success) {
+        setBalanceInfo({
+          agentBalance: walletData.agentBalance.tradingBalance,
+          userBalance: walletData.userBalance,
+        });
+        setTransactions(walletData.transactions ?? []);
+      }
+    } catch (err) {
       logger.error(
         'Failed to fetch wallet data',
-        { agentId, status: walletRes.status },
+        { error: err instanceof Error ? err.message : String(err) },
         'AgentPortfolio'
       );
-      throw new Error(`Failed to fetch wallet data: ${walletRes.status}`);
-    }
-
-    if (!agentRes.ok) {
-      logger.error(
-        'Failed to fetch agent stats',
-        { agentId, status: agentRes.status },
-        'AgentPortfolio'
-      );
-      throw new Error(`Failed to fetch agent stats: ${agentRes.status}`);
-    }
-
-    // Parse both responses after validation
-    const walletData = (await walletRes.json()) as WalletResponse;
-    const agentData = (await agentRes.json()) as AgentResponse;
-
-    // Commit state only after both fetches are validated and parsed
-    if (walletData.success) {
-      setBalanceInfo({
-        agentBalance: walletData.agentBalance.tradingBalance,
-        userBalance: walletData.userBalance,
-        lifetimePnL: walletData.agentBalance.lifetimePnL,
-        totalDeposited: walletData.agentBalance.totalDeposited ?? 0,
-        totalWithdrawn: walletData.agentBalance.totalWithdrawn ?? 0,
-      });
-      setTransactions(walletData.transactions ?? []);
-    }
-
-    if (agentData.agent) {
-      setAgentStats({
-        totalTrades: agentData.agent.totalTrades ?? 0,
-        profitableTrades: agentData.agent.profitableTrades ?? 0,
-        winRate: agentData.agent.winRate ?? 0,
-      });
+    } finally {
+      setWalletLoading(false);
     }
   }, [agentId, getAccessToken]);
 
   useEffect(() => {
-    fetchData().catch((err) => {
-      logger.error(
-        'Failed to fetch portfolio data',
-        { error: err instanceof Error ? err.message : String(err) },
-        'AgentPortfolio'
-      );
-    });
+    fetchData();
   }, [fetchData]);
 
   const handleTransaction = async () => {
@@ -226,7 +160,6 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       });
 
       if (!res.ok) {
-        // Clone response to safely attempt JSON parsing first, then fallback to text
         const resClone = res.clone();
         let errorMessage = `Transaction failed (${res.status})`;
 
@@ -252,7 +185,6 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
       setAmount('');
       await fetchData();
     } catch (error) {
-      // Handle network errors and other exceptions from fetch
       const errorMessage =
         error instanceof Error ? error.message : 'Network error';
       toast.error(errorMessage);
@@ -270,143 +202,61 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      {/* Balance Card - Full width, compact */}
-      <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-3">
+    <div className="flex flex-col gap-3 p-4">
+      {/* Balance Card */}
+      <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div>
             <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
               <Wallet className="h-3.5 w-3.5" />
-              Balance
+              Agent Balance
             </div>
-            <div className="font-bold text-xl">
+            <div className="mt-1 font-bold text-2xl">
               {balanceInfo.agentBalance.toFixed(2)} pts
             </div>
           </div>
-          <span className="truncate font-medium text-foreground text-xs">
-            {agentName}
-          </span>
+          <div className="text-right">
+            <div className="text-muted-foreground text-xs">Your Balance</div>
+            <div className="mt-1 font-semibold text-lg">
+              {balanceInfo.userBalance.toFixed(2)} pts
+            </div>
+          </div>
         </div>
+        <div className="mt-2 text-muted-foreground text-xs">{agentName}</div>
       </div>
 
-      {/* P&L Summary + Quick Stats - Side by side */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* P&L Summary */}
-        <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Total P&L</span>
-            <span
-              className={cn(
-                'font-semibold',
-                isProfitable ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {positionsLoading
-                ? '...'
-                : `${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}`}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Realized</span>
-            <span
-              className={cn(
-                'font-medium',
-                realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {realizedPnL >= 0 ? '+' : ''}
-              {realizedPnL.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Unrealized</span>
-            <span
-              className={cn(
-                'font-medium',
-                unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {positionsLoading
-                ? '...'
-                : `${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toFixed(2)}`}
-            </span>
-          </div>
-          <div className="border-border border-t pt-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">In Positions</span>
-              <span className="font-medium">
-                {positionsLoading ? '...' : pointsInPositions.toFixed(2)} pts
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">Trades</div>
-            <div className="font-semibold text-sm">
-              {agentStats.totalTrades}
-            </div>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">Win Rate</div>
-            <div className="font-semibold text-sm">
-              {(agentStats.winRate * 100).toFixed(0)}%
-            </div>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">Positions</div>
-            <div className="font-semibold text-sm">
-              {positionsLoading ? '...' : predictions.length + perps.length}
-            </div>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">Profitable</div>
-            <div className="font-semibold text-green-600 text-sm">
-              {agentStats.profitableTrades}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Transfer + Transaction History - Stacked on small, side by side on wide */}
-      <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_1fr]">
+      {/* Transfer + Transaction History - Side by side on wide */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[300px_1fr]">
         {/* Transfer Section */}
-        <div className="flex flex-col rounded-lg border border-border bg-card/50 p-3">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="font-medium text-sm">Transfer</span>
-            <span className="text-muted-foreground text-xs">
-              Your: {balanceInfo.userBalance.toFixed(2)} pts
-            </span>
-          </div>
+        <div className="flex flex-col rounded-lg border border-border bg-card/50 p-4">
+          <div className="mb-3 font-medium text-sm">Transfer</div>
 
           {/* Action Toggle */}
-          <div className="mb-3 grid grid-cols-2 gap-1">
+          <div className="mb-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setAction('deposit')}
               className={cn(
-                'flex items-center justify-center gap-1 rounded-md py-2 font-medium text-xs transition-all',
+                'flex items-center justify-center gap-1.5 rounded-md py-2.5 font-medium text-sm transition-all',
                 action === 'deposit'
                   ? 'bg-[#0066FF] text-white'
                   : 'bg-muted text-foreground hover:bg-muted/80'
               )}
             >
-              <ArrowDownToLine className="h-3.5 w-3.5" />
+              <ArrowDownToLine className="h-4 w-4" />
               Deposit
             </button>
             <button
               type="button"
               onClick={() => setAction('withdraw')}
               className={cn(
-                'flex items-center justify-center gap-1 rounded-md py-2 font-medium text-xs transition-all',
+                'flex items-center justify-center gap-1.5 rounded-md py-2.5 font-medium text-sm transition-all',
                 action === 'withdraw'
                   ? 'bg-[#0066FF] text-white'
                   : 'bg-muted text-foreground hover:bg-muted/80'
               )}
             >
-              <ArrowUpFromLine className="h-3.5 w-3.5" />
+              <ArrowUpFromLine className="h-4 w-4" />
               Withdraw
             </button>
           </div>
@@ -420,40 +270,46 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
               placeholder="Amount..."
               min={0.01}
               step={0.01}
-              className="h-9 flex-1 text-sm"
+              className="h-10 flex-1"
             />
             <button
               type="button"
               onClick={handleTransaction}
               disabled={processing || !amount}
-              className="h-9 rounded-md bg-[#0066FF] px-4 font-medium text-sm text-white transition-all hover:bg-[#0055DD] disabled:opacity-50"
+              className="h-10 rounded-md bg-[#0066FF] px-5 font-medium text-white transition-all hover:bg-[#0055DD] disabled:opacity-50"
             >
               {processing ? '...' : 'Go'}
             </button>
           </div>
+
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {action === 'deposit'
+              ? 'Transfer points from your account to this agent'
+              : 'Withdraw points from this agent to your account'}
+          </p>
         </div>
 
         {/* Transaction History */}
-        <div className="flex min-h-0 flex-col rounded-lg border border-border bg-card/50 p-3">
-          <div className="mb-2 flex items-center gap-1.5">
-            <History className="h-3.5 w-3.5" />
-            <span className="font-medium text-sm">Recent Transactions</span>
+        <div className="flex max-h-[220px] flex-col overflow-hidden rounded-lg border border-border bg-card/50 p-4">
+          <div className="mb-3 flex shrink-0 items-center gap-1.5">
+            <History className="h-4 w-4" />
+            <span className="font-medium text-sm">Transaction History</span>
           </div>
 
           {transactions.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">
+            <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
               No transactions yet
             </div>
           ) : (
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-              {transactions.slice(0, 10).map((tx) => {
+              {transactions.slice(0, 20).map((tx) => {
                 const isExpanded = expandedTxIds.has(tx.id);
                 return (
-                  <div key={tx.id} className="rounded bg-muted/30 text-xs">
-                    {/* Collapsed row - clickable */}
+                  <div key={tx.id} className="rounded bg-muted/30 text-sm">
+                    {/* Collapsed row */}
                     <button
                       type="button"
-                      aria-expanded={expandedTxIds.has(tx.id)}
+                      aria-expanded={isExpanded}
                       onClick={() => {
                         setExpandedTxIds((prev) => {
                           const next = new Set(prev);
@@ -465,19 +321,19 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
                           return next;
                         });
                       }}
-                      className="flex w-full items-center justify-between px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
+                      className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-muted/50"
                     >
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         <ChevronDown
                           className={cn(
-                            'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
+                            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
                             isExpanded && 'rotate-180'
                           )}
                         />
                         <span className="font-medium capitalize">
                           {tx.type.replace(/_/g, ' ')}
                         </span>
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground text-xs">
                           {new Date(tx.createdAt).toLocaleDateString()}
                         </span>
                       </div>
@@ -494,7 +350,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
 
                     {/* Expanded details */}
                     {isExpanded && (
-                      <div className="border-border border-t bg-muted/20 px-2 py-2 text-[11px]">
+                      <div className="border-border border-t bg-muted/20 px-3 py-2 text-xs">
                         <div className="space-y-1">
                           {tx.description && (
                             <div className="flex justify-between">
