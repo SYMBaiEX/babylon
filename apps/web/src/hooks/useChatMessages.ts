@@ -107,12 +107,17 @@ function replaceOptimisticMessage(
   // Replace optimistic message if found
   const pending = messages.find((msg) => isMatchingOptimistic(msg, confirmed));
   if (pending) {
-    return sortByTime(
-      messages.map((msg) =>
-        msg.id === pending.id
-          ? { ...confirmed, stableKey: pending.stableKey || pending.id }
-          : msg
-      )
+    // Preserve the optimistic message's createdAt to maintain visual order
+    // The server timestamp might differ due to network latency, but we want
+    // to keep the message in the same position the user saw it
+    return messages.map((msg) =>
+      msg.id === pending.id
+        ? {
+            ...confirmed,
+            stableKey: pending.stableKey || pending.id,
+            createdAt: pending.createdAt,
+          }
+        : msg
     );
   }
 
