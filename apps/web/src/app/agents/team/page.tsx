@@ -8,6 +8,7 @@ import type {
   PostTagData,
   PredictionsTagData,
 } from '@babylon/shared';
+import { cn } from '@babylon/shared';
 
 /** Type guard for PerpsTagData */
 function isPerpsTagData(data: unknown): data is PerpsTagData {
@@ -556,53 +557,57 @@ export default function TeamChatPage() {
       {/* Mobile Content Views - visible on small screens only */}
       {/* Agents View (Mobile) */}
       <div
-        className={`min-h-0 flex-1 flex-col overflow-hidden bg-sidebar lg:hidden ${
+        className={cn(
+          'min-h-0 flex-1 flex-col overflow-hidden bg-sidebar lg:hidden',
           mobileView === 'agents' ? 'flex' : 'hidden'
-        }`}
+        )}
       >
-        {/* Conversations Section */}
-        <div className="p-3">
-          <ConversationList
-            conversations={conversations}
-            loading={conversationsLoading}
-            onNewChat={() => createConversation()}
-            onSelectConversation={(id) => {
-              switchConversation(id);
+        {/* Scrollable content wrapper */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Conversations Section */}
+          <div className="p-3">
+            <ConversationList
+              conversations={conversations}
+              loading={conversationsLoading}
+              onNewChat={() => createConversation()}
+              onSelectConversation={(id) => {
+                switchConversation(id);
+                setMobileView('chat');
+              }}
+              onRenameConversation={renameConversation}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Agents Header */}
+          <div className="flex items-center justify-between p-3">
+            <h3 className="font-semibold text-foreground text-sm">Agents</h3>
+            <button
+              type="button"
+              onClick={() => setShowCreateAgentModal(true)}
+              className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Add agent"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Member list - no longer needs flex-1 since parent scrolls */}
+          <MemberList
+            teamChat={teamChat}
+            processingAgentIds={processingAgentIds}
+            onTagAgent={(username) => {
+              tagAgentInInput(username);
               setMobileView('chat');
             }}
-            onRenameConversation={renameConversation}
+            onStopAgent={stopAgent}
+            onViewSettings={(agentId) => {
+              handleViewSettings(agentId);
+              setMobileView('panel');
+            }}
           />
         </div>
-
-        <Separator />
-
-        {/* Agents Header */}
-        <div className="flex items-center justify-between p-3">
-          <h3 className="font-semibold text-foreground text-sm">Agents</h3>
-          <button
-            type="button"
-            onClick={() => setShowCreateAgentModal(true)}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Add agent"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Member list */}
-        <MemberList
-          teamChat={teamChat}
-          processingAgentIds={processingAgentIds}
-          onTagAgent={(username) => {
-            tagAgentInInput(username);
-            setMobileView('chat');
-          }}
-          onStopAgent={stopAgent}
-          onViewSettings={(agentId) => {
-            handleViewSettings(agentId);
-            setMobileView('panel');
-          }}
-        />
       </div>
 
       {/* Panel View (Mobile) - Right sidebar content */}
