@@ -49,7 +49,7 @@ function isPnlTagData(data: unknown): data is PnlTagData {
   return 'balance' in d && typeof d.balance === 'number';
 }
 
-import { Plus, Users, X } from 'lucide-react';
+import { MessageCircle, PanelRight, Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -172,8 +172,9 @@ export default function TeamChatPage() {
     renameConversation,
   } = useTeamChat();
 
-  // Mobile member drawer state
-  const [showMemberDrawer, setShowMemberDrawer] = useState(false);
+  // Mobile view state - which tab is active on mobile
+  type MobileView = 'chat' | 'agents' | 'panel';
+  const [mobileView, setMobileView] = useState<MobileView>('chat');
 
   // Left sidebar collapse state (desktop only)
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -512,87 +513,252 @@ export default function TeamChatPage() {
       data-command-center-container
       className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh"
     >
-      {/* Mobile Member Drawer */}
-      {showMemberDrawer && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm lg:hidden"
-            onClick={() => setShowMemberDrawer(false)}
-            aria-hidden="true"
+      {/* Mobile Tab Navigation - visible on small screens only */}
+      <div className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileView('agents')}
+          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors ${
+            mobileView === 'agents'
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Users className="h-5 w-5" />
+          <span>Agents</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileView('chat')}
+          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors ${
+            mobileView === 'chat'
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <MessageCircle className="h-5 w-5" />
+          <span>Chat</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileView('panel')}
+          className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors ${
+            mobileView === 'panel'
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <PanelRight className="h-5 w-5" />
+          <span>Panel</span>
+        </button>
+      </div>
+
+      {/* Mobile Content Views - visible on small screens only */}
+      {/* Agents View (Mobile) */}
+      <div
+        className={`min-h-0 flex-1 flex-col overflow-hidden bg-sidebar lg:hidden ${
+          mobileView === 'agents' ? 'flex' : 'hidden'
+        }`}
+      >
+        {/* Conversations Section */}
+        <div className="p-3">
+          <ConversationList
+            conversations={conversations}
+            loading={conversationsLoading}
+            onNewChat={() => createConversation()}
+            onSelectConversation={(id) => {
+              switchConversation(id);
+              setMobileView('chat');
+            }}
+            onRenameConversation={renameConversation}
           />
+        </div>
 
-          {/* Drawer Panel - slides in from right */}
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="drawer-title"
-            className="slide-in-from-right fixed top-0 right-0 bottom-0 z-50 flex w-[280px] animate-in flex-col bg-sidebar duration-300 lg:hidden"
+        <Separator />
+
+        {/* Agents Header */}
+        <div className="flex items-center justify-between p-3">
+          <h3 className="font-semibold text-foreground text-sm">Agents</h3>
+          <button
+            type="button"
+            onClick={() => setShowCreateAgentModal(true)}
+            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Add agent"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4">
-              <h3 id="drawer-title" className="font-semibold text-foreground">
-                Agents
-              </h3>
-              <button
-                onClick={() => setShowMemberDrawer(false)}
-                className="rounded-lg p-2 transition-colors hover:bg-muted"
-                aria-label="Close drawer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
 
-            <Separator />
+        {/* Member list */}
+        <MemberList
+          teamChat={teamChat}
+          processingAgentIds={processingAgentIds}
+          onTagAgent={(username) => {
+            tagAgentInInput(username);
+            setMobileView('chat');
+          }}
+          onStopAgent={stopAgent}
+          onViewSettings={(agentId) => {
+            handleViewSettings(agentId);
+            setMobileView('panel');
+          }}
+        />
+      </div>
 
-            {/* Conversations Section */}
-            <div className="p-3">
-              <ConversationList
-                conversations={conversations}
-                loading={conversationsLoading}
-                onNewChat={() => createConversation()}
-                onSelectConversation={switchConversation}
-                onRenameConversation={renameConversation}
-                onClose={() => setShowMemberDrawer(false)}
-              />
-            </div>
-
-            <Separator />
-
-            {/* Agents Header */}
-            <div className="flex items-center justify-between p-3">
-              <h3 className="font-semibold text-foreground text-sm">Agents</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMemberDrawer(false);
-                  setShowCreateAgentModal(true);
-                }}
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Add agent"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Member list - extracted component */}
-            <MemberList
-              teamChat={teamChat}
-              onClose={() => setShowMemberDrawer(false)}
-              processingAgentIds={processingAgentIds}
-              onTagAgent={tagAgentInInput}
-              onStopAgent={stopAgent}
-              onViewSettings={handleViewSettings}
-            />
+      {/* Panel View (Mobile) - Right sidebar content */}
+      <div
+        className={`min-h-0 flex-1 flex-col overflow-hidden bg-background lg:hidden ${
+          mobileView === 'panel' ? 'flex' : 'hidden'
+        }`}
+      >
+        {rightSidebarTabs.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-muted-foreground text-sm">
+              No panels open. Click on message tags to open panels.
+            </span>
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            {/* Tab Bar */}
+            <div className="shrink-0 overflow-x-auto border-border border-b bg-muted/30 px-2 py-1">
+              <div className="flex items-center gap-1">
+                {rightSidebarTabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={activeRightTabId === tab.id}
+                    tabIndex={0}
+                    onClick={() => setActiveRightTabId(tab.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setActiveRightTabId(tab.id);
+                      }
+                    }}
+                    className={`group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                      activeRightTabId === tab.id
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    <span className="max-w-[100px] truncate">{tab.title}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeRightTab(tab.id);
+                      }}
+                      className={`rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-muted hover:text-foreground group-hover:opacity-100 ${
+                        activeRightTabId === tab.id ? 'opacity-100' : ''
+                      }`}
+                      aria-label={`Close ${tab.title}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+            {/* Panel Content */}
+            <div className="flex-1 overflow-auto">
+              {rightSidebarTabs.map((tab) => {
+                if (tab.id !== activeRightTabId) return null;
+
+                let content: React.ReactNode = null;
+
+                if (tab.type === 'agent-settings' && tab.agentId) {
+                  content = (
+                    <AgentSettingsPanel
+                      agentId={tab.agentId}
+                      onAgentUpdated={refreshTeamChat}
+                    />
+                  );
+                } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
+                  content = <PerpsPanel data={tab.data} />;
+                } else if (
+                  tab.type === 'predictions' &&
+                  isPredictionsTagData(tab.data)
+                ) {
+                  content = <PredictionsPanel data={tab.data} />;
+                } else if (tab.type === 'post' && isPostTagData(tab.data)) {
+                  content = <PostPanel data={tab.data} />;
+                } else if (tab.type === 'feed' && isFeedTagData(tab.data)) {
+                  content = <FeedPanel data={tab.data} />;
+                } else if (tab.type === 'agent-pnl' && isPnlTagData(tab.data)) {
+                  content = <PnlPanel data={tab.data} type="agent-pnl" />;
+                } else if (tab.type === 'owner-pnl' && isPnlTagData(tab.data)) {
+                  content = <PnlPanel data={tab.data} type="owner-pnl" />;
+                }
+
+                return (
+                  <PanelErrorBoundary key={tab.id}>
+                    {content}
+                  </PanelErrorBoundary>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Mobile Chat View */}
+      <div
+        className={`min-h-0 flex-1 flex-col overflow-hidden bg-background lg:hidden ${
+          mobileView === 'chat' ? 'flex' : 'hidden'
+        }`}
+      >
+        <TeamChatView
+          chatDetails={chatDetails}
+          currentUserId={user?.id}
+          authenticated={authenticated}
+          sseConnected={sseConnected}
+          hideHeader={true}
+          loading={false}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          messageInput={messageInput}
+          sending={sending}
+          sendError={sendError}
+          topSentinelRef={topSentinelRef}
+          messagesEndRef={messagesEndRef}
+          onMessageChange={handleInputChange}
+          onSendMessage={sendMessage}
+          agents={[
+            ...(user
+              ? [
+                  {
+                    id: user.id,
+                    username: user.username || null,
+                    displayName: user.displayName || user.username || 'You',
+                    profileImageUrl: user.profileImageUrl || null,
+                  },
+                ]
+              : []),
+            ...(teamChat?.agents.map((agent) => ({
+              id: agent.id,
+              username: agent.username,
+              displayName: agent.displayName,
+              profileImageUrl: agent.profileImageUrl,
+            })) || []),
+          ]}
+          typingUsers={typingUsers}
+          thinkingAgents={thinkingAgents}
+          onShowMembers={() => setMobileView('agents')}
+          onScroll={handleScroll}
+          onTagClick={(tag, messageId) => {
+            handleTagClick(tag, messageId);
+            setMobileView('panel');
+          }}
+        />
+      </div>
+
+      {/* Desktop Layout - hidden on mobile */}
+      <div className="hidden min-h-0 flex-1 overflow-hidden lg:flex">
         {/* Member Sidebar - visible on lg+ when not collapsed */}
         {!leftSidebarCollapsed && (
           <>
-            <div className="hidden w-64 shrink-0 flex-col border-border border-r lg:flex">
+            <div className="flex w-64 shrink-0 flex-col border-border border-r">
               {/* Conversations Section */}
               <div className="p-3">
                 <ConversationList
@@ -674,7 +840,7 @@ export default function TeamChatPage() {
             ]}
             typingUsers={typingUsers}
             thinkingAgents={thinkingAgents}
-            onShowMembers={() => setShowMemberDrawer(true)}
+            onShowMembers={() => setMobileView('agents')}
             onScroll={handleScroll}
             leftSidebarCollapsed={leftSidebarCollapsed}
             onToggleLeftSidebar={() => setLeftSidebarCollapsed((p) => !p)}
@@ -796,63 +962,67 @@ export default function TeamChatPage() {
         )}
       </BottomPanel>
 
-      {/* Right Sidebar - Fixed position overlay, doesn't squeeze chat */}
+      {/* Right Sidebar - Fixed position overlay, desktop only */}
       {rightSidebarOpen && (
-        <RightSidebar
-          tabs={rightSidebarTabs}
-          activeTabId={activeRightTabId}
-          onTabSelect={setActiveRightTabId}
-          onTabClose={closeRightTab}
-          width={rightSidebarWidth}
-          onWidthChange={setRightSidebarWidth}
-          onClose={() => setRightSidebarOpen(false)}
-          leftSidebarCollapsed={leftSidebarCollapsed}
-          bottomPanelHeight={currentBottomPanelHeight}
-        >
-          {rightSidebarTabs
-            .filter((tab) => tab.id === activeRightTabId)
-            .map((tab) => {
-              // Render panel based on tab type
-              let content: React.ReactNode = null;
+        <div className="hidden lg:block">
+          <RightSidebar
+            tabs={rightSidebarTabs}
+            activeTabId={activeRightTabId}
+            onTabSelect={setActiveRightTabId}
+            onTabClose={closeRightTab}
+            width={rightSidebarWidth}
+            onWidthChange={setRightSidebarWidth}
+            onClose={() => setRightSidebarOpen(false)}
+            leftSidebarCollapsed={leftSidebarCollapsed}
+            bottomPanelHeight={currentBottomPanelHeight}
+          >
+            {rightSidebarTabs
+              .filter((tab) => tab.id === activeRightTabId)
+              .map((tab) => {
+                // Render panel based on tab type
+                let content: React.ReactNode = null;
 
-              if (tab.type === 'agent-settings' && tab.agentId) {
-                content = (
-                  <AgentSettingsPanel
-                    agentId={tab.agentId}
-                    onAgentUpdated={refreshTeamChat}
-                  />
-                );
-              } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
-                content = <PerpsPanel data={tab.data} />;
-              } else if (
-                tab.type === 'predictions' &&
-                isPredictionsTagData(tab.data)
-              ) {
-                content = <PredictionsPanel data={tab.data} />;
-              } else if (tab.type === 'post' && isPostTagData(tab.data)) {
-                content = <PostPanel data={tab.data} />;
-              } else if (tab.type === 'feed' && isFeedTagData(tab.data)) {
-                content = <FeedPanel data={tab.data} />;
-              } else if (tab.type === 'agent-pnl' && isPnlTagData(tab.data)) {
-                content = <PnlPanel data={tab.data} type="agent-pnl" />;
-              } else if (tab.type === 'owner-pnl' && isPnlTagData(tab.data)) {
-                content = <PnlPanel data={tab.data} type="owner-pnl" />;
-              } else if (content === null) {
-                // Fallback for unrecognized tab types, invalid data, or missing agentId
-                content = (
-                  <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
-                    <span className="text-sm">
-                      Unable to display panel: {tab.type}
-                    </span>
-                  </div>
-                );
-              }
+                if (tab.type === 'agent-settings' && tab.agentId) {
+                  content = (
+                    <AgentSettingsPanel
+                      agentId={tab.agentId}
+                      onAgentUpdated={refreshTeamChat}
+                    />
+                  );
+                } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
+                  content = <PerpsPanel data={tab.data} />;
+                } else if (
+                  tab.type === 'predictions' &&
+                  isPredictionsTagData(tab.data)
+                ) {
+                  content = <PredictionsPanel data={tab.data} />;
+                } else if (tab.type === 'post' && isPostTagData(tab.data)) {
+                  content = <PostPanel data={tab.data} />;
+                } else if (tab.type === 'feed' && isFeedTagData(tab.data)) {
+                  content = <FeedPanel data={tab.data} />;
+                } else if (tab.type === 'agent-pnl' && isPnlTagData(tab.data)) {
+                  content = <PnlPanel data={tab.data} type="agent-pnl" />;
+                } else if (tab.type === 'owner-pnl' && isPnlTagData(tab.data)) {
+                  content = <PnlPanel data={tab.data} type="owner-pnl" />;
+                } else if (content === null) {
+                  // Fallback for unrecognized tab types, invalid data, or missing agentId
+                  content = (
+                    <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
+                      <span className="text-sm">
+                        Unable to display panel: {tab.type}
+                      </span>
+                    </div>
+                  );
+                }
 
-              return (
-                <PanelErrorBoundary key={tab.id}>{content}</PanelErrorBoundary>
-              );
-            })}
-        </RightSidebar>
+                return (
+                  <PanelErrorBoundary key={tab.id}>
+                    {content}
+                  </PanelErrorBoundary>
+                );
+              })}
+          </RightSidebar>
+        </div>
       )}
 
       {/* Create Agent Modal - AgentCreate handles its own modal display */}
