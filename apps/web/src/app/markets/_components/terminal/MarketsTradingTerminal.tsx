@@ -564,7 +564,14 @@ export function MarketsTradingTerminal({
       setIsMobileChartFullscreen(false);
 
       if (tab === 'chart') {
-        setMobileChartAnimationKey((k) => k + 1);
+        // Only remount chart when returning from a non-chart surface
+        const wasOnChart =
+          !isMobilePanelOpen &&
+          !isMobileMarketListOpen &&
+          !isMobileTradeSheetOpen;
+        if (!wasOnChart) {
+          setMobileChartAnimationKey((k) => k + 1);
+        }
         setIsMobilePanelOpen(false);
         setIsMobileMarketListOpen(false);
         setIsMobileTradeSheetOpen(false);
@@ -573,7 +580,7 @@ export function MarketsTradingTerminal({
 
       openMobilePanel(tab);
     },
-    [openMobilePanel]
+    [openMobilePanel, isMobilePanelOpen, isMobileMarketListOpen, isMobileTradeSheetOpen]
   );
 
   // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
