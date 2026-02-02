@@ -540,77 +540,87 @@ export function GrowthMetricsTab() {
 
       {/* Activation Funnel */}
       <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-4 flex items-center gap-2 font-semibold text-lg">
+        <h3 className="mb-2 flex items-center gap-2 font-semibold text-lg">
           <Target className="h-5 w-5 text-green-500" />
           Activation Funnel (24h)
         </h3>
         <p className="mb-6 text-muted-foreground text-sm">
-          Users who take a meaningful action within 24 hours of signup (last 30
-          days)
+          New signups who take action within 24 hours (last 30 days)
         </p>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {funnelStages.map((stage, index) => {
             const isFirst = index === 0;
             const isLast = index === funnelStages.length - 1;
-            const width = isFirst ? 100 : stage.pct;
+            const width = isFirst ? 100 : Math.max(stage.pct, 2); // min 2% for visibility
+            const pathLabel =
+              index === 1 ? 'Trade' : index === 2 ? 'Command' : null;
 
             return (
-              <div key={stage.label} className="relative">
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span
-                    className={cn(
-                      isLast
-                        ? 'font-semibold text-green-500'
-                        : 'text-foreground'
-                    )}
-                  >
-                    {stage.label}
-                  </span>
-                  <span className="font-mono">
-                    {formatNumber(stage.value)}
-                    {!isFirst && (
-                      <span className="ml-2 text-muted-foreground">
-                        ({stage.pct}%)
+              <div key={stage.label}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'text-sm',
+                        isLast
+                          ? 'font-semibold text-green-500'
+                          : 'text-foreground'
+                      )}
+                    >
+                      {stage.label}
+                    </span>
+                    {pathLabel && (
+                      <span
+                        className={cn(
+                          'rounded px-1.5 py-0.5 text-xs',
+                          index === 1
+                            ? 'bg-blue-500/10 text-blue-500'
+                            : 'bg-purple-500/10 text-purple-500'
+                        )}
+                      >
+                        {pathLabel}
                       </span>
                     )}
-                  </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 font-mono text-sm">
+                    <span className="font-semibold">
+                      {formatNumber(stage.value)}
+                    </span>
+                    {!isFirst && (
+                      <span className="text-muted-foreground text-xs">
+                        {stage.pct}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="h-8 overflow-hidden rounded-lg bg-muted">
+                <div className="h-6 overflow-hidden rounded-md bg-muted/50">
                   <div
                     className={cn(
-                      'h-full rounded-lg transition-all duration-500',
+                      'h-full rounded-md transition-all duration-500',
                       isLast
                         ? 'bg-green-500'
                         : index === 1
                           ? 'bg-blue-500'
                           : index === 2
                             ? 'bg-purple-500'
-                            : 'bg-muted-foreground/30'
+                            : 'bg-muted-foreground/20'
                     )}
                     style={{ width: `${width}%` }}
                   />
                 </div>
-                {index === 1 && (
-                  <div className="absolute top-0 right-0 text-blue-500 text-xs">
-                    Trade Path
-                  </div>
-                )}
-                {index === 2 && (
-                  <div className="absolute top-0 right-0 text-purple-500 text-xs">
-                    Command Path
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
 
         {/* Funnel insights */}
-        <div className="mt-6 grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-4">
-          <div>
-            <div className="font-medium text-sm">Trade Conversion</div>
-            <div className="font-bold text-2xl text-blue-500">
+        <div className="mt-6 grid grid-cols-2 gap-6">
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+            <div className="text-muted-foreground text-xs uppercase tracking-wide">
+              Trade Conversion
+            </div>
+            <div className="mt-1 font-bold text-2xl text-blue-500">
               {data.activation.funnel.signups > 0
                 ? Math.round(
                     (data.activation.funnel.tradedWithin24h /
@@ -620,13 +630,16 @@ export function GrowthMetricsTab() {
                 : 0}
               %
             </div>
-            <div className="text-muted-foreground text-xs">
-              signup → first trade
+            <div className="mt-1 text-muted-foreground text-xs">
+              {formatNumber(data.activation.funnel.tradedWithin24h)} of{' '}
+              {formatNumber(data.activation.funnel.signups)} signups
             </div>
           </div>
-          <div>
-            <div className="font-medium text-sm">Command Conversion</div>
-            <div className="font-bold text-2xl text-purple-500">
+          <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4">
+            <div className="text-muted-foreground text-xs uppercase tracking-wide">
+              Command Conversion
+            </div>
+            <div className="mt-1 font-bold text-2xl text-purple-500">
               {data.activation.funnel.signups > 0
                 ? Math.round(
                     (data.activation.funnel.commandedWithin24h /
@@ -636,8 +649,9 @@ export function GrowthMetricsTab() {
                 : 0}
               %
             </div>
-            <div className="text-muted-foreground text-xs">
-              signup → first command
+            <div className="mt-1 text-muted-foreground text-xs">
+              {formatNumber(data.activation.funnel.commandedWithin24h)} of{' '}
+              {formatNumber(data.activation.funnel.signups)} signups
             </div>
           </div>
         </div>
