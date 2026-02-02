@@ -170,7 +170,7 @@ describe('Device Type Detection', () => {
       expect(parseDeviceType(null)).toBe('unknown');
     });
 
-    test('returns desktop for empty string', () => {
+    test('returns unknown for empty string', () => {
       expect(parseDeviceType('')).toBe('unknown');
     });
 
@@ -235,7 +235,7 @@ describe('IP Hashing', () => {
     expect(hash!.length).toBe(64);
   });
 
-  test('handles empty string IP (returns hash, not null)', async () => {
+  test('handles empty string IP (returns null)', async () => {
     const hash = await hashIp('');
     // Empty string is falsy, so should return null
     expect(hash).toBeNull();

@@ -95,6 +95,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND bt.type IN ('pred_buy', 'pred_sell', 'perp_open', 'perp_close')
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         GROUP BY EXTRACT(DOW FROM bt."createdAt"), EXTRACT(HOUR FROM bt."createdAt")
         ORDER BY day_of_week, hour
       `;
@@ -111,6 +112,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND p."deletedAt" IS NULL
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         GROUP BY EXTRACT(DOW FROM p."createdAt"), EXTRACT(HOUR FROM p."createdAt")
         ORDER BY day_of_week, hour
       `;
@@ -129,6 +131,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND g.type = 'team'
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         GROUP BY EXTRACT(DOW FROM m."createdAt"), EXTRACT(HOUR FROM m."createdAt")
         ORDER BY day_of_week, hour
       `;
@@ -144,6 +147,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             AND bt.type IN ('pred_buy', 'pred_sell', 'perp_open', 'perp_close')
             AND u."isActor" = false
             AND u."isAgent" = false
+            AND u."isBanned" = false
           
           UNION ALL
           
@@ -155,6 +159,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             AND p."deletedAt" IS NULL
             AND u."isActor" = false
             AND u."isAgent" = false
+            AND u."isBanned" = false
           
           UNION ALL
           
@@ -166,6 +171,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             AND c."deletedAt" IS NULL
             AND u."isActor" = false
             AND u."isAgent" = false
+            AND u."isBanned" = false
           
           UNION ALL
           
@@ -179,6 +185,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             AND g.type = 'team'
             AND u."isActor" = false
             AND u."isAgent" = false
+            AND u."isBanned" = false
         )
         SELECT 
           EXTRACT(DOW FROM activity_time)::text as day_of_week,
@@ -238,6 +245,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND bt.type IN ('pred_buy', 'pred_sell', 'perp_open', 'perp_close')
         AND u."isActor" = false
         AND u."isAgent" = false
+        AND u."isBanned" = false
       GROUP BY DATE(bt."createdAt")
       ORDER BY date
     `;
@@ -253,6 +261,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND p."deletedAt" IS NULL
         AND u."isActor" = false
         AND u."isAgent" = false
+        AND u."isBanned" = false
       GROUP BY DATE(p."createdAt")
       ORDER BY date
     `;
@@ -270,6 +279,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND g.type = 'team'
         AND u."isActor" = false
         AND u."isAgent" = false
+        AND u."isBanned" = false
       GROUP BY DATE(m."createdAt")
       ORDER BY date
     `;
@@ -285,6 +295,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND bt.type IN ('pred_buy', 'pred_sell', 'perp_open', 'perp_close')
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         
         UNION ALL
         
@@ -296,6 +307,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND p."deletedAt" IS NULL
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         
         UNION ALL
         
@@ -307,6 +319,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND c."deletedAt" IS NULL
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
         
         UNION ALL
         
@@ -320,6 +333,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           AND g.type = 'team'
           AND u."isActor" = false
           AND u."isAgent" = false
+          AND u."isBanned" = false
       )
       SELECT 
         activity_date as date,

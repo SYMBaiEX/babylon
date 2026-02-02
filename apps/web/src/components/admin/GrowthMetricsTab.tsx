@@ -11,7 +11,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatNumber } from '@babylon/shared';
 import {
   Activity,
   ArrowDown,
@@ -147,16 +147,20 @@ function MetricCard({
 export function GrowthMetricsTab() {
   const [data, setData] = useState<GrowthData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('week');
   const [isRefreshing, startRefresh] = useTransition();
 
   const fetchData = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
+        setError(null);
         const response = await fetch(
           `/api/admin/stats/growth?period=${period}&includeTimeSeries=true`
         );
         if (!response.ok) {
+          setData(null);
+          setError('Failed to load growth metrics');
           setLoading(false);
           return;
         }
@@ -168,7 +172,11 @@ export function GrowthMetricsTab() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        void fetchLogic();
+        void fetchLogic().catch(() => {
+          setData(null);
+          setError('Failed to load growth metrics');
+          setLoading(false);
+        });
       }
     },
     [period]
@@ -183,12 +191,6 @@ export function GrowthMetricsTab() {
     const interval = setInterval(() => fetchData(), 60000);
     return () => clearInterval(interval);
   }, [fetchData]);
-
-  const formatNumber = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-    return value.toLocaleString();
-  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -216,10 +218,11 @@ export function GrowthMetricsTab() {
     return (
       <div className="py-12 text-center text-muted-foreground">
         <BarChart3 className="mx-auto mb-3 h-12 w-12 opacity-50" />
-        <p>Failed to load growth metrics</p>
+        <p>{error ?? 'Failed to load growth metrics'}</p>
         <button
           onClick={() => {
             setLoading(true);
+            setError(null);
             fetchData();
           }}
           className="mt-4 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground"

@@ -9,7 +9,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, formatNumber } from '@babylon/shared';
 import { Calendar, Clock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -94,12 +94,6 @@ function getIntensityColor(intensity: number): string {
   return INTENSITY_COLORS[4];
 }
 
-function formatNumber(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toLocaleString();
-}
-
 function IntensityLegend() {
   return (
     <div className="flex items-center gap-2">
@@ -117,6 +111,7 @@ function IntensityLegend() {
 export function ActivityHeatmap() {
   const [data, setData] = useState<HeatmapData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [heatmapType, setHeatmapType] = useState<HeatmapType>('hourly');
   const [activityType, setActivityType] = useState<ActivityType>('all');
   const [isRefreshing, startRefresh] = useTransition();
@@ -124,10 +119,13 @@ export function ActivityHeatmap() {
   const fetchData = useCallback(
     (showRefreshing = false) => {
       const fetchLogic = async () => {
+        setError(null);
         const response = await fetch(
           `/api/admin/stats/heatmap?type=${heatmapType}&activityType=${activityType}`
         );
         if (!response.ok) {
+          setData(null);
+          setError('Failed to load heatmap data');
           setLoading(false);
           return;
         }
@@ -139,7 +137,11 @@ export function ActivityHeatmap() {
       if (showRefreshing) {
         startRefresh(fetchLogic);
       } else {
-        void fetchLogic();
+        void fetchLogic().catch(() => {
+          setData(null);
+          setError('Failed to load heatmap data');
+          setLoading(false);
+        });
       }
     },
     [heatmapType, activityType]
@@ -163,7 +165,17 @@ export function ActivityHeatmap() {
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="py-12 text-center text-muted-foreground">
           <Clock className="mx-auto mb-3 h-12 w-12 opacity-50" />
-          <p>Failed to load heatmap data</p>
+          <p>{error ?? 'Failed to load heatmap data'}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setError(null);
+              fetchData();
+            }}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

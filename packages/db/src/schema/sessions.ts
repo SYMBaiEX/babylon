@@ -74,8 +74,11 @@ export const userSessions = pgTable(
     // Find sessions to close (lastActiveAt older than threshold)
     index('UserSession_lastActiveAt_idx').on(table.lastActiveAt),
 
-    // Unique constraint on sessionId to prevent duplicates
-    unique('UserSession_sessionId_key').on(table.sessionId),
+    // Index for looking up active sessions by sessionId (for heartbeat updates)
+    // Note: sessionId is client-generated UUID stored in sessionStorage per browser tab.
+    // Same sessionId can have multiple sessions (one active, many ended) as sessions
+    // expire and restart. We look up by sessionId + endedAt IS NULL in the handler.
+    index('UserSession_sessionId_idx').on(table.sessionId),
   ]
 );
 
@@ -105,7 +108,7 @@ export const userActivityLogs = pgTable(
 
     userId: text('userId').notNull(),
 
-    // Activity type: trade, post, comment, message, reaction, login
+    // Activity type: trade, post, comment, message, reaction, login, session
     activityType: text('activityType').notNull(),
 
     // Truncated to day for efficient cohort queries

@@ -21,7 +21,7 @@ import {
   userSessions,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { and, eq, isNull, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -32,21 +32,40 @@ const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 // Rate limit: maximum 1 heartbeat per minute per session
 const HEARTBEAT_RATE_LIMIT_MS = 60 * 1000;
 
+// Maximum allowed page views per heartbeat (prevents abuse)
+const MAX_PAGE_VIEWS_PER_HEARTBEAT = 100;
+
 // In-memory rate limit cache (per-session)
+// NOTE: This works for single-server deployments. For horizontal scaling with
+// multiple server instances, consider using Redis-based rate limiting to ensure
+// rate limits are enforced consistently across all instances.
 const heartbeatCache = new Map<string, number>();
 
-// Clean up old cache entries periodically
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [key, timestamp] of heartbeatCache.entries()) {
-      if (now - timestamp > HEARTBEAT_RATE_LIMIT_MS * 2) {
-        heartbeatCache.delete(key);
-      }
+/**
+ * Clean up stale entries from the rate limit cache.
+ * Called on each request to avoid module-scope setInterval (serverless-unfriendly).
+ */
+function cleanupRateLimitCache(): void {
+  const cutoff = Date.now() - HEARTBEAT_RATE_LIMIT_MS * 2;
+  for (const [key, timestamp] of heartbeatCache.entries()) {
+    if (timestamp < cutoff) {
+      heartbeatCache.delete(key);
     }
-  },
-  5 * 60 * 1000
-); // Clean every 5 minutes
+  }
+}
+
+/**
+ * Decode a base64url-encoded string (as used in JWTs).
+ * Handles the URL-safe alphabet and missing padding.
+ */
+function decodeBase64Url(input: string): string {
+  // Convert base64url to standard base64
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  const paddingNeeded = (4 - (base64.length % 4)) % 4;
+  base64 += '='.repeat(paddingNeeded);
+  return Buffer.from(base64, 'base64').toString('utf-8');
+}
 
 interface HeartbeatRequest {
   sessionId: string;
@@ -87,13 +106,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Decode the JWT to get the user ID (we don't verify signature here for speed)
   // The privy-token is a JWT with the user ID in the sub claim
+  // Note: This is intentionally unverified for performance - the endpoint is non-critical
+  // and a compromised session ID only affects analytics quality, not user data
   let userId: string | null = null;
 
   const tokenParts = privyToken.value.split('.');
   if (tokenParts.length === 3) {
     const payload = tokenParts[1];
     if (payload) {
-      const decoded = Buffer.from(payload, 'base64').toString('utf-8');
+      // Use base64url decoding (JWTs use URL-safe base64 alphabet)
+      const decoded = decodeBase64Url(payload);
       const parsed = JSON.parse(decoded) as { sub?: string };
       userId = parsed.sub ?? null;
     }
@@ -108,7 +130,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Parse request body
   const body = (await request.json()) as HeartbeatRequest;
-  const { sessionId, pageViews = 0 } = body;
+  const { sessionId } = body;
+
+  // Validate and normalize pageViews (prevent abuse with large/negative values)
+  const rawPageViews = body.pageViews ?? 0;
+  const pageViews = Math.min(
+    Math.max(0, Math.floor(Number(rawPageViews) || 0)),
+    MAX_PAGE_VIEWS_PER_HEARTBEAT
+  );
 
   if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 100) {
     return NextResponse.json(
@@ -116,6 +145,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       { status: 400 }
     );
   }
+
+  // Clean up stale rate limit cache entries (replaces module-scope setInterval)
+  cleanupRateLimitCache();
 
   // Rate limit check
   const cacheKey = `${validUserId}:${sessionId}`;
@@ -182,13 +214,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         .where(eq(userSessions.id, existingSession.id));
       await createSession();
     } else {
-      // Update existing session
+      // Update existing session with atomic increments to prevent race conditions
       await db
         .update(userSessions)
         .set({
           lastActiveAt: nowDate,
-          pageCount: existingSession.pageCount + pageViews,
-          heartbeatCount: existingSession.heartbeatCount + 1,
+          pageCount: sql`${userSessions.pageCount} + ${pageViews}`,
+          heartbeatCount: sql`${userSessions.heartbeatCount} + 1`,
         })
         .where(eq(userSessions.id, existingSession.id));
     }
@@ -214,8 +246,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     })
     .onConflictDoNothing();
 
-  // Opportunistically close stale sessions (non-blocking, ~10% of requests)
-  if (Math.random() < 0.1) {
+  // Opportunistically close stale sessions (non-blocking, ~25% of requests)
+  // Higher probability ensures timely cleanup during low-traffic periods
+  if (Math.random() < 0.25) {
     closeStaleSessionsInternal().catch(() => {});
   }
 
@@ -226,12 +259,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 });
 
 /**
- * Cleanup job to close stale sessions
- * This should be called by a cron job periodically
+ * Cleanup job to close stale sessions.
+ * Called opportunistically during heartbeat requests.
  *
  * Returns the sessions that were closed (for logging purposes)
  */
-export async function closeStaleSessionsInternal(): Promise<{ id: string }[]> {
+async function closeStaleSessionsInternal(): Promise<{ id: string }[]> {
   const threshold = new Date(Date.now() - SESSION_TIMEOUT_MS);
 
   // Find stale sessions first

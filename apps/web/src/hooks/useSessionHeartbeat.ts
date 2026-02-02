@@ -7,27 +7,26 @@
  * @module useSessionHeartbeat
  */
 
+import { generateUUID } from '@babylon/shared';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const SESSION_KEY = 'bab_session_id';
+const SESSION_KEY_PREFIX = 'bab_session_id';
 
-/** Generates a UUID v4 */
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-/** Gets or creates a session ID from sessionStorage */
-function getSessionId(): string {
+/**
+ * Gets or creates a session ID from sessionStorage, scoped to the user.
+ * This ensures different users on the same browser get different session IDs.
+ */
+function getSessionId(userId: string): string {
   if (typeof window === 'undefined') return generateUUID();
-  let id = sessionStorage.getItem(SESSION_KEY);
+
+  const storageKey = `${SESSION_KEY_PREFIX}:${userId}`;
+  let id = sessionStorage.getItem(storageKey);
   if (!id) {
     id = generateUUID();
-    sessionStorage.setItem(SESSION_KEY, id);
+    sessionStorage.setItem(storageKey, id);
   }
   return id;
 }
@@ -37,16 +36,33 @@ function getSessionId(): string {
  */
 export function useSessionHeartbeat(): void {
   const { authenticated, ready, user } = useAuth();
+  const pathname = usePathname();
   const sessionIdRef = useRef<string | null>(null);
   const pageViewsRef = useRef(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isVisibleRef = useRef(true);
+  const lastPathnameRef = useRef<string | null>(null);
+
+  // Track page views via pathname changes (catches Next.js client-side navigation)
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+
+    // Only increment on actual navigation, not initial render
+    if (
+      lastPathnameRef.current !== null &&
+      lastPathnameRef.current !== pathname
+    ) {
+      pageViewsRef.current += 1;
+    }
+    lastPathnameRef.current = pathname;
+  }, [pathname, ready, authenticated]);
 
   useEffect(() => {
     if (!ready || !authenticated || !user) return;
 
+    // Get or create user-scoped session ID
     if (!sessionIdRef.current) {
-      sessionIdRef.current = getSessionId();
+      sessionIdRef.current = getSessionId(user.id);
     }
     const sessionId = sessionIdRef.current;
 
@@ -67,30 +83,34 @@ export function useSessionHeartbeat(): void {
       }).catch(() => {});
     };
 
+    const resetInterval = (): void => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(() => {
+        if (isVisibleRef.current) sendHeartbeat();
+      }, HEARTBEAT_INTERVAL_MS);
+    };
+
     const onVisibilityChange = (): void => {
+      const wasVisible = isVisibleRef.current;
       isVisibleRef.current = document.visibilityState === 'visible';
-      if (isVisibleRef.current) sendHeartbeat();
+
+      if (isVisibleRef.current && !wasVisible) {
+        // Tab became visible - send heartbeat and reset interval
+        // to avoid rapid-fire heartbeats if interval was about to fire
+        sendHeartbeat();
+        resetInterval();
+      }
     };
 
-    const onNavigation = (): void => {
-      pageViewsRef.current += 1;
-    };
-
-    // Initial heartbeat
+    // Initial heartbeat and interval setup
     sendHeartbeat();
-
-    // Periodic heartbeat (only when visible)
-    intervalRef.current = setInterval(() => {
-      if (isVisibleRef.current) sendHeartbeat();
-    }, HEARTBEAT_INTERVAL_MS);
+    resetInterval();
 
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('popstate', onNavigation);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('popstate', onNavigation);
     };
   }, [authenticated, ready, user]);
 }
