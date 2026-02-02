@@ -40,7 +40,8 @@
       "@babylon/training": ["../training/src/index.ts"],
       "@babylon/training/*": ["../training/src/*"],
       "@babylon/testing": ["./src/index.ts"],
-      "@babylon/testing/*": ["./*"]
+      "@babylon/testing/*": ["./*"],
+      "@babylon/web/*": ["../../apps/web/*"]
     }
   },
   "include": [

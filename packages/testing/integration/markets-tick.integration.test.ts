@@ -590,8 +590,10 @@ describe('POST Handler Integration', () => {
     const routeModule = await import(
       '@babylon/web/src/app/api/cron/markets-tick/route'
     );
-    POST = routeModule.POST;
-    GET = routeModule.GET;
+    POST = routeModule.POST as unknown as (
+      request: Request
+    ) => Promise<Response>;
+    GET = routeModule.GET as unknown as (request: Request) => Promise<Response>;
   });
 
   test('should return valid JSON response structure', async () => {
