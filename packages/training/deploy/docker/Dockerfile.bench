@@ -108,7 +108,7 @@ RUN mkdir -p /models /benchmark-results /app/packages/training/benchmark-results
 
 # Environment variables
 ENV VLLM_URL=http://localhost:9001
-ENV BASE_MODEL=Qwen/Qwen3-4B
+ENV BASE_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ENV BENCHMARK_OUTPUT_DIR=/benchmark-results
 ENV BENCHMARK_QUICK=false
 

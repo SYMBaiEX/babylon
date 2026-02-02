@@ -14,7 +14,7 @@ Usage:
     # Export merged model
     python scripts/export_model_to_huggingface.py \
         --adapter-path ./checkpoints/babylon-qwen-lora \
-        --base-model Qwen/Qwen3-30B-A3B \
+        --base-model Qwen/Qwen2.5-0.5B-Instruct \
         --merge \
         --repo-id babylonlabs/babylon-trader-qwen3-30b-v0.1-merged
     
@@ -66,7 +66,7 @@ class ModelExportConfig:
     """Configuration for model export."""
     adapter_path: str
     repo_id: str
-    base_model: str = "Qwen/Qwen3-30B-A3B"
+    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     
     # Export options
     merge: bool = False  # Merge adapter into base model
@@ -421,7 +421,7 @@ def main():
     parser = argparse.ArgumentParser(description="Export trained model to HuggingFace Hub")
     parser.add_argument("--adapter-path", required=True, help="Path to LoRA adapter checkpoint")
     parser.add_argument("--repo-id", required=True, help="HuggingFace repo ID (e.g., 'org/model-name')")
-    parser.add_argument("--base-model", default="Qwen/Qwen3-30B-A3B", help="Base model name")
+    parser.add_argument("--base-model", default="Qwen/Qwen2.5-0.5B-Instruct", help="Base model name")
     parser.add_argument("--merge", action="store_true", help="Merge adapter into base model")
     parser.add_argument("--private", action="store_true", help="Make repo private")
     parser.add_argument("--version", default="0.1", help="Model version")

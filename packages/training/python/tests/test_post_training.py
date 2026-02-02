@@ -50,7 +50,7 @@ class TestPostTrainingConfig:
         assert config.model_path == "./trained_models/final"
         assert config.training_steps == 1000
         assert config.final_reward == 0.75
-        assert config.base_model == "Qwen/Qwen3-4B"
+        assert config.base_model == "Qwen/Qwen2.5-0.5B-Instruct"
     
     def test_default_values(self):
         """Test default configuration values."""
@@ -223,7 +223,7 @@ class TestPushModelToHub:
                 final_reward=0.75,
                 hf_push_repo="elizaos/test-model",
                 hf_model_codename="ishtar",
-                base_model="Qwen/Qwen3-4B",
+                base_model="Qwen/Qwen2.5-0.5B-Instruct",
                 wandb_run_id="run-123",
                 dataset_id="elizaos/dataset",
                 hf_model_private=True,
@@ -385,7 +385,7 @@ class TestGenerateTrainingSummary:
             model_path="./trained_models/final_model",
             training_steps=1000,
             final_reward=0.75,
-            base_model="Qwen/Qwen3-4B",
+            base_model="Qwen/Qwen2.5-0.5B-Instruct",
             hf_model_codename="ishtar",
             wandb_run_id="run-abc123",
             dataset_id="elizaos/dataset-v1",
@@ -398,7 +398,7 @@ class TestGenerateTrainingSummary:
         assert "./trained_models/final_model" in summary
         assert "ishtar" in summary
         assert "Goddess of love and war" in summary  # Codename description
-        assert "Qwen/Qwen3-4B" in summary
+        assert "Qwen/Qwen2.5-0.5B-Instruct" in summary
         assert "1000" in summary
         assert "0.75" in summary
         assert "run-abc123" in summary

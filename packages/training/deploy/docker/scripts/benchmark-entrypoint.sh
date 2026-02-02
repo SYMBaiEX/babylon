@@ -48,7 +48,7 @@ VLLM_GPU_MEMORY="${VLLM_GPU_MEMORY_UTILIZATION:-0.85}"
 VLLM_MAX_LEN="${VLLM_MAX_MODEL_LEN:-4096}"
 
 # Model settings
-BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-4B}"
+BASE_MODEL="${BASE_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
 MODEL_PATH="${MODEL_PATH:-${ADAPTER_PATH:-}}"
 HF_MODEL="${HF_MODEL:-}"
 
@@ -78,7 +78,7 @@ Options:
   --shell              Start interactive shell instead of benchmark
 
 Environment Variables:
-  BASE_MODEL           Base model name (default: Qwen/Qwen3-4B)
+  BASE_MODEL           Base model name (default: Qwen/Qwen2.5-0.5B-Instruct)
   MODEL_PATH           Path to trained adapter (inside container)
   HF_MODEL             HuggingFace model ID to download
   HF_TOKEN             HuggingFace token for private models

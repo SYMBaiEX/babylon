@@ -72,7 +72,7 @@ class PostTrainingConfig:
     training_steps: int
     final_reward: float
     wandb_run_id: Optional[str] = None
-    base_model: str = "Qwen/Qwen3-4B"
+    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     dataset_id: Optional[str] = None
     
     # HuggingFace push settings
@@ -95,7 +95,7 @@ class PostTrainingConfig:
             training_steps=training_steps,
             final_reward=final_reward,
             wandb_run_id=kwargs.get("wandb_run_id") or os.environ.get("WANDB_RUN_ID"),
-            base_model=kwargs.get("base_model", "Qwen/Qwen3-4B"),
+            base_model=kwargs.get("base_model", "Qwen/Qwen2.5-0.5B-Instruct"),
             dataset_id=kwargs.get("dataset_id") or os.environ.get("HF_TRAJECTORY_DATASET"),
             hf_push_repo=os.environ.get("HF_PUSH_REPO", ""),
             hf_model_codename=os.environ.get("HF_MODEL_CODENAME", "ishtar"),
@@ -282,7 +282,7 @@ def run_post_training(
     training_steps: int,
     final_reward: float,
     wandb_run_id: Optional[str] = None,
-    base_model: str = "Qwen/Qwen3-4B",
+    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct",
     dataset_id: Optional[str] = None,
 ) -> bool:
     """
@@ -340,7 +340,7 @@ def main():
     parser.add_argument("--training-steps", type=int, required=True, help="Number of training steps")
     parser.add_argument("--final-reward", type=float, required=True, help="Final training reward")
     parser.add_argument("--wandb-run-id", help="W&B run ID")
-    parser.add_argument("--base-model", default="Qwen/Qwen3-4B", help="Base model name")
+    parser.add_argument("--base-model", default="Qwen/Qwen2.5-0.5B-Instruct", help="Base model name")
     parser.add_argument("--dataset-id", help="HuggingFace dataset ID")
     
     args = parser.parse_args()

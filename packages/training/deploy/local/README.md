@@ -56,7 +56,7 @@ cp ../env.example ../.env
 | `24gb` | RTX 3090/4090 | 24GB | Qwen2.5-1.5B |
 | `l40` | L40S | 48GB | Qwen2.5-7B |
 | `a100` | A100 | 80GB | Qwen2.5-14B |
-| `h100` | H100 | 80GB | Qwen3-30B |
+| `h100` | H100 | 80GB | Qwen2.5-14B |
 
 ## Environment Variables
 

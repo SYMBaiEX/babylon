@@ -78,7 +78,7 @@ The training supports various GPU configurations:
 | `24gb` | RTX 3090/4090 | 24GB | Qwen2.5-1.5B | Local/Cloud |
 | `l40` | L40S | 48GB | Qwen2.5-7B | Cloud |
 | `a100` | A100 | 80GB | Qwen2.5-14B | Production |
-| `h100` | H100 | 80GB | Qwen3-30B-A3B | Production |
+| `h100` | H100 | 80GB | Qwen2.5-14B | Production |
 
 ## Docker Images
 
