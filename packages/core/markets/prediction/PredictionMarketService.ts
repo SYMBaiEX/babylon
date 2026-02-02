@@ -235,7 +235,9 @@ export class PredictionMarketService {
       .filter((p): p is NonNullable<typeof p> => !!p)
       // Only allow selling active positions (whitelist approach for security)
       // This prevents selling cancelled/voided/resolved positions that have already been settled
-      .filter((p) => (!p.status || p.status === 'active') && p.shares > MIN_SHARES);
+      .filter(
+        (p) => (!p.status || p.status === 'active') && p.shares > MIN_SHARES
+      );
 
     let pos: NonNullable<typeof yesPos> | NonNullable<typeof noPos> | null =
       null;

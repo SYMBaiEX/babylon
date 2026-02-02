@@ -390,7 +390,7 @@ export const NPC_ENGAGEMENT_CONFIG = {
    */
   discourseQuoteProbability: envProbability(
     'NPC_DISCOURSE_QUOTE_PROBABILITY',
-    0.30
+    0.3
   ),
 
   /**
