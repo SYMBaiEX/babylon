@@ -33,7 +33,8 @@ function isAtValidMentionPosition(text: string, atIndex: number): boolean {
 
 /**
  * Find all valid mention ranges in the text.
- * Only returns mentions that exist in validUsernames set.
+ * Only returns mentions that exist in validUsernames set AND are at valid
+ * mention positions (start of text or after whitespace).
  */
 function findMentionRanges(
   text: string,
@@ -47,8 +48,11 @@ function findMentionRanges(
     const mention = match[0];
     const handle = mention.slice(1).toLowerCase();
 
-    // Only include valid mentions
-    if (validUsernames.has(handle)) {
+    // Only include valid mentions at valid positions (not in emails, etc.)
+    if (
+      validUsernames.has(handle) &&
+      isAtValidMentionPosition(text, match.index)
+    ) {
       ranges.push({
         start: match.index,
         end: match.index + mention.length,

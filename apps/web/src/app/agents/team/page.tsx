@@ -840,7 +840,6 @@ export default function TeamChatPage() {
             ]}
             typingUsers={typingUsers}
             thinkingAgents={thinkingAgents}
-            onShowMembers={() => setMobileView('agents')}
             onScroll={handleScroll}
             leftSidebarCollapsed={leftSidebarCollapsed}
             onToggleLeftSidebar={() => setLeftSidebarCollapsed((p) => !p)}

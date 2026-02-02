@@ -681,20 +681,20 @@ function AgentPnLView({
                           >
                             {pos.side}
                           </span>
-                          <span>{pos.shares.toFixed(2)} shares</span>
+                          <span>{Number(pos.shares).toFixed(2)} shares</span>
                         </div>
                       </div>
                       {pos.unrealizedPnL !== undefined && (
                         <span
                           className={cn(
                             'ml-2 shrink-0 font-medium',
-                            pos.unrealizedPnL >= 0
+                            Number(pos.unrealizedPnL) >= 0
                               ? 'text-green-600'
                               : 'text-red-600'
                           )}
                         >
-                          {pos.unrealizedPnL >= 0 ? '+' : ''}
-                          {pos.unrealizedPnL.toFixed(2)}
+                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                          {Number(pos.unrealizedPnL).toFixed(2)}
                         </span>
                       )}
                     </button>
@@ -734,9 +734,9 @@ function AgentPnLView({
                           >
                             {pos.side.toUpperCase()}
                           </span>
-                          <span>Size: {pos.size.toFixed(4)}</span>
+                          <span>Size: {Number(pos.size).toFixed(4)}</span>
                           {pos.entryPrice && (
-                            <span>@ ${pos.entryPrice.toFixed(2)}</span>
+                            <span>@ ${Number(pos.entryPrice).toFixed(2)}</span>
                           )}
                         </div>
                       </div>
@@ -744,13 +744,13 @@ function AgentPnLView({
                         <span
                           className={cn(
                             'ml-2 shrink-0 font-medium',
-                            pos.unrealizedPnL >= 0
+                            Number(pos.unrealizedPnL) >= 0
                               ? 'text-green-600'
                               : 'text-red-600'
                           )}
                         >
-                          {pos.unrealizedPnL >= 0 ? '+' : ''}
-                          {pos.unrealizedPnL.toFixed(2)}
+                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                          {Number(pos.unrealizedPnL).toFixed(2)}
                         </span>
                       )}
                     </button>

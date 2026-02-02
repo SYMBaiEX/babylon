@@ -51,10 +51,15 @@ export function useCollapsibleHeight(isOpen: boolean) {
     // Closing: First set to current height, then animate to 0
     const contentHeight = contentRef.current.scrollHeight;
     setHeight(contentHeight);
+    let cancelled = false;
     requestAnimationFrame(() => {
-      setHeight(0);
+      if (!cancelled) {
+        setHeight(0);
+      }
     });
-    return undefined;
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   return { contentRef, height };
