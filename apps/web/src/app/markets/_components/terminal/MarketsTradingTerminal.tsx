@@ -9,7 +9,6 @@ import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
-  ChevronUp,
   Filter,
   Info,
   Maximize2,
@@ -92,6 +91,7 @@ import { TerminalSocialFeed } from './TerminalSocialFeed';
 type MarketsFilter = 'all' | 'favorites' | 'perp' | 'prediction';
 type MarketsSort = 'volume' | 'change' | 'openInterest' | 'name';
 type BottomTab = 'agent' | 'social' | 'portfolio' | 'positions' | 'trades';
+type MobileTab = 'chart' | BottomTab;
 
 /** Base height of the bottom nav (matches app layout's pb-14) */
 const BOTTOM_NAV_BASE_HEIGHT = 56;
@@ -113,6 +113,57 @@ const BOTTOM_TAB_LABELS: Record<BottomTab, string> = {
   positions: 'Positions',
   trades: 'Trades',
 };
+
+const MOBILE_TAB_LABELS: Record<MobileTab, string> = {
+  chart: 'Chart',
+  ...BOTTOM_TAB_LABELS,
+};
+
+const MOBILE_TABS: readonly MobileTab[] = [
+  'chart',
+  'agent',
+  'social',
+  'portfolio',
+  'positions',
+  'trades',
+];
+
+function MobileTabBar({
+  activeTab,
+  onSelect,
+}: {
+  activeTab: MobileTab;
+  onSelect: (tab: MobileTab) => void;
+}) {
+  return (
+    <div className="hide-scrollbar min-w-0 flex-1 overflow-x-auto">
+      <div className="flex w-max min-w-full items-center justify-center gap-1 px-1">
+        {MOBILE_TABS.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => onSelect(tab)}
+            className={cn(
+              'relative flex h-9 shrink-0 items-center justify-center rounded-xl px-3 font-bold text-[11px] transition-colors duration-200',
+              activeTab === tab
+                ? 'bg-muted/20 text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-current={activeTab === tab ? 'page' : undefined}
+          >
+            {MOBILE_TAB_LABELS[tab]}
+            <div
+              className={cn(
+                'absolute right-2 bottom-0 left-2 h-0.5 origin-center rounded-full bg-foreground transition-transform duration-200',
+                activeTab === tab ? 'scale-x-100' : 'scale-x-0'
+              )}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /*
  * Z-INDEX STACKING CONTEXT (documentation only - Tailwind requires static class names)
@@ -486,6 +537,7 @@ export function MarketsTradingTerminal({
   const [isMobileChartFullscreen, setIsMobileChartFullscreen] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [mobileBottomNavHeight, setMobileBottomNavHeight] = useState(56);
+  const [mobileChartAnimationKey, setMobileChartAnimationKey] = useState(0);
 
   // Cooldown state to prevent refresh spam (protects backend at scale)
   const [refreshOnCooldown, setRefreshOnCooldown] = useState(false);
@@ -506,6 +558,30 @@ export function MarketsTradingTerminal({
     setIsMobileMarketListOpen(false);
     setIsMobileTradeSheetOpen(false);
   }, []);
+
+  const handleMobileTabSelect = useCallback(
+    (tab: MobileTab) => {
+      setIsMobileChartFullscreen(false);
+
+      if (tab === 'chart') {
+        // Only remount chart when returning from a non-chart surface
+        const wasOnChart =
+          !isMobilePanelOpen &&
+          !isMobileMarketListOpen &&
+          !isMobileTradeSheetOpen;
+        if (!wasOnChart) {
+          setMobileChartAnimationKey((k) => k + 1);
+        }
+        setIsMobilePanelOpen(false);
+        setIsMobileMarketListOpen(false);
+        setIsMobileTradeSheetOpen(false);
+        return;
+      }
+
+      openMobilePanel(tab);
+    },
+    [openMobilePanel, isMobilePanelOpen, isMobileMarketListOpen, isMobileTradeSheetOpen]
+  );
 
   // Shared handlers for TerminalPortfolio (used in both desktop and mobile)
   const handlePortfolioRefresh = useCallback(() => {
@@ -2286,53 +2362,70 @@ export function MarketsTradingTerminal({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="contents">
               <div className="relative flex min-h-0 w-full flex-1 flex-col border-white/5 border-b">
+                <div className="border-white/5 border-b bg-background/60 px-2 py-2 shadow-sm backdrop-blur-md">
+                  <MobileTabBar
+                    activeTab={
+                      isMobilePanelOpen
+                        ? (bottomTab as MobileTab)
+                        : ('chart' as const)
+                    }
+                    onSelect={handleMobileTabSelect}
+                  />
+                </div>
+
                 {selected?.kind === 'prediction' ? (
-                  <>
-                    <PredictionMarketHeader
-                      predictionState={predictionState}
-                      yesPct={predictionYesPct}
+                  <PredictionMarketHeader
+                    predictionState={predictionState}
+                    yesPct={predictionYesPct}
+                    timeRange={predictionTimeRange}
+                    onTimeRangeChange={setPredictionTimeRange}
+                    onDetailsClick={() => setPredictionDetailsOpen(true)}
+                    variant="compact"
+                  />
+                ) : selectedPerp ? (
+                  <PerpMarketHeader
+                    selectedPerp={selectedPerp}
+                    timeRange={perpTimeRange}
+                    onTimeRangeChange={setPerpTimeRange}
+                    variant="compact"
+                  />
+                ) : null}
+
+                {selected?.kind === 'prediction' ? (
+                  <div
+                    key={mobileChartAnimationKey}
+                    className="fade-in min-h-0 flex-1 animate-in p-2 duration-200"
+                  >
+                    <PredictionProbabilityChart
+                      data={predictionHistory}
+                      marketId={selectedPredictionId ?? 'unknown'}
                       timeRange={predictionTimeRange}
                       onTimeRangeChange={setPredictionTimeRange}
-                      onDetailsClick={() => setPredictionDetailsOpen(true)}
-                      variant="compact"
+                      showHeader={false}
+                      height="fill"
                     />
-                    <div className="min-h-0 flex-1 p-2">
-                      <PredictionProbabilityChart
-                        data={predictionHistory}
-                        marketId={selectedPredictionId ?? 'unknown'}
-                        timeRange={predictionTimeRange}
-                        onTimeRangeChange={setPredictionTimeRange}
-                        showHeader={false}
-                        height="fill"
-                      />
-                    </div>
-                  </>
+                  </div>
                 ) : selectedPerp ? (
-                  <>
-                    <PerpMarketHeader
-                      selectedPerp={selectedPerp}
+                  <div
+                    key={mobileChartAnimationKey}
+                    className="fade-in min-h-0 flex-1 animate-in p-2 duration-200"
+                  >
+                    <PerpPriceChart
+                      data={perpHistory.map((p) => ({
+                        time: p.time,
+                        price: p.price,
+                      }))}
+                      currentPrice={selectedPerp.currentPrice}
+                      ticker={selectedPerp.ticker}
                       timeRange={perpTimeRange}
                       onTimeRangeChange={setPerpTimeRange}
-                      variant="compact"
+                      showHeader={false}
+                      height="fill"
+                      className="h-full"
                     />
-                    <div className="min-h-0 flex-1 p-2">
-                      <PerpPriceChart
-                        data={perpHistory.map((p) => ({
-                          time: p.time,
-                          price: p.price,
-                        }))}
-                        currentPrice={selectedPerp.currentPrice}
-                        ticker={selectedPerp.ticker}
-                        timeRange={perpTimeRange}
-                        onTimeRangeChange={setPerpTimeRange}
-                        showHeader={false}
-                        height="fill"
-                        className="h-full"
-                      />
-                    </div>
-                  </>
+                  </div>
                 ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
                     Select a market
                   </div>
                 )}
@@ -2361,107 +2454,6 @@ export function MarketsTradingTerminal({
             className="sticky z-40 w-full select-none overflow-hidden rounded-t-[20px] border-white/5 border-t bg-background shadow-[0_-5px_15px_rgba(0,0,0,0.12)]"
             style={{ bottom: mobileBottomDockOffset }}
           >
-            <div className="border-white/5 border-b bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
-              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-background/40 p-1">
-                <div className="flex min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel('agent')}
-                    className={cn(
-                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                      bottomTab === 'agent'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    aria-label="Open Agents panel"
-                  >
-                    Agents
-                    {bottomTab === 'agent' && (
-                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel('social')}
-                    className={cn(
-                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                      bottomTab === 'social'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    aria-label="Open Social panel"
-                  >
-                    Social
-                    {bottomTab === 'social' && (
-                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel('portfolio')}
-                    className={cn(
-                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                      bottomTab === 'portfolio'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    aria-label="Open Portfolio panel"
-                  >
-                    Portf.
-                    {bottomTab === 'portfolio' && (
-                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel('positions')}
-                    className={cn(
-                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                      bottomTab === 'positions'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    aria-label="Open Positions panel"
-                  >
-                    Pos.
-                    {bottomTab === 'positions' && (
-                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openMobilePanel('trades')}
-                    className={cn(
-                      'relative flex h-9 min-w-0 flex-1 items-center justify-center px-2 font-bold text-[11px] transition-colors',
-                      bottomTab === 'trades'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    aria-label="Open Trades panel"
-                  >
-                    Trades
-                    {bottomTab === 'trades' && (
-                      <div className="absolute right-2 bottom-0 left-2 h-0.5 rounded-full bg-foreground" />
-                    )}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openMobilePanel()}
-                  className={cn(
-                    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                    'text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-                  )}
-                  aria-label="Open panel"
-                  title="Open panel"
-                >
-                  <ChevronUp size={18} />
-                </button>
-              </div>
-            </div>
-
             <div className="flex h-[72px] items-center justify-between px-2 pb-2 font-medium text-[10px] text-muted-foreground">
               {/* Minimal bottom nav */}
               <button
@@ -2513,101 +2505,17 @@ export function MarketsTradingTerminal({
 
           {isMobilePanelOpen && (
             <div className="fade-in slide-in-from-bottom-2 absolute inset-0 z-[70] flex animate-in flex-col bg-background pt-safe pb-safe duration-200">
-              <div className="flex items-center justify-between border-white/5 border-b p-4">
-                <h2 className="font-bold text-lg">
-                  {BOTTOM_TAB_LABELS[bottomTab]} Panel
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setIsMobilePanelOpen(false)}
-                  className="rounded-full p-2 transition-colors hover:bg-muted/20"
-                  aria-label="Close panel"
-                >
-                  <X size={20} />
-                </button>
+              <div className="flex items-center gap-2 border-white/5 border-b bg-background/70 px-2 py-2 shadow-sm backdrop-blur-md">
+                <MobileTabBar
+                  activeTab={bottomTab as MobileTab}
+                  onSelect={handleMobileTabSelect}
+                />
               </div>
 
-              <div className="flex h-11 shrink-0 items-center border-white/5 border-b bg-background px-2 shadow-sm">
-                <div className="flex min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('agent')}
-                    className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-                      bottomTab === 'agent'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    Agents
-                    {bottomTab === 'agent' && (
-                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('social')}
-                    className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-                      bottomTab === 'social'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    Social
-                    {bottomTab === 'social' && (
-                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('portfolio')}
-                    className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-                      bottomTab === 'portfolio'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    Portfolio
-                    {bottomTab === 'portfolio' && (
-                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('positions')}
-                    className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-                      bottomTab === 'positions'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    Positions
-                    {bottomTab === 'positions' && (
-                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBottomTab('trades')}
-                    className={cn(
-                      'relative flex h-full min-w-0 flex-1 items-center justify-center px-2 py-2 font-bold text-xs capitalize transition-colors',
-                      bottomTab === 'trades'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    )}
-                  >
-                    Trades
-                    {bottomTab === 'trades' && (
-                      <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-foreground" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div
+                key={bottomTab}
+                className="fade-in min-h-0 flex-1 animate-in overflow-hidden duration-150"
+              >
                 {bottomTab === 'agent' ? (
                   <TerminalAgentsChat />
                 ) : bottomTab === 'social' ? (
