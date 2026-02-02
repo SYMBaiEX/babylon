@@ -1634,6 +1634,8 @@ export async function generateNPCRepliesFromPreviousTicks(
   let quoteDeckIndex = 0;
   const actionAssignments = postActionAssignments.map((assignment) => ({
     ...assignment,
+    // Short-circuit evaluation: quoteDeckIndex++ only runs when isOriginalPost is true.
+    // This ensures we only consume deck entries for original posts, preserving the ratio.
     shouldQuote:
       assignment.isOriginalPost && quoteDeck[quoteDeckIndex++] === 'quote',
   }));

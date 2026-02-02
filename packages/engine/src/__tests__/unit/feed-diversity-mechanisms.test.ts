@@ -264,10 +264,10 @@ describe('shuffleWithNoConsecutive', () => {
     expect(result).toContain('b');
   });
 
-  test('handles 5a-2b distribution (solvable)', () => {
+  test('handles 5a-2b distribution (not solvable)', () => {
     // 5 'a' and 2 'b' - NOT solvable: max interleaving is a-b-a-b-a-a-a
-    // But wait: 5 + 2 = 7, ceil(7/2) = 4, and max count is 5 > 4, so NOT solvable
-    // Actually let's check: a-b-a-b-a-a-a has consecutive 'a's at the end
+    // 5 + 2 = 7, ceil(7/2) = 4, and max count is 5 > 4, so NOT solvable
+    // Best case still has consecutive 'a's at the end
     const random = createSeededRandom(42);
     const input = ['a', 'a', 'a', 'a', 'a', 'b', 'b'];
     const result = shuffleWithNoConsecutive(input, random);
