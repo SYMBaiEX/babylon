@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 
 interface Transaction {
   id: string;
@@ -25,7 +26,7 @@ interface Transaction {
 }
 
 /** Response from /api/agents/[agentId]/trading-balance */
-interface WalletResponse {
+interface AgentWalletResponse {
   success: boolean;
   agentBalance: {
     tradingBalance: number;
@@ -48,16 +49,103 @@ interface ErrorResponse {
   error?: string;
 }
 
-interface AgentPortfolioProps {
-  agentId: string;
-  agentName: string;
-}
+type AgentPortfolioProps =
+  | {
+      entityType: 'agent';
+      agentId: string;
+      entityName: string;
+      userId?: never;
+    }
+  | {
+      entityType: 'user';
+      userId: string;
+      entityName: string;
+      agentId?: never;
+    };
 
 /**
- * Wallet component for managing agent balance and transfers.
- * Shows balance, deposit/withdraw, and transaction history.
+ * Wallet component for viewing balance and managing transfers.
+ * Supports both user and agent modes.
+ * - User mode: Shows balance only (no transfers)
+ * - Agent mode: Shows balance, transfers, and transaction history
  */
-export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
+export function AgentPortfolio(props: AgentPortfolioProps) {
+  const { entityType, entityName } = props;
+
+  if (entityType === 'user') {
+    return <UserWallet userId={props.userId} entityName={entityName} />;
+  }
+
+  return <AgentWallet agentId={props.agentId} entityName={entityName} />;
+}
+
+/** User wallet - balance only, no transfers */
+function UserWallet({
+  userId,
+  entityName,
+}: {
+  userId: string;
+  entityName: string;
+}) {
+  const { balance, lifetimePnL, loading } = useWalletBalance(userId);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      {/* Balance Card */}
+      <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
+              <Wallet className="h-3.5 w-3.5" />
+              Your Balance
+            </div>
+            <div className="mt-1 font-bold text-2xl">
+              {balance.toFixed(2)} pts
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-muted-foreground text-xs">Lifetime P&L</div>
+            <div
+              className={cn(
+                'mt-1 font-semibold text-lg',
+                lifetimePnL >= 0 ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {lifetimePnL >= 0 ? '+' : ''}
+              {lifetimePnL.toFixed(2)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
+      </div>
+
+      {/* Info Card */}
+      <div className="rounded-lg border border-border bg-card/50 p-4">
+        <p className="text-muted-foreground text-sm">
+          This is your personal wallet balance. To fund your agents, select an
+          agent from the dropdown above and use the Transfer section.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Agent wallet - full functionality with transfers */
+function AgentWallet({
+  agentId,
+  entityName,
+}: {
+  agentId: string;
+  entityName: string;
+}) {
   const { getAccessToken } = useAuth();
 
   // Wallet state
@@ -96,7 +184,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         return;
       }
 
-      const walletData = (await walletRes.json()) as WalletResponse;
+      const walletData = (await walletRes.json()) as AgentWalletResponse;
 
       if (walletData.success) {
         setBalanceInfo({
@@ -222,7 +310,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
             </div>
           </div>
         </div>
-        <div className="mt-2 text-muted-foreground text-xs">{agentName}</div>
+        <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
       </div>
 
       {/* Transfer + Transaction History - Side by side on wide */}

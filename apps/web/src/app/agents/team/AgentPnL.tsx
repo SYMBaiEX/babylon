@@ -5,6 +5,11 @@ import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
+import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
+import {
+  usePerpPositions,
+  usePredictionPositions,
+} from '@/stores/userPositionsStore';
 
 /** Response from /api/agents/[agentId]/trading-balance */
 interface WalletResponse {
@@ -27,10 +32,19 @@ interface AgentResponse {
   };
 }
 
-interface AgentPnLProps {
-  agentId: string;
-  agentName: string;
-}
+type AgentPnLProps =
+  | {
+      entityType: 'agent';
+      agentId: string;
+      entityName: string;
+      userId?: never;
+    }
+  | {
+      entityType: 'user';
+      userId: string;
+      entityName: string;
+      agentId?: never;
+    };
 
 /** Collapsible section with smooth height animation */
 function CollapsibleSection({
@@ -102,8 +116,303 @@ function CollapsibleSection({
 
 /**
  * P&L component showing trading performance, stats, and open positions.
+ * Supports both user and agent modes.
  */
-export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
+export function AgentPnL(props: AgentPnLProps) {
+  const { entityType, entityName } = props;
+
+  if (entityType === 'user') {
+    return <UserPnL userId={props.userId} entityName={entityName} />;
+  }
+
+  return <AgentPnLView agentId={props.agentId} entityName={entityName} />;
+}
+
+/** User P&L view - uses usePortfolioPnL and userPositionsStore */
+function UserPnL({
+  userId,
+  entityName,
+}: {
+  userId: string;
+  entityName: string;
+}) {
+  const [expandedSections, setExpandedSections] = useState<
+    Set<'predictions' | 'perps'>
+  >(new Set(['predictions', 'perps']));
+
+  // Fetch user portfolio data
+  const { data: portfolioData, loading: portfolioLoading } = usePortfolioPnL();
+
+  // Fetch user positions
+  const { positions: perpsData, loading: perpsLoading } =
+    usePerpPositions(userId);
+  const { positions: predictionsData, loading: predictionsLoading } =
+    usePredictionPositions(userId);
+
+  const loading = portfolioLoading || perpsLoading || predictionsLoading;
+
+  // Ensure arrays even if data is undefined
+  const perps = perpsData ?? [];
+  const predictions = predictionsData ?? [];
+
+  const toggleSection = useCallback((section: 'predictions' | 'perps') => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const totalPnL = portfolioData?.totalPnL ?? 0;
+  const isProfitable = totalPnL >= 0;
+  const totalAssets = portfolioData?.totalAssets ?? 0;
+  const positionsValue = portfolioData?.positions ?? 0;
+
+  // Calculate unrealized P&L from positions
+  let unrealizedPnL = 0;
+  for (const pos of predictions) {
+    const unrealized = Number(pos.unrealizedPnL);
+    if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
+  }
+  for (const pos of perps) {
+    const unrealized = Number(pos.unrealizedPnL);
+    if (Number.isFinite(unrealized)) unrealizedPnL += unrealized;
+  }
+  const realizedPnL = totalPnL - unrealizedPnL;
+
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">{entityName} P&L</h3>
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-xs',
+            isProfitable
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+          )}
+        >
+          {isProfitable ? (
+            <TrendingUp className="h-3 w-3" />
+          ) : (
+            <TrendingDown className="h-3 w-3" />
+          )}
+          {totalPnL >= 0 ? '+' : ''}
+          {totalPnL.toFixed(2)}
+        </div>
+      </div>
+
+      {/* P&L Summary + Quick Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* P&L Summary */}
+        <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Total P&L</span>
+            <span
+              className={cn(
+                'font-semibold',
+                isProfitable ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {totalPnL >= 0 ? '+' : ''}
+              {totalPnL.toFixed(2)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Realized</span>
+            <span
+              className={cn(
+                'font-medium',
+                realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {realizedPnL >= 0 ? '+' : ''}
+              {realizedPnL.toFixed(2)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Unrealized</span>
+            <span
+              className={cn(
+                'font-medium',
+                unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {unrealizedPnL >= 0 ? '+' : ''}
+              {unrealizedPnL.toFixed(2)}
+            </span>
+          </div>
+          <div className="border-border border-t pt-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">In Positions</span>
+              <span className="font-medium">{positionsValue.toFixed(2)} pts</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-muted/30 p-2 text-center">
+            <div className="text-[10px] text-muted-foreground">Total Assets</div>
+            <div className="font-semibold text-sm">{totalAssets.toFixed(0)}</div>
+          </div>
+          <div className="rounded-lg bg-muted/30 p-2 text-center">
+            <div className="text-[10px] text-muted-foreground">Positions</div>
+            <div className="font-semibold text-sm">
+              {predictions.length + perps.length}
+            </div>
+          </div>
+          <div className="rounded-lg bg-muted/30 p-2 text-center">
+            <div className="text-[10px] text-muted-foreground">Predictions</div>
+            <div className="font-semibold text-sm">{predictions.length}</div>
+          </div>
+          <div className="rounded-lg bg-muted/30 p-2 text-center">
+            <div className="text-[10px] text-muted-foreground">Perpetuals</div>
+            <div className="font-semibold text-sm">{perps.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Open Positions */}
+      <div className="flex flex-col rounded-lg border border-border bg-card/50 p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+        <div className="mb-2 shrink-0 font-medium text-sm">Open Positions</div>
+
+        {predictions.length === 0 && perps.length === 0 ? (
+          <div className="flex items-center justify-center py-4 text-muted-foreground text-xs">
+            No open positions
+          </div>
+        ) : (
+          <div className="space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+            {/* Prediction Positions */}
+            {predictions.length > 0 && (
+              <CollapsibleSection
+                title="Predictions"
+                count={predictions.length}
+                isOpen={expandedSections.has('predictions')}
+                onToggle={() => toggleSection('predictions')}
+              >
+                <div className="space-y-1">
+                  {predictions.map((pos) => (
+                    <div
+                      key={pos.id}
+                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">
+                          {pos.question || `Market ${pos.marketId}`}
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span
+                            className={cn(
+                              'font-medium',
+                              pos.side === 'yes'
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            )}
+                          >
+                            {pos.side.toUpperCase()}
+                          </span>
+                          <span>{Number(pos.shares).toFixed(2)} shares</span>
+                        </div>
+                      </div>
+                      {pos.unrealizedPnL !== undefined && (
+                        <span
+                          className={cn(
+                            'ml-2 shrink-0 font-medium',
+                            Number(pos.unrealizedPnL) >= 0
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          )}
+                        >
+                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                          {Number(pos.unrealizedPnL).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Perp Positions */}
+            {perps.length > 0 && (
+              <CollapsibleSection
+                title="Perpetuals"
+                count={perps.length}
+                isOpen={expandedSections.has('perps')}
+                onToggle={() => toggleSection('perps')}
+              >
+                <div className="space-y-1">
+                  {perps.map((pos) => (
+                    <div
+                      key={pos.id}
+                      className="flex items-center justify-between rounded bg-muted/30 px-2 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium">{pos.ticker}</div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span
+                            className={cn(
+                              'font-medium',
+                              pos.side === 'long'
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            )}
+                          >
+                            {pos.side.toUpperCase()}
+                          </span>
+                          <span>Size: {Number(pos.size).toFixed(4)}</span>
+                          {pos.entryPrice && (
+                            <span>@ ${Number(pos.entryPrice).toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                      {pos.unrealizedPnL !== undefined && (
+                        <span
+                          className={cn(
+                            'ml-2 shrink-0 font-medium',
+                            Number(pos.unrealizedPnL) >= 0
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          )}
+                        >
+                          {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
+                          {Number(pos.unrealizedPnL).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Agent P&L view - original implementation */
+function AgentPnLView({
+  agentId,
+  entityName,
+}: {
+  agentId: string;
+  entityName: string;
+}) {
   const { getAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<
@@ -222,7 +531,7 @@ export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
     <div className="flex flex-col gap-3 p-4">
       {/* Header with agent name */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">{agentName} P&L</h3>
+        <h3 className="font-semibold text-sm">{entityName} P&L</h3>
         <div
           className={cn(
             'flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-xs',
@@ -298,9 +607,7 @@ export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Trades</div>
-            <div className="font-semibold text-sm">
-              {agentStats.totalTrades}
-            </div>
+            <div className="font-semibold text-sm">{agentStats.totalTrades}</div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Win Rate</div>

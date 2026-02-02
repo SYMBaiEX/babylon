@@ -68,6 +68,7 @@ import {
   BOTTOM_PANEL_DEFAULT_HEIGHT,
   BottomPanel,
   type BottomPanelTab,
+  type EntityType,
 } from './BottomPanel';
 import { ConversationList } from './ConversationList';
 import { MemberList } from './MemberList';
@@ -191,9 +192,11 @@ export default function TeamChatPage() {
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomPanelTab, setBottomPanelTab] =
     useState<BottomPanelTab>('activity');
-  const [bottomPanelAgentId, setBottomPanelAgentId] = useState<string | null>(
+  const [bottomPanelEntityId, setBottomPanelEntityId] = useState<string | null>(
     null
   );
+  const [bottomPanelEntityType, setBottomPanelEntityType] =
+    useState<EntityType | null>(null);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(
     BOTTOM_PANEL_DEFAULT_HEIGHT
   );
@@ -206,29 +209,45 @@ export default function TeamChatPage() {
   // Create agent modal state
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false);
 
-  // Set default agent for bottom panel when agents load
+  // Set default entity for bottom panel - defaults to user
   // Also validates that selected agent still exists (handles agent removal)
   useEffect(() => {
-    const agents = teamChat?.agents;
-    if (!agents || agents.length === 0) {
-      // No agents - clear selection
-      if (bottomPanelAgentId) {
-        setBottomPanelAgentId(null);
-      }
+    // Default to user if no selection
+    if (!bottomPanelEntityId && user?.id) {
+      setBottomPanelEntityId(user.id);
+      setBottomPanelEntityType('user');
       return;
     }
 
-    // Check if current selection is still valid
-    const currentAgentExists = agents.some((a) => a.id === bottomPanelAgentId);
-
-    if (!bottomPanelAgentId || !currentAgentExists) {
-      // Set to first agent if no selection or selection is invalid
-      const firstAgent = agents[0];
-      if (firstAgent) {
-        setBottomPanelAgentId(firstAgent.id);
+    // If an agent is selected, validate it still exists
+    if (bottomPanelEntityType === 'agent' && bottomPanelEntityId) {
+      const agents = teamChat?.agents;
+      const agentExists = agents?.some((a) => a.id === bottomPanelEntityId);
+      if (!agentExists) {
+        // Agent was removed, fall back to user
+        if (user?.id) {
+          setBottomPanelEntityId(user.id);
+          setBottomPanelEntityType('user');
+        } else {
+          setBottomPanelEntityId(null);
+          setBottomPanelEntityType(null);
+        }
       }
     }
-  }, [teamChat?.agents, bottomPanelAgentId]);
+  }, [teamChat?.agents, bottomPanelEntityId, bottomPanelEntityType, user?.id]);
+
+  // Handle entity change from bottom panel
+  const handleBottomPanelEntityChange = useCallback(
+    (id: string, type: EntityType) => {
+      setBottomPanelEntityId(id);
+      setBottomPanelEntityType(type);
+      // If switching to user and on logs tab, switch to activity
+      if (type === 'user' && bottomPanelTab === 'logs') {
+        setBottomPanelTab('activity');
+      }
+    },
+    [bottomPanelTab]
+  );
 
   // Handle sidebar "Settings" - open in right sidebar
   const handleViewSettings = useCallback(
@@ -674,8 +693,11 @@ export default function TeamChatPage() {
         onToggle={() => setBottomPanelOpen((prev) => !prev)}
         activeTab={bottomPanelTab}
         onTabChange={setBottomPanelTab}
-        selectedAgentId={bottomPanelAgentId}
-        onAgentChange={setBottomPanelAgentId}
+        selectedEntityId={bottomPanelEntityId}
+        selectedEntityType={bottomPanelEntityType}
+        onEntityChange={handleBottomPanelEntityChange}
+        userId={user?.id}
+        userName={user?.displayName || user?.username || 'You'}
         agents={
           teamChat?.agents.map((a) => ({
             id: a.id,
@@ -685,28 +707,54 @@ export default function TeamChatPage() {
         height={bottomPanelHeight}
         onHeightChange={setBottomPanelHeight}
       >
-        {bottomPanelAgentId && (
+        {bottomPanelEntityId && bottomPanelEntityType && (
           <>
+            {/* Activity Tab */}
             {bottomPanelTab === 'activity' && (
               <div className="p-4">
-                <AgentActivityFeed
-                  agentId={bottomPanelAgentId}
-                  limit={20}
-                  showAgent={false}
-                  showConnectionStatus={false}
-                  emptyMessage="No activity from this agent yet."
-                />
+                {bottomPanelEntityType === 'user' ? (
+                  // User: Show aggregate activity from all agents
+                  <AgentActivityFeed
+                    limit={20}
+                    showAgent={true}
+                    showConnectionStatus={false}
+                    emptyMessage="No agent activity yet. Your agents' trades, posts, and comments will appear here."
+                  />
+                ) : (
+                  // Agent: Show single agent activity
+                  <AgentActivityFeed
+                    agentId={bottomPanelEntityId}
+                    limit={20}
+                    showAgent={false}
+                    showConnectionStatus={false}
+                    emptyMessage="No activity from this agent yet."
+                  />
+                )}
               </div>
             )}
+
+            {/* Wallet Tab */}
             {bottomPanelTab === 'wallet' &&
               (() => {
+                if (bottomPanelEntityType === 'user') {
+                  return (
+                    <AgentPortfolio
+                      entityType="user"
+                      userId={bottomPanelEntityId}
+                      entityName={
+                        user?.displayName || user?.username || 'You'
+                      }
+                    />
+                  );
+                }
                 const bottomAgent = teamChat?.agents.find(
-                  (a) => a.id === bottomPanelAgentId
+                  (a) => a.id === bottomPanelEntityId
                 );
                 return (
                   <AgentPortfolio
-                    agentId={bottomPanelAgentId}
-                    agentName={
+                    entityType="agent"
+                    agentId={bottomPanelEntityId}
+                    entityName={
                       bottomAgent?.displayName ||
                       bottomAgent?.username ||
                       'Agent'
@@ -714,15 +762,29 @@ export default function TeamChatPage() {
                   />
                 );
               })()}
+
+            {/* PnL Tab */}
             {bottomPanelTab === 'pnl' &&
               (() => {
+                if (bottomPanelEntityType === 'user') {
+                  return (
+                    <AgentPnL
+                      entityType={'user' as const}
+                      userId={bottomPanelEntityId}
+                      entityName={
+                        user?.displayName || user?.username || 'You'
+                      }
+                    />
+                  );
+                }
                 const bottomAgent = teamChat?.agents.find(
-                  (a) => a.id === bottomPanelAgentId
+                  (a) => a.id === bottomPanelEntityId
                 );
                 return (
                   <AgentPnL
-                    agentId={bottomPanelAgentId}
-                    agentName={
+                    entityType={'agent' as const}
+                    agentId={bottomPanelEntityId}
+                    entityName={
                       bottomAgent?.displayName ||
                       bottomAgent?.username ||
                       'Agent'
@@ -730,9 +792,11 @@ export default function TeamChatPage() {
                   />
                 );
               })()}
-            {bottomPanelTab === 'logs' && (
+
+            {/* Logs Tab - only for agents */}
+            {bottomPanelTab === 'logs' && bottomPanelEntityType === 'agent' && (
               <div className="p-4">
-                <AgentLogs agentId={bottomPanelAgentId} />
+                <AgentLogs agentId={bottomPanelEntityId} />
               </div>
             )}
           </>
