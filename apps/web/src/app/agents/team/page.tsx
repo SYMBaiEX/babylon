@@ -114,12 +114,35 @@ const AgentActivityFeed = dynamic(
     loading: () => (
       <div className="animate-pulse space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-lg border border-zinc-800 p-4">
+          <div key={i} className="rounded-lg border border-border p-4">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-800" />
+              <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-48 rounded bg-zinc-800" />
-                <div className="h-3 w-32 rounded bg-zinc-800" />
+                <div className="h-4 w-48 rounded bg-muted" />
+                <div className="h-3 w-32 rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  }
+);
+
+// Lazy load user activity feed for performance
+const UserActivity = dynamic(
+  () => import('./UserActivity').then((m) => ({ default: m.UserActivity })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="animate-pulse space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-lg border border-border p-4">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-48 rounded bg-muted" />
+                <div className="h-3 w-32 rounded bg-muted" />
               </div>
             </div>
           </div>
@@ -218,8 +241,7 @@ export default function TeamChatPage() {
     if (!bottomPanelEntityId && user?.id) {
       setBottomPanelEntityId(user.id);
       setBottomPanelEntityType('user');
-      // Set default tab to 'wallet' for user (activity/logs not available)
-      setBottomPanelTab('wallet');
+      // Keep current tab - activity is now available for users
       return;
     }
 
@@ -232,27 +254,32 @@ export default function TeamChatPage() {
         if (user?.id) {
           setBottomPanelEntityId(user.id);
           setBottomPanelEntityType('user');
-          // Set default tab to 'wallet' for user (activity/logs not available)
-          setBottomPanelTab('wallet');
+          // Switch to activity if on logs (logs not available for users)
+          if (bottomPanelTab === 'logs') {
+            setBottomPanelTab('activity');
+          }
         } else {
           setBottomPanelEntityId(null);
           setBottomPanelEntityType(null);
         }
       }
     }
-  }, [teamChat?.agents, bottomPanelEntityId, bottomPanelEntityType, user?.id]);
+  }, [
+    teamChat?.agents,
+    bottomPanelEntityId,
+    bottomPanelEntityType,
+    user?.id,
+    bottomPanelTab,
+  ]);
 
   // Handle entity change from bottom panel
   const handleBottomPanelEntityChange = useCallback(
     (id: string, type: EntityType) => {
       setBottomPanelEntityId(id);
       setBottomPanelEntityType(type);
-      // If switching to user and on logs or activity tab, switch to wallet
-      if (
-        type === 'user' &&
-        (bottomPanelTab === 'logs' || bottomPanelTab === 'activity')
-      ) {
-        setBottomPanelTab('wallet');
+      // If switching to user and on logs tab, switch to activity (logs not available for users)
+      if (type === 'user' && bottomPanelTab === 'logs') {
+        setBottomPanelTab('activity');
       }
     },
     [bottomPanelTab]
@@ -886,19 +913,26 @@ export default function TeamChatPage() {
       >
         {bottomPanelEntityId && bottomPanelEntityType && (
           <>
-            {/* Activity Tab - only for agents */}
-            {bottomPanelTab === 'activity' &&
-              bottomPanelEntityType === 'agent' && (
-                <div className="p-4">
-                  <AgentActivityFeed
-                    agentId={bottomPanelEntityId}
-                    limit={20}
-                    showAgent={false}
-                    showConnectionStatus={false}
-                    emptyMessage="No activity from this agent yet."
-                  />
-                </div>
-              )}
+            {/* Activity Tab */}
+            {bottomPanelTab === 'activity' && (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {bottomPanelEntityType === 'agent' ? (
+                  <div className="p-4">
+                    <AgentActivityFeed
+                      agentId={bottomPanelEntityId}
+                      limit={20}
+                      showAgent={false}
+                      showConnectionStatus={false}
+                      emptyMessage="No activity from this agent yet."
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    <UserActivity userId={bottomPanelEntityId} />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Wallet Tab */}
             {bottomPanelTab === 'wallet' &&
