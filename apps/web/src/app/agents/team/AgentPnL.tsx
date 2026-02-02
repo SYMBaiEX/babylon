@@ -3,9 +3,10 @@
 import { cn, logger } from '@babylon/shared';
 import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
+import { useCollapsibleHeight } from '@/hooks/useCollapsibleHeight';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import {
   usePerpPositions,
@@ -61,27 +62,7 @@ function CollapsibleSection({
   onToggle: () => void;
   children: React.ReactNode;
 }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(
-    isOpen ? undefined : 0
-  );
-
-  useEffect(() => {
-    if (!contentRef.current) return undefined;
-
-    if (isOpen) {
-      const contentHeight = contentRef.current.scrollHeight;
-      setHeight(contentHeight);
-      const timer = setTimeout(() => setHeight(undefined), 200);
-      return () => clearTimeout(timer);
-    }
-    const contentHeight = contentRef.current.scrollHeight;
-    setHeight(contentHeight);
-    requestAnimationFrame(() => {
-      setHeight(0);
-    });
-    return undefined;
-  }, [isOpen]);
+  const { contentRef, height } = useCollapsibleHeight(isOpen);
 
   return (
     <div className="rounded-md border border-border/50 bg-muted/20">

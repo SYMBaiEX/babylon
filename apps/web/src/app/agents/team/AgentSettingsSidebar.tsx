@@ -12,12 +12,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { useCollapsibleHeight } from '@/hooks/useCollapsibleHeight';
 import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 interface AgentData {
@@ -54,29 +55,7 @@ function Collapsible({
   isOpen: boolean;
   children: React.ReactNode;
 }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(
-    isOpen ? undefined : 0
-  );
-
-  useEffect(() => {
-    if (!contentRef.current) return undefined;
-
-    if (isOpen) {
-      const contentHeight = contentRef.current.scrollHeight;
-      setHeight(contentHeight);
-      // After animation, set to auto for dynamic content
-      const timer = setTimeout(() => setHeight(undefined), 200);
-      return () => clearTimeout(timer);
-    }
-    // Closing: First set to current height, then animate to 0
-    const contentHeight = contentRef.current.scrollHeight;
-    setHeight(contentHeight);
-    requestAnimationFrame(() => {
-      setHeight(0);
-    });
-    return undefined;
-  }, [isOpen]);
+  const { contentRef, height } = useCollapsibleHeight(isOpen);
 
   return (
     <div
