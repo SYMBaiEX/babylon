@@ -55,7 +55,9 @@ function Collapsible({
   children: React.ReactNode;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(isOpen ? undefined : 0);
+  const [height, setHeight] = useState<number | undefined>(
+    isOpen ? undefined : 0
+  );
 
   useEffect(() => {
     if (!contentRef.current) return undefined;
