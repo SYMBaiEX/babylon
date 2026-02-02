@@ -426,7 +426,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
               type="button"
               onClick={handleTransaction}
               disabled={processing || !amount}
-              className="h-9 rounded-md bg-[#0066FF] px-4 font-medium text-white text-sm transition-all hover:bg-[#0055DD] disabled:opacity-50"
+              className="h-9 rounded-md bg-[#0066FF] px-4 font-medium text-sm text-white transition-all hover:bg-[#0055DD] disabled:opacity-50"
             >
               {processing ? '...' : 'Go'}
             </button>
