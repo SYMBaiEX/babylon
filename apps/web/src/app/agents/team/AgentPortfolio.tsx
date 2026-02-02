@@ -5,16 +5,13 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronDown,
-  ExternalLink,
   History,
   Loader2,
-  Shield,
   Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
-import { useAgent0Reputation } from '@/hooks/useAgent0Reputation';
 import { useAgentTotalPnL } from '@/hooks/useAgentTotalPnL';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -112,10 +109,6 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
     totalWithdrawn: balanceInfo.totalWithdrawn,
     realizedPnL: balanceInfo.lifetimePnL.toString(),
   });
-
-  // Agent0 reputation
-  const { profile: agent0Profile, isAgent0Available } =
-    useAgent0Reputation(agentId);
 
   // Fetch balance, transactions, and agent stats
   const fetchData = useCallback(async () => {
@@ -277,25 +270,27 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
   }
 
   return (
-    <div className="flex h-full gap-4 p-4">
-      {/* Left Column - Balance & P&L Overview */}
-      <div className="flex w-72 shrink-0 flex-col gap-3">
-        {/* Balance Card */}
-        <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-3">
-          <div className="mb-1 flex items-center justify-between">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
+      {/* Balance Card - Full width, compact */}
+      <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/5 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 text-[#0066FF] text-xs">
               <Wallet className="h-3.5 w-3.5" />
               Balance
             </div>
-            <span className="truncate font-medium text-foreground text-xs">
-              {agentName}
-            </span>
+            <div className="font-bold text-xl">
+              {balanceInfo.agentBalance.toFixed(2)} pts
+            </div>
           </div>
-          <div className="font-bold text-2xl">
-            {balanceInfo.agentBalance.toFixed(2)} pts
-          </div>
+          <span className="truncate font-medium text-foreground text-xs">
+            {agentName}
+          </span>
         </div>
+      </div>
 
+      {/* P&L Summary + Quick Stats - Side by side */}
+      <div className="grid grid-cols-2 gap-3">
         {/* P&L Summary */}
         <div className="space-y-2 rounded-lg border border-border bg-card/50 p-3">
           <div className="flex items-center justify-between text-xs">
@@ -361,9 +356,7 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
             </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">
-              Open Positions
-            </div>
+            <div className="text-[10px] text-muted-foreground">Positions</div>
             <div className="font-semibold text-sm">
               {positionsLoading ? '...' : predictions.length + perps.length}
             </div>
@@ -377,10 +370,11 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
         </div>
       </div>
 
-      {/* Middle Column - Transfer */}
-      <div className="w-64 shrink-0 space-y-3">
-        <div className="rounded-lg border border-border bg-card/50 p-3">
-          <div className="mb-2 flex items-center justify-between">
+      {/* Transfer + Transaction History - Stacked on small, side by side on wide */}
+      <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_1fr]">
+        {/* Transfer Section */}
+        <div className="flex flex-col rounded-lg border border-border bg-card/50 p-3">
+          <div className="mb-3 flex items-center justify-between">
             <span className="font-medium text-sm">Transfer</span>
             <span className="text-muted-foreground text-xs">
               Your: {balanceInfo.userBalance.toFixed(2)} pts
@@ -388,31 +382,31 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
           </div>
 
           {/* Action Toggle */}
-          <div className="mb-2 grid grid-cols-2 gap-1">
+          <div className="mb-3 grid grid-cols-2 gap-1">
             <button
               type="button"
               onClick={() => setAction('deposit')}
               className={cn(
-                'flex items-center justify-center gap-1 rounded-md py-1.5 font-medium text-xs transition-all',
+                'flex items-center justify-center gap-1 rounded-md py-2 font-medium text-xs transition-all',
                 action === 'deposit'
                   ? 'bg-[#0066FF] text-white'
                   : 'bg-muted text-foreground hover:bg-muted/80'
               )}
             >
-              <ArrowDownToLine className="h-3 w-3" />
+              <ArrowDownToLine className="h-3.5 w-3.5" />
               Deposit
             </button>
             <button
               type="button"
               onClick={() => setAction('withdraw')}
               className={cn(
-                'flex items-center justify-center gap-1 rounded-md py-1.5 font-medium text-xs transition-all',
+                'flex items-center justify-center gap-1 rounded-md py-2 font-medium text-xs transition-all',
                 action === 'withdraw'
                   ? 'bg-[#0066FF] text-white'
                   : 'bg-muted text-foreground hover:bg-muted/80'
               )}
             >
-              <ArrowUpFromLine className="h-3 w-3" />
+              <ArrowUpFromLine className="h-3.5 w-3.5" />
               Withdraw
             </button>
           </div>
@@ -426,69 +420,32 @@ export function AgentPortfolio({ agentId, agentName }: AgentPortfolioProps) {
               placeholder="Amount..."
               min={0.01}
               step={0.01}
-              className="h-8 flex-1 text-sm"
+              className="h-9 flex-1 text-sm"
             />
             <button
               type="button"
               onClick={handleTransaction}
               disabled={processing || !amount}
-              className="h-8 rounded-md bg-[#0066FF] px-3 font-medium text-white text-xs transition-all hover:bg-[#0055DD] disabled:opacity-50"
+              className="h-9 rounded-md bg-[#0066FF] px-4 font-medium text-white text-sm transition-all hover:bg-[#0055DD] disabled:opacity-50"
             >
               {processing ? '...' : 'Go'}
             </button>
           </div>
         </div>
 
-        {/* Agent0 Reputation - Compact */}
-        {isAgent0Available && agent0Profile && (
-          <div className="rounded-lg border border-border bg-card/50 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="flex items-center gap-1 font-medium text-xs">
-                <Shield className="h-3 w-3 text-[#0066FF]" />
-                Agent0 Network
-              </span>
-              <a
-                href={`https://agent0.network/agent/${agent0Profile.tokenId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-[#0066FF]"
-                aria-label={`Open agent ${agent0Profile.tokenId} on Agent0 Network`}
-              >
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">Accuracy</span>
-                <div className="font-semibold text-[#0066FF]">
-                  {agent0Profile.reputation?.accuracyScore?.toFixed(1) ?? '—'}%
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Trust</span>
-                <div className="font-semibold text-green-600">
-                  {agent0Profile.reputation?.trustScore?.toFixed(1) ?? '—'}%
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Right Column - Transaction History */}
-      <div className="min-w-0 flex-1">
-        <div className="rounded-lg border border-border bg-card/50 p-3">
+        {/* Transaction History */}
+        <div className="flex min-h-0 flex-col rounded-lg border border-border bg-card/50 p-3">
           <div className="mb-2 flex items-center gap-1.5">
             <History className="h-3.5 w-3.5" />
             <span className="font-medium text-sm">Recent Transactions</span>
           </div>
 
           {transactions.length === 0 ? (
-            <div className="py-4 text-center text-muted-foreground text-xs">
+            <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">
               No transactions yet
             </div>
           ) : (
-            <div className="max-h-40 space-y-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
               {transactions.slice(0, 10).map((tx) => {
                 const isExpanded = expandedTxIds.has(tx.id);
                 return (
