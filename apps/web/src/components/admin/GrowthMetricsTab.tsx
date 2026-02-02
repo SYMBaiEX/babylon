@@ -96,6 +96,8 @@ interface GrowthData {
       retainedD7: number;
       retentionRate: number;
     }>;
+    status?: 'ok' | 'no_cohorts' | 'no_retention';
+    message?: string;
   };
   timeSeries: Array<{ date: string; wau: number }>;
   metadata: {

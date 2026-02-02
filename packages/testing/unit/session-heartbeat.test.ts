@@ -82,7 +82,8 @@ describe('UUID Generation', () => {
     for (let i = 0; i < 100; i++) {
       const uuid = generateUUID();
       // Variant is at position 19 (after 8+1+4+1+4 chars)
-      expect(validVariants).toContain(uuid[19]);
+      const variantChar = uuid.charAt(19);
+      expect(validVariants).toContain(variantChar);
     }
   });
 

@@ -103,6 +103,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ success: true, reason: 'no_user_id' });
   }
 
+  // After validation, userId is guaranteed to be string
+  const validUserId: string = userId;
+
   // Parse request body
   const body = (await request.json()) as HeartbeatRequest;
   const { sessionId, pageViews = 0 } = body;
@@ -115,7 +118,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Rate limit check
-  const cacheKey = `${userId}:${sessionId}`;
+  const cacheKey = `${validUserId}:${sessionId}`;
   const lastHeartbeat = heartbeatCache.get(cacheKey);
   const now = Date.now();
 
@@ -142,19 +145,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const id = await generateSnowflakeId();
     await db.insert(userSessions).values({
       id,
-      userId,
+      userId: validUserId,
       sessionId,
       startedAt: nowDate,
       lastActiveAt: nowDate,
-      deviceType,
-      userAgent: userAgentHeader?.substring(0, 500),
-      ipHash,
+      deviceType: deviceType || undefined,
+      userAgent: userAgentHeader
+        ? userAgentHeader.substring(0, 500)
+        : undefined,
+      ipHash: ipHash || undefined,
       pageCount: pageViews,
       heartbeatCount: 1,
     });
     logger.debug(
       'Created session',
-      { userId, id },
+      { userId: validUserId, id },
       'POST /api/activity/heartbeat'
     );
   }
@@ -203,7 +208,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .insert(userActivityLogs)
     .values({
       id: activityLogId,
-      userId,
+      userId: validUserId,
       activityType: 'session',
       activityDate,
     })

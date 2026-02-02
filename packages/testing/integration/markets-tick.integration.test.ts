@@ -582,8 +582,9 @@ describe('Idempotency Check Logic', () => {
 
 describe('POST Handler Integration', () => {
   // Import the POST handler dynamically to ensure mocks are applied
-  let POST: (request: Request) => Promise<Response>;
-  let GET: (request: Request) => Promise<Response>;
+  // Using typeof to get exact handler types from the route module
+  let POST: typeof import('@babylon/web/src/app/api/cron/markets-tick/route').POST;
+  let GET: typeof import('@babylon/web/src/app/api/cron/markets-tick/route').GET;
 
   beforeAll(async () => {
     // Dynamic import after mocks are set up
