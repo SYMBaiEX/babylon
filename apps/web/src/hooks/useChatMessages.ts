@@ -50,13 +50,6 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
   };
 }
 
-/** Sort messages by createdAt timestamp */
-function sortByTime(messages: ChatMessage[]): ChatMessage[] {
-  return [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-}
-
 /**
  * Time window (ms) for matching optimistic messages to confirmed messages.
  * If a confirmed message arrives within this window of an optimistic message
@@ -121,7 +114,9 @@ function replaceOptimisticMessage(
     );
   }
 
-  return sortByTime([...messages, confirmed]);
+  // Don't sort - just append. This preserves visual order during real-time chat.
+  // Messages are already sorted when loaded from API.
+  return [...messages, confirmed];
 }
 
 /** Polling interval - less aggressive since SSE is primary */
@@ -392,18 +387,21 @@ export function useChatMessages(chatId: string | null) {
               const pending = updated.find((m) => isMatchingOptimistic(m, msg));
               if (pending) {
                 const idx = updated.indexOf(pending);
+                // Preserve original timestamp to maintain visual order
                 updated[idx] = {
                   ...msg,
                   stableKey: pending.stableKey || pending.id,
+                  createdAt: pending.createdAt,
                 };
                 changed = true;
               } else {
+                // Just append new messages, don't sort
                 updated.push(msg);
                 changed = true;
               }
             }
 
-            return changed ? sortByTime(updated) : prev;
+            return changed ? updated : prev;
           });
 
           hasLoadedRef.current.add(chatId);
