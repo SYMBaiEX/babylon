@@ -582,8 +582,8 @@ Consider market conditions, your current balance, and risk management.`;
     // Get agent info from state
     const agent = state.agents[0];
     const pnl = agent?.totalPnl ?? 0;
-    // Use agent's balance if available, otherwise estimate from starting balance + PnL
-    const balance = agent?.balance ?? this.config.startingBalance + pnl;
+    // Calculate balance from starting balance + PnL (SimulatedAgent doesn't track balance directly)
+    const balance = this.config.startingBalance + pnl;
 
     return `Current State:
 - Balance: $${balance.toFixed(2)}
