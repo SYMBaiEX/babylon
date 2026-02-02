@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { DailyLoginModal } from './DailyLoginModal';
-import { formatTimeRemaining, type ClaimResult, type StreakData } from './types';
+import { StreakBadge } from './StreakBadge';
+import {
+  type ClaimResult,
+  formatTimeRemaining,
+  type StreakData,
+} from './types';
 
 const STAT_ITEMS = [
   { key: 'nextReward', label: 'Next Reward', format: (v: number) => `+${v}` },
@@ -22,16 +27,30 @@ export function DailyStreakCard() {
   const fetchData = useCallback(async () => {
     if (!authenticated) return;
     const token = await getAccessToken();
-    if (!token) return;
+    if (!token) {
+      toast.error('Failed to authenticate. Please try again.');
+      setLoading(false);
+      return;
+    }
 
-    const res = await fetch('/api/users/daily-login', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setData(await res.json());
+    try {
+      const res = await fetch('/api/users/daily-login', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        toast.error('Failed to load daily login status');
+      }
+    } catch {
+      toast.error('Network error. Please check your connection.');
+    }
     setLoading(false);
   }, [authenticated, getAccessToken]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Countdown timer - updates every minute when user can't claim
   const canClaim = data?.canClaim ?? false;
@@ -58,19 +77,34 @@ export function DailyStreakCard() {
     setClaiming(true);
 
     const token = await getAccessToken();
-    if (!token) { setClaiming(false); return; }
+    if (!token) {
+      toast.error('Failed to authenticate. Please try again.');
+      setClaiming(false);
+      return;
+    }
 
-    const res = await fetch('/api/users/daily-login', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const result: ClaimResult = await res.json();
+    try {
+      const res = await fetch('/api/users/daily-login', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (result.success) {
-      setModal(result);
-      await fetchData();
-    } else if (result.error) {
-      toast.error(result.error);
+      if (!res.ok) {
+        toast.error('Failed to claim reward. Please try again.');
+        setClaiming(false);
+        return;
+      }
+
+      const result: ClaimResult = await res.json();
+
+      if (result.success) {
+        setModal(result);
+        await fetchData();
+      } else if (result.error) {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error('Network error. Please check your connection.');
     }
     setClaiming(false);
   };
@@ -87,9 +121,11 @@ export function DailyStreakCard() {
 
   if (!data) return null;
 
-  const progress = data.nextMilestone > 0
-    ? ((data.nextMilestone - data.daysUntilMilestone) / data.nextMilestone) * 100
-    : 100;
+  const progress =
+    data.nextMilestone > 0
+      ? ((data.nextMilestone - data.daysUntilMilestone) / data.nextMilestone) *
+        100
+      : 100;
 
   return (
     <>
@@ -98,10 +134,12 @@ export function DailyStreakCard() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="font-bold text-foreground text-lg">Daily Rewards</h2>
-            <p className="text-muted-foreground text-sm">Claim daily to build your streak</p>
+            <p className="text-muted-foreground text-sm">
+              Claim daily to build your streak
+            </p>
           </div>
-          <div className="text-right">
-            <div className="font-bold text-2xl text-foreground">{data.currentStreak}</div>
+          <div className="flex flex-col items-end gap-1">
+            <StreakBadge streak={data.currentStreak} size="lg" />
             <div className="text-muted-foreground text-xs">day streak</div>
           </div>
         </div>
@@ -109,7 +147,10 @@ export function DailyStreakCard() {
         {/* Stats */}
         <div className="mb-4 grid grid-cols-3 gap-3">
           {STAT_ITEMS.map(({ key, label, format }) => (
-            <div key={key} className="rounded-lg bg-background/50 p-2 text-center">
+            <div
+              key={key}
+              className="rounded-lg bg-background/50 p-2 text-center"
+            >
               <div className="font-semibold text-foreground text-sm">
                 {format(data[key])}
               </div>
@@ -125,7 +166,9 @@ export function DailyStreakCard() {
               <span className="text-muted-foreground">
                 Next milestone: {data.nextMilestone} days
               </span>
-              <span className="text-foreground">{data.daysUntilMilestone} days left</span>
+              <span className="text-foreground">
+                {data.daysUntilMilestone} days left
+              </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-background/50">
               <div

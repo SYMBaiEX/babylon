@@ -9,7 +9,13 @@
  */
 
 import { balanceTransactions, db, eq, sql, users } from '@babylon/db';
-import { DAILY_LOGIN, generateSnowflakeId, logger, POINTS } from '@babylon/shared';
+import {
+  DAILY_LOGIN,
+  generateSnowflakeId,
+  isValidSnowflakeId,
+  logger,
+  POINTS,
+} from '@babylon/shared';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -66,27 +72,35 @@ const DAILY_REWARDS = [
   POINTS.DAILY_LOGIN_DAY_7,
 ] as const;
 
-// ─── Helper Functions ────────────────────────────────────────────────────────
+// ─── Helper Functions (exported for testing) ─────────────────────────────────
 
-function getDailyReward(streakDay: number): number {
+export function getDailyReward(streakDay: number): number {
   const idx = Math.max(0, streakDay - 1) % DAILY_LOGIN.CYCLE_LENGTH;
   return DAILY_REWARDS[idx] ?? DAILY_REWARDS[0];
 }
 
-function getMilestoneBonus(streak: number): number {
+export function getMilestoneBonus(streak: number): number {
   return MILESTONES.find((m) => m.days === streak)?.bonus ?? 0;
 }
 
-function getNextMilestone(streak: number): { nextMilestone: number; daysUntilMilestone: number } {
+export function getNextMilestone(streak: number): {
+  nextMilestone: number;
+  daysUntilMilestone: number;
+} {
   const next = MILESTONES.find((m) => streak < m.days);
   return next
     ? { nextMilestone: next.days, daysUntilMilestone: next.days - streak }
     : { nextMilestone: 0, daysUntilMilestone: 0 };
 }
 
-function getClaimStatus(lastClaim: Date | null): ClaimStatus {
+export function getClaimStatus(lastClaim: Date | null): ClaimStatus {
   if (!lastClaim) {
-    return { canClaim: true, shouldResetStreak: false, timeUntilClaim: 0, timeUntilReset: 0 };
+    return {
+      canClaim: true,
+      shouldResetStreak: false,
+      timeUntilClaim: 0,
+      timeUntilReset: 0,
+    };
   }
 
   const elapsed = Date.now() - lastClaim.getTime();
@@ -110,13 +124,29 @@ function getClaimStatus(lastClaim: Date | null): ClaimStatus {
     };
   }
 
-  return { canClaim: true, shouldResetStreak: true, timeUntilClaim: 0, timeUntilReset: 0 };
+  return {
+    canClaim: true,
+    shouldResetStreak: true,
+    timeUntilClaim: 0,
+    timeUntilReset: 0,
+  };
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export class DailyLoginService {
+  private static validateUserId(userId: string): void {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid userId: must be a non-empty string');
+    }
+    if (!isValidSnowflakeId(userId)) {
+      throw new Error(`Invalid userId format: ${userId}`);
+    }
+  }
+
   static async getStreakInfo(userId: string): Promise<StreakInfo> {
+    this.validateUserId(userId);
+
     const [user] = await db
       .select({
         dailyLoginStreak: users.dailyLoginStreak,
@@ -131,7 +161,9 @@ export class DailyLoginService {
     if (!user) throw new Error(`User not found: ${userId}`);
 
     const status = getClaimStatus(user.lastDailyLogin);
-    const effectiveStreak = status.shouldResetStreak ? 0 : user.dailyLoginStreak;
+    const effectiveStreak = status.shouldResetStreak
+      ? 0
+      : user.dailyLoginStreak;
     const milestone = getNextMilestone(effectiveStreak);
 
     return {
@@ -148,6 +180,21 @@ export class DailyLoginService {
   }
 
   static async claimDailyReward(userId: string): Promise<ClaimResult> {
+    // Validate userId format before querying
+    if (!userId || typeof userId !== 'string' || !isValidSnowflakeId(userId)) {
+      return {
+        success: false,
+        streak: 0,
+        reward: 0,
+        milestoneBonus: 0,
+        totalAwarded: 0,
+        nextReward: getDailyReward(1),
+        ...getNextMilestone(0),
+        streakReset: false,
+        error: 'Invalid userId format',
+      };
+    }
+
     const [user] = await db
       .select({
         dailyLoginStreak: users.dailyLoginStreak,
@@ -186,7 +233,9 @@ export class DailyLoginService {
       });
     }
 
-    const newStreak = status.shouldResetStreak ? 1 : user.dailyLoginStreak + 1;
+    // Ensure streak is always positive (handles corrupted DB data)
+    const currentStreak = Math.max(0, user.dailyLoginStreak);
+    const newStreak = status.shouldResetStreak ? 1 : currentStreak + 1;
     const reward = getDailyReward(newStreak);
     const milestoneBonus = getMilestoneBonus(newStreak);
     const totalAwarded = reward + milestoneBonus;
@@ -220,14 +269,18 @@ export class DailyLoginService {
       });
     });
 
-    logger.info('Daily login claimed', {
-      userId,
-      newStreak,
-      reward,
-      milestoneBonus,
-      totalAwarded,
-      streakReset: status.shouldResetStreak,
-    }, 'DailyLoginService');
+    logger.info(
+      'Daily login claimed',
+      {
+        userId,
+        newStreak,
+        reward,
+        milestoneBonus,
+        totalAwarded,
+        streakReset: status.shouldResetStreak,
+      },
+      'DailyLoginService'
+    );
 
     return {
       success: true,

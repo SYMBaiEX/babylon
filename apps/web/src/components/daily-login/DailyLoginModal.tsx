@@ -1,10 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ClaimResult } from './types';
 
 const CONFETTI_COLORS = ['#0066FF', '#22c55e', '#eab308', '#a855f7'];
 const CONFETTI_COUNT = 50;
+
+interface ConfettiPiece {
+  id: number;
+  left: number;
+  delay: number;
+  color: string;
+  size: number;
+  isCircle: boolean;
+}
 
 interface Props {
   isOpen: boolean;
@@ -15,6 +24,18 @@ interface Props {
 export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
   const [showConfetti, setShowConfetti] = useState(false);
 
+  // Generate confetti pieces once when modal opens (stable across renders)
+  const confettiPieces = useMemo<ConfettiPiece[]>(() => {
+    return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.5,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      size: 6 + Math.random() * 8,
+      isCircle: i % 2 === 0,
+    }));
+  }, []);
+
   useEffect(() => {
     if (!isOpen || !claimResult?.success) return;
     setShowConfetti(true);
@@ -24,29 +45,48 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
 
   if (!isOpen || !claimResult) return null;
 
-  const { streak, reward, milestoneBonus, totalAwarded, nextReward, daysUntilMilestone, nextMilestone, streakReset } = claimResult;
+  const {
+    streak,
+    reward,
+    milestoneBonus,
+    totalAwarded,
+    nextReward,
+    daysUntilMilestone,
+    nextMilestone,
+    streakReset,
+  } = claimResult;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-      {/* Confetti */}
+      {/* Confetti - uses inline animation to avoid global CSS injection */}
       {showConfetti && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: CONFETTI_COUNT }, (_, i) => (
+          {confettiPieces.map((piece) => (
             <div
-              key={i}
-              className="absolute animate-confetti"
+              key={piece.id}
               style={{
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-                width: 6 + Math.random() * 8,
-                height: 6 + Math.random() * 8,
-                borderRadius: i % 2 === 0 ? '50%' : 0,
+                position: 'absolute',
+                left: `${piece.left}%`,
+                top: '-10px',
+                backgroundColor: piece.color,
+                width: piece.size,
+                height: piece.size,
+                borderRadius: piece.isCircle ? '50%' : 0,
+                animation: `confetti-fall 3s ease-out ${piece.delay}s forwards`,
               }}
             />
           ))}
+          <style>
+            {`@keyframes confetti-fall {
+              0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+              100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+            }`}
+          </style>
         </div>
       )}
 
@@ -63,7 +103,9 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
           {streakReset ? 'New Streak Started' : 'Streak Extended'}
         </h2>
         <p className="mb-6 text-center text-muted-foreground text-sm">
-          {streakReset ? 'Your streak was reset. Keep claiming daily!' : `Day ${streak} complete!`}
+          {streakReset
+            ? 'Your streak was reset. Keep claiming daily!'
+            : `Day ${streak} complete!`}
         </p>
 
         {/* Rewards */}
@@ -75,20 +117,28 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
 
           {milestoneBonus > 0 && (
             <div className="flex items-center justify-between rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
-              <span className="text-foreground text-sm">{streak}-Day Milestone</span>
-              <span className="font-semibold text-yellow-500">+{milestoneBonus} pts</span>
+              <span className="text-foreground text-sm">
+                {streak}-Day Milestone
+              </span>
+              <span className="font-semibold text-yellow-500">
+                +{milestoneBonus} pts
+              </span>
             </div>
           )}
 
           <div className="flex items-center justify-between border-border border-t pt-3">
             <span className="font-medium text-foreground">Total Earned</span>
-            <span className="font-bold text-[#0066FF] text-lg">+{totalAwarded} pts</span>
+            <span className="font-bold text-[#0066FF] text-lg">
+              +{totalAwarded} pts
+            </span>
           </div>
         </div>
 
         {/* Next Reward */}
         <div className="mb-6 rounded-lg bg-muted/20 p-3 text-center">
-          <p className="text-muted-foreground text-xs">Tomorrow&apos;s reward</p>
+          <p className="text-muted-foreground text-xs">
+            Tomorrow&apos;s reward
+          </p>
           <p className="font-semibold text-foreground">+{nextReward} points</p>
           {daysUntilMilestone > 0 && (
             <p className="mt-1 text-muted-foreground text-xs">
@@ -104,14 +154,6 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
           Continue
         </button>
       </div>
-
-      <style jsx global>{`
-        @keyframes confetti {
-          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-        }
-        .animate-confetti { animation: confetti 3s ease-out forwards; }
-      `}</style>
     </div>
   );
 }
