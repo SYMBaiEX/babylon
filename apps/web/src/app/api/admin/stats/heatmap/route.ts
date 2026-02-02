@@ -189,47 +189,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       `;
     }
 
-    // Build 7x24 grid with all slots, filling in zeros for missing data
-    const dataMap = new Map<string, number>();
-    let maxCount = 0;
+    // Build 7x24 grid, filling zeros for missing slots
+    const counts = new Map(
+      hourlyData.map((r) => [`${r.day_of_week}-${r.hour}`, Number(r.count)])
+    );
+    const maxCount = Math.max(0, ...counts.values());
 
-    for (const row of hourlyData) {
-      const key = `${row.day_of_week}-${row.hour}`;
-      const count = Number(row.count);
-      dataMap.set(key, count);
-      if (count > maxCount) maxCount = count;
-    }
+    const data = Array.from({ length: 7 * 24 }, (_, i) => {
+      const dayOfWeek = Math.floor(i / 24);
+      const hour = i % 24;
+      const count = counts.get(`${dayOfWeek}-${hour}`) ?? 0;
+      return { dayOfWeek, hour, count, intensity: maxCount > 0 ? count / maxCount : 0 };
+    });
 
-    const data: Array<{
-      dayOfWeek: number;
-      hour: number;
-      count: number;
-      intensity: number;
-    }> = [];
-
-    for (let day = 0; day < 7; day++) {
-      for (let hour = 0; hour < 24; hour++) {
-        const key = `${day}-${hour}`;
-        const count = dataMap.get(key) ?? 0;
-        data.push({
-          dayOfWeek: day,
-          hour,
-          count,
-          intensity: maxCount > 0 ? count / maxCount : 0,
-        });
-      }
-    }
+    const totalActivities = data.reduce((sum, d) => sum + d.count, 0);
 
     return successResponse({
       type: 'hourly',
       activityType,
       data,
-      metadata: {
-        startDate: queryStart.toISOString(),
-        endDate: queryEnd.toISOString(),
-        maxCount,
-        totalActivities: data.reduce((sum, d) => sum + d.count, 0),
-      },
+      metadata: { startDate: queryStart.toISOString(), endDate: queryEnd.toISOString(), maxCount, totalActivities },
     });
   }
 
@@ -340,25 +319,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     `;
   }
 
-  // Find max for intensity calculation
-  let maxCount = 0;
-  for (const row of calendarData) {
-    const count = Number(row.count);
-    if (count > maxCount) maxCount = count;
-  }
+  // Process calendar data
+  const maxCount = Math.max(0, ...calendarData.map((r) => Number(r.count)));
 
   const data = calendarData.map((row) => {
     const count = Number(row.count);
-    const dateStr =
-      row.date instanceof Date
-        ? (row.date.toISOString().split('T')[0] ?? '')
-        : String(row.date);
-    return {
-      date: dateStr,
-      count,
-      intensity: maxCount > 0 ? count / maxCount : 0,
-    };
+    const date = row.date instanceof Date ? (row.date.toISOString().split('T')[0] ?? '') : String(row.date);
+    return { date, count, intensity: maxCount > 0 ? count / maxCount : 0 };
   });
+
+  const totalActivities = data.reduce((sum, d) => sum + d.count, 0);
 
   return successResponse({
     type: 'calendar',
@@ -368,7 +338,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       startDate: queryStart.toISOString(),
       endDate: queryEnd.toISOString(),
       maxCount,
-      totalActivities: data.reduce((sum, d) => sum + d.count, 0),
+      totalActivities,
       daysWithActivity: data.length,
     },
   });

@@ -112,6 +112,29 @@ const COLORS = {
   hybrid: '#22c55e', // green
 };
 
+interface MetricCardProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  value: string | number;
+  label: string;
+  detail: string;
+  badge?: React.ReactNode;
+}
+
+function MetricCard({ icon, iconBg, value, label, detail, badge }: MetricCardProps) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+      <div className="mb-3 flex items-center justify-between">
+        <div className={cn('rounded-lg p-2', iconBg)}>{icon}</div>
+        {badge}
+      </div>
+      <div className="font-bold text-3xl">{value}</div>
+      <div className="mt-1 text-muted-foreground text-sm">{label}</div>
+      <div className="mt-2 text-muted-foreground text-xs">{detail}</div>
+    </div>
+  );
+}
+
 export function GrowthMetricsTab() {
   const [data, setData] = useState<GrowthData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -313,141 +336,60 @@ export function GrowthMetricsTab() {
 
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {/* WAU Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-blue-500/10 p-2">
-              <Users className="h-5 w-5 text-blue-500" />
-            </div>
-            {data.wau.trend !== 'stable' && (
-              <div
-                className={cn(
-                  'flex items-center gap-1 rounded-full px-2 py-1 font-medium text-xs',
-                  data.wau.trend === 'up'
-                    ? 'bg-green-500/10 text-green-500'
-                    : 'bg-red-500/10 text-red-500'
-                )}
-              >
-                {data.wau.trend === 'up' ? (
-                  <ArrowUp className="h-3 w-3" />
-                ) : (
-                  <ArrowDown className="h-3 w-3" />
-                )}
+        <MetricCard
+          icon={<Users className="h-5 w-5 text-blue-500" />}
+          iconBg="bg-blue-500/10"
+          value={formatNumber(data.wau.current)}
+          label="Weekly Active Users"
+          detail={`vs ${formatNumber(data.wau.previous)} last week`}
+          badge={
+            data.wau.trend === 'stable' ? (
+              <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-medium text-muted-foreground text-xs">
+                <Minus className="h-3 w-3" />Stable
+              </div>
+            ) : (
+              <div className={cn('flex items-center gap-1 rounded-full px-2 py-1 font-medium text-xs', data.wau.trend === 'up' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500')}>
+                {data.wau.trend === 'up' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
                 {Math.abs(data.wau.change).toFixed(1)}%
               </div>
-            )}
-            {data.wau.trend === 'stable' && (
-              <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-medium text-muted-foreground text-xs">
-                <Minus className="h-3 w-3" />
-                Stable
-              </div>
-            )}
-          </div>
-          <div className="font-bold text-3xl">
-            {formatNumber(data.wau.current)}
-          </div>
-          <div className="mt-1 text-muted-foreground text-sm">
-            Weekly Active Users
-          </div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            vs {formatNumber(data.wau.previous)} last week
-          </div>
-        </div>
-
-        {/* Activation Rate Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-green-500/10 p-2">
-              <Target className="h-5 w-5 text-green-500" />
-            </div>
-          </div>
-          <div className="font-bold text-3xl">{data.activation.rate}%</div>
-          <div className="mt-1 text-muted-foreground text-sm">
-            Activation Rate (24h)
-          </div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            {data.activation.activatedUsers} of {data.activation.totalSignups}{' '}
-            signups
-          </div>
-        </div>
-
-        {/* Trades per Trader Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-purple-500/10 p-2">
-              <Activity className="h-5 w-5 text-purple-500" />
-            </div>
-          </div>
-          <div className="font-bold text-3xl">
-            {data.engagement.tradesPerTrader}
-          </div>
-          <div className="mt-1 text-muted-foreground text-sm">
-            Trades per Trader
-          </div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            {formatNumber(data.engagement.totalTrades)} trades by{' '}
-            {formatNumber(data.engagement.uniqueTraders)} traders
-          </div>
-        </div>
-
-        {/* Actions per Commander Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-orange-500/10 p-2">
-              <Bot className="h-5 w-5 text-orange-500" />
-            </div>
-          </div>
-          <div className="font-bold text-3xl">
-            {data.engagement.actionsPerCommander}
-          </div>
-          <div className="mt-1 text-muted-foreground text-sm">
-            Actions per Commander
-          </div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            {formatNumber(data.engagement.totalActions)} actions by{' '}
-            {formatNumber(data.engagement.uniqueCommanders)} commanders
-          </div>
-        </div>
-
-        {/* D7 Retention Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-cyan-500/10 p-2">
-              <Repeat className="h-5 w-5 text-cyan-500" />
-            </div>
-          </div>
-          <div className="font-bold text-3xl">
-            {data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
-          </div>
-          <div className="mt-1 text-muted-foreground text-sm">D7 Retention</div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            {data.retention.cohorts.length > 0
-              ? `${data.retention.cohorts.length} cohorts tracked`
-              : 'Collecting data...'}
-          </div>
-        </div>
-
-        {/* Avg Sessions per WAU Card */}
-        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-pink-500/10 p-2">
-              <Clock className="h-5 w-5 text-pink-500" />
-            </div>
-          </div>
-          <div className="font-bold text-3xl">
-            {data.sessions.avgSessionsPerWau !== null
-              ? data.sessions.avgSessionsPerWau
-              : 'N/A'}
-          </div>
-          <div className="mt-1 text-muted-foreground text-sm">
-            Sessions per WAU
-          </div>
-          <div className="mt-2 text-muted-foreground text-xs">
-            {data.sessions.totalSessions > 0
-              ? `${formatNumber(data.sessions.totalSessions)} total sessions`
-              : 'Collecting data...'}
-          </div>
-        </div>
+            )
+          }
+        />
+        <MetricCard
+          icon={<Target className="h-5 w-5 text-green-500" />}
+          iconBg="bg-green-500/10"
+          value={`${data.activation.rate}%`}
+          label="Activation Rate (24h)"
+          detail={`${data.activation.activatedUsers} of ${data.activation.totalSignups} signups`}
+        />
+        <MetricCard
+          icon={<Activity className="h-5 w-5 text-purple-500" />}
+          iconBg="bg-purple-500/10"
+          value={data.engagement.tradesPerTrader}
+          label="Trades per Trader"
+          detail={`${formatNumber(data.engagement.totalTrades)} trades by ${formatNumber(data.engagement.uniqueTraders)} traders`}
+        />
+        <MetricCard
+          icon={<Bot className="h-5 w-5 text-orange-500" />}
+          iconBg="bg-orange-500/10"
+          value={data.engagement.actionsPerCommander}
+          label="Actions per Commander"
+          detail={`${formatNumber(data.engagement.totalActions)} actions by ${formatNumber(data.engagement.uniqueCommanders)} commanders`}
+        />
+        <MetricCard
+          icon={<Repeat className="h-5 w-5 text-cyan-500" />}
+          iconBg="bg-cyan-500/10"
+          value={data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
+          label="D7 Retention"
+          detail={data.retention.cohorts.length > 0 ? `${data.retention.cohorts.length} cohorts tracked` : 'Collecting data...'}
+        />
+        <MetricCard
+          icon={<Clock className="h-5 w-5 text-pink-500" />}
+          iconBg="bg-pink-500/10"
+          value={data.sessions.avgSessionsPerWau ?? 'N/A'}
+          label="Sessions per WAU"
+          detail={data.sessions.totalSessions > 0 ? `${formatNumber(data.sessions.totalSessions)} total sessions` : 'Collecting data...'}
+        />
       </div>
 
       {/* Charts Row */}

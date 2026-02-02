@@ -78,18 +78,40 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: 'messages', label: 'Messages' },
 ];
 
+const INTENSITY_COLORS = [
+  'bg-muted/30',      // 0
+  'bg-green-900/50',  // 0-25%
+  'bg-green-700/70',  // 25-50%
+  'bg-green-500/80',  // 50-75%
+  'bg-green-400',     // 75-100%
+] as const;
+
 function getIntensityColor(intensity: number): string {
-  if (intensity === 0) return 'bg-muted/30';
-  if (intensity < 0.25) return 'bg-green-900/50';
-  if (intensity < 0.5) return 'bg-green-700/70';
-  if (intensity < 0.75) return 'bg-green-500/80';
-  return 'bg-green-400';
+  if (intensity === 0) return INTENSITY_COLORS[0];
+  if (intensity < 0.25) return INTENSITY_COLORS[1];
+  if (intensity < 0.5) return INTENSITY_COLORS[2];
+  if (intensity < 0.75) return INTENSITY_COLORS[3];
+  return INTENSITY_COLORS[4];
 }
 
 function formatNumber(value: number): string {
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return value.toLocaleString();
+}
+
+function IntensityLegend() {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground text-xs">Less</span>
+      <div className="flex gap-0.5">
+        {INTENSITY_COLORS.map((color, i) => (
+          <div key={i} className={cn('h-3 w-3 rounded-sm', color)} />
+        ))}
+      </div>
+      <span className="text-muted-foreground text-xs">More</span>
+    </div>
+  );
 }
 
 export function ActivityHeatmap() {
@@ -273,16 +295,8 @@ export function ActivityHeatmap() {
             ))}
 
             {/* Legend */}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <span className="text-muted-foreground text-xs">Less</span>
-              <div className="flex gap-0.5">
-                <div className="h-3 w-3 rounded-sm bg-muted/30" />
-                <div className="h-3 w-3 rounded-sm bg-green-900/50" />
-                <div className="h-3 w-3 rounded-sm bg-green-700/70" />
-                <div className="h-3 w-3 rounded-sm bg-green-500/80" />
-                <div className="h-3 w-3 rounded-sm bg-green-400" />
-              </div>
-              <span className="text-muted-foreground text-xs">More</span>
+            <div className="mt-4 flex justify-end">
+              <IntensityLegend />
             </div>
           </div>
         </div>
@@ -311,17 +325,7 @@ export function ActivityHeatmap() {
               <div className="text-muted-foreground text-xs">
                 {data.metadata.daysWithActivity} days with activity
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-xs">Less</span>
-                <div className="flex gap-0.5">
-                  <div className="h-3 w-3 rounded-sm bg-muted/30" />
-                  <div className="h-3 w-3 rounded-sm bg-green-900/50" />
-                  <div className="h-3 w-3 rounded-sm bg-green-700/70" />
-                  <div className="h-3 w-3 rounded-sm bg-green-500/80" />
-                  <div className="h-3 w-3 rounded-sm bg-green-400" />
-                </div>
-                <span className="text-muted-foreground text-xs">More</span>
-              </div>
+              <IntensityLegend />
             </div>
           </div>
         </div>

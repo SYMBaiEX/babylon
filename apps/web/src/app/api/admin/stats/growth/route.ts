@@ -76,6 +76,13 @@ interface RetentionCohortResult {
   retained_d7: string;
 }
 
+/** Converts Date or string to ISO date string (YYYY-MM-DD) */
+function toDateStr(value: Date | string | null | undefined): string {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().split('T')[0] ?? '';
+  return String(value);
+}
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const admin = await requirePermission(request, 'view_stats');
 
@@ -471,18 +478,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       ORDER BY ds.day
     `;
 
-    timeSeries = dailyWauRows.map((row) => {
-      let dateStr: string;
-      if (row.date instanceof Date) {
-        dateStr = row.date.toISOString().split('T')[0] ?? '';
-      } else {
-        dateStr = String(row.date ?? '');
-      }
-      return {
-        date: dateStr,
-        wau: Number(row.wau ?? 0),
-      };
-    });
+    timeSeries = dailyWauRows.map((row) => ({
+      date: toDateStr(row.date),
+      wau: Number(row.wau ?? 0),
+    }));
   }
 
   // Session metrics (from UserSession table if data exists)
@@ -592,15 +591,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalCohortSize += cohortSize;
       totalRetained += retained;
 
-      let dateStr: string;
-      if (row.cohort_date instanceof Date) {
-        dateStr = row.cohort_date.toISOString().split('T')[0] ?? '';
-      } else {
-        dateStr = String(row.cohort_date ?? '');
-      }
-
       return {
-        cohortDate: dateStr,
+        cohortDate: toDateStr(row.cohort_date),
         cohortSize,
         retainedD7: retained,
         retentionRate: rate,
@@ -622,43 +614,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       trend: wauTrend,
     },
     userBalance: {
-      tradersOnly: tradersOnly,
-      commandersOnly: commandersOnly,
-      hybrid: hybrid,
+      tradersOnly,
+      commandersOnly,
+      hybrid,
       total: totalWau,
       tradersOnlyPct,
       commandersOnlyPct,
       hybridPct,
     },
-    engagement: {
-      tradesPerTrader,
-      totalTrades,
-      uniqueTraders,
-      actionsPerCommander,
-      totalActions,
-      uniqueCommanders,
-    },
+    engagement: { tradesPerTrader, totalTrades, uniqueTraders, actionsPerCommander, totalActions, uniqueCommanders },
     activation: {
       rate: activationRate,
       totalSignups,
       activatedUsers,
       tradedWithin24h,
       commandedWithin24h,
-      funnel: {
-        signups: totalSignups,
-        tradedWithin24h,
-        commandedWithin24h,
-        activated: activatedUsers,
-      },
+      funnel: { signups: totalSignups, tradedWithin24h, commandedWithin24h, activated: activatedUsers },
     },
     sessions: sessionMetrics,
     retention,
     timeSeries,
-    metadata: {
-      computedAt: now.toISOString(),
-      period,
-      periodStart: sevenDaysAgo.toISOString(),
-      periodEnd: now.toISOString(),
-    },
+    metadata: { computedAt: now.toISOString(), period, periodStart: sevenDaysAgo.toISOString(), periodEnd: now.toISOString() },
   });
 });

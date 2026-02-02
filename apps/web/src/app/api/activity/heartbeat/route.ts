@@ -137,45 +137,38 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     nowDate.getTime() - SESSION_TIMEOUT_MS
   );
 
-  // Check for existing active session with this sessionId
+  // Helper to create a new session record
+  async function createSession(): Promise<void> {
+    const id = await generateSnowflakeId();
+    await db.insert(userSessions).values({
+      id,
+      userId,
+      sessionId,
+      startedAt: nowDate,
+      lastActiveAt: nowDate,
+      deviceType,
+      userAgent: userAgentHeader?.substring(0, 500),
+      ipHash,
+      pageCount: pageViews,
+      heartbeatCount: 1,
+    });
+    logger.debug('Created session', { userId, id }, 'POST /api/activity/heartbeat');
+  }
+
+  // Check for existing active session
   const existingSession = await db.query.userSessions.findFirst({
-    where: and(
-      eq(userSessions.sessionId, sessionId),
-      isNull(userSessions.endedAt)
-    ),
+    where: and(eq(userSessions.sessionId, sessionId), isNull(userSessions.endedAt)),
   });
 
   if (existingSession) {
-    // Check if session has timed out
-    if (existingSession.lastActiveAt < sessionTimeoutThreshold) {
-      // Close the old session and create a new one
+    const isTimedOut = existingSession.lastActiveAt < sessionTimeoutThreshold;
+    if (isTimedOut) {
+      // Close old session and create new one
       await db
         .update(userSessions)
-        .set({
-          endedAt: existingSession.lastActiveAt,
-        })
+        .set({ endedAt: existingSession.lastActiveAt })
         .where(eq(userSessions.id, existingSession.id));
-
-      // Create new session
-      const newSessionId = await generateSnowflakeId();
-      await db.insert(userSessions).values({
-        id: newSessionId,
-        userId,
-        sessionId,
-        startedAt: nowDate,
-        lastActiveAt: nowDate,
-        deviceType,
-        userAgent: userAgentHeader?.substring(0, 500),
-        ipHash,
-        pageCount: pageViews,
-        heartbeatCount: 1,
-      });
-
-      logger.debug(
-        'Created new session after timeout',
-        { userId, sessionId: newSessionId },
-        'POST /api/activity/heartbeat'
-      );
+      await createSession();
     } else {
       // Update existing session
       await db
@@ -188,27 +181,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         .where(eq(userSessions.id, existingSession.id));
     }
   } else {
-    // Check if there's an old session for this sessionId that was closed
-    // If so, create a new one
-    const newSessionId = await generateSnowflakeId();
-    await db.insert(userSessions).values({
-      id: newSessionId,
-      userId,
-      sessionId,
-      startedAt: nowDate,
-      lastActiveAt: nowDate,
-      deviceType,
-      userAgent: userAgentHeader?.substring(0, 500),
-      ipHash,
-      pageCount: pageViews,
-      heartbeatCount: 1,
-    });
-
-    logger.debug(
-      'Created new session',
-      { userId, sessionId: newSessionId },
-      'POST /api/activity/heartbeat'
-    );
+    await createSession();
   }
 
   // Log activity for retention tracking (one row per user per day)
