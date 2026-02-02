@@ -33,6 +33,63 @@ import { safeExtractFromResponse } from './post-generation-helpers';
 import { StaticDataRegistry } from './static-data-registry';
 
 // =============================================================================
+// ACTION TYPE DIVERSITY TRACKER (TikTok-inspired)
+// =============================================================================
+
+type EngagementActionType = 'like' | 'share' | 'comment';
+
+/**
+ * Tracks recent action types to prevent clustering.
+ * Inspired by TikTok's "never 2 same in a row" rule.
+ */
+class ActionDiversityTracker {
+  private recentActions: EngagementActionType[] = [];
+  private readonly maxRecent: number;
+  private readonly maxConsecutive: number;
+
+  constructor(maxRecent = 5, maxConsecutive = 2) {
+    this.maxRecent = maxRecent;
+    this.maxConsecutive = maxConsecutive;
+  }
+
+  /**
+   * Record an action that was executed.
+   */
+  recordAction(type: EngagementActionType): void {
+    this.recentActions.push(type);
+    if (this.recentActions.length > this.maxRecent) {
+      this.recentActions.shift();
+    }
+  }
+
+  /**
+   * Check if executing this action type would create too many consecutive same types.
+   * Returns true if the action should be skipped/deferred for diversity.
+   */
+  shouldSkipForDiversity(type: EngagementActionType): boolean {
+    const lastN = this.recentActions.slice(-this.maxConsecutive);
+    return (
+      lastN.length >= this.maxConsecutive && lastN.every((t) => t === type)
+    );
+  }
+
+  /**
+   * Get the distribution of recent actions for logging.
+   */
+  getDistribution(): Record<EngagementActionType, number> {
+    const dist: Record<EngagementActionType, number> = {
+      like: 0,
+      share: 0,
+      comment: 0,
+    };
+    for (const action of this.recentActions) {
+      dist[action]++;
+    }
+    return dist;
+  }
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -152,7 +209,7 @@ export async function processNPCSocialEngagements(
   };
 
   try {
-    const now = options.now ?? new Date();
+    const baseNow = options.now ?? new Date();
     const currentDay = options.currentDay;
     const random = options.random ?? secureRandom;
     const skipActorProbability = options.skipActorProbability ?? 0.3;
@@ -167,6 +224,20 @@ export async function processNPCSocialEngagements(
     );
     let topLevelCommentsCreated = 0;
     let replyCommentsCreated = 0;
+
+    // Initialize action diversity tracker (TikTok-style clustering prevention)
+    // Tracks recent actions and skips if too many consecutive same types
+    const diversityTracker = new ActionDiversityTracker(5, 2);
+
+    // Timestamp staggering for organic feed pacing (5-minute window)
+    // Each action gets a timestamp spread across the window
+    const STAGGER_WINDOW_MS = 5 * 60 * 1000;
+    const getStaggeredTimestamp = (): Date => {
+      const offset = Math.floor(random() * STAGGER_WINDOW_MS);
+      return new Date(baseNow.getTime() + offset);
+    };
+    // Use baseNow for time window calculations, staggered for action timestamps
+    const now = baseNow;
 
     // Get recent posts (last 6 hours)
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
@@ -439,9 +510,11 @@ export async function processNPCSocialEngagements(
 
         // LIKE
         // Skip if global likes quota reached (other actors may still process shares/comments)
+        // Skip if diversity tracker says too many consecutive likes
         if (
           !likesQuotaReached &&
           !reactionSet.has(key) &&
+          !diversityTracker.shouldSkipForDiversity('like') &&
           random() < probs.like
         ) {
           try {
@@ -455,6 +528,7 @@ export async function processNPCSocialEngagements(
             });
             result.likesCreated++;
             engagedActors.add(actor.id);
+            diversityTracker.recordAction('like');
           } catch (error) {
             // Likely a unique constraint race - ignore to keep engagement loop resilient
             logger.debug(
@@ -472,9 +546,11 @@ export async function processNPCSocialEngagements(
         }
 
         // SHARE (creates both a Share record AND a visible repost Post)
+        // Skip if diversity tracker says too many consecutive shares
         if (
           !shareSet.has(key) &&
-          result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick
+          result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick &&
+          !diversityTracker.shouldSkipForDiversity('share')
         ) {
           if (random() < probs.share) {
             try {
@@ -489,13 +565,14 @@ export async function processNPCSocialEngagements(
                 });
 
                 // Create visible repost Post (empty content = simple repost)
+                // Use staggered timestamp for organic feed pacing
                 const repostId = await generateSnowflakeId();
                 await tx.post.create({
                   data: {
                     id: repostId,
                     content: '',
                     authorId: actor.id,
-                    timestamp: now,
+                    timestamp: getStaggeredTimestamp(), // Staggered for organic feel
                     originalPostId: post.id,
                     type: 'repost', // Explicit type for query filtering
                   },
@@ -505,6 +582,7 @@ export async function processNPCSocialEngagements(
               result.sharesCreated++;
               engagedActors.add(actor.id);
               shareSet.add(key); // Only mark on success - allows retry on failure
+              diversityTracker.recordAction('share');
             } catch (error) {
               // Unique constraint or other error - don't mark as processed, allows retry
               logger.debug(
@@ -522,9 +600,11 @@ export async function processNPCSocialEngagements(
         }
 
         // COMMENT - comments don't have unique constraints per-actor
+        // Skip if diversity tracker says too many consecutive comments
         if (
           npcSocialEngagementService.getLLMClient() &&
-          topLevelCommentsCreated < maxTopLevelCommentsPerTick
+          topLevelCommentsCreated < maxTopLevelCommentsPerTick &&
+          !diversityTracker.shouldSkipForDiversity('comment')
         ) {
           if (topLevelCommentSet.has(key)) {
             continue;
@@ -551,6 +631,7 @@ export async function processNPCSocialEngagements(
                 result.commentsCreated++;
                 engagedActors.add(actor.id);
                 topLevelCommentSet.add(key);
+                diversityTracker.recordAction('comment');
 
                 // Record this as a first-class NPC interaction for relationship evolution + continuity.
                 // Sentiment is a lightweight heuristic driven by existing relationship sentiment (if any).
@@ -851,6 +932,18 @@ export async function processNPCSocialEngagements(
     }
 
     result.actorsEngaged = engagedActors.size;
+
+    // Log diversity distribution for debugging
+    const diversityDist = diversityTracker.getDistribution();
+    logger.debug(
+      'Social engagement diversity distribution',
+      {
+        distribution: diversityDist,
+        totalActions:
+          result.likesCreated + result.sharesCreated + result.commentsCreated,
+      },
+      'NPCSocialEngagement'
+    );
 
     if (
       result.likesCreated + result.sharesCreated + result.commentsCreated >

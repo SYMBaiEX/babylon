@@ -1342,6 +1342,84 @@ export interface GenerateNPCDiscourseOptions {
   quoteProbability?: number;
 }
 
+// =============================================================================
+// DISCOURSE ACTION DECK (TikTok-inspired diversity)
+// =============================================================================
+
+/**
+ * Creates a stratified action deck with guaranteed ratios.
+ * Inspired by TikTok (never 2 same in a row) and org-tick stratified selection.
+ *
+ * Instead of rolling `random() < probability` for each action (which can cluster),
+ * we pre-define action slots with guaranteed ratios and shuffle with constraints.
+ *
+ * @param totalSlots Total actions to perform
+ * @param quoteRatio Target ratio of quote posts (e.g., 0.30)
+ * @param random RNG function for shuffling
+ */
+function createDiscourseActionDeck(
+  totalSlots: number,
+  quoteRatio: number,
+  random: () => number
+): Array<'quote' | 'reply'> {
+  if (totalSlots <= 0) return [];
+
+  const quoteCount = Math.round(totalSlots * quoteRatio);
+  const replyCount = totalSlots - quoteCount;
+
+  // Build deck with exact ratios
+  const deck: Array<'quote' | 'reply'> = [
+    ...Array(quoteCount).fill('quote' as const),
+    ...Array(replyCount).fill('reply' as const),
+  ];
+
+  // Shuffle with hard constraint: no 2 same in a row (TikTok rule)
+  return shuffleWithNoConsecutive(deck, random);
+}
+
+/**
+ * Fisher-Yates shuffle with constraint: no consecutive same values.
+ * This is the core mechanism that prevents action clustering.
+ *
+ * Algorithm:
+ * 1. Build result array one element at a time
+ * 2. For each position, find candidates that differ from the last selected item
+ * 3. Pick randomly from valid candidates
+ * 4. If no valid candidates (edge case with many same items), fall back to any remaining
+ *
+ * @param arr Array to shuffle
+ * @param random RNG function
+ */
+function shuffleWithNoConsecutive<T>(arr: T[], random: () => number): T[] {
+  if (arr.length <= 1) return [...arr];
+
+  const result: T[] = [];
+  const remaining = [...arr];
+
+  while (remaining.length > 0) {
+    const lastItem = result[result.length - 1];
+
+    // Find valid candidates (different from last item, or any if first pick)
+    const validIndices: number[] = [];
+    for (let i = 0; i < remaining.length; i++) {
+      if (result.length === 0 || remaining[i] !== lastItem) {
+        validIndices.push(i);
+      }
+    }
+
+    // If no valid candidates (edge case), fall back to any remaining
+    const candidates =
+      validIndices.length > 0 ? validIndices : remaining.map((_, idx) => idx);
+
+    // Pick random from candidates
+    const pickIdx = candidates[Math.floor(random() * candidates.length)]!;
+    result.push(remaining[pickIdx]!);
+    remaining.splice(pickIdx, 1);
+  }
+
+  return result;
+}
+
 /**
  * Generate NPC replies to posts from previous ticks (public discourse)
  *
@@ -1488,18 +1566,28 @@ export async function generateNPCRepliesFromPreviousTicks(
     Math.min(maxReplies, eligiblePosts.length)
   );
 
+  // Create stratified action deck for guaranteed diversity (TikTok-style)
+  // Instead of rolling probability for each post, we pre-define action slots
+  // with guaranteed ratios and shuffle with no-consecutive constraint
+  const actionDeck = createDiscourseActionDeck(
+    postsToReplyTo.length,
+    quoteProbability,
+    random
+  );
+
   logger.info(
     `Generating ${postsToReplyTo.length} NPC replies to previous tick posts`,
     {
       eligiblePosts: eligiblePosts.length,
       targetReplies: postsToReplyTo.length,
+      actionDeck: actionDeck.join(','), // Log deck for debugging
     },
     'PostGeneration'
   );
 
   // Generate replies and quote posts in parallel
-  // 70% chance of reply, 30% chance of quote post for variety
-  const discoursePromises = postsToReplyTo.map(async (originalPost) => {
+  // Action type is determined by deck position, not independent probability
+  const discoursePromises = postsToReplyTo.map(async (originalPost, index) => {
     // Pick a random actor to engage (not the original author)
     // Filter by cooldown to prevent repetitive interactions
     const availableEngagers = actorsWithContext.filter(
@@ -1521,12 +1609,13 @@ export async function generateNPCRepliesFromPreviousTicks(
       availableEngagers[Math.floor(random() * availableEngagers.length)];
     if (!engager) return { type: 'none' as const, success: false };
 
-    // Decide: reply (70%) or quote post (30%)
+    // Get action type from deck (guaranteed diversity, no clustering)
     // Quote posts only for original posts (not replies) to keep it clean
     const isOriginalPost =
       originalPost.commentOnPostId === null ||
       originalPost.commentOnPostId === undefined;
-    const shouldQuote = isOriginalPost && random() < quoteProbability;
+    const deckAction = actionDeck[index] ?? 'reply';
+    const shouldQuote = isOriginalPost && deckAction === 'quote';
 
     let success = false;
     if (shouldQuote) {

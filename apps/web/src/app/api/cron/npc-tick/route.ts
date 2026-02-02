@@ -55,6 +55,36 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
+// =============================================================================
+// TIMESTAMP STAGGERING (Organic pacing)
+// =============================================================================
+
+/**
+ * Time window for staggering NPC action timestamps (5 minutes).
+ * Matches organization-tick pattern for consistency.
+ * Actions are distributed across this window for organic feed pacing.
+ */
+const NPC_TICK_STAGGER_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Creates a timestamp staggering function for organic action distribution.
+ * Inspired by organization-tick implementation.
+ *
+ * Posts/actions created within a tick get timestamps spread across the next
+ * 5-minute window, so they appear gradually in the feed rather than all at once.
+ *
+ * @param baseTime Base timestamp (start of tick)
+ * @returns Function that generates staggered timestamps
+ */
+function createTimestampStaggerer(baseTime: Date): () => Date {
+  return () => {
+    const randomOffset = Math.floor(
+      secureRandom() * NPC_TICK_STAGGER_WINDOW_MS
+    );
+    return new Date(baseTime.getTime() + randomOffset);
+  };
+}
+
 /** Game state shape for cache */
 interface GameState {
   id: string;
@@ -588,8 +618,11 @@ export async function POST(_req: NextRequest) {
         .trim();
 
       // Comment threads + lightweight engagement (likes/shares)
+      // Use staggered timestamp for organic feed pacing
+      const engagementStaggerer = createTimestampStaggerer(now);
       npcSocialEngagementService.setLLMClient(llmClient);
       const engagementResult = await processNPCSocialEngagements({
+        now: engagementStaggerer(), // Staggered timestamp for organic feel
         currentDay: gameDay,
         promptContext: interactionPromptContext,
       });
@@ -609,11 +642,14 @@ export async function POST(_req: NextRequest) {
         role: a.role ?? null,
       }));
 
+      // Use staggered timestamp for organic feed pacing
+      // Each discourse action gets a timestamp spread across the 5-minute window
+      const getStaggeredTimestamp = createTimestampStaggerer(now);
       discourseCreated = await generateNPCRepliesFromPreviousTicks(
         llmClient,
         discourseActors,
         interactionPromptContext,
-        now,
+        getStaggeredTimestamp(), // Staggered timestamp for organic feel
         NPC_TICK_CONFIG.maxDiscourseReplies,
         gameDay,
         { quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability }

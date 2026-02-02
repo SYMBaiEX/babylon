@@ -572,6 +572,108 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
+// =============================================================================
+// AUTHOR DIVERSITY FILTER (MMR-inspired, TikTok-style)
+// =============================================================================
+
+/**
+ * Post type for author diversity filtering.
+ * Generic to work with formatted post objects.
+ */
+interface PostWithAuthor {
+  authorId?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * MMR-inspired author diversity filter.
+ * Prevents consecutive posts from the same author (TikTok-style hard rule).
+ * Based on Twitter/X author diversity filter pattern.
+ *
+ * Algorithm:
+ * 1. Process posts in order
+ * 2. If current author would be consecutive, defer the post
+ * 3. Insert deferred posts at positions where they don't create consecutive author runs
+ *
+ * @param posts Array of posts to reorder for diversity
+ * @param options Configuration options
+ * @returns Reordered array with author diversity enforced
+ */
+function applyAuthorDiversityFilter<T extends PostWithAuthor>(
+  posts: T[],
+  options: {
+    maxConsecutiveSameAuthor?: number; // Default: 1 (TikTok-style - never consecutive)
+    windowSize?: number; // Check last N posts for author frequency
+  } = {}
+): T[] {
+  const { maxConsecutiveSameAuthor = 1, windowSize = 10 } = options;
+
+  if (posts.length <= 1) return posts;
+
+  const result: T[] = [];
+  const deferred: T[] = [];
+
+  for (const post of posts) {
+    const authorId = post.authorId;
+
+    // Check if adding this post would create too many consecutive from same author
+    const recentSameAuthor = result
+      .slice(-windowSize)
+      .filter((p) => p.authorId === authorId).length;
+
+    const lastPost = result[result.length - 1];
+    const isConsecutive = lastPost?.authorId === authorId;
+
+    // TikTok rule: never consecutive from same author
+    if (isConsecutive) {
+      deferred.push(post);
+    } else if (recentSameAuthor >= maxConsecutiveSameAuthor) {
+      deferred.push(post);
+    } else {
+      // Try to insert a deferred post first (different author)
+      const deferredIdx = deferred.findIndex((p) => p.authorId !== authorId);
+      if (deferredIdx !== -1 && result.length > 0) {
+        result.push(deferred.splice(deferredIdx, 1)[0]);
+      }
+      result.push(post);
+    }
+  }
+
+  // Interleave remaining deferred posts at spaced positions
+  for (const post of deferred) {
+    const insertIdx = findSpacedInsertIndex(
+      result,
+      post.authorId ?? '',
+      windowSize
+    );
+    result.splice(insertIdx, 0, post);
+  }
+
+  return result;
+}
+
+/**
+ * Find a position in the result array where the author hasn't appeared
+ * in the previous windowSize posts.
+ */
+function findSpacedInsertIndex<T extends PostWithAuthor>(
+  posts: T[],
+  authorId: string,
+  windowSize: number
+): number {
+  // Start from the end and work backwards to find a good position
+  for (let i = posts.length; i >= 0; i--) {
+    const window = posts.slice(Math.max(0, i - windowSize), i);
+    const authorCount = window.filter((p) => p.authorId === authorId).length;
+    // Also check that the immediately previous post is not from same author
+    const prevPost = posts[i - 1];
+    if (authorCount === 0 && prevPost?.authorId !== authorId) {
+      return i;
+    }
+  }
+  return posts.length; // Append at end if no good position
+}
+
 /**
  * GET /api/posts
  *
@@ -1254,11 +1356,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return basePost;
   });
 
+  // Apply author diversity filter (MMR-inspired, TikTok-style)
+  // Prevents consecutive posts from the same author for organic feed feel
+  const diversifiedPosts = applyAuthorDiversityFilter(formattedPosts, {
+    maxConsecutiveSameAuthor: 1, // TikTok rule: never consecutive same author
+    windowSize: 10, // Check author frequency in last 10 posts
+  });
+
   logger.info(
     'Formatted posts',
     {
       originalCount: postsResult.length,
       formattedCount: formattedPosts.length,
+      diversifiedCount: diversifiedPosts.length,
       filteredOut: postsResult.length - formattedPosts.length,
     },
     'GET /api/posts'
@@ -1270,8 +1380,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   logger.info(
     'Returning formatted posts',
     {
-      postCount: formattedPosts.length,
-      total: formattedPosts.length,
+      postCount: diversifiedPosts.length,
+      total: diversifiedPosts.length,
       limit,
       cursor,
     },
@@ -1280,16 +1390,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Calculate next cursor (timestamp of last post)
   const nextCursor =
-    formattedPosts.length > 0
-      ? formattedPosts[formattedPosts.length - 1]?.timestamp
+    diversifiedPosts.length > 0
+      ? diversifiedPosts[diversifiedPosts.length - 1]?.timestamp
       : null;
 
   const response = NextResponse.json({
     success: true,
-    posts: formattedPosts,
+    posts: diversifiedPosts,
     limit,
     cursor: nextCursor, // Next cursor for pagination
-    hasMore: formattedPosts.length === limit, // Has more if we got a full page
+    hasMore: diversifiedPosts.length === limit, // Has more if we got a full page
   });
 
   // PERFORMANCE FIX: Use short cache with stale-while-revalidate for high-traffic endpoint
