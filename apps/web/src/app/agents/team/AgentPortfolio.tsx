@@ -7,10 +7,12 @@ import {
   ChevronDown,
   History,
   Loader2,
+  Sparkles,
   Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
@@ -87,7 +89,13 @@ function UserWallet({
   userId: string;
   entityName: string;
 }) {
-  const { balance, lifetimePnL, loading } = useWalletBalance(userId);
+  const { balance, lifetimePnL, loading, refresh } = useWalletBalance(userId);
+  const [buyPointsOpen, setBuyPointsOpen] = useState(false);
+
+  const handleBuyPointsSuccess = useCallback(() => {
+    refresh();
+    toast.success('Points purchased successfully!');
+  }, [refresh]);
 
   if (loading) {
     return (
@@ -126,6 +134,23 @@ function UserWallet({
         </div>
         <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
       </div>
+
+      {/* Buy Points Button */}
+      <button
+        type="button"
+        onClick={() => setBuyPointsOpen(true)}
+        className="flex items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2.5 font-medium text-white transition-all hover:bg-[#0055DD]"
+      >
+        <Sparkles className="h-4 w-4" />
+        Buy Points
+      </button>
+
+      {/* Buy Points Modal */}
+      <BuyPointsModal
+        isOpen={buyPointsOpen}
+        onClose={() => setBuyPointsOpen(false)}
+        onSuccess={handleBuyPointsSuccess}
+      />
     </div>
   );
 }
