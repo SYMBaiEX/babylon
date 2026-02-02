@@ -199,7 +199,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const dayOfWeek = Math.floor(i / 24);
       const hour = i % 24;
       const count = counts.get(`${dayOfWeek}-${hour}`) ?? 0;
-      return { dayOfWeek, hour, count, intensity: maxCount > 0 ? count / maxCount : 0 };
+      return {
+        dayOfWeek,
+        hour,
+        count,
+        intensity: maxCount > 0 ? count / maxCount : 0,
+      };
     });
 
     const totalActivities = data.reduce((sum, d) => sum + d.count, 0);
@@ -208,7 +213,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       type: 'hourly',
       activityType,
       data,
-      metadata: { startDate: queryStart.toISOString(), endDate: queryEnd.toISOString(), maxCount, totalActivities },
+      metadata: {
+        startDate: queryStart.toISOString(),
+        endDate: queryEnd.toISOString(),
+        maxCount,
+        totalActivities,
+      },
     });
   }
 
@@ -324,7 +334,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const data = calendarData.map((row) => {
     const count = Number(row.count);
-    const date = row.date instanceof Date ? (row.date.toISOString().split('T')[0] ?? '') : String(row.date);
+    const date =
+      row.date instanceof Date
+        ? (row.date.toISOString().split('T')[0] ?? '')
+        : String(row.date);
     return { date, count, intensity: maxCount > 0 ? count / maxCount : 0 };
   });
 

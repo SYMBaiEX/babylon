@@ -152,12 +152,19 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       pageCount: pageViews,
       heartbeatCount: 1,
     });
-    logger.debug('Created session', { userId, id }, 'POST /api/activity/heartbeat');
+    logger.debug(
+      'Created session',
+      { userId, id },
+      'POST /api/activity/heartbeat'
+    );
   }
 
   // Check for existing active session
   const existingSession = await db.query.userSessions.findFirst({
-    where: and(eq(userSessions.sessionId, sessionId), isNull(userSessions.endedAt)),
+    where: and(
+      eq(userSessions.sessionId, sessionId),
+      isNull(userSessions.endedAt)
+    ),
   });
 
   if (existingSession) {

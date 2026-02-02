@@ -121,7 +121,14 @@ interface MetricCardProps {
   badge?: React.ReactNode;
 }
 
-function MetricCard({ icon, iconBg, value, label, detail, badge }: MetricCardProps) {
+function MetricCard({
+  icon,
+  iconBg,
+  value,
+  label,
+  detail,
+  badge,
+}: MetricCardProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
       <div className="mb-3 flex items-center justify-between">
@@ -345,11 +352,23 @@ export function GrowthMetricsTab() {
           badge={
             data.wau.trend === 'stable' ? (
               <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-medium text-muted-foreground text-xs">
-                <Minus className="h-3 w-3" />Stable
+                <Minus className="h-3 w-3" />
+                Stable
               </div>
             ) : (
-              <div className={cn('flex items-center gap-1 rounded-full px-2 py-1 font-medium text-xs', data.wau.trend === 'up' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500')}>
-                {data.wau.trend === 'up' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+              <div
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2 py-1 font-medium text-xs',
+                  data.wau.trend === 'up'
+                    ? 'bg-green-500/10 text-green-500'
+                    : 'bg-red-500/10 text-red-500'
+                )}
+              >
+                {data.wau.trend === 'up' ? (
+                  <ArrowUp className="h-3 w-3" />
+                ) : (
+                  <ArrowDown className="h-3 w-3" />
+                )}
                 {Math.abs(data.wau.change).toFixed(1)}%
               </div>
             )
@@ -381,14 +400,22 @@ export function GrowthMetricsTab() {
           iconBg="bg-cyan-500/10"
           value={data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
           label="D7 Retention"
-          detail={data.retention.cohorts.length > 0 ? `${data.retention.cohorts.length} cohorts tracked` : 'Collecting data...'}
+          detail={
+            data.retention.cohorts.length > 0
+              ? `${data.retention.cohorts.length} cohorts tracked`
+              : 'Collecting data...'
+          }
         />
         <MetricCard
           icon={<Clock className="h-5 w-5 text-pink-500" />}
           iconBg="bg-pink-500/10"
           value={data.sessions.avgSessionsPerWau ?? 'N/A'}
           label="Sessions per WAU"
-          detail={data.sessions.totalSessions > 0 ? `${formatNumber(data.sessions.totalSessions)} total sessions` : 'Collecting data...'}
+          detail={
+            data.sessions.totalSessions > 0
+              ? `${formatNumber(data.sessions.totalSessions)} total sessions`
+              : 'Collecting data...'
+          }
         />
       </div>
 

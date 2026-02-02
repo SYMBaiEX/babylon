@@ -60,7 +60,8 @@ export function useSessionHeartbeat(): void {
         body: JSON.stringify({
           sessionId,
           pageViews,
-          lastPath: typeof window !== 'undefined' ? window.location.pathname : '',
+          lastPath:
+            typeof window !== 'undefined' ? window.location.pathname : '',
         }),
         keepalive: true,
       }).catch(() => {});
@@ -95,7 +96,11 @@ export function useSessionHeartbeat(): void {
 }
 
 /** Provider that enables session heartbeat for its subtree */
-export function SessionHeartbeatProvider({ children }: { children: React.ReactNode }): React.ReactNode {
+export function SessionHeartbeatProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactNode {
   useSessionHeartbeat();
   return children;
 }

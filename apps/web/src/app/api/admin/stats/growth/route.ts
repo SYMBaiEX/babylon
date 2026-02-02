@@ -622,18 +622,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       commandersOnlyPct,
       hybridPct,
     },
-    engagement: { tradesPerTrader, totalTrades, uniqueTraders, actionsPerCommander, totalActions, uniqueCommanders },
+    engagement: {
+      tradesPerTrader,
+      totalTrades,
+      uniqueTraders,
+      actionsPerCommander,
+      totalActions,
+      uniqueCommanders,
+    },
     activation: {
       rate: activationRate,
       totalSignups,
       activatedUsers,
       tradedWithin24h,
       commandedWithin24h,
-      funnel: { signups: totalSignups, tradedWithin24h, commandedWithin24h, activated: activatedUsers },
+      funnel: {
+        signups: totalSignups,
+        tradedWithin24h,
+        commandedWithin24h,
+        activated: activatedUsers,
+      },
     },
     sessions: sessionMetrics,
     retention,
     timeSeries,
-    metadata: { computedAt: now.toISOString(), period, periodStart: sevenDaysAgo.toISOString(), periodEnd: now.toISOString() },
+    metadata: {
+      computedAt: now.toISOString(),
+      period,
+      periodStart: sevenDaysAgo.toISOString(),
+      periodEnd: now.toISOString(),
+    },
   });
 });

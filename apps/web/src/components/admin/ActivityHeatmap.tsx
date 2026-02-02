@@ -79,11 +79,11 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string }[] = [
 ];
 
 const INTENSITY_COLORS = [
-  'bg-muted/30',      // 0
-  'bg-green-900/50',  // 0-25%
-  'bg-green-700/70',  // 25-50%
-  'bg-green-500/80',  // 50-75%
-  'bg-green-400',     // 75-100%
+  'bg-muted/30', // 0
+  'bg-green-900/50', // 0-25%
+  'bg-green-700/70', // 25-50%
+  'bg-green-500/80', // 50-75%
+  'bg-green-400', // 75-100%
 ] as const;
 
 function getIntensityColor(intensity: number): string {
