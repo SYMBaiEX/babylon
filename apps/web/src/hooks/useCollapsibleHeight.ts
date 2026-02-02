@@ -32,11 +32,19 @@ import { useEffect, useRef, useState } from 'react';
  */
 export function useCollapsibleHeight(isOpen: boolean) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const didMountRef = useRef(false);
   const [height, setHeight] = useState<number | undefined>(
     isOpen ? undefined : 0
   );
 
   useEffect(() => {
+    // Skip animation on initial mount when already closed
+    // (height is already initialized to 0, no need to animate)
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      if (!isOpen) return undefined;
+    }
+
     if (!contentRef.current) return undefined;
 
     if (isOpen) {
