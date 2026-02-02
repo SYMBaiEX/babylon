@@ -265,7 +265,6 @@ import {
   type GeneratedTag,
   generateTagsFromPost,
   handlePlayerMention,
-  NPC_DIVERSITY_CONFIG,
   StaticDataRegistry,
   storeTagsForPost,
 } from '@babylon/engine';
@@ -587,28 +586,18 @@ interface PostWithAuthor {
 }
 
 /**
- * MMR-inspired author diversity filter.
- * Prevents consecutive posts from the same author (TikTok-style hard rule).
- * Based on Twitter/X author diversity filter pattern.
+ * TikTok-style author diversity filter.
+ * Prevents consecutive posts from the same author (simple hard rule).
  *
  * Algorithm:
  * 1. Process posts in order
  * 2. If current author would be consecutive, defer the post
- * 3. Insert deferred posts at positions where they don't create consecutive author runs
+ * 3. Insert deferred posts at positions where they don't create consecutive runs
  *
  * @param posts Array of posts to reorder for diversity
- * @param options Configuration options
- * @returns Reordered array with author diversity enforced
+ * @returns Reordered array with no consecutive same-author posts
  */
-function applyAuthorDiversityFilter<T extends PostWithAuthor>(
-  posts: T[],
-  options: {
-    maxConsecutiveSameAuthor?: number; // Default: 1 (TikTok-style - never consecutive)
-    windowSize?: number; // Check last N posts for author frequency
-  } = {}
-): T[] {
-  const { maxConsecutiveSameAuthor = 1, windowSize = 10 } = options;
-
+function applyAuthorDiversityFilter<T extends PostWithAuthor>(posts: T[]): T[] {
   if (posts.length <= 1) return posts;
 
   const result: T[] = [];
@@ -616,19 +605,11 @@ function applyAuthorDiversityFilter<T extends PostWithAuthor>(
 
   for (const post of posts) {
     const authorId = post.authorId;
-
-    // Check if adding this post would create too many consecutive from same author
-    const recentSameAuthor = result
-      .slice(-windowSize)
-      .filter((p) => p.authorId === authorId).length;
-
     const lastPost = result[result.length - 1];
     const isConsecutive = lastPost?.authorId === authorId;
 
     // TikTok rule: never consecutive from same author
     if (isConsecutive) {
-      deferred.push(post);
-    } else if (recentSameAuthor >= maxConsecutiveSameAuthor) {
       deferred.push(post);
     } else {
       // Try to insert a deferred post first (different author)
@@ -641,13 +622,9 @@ function applyAuthorDiversityFilter<T extends PostWithAuthor>(
     }
   }
 
-  // Interleave remaining deferred posts at spaced positions
+  // Interleave remaining deferred posts at positions without consecutive authors
   for (const post of deferred) {
-    const insertIdx = findSpacedInsertIndex(
-      result,
-      post.authorId ?? '',
-      windowSize
-    );
+    const insertIdx = findNonConsecutiveInsertIndex(result, post.authorId ?? '');
     result.splice(insertIdx, 0, post);
   }
 
@@ -655,21 +632,22 @@ function applyAuthorDiversityFilter<T extends PostWithAuthor>(
 }
 
 /**
- * Find a position in the result array where the author hasn't appeared
- * in the previous windowSize posts.
+ * Find a position in the result array where inserting would not create
+ * consecutive posts from the same author.
  */
-function findSpacedInsertIndex<T extends PostWithAuthor>(
+function findNonConsecutiveInsertIndex<T extends PostWithAuthor>(
   posts: T[],
-  authorId: string,
-  windowSize: number
+  authorId: string
 ): number {
-  // Start from the end and work backwards to find a good position
+  // Start from the end and work backwards to find a position where:
+  // - Previous post is not from same author
+  // - Next post is not from same author (if exists)
   for (let i = posts.length; i >= 0; i--) {
-    const window = posts.slice(Math.max(0, i - windowSize), i);
-    const authorCount = window.filter((p) => p.authorId === authorId).length;
-    // Also check that the immediately previous post is not from same author
     const prevPost = posts[i - 1];
-    if (authorCount === 0 && prevPost?.authorId !== authorId) {
+    const nextPost = posts[i];
+    const prevOk = !prevPost || prevPost.authorId !== authorId;
+    const nextOk = !nextPost || nextPost.authorId !== authorId;
+    if (prevOk && nextOk) {
       return i;
     }
   }
@@ -1358,12 +1336,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return basePost;
   });
 
-  // Apply author diversity filter (MMR-inspired, TikTok-style)
+  // Apply author diversity filter (TikTok-style)
   // Prevents consecutive posts from the same author for organic feed feel
-  const diversifiedPosts = applyAuthorDiversityFilter(formattedPosts, {
-    maxConsecutiveSameAuthor: NPC_DIVERSITY_CONFIG.maxConsecutiveSameAuthor,
-    windowSize: NPC_DIVERSITY_CONFIG.authorDiversityWindow,
-  });
+  const diversifiedPosts = applyAuthorDiversityFilter(formattedPosts);
 
   logger.info(
     'Formatted posts',
@@ -1390,10 +1365,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/posts'
   );
 
-  // Calculate next cursor (timestamp of last post)
+  // Calculate next cursor using MINIMUM timestamp from diversified page
+  // This is critical because applyAuthorDiversityFilter reorders posts,
+  // so using the last element's timestamp could cause gaps/duplicates.
+  // Using min timestamp ensures the next page starts at or before the oldest post.
   const nextCursor =
     diversifiedPosts.length > 0
-      ? diversifiedPosts[diversifiedPosts.length - 1]?.timestamp
+      ? diversifiedPosts.reduce(
+          (min, p) => (p.timestamp < min ? p.timestamp : min),
+          diversifiedPosts[0]!.timestamp
+        )
       : null;
 
   const response = NextResponse.json({

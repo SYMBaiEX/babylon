@@ -1340,6 +1340,11 @@ export interface GenerateNPCDiscourseOptions {
    * @default 0.5
    */
   quoteProbability?: number;
+  /**
+   * Timestamp supplier called per-action for staggered timestamps.
+   * If not provided, uses the base timestamp parameter for all actions.
+   */
+  getTimestamp?: () => Date;
 }
 
 // =============================================================================
@@ -1364,7 +1369,9 @@ function createDiscourseActionDeck(
 ): Array<'quote' | 'reply'> {
   if (totalSlots <= 0) return [];
 
-  const quoteCount = Math.round(totalSlots * quoteRatio);
+  // Clamp quoteRatio to valid [0, 1] range to prevent negative/oversized counts
+  const clampedRatio = Math.max(0, Math.min(1, quoteRatio));
+  const quoteCount = Math.round(totalSlots * clampedRatio);
   const replyCount = totalSlots - quoteCount;
 
   // Build deck with exact ratios
@@ -1566,28 +1573,40 @@ export async function generateNPCRepliesFromPreviousTicks(
     Math.min(maxReplies, eligiblePosts.length)
   );
 
+  // Count original posts (only these can become quote posts)
+  // Build deck sized for original posts only to maintain accurate ratio
+  const originalPostCount = postsToReplyTo.filter(
+    (p) => p.commentOnPostId === null || p.commentOnPostId === undefined
+  ).length;
+
   // Create stratified action deck for guaranteed diversity (TikTok-style)
-  // Instead of rolling probability for each post, we pre-define action slots
-  // with guaranteed ratios and shuffle with no-consecutive constraint
-  const actionDeck = createDiscourseActionDeck(
-    postsToReplyTo.length,
+  // Deck is sized for original posts only since replies can't become quotes
+  const quoteDeck = createDiscourseActionDeck(
+    originalPostCount,
     quoteProbability,
     random
   );
+
+  // Track deck consumption separately for original posts
+  let quoteDeckIndex = 0;
+
+  const quoteCount = quoteDeck.filter((a) => a === 'quote').length;
+  const replyCount = quoteDeck.filter((a) => a === 'reply').length;
 
   logger.info(
     `Generating ${postsToReplyTo.length} NPC replies to previous tick posts`,
     {
       eligiblePosts: eligiblePosts.length,
       targetReplies: postsToReplyTo.length,
-      actionDeck: actionDeck.join(','), // Log deck for debugging
+      originalPosts: originalPostCount,
+      quoteDeck: { quotes: quoteCount, replies: replyCount },
     },
     'PostGeneration'
   );
 
   // Generate replies and quote posts in parallel
-  // Action type is determined by deck position, not independent probability
-  const discoursePromises = postsToReplyTo.map(async (originalPost, index) => {
+  // Action type is determined by deck position for original posts only
+  const discoursePromises = postsToReplyTo.map(async (originalPost) => {
     // Pick a random actor to engage (not the original author)
     // Filter by cooldown to prevent repetitive interactions
     const availableEngagers = actorsWithContext.filter(
@@ -1614,8 +1633,16 @@ export async function generateNPCRepliesFromPreviousTicks(
     const isOriginalPost =
       originalPost.commentOnPostId === null ||
       originalPost.commentOnPostId === undefined;
-    const deckAction = actionDeck[index] ?? 'reply';
-    const shouldQuote = isOriginalPost && deckAction === 'quote';
+
+    // Only consume from quote deck for original posts
+    let shouldQuote = false;
+    if (isOriginalPost) {
+      const deckAction = quoteDeck[quoteDeckIndex++] ?? 'reply';
+      shouldQuote = deckAction === 'quote';
+    }
+
+    // Get staggered timestamp for this action (or use base timestamp)
+    const actionTimestamp = options.getTimestamp?.() ?? timestamp;
 
     let success = false;
     if (shouldQuote) {
@@ -1624,7 +1651,7 @@ export async function generateNPCRepliesFromPreviousTicks(
         engager,
         originalPost,
         worldFactsContext,
-        timestamp,
+        actionTimestamp,
         currentDay
       );
     } else {
@@ -1633,7 +1660,7 @@ export async function generateNPCRepliesFromPreviousTicks(
         engager,
         originalPost,
         worldFactsContext,
-        timestamp,
+        actionTimestamp,
         currentDay
       );
     }

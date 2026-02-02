@@ -611,11 +611,10 @@ export async function POST(_req: NextRequest) {
         .trim();
 
       // Comment threads + lightweight engagement (likes/shares)
-      // Use staggered timestamp for organic feed pacing
-      const engagementStaggerer = createTimestampStaggerer(now);
+      // Pass original `now` - processNPCSocialEngagements handles staggering internally
       npcSocialEngagementService.setLLMClient(llmClient);
       const engagementResult = await processNPCSocialEngagements({
-        now: engagementStaggerer(), // Staggered timestamp for organic feel
+        now, // Original timestamp - service handles internal staggering
         currentDay: gameDay,
         promptContext: interactionPromptContext,
       });
@@ -635,17 +634,20 @@ export async function POST(_req: NextRequest) {
         role: a.role ?? null,
       }));
 
-      // Use staggered timestamp for organic feed pacing
-      // Each discourse action gets a timestamp spread across the 5-minute window
+      // Create timestamp staggerer for organic feed pacing
+      // Pass function reference so each discourse action gets its own staggered timestamp
       const getStaggeredTimestamp = createTimestampStaggerer(now);
       discourseCreated = await generateNPCRepliesFromPreviousTicks(
         llmClient,
         discourseActors,
         interactionPromptContext,
-        getStaggeredTimestamp(), // Staggered timestamp for organic feel
+        now, // Base timestamp for window calculations
         NPC_TICK_CONFIG.maxDiscourseReplies,
         gameDay,
-        { quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability }
+        {
+          quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability,
+          getTimestamp: getStaggeredTimestamp, // Function called per-action
+        }
       );
 
       if (

@@ -71,6 +71,24 @@ function envPositiveNumber(key: string, defaultValue: number): number {
 }
 
 /**
+ * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
+ * Returns the default and logs a warning if the value is < 0.
+ * Use for values where 0 is valid (e.g., to disable a feature).
+ */
+function envNonNegativeNumber(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value < 0) {
+    logger.warn(
+      `${key}=${value} must be non-negative (>= 0), using default ${defaultValue}`,
+      { key, value, defaultValue },
+      'npc-activity'
+    );
+    return defaultValue;
+  }
+  return value;
+}
+
+/**
  * Parse an environment variable as a probability (0.0-1.0) with bounds checking.
  * Clamps the value to valid probability range to prevent configuration errors.
  */
@@ -129,23 +147,6 @@ function envBoolean(key: string, defaultValue: boolean): boolean {
     'npc-activity'
   );
   return defaultValue;
-}
-
-/**
- * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
- * Returns the default and logs a warning if the value is < 0.
- */
-function envNonNegativeNumber(key: string, defaultValue: number): number {
-  const value = envNumber(key, defaultValue);
-  if (value < 0) {
-    logger.warn(
-      `${key}=${value} must be non-negative (>= 0), using default ${defaultValue}`,
-      { key, value, defaultValue },
-      'npc-activity'
-    );
-    return defaultValue;
-  }
-  return value;
 }
 
 // =============================================================================
@@ -435,34 +436,14 @@ export const NPC_DIVERSITY_CONFIG = {
   ),
 
   /**
-   * Maximum consecutive posts from same author in feed.
-   * Used by the feed author diversity filter.
-   *
-   * @default 1 (TikTok rule: never consecutive same author)
-   * @env NPC_MAX_CONSECUTIVE_SAME_AUTHOR
-   */
-  maxConsecutiveSameAuthor: envPositiveNumber(
-    'NPC_MAX_CONSECUTIVE_SAME_AUTHOR',
-    1
-  ),
-
-  /**
-   * Window size for author diversity check.
-   * Checks author frequency in the last N posts.
-   *
-   * @default 10
-   * @env NPC_AUTHOR_DIVERSITY_WINDOW
-   */
-  authorDiversityWindow: envPositiveNumber('NPC_AUTHOR_DIVERSITY_WINDOW', 10),
-
-  /**
    * Timestamp stagger window in milliseconds.
    * Actions within a tick get timestamps spread across this window.
+   * Set to 0 to disable timestamp staggering.
    *
    * @default 300000 (5 minutes)
    * @env NPC_TIMESTAMP_STAGGER_MS
    */
-  timestampStaggerMs: envPositiveNumber(
+  timestampStaggerMs: envNonNegativeNumber(
     'NPC_TIMESTAMP_STAGGER_MS',
     5 * 60 * 1000
   ),

@@ -51,8 +51,10 @@ class ActionDiversityTracker {
   private readonly maxConsecutive: number;
 
   constructor(maxRecent = 5, maxConsecutive = 2) {
-    this.maxRecent = maxRecent;
-    this.maxConsecutive = maxConsecutive;
+    // Ensure buffer can hold enough history to check consecutive actions
+    this.maxRecent = Math.max(maxRecent, maxConsecutive);
+    // Ensure maxConsecutive is at least 1
+    this.maxConsecutive = Math.max(1, maxConsecutive);
   }
 
   /**
