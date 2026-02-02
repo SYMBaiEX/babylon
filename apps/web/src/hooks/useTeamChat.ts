@@ -61,6 +61,36 @@ function extractMentionedAgentIds(
     .map((a) => a.id);
 }
 
+/**
+ * Extract mention strings (@username) from content for valid agents.
+ * Returns array of "@username" strings that exist in the agents list.
+ */
+function extractMentionStrings(
+  content: string,
+  agents: TeamChatAgent[]
+): string[] {
+  const validUsernames = new Set(
+    agents.map((a) => a.username?.toLowerCase()).filter(Boolean)
+  );
+  const mentionRegex = /(?:^|[^\w])(@[A-Za-z0-9_.-]+)/g;
+  const mentions: string[] = [];
+  const seenLower = new Set<string>();
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const mention = match[1];
+    if (!mention) continue;
+    const usernameLower = mention.slice(1).toLowerCase();
+    // Only include valid mentions, deduplicated
+    if (validUsernames.has(usernameLower) && !seenLower.has(usernameLower)) {
+      seenLower.add(usernameLower);
+      mentions.push(mention);
+    }
+  }
+
+  return mentions;
+}
+
 /** Typing user info */
 interface TypingUser {
   userId: string;
@@ -685,6 +715,9 @@ export function useTeamChat(): UseTeamChatReturn {
       teamChat.agents
     );
 
+    // Extract mention strings for sticky mentions (preserve after send)
+    const mentionStrings = extractMentionStrings(content, teamChat.agents);
+
     // If no agents are mentioned, use coordinator instead
     const useCoordinator = mentionedAgentIds.length === 0;
 
@@ -717,7 +750,11 @@ export function useTeamChat(): UseTeamChatReturn {
     // Scroll to bottom after DOM updates with new message
     setTimeout(() => scrollToBottom('instant'), 50);
 
-    setMessageInput('');
+    // Preserve mentions for next message (sticky mentions)
+    // If there were mentions, pre-fill input with them; otherwise clear
+    const stickyMentions =
+      mentionStrings.length > 0 ? mentionStrings.join(' ') + ' ' : '';
+    setMessageInput(stickyMentions);
     setSending(true);
     setSendError(null);
 

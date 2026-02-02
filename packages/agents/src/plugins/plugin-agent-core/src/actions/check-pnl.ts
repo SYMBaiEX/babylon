@@ -220,6 +220,7 @@ export const checkPnlAction: Action = {
           label: 'Portfolio',
           icon: 'Wallet',
           data: {
+            agentName: agent?.displayName || undefined,
             balance,
             lifetimePnL,
             predictionPositions: formattedPredictionPositions,

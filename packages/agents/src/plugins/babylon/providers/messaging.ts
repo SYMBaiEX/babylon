@@ -74,7 +74,7 @@ export const messagesProvider: Provider = {
         ? `Chats:\n${chats
             .map(
               (c) =>
-                `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants.length}`
+                `- ${c.name || 'Unnamed'} (${c.isGroup ? 'Group' : 'DM'}) | ID: ${c.id} | Participants: ${c.participants?.length ?? 0}`
             )
             .join('\n')}`
         : 'No chats available.';

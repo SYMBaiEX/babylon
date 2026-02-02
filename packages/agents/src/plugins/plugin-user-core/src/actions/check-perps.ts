@@ -274,7 +274,7 @@ export const checkPerpsAction: Action = {
       // Tag for list view
       tag: {
         type: 'perps',
-        label: 'Markets',
+        label: 'Perpetuals',
         icon: 'TrendingUp',
         data: { markets: marketsForTag },
       },

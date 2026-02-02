@@ -327,7 +327,7 @@ export function TeamChatView({
           sending={sending}
           authenticated={authenticated}
           density={density}
-          placeholder="Ask the swarm...(Type @ to mention agents)"
+          placeholder="Message your team — @ to mention agents"
           mentionableMembers={agents}
         />
       </div>

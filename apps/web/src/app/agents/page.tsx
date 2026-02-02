@@ -112,6 +112,13 @@ export default function AgentsPage() {
     }
   }, [ready, authenticated, fetchAgents]);
 
+  // Redirect to /agents/team - this page is now just a redirect
+  useEffect(() => {
+    if (ready && authenticated) {
+      router.replace('/agents/team');
+    }
+  }, [ready, authenticated, router]);
+
   // Auth required — redirect to feed and show login
   useEffect(() => {
     if (!ready || authenticated) return;

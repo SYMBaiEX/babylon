@@ -13,6 +13,13 @@ import {
 
 const MAX_TEXTAREA_HEIGHT = 160;
 
+/** Represents a mention range in the text */
+interface MentionRange {
+  start: number;
+  end: number;
+  text: string;
+}
+
 /**
  * Check if @ is at a valid mention position (start of word).
  * Returns true if @ is at position 0 OR after whitespace.
@@ -22,6 +29,86 @@ function isAtValidMentionPosition(text: string, atIndex: number): boolean {
   if (atIndex === 0) return true;
   const charBefore = text[atIndex - 1];
   return /\s/.test(charBefore || '');
+}
+
+/**
+ * Find all valid mention ranges in the text.
+ * Only returns mentions that exist in validUsernames set AND are at valid
+ * mention positions (start of text or after whitespace).
+ */
+function findMentionRanges(
+  text: string,
+  validUsernames: Set<string>
+): MentionRange[] {
+  const ranges: MentionRange[] = [];
+  const mentionRegex = /(@[A-Za-z0-9_.-]+)/g;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const mention = match[0];
+    const handle = mention.slice(1).toLowerCase();
+
+    // Only include valid mentions at valid positions (not in emails, etc.)
+    if (
+      validUsernames.has(handle) &&
+      isAtValidMentionPosition(text, match.index)
+    ) {
+      ranges.push({
+        start: match.index,
+        end: match.index + mention.length,
+        text: mention,
+      });
+    }
+  }
+
+  return ranges;
+}
+
+/**
+ * Find if cursor is inside a mention.
+ * Returns the mention range if cursor is inside one, null otherwise.
+ */
+function getMentionAtCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    // Cursor is inside the mention (not at boundaries)
+    if (cursorPos > range.start && cursorPos < range.end) {
+      return range;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the mention that ends just before the cursor (for backspace).
+ */
+function getMentionBeforeCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    if (range.end === cursorPos) {
+      return range;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the mention that starts just after the cursor (for delete key).
+ */
+function getMentionAfterCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    if (range.start === cursorPos) {
+      return range;
+    }
+  }
+  return null;
 }
 
 /**
@@ -145,6 +232,12 @@ export function MessageInput({
     return set;
   }, [mentionableMembers]);
 
+  // Calculate mention ranges for atomic mention behavior
+  const mentionRanges = useMemo(
+    () => findMentionRanges(value, validMentionHandles),
+    [value, validMentionHandles]
+  );
+
   // Reference for the highlight overlay to sync scroll
   const highlightRef = useRef<HTMLDivElement>(null);
 
@@ -258,9 +351,34 @@ export function MessageInput({
     ]
   );
 
-  // Handle keyboard navigation
+  // Handle selection/click to snap cursor out of mentions
+  const handleSelect = useCallback(() => {
+    if (!mentionsEnabled || mentionRanges.length === 0) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const selectionEnd = textarea.selectionEnd;
+
+    // Only handle single cursor position, not text selection
+    if (cursorPos !== selectionEnd) return;
+
+    const mentionAtCursor = getMentionAtCursor(cursorPos, mentionRanges);
+    if (mentionAtCursor) {
+      // Snap cursor to the end of the mention
+      setTimeout(() => {
+        textarea.setSelectionRange(mentionAtCursor.end, mentionAtCursor.end);
+      }, 0);
+    }
+  }, [mentionsEnabled, mentionRanges]);
+
+  // Handle keyboard navigation with atomic mention behavior
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
       if (mentionsEnabled) {
         // Let autocomplete handle navigation first
         const handled = autocompleteKeyDown(e);
@@ -275,6 +393,83 @@ export function MessageInput({
           }
           return;
         }
+
+        const cursorPos = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        const hasSelection = cursorPos !== selectionEnd;
+
+        // Arrow key navigation - skip over mentions
+        if (
+          !hasSelection &&
+          (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+        ) {
+          if (e.key === 'ArrowLeft' && cursorPos > 0) {
+            // Check if we're at the end of a mention
+            const mentionBefore = getMentionBeforeCursor(
+              cursorPos,
+              mentionRanges
+            );
+            if (mentionBefore) {
+              e.preventDefault();
+              textarea.setSelectionRange(
+                mentionBefore.start,
+                mentionBefore.start
+              );
+              return;
+            }
+          } else if (e.key === 'ArrowRight' && cursorPos < value.length) {
+            // Check if we're at the start of a mention
+            const mentionAfter = getMentionAfterCursor(
+              cursorPos,
+              mentionRanges
+            );
+            if (mentionAfter) {
+              e.preventDefault();
+              textarea.setSelectionRange(mentionAfter.end, mentionAfter.end);
+              return;
+            }
+          }
+        }
+
+        // Backspace - delete entire mention if cursor is right after one
+        if (e.key === 'Backspace' && !hasSelection && cursorPos > 0) {
+          const mentionBefore = getMentionBeforeCursor(
+            cursorPos,
+            mentionRanges
+          );
+          if (mentionBefore) {
+            e.preventDefault();
+            const newValue =
+              value.slice(0, mentionBefore.start) + value.slice(cursorPos);
+            onChange(newValue);
+            // Close autocomplete if open
+            if (isOpen) closeAutocomplete();
+            setTimeout(() => {
+              textarea.setSelectionRange(
+                mentionBefore.start,
+                mentionBefore.start
+              );
+            }, 0);
+            return;
+          }
+        }
+
+        // Delete key - delete entire mention if cursor is right before one
+        if (e.key === 'Delete' && !hasSelection && cursorPos < value.length) {
+          const mentionAfter = getMentionAfterCursor(cursorPos, mentionRanges);
+          if (mentionAfter) {
+            e.preventDefault();
+            const newValue =
+              value.slice(0, cursorPos) + value.slice(mentionAfter.end);
+            onChange(newValue);
+            // Close autocomplete if open
+            if (isOpen) closeAutocomplete();
+            setTimeout(() => {
+              textarea.setSelectionRange(cursorPos, cursorPos);
+            }, 0);
+            return;
+          }
+        }
       }
 
       // Normal Enter to send (when autocomplete is closed)
@@ -286,9 +481,14 @@ export function MessageInput({
     },
     [
       mentionsEnabled,
+      mentionRanges,
+      value,
+      isOpen,
       autocompleteKeyDown,
+      closeAutocomplete,
       getSelectedAgent,
       handleSelectMember,
+      onChange,
       onSend,
     ]
   );
@@ -360,6 +560,7 @@ export function MessageInput({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               onScroll={handleScroll}
+              onSelect={handleSelect}
               aria-label="Message input, use @ to mention members"
               placeholder={placeholderText}
               disabled={sending || disabled}

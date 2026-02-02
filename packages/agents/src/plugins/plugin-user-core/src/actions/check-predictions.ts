@@ -200,7 +200,7 @@ export const checkPredictionsAction: Action = {
         // Tag for specific market - opens detailed view
         tag: {
           type: 'predictions',
-          label: 'Market',
+          label: 'Prediction',
           icon: 'Target',
           entityId: String(prediction.id),
           data: { prediction: predictionData },

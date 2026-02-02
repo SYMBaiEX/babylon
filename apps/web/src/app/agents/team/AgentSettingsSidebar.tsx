@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { useCollapsibleHeight } from '@/hooks/useCollapsibleHeight';
 import { MODEL_TIER_POINTS_COST } from '@/lib/constants';
 
 interface AgentData {
@@ -45,6 +46,30 @@ interface AgentSettingsSidebarProps {
 }
 
 type SectionKey = 'basic' | 'personality' | 'model' | 'danger';
+
+/** Animated collapsible component */
+function Collapsible({
+  isOpen,
+  children,
+}: {
+  isOpen: boolean;
+  children: React.ReactNode;
+}) {
+  const { contentRef, height } = useCollapsibleHeight(isOpen);
+
+  return (
+    <div
+      style={{
+        height: height === undefined ? 'auto' : height,
+        overflow: 'hidden',
+        transition: 'height 200ms ease-out, opacity 200ms ease-out',
+        opacity: isOpen ? 1 : 0,
+      }}
+    >
+      <div ref={contentRef}>{children}</div>
+    </div>
+  );
+}
 
 /**
  * Compact agent settings component optimized for sidebar display.
@@ -88,13 +113,12 @@ export function AgentSettingsSidebar({
 
   const toggleSection = useCallback((section: SectionKey) => {
     setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) {
-        next.delete(section);
-      } else {
-        next.add(section);
+      // If clicking the already open section, close it
+      if (prev.has(section)) {
+        return new Set();
       }
-      return next;
+      // Otherwise, open only this section (close others)
+      return new Set([section]);
     });
   }, []);
 
@@ -296,7 +320,7 @@ export function AgentSettingsSidebar({
         {/* Basic Info Section */}
         <div className="border-border border-b pb-1">
           <SectionHeader section="basic" title="Basic Info" />
-          {expandedSections.has('basic') && (
+          <Collapsible isOpen={expandedSections.has('basic')}>
             <div className="space-y-3 pt-1 pb-3">
               {/* Profile Image - Centered */}
               <div className="flex flex-col items-center gap-2">
@@ -365,13 +389,13 @@ export function AgentSettingsSidebar({
                 />
               </div>
             </div>
-          )}
+          </Collapsible>
         </div>
 
         {/* Personality Section */}
         <div className="border-border border-b pb-1">
           <SectionHeader section="personality" title="Personality" />
-          {expandedSections.has('personality') && (
+          <Collapsible isOpen={expandedSections.has('personality')}>
             <div className="space-y-3 pt-1 pb-3">
               <div>
                 <label className="mb-1 block text-muted-foreground text-xs">
@@ -424,13 +448,13 @@ export function AgentSettingsSidebar({
                 />
               </div>
             </div>
-          )}
+          </Collapsible>
         </div>
 
         {/* Model & Features Section */}
         <div className="border-border border-b pb-1">
           <SectionHeader section="model" title="Model & Features" />
-          {expandedSections.has('model') && (
+          <Collapsible isOpen={expandedSections.has('model')}>
             <div className="space-y-3 pt-1 pb-3">
               {/* Model Tier */}
               <div>
@@ -590,13 +614,13 @@ export function AgentSettingsSidebar({
                 </div>
               )}
             </div>
-          )}
+          </Collapsible>
         </div>
 
         {/* Danger Zone Section */}
         <div className="pb-1">
           <SectionHeader section="danger" title="Danger Zone" danger />
-          {expandedSections.has('danger') && (
+          <Collapsible isOpen={expandedSections.has('danger')}>
             <div className="pt-1 pb-3">
               <p className="mb-2 text-[11px] text-muted-foreground">
                 Permanently delete this agent. This cannot be undone.
@@ -615,7 +639,7 @@ export function AgentSettingsSidebar({
                 {deleting ? 'Deleting...' : 'Delete Agent'}
               </button>
             </div>
-          )}
+          </Collapsible>
         </div>
       </div>
 
