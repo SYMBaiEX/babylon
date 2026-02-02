@@ -1,16 +1,18 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import { cn, formatCompactCurrency, logger } from '@babylon/shared';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronDown,
   History,
   Loader2,
+  Sparkles,
   Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
@@ -87,7 +89,13 @@ function UserWallet({
   userId: string;
   entityName: string;
 }) {
-  const { balance, lifetimePnL, loading } = useWalletBalance(userId);
+  const { balance, lifetimePnL, loading, refresh } = useWalletBalance(userId);
+  const [buyPointsOpen, setBuyPointsOpen] = useState(false);
+
+  const handleBuyPointsSuccess = useCallback(() => {
+    refresh();
+    toast.success('Points purchased successfully!');
+  }, [refresh]);
 
   if (loading) {
     return (
@@ -108,7 +116,7 @@ function UserWallet({
               Your Balance
             </div>
             <div className="mt-1 font-bold text-2xl">
-              {balance.toFixed(2)} pts
+              {formatCompactCurrency(balance)}
             </div>
           </div>
           <div className="text-right">
@@ -120,12 +128,29 @@ function UserWallet({
               )}
             >
               {lifetimePnL >= 0 ? '+' : ''}
-              {lifetimePnL.toFixed(2)}
+              {formatCompactCurrency(lifetimePnL)}
             </div>
           </div>
         </div>
         <div className="mt-2 text-muted-foreground text-xs">{entityName}</div>
       </div>
+
+      {/* Buy Points Button */}
+      <button
+        type="button"
+        onClick={() => setBuyPointsOpen(true)}
+        className="flex items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-2.5 font-medium text-white transition-all hover:bg-[#0055DD]"
+      >
+        <Sparkles className="h-4 w-4" />
+        Buy Points
+      </button>
+
+      {/* Buy Points Modal */}
+      <BuyPointsModal
+        isOpen={buyPointsOpen}
+        onClose={() => setBuyPointsOpen(false)}
+        onSuccess={handleBuyPointsSuccess}
+      />
     </div>
   );
 }
@@ -210,13 +235,13 @@ function AgentWallet({
 
     if (action === 'deposit' && amountNum > balanceInfo.userBalance) {
       toast.error(
-        `Insufficient balance. You have ${balanceInfo.userBalance.toFixed(2)} pts`
+        `Insufficient balance. You have ${formatCompactCurrency(balanceInfo.userBalance)}`
       );
       return;
     }
     if (action === 'withdraw' && amountNum > balanceInfo.agentBalance) {
       toast.error(
-        `Insufficient agent balance. Agent has ${balanceInfo.agentBalance.toFixed(2)} pts`
+        `Insufficient agent balance. Agent has ${formatCompactCurrency(balanceInfo.agentBalance)}`
       );
       return;
     }
@@ -292,13 +317,13 @@ function AgentWallet({
               Agent Balance
             </div>
             <div className="mt-1 font-bold text-2xl">
-              {balanceInfo.agentBalance.toFixed(2)} pts
+              {formatCompactCurrency(balanceInfo.agentBalance)}
             </div>
           </div>
           <div className="text-right">
             <div className="text-muted-foreground text-xs">Your Balance</div>
             <div className="mt-1 font-semibold text-lg">
-              {balanceInfo.userBalance.toFixed(2)} pts
+              {formatCompactCurrency(balanceInfo.userBalance)}
             </div>
           </div>
         </div>
@@ -424,7 +449,7 @@ function AgentWallet({
                         )}
                       >
                         {tx.amount > 0 ? '+' : ''}
-                        {tx.amount.toFixed(2)}
+                        {formatCompactCurrency(tx.amount)}
                       </span>
                     </button>
 
@@ -447,7 +472,7 @@ function AgentWallet({
                               Balance After:
                             </span>
                             <span className="font-medium">
-                              {tx.balanceAfter.toFixed(2)} pts
+                              {formatCompactCurrency(tx.balanceAfter)}
                             </span>
                           </div>
                           <div className="flex justify-between">

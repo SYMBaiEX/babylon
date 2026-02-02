@@ -107,9 +107,9 @@ export function BottomPanel({
     { id: 'pnl', label: 'PnL' },
     { id: 'logs', label: 'Logs' },
   ];
-  // Hide Logs and Activity tabs for user
+  // Hide Logs tab for user (Activity is now available for users)
   const tabs = isUserSelected
-    ? allTabs.filter((t) => t.id !== 'logs' && t.id !== 'activity')
+    ? allTabs.filter((t) => t.id !== 'logs')
     : allTabs;
 
   // Handle tab click - if clicking active tab while open, collapse

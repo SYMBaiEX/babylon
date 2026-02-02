@@ -1,6 +1,11 @@
 'use client';
 
-import { cn, logger } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatCompactCurrency,
+  logger,
+} from '@babylon/shared';
 import { ChevronDown, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -202,7 +207,7 @@ function UserPnL({
             <TrendingDown className="h-3 w-3" />
           )}
           {totalPnL >= 0 ? '+' : ''}
-          {totalPnL.toFixed(2)}
+          {formatCompactCurrency(totalPnL)}
         </div>
       </div>
 
@@ -219,7 +224,7 @@ function UserPnL({
               )}
             >
               {totalPnL >= 0 ? '+' : ''}
-              {totalPnL.toFixed(2)}
+              {formatCompactCurrency(totalPnL)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
@@ -231,7 +236,7 @@ function UserPnL({
               )}
             >
               {realizedPnL >= 0 ? '+' : ''}
-              {realizedPnL.toFixed(2)}
+              {formatCompactCurrency(realizedPnL)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
@@ -243,14 +248,14 @@ function UserPnL({
               )}
             >
               {unrealizedPnL >= 0 ? '+' : ''}
-              {unrealizedPnL.toFixed(2)}
+              {formatCompactCurrency(unrealizedPnL)}
             </span>
           </div>
           <div className="border-border border-t pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">In Positions</span>
               <span className="font-medium">
-                {positionsValue.toFixed(2)} pts
+                {formatCompactCurrency(positionsValue)}
               </span>
             </div>
           </div>
@@ -260,7 +265,9 @@ function UserPnL({
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Balance</div>
-            <div className="font-semibold text-sm">{balance.toFixed(0)}</div>
+            <div className="font-semibold text-sm">
+              {formatCompactCurrency(balance, 0)}
+            </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Positions</div>
@@ -335,7 +342,7 @@ function UserPnL({
                           )}
                         >
                           {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {Number(pos.unrealizedPnL).toFixed(2)}
+                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
                         </span>
                       )}
                     </button>
@@ -377,7 +384,10 @@ function UserPnL({
                           </span>
                           <span>Size: {Number(pos.size).toFixed(4)}</span>
                           {pos.entryPrice && (
-                            <span>@ ${Number(pos.entryPrice).toFixed(2)}</span>
+                            <span>
+                              @ {BABYLON_POINTS_SYMBOL}
+                              {Number(pos.entryPrice).toFixed(2)}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -391,7 +401,7 @@ function UserPnL({
                           )}
                         >
                           {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {Number(pos.unrealizedPnL).toFixed(2)}
+                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
                         </span>
                       )}
                     </button>
@@ -549,7 +559,7 @@ function AgentPnLView({
           )}
           {positionsLoading
             ? '...'
-            : `${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}`}
+            : `${totalPnL >= 0 ? '+' : ''}${formatCompactCurrency(totalPnL)}`}
         </div>
       </div>
 
@@ -567,7 +577,7 @@ function AgentPnLView({
             >
               {positionsLoading
                 ? '...'
-                : `${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}`}
+                : `${totalPnL >= 0 ? '+' : ''}${formatCompactCurrency(totalPnL)}`}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
@@ -579,7 +589,7 @@ function AgentPnLView({
               )}
             >
               {realizedPnL >= 0 ? '+' : ''}
-              {realizedPnL.toFixed(2)}
+              {formatCompactCurrency(realizedPnL)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
@@ -592,14 +602,16 @@ function AgentPnLView({
             >
               {positionsLoading
                 ? '...'
-                : `${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toFixed(2)}`}
+                : `${unrealizedPnL >= 0 ? '+' : ''}${formatCompactCurrency(unrealizedPnL)}`}
             </span>
           </div>
           <div className="border-border border-t pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">In Positions</span>
               <span className="font-medium">
-                {positionsLoading ? '...' : pointsInPositions.toFixed(2)} pts
+                {positionsLoading
+                  ? '...'
+                  : formatCompactCurrency(pointsInPositions)}
               </span>
             </div>
           </div>
@@ -694,7 +706,7 @@ function AgentPnLView({
                           )}
                         >
                           {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {Number(pos.unrealizedPnL).toFixed(2)}
+                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
                         </span>
                       )}
                     </button>
@@ -736,7 +748,10 @@ function AgentPnLView({
                           </span>
                           <span>Size: {Number(pos.size).toFixed(4)}</span>
                           {pos.entryPrice && (
-                            <span>@ ${Number(pos.entryPrice).toFixed(2)}</span>
+                            <span>
+                              @ {BABYLON_POINTS_SYMBOL}
+                              {Number(pos.entryPrice).toFixed(2)}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -750,7 +765,7 @@ function AgentPnLView({
                           )}
                         >
                           {Number(pos.unrealizedPnL) >= 0 ? '+' : ''}
-                          {Number(pos.unrealizedPnL).toFixed(2)}
+                          {formatCompactCurrency(Number(pos.unrealizedPnL))}
                         </span>
                       )}
                     </button>
