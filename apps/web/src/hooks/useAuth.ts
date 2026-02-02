@@ -7,7 +7,6 @@ import {
   usePrivy,
   useWallets,
 } from '@privy-io/react-auth';
-import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { type User, useAuthStore } from '@/stores/authStore';
@@ -27,10 +26,10 @@ interface UseAuthReturn {
   user: User | null;
   /** The connected wallet (prioritizes embedded wallet for gas sponsorship) */
   wallet: ConnectedWallet | undefined;
-  /** The smart wallet address if available */
-  smartWalletAddress?: string;
-  /** Whether the smart wallet is ready for transactions */
-  smartWalletReady: boolean;
+  /** The embedded wallet address (EOA) if available */
+  embeddedWalletAddress?: string;
+  /** Whether the embedded wallet is ready for transactions */
+  embeddedWalletReady: boolean;
   /** Whether the user needs to complete onboarding */
   needsOnboarding: boolean;
   /** Whether the user needs to register on-chain */
@@ -99,7 +98,6 @@ export function useAuth(): UseAuthReturn {
     getAccessToken,
   } = usePrivy();
   const { wallets } = useWallets();
-  const { client } = useSmartWallets();
   const {
     user,
     isLoadingProfile,
@@ -128,8 +126,8 @@ export function useAuth(): UseAuthReturn {
     return wallets[0];
   }, [wallets]);
 
-  const smartWalletAddress = client?.account?.address;
-  const smartWalletReady = Boolean(smartWalletAddress);
+  const embeddedWalletAddress = wallet?.address ?? undefined;
+  const embeddedWalletReady = Boolean(embeddedWalletAddress);
 
   // Use a ref to track if we've already cleared auth to prevent re-triggering
   const hasClearedAuthRef = useRef(false);
@@ -246,8 +244,7 @@ export function useAuth(): UseAuthReturn {
         if (me.user) {
           const hydratedUser: User = {
             id: me.user.id,
-            walletAddress:
-              me.user.walletAddress ?? smartWalletAddress ?? wallet?.address,
+            walletAddress: me.user.walletAddress ?? wallet?.address,
             displayName:
               me.user.displayName && me.user.displayName.trim() !== ''
                 ? me.user.displayName
@@ -354,7 +351,6 @@ export function useAuth(): UseAuthReturn {
       setNeedsOnboarding,
       setNeedsOnchain,
       setUser,
-      smartWalletAddress,
       wallet?.address,
     ]
   );
@@ -728,8 +724,8 @@ export function useAuth(): UseAuthReturn {
     loadingProfile: isLoadingProfile,
     user,
     wallet,
-    smartWalletAddress: smartWalletAddress ?? undefined,
-    smartWalletReady,
+    embeddedWalletAddress,
+    embeddedWalletReady,
     needsOnboarding,
     needsOnchain,
     login,

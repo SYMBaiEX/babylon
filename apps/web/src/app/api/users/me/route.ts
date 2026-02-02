@@ -147,6 +147,8 @@ import {
   cachedDb,
   getPrivyClient,
   InternalServerError,
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -159,80 +161,27 @@ import {
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 
-type PrivyWalletLite = {
-  id?: string | null;
-  address?: string;
-  chainType?: string;
-  chain_type?: string;
-  walletClientType?: string | null;
-  wallet_client?: string | null;
-  type?: string | null;
-};
+type PrivyUserWithWallets = PrivyUser &
+  PrivyUserWithEmails &
+  PrivyUserWalletsLite;
 
-type PrivyUserWithSmartWallet = PrivyUser &
-  PrivyUserWithEmails & {
-    smartWallet?: { address?: string | null };
-    wallet?: PrivyWalletLite;
-    linkedAccounts?: PrivyWalletLite[];
-    linked_accounts?: PrivyWalletLite[];
-  };
-
-function pickSmartWalletAddress(user: PrivyUserWithSmartWallet): string | null {
-  const direct = user.smartWallet?.address?.toLowerCase() ?? null;
-  if (direct) return direct;
-
-  const accounts = [
-    ...(user.linkedAccounts ?? []),
-    ...(user.linked_accounts ?? []),
-  ];
-  const smartWallet = accounts.find(
-    (a) => a.type === 'smart_wallet' && typeof a.address === 'string'
-  );
-  return smartWallet?.address?.toLowerCase() ?? null;
-}
-
-function pickEmbeddedEvmWallet(
-  user: PrivyUserWithSmartWallet
-): PrivyWalletLite | null {
-  const candidates: PrivyWalletLite[] = [];
-  if (user.wallet) candidates.push(user.wallet);
-  for (const acc of user.linkedAccounts ?? []) {
-    if (acc?.type === 'wallet') candidates.push(acc);
-  }
-  for (const acc of user.linked_accounts ?? []) {
-    if (acc?.type === 'wallet') candidates.push(acc);
-  }
-  return (
-    candidates.find(
-      (w) =>
-        (w.walletClientType === 'privy' ||
-          w.wallet_client === 'privy' ||
-          Boolean(w.id)) &&
-        (!(w.chainType ?? w.chain_type) ||
-          (w.chainType ?? w.chain_type) === 'ethereum') &&
-        typeof w.address === 'string'
-    ) ?? null
-  );
-}
-
-async function ensureSmartWalletAddress(privyId: string): Promise<{
-  smartWalletAddress: string | null;
+async function resolveEmbeddedWallet(privyId: string): Promise<{
+  privyWalletId: string | null;
   embeddedWalletAddress: string | null;
 }> {
   const privyClient = getPrivyClient();
-  const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
-  const smartWalletAddress = pickSmartWalletAddress(user);
-  const embeddedWallet = pickEmbeddedEvmWallet(user);
-
+  const user = (await privyClient.getUser(privyId)) as PrivyUserWithWallets;
+  const embedded = pickEmbeddedEvmWallet(user);
   return {
-    smartWalletAddress,
-    embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
+    privyWalletId: embedded?.walletId ?? null,
+    embeddedWalletAddress: embedded?.address?.toLowerCase() ?? null,
   };
 }
 
 const userSelectFields = {
   id: users.id,
   privyId: users.privyId,
+  privyWalletId: users.privyWalletId,
   username: users.username,
   displayName: users.displayName,
   bio: users.bio,
@@ -275,6 +224,7 @@ const userSelectFields = {
 type UserSelectResult = {
   id: string;
   privyId: string | null;
+  privyWalletId: string | null;
   username: string | null;
   displayName: string | null;
   bio: string | null;
@@ -462,12 +412,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let farcasterFid: string | null = null;
     let twitterUsername: string | null = null;
     let twitterId: string | null = null;
-    let smartWalletAddress: string | null = null;
+    let embeddedWalletAddress: string | null = null;
+    let embeddedWalletId: string | null = null;
 
     const privyClient = getPrivyClient();
     const privyUser = (await privyClient.getUser(
       privyId
-    )) as PrivyUserWithSmartWallet;
+    )) as PrivyUserWithWallets;
 
     // Extract email from linked accounts
     if (privyUser.email?.address) {
@@ -488,10 +439,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       twitterId = privyUser.twitter.subject ?? null;
     }
 
-    // Prefer Privy smart wallet over linked/embedded wallet for DB storage
-    smartWalletAddress = pickSmartWalletAddress(privyUser);
-    if (smartWalletAddress) {
-      authUser.walletAddress = smartWalletAddress;
+    const embedded = pickEmbeddedEvmWallet(privyUser);
+    if (embedded) {
+      embeddedWalletId = embedded.walletId;
+      embeddedWalletAddress = embedded.address.toLowerCase();
+      authUser.walletAddress = embeddedWalletAddress;
     }
 
     logger.info(
@@ -501,7 +453,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasEmail: !!email,
         hasFarcaster: !!farcasterUsername,
         hasTwitter: !!twitterUsername,
-        hasSmartWallet: !!smartWalletAddress,
+        hasEmbeddedWallet: !!embeddedWalletAddress,
       },
       'GET /api/users/me'
     );
@@ -756,13 +708,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       'GET /api/users/me'
     );
 
-    const { smartWalletAddress: ensuredSmart, embeddedWalletAddress } =
-      await ensureSmartWalletAddress(privyId);
-    const dbWalletAddress =
-      ensuredSmart ??
-      embeddedWalletAddress ??
-      authUser.walletAddress?.toLowerCase() ??
-      null;
+    const dbWalletAddress = embeddedWalletAddress?.toLowerCase() ?? null;
 
     // Check if user should be auto-promoted to admin based on email domain
     // SECURITY: Requires email verification (Privy emails are verified by design)
@@ -787,6 +733,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .values({
         id: canonicalUserId,
         privyId,
+        privyWalletId: embeddedWalletId,
         walletAddress: dbWalletAddress,
         referredBy: resolvedReferrerId,
         email,
@@ -838,33 +785,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Failed to create or find user record');
   }
 
-  // Backfill: store smart wallet address in DB when we previously persisted the
-  // embedded wallet (legacy behavior).
-  const { smartWalletAddress: ensuredSmartWallet, embeddedWalletAddress } =
-    await ensureSmartWalletAddress(privyId);
-  if (ensuredSmartWallet) {
-    const normalizedDbWallet = dbUser.walletAddress?.toLowerCase() ?? null;
-    const normalizedEmbedded = embeddedWalletAddress?.toLowerCase() ?? null;
-    const normalizedSmart = ensuredSmartWallet.toLowerCase();
+  // Backfill embedded wallet info (address + wallet id) if missing.
+  if (!dbUser.walletAddress || !dbUser.privyWalletId) {
+    const { privyWalletId, embeddedWalletAddress } =
+      await resolveEmbeddedWallet(privyId);
 
-    const shouldUpgradeFromEmbedded =
-      normalizedDbWallet !== null &&
-      normalizedEmbedded !== null &&
-      normalizedDbWallet === normalizedEmbedded &&
-      normalizedDbWallet !== normalizedSmart;
-
-    const shouldFillMissing = normalizedDbWallet === null;
-
-    if (shouldUpgradeFromEmbedded || shouldFillMissing) {
-      const [updatedUser] = await db
+    if (privyWalletId || embeddedWalletAddress) {
+      const [updated] = await db
         .update(users)
-        .set({ walletAddress: ensuredSmartWallet, updatedAt: new Date() })
+        .set({
+          privyWalletId: privyWalletId ?? dbUser.privyWalletId,
+          walletAddress:
+            embeddedWalletAddress?.toLowerCase() ?? dbUser.walletAddress,
+          updatedAt: new Date(),
+        })
         .where(eq(users.id, dbUser.id))
         .returning(userSelectFields);
-
-      if (updatedUser) {
-        dbUser = updatedUser;
-      }
+      if (updated) dbUser = updated;
     }
   }
 

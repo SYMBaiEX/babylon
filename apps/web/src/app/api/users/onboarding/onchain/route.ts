@@ -75,6 +75,13 @@ interface OnchainRequestBody {
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  const cookieToken = request.cookies.get('privy-token')?.value;
+  const authHeader = request.headers.get('authorization');
+  const headerToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
+  const userJwt = cookieToken ?? headerToken ?? null;
+
   const authUser = await authenticate(request);
   const body = (await request.json()) as
     | OnchainRequestBody
@@ -140,6 +147,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const onchainResult = await processOnchainRegistration({
     user: authUser,
+    userJwt,
     walletAddress,
     username: dbUser.username,
     displayName: dbUser.displayName,
