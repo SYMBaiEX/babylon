@@ -18,8 +18,10 @@ import {
   ArrowUp,
   BarChart3,
   Bot,
+  Clock,
   Minus,
   RefreshCw,
+  Repeat,
   Target,
   TrendingUp,
   Users,
@@ -39,6 +41,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ActivityHeatmap } from '@/components/admin/ActivityHeatmap';
 import { Skeleton } from '@/components/shared/Skeleton';
 
 type Period = 'day' | 'week' | 'month';
@@ -79,6 +82,20 @@ interface GrowthData {
       commandedWithin24h: number;
       activated: number;
     };
+  };
+  sessions: {
+    avgSessionsPerWau: number | null;
+    medianSessionLengthMinutes: number | null;
+    totalSessions: number;
+  };
+  retention: {
+    d7: number | null;
+    cohorts: Array<{
+      cohortDate: string;
+      cohortSize: number;
+      retainedD7: number;
+      retentionRate: number;
+    }>;
   };
   timeSeries: Array<{ date: string; wau: number }>;
   metadata: {
@@ -295,7 +312,7 @@ export function GrowthMetricsTab() {
       </div>
 
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {/* WAU Card */}
         <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
           <div className="mb-3 flex items-center justify-between">
@@ -389,6 +406,46 @@ export function GrowthMetricsTab() {
           <div className="mt-2 text-muted-foreground text-xs">
             {formatNumber(data.engagement.totalActions)} actions by{' '}
             {formatNumber(data.engagement.uniqueCommanders)} commanders
+          </div>
+        </div>
+
+        {/* D7 Retention Card */}
+        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="rounded-lg bg-cyan-500/10 p-2">
+              <Repeat className="h-5 w-5 text-cyan-500" />
+            </div>
+          </div>
+          <div className="font-bold text-3xl">
+            {data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
+          </div>
+          <div className="mt-1 text-muted-foreground text-sm">D7 Retention</div>
+          <div className="mt-2 text-muted-foreground text-xs">
+            {data.retention.cohorts.length > 0
+              ? `${data.retention.cohorts.length} cohorts tracked`
+              : 'Collecting data...'}
+          </div>
+        </div>
+
+        {/* Avg Sessions per WAU Card */}
+        <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="rounded-lg bg-pink-500/10 p-2">
+              <Clock className="h-5 w-5 text-pink-500" />
+            </div>
+          </div>
+          <div className="font-bold text-3xl">
+            {data.sessions.avgSessionsPerWau !== null
+              ? data.sessions.avgSessionsPerWau
+              : 'N/A'}
+          </div>
+          <div className="mt-1 text-muted-foreground text-sm">
+            Sessions per WAU
+          </div>
+          <div className="mt-2 text-muted-foreground text-xs">
+            {data.sessions.totalSessions > 0
+              ? `${formatNumber(data.sessions.totalSessions)} total sessions`
+              : 'Collecting data...'}
           </div>
         </div>
       </div>
@@ -621,6 +678,62 @@ export function GrowthMetricsTab() {
         </div>
       </div>
 
+      {/* Retention Cohorts Table */}
+      {data.retention.cohorts.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="mb-4 flex items-center gap-2 font-semibold text-lg">
+            <Repeat className="h-5 w-5 text-cyan-500" />
+            D7 Retention by Cohort
+          </h3>
+          <p className="mb-4 text-muted-foreground text-sm">
+            Users who returned 6-8 days after signup
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-border border-b text-muted-foreground">
+                <tr>
+                  <th className="pb-3 font-medium">Cohort Week</th>
+                  <th className="pb-3 text-right font-medium">Signups</th>
+                  <th className="pb-3 text-right font-medium">Retained (D7)</th>
+                  <th className="pb-3 text-right font-medium">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.retention.cohorts.map((cohort) => (
+                  <tr
+                    key={cohort.cohortDate}
+                    className="border-border/50 border-b last:border-0"
+                  >
+                    <td className="py-3 font-medium">
+                      {formatDate(cohort.cohortDate)}
+                    </td>
+                    <td className="py-3 text-right font-mono">
+                      {formatNumber(cohort.cohortSize)}
+                    </td>
+                    <td className="py-3 text-right font-mono text-cyan-500">
+                      {formatNumber(cohort.retainedD7)}
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="h-2 w-16 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-cyan-500"
+                            style={{ width: `${cohort.retentionRate}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-cyan-500">
+                          {cohort.retentionRate}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Summary Stats Table */}
       <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="mb-4 font-semibold text-lg">Detailed Breakdown</h3>
@@ -689,7 +802,7 @@ export function GrowthMetricsTab() {
                   {formatNumber(data.engagement.totalActions)} total actions
                 </td>
               </tr>
-              <tr>
+              <tr className="border-border/50 border-b">
                 <td className="py-3 font-medium">Activation Rate</td>
                 <td className="py-3 text-right font-mono text-green-500">
                   {data.activation.rate}%
@@ -699,10 +812,48 @@ export function GrowthMetricsTab() {
                   24h
                 </td>
               </tr>
+              <tr className="border-border/50 border-b">
+                <td className="py-3 font-medium">D7 Retention</td>
+                <td className="py-3 text-right font-mono text-cyan-500">
+                  {data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
+                </td>
+                <td className="py-3 text-right text-muted-foreground">
+                  {data.retention.cohorts.length > 0
+                    ? `${data.retention.cohorts.length} cohorts`
+                    : 'Collecting data...'}
+                </td>
+              </tr>
+              <tr className="border-border/50 border-b">
+                <td className="py-3 font-medium">Sessions per WAU</td>
+                <td className="py-3 text-right font-mono text-pink-500">
+                  {data.sessions.avgSessionsPerWau ?? 'N/A'}
+                </td>
+                <td className="py-3 text-right text-muted-foreground">
+                  {data.sessions.totalSessions > 0
+                    ? `${formatNumber(data.sessions.totalSessions)} total`
+                    : 'Collecting data...'}
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3 font-medium">Median Session Length</td>
+                <td className="py-3 text-right font-mono text-pink-500">
+                  {data.sessions.medianSessionLengthMinutes !== null
+                    ? `${data.sessions.medianSessionLengthMinutes} min`
+                    : 'N/A'}
+                </td>
+                <td className="py-3 text-right text-muted-foreground">
+                  {data.sessions.totalSessions > 0
+                    ? 'From completed sessions'
+                    : 'Collecting data...'}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Activity Heatmap */}
+      <ActivityHeatmap />
     </div>
   );
 }

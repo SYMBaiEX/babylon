@@ -64,6 +64,18 @@ interface WAUTimeSeriesRow {
   wau: string;
 }
 
+interface SessionMetricsResult {
+  total_sessions: string;
+  total_users: string;
+  median_duration_minutes: string;
+}
+
+interface RetentionCohortResult {
+  cohort_date: Date;
+  cohort_size: string;
+  retained_d7: string;
+}
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const admin = await requirePermission(request, 'view_stats');
 
@@ -473,6 +485,135 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
+  // Session metrics (from UserSession table if data exists)
+  let sessionMetrics: {
+    avgSessionsPerWau: number | null;
+    medianSessionLengthMinutes: number | null;
+    totalSessions: number;
+  } = {
+    avgSessionsPerWau: null,
+    medianSessionLengthMinutes: null,
+    totalSessions: 0,
+  };
+
+  // Try to get session metrics - will be empty if table doesn't have data yet
+  const sessionResult = await db.$queryRaw<SessionMetricsResult>`
+    SELECT 
+      COUNT(*)::text as total_sessions,
+      COUNT(DISTINCT "userId")::text as total_users,
+      COALESCE(
+        PERCENTILE_CONT(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM ("endedAt" - "startedAt")) / 60
+        ),
+        0
+      )::text as median_duration_minutes
+    FROM "UserSession"
+    WHERE "startedAt" >= ${sevenDaysAgo}
+      AND "endedAt" IS NOT NULL
+  `.catch(() => [] as SessionMetricsResult[]);
+
+  const sessionRow: SessionMetricsResult | undefined = sessionResult[0];
+  if (sessionRow) {
+    const totalSessions = Number(sessionRow.total_sessions ?? 0);
+    const sessionUsers = Number(sessionRow.total_users ?? 0);
+    const medianMinutes = Number(sessionRow.median_duration_minutes ?? 0);
+
+    sessionMetrics = {
+      avgSessionsPerWau:
+        sessionUsers > 0
+          ? Math.round((totalSessions / sessionUsers) * 10) / 10
+          : null,
+      medianSessionLengthMinutes:
+        totalSessions > 0 ? Math.round(medianMinutes * 10) / 10 : null,
+      totalSessions,
+    };
+  }
+
+  // D7 Retention (from UserActivityLog if data exists)
+  const retention: {
+    d7: number | null;
+    cohorts: Array<{
+      cohortDate: string;
+      cohortSize: number;
+      retainedD7: number;
+      retentionRate: number;
+    }>;
+  } = {
+    d7: null,
+    cohorts: [],
+  };
+
+  // Get cohort data for last 4 weeks (users who signed up 8-35 days ago)
+  const cohortStart = new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000);
+  const cohortEnd = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+
+  const cohortResult = await db.$queryRaw<RetentionCohortResult>`
+    WITH cohorts AS (
+      SELECT 
+        DATE(u."createdAt") as cohort_date,
+        u.id as user_id
+      FROM "User" u
+      WHERE u."createdAt" >= ${cohortStart}
+        AND u."createdAt" < ${cohortEnd}
+        AND u."isActor" = false
+        AND u."isAgent" = false
+        AND u."isBanned" = false
+    ),
+    d7_activity AS (
+      SELECT DISTINCT 
+        c.cohort_date,
+        c.user_id
+      FROM cohorts c
+      JOIN "UserActivityLog" ual ON c.user_id = ual."userId"
+      WHERE ual."activityDate" >= c.cohort_date + INTERVAL '6 days'
+        AND ual."activityDate" <= c.cohort_date + INTERVAL '8 days'
+    )
+    SELECT 
+      c.cohort_date,
+      COUNT(DISTINCT c.user_id)::text as cohort_size,
+      COUNT(DISTINCT d.user_id)::text as retained_d7
+    FROM cohorts c
+    LEFT JOIN d7_activity d ON c.cohort_date = d.cohort_date AND c.user_id = d.user_id
+    GROUP BY c.cohort_date
+    ORDER BY c.cohort_date DESC
+    LIMIT 4
+  `.catch(() => [] as RetentionCohortResult[]);
+
+  if (cohortResult.length > 0) {
+    let totalCohortSize = 0;
+    let totalRetained = 0;
+
+    retention.cohorts = cohortResult.map((row) => {
+      const cohortSize = Number(row.cohort_size ?? 0);
+      const retained = Number(row.retained_d7 ?? 0);
+      const rate =
+        cohortSize > 0 ? Math.round((retained / cohortSize) * 100) : 0;
+
+      totalCohortSize += cohortSize;
+      totalRetained += retained;
+
+      let dateStr: string;
+      if (row.cohort_date instanceof Date) {
+        dateStr = row.cohort_date.toISOString().split('T')[0] ?? '';
+      } else {
+        dateStr = String(row.cohort_date ?? '');
+      }
+
+      return {
+        cohortDate: dateStr,
+        cohortSize,
+        retainedD7: retained,
+        retentionRate: rate,
+      };
+    });
+
+    // Overall D7 retention rate across all cohorts
+    retention.d7 =
+      totalCohortSize > 0
+        ? Math.round((totalRetained / totalCohortSize) * 100)
+        : null;
+  }
+
   return successResponse({
     wau: {
       current: currentWau,
@@ -510,6 +651,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         activated: activatedUsers,
       },
     },
+    sessions: sessionMetrics,
+    retention,
     timeSeries,
     metadata: {
       computedAt: now.toISOString(),
