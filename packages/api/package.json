@@ -18,6 +18,7 @@
     "@aws-sdk/lib-storage": "^3.943.0",
     "@babylon/contracts": "workspace:*",
     "@babylon/shared": "workspace:*",
+    "@privy-io/node": "^0.8.0",
     "@privy-io/server-auth": "^1.18.4",
     "@vercel/blob": "^2.0.0",
     "graphql": "^16.10.0",
