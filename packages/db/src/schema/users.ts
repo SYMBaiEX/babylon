@@ -279,6 +279,11 @@ export const users = pgTable(
       .default(false),
     profileChainSyncAt: timestamp('profileChainSyncAt', { mode: 'date' }),
     profileChainSyncError: text('profileChainSyncError'),
+    // Daily login streak tracking (BAB-88)
+    dailyLoginStreak: integer('dailyLoginStreak').notNull().default(0),
+    lastDailyLogin: timestamp('lastDailyLogin', { mode: 'date' }),
+    longestStreak: integer('longestStreak').notNull().default(0),
+    totalDailyLogins: integer('totalDailyLogins').notNull().default(0),
   },
   (table) => [
     index('User_displayName_idx').on(table.displayName),
@@ -312,6 +317,10 @@ export const users = pgTable(
       table.profileChainSyncNeeded,
       table.onChainRegistered
     ),
+    // Indexes for daily login streak (BAB-88)
+    index('User_dailyLoginStreak_idx').on(table.dailyLoginStreak),
+    index('User_longestStreak_idx').on(table.longestStreak),
+    index('User_lastDailyLogin_idx').on(table.lastDailyLogin),
   ]
 );
 
