@@ -385,12 +385,12 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * Probability that a discourse interaction becomes a quote-post instead of a reply.
    * Only applies when engaging with an original post (not a reply thread).
    *
-   * @default 0.65 (65% quote-posts, 35% direct replies)
+   * @default 0.30 (30% quote-posts, 70% direct replies)
    * @env NPC_DISCOURSE_QUOTE_PROBABILITY
    */
   discourseQuoteProbability: envProbability(
     'NPC_DISCOURSE_QUOTE_PROBABILITY',
-    0.65
+    0.3
   ),
 
   /**
