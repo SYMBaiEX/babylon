@@ -23,6 +23,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { DailyStreakCard } from '@/components/daily-login';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton';
 import { Avatar } from '@/components/shared/Avatar';
@@ -396,6 +397,9 @@ export default function RewardsPage() {
               </div>
             </div>
 
+            {/* Daily Rewards - Hero Section */}
+            <DailyStreakCard />
+
             {/* Reward Tasks */}
             <div className="rounded-lg border border-border bg-muted/30 p-4">
               <div className="mb-4 flex items-center gap-2">
@@ -710,6 +714,9 @@ export default function RewardsPage() {
                   )}
               </div>
             </div>
+
+            {/* Daily Rewards - Hero Section */}
+            <DailyStreakCard />
 
             {/* Reward Tasks */}
             <div className="space-y-3">
