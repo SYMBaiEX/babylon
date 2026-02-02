@@ -47,7 +47,9 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(isOpen ? undefined : 0);
+  const [height, setHeight] = useState<number | undefined>(
+    isOpen ? undefined : 0
+  );
 
   useEffect(() => {
     if (!contentRef.current) return undefined;
@@ -73,7 +75,7 @@ function CollapsibleSection({
         onClick={onToggle}
         className="flex w-full items-center justify-between px-2 py-1.5 text-left transition-colors hover:bg-muted/30"
       >
-        <span className="text-[11px] font-medium uppercase text-muted-foreground">
+        <span className="font-medium text-[11px] text-muted-foreground uppercase">
           {title} ({count})
         </span>
         <ChevronDown
@@ -104,9 +106,9 @@ function CollapsibleSection({
 export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
   const { getAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [expandedSections, setExpandedSections] = useState<Set<'predictions' | 'perps'>>(
-    new Set(['predictions', 'perps'])
-  );
+  const [expandedSections, setExpandedSections] = useState<
+    Set<'predictions' | 'perps'>
+  >(new Set(['predictions', 'perps']));
   const [balanceInfo, setBalanceInfo] = useState({
     agentBalance: 0,
     lifetimePnL: 0,
@@ -223,7 +225,7 @@ export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
         <h3 className="font-semibold text-sm">{agentName} P&L</h3>
         <div
           className={cn(
-            'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+            'flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-xs',
             isProfitable
               ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
               : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
@@ -296,7 +298,9 @@ export function AgentPnL({ agentId, agentName }: AgentPnLProps) {
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Trades</div>
-            <div className="font-semibold text-sm">{agentStats.totalTrades}</div>
+            <div className="font-semibold text-sm">
+              {agentStats.totalTrades}
+            </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Win Rate</div>
