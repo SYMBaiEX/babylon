@@ -382,6 +382,28 @@ describe('Daily Login - DailyLoginService Integration', () => {
         DailyLoginService.getStreakInfo('123456789012345678')
       ).rejects.toThrow('User not found');
     });
+
+    test('returns effectiveStreak=0 when streak has expired (Bug 1 fix)', async () => {
+      if (skipIfNoDb() || !serviceTestUserId) return;
+
+      // Set streak to 50, but lastDailyLogin to 48 hours ago (past 36h grace)
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
+      await setUserStreak(serviceTestUserId, 50, fortyEightHoursAgo);
+
+      const info = await DailyLoginService.getStreakInfo(serviceTestUserId);
+
+      // currentStreak should be 0 (effective), not 50 (raw DB value)
+      expect(info.currentStreak).toBe(0);
+      // longestStreak is historical and should still be 50
+      expect(info.longestStreak).toBe(50);
+      // Next milestone should be calculated from 0, not 50
+      expect(info.nextMilestone).toBe(7);
+      expect(info.daysUntilMilestone).toBe(7);
+      // Next reward should be for day 1 (since streak will reset)
+      expect(info.nextReward).toBe(POINTS.DAILY_LOGIN_DAY_1);
+      // Can claim (past grace period)
+      expect(info.canClaim).toBe(true);
+    });
   });
 
   describe('claimDailyReward - First Claim', () => {
@@ -393,7 +415,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const beforeUser = await getUserStreak(serviceTestUserId);
       const balanceBefore = Number(beforeUser!.virtualBalance);
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(1);
@@ -421,7 +444,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const oneHourAgo = new Date(Date.now() - 3600000);
       await setUserStreak(serviceTestUserId, 5, oneHourAgo);
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Cannot claim yet');
@@ -437,7 +461,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const twentyFiveHoursAgo = new Date(Date.now() - 25 * 3600000);
       await setUserStreak(serviceTestUserId, 5, twentyFiveHoursAgo);
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(6); // Incremented from 5
@@ -454,7 +479,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
       await setUserStreak(serviceTestUserId, 50, fortyEightHoursAgo);
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(1); // Reset to 1
@@ -471,7 +497,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const twentyFiveHoursAgo = new Date(Date.now() - 25 * 3600000);
       await setUserStreak(serviceTestUserId, 6, twentyFiveHoursAgo);
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(7);
@@ -499,7 +526,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
         })
         .where(eq(users.id, serviceTestUserId));
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(10);
@@ -524,7 +552,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
         })
         .where(eq(users.id, serviceTestUserId));
 
-      const result = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
 
       expect(result.success).toBe(true);
       expect(result.streak).toBe(11);
@@ -544,12 +573,14 @@ describe('Daily Login - DailyLoginService Integration', () => {
       const balanceBefore = Number(beforeUser!.virtualBalance);
 
       // First claim
-      const result1 = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result1 =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
       expect(result1.success).toBe(true);
       expect(result1.streak).toBe(1);
 
       // Second claim immediately after (should fail)
-      const result2 = await DailyLoginService.claimDailyReward(serviceTestUserId);
+      const result2 =
+        await DailyLoginService.claimDailyReward(serviceTestUserId);
       expect(result2.success).toBe(false);
       expect(result2.error).toContain('Cannot claim yet');
 
@@ -575,7 +606,8 @@ describe('Daily Login - DailyLoginService Integration', () => {
     test('returns error for non-existent valid userId', async () => {
       if (skipIfNoDb()) return;
 
-      const result = await DailyLoginService.claimDailyReward('123456789012345678');
+      const result =
+        await DailyLoginService.claimDailyReward('123456789012345678');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('User not found');

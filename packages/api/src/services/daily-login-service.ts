@@ -16,6 +16,7 @@ import {
   logger,
   POINTS,
 } from '@babylon/shared';
+import { DistributedLockService } from './distributed-lock-service';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -161,13 +162,15 @@ export class DailyLoginService {
     if (!user) throw new Error(`User not found: ${userId}`);
 
     const status = getClaimStatus(user.lastDailyLogin);
+    // Use effective streak (0 if expired) for all calculations to avoid
+    // inconsistent UI state (e.g., "50 day streak" but "7 days to 7-day milestone")
     const effectiveStreak = status.shouldResetStreak
       ? 0
       : user.dailyLoginStreak;
     const milestone = getNextMilestone(effectiveStreak);
 
     return {
-      currentStreak: user.dailyLoginStreak,
+      currentStreak: effectiveStreak, // Use effective, not raw DB value
       longestStreak: user.longestStreak,
       nextReward: getDailyReward(effectiveStreak + 1),
       ...milestone,
@@ -180,33 +183,6 @@ export class DailyLoginService {
   }
 
   static async claimDailyReward(userId: string): Promise<ClaimResult> {
-    // Validate userId format before querying
-    if (!userId || typeof userId !== 'string' || !isValidSnowflakeId(userId)) {
-      return {
-        success: false,
-        streak: 0,
-        reward: 0,
-        milestoneBonus: 0,
-        totalAwarded: 0,
-        nextReward: getDailyReward(1),
-        ...getNextMilestone(0),
-        streakReset: false,
-        error: 'Invalid userId format',
-      };
-    }
-
-    const [user] = await db
-      .select({
-        dailyLoginStreak: users.dailyLoginStreak,
-        lastDailyLogin: users.lastDailyLogin,
-        longestStreak: users.longestStreak,
-        totalDailyLogins: users.totalDailyLogins,
-        virtualBalance: users.virtualBalance,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
     const buildResult = (
       partial: Partial<ClaimResult> & { streak: number }
     ): ClaimResult => ({
@@ -220,77 +196,128 @@ export class DailyLoginService {
       ...partial,
     });
 
-    if (!user) {
-      return buildResult({ streak: 0, error: 'User not found' });
+    // Validate userId format before querying
+    if (!userId || typeof userId !== 'string' || !isValidSnowflakeId(userId)) {
+      return buildResult({ streak: 0, error: 'Invalid userId format' });
     }
 
-    const status = getClaimStatus(user.lastDailyLogin);
-
-    if (!status.canClaim) {
-      return buildResult({
-        streak: user.dailyLoginStreak,
-        error: 'Cannot claim yet - must wait 24 hours between claims',
-      });
-    }
-
-    // Ensure streak is always positive (handles corrupted DB data)
-    const currentStreak = Math.max(0, user.dailyLoginStreak);
-    const newStreak = status.shouldResetStreak ? 1 : currentStreak + 1;
-    const reward = getDailyReward(newStreak);
-    const milestoneBonus = getMilestoneBonus(newStreak);
-    const totalAwarded = reward + milestoneBonus;
-    const newLongestStreak = Math.max(user.longestStreak, newStreak);
-    const balanceBefore = Number(user.virtualBalance);
-    const now = new Date();
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({
-          dailyLoginStreak: newStreak,
-          lastDailyLogin: now,
-          longestStreak: newLongestStreak,
-          totalDailyLogins: user.totalDailyLogins + 1,
-          virtualBalance: sql`${users.virtualBalance} + ${totalAwarded}`,
-          bonusPoints: sql`${users.bonusPoints} + ${totalAwarded}`,
-          reputationPoints: sql`${users.reputationPoints} + ${totalAwarded}`,
-          updatedAt: now,
-        })
-        .where(eq(users.id, userId));
-
-      await tx.insert(balanceTransactions).values({
-        id: await generateSnowflakeId(),
-        userId,
-        type: 'deposit',
-        amount: totalAwarded.toString(),
-        balanceBefore: balanceBefore.toString(),
-        balanceAfter: (balanceBefore + totalAwarded).toString(),
-        description: `Daily login reward (Day ${newStreak})${milestoneBonus ? ` + ${newStreak}-day milestone` : ''}`,
-      });
+    // Acquire distributed lock to prevent concurrent claims by same user
+    // This prevents race conditions where two requests both pass eligibility
+    // check before either updates lastDailyLogin
+    const lockId = `daily-login:${userId}`;
+    const processId = `claim-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const lockAcquired = await DistributedLockService.acquireLock({
+      lockId,
+      durationMs: 30_000, // 30 second lock (should complete in <1s)
+      operation: 'daily-login-claim',
+      processId,
     });
 
-    logger.info(
-      'Daily login claimed',
-      {
-        userId,
-        newStreak,
-        reward,
-        milestoneBonus,
-        totalAwarded,
-        streakReset: status.shouldResetStreak,
-      },
-      'DailyLoginService'
-    );
+    if (!lockAcquired) {
+      return buildResult({
+        streak: 0,
+        error: 'Another claim is in progress. Please try again.',
+      });
+    }
 
-    return {
-      success: true,
-      streak: newStreak,
-      reward,
-      milestoneBonus,
-      totalAwarded,
-      nextReward: getDailyReward(newStreak + 1),
-      ...getNextMilestone(newStreak),
-      streakReset: status.shouldResetStreak,
-    };
+    try {
+      // All reads, checks, and updates happen inside the protected section
+      // to prevent TOCTOU race conditions
+      const result = await db.transaction(async (tx) => {
+        // Read current user state INSIDE transaction
+        const [user] = await tx
+          .select({
+            dailyLoginStreak: users.dailyLoginStreak,
+            lastDailyLogin: users.lastDailyLogin,
+            longestStreak: users.longestStreak,
+            totalDailyLogins: users.totalDailyLogins,
+            virtualBalance: users.virtualBalance,
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+
+        if (!user) {
+          return buildResult({ streak: 0, error: 'User not found' });
+        }
+
+        // Check eligibility INSIDE transaction
+        const status = getClaimStatus(user.lastDailyLogin);
+
+        if (!status.canClaim) {
+          return buildResult({
+            streak: Math.max(0, user.dailyLoginStreak),
+            error: 'Cannot claim yet - must wait 24 hours between claims',
+          });
+        }
+
+        // Calculate reward values
+        const currentStreak = Math.max(0, user.dailyLoginStreak);
+        const newStreak = status.shouldResetStreak ? 1 : currentStreak + 1;
+        const reward = getDailyReward(newStreak);
+        const milestoneBonus = getMilestoneBonus(newStreak);
+        const totalAwarded = reward + milestoneBonus;
+        const newLongestStreak = Math.max(user.longestStreak, newStreak);
+        const balanceBefore = Number(user.virtualBalance);
+        const now = new Date();
+
+        // Update user state
+        await tx
+          .update(users)
+          .set({
+            dailyLoginStreak: newStreak,
+            lastDailyLogin: now,
+            longestStreak: newLongestStreak,
+            totalDailyLogins: user.totalDailyLogins + 1,
+            virtualBalance: sql`${users.virtualBalance} + ${totalAwarded}`,
+            bonusPoints: sql`${users.bonusPoints} + ${totalAwarded}`,
+            reputationPoints: sql`${users.reputationPoints} + ${totalAwarded}`,
+            updatedAt: now,
+          })
+          .where(eq(users.id, userId));
+
+        // Record transaction
+        await tx.insert(balanceTransactions).values({
+          id: await generateSnowflakeId(),
+          userId,
+          type: 'deposit',
+          amount: totalAwarded.toString(),
+          balanceBefore: balanceBefore.toString(),
+          balanceAfter: (balanceBefore + totalAwarded).toString(),
+          description: `Daily login reward (Day ${newStreak})${milestoneBonus ? ` + ${newStreak}-day milestone` : ''}`,
+        });
+
+        return {
+          success: true,
+          streak: newStreak,
+          reward,
+          milestoneBonus,
+          totalAwarded,
+          nextReward: getDailyReward(newStreak + 1),
+          ...getNextMilestone(newStreak),
+          streakReset: status.shouldResetStreak,
+        };
+      });
+
+      if (result.success) {
+        logger.info(
+          'Daily login claimed',
+          {
+            userId,
+            newStreak: result.streak,
+            reward: result.reward,
+            milestoneBonus: result.milestoneBonus,
+            totalAwarded: result.totalAwarded,
+            streakReset: result.streakReset,
+          },
+          'DailyLoginService'
+        );
+      }
+
+      return result;
+    } finally {
+      // Always release lock, even on error
+      await DistributedLockService.releaseLock(lockId, processId);
+    }
   }
 }
