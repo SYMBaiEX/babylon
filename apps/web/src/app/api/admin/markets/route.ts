@@ -42,14 +42,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   const now = new Date();
+  // Convert to ISO string for proper PostgreSQL timestamp comparison
+  const nowIso = now.toISOString();
 
   // Get market statistics
   // Note: Raw SQL aggregations use parameterized now value; query builder filters use Date directly
   const [marketStats] = await db
     .select({
       total: count(),
-      active: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} > ${now})`,
-      expired: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} <= ${now})`,
+      active: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} > ${nowIso}::timestamp)`,
+      expired: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = false AND ${markets.endDate} <= ${nowIso}::timestamp)`,
       resolved: sql<number>`COUNT(*) FILTER (WHERE ${markets.resolved} = true)`,
       totalLiquidity: sql<number>`COALESCE(SUM(${markets.liquidity}::numeric), 0)`,
     })

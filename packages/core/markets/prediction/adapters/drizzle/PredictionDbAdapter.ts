@@ -89,7 +89,11 @@ export class PredictionDbAdapter implements PredictionDbPort {
   }
 
   async listMarkets(): Promise<PredictionMarketRecord[]> {
-    const rows = await this.client.select().from(markets);
+    // Only return active (non-resolved) markets for trading
+    const rows = await this.client
+      .select()
+      .from(markets)
+      .where(eq(markets.resolved, false));
     return rows.map(mapMarket);
   }
 

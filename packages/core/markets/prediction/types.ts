@@ -50,7 +50,7 @@ export interface PredictionPositionRecord {
   side: PredictionSide;
   shares: number;
   avgPrice: number;
-  status?: 'active' | 'closed' | 'resolved';
+  status?: 'active' | 'closed' | 'resolved' | 'cancelled' | 'voided';
   outcome?: boolean | null;
   pnl?: number;
   resolvedAt?: Date | null;
@@ -137,6 +137,18 @@ export interface PredictionResolveInput {
   resolvedAt?: Date;
   resolutionProofUrl?: string;
   resolutionDescription?: string;
+}
+
+export interface PredictionCancelInput {
+  marketId: string;
+  reason?: string;
+  cancelledAt?: Date;
+}
+
+export interface PredictionCancelResult {
+  marketId: string;
+  positionsRefunded: number;
+  totalRefunded: number;
 }
 
 export interface PredictionTradeResult {

@@ -389,7 +389,7 @@ describe('PredictionMarketService', () => {
     expect(result.netProceeds).toBeGreaterThan(0);
   });
 
-  it('should block sells on resolved markets', async () => {
+  it('should block sells on resolved markets with outcome', async () => {
     // First buy a position
     await service.buy({
       userId: 'u1',
@@ -398,12 +398,69 @@ describe('PredictionMarketService', () => {
       amount: 100,
     });
 
-    // Resolve the market
-    await db.updateMarketState('m1', { resolved: true });
+    // Resolve the market with an outcome (YES wins)
+    await db.updateMarketState('m1', { resolved: true, resolution: true });
 
     await expect(
       service.sell({ userId: 'u1', marketId: 'm1', shares: 1 })
     ).rejects.toThrow(/resolved/);
+  });
+
+  it('should allow sells on cancelled markets (resolved but no outcome)', async () => {
+    // First buy a position
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
+
+    // Cancel the market (resolved but no outcome)
+    await db.updateMarketState('m1', { resolved: true, resolution: null });
+
+    // Should be able to sell on cancelled market
+    const result = await service.sell({
+      userId: 'u1',
+      marketId: 'm1',
+      shares: 1,
+    });
+    expect(result.shares).toBe(1);
+  });
+
+  it('should block sells on cancelled positions (double-refund prevention)', async () => {
+    // Security test: Ensure users cannot sell positions that have been refunded via cancel()
+    // This prevents a double-payment exploit where user gets refund + sell proceeds
+
+    // First buy a position
+    await service.buy({
+      userId: 'u1',
+      marketId: 'm1',
+      side: 'yes',
+      amount: 100,
+    });
+
+    const balanceBeforeCancel = (await wallet.getBalance('u1')).balance;
+
+    // Cancel the market - this refunds the position and marks it 'cancelled'
+    const cancelResult = await service.cancel({
+      marketId: 'm1',
+      reason: 'Test cancel',
+    });
+    expect(cancelResult.positionsRefunded).toBe(1);
+    expect(cancelResult.totalRefunded).toBeGreaterThan(0);
+
+    const balanceAfterCancel = (await wallet.getBalance('u1')).balance;
+    expect(balanceAfterCancel).toBeGreaterThan(balanceBeforeCancel);
+
+    // Verify position is now cancelled
+    const pos = await db.getPosition('u1', 'm1', 'yes');
+    expect(pos?.status).toBe('cancelled');
+
+    // Attempt to sell the cancelled position should fail
+    // This is the critical security check - without it, user could get double payment
+    await expect(
+      service.sell({ userId: 'u1', marketId: 'm1', shares: 1 })
+    ).rejects.toThrow(/not found/);
   });
 
   it('should prevent liquidity going negative on sell', async () => {

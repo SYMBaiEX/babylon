@@ -1,6 +1,8 @@
 import { PredictionPricing } from './pricing';
 import type {
   PredictionBuyInput,
+  PredictionCancelInput,
+  PredictionCancelResult,
   PredictionDbPort,
   PredictionMarketRecord,
   PredictionPositionRecord,
@@ -231,8 +233,9 @@ export class PredictionMarketService {
     const noPos = await this.db.getPosition(userId, marketId, 'no');
     const positions = [yesPos, noPos]
       .filter((p): p is NonNullable<typeof p> => !!p)
-      // Exclude closed/empty positions from sell selection (we keep them for history)
-      .filter((p) => p.status !== 'closed' && p.shares > MIN_SHARES);
+      // Only allow selling active positions (whitelist approach for security)
+      // This prevents selling cancelled/voided/resolved positions that have already been settled
+      .filter((p) => (!p.status || p.status === 'active') && p.shares > MIN_SHARES);
 
     let pos: NonNullable<typeof yesPos> | NonNullable<typeof noPos> | null =
       null;
@@ -474,6 +477,124 @@ export class PredictionMarketService {
     await this.invalidateCaches(marketId);
   }
 
+  /**
+   * Cancel a market and refund all positions at cost basis.
+   *
+   * This is used when a market needs to be closed without a resolution
+   * (e.g., voided by admin, cleanup of excess markets, invalid question).
+   *
+   * Unlike resolve(), this:
+   * - Sets resolution to null (no winner/loser)
+   * - Refunds each position at their original cost basis (shares * avgPrice)
+   * - Sets PnL to 0 for all positions (full refund)
+   * - Marks positions as 'cancelled'
+   */
+  async cancel(input: PredictionCancelInput): Promise<PredictionCancelResult> {
+    const { marketId, reason } = input;
+    const positions = await this.db.listPositionsForMarket(marketId);
+    const market = await this.ensureMarket(marketId);
+
+    // If already resolved with an outcome, can't cancel
+    if (market.resolved && market.resolution !== null) {
+      throw new Error(
+        'Market has already resolved with an outcome - cannot cancel'
+      );
+    }
+
+    // If already cancelled (resolved but no outcome), return early
+    if (market.resolved && market.resolution === null) {
+      return {
+        marketId,
+        positionsRefunded: 0,
+        totalRefunded: 0,
+      };
+    }
+
+    const now = input.cancelledAt ?? this.now();
+    let positionsRefunded = 0;
+    let totalRefunded = 0;
+
+    // Mark market as cancelled (resolved = true, resolution = null)
+    await this.db.updateMarketState(marketId, {
+      resolved: true,
+      resolution: null,
+      resolutionDescription: reason ?? 'Market cancelled',
+    });
+
+    // Refund each active position at cost basis
+    for (const pos of positions) {
+      // Skip already closed/resolved/cancelled positions
+      if (pos.status && pos.status !== 'active') {
+        continue;
+      }
+
+      // Calculate refund amount (original investment)
+      const refundAmount = pos.shares * pos.avgPrice;
+
+      if (refundAmount > 0) {
+        // Credit user their original investment
+        await this.deps.wallet.credit({
+          userId: pos.userId,
+          amount: refundAmount,
+          reason: 'pred_cancel',
+          description: `Refund for cancelled market: ${market.question}`,
+          relatedId: marketId,
+        });
+
+        // Record PnL of 0 (full refund means no gain or loss)
+        await this.deps.wallet.recordPnL({
+          userId: pos.userId,
+          pnl: 0,
+          reason: 'pred_cancel',
+          relatedId: marketId,
+        });
+
+        totalRefunded += refundAmount;
+        positionsRefunded++;
+      }
+
+      // Mark position as cancelled
+      await this.db.upsertPosition({
+        ...pos,
+        status: 'cancelled',
+        outcome: null,
+        pnl: 0,
+        resolvedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Record a snapshot for the cancellation
+    await this.recordSnapshot({
+      marketId,
+      yesPrice: 0,
+      noPrice: 0,
+      yesShares: market.yesShares,
+      noShares: market.noShares,
+      liquidity: market.liquidity,
+      eventType: 'resolution',
+      source: 'system',
+    });
+
+    // Emit cancellation event
+    await this.emitResolution({
+      type: 'prediction_cancellation',
+      marketId,
+      reason: reason ?? 'Market cancelled',
+      positionsRefunded,
+      totalRefunded,
+      timestamp: now.toISOString(),
+    });
+
+    await this.invalidateCaches(marketId);
+
+    return {
+      marketId,
+      positionsRefunded,
+      totalRefunded,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -509,11 +630,16 @@ export class PredictionMarketService {
   /**
    * Assert market allows position exits (sells).
    * Users can sell on expired markets to close positions before resolution.
-   * Only blocks if already resolved.
+   * Allows selling on cancelled/deactivated markets (resolved but no outcome determined).
+   * Only blocks if market has fully resolved with a determined outcome.
    */
   private assertMarketActiveForSell(market: PredictionMarketRecord) {
-    if (market.resolved) {
-      throw new Error('Market has resolved');
+    // Allow selling on cancelled/deactivated markets (resolved but no outcome)
+    // Block only on properly resolved markets with a determined outcome
+    if (market.resolved && market.resolution !== null) {
+      throw new Error(
+        'Market has resolved with outcome - positions are auto-settled'
+      );
     }
     if (market.liquidity <= 0) {
       throw new Error('Market has no liquidity');

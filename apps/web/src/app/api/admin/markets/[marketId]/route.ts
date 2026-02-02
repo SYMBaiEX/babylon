@@ -9,7 +9,9 @@
  * Allows admins to resolve markets, extend end dates, or cancel markets.
  */
 
+import type { JsonValue } from '@babylon/api';
 import {
+  broadcastToChannel,
   checkRateLimitAndDuplicates,
   logAdminModify,
   RATE_LIMIT_CONFIGS,
@@ -17,10 +19,62 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
+import {
+  PredictionDbAdapter,
+  PredictionMarketService,
+} from '@babylon/core/markets/prediction';
 import { db, desc, eq, markets, positions, withTransaction } from '@babylon/db';
+import {
+  FEE_CONFIG,
+  invalidateAfterPredictionTrade,
+  WalletService,
+} from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
+
+/**
+ * Build PredictionMarketService for admin operations
+ */
+const buildCancelService = (marketId: string) =>
+  new PredictionMarketService({
+    db: new PredictionDbAdapter(),
+    wallet: {
+      debit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      credit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      recordPnL: ({ userId, pnl, reason, relatedId }) =>
+        WalletService.recordPnL(userId, pnl, reason, relatedId).then(
+          () => undefined
+        ),
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    broadcast: {
+      emit: (channel, payload) =>
+        broadcastToChannel(channel, payload as Record<string, JsonValue>),
+    },
+    cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
+    clock: { now: () => new Date() },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+  });
 
 const MarketActionSchema = z.object({
   action: z.enum(['resolve', 'extend', 'void']),
@@ -239,36 +293,35 @@ export const POST = withErrorHandling(
     }
 
     if (action === 'void') {
-      // Use transaction to ensure atomic updates of market and positions
-      await withTransaction(async (tx) => {
-        // Void the market - refund all positions
-        await tx
-          .update(markets)
-          .set({
-            resolved: true,
-            resolution: null,
-            resolutionDescription: reason || 'Market voided by admin',
-            updatedAt: new Date(),
-          })
-          .where(eq(markets.id, marketId));
-
-        // Mark all positions as voided
-        await tx
-          .update(positions)
-          .set({
-            status: 'voided',
-            resolvedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(positions.marketId, marketId));
+      // Use PredictionMarketService.cancel() to properly refund all positions
+      const service = buildCancelService(marketId);
+      const result = await service.cancel({
+        marketId,
+        reason: reason || 'Market voided by admin',
       });
+
+      logger.info(
+        'Market voided via cancel()',
+        {
+          marketId,
+          positionsRefunded: result.positionsRefunded,
+          totalRefunded: result.totalRefunded,
+          adminId: admin.userId,
+        },
+        'POST /api/admin/markets/[marketId]'
+      );
 
       await logAdminModify({
         adminId: admin.userId,
         resourceType: 'market',
         resourceId: marketId,
         previousValue: { status: 'active' },
-        newValue: { status: 'voided', reason: reason ?? null },
+        newValue: {
+          status: 'cancelled',
+          reason: reason ?? null,
+          positionsRefunded: result.positionsRefunded,
+          totalRefunded: result.totalRefunded,
+        },
         ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
         userAgent: request.headers.get('user-agent') ?? undefined,
         metadata: { action: 'void', question: market.question },
@@ -278,6 +331,8 @@ export const POST = withErrorHandling(
         success: true,
         action: 'void',
         marketId,
+        positionsRefunded: result.positionsRefunded,
+        totalRefunded: result.totalRefunded,
       });
     }
 
