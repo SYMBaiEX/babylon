@@ -400,11 +400,7 @@ export function GrowthMetricsTab() {
           iconBg="bg-cyan-500/10"
           value={data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
           label="D7 Retention"
-          detail={
-            data.retention.cohorts.length > 0
-              ? `${data.retention.cohorts.length} cohorts tracked`
-              : 'Collecting data...'
-          }
+          detail={data.retention.message ?? 'No data available'}
         />
         <MetricCard
           icon={<Clock className="h-5 w-5 text-pink-500" />}
@@ -414,7 +410,7 @@ export function GrowthMetricsTab() {
           detail={
             data.sessions.totalSessions > 0
               ? `${formatNumber(data.sessions.totalSessions)} total sessions`
-              : 'Collecting data...'
+              : 'No session data yet'
           }
         />
       </div>
@@ -787,9 +783,7 @@ export function GrowthMetricsTab() {
                   {data.retention.d7 !== null ? `${data.retention.d7}%` : 'N/A'}
                 </td>
                 <td className="py-3 text-right text-muted-foreground">
-                  {data.retention.cohorts.length > 0
-                    ? `${data.retention.cohorts.length} cohorts`
-                    : 'Collecting data...'}
+                  {data.retention.message ?? 'No data'}
                 </td>
               </tr>
               <tr className="border-border/50 border-b">
@@ -800,7 +794,7 @@ export function GrowthMetricsTab() {
                 <td className="py-3 text-right text-muted-foreground">
                   {data.sessions.totalSessions > 0
                     ? `${formatNumber(data.sessions.totalSessions)} total`
-                    : 'Collecting data...'}
+                    : 'No session data yet'}
                 </td>
               </tr>
               <tr>
@@ -812,8 +806,8 @@ export function GrowthMetricsTab() {
                 </td>
                 <td className="py-3 text-right text-muted-foreground">
                   {data.sessions.totalSessions > 0
-                    ? 'From completed sessions'
-                    : 'Collecting data...'}
+                    ? 'From session tracking'
+                    : 'No session data yet'}
                 </td>
               </tr>
             </tbody>

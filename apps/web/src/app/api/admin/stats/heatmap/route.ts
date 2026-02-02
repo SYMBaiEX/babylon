@@ -74,8 +74,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const now = new Date();
   const defaultStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 90 days
-  const queryStart = startDate ?? defaultStart;
-  const queryEnd = endDate ?? now;
+  // Convert to ISO strings for $queryRaw - postgres driver requires string parameters
+  const queryStart = (startDate ?? defaultStart).toISOString();
+  const queryEnd = (endDate ?? now).toISOString();
 
   if (type === 'hourly') {
     // Hourly heatmap: aggregate by day of week (0-6) and hour (0-23)
@@ -214,8 +215,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       activityType,
       data,
       metadata: {
-        startDate: queryStart.toISOString(),
-        endDate: queryEnd.toISOString(),
+        startDate: queryStart,
+        endDate: queryEnd,
         maxCount,
         totalActivities,
       },
@@ -348,8 +349,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     activityType,
     data,
     metadata: {
-      startDate: queryStart.toISOString(),
-      endDate: queryEnd.toISOString(),
+      startDate: queryStart,
+      endDate: queryEnd,
       maxCount,
       totalActivities,
       daysWithActivity: data.length,

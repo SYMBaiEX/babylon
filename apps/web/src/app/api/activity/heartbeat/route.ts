@@ -209,6 +209,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     })
     .onConflictDoNothing();
 
+  // Opportunistically close stale sessions (non-blocking, ~10% of requests)
+  if (Math.random() < 0.1) {
+    closeStaleSessionsInternal().catch(() => {});
+  }
+
   return NextResponse.json({
     success: true,
     sessionId,

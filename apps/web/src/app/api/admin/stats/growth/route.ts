@@ -115,21 +115,37 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  // Convert to ISO strings for $queryRaw - postgres driver requires string parameters
+  const sevenDaysAgo = new Date(
+    now.getTime() - 7 * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const fourteenDaysAgo = new Date(
+    now.getTime() - 14 * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const thirtyDaysAgo = new Date(
+    now.getTime() - 30 * 24 * 60 * 60 * 1000
+  ).toISOString();
 
   // Execute all queries in parallel for efficiency
-  const [
-    wauResult,
-    previousWauResult,
-    traderCommanderResult,
-    tradesPerTraderResult,
-    actionsPerCommanderResult,
-    activationResult,
-  ] = await Promise.all([
-    // Current WAU (Weekly Active Users)
-    db.$queryRaw<WAUResult>`
+  // Wrap in try-catch to expose actual database errors
+  let wauResult: WAUResult[];
+  let previousWauResult: WAUResult[];
+  let traderCommanderResult: TraderCommanderResult[];
+  let tradesPerTraderResult: TradesPerTraderResult[];
+  let actionsPerCommanderResult: ActionsPerCommanderResult[];
+  let activationResult: ActivationResult[];
+
+  try {
+    [
+      wauResult,
+      previousWauResult,
+      traderCommanderResult,
+      tradesPerTraderResult,
+      actionsPerCommanderResult,
+      activationResult,
+    ] = await Promise.all([
+      // Current WAU (Weekly Active Users)
+      db.$queryRaw<WAUResult>`
       SELECT COUNT(DISTINCT user_id)::text as wau
       FROM (
         -- Traders (via BalanceTransaction)
@@ -177,8 +193,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND u."isBanned" = false
     `,
 
-    // Previous week WAU (for trend calculation)
-    db.$queryRaw<WAUResult>`
+      // Previous week WAU (for trend calculation)
+      db.$queryRaw<WAUResult>`
       SELECT COUNT(DISTINCT user_id)::text as wau
       FROM (
         SELECT bt."userId" as user_id 
@@ -226,8 +242,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND u."isBanned" = false
     `,
 
-    // Trader vs Commander segmentation
-    db.$queryRaw<TraderCommanderResult>`
+      // Trader vs Commander segmentation
+      db.$queryRaw<TraderCommanderResult>`
       WITH weekly_traders AS (
         SELECT DISTINCT bt."userId" as user_id
         FROM "BalanceTransaction" bt
@@ -263,8 +279,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       FROM user_segments
     `,
 
-    // Trades per active trader
-    db.$queryRaw<TradesPerTraderResult>`
+      // Trades per active trader
+      db.$queryRaw<TradesPerTraderResult>`
       SELECT 
         COUNT(*)::text as total_trades,
         COUNT(DISTINCT bt."userId")::text as unique_traders
@@ -277,8 +293,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND u."isBanned" = false
     `,
 
-    // Actions per active commander
-    db.$queryRaw<ActionsPerCommanderResult>`
+      // Actions per active commander
+      db.$queryRaw<ActionsPerCommanderResult>`
       SELECT 
         COUNT(*)::text as total_actions,
         COUNT(DISTINCT m."senderId")::text as unique_commanders
@@ -293,8 +309,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         AND u."isBanned" = false
     `,
 
-    // Activation rate (users who signed up in last 30 days and activated within 24h)
-    db.$queryRaw<ActivationResult>`
+      // Activation rate (users who signed up in last 30 days and activated within 24h)
+      db.$queryRaw<ActivationResult>`
       WITH recent_signups AS (
         SELECT 
           u.id,
@@ -342,7 +358,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       LEFT JOIN first_trades ft ON rs.id = ft."userId"
       LEFT JOIN first_commands fc ON rs.id = fc."userId"
     `,
-  ]);
+    ]);
+  } catch (err) {
+    const dbError = err as Error & {
+      code?: string;
+      detail?: string;
+      cause?: Error;
+    };
+    logger.error(
+      'Growth metrics query failed',
+      {
+        message: dbError.message,
+        code: dbError.code,
+        detail: dbError.detail,
+        cause: dbError.cause?.message,
+        stack: dbError.stack?.split('\n').slice(0, 5).join('\n'),
+      },
+      'GET /api/admin/stats/growth'
+    );
+    throw new Error(
+      `Database query failed: ${dbError.cause?.message || dbError.message}`
+    );
+  }
 
   // Parse results - $queryRaw returns arrays, get first row
   // Extract with explicit typing for safer access
@@ -410,15 +447,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (includeTimeSeries) {
     const days = period === 'day' ? 7 : period === 'week' ? 28 : 90;
-    const timeSeriesStart =
+    const timeSeriesStartDate =
       startDate ?? new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    // Convert to ISO string for $queryRaw
+    const timeSeriesStart = timeSeriesStartDate.toISOString();
+    const nowIso = now.toISOString();
 
     // Get daily WAU for the time series
     const dailyWauRows = await db.$queryRaw<WAUTimeSeriesRow>`
       WITH date_series AS (
         SELECT generate_series(
           ${timeSeriesStart}::date,
-          ${now}::date,
+          ${nowIso}::date,
           '1 day'::interval
         )::date as day
       ),
@@ -496,19 +536,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
 
   // Try to get session metrics - will be empty if table doesn't have data yet
+  // Include both completed sessions (with endedAt) and ongoing sessions (using lastActiveAt)
   const sessionResult = await db.$queryRaw<SessionMetricsResult>`
     SELECT 
       COUNT(*)::text as total_sessions,
       COUNT(DISTINCT "userId")::text as total_users,
       COALESCE(
         PERCENTILE_CONT(0.5) WITHIN GROUP (
-          ORDER BY EXTRACT(EPOCH FROM ("endedAt" - "startedAt")) / 60
+          ORDER BY EXTRACT(EPOCH FROM (COALESCE("endedAt", "lastActiveAt") - "startedAt")) / 60
         ),
         0
       )::text as median_duration_minutes
     FROM "UserSession"
-    WHERE "startedAt" >= ${sevenDaysAgo}
-      AND "endedAt" IS NOT NULL
+    WHERE "startedAt" >= ${sevenDaysAgo}::timestamp
   `.catch(() => [] as SessionMetricsResult[]);
 
   const sessionRow: SessionMetricsResult | undefined = sessionResult[0];
@@ -537,35 +577,82 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       retainedD7: number;
       retentionRate: number;
     }>;
+    status: 'ok' | 'no_cohorts' | 'no_retention';
+    message: string;
   } = {
     d7: null,
     cohorts: [],
+    status: 'no_cohorts',
+    message: 'No users signed up 8-35 days ago',
   };
 
   // Get cohort data for last 4 weeks (users who signed up 8-35 days ago)
-  const cohortStart = new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000);
-  const cohortEnd = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+  // Convert to ISO strings for $queryRaw
+  const cohortStart = new Date(
+    now.getTime() - 35 * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const cohortEnd = new Date(
+    now.getTime() - 8 * 24 * 60 * 60 * 1000
+  ).toISOString();
 
+  // D7 retention query - use actual activity tables for broader coverage
+  // Check for trades, posts, or messages as retention signals
   const cohortResult = await db.$queryRaw<RetentionCohortResult>`
     WITH cohorts AS (
       SELECT 
         DATE(u."createdAt") as cohort_date,
         u.id as user_id
       FROM "User" u
-      WHERE u."createdAt" >= ${cohortStart}
-        AND u."createdAt" < ${cohortEnd}
+      WHERE u."createdAt" >= ${cohortStart}::timestamp
+        AND u."createdAt" < ${cohortEnd}::timestamp
         AND u."isActor" = false
         AND u."isAgent" = false
         AND u."isBanned" = false
     ),
     d7_activity AS (
+      -- Users with trades on D7
+      SELECT DISTINCT 
+        c.cohort_date,
+        c.user_id
+      FROM cohorts c
+      JOIN "BalanceTransaction" bt ON c.user_id = bt."userId"
+      WHERE bt."createdAt"::date >= c.cohort_date + 6
+        AND bt."createdAt"::date <= c.cohort_date + 8
+        AND bt.type IN ('pred_buy', 'pred_sell', 'perp_open', 'perp_close')
+      
+      UNION
+      
+      -- Users with posts on D7
+      SELECT DISTINCT 
+        c.cohort_date,
+        c.user_id
+      FROM cohorts c
+      JOIN "Post" p ON c.user_id = p."authorId"
+      WHERE p."createdAt"::date >= c.cohort_date + 6
+        AND p."createdAt"::date <= c.cohort_date + 8
+        AND p."deletedAt" IS NULL
+      
+      UNION
+      
+      -- Users with messages on D7
+      SELECT DISTINCT 
+        c.cohort_date,
+        c.user_id
+      FROM cohorts c
+      JOIN "Message" m ON c.user_id = m."senderId"
+      WHERE m."createdAt"::date >= c.cohort_date + 6
+        AND m."createdAt"::date <= c.cohort_date + 8
+      
+      UNION
+      
+      -- Also check UserActivityLog if it has data
       SELECT DISTINCT 
         c.cohort_date,
         c.user_id
       FROM cohorts c
       JOIN "UserActivityLog" ual ON c.user_id = ual."userId"
-      WHERE ual."activityDate" >= c.cohort_date + INTERVAL '6 days'
-        AND ual."activityDate" <= c.cohort_date + INTERVAL '8 days'
+      WHERE ual."activityDate" >= c.cohort_date + 6
+        AND ual."activityDate" <= c.cohort_date + 8
     )
     SELECT 
       c.cohort_date,
@@ -600,10 +687,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Overall D7 retention rate across all cohorts
-    retention.d7 =
-      totalCohortSize > 0
-        ? Math.round((totalRetained / totalCohortSize) * 100)
-        : null;
+    if (totalCohortSize > 0) {
+      retention.d7 = Math.round((totalRetained / totalCohortSize) * 100);
+      retention.status = 'ok';
+      retention.message = `${totalCohortSize} users in ${cohortResult.length} cohorts`;
+    } else {
+      retention.status = 'no_cohorts';
+      retention.message = 'No users signed up 8-35 days ago';
+    }
   }
 
   return successResponse({
@@ -649,7 +740,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     metadata: {
       computedAt: now.toISOString(),
       period,
-      periodStart: sevenDaysAgo.toISOString(),
+      periodStart: sevenDaysAgo,
       periodEnd: now.toISOString(),
     },
   });
