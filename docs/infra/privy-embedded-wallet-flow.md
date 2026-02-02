@@ -38,6 +38,19 @@ Notes:
 - `NEXT_PUBLIC_PRIVY_APP_ID` is safe to expose to the client.
 - `PRIVY_APP_SECRET` is server-only and must never be exposed to the client.
 
+## 2.1) Database schema note (required for this refactor)
+
+This flow stores the embedded wallet **resource id** in the DB so server-side actions can submit
+transactions on behalf of the authenticated user.
+
+- New column: `User.privyWalletId` (text)
+
+If you pulled this refactor onto an existing database (local/staging), make sure your DB schema is
+up to date before testing login/onboarding:
+
+- Recommended: `bun --env-file=.env.staging.local run db:push` (or the equivalent env file)
+- Minimal manual fix (Postgres): add the column `privyWalletId` to the `"User"` table
+
 ## 3) How server-side wallet actions work (mental model)
 
 Babylon sends transactions from the server by:
@@ -68,4 +81,3 @@ Babylon does not enable this by default in code. If/when you add it:
 - [ ] Verify server can send a sponsored transaction with `sponsor: true` on your target chain.
 - [ ] Verify the user's onchain address in Babylon is the embedded wallet address (EOA).
 - [ ] Verify no code path depends on Privy smart wallets (AA/bundler/paymaster).
-
