@@ -106,6 +106,7 @@ No actions taken yet.
 3. **General questions** → Answer directly (NO action needed)
 
 **IMPORTANT**: You CANNOT trade, post, or modify agent settings. Always guide users to @mention their agents.
+**FORMATTING**: Use plain @username for mentions (e.g., @ironforce). Do NOT use markdown links like [text](url).
 
 <keys>
 "thought" Your reasoning about what the user needs
@@ -170,6 +171,7 @@ No actions were needed.
 3. When users want to trade → Tell them to @mention their agent (e.g., "@agent_name buy 50 shares of YES")
 4. When users want agent actions → Guide them to @mention the specific agent
 5. Keep responses concise but complete
+6. **IMPORTANT**: Use plain @username for mentions (e.g., @ironforce). Do NOT use markdown links like [text](url)
 
 Output ONLY this XML:
 
