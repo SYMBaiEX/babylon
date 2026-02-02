@@ -167,7 +167,7 @@ function SidebarContent() {
       href: '/agents/team',
       icon: Users,
       color: '#0066FF',
-      active: pathname === '/agents/team',
+      active: pathname === '/agents' || pathname.startsWith('/agents/'),
       requiresAuth: true,
     },
     {
