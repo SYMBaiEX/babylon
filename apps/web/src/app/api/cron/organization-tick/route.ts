@@ -115,9 +115,16 @@ export const dynamic = 'force-dynamic';
  * - Variable batch size feels more natural than fixed counts
  */
 const BASE_ORGS_PER_TICK = Number(process.env.ORG_TICK_BATCH_SIZE) || 3;
-// Add variance of -1, 0, or +1 for organic feel (avoids predictable batch sizes)
-const batchVariance = Math.floor(secureRandom() * 3) - 1;
-const ORGS_PER_TICK = Math.max(1, BASE_ORGS_PER_TICK + batchVariance);
+
+/**
+ * Calculate organizations per tick with random variance.
+ * Returns BASE ± 1 (range: 2-4 with default base of 3).
+ * Called per-request to ensure fresh randomness each tick.
+ */
+function getOrgsPerTick(): number {
+  const variance = Math.floor(secureRandom() * 3) - 1; // -1, 0, or +1
+  return Math.max(1, BASE_ORGS_PER_TICK + variance);
+}
 
 /**
  * Minimum time in minutes between posts from the same organization.
@@ -356,10 +363,8 @@ export async function POST(_req: NextRequest) {
 
     // Select organizations using weighted stratified sampling (from eligible orgs only)
     // This ensures a balanced mix of org types that mirrors real-world posting patterns
-    const orgsThisTick = selectWeightedOrganizations(
-      eligibleOrgs,
-      ORGS_PER_TICK
-    );
+    const orgsPerTick = getOrgsPerTick(); // Fresh randomness per request
+    const orgsThisTick = selectWeightedOrganizations(eligibleOrgs, orgsPerTick);
 
     logger.info(
       `Organization tick processing ${orgsThisTick.length} orgs`,

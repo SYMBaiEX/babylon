@@ -478,31 +478,35 @@ export async function processNPCSocialEngagements(
         ) {
           if (random() < probs.share) {
             try {
-              await db.share.create({
-                data: {
-                  id: await generateSnowflakeId(),
-                  postId: post.id,
-                  userId: actor.id,
-                },
-              });
+              // Wrap in transaction for atomicity - both succeed or both fail
+              await db.$transaction(async (tx) => {
+                await tx.share.create({
+                  data: {
+                    id: await generateSnowflakeId(),
+                    postId: post.id,
+                    userId: actor.id,
+                  },
+                });
 
-              // Also create a repost Post so it appears in the feed
-              // Empty content = simple repost (not a quote post)
-              const repostId = await generateSnowflakeId();
-              await db.post.create({
-                data: {
-                  id: repostId,
-                  content: '',
-                  authorId: actor.id,
-                  timestamp: now,
-                  originalPostId: post.id,
-                },
+                // Create visible repost Post (empty content = simple repost)
+                const repostId = await generateSnowflakeId();
+                await tx.post.create({
+                  data: {
+                    id: repostId,
+                    content: '',
+                    authorId: actor.id,
+                    timestamp: now,
+                    originalPostId: post.id,
+                    type: 'repost', // Explicit type for query filtering
+                  },
+                });
               });
 
               result.sharesCreated++;
               engagedActors.add(actor.id);
+              shareSet.add(key); // Only mark on success - allows retry on failure
             } catch (error) {
-              // Likely a unique constraint race - ignore to keep engagement loop resilient
+              // Unique constraint or other error - don't mark as processed, allows retry
               logger.debug(
                 'Failed to insert NPC share/repost (ignored)',
                 {
@@ -512,9 +516,8 @@ export async function processNPCSocialEngagements(
                 },
                 'NPCSocialEngagement'
               );
-            } finally {
-              shareSet.add(key); // Mark as processed either way
             }
+            // No finally block - shareSet only marked on success
           }
         }
 
