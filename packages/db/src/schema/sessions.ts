@@ -183,10 +183,16 @@ export const tradeAttempts = pgTable(
   },
   (table) => [
     // Find attempts by user
-    index('TradeAttempt_userId_createdAt_idx').on(table.userId, table.createdAt),
+    index('TradeAttempt_userId_createdAt_idx').on(
+      table.userId,
+      table.createdAt
+    ),
 
     // Calculate success rate by outcome
-    index('TradeAttempt_outcome_createdAt_idx').on(table.outcome, table.createdAt),
+    index('TradeAttempt_outcome_createdAt_idx').on(
+      table.outcome,
+      table.createdAt
+    ),
 
     // Time range queries
     index('TradeAttempt_createdAt_idx').on(table.createdAt),
@@ -227,4 +233,3 @@ export const TRADE_FAILURE_CODES = {
 
 export type TradeFailureCode =
   (typeof TRADE_FAILURE_CODES)[keyof typeof TRADE_FAILURE_CODES];
-

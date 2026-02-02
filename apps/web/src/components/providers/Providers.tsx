@@ -11,11 +11,11 @@ import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
+import { SessionHeartbeatProvider } from '@/hooks/useSessionHeartbeat';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { OnboardingProvider } from './OnboardingProvider';
-
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
@@ -301,16 +301,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
                       </Suspense>
                       {/* Onboarding provider for username setup */}
                       <OnboardingProvider>
-                        {/* Game guide provider for first-time tutorial */}
-                        <GameGuideProvider>
-                          <WidgetRefreshProvider>
-                            {mounted ? (
-                              <Fragment>{children}</Fragment>
-                            ) : (
-                              <div className="min-h-screen bg-sidebar" />
-                            )}
-                          </WidgetRefreshProvider>
-                        </GameGuideProvider>
+                        {/* Session heartbeat for engagement metrics */}
+                        <SessionHeartbeatProvider>
+                          {/* Game guide provider for first-time tutorial */}
+                          <GameGuideProvider>
+                            <WidgetRefreshProvider>
+                              {mounted ? (
+                                <Fragment>{children}</Fragment>
+                              ) : (
+                                <div className="min-h-screen bg-sidebar" />
+                              )}
+                            </WidgetRefreshProvider>
+                          </GameGuideProvider>
+                        </SessionHeartbeatProvider>
                       </OnboardingProvider>
                     </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
