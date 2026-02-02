@@ -471,7 +471,7 @@ export async function processNPCSocialEngagements(
           }
         }
 
-        // SHARE
+        // SHARE (creates both a Share record AND a visible repost Post)
         if (
           !shareSet.has(key) &&
           result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick
@@ -485,12 +485,26 @@ export async function processNPCSocialEngagements(
                   userId: actor.id,
                 },
               });
+
+              // Also create a repost Post so it appears in the feed
+              // Empty content = simple repost (not a quote post)
+              const repostId = await generateSnowflakeId();
+              await db.post.create({
+                data: {
+                  id: repostId,
+                  content: '',
+                  authorId: actor.id,
+                  timestamp: now,
+                  originalPostId: post.id,
+                },
+              });
+
               result.sharesCreated++;
               engagedActors.add(actor.id);
             } catch (error) {
               // Likely a unique constraint race - ignore to keep engagement loop resilient
               logger.debug(
-                'Failed to insert NPC share (ignored)',
+                'Failed to insert NPC share/repost (ignored)',
                 {
                   actorId: actor.id,
                   postId: post.id,

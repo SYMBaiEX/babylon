@@ -104,15 +104,20 @@ export const maxDuration = 300; // 5 minutes max
 export const dynamic = 'force-dynamic';
 
 /**
- * Number of organizations to process per tick.
+ * Base number of organizations to process per tick.
+ * Actual count varies by ±1 for organic pacing (2-4 orgs per tick).
  * Configurable via ORG_TICK_BATCH_SIZE environment variable.
  * Each org generates 1 short post per tick.
  *
- * With 60 orgs and weighted stratified selection, 3 per tick ensures:
+ * With 60 orgs and weighted stratified selection, ~3 per tick ensures:
  * - Good type diversity (typically 2-3 different org types per tick)
  * - Each org posts roughly every 20 ticks
+ * - Variable batch size feels more natural than fixed counts
  */
-const ORGS_PER_TICK = Number(process.env.ORG_TICK_BATCH_SIZE) || 3;
+const BASE_ORGS_PER_TICK = Number(process.env.ORG_TICK_BATCH_SIZE) || 3;
+// Add variance of -1, 0, or +1 for organic feel (avoids predictable batch sizes)
+const batchVariance = Math.floor(secureRandom() * 3) - 1;
+const ORGS_PER_TICK = Math.max(1, BASE_ORGS_PER_TICK + batchVariance);
 
 /**
  * Minimum time in minutes between posts from the same organization.
@@ -451,6 +456,14 @@ export async function POST(_req: NextRequest) {
         const content = rawPost.trim();
         const now = new Date();
 
+        // Spread timestamp randomly within the NEXT 5-minute window (until next tick)
+        // Posts become visible gradually as their timestamp passes
+        // This prevents all posts from appearing at the exact same time
+        // making the feed feel more organic rather than batch-generated
+        const TICK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+        const randomOffset = Math.floor(secureRandom() * TICK_WINDOW_MS);
+        const postTimestamp = new Date(now.getTime() + randomOffset);
+
         // Create the post in database (always type: 'post', never 'article')
         const postId = await generateSnowflakeId();
         await db.insert(posts).values({
@@ -459,8 +472,8 @@ export async function POST(_req: NextRequest) {
           authorId: org.id,
           gameId: gameState.id,
           dayNumber: gameState.currentDay ?? 1,
-          timestamp: now,
-          createdAt: now,
+          timestamp: postTimestamp, // Staggered for organic feel
+          createdAt: now, // Actual creation time
           type: 'post',
         });
 
