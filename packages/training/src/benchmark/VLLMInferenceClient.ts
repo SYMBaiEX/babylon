@@ -108,7 +108,8 @@ export class VLLMInferenceClient {
       model: config.model,
       adapterPath: config.adapterPath || '',
       timeoutMs: config.timeoutMs ?? 60000,
-      maxRetries: config.maxRetries ?? 3,
+      // Ensure at least 1 attempt (maxRetries=0 would mean zero attempts)
+      maxRetries: Math.max(1, config.maxRetries ?? 3),
       healthCheckIntervalMs: config.healthCheckIntervalMs ?? 2000,
       maxWaitTimeMs: config.maxWaitTimeMs ?? 300000,
     };

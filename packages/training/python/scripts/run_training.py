@@ -122,11 +122,21 @@ def validate_environment() -> list[str]:
     """
     errors = []
     
-    # Check DATABASE_URL
-    if not os.getenv("DATABASE_URL"):
+    # Check data source - either DATABASE_URL or HuggingFace dataset
+    has_db = bool(os.getenv("DATABASE_URL"))
+    has_hf = bool(os.getenv("HF_TRAJECTORY_DATASET"))
+    trajectory_source = os.getenv("TRAJECTORY_SOURCE", "db").lower()
+    
+    if trajectory_source == "huggingface" and not has_hf:
         errors.append(
-            "DATABASE_URL not set. Required for loading training trajectories.\n"
-            "  Set in .env or export DATABASE_URL=postgresql://..."
+            "TRAJECTORY_SOURCE=huggingface but HF_TRAJECTORY_DATASET not set.\n"
+            "  Set HF_TRAJECTORY_DATASET=org/dataset-name or use --hf-dataset flag"
+        )
+    elif trajectory_source != "huggingface" and not has_db and not has_hf:
+        errors.append(
+            "No data source configured. Set DATABASE_URL or use --hf-dataset.\n"
+            "  Database: export DATABASE_URL=postgresql://...\n"
+            "  HuggingFace: python run_training.py --hf-dataset org/dataset"
         )
     
     # Note: OPENAI_API_KEY is NOT required - RLAIF judge uses local vLLM instance

@@ -32,7 +32,7 @@ STEPS="${BABYLON_STEPS:-100}"
 MIN_AGENTS="${BABYLON_MIN_AGENTS:-1}"
 HF_DATASET=""
 INTERACTIVE=false
-EXTRA_ARGS=""
+EXTRA_ARGS=()
 
 # ============================================================================
 # Parse Arguments
@@ -91,7 +91,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            EXTRA_ARGS="$EXTRA_ARGS $1"
+            EXTRA_ARGS+=("$1")
             shift
             ;;
     esac
@@ -173,6 +173,6 @@ else
         TRAIN_CMD+=(--hf-dataset "$HF_DATASET")
     fi
     
-    "${DOCKER_CMD[@]}" "$IMAGE" "${TRAIN_CMD[@]}" $EXTRA_ARGS
+    "${DOCKER_CMD[@]}" "$IMAGE" "${TRAIN_CMD[@]}" "${EXTRA_ARGS[@]}"
 fi
 

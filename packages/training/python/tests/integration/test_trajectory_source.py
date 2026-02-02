@@ -12,7 +12,6 @@ These tests cover:
 - Source switching and fallback behavior
 """
 
-import json
 import os
 import pytest
 import sys
@@ -159,7 +158,7 @@ class TestDatabaseSourceSetup:
         
         # Verify pool was created with statement_cache_size=0
         mock_create_pool.assert_called_once()
-        call_kwargs = mock_create_pool.call_args[1]
+        call_kwargs = mock_create_pool.call_args.kwargs
         assert call_kwargs["statement_cache_size"] == 0
 
 

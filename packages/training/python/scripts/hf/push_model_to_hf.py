@@ -82,6 +82,8 @@ class ModelExportConfig:
     
     # Training info (optional)
     wandb_run_id: Optional[str] = None
+    wandb_entity: Optional[str] = None  # W&B entity (team/user)
+    wandb_project: Optional[str] = None  # W&B project name
     training_steps: Optional[int] = None
     final_reward: Optional[float] = None
     dataset_id: Optional[str] = None
@@ -94,8 +96,12 @@ def get_adapter_config(adapter_path: Path) -> Dict[str, Any]:
     """Load adapter configuration if it exists."""
     config_path = adapter_path / "adapter_config.json"
     if config_path.exists():
-        with open(config_path) as f:
-            return json.load(f)
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse {config_path}: {e}")
+            return {}
     return {}
 
 
@@ -103,8 +109,12 @@ def get_training_args(adapter_path: Path) -> Dict[str, Any]:
     """Load training arguments if saved."""
     args_path = adapter_path / "training_args.json"
     if args_path.exists():
-        with open(args_path) as f:
-            return json.load(f)
+        try:
+            with open(args_path) as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse {args_path}: {e}")
+            return {}
     return {}
 
 
@@ -147,7 +157,13 @@ def create_model_card(config: ModelExportConfig, adapter_config: Dict, training_
         if config.final_reward:
             training_info += f"- **Final Reward:** {config.final_reward:.4f}\n"
         if config.wandb_run_id:
-            training_info += f"- **W&B Run:** [{config.wandb_run_id}](https://wandb.ai/run/{config.wandb_run_id})\n"
+            # Build proper W&B URL: https://wandb.ai/{entity}/{project}/runs/{run_id}
+            if config.wandb_entity and config.wandb_project:
+                wandb_url = f"https://wandb.ai/{config.wandb_entity}/{config.wandb_project}/runs/{config.wandb_run_id}"
+                training_info += f"- **W&B Run:** [{config.wandb_run_id}]({wandb_url})\n"
+            else:
+                # Without entity/project, just display the run ID (no hyperlink)
+                training_info += f"- **W&B Run ID:** `{config.wandb_run_id}`\n"
         if config.dataset_id:
             training_info += f"- **Training Dataset:** [{config.dataset_id}](https://huggingface.co/datasets/{config.dataset_id})\n"
     
@@ -432,6 +448,8 @@ def main():
                         choices=list(CODENAMES.keys()),
                         help="Model codename (Babylon-inspired name for model card)")
     parser.add_argument("--wandb-run-id", help="W&B run ID for training metrics")
+    parser.add_argument("--wandb-entity", help="W&B entity (team or username)")
+    parser.add_argument("--wandb-project", help="W&B project name")
     parser.add_argument("--training-steps", type=int, help="Number of training steps")
     parser.add_argument("--final-reward", type=float, help="Final training reward")
     parser.add_argument("--dataset-id", help="HuggingFace dataset ID used for training")
@@ -450,6 +468,8 @@ def main():
         description=args.description,
         codename=args.codename,
         wandb_run_id=args.wandb_run_id,
+        wandb_entity=args.wandb_entity or os.getenv("WANDB_ENTITY"),
+        wandb_project=args.wandb_project or os.getenv("WANDB_PROJECT"),
         training_steps=args.training_steps,
         final_reward=args.final_reward,
         dataset_id=args.dataset_id,

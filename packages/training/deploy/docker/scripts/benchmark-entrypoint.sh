@@ -246,6 +246,18 @@ VLLM_CMD="$VLLM_CMD --enable-prefix-caching"
 ADAPTER_NAME=""
 IS_MERGED_MODEL=false
 EFFECTIVE_MODEL="$BASE_MODEL"
+
+# Fail fast if MODEL_PATH is set but doesn't exist
+if [ -n "$MODEL_PATH" ] && [ ! -d "$MODEL_PATH" ]; then
+    log_error "MODEL_PATH is set but directory does not exist: $MODEL_PATH"
+    log_error "Either the model failed to download or the path is incorrect."
+    if [ -f /tmp/vllm.log ]; then
+        log_error "vLLM log (if available):"
+        tail -20 /tmp/vllm.log 2>/dev/null || true
+    fi
+    exit 1
+fi
+
 if [ -n "$MODEL_PATH" ] && [ -d "$MODEL_PATH" ]; then
     # Check if it's a LoRA adapter (has adapter_config.json) or a full model
     if [ -f "$MODEL_PATH/adapter_config.json" ]; then

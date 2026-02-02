@@ -33,7 +33,7 @@ MODE="quick"
 SCENARIO=""
 OUTPUT_DIR="$TRAINING_DIR/benchmark-results"
 INTERACTIVE=false
-EXTRA_ARGS=""
+EXTRA_ARGS=()
 
 # ============================================================================
 # Parse Arguments
@@ -106,7 +106,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            EXTRA_ARGS="$EXTRA_ARGS $1"
+            EXTRA_ARGS+=("$1")
             shift
             ;;
     esac
@@ -205,5 +205,5 @@ if [[ "$INTERACTIVE" == "true" ]]; then
 else
     echo "Starting benchmark..."
     echo ""
-    "${DOCKER_CMD[@]}" "$IMAGE" $EXTRA_ARGS
+    "${DOCKER_CMD[@]}" "$IMAGE" "${EXTRA_ARGS[@]}"
 fi

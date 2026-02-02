@@ -72,7 +72,7 @@ COPY packages/testing/package.json ./packages/testing/
 COPY packages/training/package.json ./packages/training/
 
 # Install dependencies (skip postinstall scripts - not needed for benchmark)
-RUN bun install --ignore-scripts || true
+RUN bun install --ignore-scripts
 
 # Copy source code for training and required workspace deps
 COPY packages/training/ ./packages/training/

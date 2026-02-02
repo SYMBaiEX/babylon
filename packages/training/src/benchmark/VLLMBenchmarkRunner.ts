@@ -63,6 +63,9 @@ export interface VLLMBenchmarkConfig {
 
   /** Request timeout in ms */
   timeoutMs?: number;
+
+  /** Starting balance for simulations (default: 10000) */
+  startingBalance?: number;
 }
 
 export interface BenchmarkScenarioOptions {
@@ -113,6 +116,7 @@ export class VLLMBenchmarkRunner {
       outputDir: config.outputDir || './benchmark-results',
       quickMode: config.quickMode ?? false,
       timeoutMs: config.timeoutMs ?? 60000,
+      startingBalance: config.startingBalance ?? 10000,
     };
 
     this.vllmClient = new VLLMInferenceClient({
@@ -441,7 +445,10 @@ export class VLLMBenchmarkRunner {
       }
 
       case 'close_position':
-        // Close any open positions
+        // Note: Position tracking is simplified in benchmarks - we track PnL
+        // from buy/sell actions but don't maintain a full position book.
+        // The agent's decision to "close" is logged but positions auto-settle at end.
+        logger.debug('close_position: Position will settle at benchmark end');
         break;
 
       case 'wait':
@@ -575,7 +582,8 @@ Consider market conditions, your current balance, and risk management.`;
     // Get agent info from state
     const agent = state.agents[0];
     const pnl = agent?.totalPnl ?? 0;
-    const balance = 10000 + pnl; // Estimate balance from PnL
+    // Use agent's balance if available, otherwise estimate from starting balance + PnL
+    const balance = agent?.balance ?? this.config.startingBalance + pnl;
 
     return `Current State:
 - Balance: $${balance.toFixed(2)}

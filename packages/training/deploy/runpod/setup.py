@@ -156,10 +156,14 @@ def cmd_train(args):
     steps = args.steps or int(env.get("TRAINING_STEPS", 1000))
     min_agents = args.min_agents_per_window or int(env.get("MIN_AGENTS_PER_WINDOW", 1))
     
-    # Ensure data source - either DATABASE_URL or --hf-dataset
-    hf_dataset = getattr(args, 'hf_dataset', None)
-    if not hf_dataset and "DATABASE_URL" not in env:
-        sys.exit("Data source required. Use --db, --hf-dataset, or set DATABASE_URL in env file.")
+    # Ensure data source - CLI --hf-dataset, env HF_TRAJECTORY_DATASET, or DATABASE_URL
+    hf_dataset = getattr(args, 'hf_dataset', None) or env.get("HF_TRAJECTORY_DATASET")
+    trajectory_source = env.get("TRAJECTORY_SOURCE", "db").lower()
+    
+    if trajectory_source == "huggingface" and not hf_dataset:
+        sys.exit("TRAJECTORY_SOURCE=huggingface but no HF dataset. Use --hf-dataset or set HF_TRAJECTORY_DATASET in env file.")
+    elif trajectory_source != "huggingface" and not hf_dataset and "DATABASE_URL" not in env:
+        sys.exit("Data source required. Use --hf-dataset, set HF_TRAJECTORY_DATASET, or set DATABASE_URL in env file.")
     
     # Build docker command
     docker_cmd = [
@@ -195,7 +199,7 @@ def cmd_train(args):
     print(f"  Steps: {steps}")
     print(f"  Min agents/window: {min_agents}")
     print(f"  Spot: {args.spot}")
-    print(f"\n  View at: https://console.runpod.io/pods")
+    print("\n  View at: https://console.runpod.io/pods")
 
 
 def cmd_list(args):
@@ -295,7 +299,7 @@ def cmd_benchmark(args):
     if args.scenario:
         print(f"  Scenario: {args.scenario}")
     print(f"  Spot: {args.spot}")
-    print(f"\n  View at: https://console.runpod.io/pods")
+    print("\n  View at: https://console.runpod.io/pods")
 
 
 def main():

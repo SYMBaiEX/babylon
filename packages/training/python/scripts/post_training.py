@@ -160,7 +160,12 @@ def push_model_to_hub(config: PostTrainingConfig) -> bool:
     
     logger.info(f"Running: {' '.join(cmd)}")
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        # Use 1 hour timeout for model upload (large models can take a while)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    except subprocess.TimeoutExpired:
+        logger.error("Model push timed out after 1 hour")
+        return False
     
     if result.returncode != 0:
         logger.error(f"Model push failed: {result.stderr}")
@@ -197,9 +202,8 @@ def run_benchmark(config: PostTrainingConfig) -> bool:
     logger.info(f"  Mode: {config.benchmark_mode}")
     
     # Check if bun is available (for TypeScript benchmark)
-    bun_check = subprocess.run(["which", "bun"], capture_output=True)
-    
-    if bun_check.returncode != 0:
+    import shutil
+    if not shutil.which("bun"):
         logger.warning("Bun not found. Benchmark requires host-side execution.")
         logger.warning("Run benchmark manually after training:")
         logger.warning(f"  bun run scripts/run-benchmark-suite.ts --model {model_path}")
@@ -224,19 +228,35 @@ def run_benchmark(config: PostTrainingConfig) -> bool:
         cmd.append("--quick")
     
     if config.benchmark_scenarios:
+        failed_scenarios = []
         for scenario in config.benchmark_scenarios.split(","):
             scenario = scenario.strip()
             if scenario:
                 # Run each scenario separately
                 scenario_cmd = cmd + ["--scenario", scenario]
                 logger.info(f"Running scenario: {scenario}")
-                result = subprocess.run(scenario_cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    logger.error(f"Scenario {scenario} failed: {result.stderr}")
+                try:
+                    result = subprocess.run(scenario_cmd, capture_output=True, text=True, timeout=1800)
+                    if result.returncode != 0:
+                        logger.error(f"Scenario {scenario} failed: {result.stderr}")
+                        failed_scenarios.append(scenario)
+                    else:
+                        logger.info(result.stdout)
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Scenario {scenario} timed out after 30 minutes")
+                    failed_scenarios.append(scenario)
+        
+        if failed_scenarios:
+            logger.error(f"Failed scenarios: {', '.join(failed_scenarios)}")
+            return False
     else:
         # Run all scenarios
         logger.info(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        except subprocess.TimeoutExpired:
+            logger.error("Benchmark timed out after 1 hour")
+            return False
         
         if result.returncode != 0:
             logger.error(f"Benchmark failed: {result.stderr}")

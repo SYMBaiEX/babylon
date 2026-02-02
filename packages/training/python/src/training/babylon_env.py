@@ -278,10 +278,17 @@ class BabylonRLAIFEnv(BaseEnv):
         source = self.config.trajectory_source.lower()
         logger.info(f"Trajectory source: {source}")
         
-        if source == "huggingface":
+        valid_sources = ("db", "database", "huggingface", "hf")
+        if source not in valid_sources:
+            raise ValueError(
+                f"Invalid trajectory_source: '{source}'. "
+                f"Valid options: {', '.join(valid_sources)}"
+            )
+        
+        if source in ("huggingface", "hf"):
             await self._setup_huggingface_source()
         else:
-            # Default: database source
+            # db or database: use PostgreSQL source
             await self._setup_database_source()
 
         logger.info(f"Loaded {len(self.trajectory_cache)} trajectory groups")
@@ -364,7 +371,7 @@ class BabylonRLAIFEnv(BaseEnv):
         
         # Log stats
         stats = reader.get_stats()
-        logger.info(f"HuggingFace dataset stats:")
+        logger.info("HuggingFace dataset stats:")
         logger.info(f"  Total trajectories: {stats['total_trajectories']}")
         logger.info(f"  Total windows: {stats['total_windows']}")
         logger.info(f"  Avg P&L: ${stats['avg_pnl']:.2f}")
