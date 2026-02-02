@@ -13,6 +13,7 @@ interface PnlPanelProps {
 export function PnlPanel({ data, type }: PnlPanelProps) {
   const {
     ownerName,
+    agentName,
     balance,
     lifetimePnL,
     predictionPositions,
@@ -22,13 +23,17 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
 
   const isPositivePnL = lifetimePnL >= 0;
 
+  // Determine the display name based on type
+  const displayName =
+    type === 'owner-pnl'
+      ? `${ownerName || 'Your'} P&L`
+      : `${agentName || 'Agent'} P&L`;
+
   return (
     <div className="space-y-4 p-4">
       {/* Header */}
       <div>
-        <h3 className="font-semibold text-sm">
-          {type === 'owner-pnl' ? `${ownerName || 'Your'} P&L` : 'Agent P&L'}
-        </h3>
+        <h3 className="font-semibold text-sm">{displayName}</h3>
       </div>
 
       {/* Balance & P&L */}
