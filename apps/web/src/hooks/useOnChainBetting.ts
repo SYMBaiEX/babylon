@@ -5,6 +5,7 @@ import {
   buySharesOnchainAction,
   sellSharesOnchainAction,
 } from '@/app/_actions/onchain';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Result of an on-chain betting transaction.
@@ -29,6 +30,7 @@ const { diamond: DIAMOND_ADDRESS, network: NETWORK } = getContractAddresses();
 export function useOnChainBetting() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { getAccessToken } = useAuth();
 
   const buyShares = useCallback(
     async (
@@ -48,10 +50,16 @@ export function useOnChainBetting() {
           numShares,
         });
 
+        const userJwt = await getAccessToken().catch(() => null);
+        if (!userJwt) {
+          throw new Error('Authentication required');
+        }
+
         const { txHash } = await buySharesOnchainAction({
           marketId,
           outcome,
           numShares,
+          userJwt,
         });
 
         return { txHash, shares: numShares };
@@ -63,7 +71,7 @@ export function useOnChainBetting() {
         setLoading(false);
       }
     },
-    []
+    [getAccessToken]
   );
 
   const sellShares = useCallback(
@@ -84,10 +92,16 @@ export function useOnChainBetting() {
           numShares,
         });
 
+        const userJwt = await getAccessToken().catch(() => null);
+        if (!userJwt) {
+          throw new Error('Authentication required');
+        }
+
         const { txHash } = await sellSharesOnchainAction({
           marketId,
           outcome,
           numShares,
+          userJwt,
         });
 
         return { txHash, shares: numShares };
@@ -99,7 +113,7 @@ export function useOnChainBetting() {
         setLoading(false);
       }
     },
-    []
+    [getAccessToken]
   );
 
   return {

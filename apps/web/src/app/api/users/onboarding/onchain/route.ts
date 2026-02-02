@@ -80,7 +80,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const headerToken = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
     : undefined;
-  const userJwt = cookieToken ?? headerToken ?? null;
+  // Prefer the Authorization header when present, since Privy server-side wallet
+  // actions require an exchangeable user JWT (access token), and the cookie may
+  // be an auth token depending on configuration.
+  const userJwt = headerToken ?? cookieToken ?? null;
 
   const authUser = await authenticate(request);
   const body = (await request.json()) as

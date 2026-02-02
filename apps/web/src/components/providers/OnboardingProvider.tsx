@@ -65,7 +65,7 @@ export function OnboardingProvider({
     logout,
   } = useAuth();
 
-  const { user: privyUser } = usePrivy();
+  const { user: privyUser, getAccessToken } = usePrivy();
 
   // Detect if user authenticated via social login (Farcaster or Twitter)
   // These users skip the PROFILE stage - their data is auto-imported
@@ -593,9 +593,14 @@ export function OnboardingProvider({
       }
 
       const callEndpoint = async (payload: Record<string, JsonValue>) => {
+        const accessToken = await getAccessToken().catch(() => null);
+
         const response = await apiFetch('/api/users/onboarding/onchain', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
           body: JSON.stringify(payload),
         });
 
@@ -681,7 +686,7 @@ export function OnboardingProvider({
       if (!response) return;
       applyResponse(response);
     },
-    [refresh, setNeedsOnboarding, setNeedsOnchain, setUser, user]
+    [getAccessToken, refresh, setNeedsOnboarding, setNeedsOnchain, setUser, user]
   );
 
   useLayoutEffect(() => {

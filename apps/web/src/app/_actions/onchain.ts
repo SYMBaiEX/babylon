@@ -22,7 +22,8 @@ import {
 } from 'viem';
 import type { AgentProfileMetadata } from '@/hooks/useUpdateAgentProfileTx';
 
-async function requirePrivyToken(): Promise<string> {
+async function requirePrivyToken(explicitToken?: string): Promise<string> {
+  if (explicitToken) return explicitToken;
   const token = (await cookies()).get('privy-token')?.value;
   if (!token) throw new Error('Unauthorized');
   return token;
@@ -65,8 +66,9 @@ export async function buySharesOnchainAction(input: {
   marketId: string;
   outcome: 'YES' | 'NO';
   numShares: number;
+  userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken();
+  const privyToken = await requirePrivyToken(input.userJwt);
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
@@ -96,8 +98,9 @@ export async function sellSharesOnchainAction(input: {
   marketId: string;
   outcome: 'YES' | 'NO';
   numShares: number;
+  userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken();
+  const privyToken = await requirePrivyToken(input.userJwt);
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const marketIdBytes32 = marketIdToBytes32(input.marketId);
@@ -126,8 +129,9 @@ export async function sellSharesOnchainAction(input: {
 export async function sendSponsoredEthTransferAction(input: {
   to: string;
   amountWei: string;
+  userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken();
+  const privyToken = await requirePrivyToken(input.userJwt);
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   if (!isAddress(input.to)) {
@@ -150,8 +154,9 @@ export async function sendSponsoredEthTransferAction(input: {
 export async function updateAgentProfileOnchainAction(input: {
   metadata: AgentProfileMetadata;
   endpoint?: string;
+  userJwt?: string;
 }): Promise<{ txHash: Hex }> {
-  const privyToken = await requirePrivyToken();
+  const privyToken = await requirePrivyToken(input.userJwt);
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const registryAddress = getIdentityRegistryAddress();

@@ -364,6 +364,20 @@ export function AdminSendMoneyModal({
     }
 
     try {
+      const token = await getAccessToken();
+      if (!token) {
+        logger.error(
+          'Authentication required',
+          undefined,
+          'AdminSendMoneyModal'
+        );
+        setError('Authentication required');
+        setStep('error');
+        toast.error('Failed to send payment');
+        setLoading(false);
+        return;
+      }
+
       const requiredAmountWei = BigInt(paymentReq.amount);
 
       // Use shared hook with abort signal
@@ -378,6 +392,7 @@ export function AdminSendMoneyModal({
       const { txHash: hash } = await sendSponsoredEthTransferAction({
         to: paymentReq.to as Address,
         amountWei: requiredAmountWei.toString(),
+        userJwt: token,
       });
 
       // Check if cancelled after payment

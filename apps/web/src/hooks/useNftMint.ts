@@ -148,7 +148,12 @@ export function useNftMint(): UseNftMintResult {
 
     let result: { txHash: string } & MintConfirmResponse;
     try {
-      result = await mintNftAction();
+      const userJwt = await getAccessToken().catch(() => null);
+      if (!userJwt) {
+        handleError('Authentication failed');
+        return;
+      }
+      result = await mintNftAction({ userJwt });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Transaction failed';
       handleError(message);
@@ -175,7 +180,7 @@ export function useNftMint(): UseNftMintResult {
     );
 
     toast.success('NFT minted successfully!');
-  }, [authenticated, eligibility]);
+  }, [authenticated, eligibility, getAccessToken]);
 
   const resetFlow = useCallback(() => {
     setFlowState(

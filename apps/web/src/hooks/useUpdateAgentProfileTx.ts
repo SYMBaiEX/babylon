@@ -34,7 +34,7 @@ interface UpdateAgentProfileInput {
  * Uses a server-side sponsored transaction flow (Privy embedded wallet + server actions).
  */
 export function useUpdateAgentProfileTx() {
-  const { embeddedWalletReady, embeddedWalletAddress } = useAuth();
+  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } = useAuth();
 
   const updateAgentProfile = useCallback(
     async ({ metadata, endpoint }: UpdateAgentProfileInput) => {
@@ -42,13 +42,19 @@ export function useUpdateAgentProfileTx() {
         throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }
 
+      const userJwt = await getAccessToken().catch(() => null);
+      if (!userJwt) {
+        throw new Error('Authentication required');
+      }
+
       const { txHash } = await updateAgentProfileOnchainAction({
         metadata,
         endpoint,
+        userJwt,
       });
       return txHash;
     },
-    [embeddedWalletReady, embeddedWalletAddress]
+    [embeddedWalletReady, embeddedWalletAddress, getAccessToken]
   );
 
   return {

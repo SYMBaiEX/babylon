@@ -16,7 +16,7 @@ interface PointsPaymentInput {
  * Note: Sponsorship covers gas, but the wallet must still hold the transferred value.
  */
 export function useBuyPointsTx() {
-  const { embeddedWalletReady, embeddedWalletAddress } = useAuth();
+  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } = useAuth();
 
   const sendPointsPayment = useCallback(
     async ({ to, amountWei }: PointsPaymentInput) => {
@@ -26,13 +26,19 @@ export function useBuyPointsTx() {
       const normalizedValue =
         typeof amountWei === 'bigint' ? amountWei : BigInt(amountWei);
 
+      const userJwt = await getAccessToken().catch(() => null);
+      if (!userJwt) {
+        throw new Error('Authentication required');
+      }
+
       const { txHash } = await sendSponsoredEthTransferAction({
         to,
         amountWei: normalizedValue.toString(),
+        userJwt,
       });
       return txHash;
     },
-    [embeddedWalletReady, embeddedWalletAddress]
+    [embeddedWalletReady, embeddedWalletAddress, getAccessToken]
   );
 
   return { sendPointsPayment };

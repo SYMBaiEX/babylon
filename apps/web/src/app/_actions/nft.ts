@@ -13,7 +13,8 @@ import { ValidationError } from '@babylon/shared';
 import { cookies } from 'next/headers';
 import type { Address, Hex } from 'viem';
 
-async function requirePrivyToken(): Promise<string> {
+async function requirePrivyToken(explicitToken?: string): Promise<string> {
+  if (explicitToken) return explicitToken;
   const token = (await cookies()).get('privy-token')?.value;
   if (!token) throw new Error('Unauthorized');
   return token;
@@ -23,10 +24,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function mintNftAction(): Promise<
-  { txHash: Hex } & ConfirmResult
-> {
-  const privyToken = await requirePrivyToken();
+export async function mintNftAction(input?: {
+  userJwt?: string;
+}): Promise<{ txHash: Hex } & ConfirmResult> {
+  const privyToken = await requirePrivyToken(input?.userJwt);
   const ctx = await getAuthedUserContextFromPrivyToken(privyToken);
 
   const prepare = await prepareMint(ctx.dbUserId);
