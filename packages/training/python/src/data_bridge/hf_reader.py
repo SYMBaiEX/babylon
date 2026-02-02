@@ -24,15 +24,39 @@ Usage:
         # Process trajectories...
 """
 
+import asyncio
 import json
 import logging
 import os
 from dataclasses import dataclass
+from functools import partial
 from typing import Dict, List, Optional, Any
+
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .reader import TrajectoryRow, validate_llm_calls
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+    """Safely parse a value to float, returning default on failure."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_int(value: Any, default: Optional[int] = None) -> Optional[int]:
+    """Safely parse a value to int, returning default on failure."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 @dataclass
@@ -95,10 +119,12 @@ class HuggingFaceTrajectoryReader:
         """
         Load the dataset from HuggingFace Hub.
         
+        Uses retry logic with exponential backoff for network resilience.
+        Runs the blocking load_dataset call in an executor to avoid blocking
+        the event loop.
+        
         Returns True if successful, raises exceptions on failure.
         """
-        from datasets import load_dataset
-        
         logger.info(f"Loading HuggingFace dataset: {self.config.dataset_id}")
         logger.info(f"  Split: {self.config.split}")
         logger.info(f"  Streaming: {self.config.streaming}")
@@ -115,7 +141,12 @@ class HuggingFaceTrajectoryReader:
         if self.config.hf_token:
             load_kwargs["token"] = self.config.hf_token
         
-        self._dataset = load_dataset(**load_kwargs)
+        # Run blocking load_dataset in executor with retry logic
+        loop = asyncio.get_running_loop()
+        self._dataset = await loop.run_in_executor(
+            None,
+            partial(self._load_dataset_with_retry, **load_kwargs)
+        )
         
         # Parse and group trajectories by window
         await self._parse_and_group_trajectories()
@@ -124,6 +155,19 @@ class HuggingFaceTrajectoryReader:
         logger.info(f"Loaded {len(self._trajectories_by_window)} windows from HuggingFace dataset")
         
         return True
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, OSError)),
+        before_sleep=lambda retry_state: logger.warning(
+            f"HuggingFace load failed (attempt {retry_state.attempt_number}), retrying..."
+        )
+    )
+    def _load_dataset_with_retry(self, **kwargs):
+        """Load dataset with retry logic for network failures."""
+        from datasets import load_dataset
+        return load_dataset(**kwargs)
     
     async def _parse_and_group_trajectories(self):
         """Parse raw dataset and group by window_id."""
@@ -177,6 +221,11 @@ class HuggingFaceTrajectoryReader:
                 self._trajectories_by_window[window_id] = []
             
             # Build trajectory dict matching PostgresTrajectoryReader output
+            # Use safe parsing helpers to handle malformed data
+            final_pnl = _parse_float(row.get("final_pnl"), default=0.0)
+            final_balance = _parse_float(row.get("final_balance"))
+            total_reward = _parse_float(row.get("total_reward"), default=0.0)
+            
             trajectory = {
                 "trajectory_id": row.get("trajectory_id") or f"hf_{count}",
                 "agent_id": row.get("agent_id") or "unknown",
@@ -186,16 +235,16 @@ class HuggingFaceTrajectoryReader:
                 "archetype": row.get("archetype") or "default",
                 "metadata": metadata,
                 "steps": steps,
-                "final_pnl": float(row.get("final_pnl", 0)),
-                "final_balance": float(row.get("final_balance", 0)) if row.get("final_balance") else None,
+                "final_pnl": final_pnl,
+                "final_balance": final_balance,
                 "starting_balance": None,  # Will be computed from final_balance - final_pnl
-                "episode_length": int(row.get("episode_length", len(steps))),
-                "total_reward": float(row.get("total_reward", 0)),
+                "episode_length": len(steps),  # Use actual step count, not stored value
+                "total_reward": total_reward,
             }
             
-            # Compute starting_balance if final_balance is available
-            if trajectory["final_balance"] is not None:
-                trajectory["starting_balance"] = trajectory["final_balance"] - trajectory["final_pnl"]
+            # Compute starting_balance if both final_balance and final_pnl are available
+            if final_balance is not None and final_pnl is not None:
+                trajectory["starting_balance"] = final_balance - final_pnl
             
             self._trajectories_by_window[window_id].append(trajectory)
             count += 1
@@ -259,8 +308,10 @@ class HuggingFaceTrajectoryReader:
         results = []
         
         for traj in trajectories:
-            # Filter by minimum actions
-            if traj["episode_length"] < min_actions:
+            # Filter by minimum actions (use actual step count, not stored episode_length)
+            actual_step_count = len(traj["steps"])
+            if actual_step_count < min_actions:
+                logger.debug(f"Skipping trajectory {traj['trajectory_id']}: only {actual_step_count} steps")
                 continue
             
             # Validate LLM calls if requested

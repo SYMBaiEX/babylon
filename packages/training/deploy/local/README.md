@@ -43,7 +43,7 @@ cp ../env.example ../.env
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--image <image>` | Docker image | `revlentless/babylon-training:latest` |
-| `--env-file <path>` | Environment file | `../deploy/.env` |
+| `--env-file <path>` | Environment file | `deploy/.env` (relative to training root) |
 | `--profile <profile>` | GPU profile | `12gb` |
 | `--steps <n>` | Training steps | `100` |
 | `--interactive, -i` | Start bash shell | - |

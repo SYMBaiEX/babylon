@@ -602,7 +602,8 @@ class BabylonRLAIFEnv(BaseEnv):
     async def _reload_trajectories(self):
         """Reload trajectories from the configured source."""
         source = self.config.trajectory_source.lower()
-        if source == "huggingface":
+        # Accept both "huggingface" and "hf" aliases (same as setup())
+        if source in ("huggingface", "hf"):
             await self._setup_huggingface_source()
         else:
             await self._load_trajectories_from_db()

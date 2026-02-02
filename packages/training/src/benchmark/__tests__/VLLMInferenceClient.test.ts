@@ -741,8 +741,8 @@ describe('VLLMInferenceClient waitForReady', () => {
     const client = new VLLMInferenceClient({
       baseUrl: 'http://localhost:9001',
       model: 'test-model',
-      healthCheckIntervalMs: 10,
-      maxWaitTimeMs: 50, // Very short timeout for test
+      healthCheckIntervalMs: 25, // Increased for CI stability
+      maxWaitTimeMs: 150, // Increased for CI stability
     });
 
     await expect(client.waitForReady()).rejects.toThrow('not ready after');

@@ -246,7 +246,7 @@ See [`../env.example`](../env.example) for the complete list.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | **Yes** | PostgreSQL connection string |
+| `DATABASE_URL` | Conditional | PostgreSQL connection (required unless using HF dataset) |
 | `WANDB_API_KEY` | No | Weights & Biases API key |
 | `WANDB_MODE` | No | `online`, `offline`, or `disabled` |
 | `HF_TOKEN` | No | HuggingFace token for private models |

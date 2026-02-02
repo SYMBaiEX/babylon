@@ -66,6 +66,9 @@ export interface VLLMBenchmarkConfig {
 
   /** Starting balance for simulations (default: 10000) */
   startingBalance?: number;
+
+  /** Quick mode duration in days (default: 7) */
+  quickModeDurationDays?: number;
 }
 
 export interface BenchmarkScenarioOptions {
@@ -117,6 +120,8 @@ export class VLLMBenchmarkRunner {
       quickMode: config.quickMode ?? false,
       timeoutMs: config.timeoutMs ?? 60000,
       startingBalance: config.startingBalance ?? 10000,
+      quickModeDurationDays:
+        config.quickModeDurationDays ?? QUICK_MODE_DURATION_DAYS,
     };
 
     this.vllmClient = new VLLMInferenceClient({
@@ -167,7 +172,7 @@ export class VLLMBenchmarkRunner {
     if (this.config.quickMode) {
       scenario = this.truncateScenarioForQuickMode(
         scenario,
-        options.quickModeDays || QUICK_MODE_DURATION_DAYS
+        options.quickModeDays || this.config.quickModeDurationDays
       );
     }
 
@@ -285,11 +290,7 @@ export class VLLMBenchmarkRunner {
 
       // Get action from trained model
       try {
-        const decision = await this.getAgentDecision(
-          systemPrompt,
-          state,
-          archetype
-        );
+        const decision = await this.getAgentDecision(systemPrompt, state);
 
         // Execute action if valid
         if (decision && decision.action !== 'wait') {
@@ -351,8 +352,7 @@ export class VLLMBenchmarkRunner {
    */
   private async getAgentDecision(
     systemPrompt: string,
-    gameState: ReturnType<SimulationEngine['getGameState']>,
-    _archetype: string
+    gameState: ReturnType<SimulationEngine['getGameState']>
   ): Promise<AgentDecision | null> {
     const userPrompt = this.buildUserPrompt(gameState);
 

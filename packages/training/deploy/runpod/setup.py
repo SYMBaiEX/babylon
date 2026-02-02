@@ -256,8 +256,12 @@ def cmd_benchmark(args):
         env["HF_MODEL"] = args.hf_model
     if args.model:
         env["MODEL_PATH"] = args.model
-    if args.hf_token:
-        env["HF_TOKEN"] = args.hf_token
+    
+    # Propagate HF_TOKEN from CLI arg, env file, or host environment
+    hf_token = args.hf_token or env.get("HF_TOKEN") or os.environ.get("HF_TOKEN")
+    if hf_token:
+        env["HF_TOKEN"] = hf_token
+    
     if args.quick:
         env["BENCHMARK_QUICK"] = "true"
     if args.scenario:

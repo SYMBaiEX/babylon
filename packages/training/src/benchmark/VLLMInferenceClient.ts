@@ -130,19 +130,20 @@ export class VLLMInferenceClient {
    * Check if vLLM server is healthy
    */
   async isHealthy(): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
+    try {
       const response = await fetch(`${this.config.baseUrl}/health`, {
         method: 'GET',
         signal: controller.signal,
       });
 
-      clearTimeout(timeout);
       return response.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -150,16 +151,14 @@ export class VLLMInferenceClient {
    * Get available models from vLLM
    */
   async getModels(): Promise<string[]> {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
+    try {
       const response = await fetch(`${this.config.baseUrl}/v1/models`, {
         method: 'GET',
         signal: controller.signal,
       });
-
-      clearTimeout(timeout);
 
       if (!response.ok) {
         return [];
@@ -171,6 +170,8 @@ export class VLLMInferenceClient {
       return data.data.map((m) => m.id);
     } catch {
       return [];
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -230,13 +231,13 @@ export class VLLMInferenceClient {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.config.maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          this.config.timeoutMs
-        );
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        this.config.timeoutMs
+      );
 
+      try {
         const response = await fetch(
           `${this.config.baseUrl}/v1/chat/completions`,
           {
@@ -248,8 +249,6 @@ export class VLLMInferenceClient {
             signal: controller.signal,
           }
         );
-
-        clearTimeout(timeout);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -278,6 +277,8 @@ export class VLLMInferenceClient {
             setTimeout(resolve, 1000 * (attempt + 1))
           );
         }
+      } finally {
+        clearTimeout(timeout);
       }
     }
 

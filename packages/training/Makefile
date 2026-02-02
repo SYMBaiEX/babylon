@@ -23,7 +23,7 @@
         train-l40-8gpu train-a100-4gpu train-h100-4gpu \
         train-online bridge-server generate-data venv lint test clean \
         docker-base docker-training docker-push docker-all \
-        local-train local-shell \
+        local-train local-shell local-benchmark local-benchmark-quick \
         runpod-train runpod-list runpod-stop \
         hf-export-dataset hf-push-model \
         benchmark benchmark-quick benchmark-scenario ab-test ab-test-quick
