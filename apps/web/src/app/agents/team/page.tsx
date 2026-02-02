@@ -229,14 +229,6 @@ export default function TeamChatPage() {
     }
   }, [teamChat?.agents, bottomPanelAgentId]);
 
-  // Handle sidebar "View Profile" - switch to Agents tab and show detail
-  const handleViewProfile = useCallback(
-    (agentId: string) => {
-      router.push(`/profile/${agentId}`);
-    },
-    [router]
-  );
-
   // Handle sidebar "Settings" - open in right sidebar
   const handleViewSettings = useCallback(
     (agentId: string) => {
@@ -563,7 +555,6 @@ export default function TeamChatPage() {
               processingAgentIds={processingAgentIds}
               onTagAgent={tagAgentInInput}
               onStopAgent={stopAgent}
-              onViewProfile={handleViewProfile}
               onViewSettings={handleViewSettings}
             />
           </div>
@@ -609,7 +600,6 @@ export default function TeamChatPage() {
                 processingAgentIds={processingAgentIds}
                 onTagAgent={tagAgentInInput}
                 onStopAgent={stopAgent}
-                onViewProfile={handleViewProfile}
                 onViewSettings={handleViewSettings}
               />
             </div>

@@ -124,7 +124,7 @@ export function BottomPanel({
 
   const tabs: { id: BottomPanelTab; label: string }[] = [
     { id: 'activity', label: 'Activity' },
-    { id: 'portfolio', label: 'Portfolio' },
+    { id: 'portfolio', label: 'Wallet' },
     { id: 'logs', label: 'Logs' },
   ];
 
