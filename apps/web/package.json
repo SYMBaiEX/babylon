@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun x next dev",
     "dev:next-only": "SKIP_ENV_VALIDATION=1 bun x next dev",
-    "build": "NEXT_PUBLIC_CHAIN_ID=84532 NODE_OPTIONS='--max-old-space-size=8192' bun x next build --webpack",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' bun x next build --webpack",
     "start": "bun x next start",
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",

@@ -41,7 +41,8 @@ export async function sendSponsoredEvmTransaction({
   }
 
   const tokenAud = payload.aud;
-  const appId = process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const appId =
+    process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   if (typeof appId === 'string') {
     const audMatches =
       tokenAud === appId ||

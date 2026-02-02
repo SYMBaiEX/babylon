@@ -387,8 +387,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
   const privyId = authUser.privyId ?? authUser.userId;
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
-  const clientEmbeddedWalletAddressRaw =
-    request.headers.get('x-embedded-wallet-address');
+  const clientEmbeddedWalletAddressRaw = request.headers.get(
+    'x-embedded-wallet-address'
+  );
   const clientEmbeddedWalletAddress =
     typeof clientEmbeddedWalletAddressRaw === 'string' &&
     /^0x[a-fA-F0-9]{40}$/.test(clientEmbeddedWalletAddressRaw.trim())
