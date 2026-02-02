@@ -741,9 +741,7 @@ export default function TeamChatPage() {
                     <AgentPortfolio
                       entityType="user"
                       userId={bottomPanelEntityId}
-                      entityName={
-                        user?.displayName || user?.username || 'You'
-                      }
+                      entityName={user?.displayName || user?.username || 'You'}
                     />
                   );
                 }
@@ -771,9 +769,7 @@ export default function TeamChatPage() {
                     <AgentPnL
                       entityType={'user' as const}
                       userId={bottomPanelEntityId}
-                      entityName={
-                        user?.displayName || user?.username || 'You'
-                      }
+                      entityName={user?.displayName || user?.username || 'You'}
                     />
                   );
                 }

@@ -85,7 +85,11 @@ export function BottomPanel({
     ...(userId
       ? [{ id: userId, name: userName || 'You', type: 'user' as EntityType }]
       : []),
-    ...agents.map((a) => ({ id: a.id, name: a.name, type: 'agent' as EntityType })),
+    ...agents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: 'agent' as EntityType,
+    })),
   ];
 
   // Get currently selected entity

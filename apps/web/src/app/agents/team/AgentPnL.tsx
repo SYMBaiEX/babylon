@@ -258,7 +258,9 @@ function UserPnL({
           <div className="border-border border-t pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">In Positions</span>
-              <span className="font-medium">{positionsValue.toFixed(2)} pts</span>
+              <span className="font-medium">
+                {positionsValue.toFixed(2)} pts
+              </span>
             </div>
           </div>
         </div>
@@ -266,8 +268,12 @@ function UserPnL({
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <div className="text-[10px] text-muted-foreground">Total Assets</div>
-            <div className="font-semibold text-sm">{totalAssets.toFixed(0)}</div>
+            <div className="text-[10px] text-muted-foreground">
+              Total Assets
+            </div>
+            <div className="font-semibold text-sm">
+              {totalAssets.toFixed(0)}
+            </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Positions</div>
@@ -607,7 +613,9 @@ function AgentPnLView({
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Trades</div>
-            <div className="font-semibold text-sm">{agentStats.totalTrades}</div>
+            <div className="font-semibold text-sm">
+              {agentStats.totalTrades}
+            </div>
           </div>
           <div className="rounded-lg bg-muted/30 p-2 text-center">
             <div className="text-[10px] text-muted-foreground">Win Rate</div>
