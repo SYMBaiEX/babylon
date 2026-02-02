@@ -11,7 +11,10 @@
 import { db } from '@babylon/db';
 import type { JsonValue } from '@babylon/shared';
 import { generateSnowflakeId, logger } from '@babylon/shared';
-import { NPC_ENGAGEMENT_CONFIG } from '../config/npc-activity';
+import {
+  NPC_DIVERSITY_CONFIG,
+  NPC_ENGAGEMENT_CONFIG,
+} from '../config/npc-activity';
 import type { LLMJsonClient } from '../llm/types';
 import { secureRandom } from '../utils/entropy';
 import { formatError } from '../utils/error-utils';
@@ -227,11 +230,14 @@ export async function processNPCSocialEngagements(
 
     // Initialize action diversity tracker (TikTok-style clustering prevention)
     // Tracks recent actions and skips if too many consecutive same types
-    const diversityTracker = new ActionDiversityTracker(5, 2);
+    const diversityTracker = new ActionDiversityTracker(
+      5, // Track last 5 actions
+      NPC_DIVERSITY_CONFIG.maxConsecutiveSameAction
+    );
 
-    // Timestamp staggering for organic feed pacing (5-minute window)
+    // Timestamp staggering for organic feed pacing
     // Each action gets a timestamp spread across the window
-    const STAGGER_WINDOW_MS = 5 * 60 * 1000;
+    const STAGGER_WINDOW_MS = NPC_DIVERSITY_CONFIG.timestampStaggerMs;
     const getStaggeredTimestamp = (): Date => {
       const offset = Math.floor(random() * STAGGER_WINDOW_MS);
       return new Date(baseNow.getTime() + offset);

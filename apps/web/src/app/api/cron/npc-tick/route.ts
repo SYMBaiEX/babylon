@@ -38,6 +38,7 @@ import {
   getRecentlyMentionedActorIds,
   getTrendingPromptContext,
   isActiveHour,
+  NPC_DIVERSITY_CONFIG,
   NPC_ENGAGEMENT_CONFIG,
   NPC_TICK_CONFIG,
   NPCInvestmentManager,
@@ -60,27 +61,19 @@ import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 // =============================================================================
 
 /**
- * Time window for staggering NPC action timestamps (5 minutes).
- * Matches organization-tick pattern for consistency.
- * Actions are distributed across this window for organic feed pacing.
- */
-const NPC_TICK_STAGGER_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
-
-/**
  * Creates a timestamp staggering function for organic action distribution.
  * Inspired by organization-tick implementation.
  *
- * Posts/actions created within a tick get timestamps spread across the next
- * 5-minute window, so they appear gradually in the feed rather than all at once.
+ * Posts/actions created within a tick get timestamps spread across the
+ * configured window, so they appear gradually in the feed rather than all at once.
  *
  * @param baseTime Base timestamp (start of tick)
  * @returns Function that generates staggered timestamps
  */
 function createTimestampStaggerer(baseTime: Date): () => Date {
+  const staggerWindowMs = NPC_DIVERSITY_CONFIG.timestampStaggerMs;
   return () => {
-    const randomOffset = Math.floor(
-      secureRandom() * NPC_TICK_STAGGER_WINDOW_MS
-    );
+    const randomOffset = Math.floor(secureRandom() * staggerWindowMs);
     return new Date(baseTime.getTime() + randomOffset);
   };
 }

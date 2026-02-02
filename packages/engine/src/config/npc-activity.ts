@@ -411,6 +411,64 @@ export const NPC_ENGAGEMENT_CONFIG = {
 } as const;
 
 // =============================================================================
+// DIVERSITY CONFIGURATION (TikTok-inspired feed diversity)
+// =============================================================================
+
+/**
+ * Configuration for feed diversity mechanisms.
+ *
+ * Controls how NPC actions are distributed to prevent clustering and create
+ * an organic social media feel. Based on TikTok/Twitter feed algorithms.
+ */
+export const NPC_DIVERSITY_CONFIG = {
+  /**
+   * Maximum consecutive same action type allowed (TikTok-style).
+   * Used by the action diversity tracker to prevent clustering.
+   * E.g., 1 means never allow 2 likes in a row.
+   *
+   * @default 1 (TikTok rule: never consecutive same type)
+   * @env NPC_MAX_CONSECUTIVE_SAME_ACTION
+   */
+  maxConsecutiveSameAction: envPositiveNumber(
+    'NPC_MAX_CONSECUTIVE_SAME_ACTION',
+    1
+  ),
+
+  /**
+   * Maximum consecutive posts from same author in feed.
+   * Used by the feed author diversity filter.
+   *
+   * @default 1 (TikTok rule: never consecutive same author)
+   * @env NPC_MAX_CONSECUTIVE_SAME_AUTHOR
+   */
+  maxConsecutiveSameAuthor: envPositiveNumber(
+    'NPC_MAX_CONSECUTIVE_SAME_AUTHOR',
+    1
+  ),
+
+  /**
+   * Window size for author diversity check.
+   * Checks author frequency in the last N posts.
+   *
+   * @default 10
+   * @env NPC_AUTHOR_DIVERSITY_WINDOW
+   */
+  authorDiversityWindow: envPositiveNumber('NPC_AUTHOR_DIVERSITY_WINDOW', 10),
+
+  /**
+   * Timestamp stagger window in milliseconds.
+   * Actions within a tick get timestamps spread across this window.
+   *
+   * @default 300000 (5 minutes)
+   * @env NPC_TIMESTAMP_STAGGER_MS
+   */
+  timestampStaggerMs: envPositiveNumber(
+    'NPC_TIMESTAMP_STAGGER_MS',
+    5 * 60 * 1000
+  ),
+} as const;
+
+// =============================================================================
 // SOCIAL ACTIONS CONFIGURATION
 // =============================================================================
 
@@ -867,6 +925,7 @@ export const NPC_ACTIVITY_CONFIG = {
   posting: NPC_POSTING_CONFIG,
   trading: NPC_TRADING_CONFIG,
   engagement: NPC_ENGAGEMENT_CONFIG,
+  diversity: NPC_DIVERSITY_CONFIG,
   socialActions: NPC_SOCIAL_ACTIONS_CONFIG,
   groupDynamics: NPC_GROUP_DYNAMICS_CONFIG,
   contentPacing: NPC_CONTENT_PACING_CONFIG,
@@ -1079,6 +1138,11 @@ export function logCurrentConfig(): void {
   logger.info(
     'NPC Activity Configuration - Engagement',
     NPC_ENGAGEMENT_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Diversity',
+    NPC_DIVERSITY_CONFIG,
     'npc-activity'
   );
   logger.info(

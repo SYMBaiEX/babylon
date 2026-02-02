@@ -265,6 +265,7 @@ import {
   type GeneratedTag,
   generateTagsFromPost,
   handlePlayerMention,
+  NPC_DIVERSITY_CONFIG,
   StaticDataRegistry,
   storeTagsForPost,
 } from '@babylon/engine';
@@ -1359,8 +1360,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Apply author diversity filter (MMR-inspired, TikTok-style)
   // Prevents consecutive posts from the same author for organic feed feel
   const diversifiedPosts = applyAuthorDiversityFilter(formattedPosts, {
-    maxConsecutiveSameAuthor: 1, // TikTok rule: never consecutive same author
-    windowSize: 10, // Check author frequency in last 10 posts
+    maxConsecutiveSameAuthor: NPC_DIVERSITY_CONFIG.maxConsecutiveSameAuthor,
+    windowSize: NPC_DIVERSITY_CONFIG.authorDiversityWindow,
   });
 
   logger.info(
