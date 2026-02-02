@@ -9,16 +9,7 @@ import {
   type PostTagData,
   type PredictionsTagData,
 } from '@babylon/shared';
-import {
-  Bot,
-  FileText,
-  Newspaper,
-  PiggyBank,
-  Target,
-  TrendingUp,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Tab types including action tag types */
@@ -45,22 +36,6 @@ export interface RightSidebarTab {
   /** Data payload for tag panels (from MessageTag.data) */
   data?: TagDataPayload;
 }
-
-/** Map tab types to icons */
-const TAB_ICONS: Record<
-  RightSidebarTabType,
-  React.ComponentType<{ className?: string }>
-> = {
-  'agent-settings': Bot,
-  'agent-activity': Bot,
-  other: Bot,
-  perps: TrendingUp,
-  predictions: Target,
-  post: FileText,
-  feed: Newspaper,
-  'agent-pnl': Wallet,
-  'owner-pnl': PiggyBank,
-};
 
 // Width constraints
 const MIN_WIDTH = 320;
@@ -282,7 +257,6 @@ export function RightSidebar({
             >
               <div className="flex items-center gap-1">
                 {tabs.map((tab) => {
-                  const TabIcon = TAB_ICONS[tab.type] || Bot;
                   return (
                     <div
                       key={tab.id}
@@ -303,7 +277,6 @@ export function RightSidebar({
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       )}
                     >
-                      <TabIcon className="h-3.5 w-3.5 shrink-0" />
                       <span className="max-w-[100px] truncate">
                         {tab.title}
                       </span>
