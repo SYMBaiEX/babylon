@@ -686,7 +686,14 @@ export function OnboardingProvider({
       if (!response) return;
       applyResponse(response);
     },
-    [getAccessToken, refresh, setNeedsOnboarding, setNeedsOnchain, setUser, user]
+    [
+      getAccessToken,
+      refresh,
+      setNeedsOnboarding,
+      setNeedsOnchain,
+      setUser,
+      user,
+    ]
   );
 
   useLayoutEffect(() => {

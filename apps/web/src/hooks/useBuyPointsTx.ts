@@ -16,7 +16,8 @@ interface PointsPaymentInput {
  * Note: Sponsorship covers gas, but the wallet must still hold the transferred value.
  */
 export function useBuyPointsTx() {
-  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } = useAuth();
+  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } =
+    useAuth();
 
   const sendPointsPayment = useCallback(
     async ({ to, amountWei }: PointsPaymentInput) => {

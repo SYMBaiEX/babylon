@@ -34,7 +34,8 @@ interface UpdateAgentProfileInput {
  * Uses a server-side sponsored transaction flow (Privy embedded wallet + server actions).
  */
 export function useUpdateAgentProfileTx() {
-  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } = useAuth();
+  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } =
+    useAuth();
 
   const updateAgentProfile = useCallback(
     async ({ metadata, endpoint }: UpdateAgentProfileInput) => {
