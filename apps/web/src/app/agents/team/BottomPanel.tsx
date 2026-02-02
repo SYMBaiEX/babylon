@@ -1,12 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-} from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DropdownMenu,
