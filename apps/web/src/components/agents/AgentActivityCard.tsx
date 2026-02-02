@@ -1,14 +1,6 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  MessageCircle,
-  MessageSquare,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react';
 import { memo, useState } from 'react';
 import {
   type AgentActivity,
@@ -61,16 +53,6 @@ export const AgentActivityCard = memo(function AgentActivityCard({
       aria-label={`${getActivityTitle(activity)}. Click to ${expanded ? 'collapse' : 'expand'} details.`}
     >
       <div className="flex items-start gap-3">
-        {/* Activity Icon */}
-        <div
-          className={cn(
-            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-            getActivityIconBackground(activity)
-          )}
-        >
-          {getActivityIcon(activity)}
-        </div>
-
         <div className="min-w-0 flex-1">
           {/* Header Row */}
           <div className="flex flex-wrap items-center gap-2">
@@ -99,63 +81,6 @@ export const AgentActivityCard = memo(function AgentActivityCard({
     </div>
   );
 });
-
-// Helper: Get activity icon
-function getActivityIcon(activity: AgentActivity) {
-  if (isTradeActivity(activity)) {
-    const { side, action } = activity.data;
-    const isLong = side === 'long' || side === 'yes';
-    const isOpen = action === 'open';
-
-    if (isOpen) {
-      return isLong ? (
-        <ArrowUpRight className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-      ) : (
-        <ArrowDownRight className="h-5 w-5 text-red-600 dark:text-red-400" />
-      );
-    }
-    return isLong ? (
-      <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-    ) : (
-      <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
-    );
-  }
-
-  if (isPostActivity(activity)) {
-    return <MessageSquare className="h-5 w-5 text-primary" />;
-  }
-
-  if (isCommentActivity(activity)) {
-    return (
-      <MessageCircle className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-    );
-  }
-
-  if (isMessageActivity(activity)) {
-    return (
-      <MessageCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-    );
-  }
-
-  return <MessageSquare className="h-5 w-5 text-muted-foreground" />;
-}
-
-// Helper: Get icon background color
-function getActivityIconBackground(activity: AgentActivity): string {
-  if (isTradeActivity(activity)) {
-    const isLong =
-      activity.data.side === 'long' || activity.data.side === 'yes';
-    return isLong
-      ? 'bg-emerald-100 dark:bg-emerald-900/30'
-      : 'bg-red-100 dark:bg-red-900/30';
-  }
-
-  if (isPostActivity(activity)) return 'bg-primary/10';
-  if (isCommentActivity(activity)) return 'bg-violet-100 dark:bg-violet-900/30';
-  if (isMessageActivity(activity)) return 'bg-amber-100 dark:bg-amber-900/30';
-
-  return 'bg-muted';
-}
 
 // Helper: Get activity title
 function getActivityTitle(activity: AgentActivity): string {

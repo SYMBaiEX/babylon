@@ -2,13 +2,10 @@
 
 import { cn } from '@babylon/shared';
 import {
-  Activity,
   Check,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
-  FileText,
-  Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -130,10 +127,10 @@ export function BottomPanel({
     [isOpen, height, onHeightChange]
   );
 
-  const tabs: { id: BottomPanelTab; label: string; icon: typeof Activity }[] = [
-    { id: 'activity', label: 'Activity', icon: Activity },
-    { id: 'portfolio', label: 'Portfolio', icon: Wallet },
-    { id: 'logs', label: 'Logs', icon: FileText },
+  const tabs: { id: BottomPanelTab; label: string }[] = [
+    { id: 'activity', label: 'Activity' },
+    { id: 'portfolio', label: 'Portfolio' },
+    { id: 'logs', label: 'Logs' },
   ];
 
   return (
@@ -211,13 +208,12 @@ export function BottomPanel({
               type="button"
               onClick={() => handleTabClick(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
+                'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
                 activeTab === tab.id && isOpen
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <tab.icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           ))}
