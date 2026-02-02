@@ -1573,11 +1573,17 @@ export async function generateNPCRepliesFromPreviousTicks(
     Math.min(maxReplies, eligiblePosts.length)
   );
 
-  // Count original posts (only these can become quote posts)
-  // Build deck sized for original posts only to maintain accurate ratio
-  const originalPostCount = postsToReplyTo.filter(
-    (p) => p.commentOnPostId === null || p.commentOnPostId === undefined
-  ).length;
+  // Identify which posts are original (can become quotes) vs replies (always reply)
+  // Pre-compute this to avoid race conditions in parallel processing
+  const postActionAssignments = postsToReplyTo.map((post) => ({
+    post,
+    isOriginalPost:
+      post.commentOnPostId === null || post.commentOnPostId === undefined,
+  }));
+
+  // Count original posts and build deck sized for them only
+  const originalPosts = postActionAssignments.filter((p) => p.isOriginalPost);
+  const originalPostCount = originalPosts.length;
 
   // Create stratified action deck for guaranteed diversity (TikTok-style)
   // Deck is sized for original posts only since replies can't become quotes
@@ -1587,8 +1593,15 @@ export async function generateNPCRepliesFromPreviousTicks(
     random
   );
 
-  // Track deck consumption separately for original posts
+  // PRE-ASSIGN deck actions to posts BEFORE parallel execution
+  // This avoids race condition from incrementing shared index in async callbacks
   let quoteDeckIndex = 0;
+  const actionAssignments = postActionAssignments.map((assignment) => ({
+    ...assignment,
+    shouldQuote:
+      assignment.isOriginalPost &&
+      quoteDeck[quoteDeckIndex++] === 'quote',
+  }));
 
   const quoteCount = quoteDeck.filter((a) => a === 'quote').length;
   const replyCount = quoteDeck.filter((a) => a === 'reply').length;
@@ -1605,41 +1618,29 @@ export async function generateNPCRepliesFromPreviousTicks(
   );
 
   // Generate replies and quote posts in parallel
-  // Action type is determined by deck position for original posts only
-  const discoursePromises = postsToReplyTo.map(async (originalPost) => {
-    // Pick a random actor to engage (not the original author)
-    // Filter by cooldown to prevent repetitive interactions
-    const availableEngagers = actorsWithContext.filter(
-      (a) =>
-        a.id !== originalPost.authorId &&
-        canNPCReplyToNPC(a.id, originalPost.authorId)
-    );
-
-    if (availableEngagers.length === 0) {
-      logger.debug(
-        'No eligible engagers for post (all on cooldown or same author)',
-        { postAuthor: originalPost.authorName },
-        'PostGeneration'
+  // Action type is pre-assigned to avoid race conditions
+  const discoursePromises = actionAssignments.map(
+    async ({ post: originalPost, shouldQuote }) => {
+      // Pick a random actor to engage (not the original author)
+      // Filter by cooldown to prevent repetitive interactions
+      const availableEngagers = actorsWithContext.filter(
+        (a) =>
+          a.id !== originalPost.authorId &&
+          canNPCReplyToNPC(a.id, originalPost.authorId)
       );
-      return { type: 'none' as const, success: false };
-    }
 
-    const engager =
-      availableEngagers[Math.floor(random() * availableEngagers.length)];
-    if (!engager) return { type: 'none' as const, success: false };
+      if (availableEngagers.length === 0) {
+        logger.debug(
+          'No eligible engagers for post (all on cooldown or same author)',
+          { postAuthor: originalPost.authorName },
+          'PostGeneration'
+        );
+        return { type: 'none' as const, success: false };
+      }
 
-    // Get action type from deck (guaranteed diversity, no clustering)
-    // Quote posts only for original posts (not replies) to keep it clean
-    const isOriginalPost =
-      originalPost.commentOnPostId === null ||
-      originalPost.commentOnPostId === undefined;
-
-    // Only consume from quote deck for original posts
-    let shouldQuote = false;
-    if (isOriginalPost) {
-      const deckAction = quoteDeck[quoteDeckIndex++] ?? 'reply';
-      shouldQuote = deckAction === 'quote';
-    }
+      const engager =
+        availableEngagers[Math.floor(random() * availableEngagers.length)];
+      if (!engager) return { type: 'none' as const, success: false };
 
     // Get staggered timestamp for this action (or use base timestamp)
     const actionTimestamp = options.getTimestamp?.() ?? timestamp;

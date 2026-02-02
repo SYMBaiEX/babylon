@@ -572,88 +572,6 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
-// =============================================================================
-// AUTHOR DIVERSITY FILTER (MMR-inspired, TikTok-style)
-// =============================================================================
-
-/**
- * Post type for author diversity filtering.
- * Generic to work with formatted post objects.
- */
-interface PostWithAuthor {
-  authorId?: string;
-  [key: string]: unknown;
-}
-
-/**
- * TikTok-style author diversity filter.
- * Prevents consecutive posts from the same author (simple hard rule).
- *
- * Algorithm:
- * 1. Process posts in order
- * 2. If current author would be consecutive, defer the post
- * 3. Insert deferred posts at positions where they don't create consecutive runs
- *
- * @param posts Array of posts to reorder for diversity
- * @returns Reordered array with no consecutive same-author posts
- */
-function applyAuthorDiversityFilter<T extends PostWithAuthor>(posts: T[]): T[] {
-  if (posts.length <= 1) return posts;
-
-  const result: T[] = [];
-  const deferred: T[] = [];
-
-  for (const post of posts) {
-    const authorId = post.authorId;
-    const lastPost = result[result.length - 1];
-    const isConsecutive = lastPost?.authorId === authorId;
-
-    // TikTok rule: never consecutive from same author
-    if (isConsecutive) {
-      deferred.push(post);
-    } else {
-      // Try to insert a deferred post first (different author)
-      const deferredIdx = deferred.findIndex((p) => p.authorId !== authorId);
-      if (deferredIdx !== -1 && result.length > 0) {
-        const [deferredPost] = deferred.splice(deferredIdx, 1);
-        if (deferredPost) result.push(deferredPost);
-      }
-      result.push(post);
-    }
-  }
-
-  // Interleave remaining deferred posts at positions without consecutive authors
-  for (const post of deferred) {
-    const insertIdx = findNonConsecutiveInsertIndex(result, post.authorId ?? '');
-    result.splice(insertIdx, 0, post);
-  }
-
-  return result;
-}
-
-/**
- * Find a position in the result array where inserting would not create
- * consecutive posts from the same author.
- */
-function findNonConsecutiveInsertIndex<T extends PostWithAuthor>(
-  posts: T[],
-  authorId: string
-): number {
-  // Start from the end and work backwards to find a position where:
-  // - Previous post is not from same author
-  // - Next post is not from same author (if exists)
-  for (let i = posts.length; i >= 0; i--) {
-    const prevPost = posts[i - 1];
-    const nextPost = posts[i];
-    const prevOk = !prevPost || prevPost.authorId !== authorId;
-    const nextOk = !nextPost || nextPost.authorId !== authorId;
-    if (prevOk && nextOk) {
-      return i;
-    }
-  }
-  return posts.length; // Append at end if no good position
-}
-
 /**
  * GET /api/posts
  *
@@ -1336,53 +1254,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return basePost;
   });
 
-  // Apply author diversity filter (TikTok-style)
-  // Prevents consecutive posts from the same author for organic feed feel
-  const diversifiedPosts = applyAuthorDiversityFilter(formattedPosts);
+  // NOTE: Author diversity is NOT applied at the API layer because it would break
+  // cursor-based pagination. Post-query reordering cannot be reconciled with
+  // timestamp-based cursors without causing duplicates across pages.
+  // Feed diversity is instead handled at generation time via:
+  // - Stratified action deck (quote/reply ratio with no-consecutive constraint)
+  // - Timestamp staggering (posts spread across 5-minute windows)
+  // - Action diversity tracker (prevents consecutive same action types)
 
   logger.info(
     'Formatted posts',
     {
       originalCount: postsResult.length,
       formattedCount: formattedPosts.length,
-      diversifiedCount: diversifiedPosts.length,
       filteredOut: postsResult.length - formattedPosts.length,
     },
     'GET /api/posts'
   );
 
-  // Next.js 16: Add cache headers for real-time feeds
-  // Use 'no-store' to ensure fresh data for real-time updates
-  // This prevents stale data in client-side caches
-  logger.info(
-    'Returning formatted posts',
-    {
-      postCount: diversifiedPosts.length,
-      total: diversifiedPosts.length,
-      limit,
-      cursor,
-    },
-    'GET /api/posts'
-  );
-
-  // Calculate next cursor using MINIMUM timestamp from diversified page
-  // This is critical because applyAuthorDiversityFilter reorders posts,
-  // so using the last element's timestamp could cause gaps/duplicates.
-  // Using min timestamp ensures the next page starts at or before the oldest post.
+  // Calculate next cursor (timestamp of last post for keyset pagination)
   const nextCursor =
-    diversifiedPosts.length > 0
-      ? diversifiedPosts.reduce(
-          (min, p) => (p.timestamp < min ? p.timestamp : min),
-          diversifiedPosts[0]!.timestamp
-        )
+    formattedPosts.length > 0
+      ? formattedPosts[formattedPosts.length - 1]?.timestamp
       : null;
 
   const response = NextResponse.json({
     success: true,
-    posts: diversifiedPosts,
+    posts: formattedPosts,
     limit,
-    cursor: nextCursor, // Next cursor for pagination
-    hasMore: diversifiedPosts.length === limit, // Has more if we got a full page
+    cursor: nextCursor,
+    hasMore: formattedPosts.length === limit,
   });
 
   // PERFORMANCE FIX: Use short cache with stale-while-revalidate for high-traffic endpoint

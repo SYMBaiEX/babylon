@@ -67,8 +67,20 @@ import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
  * Posts/actions created within a tick get timestamps spread across the
  * configured window, so they appear gradually in the feed rather than all at once.
  *
+ * STAGGERING CONVENTION:
+ * - Engagement (likes/shares/comments): Staggered INTERNALLY by processNPCSocialEngagements
+ *   Pass the original `now` timestamp - the service handles its own staggering.
+ *
+ * - Discourse (quotes/replies): Staggered via getTimestamp option passed to
+ *   generateNPCRepliesFromPreviousTicks. The caller provides a staggerer function
+ *   that is called per-action inside the service.
+ *
+ * This separation exists because:
+ * - Engagement uses `now` for both window calculations AND action timestamps
+ * - Discourse needs separate base timestamp (for 2-hour lookback) vs action timestamps
+ *
  * @param baseTime Base timestamp (start of tick)
- * @returns Function that generates staggered timestamps
+ * @returns Function that generates staggered timestamps, each call returns a unique time
  */
 function createTimestampStaggerer(baseTime: Date): () => Date {
   const staggerWindowMs = NPC_DIVERSITY_CONFIG.timestampStaggerMs;
