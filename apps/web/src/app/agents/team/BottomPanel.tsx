@@ -231,15 +231,16 @@ export function BottomPanel({
       )}
 
       {/* Tab Bar */}
-      <div className="flex h-10 items-center justify-between border-border border-b bg-muted/30 px-2">
-        <div className="flex items-center gap-1">
+      <div className="flex h-10 items-center border-border border-b bg-muted/30 px-2">
+        {/* Scrollable tabs area */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleTabClick(tab.id)}
               className={cn(
-                'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
+                'shrink-0 rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
                 activeTab === tab.id && isOpen
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -250,7 +251,8 @@ export function BottomPanel({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right controls - always visible */}
+        <div className="flex shrink-0 items-center gap-2 pl-2">
           {/* Entity Selector Dropdown */}
           {entities.length > 0 && (
             <DropdownMenu>
