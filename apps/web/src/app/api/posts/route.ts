@@ -634,7 +634,8 @@ function applyAuthorDiversityFilter<T extends PostWithAuthor>(
       // Try to insert a deferred post first (different author)
       const deferredIdx = deferred.findIndex((p) => p.authorId !== authorId);
       if (deferredIdx !== -1 && result.length > 0) {
-        result.push(deferred.splice(deferredIdx, 1)[0]);
+        const [deferredPost] = deferred.splice(deferredIdx, 1);
+        if (deferredPost) result.push(deferredPost);
       }
       result.push(post);
     }
