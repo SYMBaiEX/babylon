@@ -24,7 +24,11 @@ export function DailyStreakCard() {
   const [modal, setModal] = useState<ClaimResult | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!authenticated) return;
+    if (!authenticated) {
+      setLoading(false);
+      return;
+    }
+
     const token = await getAccessToken();
     if (!token) {
       toast.error('Failed to authenticate. Please try again.');
@@ -45,10 +49,10 @@ export function DailyStreakCard() {
             contentType
           );
           setData(null);
-          return;
+        } else {
+          const json = await res.json();
+          setData(json);
         }
-        const json = await res.json();
-        setData(json);
       } else {
         // Silently fail - don't show error toast, just don't render the card
         // This prevents blocking the page if the API/database isn't ready
@@ -59,8 +63,9 @@ export function DailyStreakCard() {
       // Silently fail - don't show error toast (includes JSON parse errors)
       console.warn('Daily login API error:', error);
       setData(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [authenticated, getAccessToken]);
 
   useEffect(() => {
@@ -74,6 +79,7 @@ export function DailyStreakCard() {
   useEffect(() => {
     if (canClaim) return;
     let lastUpdateTime = Date.now();
+    let refreshTriggered = false;
     const id = setInterval(() => {
       const now = Date.now();
       const actualElapsed = now - lastUpdateTime;
@@ -81,16 +87,25 @@ export function DailyStreakCard() {
       setData((prev) => {
         if (!prev) return prev;
         const timeUntilClaim = Math.max(0, prev.timeUntilClaim - actualElapsed);
+        const newCanClaim = timeUntilClaim <= 0;
+
+        // When claim window opens, trigger a fresh data fetch to get accurate server state
+        if (newCanClaim && !prev.canClaim && !refreshTriggered) {
+          refreshTriggered = true;
+          // Schedule fetchData outside of setState to avoid state update during render
+          setTimeout(() => fetchData(), 0);
+        }
+
         return {
           ...prev,
           timeUntilClaim,
           timeUntilReset: Math.max(0, prev.timeUntilReset - actualElapsed),
-          canClaim: timeUntilClaim <= 0,
+          canClaim: newCanClaim,
         };
       });
     }, 60_000);
     return () => clearInterval(id);
-  }, [canClaim]);
+  }, [canClaim, fetchData]);
 
   const handleClaim = async () => {
     if (!authenticated || claiming) return;
