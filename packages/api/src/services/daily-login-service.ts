@@ -29,6 +29,17 @@ import {
 } from '@babylon/shared';
 import { DistributedLockService } from './distributed-lock-service';
 
+// ─── Errors ──────────────────────────────────────────────────────────────────
+
+export class UserNotFoundError extends Error {
+  readonly code = 'USER_NOT_FOUND' as const;
+
+  constructor(userId: string) {
+    super(`User not found: ${userId}`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface StreakInfo {
@@ -99,10 +110,31 @@ export function getNextMilestone(streak: number): {
   nextMilestone: number;
   daysUntilMilestone: number;
 } {
-  const next = MILESTONES.find((m) => streak < m.days);
+  // Clamp to 0 to handle negative input defensively (e.g., corrupted data)
+  const safeStreak = Math.max(0, streak);
+  const next = MILESTONES.find((m) => safeStreak < m.days);
   return next
-    ? { nextMilestone: next.days, daysUntilMilestone: next.days - streak }
+    ? { nextMilestone: next.days, daysUntilMilestone: next.days - safeStreak }
     : { nextMilestone: 0, daysUntilMilestone: 0 };
+}
+
+/**
+ * Builds a ClaimResult with sensible defaults for error/incomplete cases.
+ * Exported for testing purposes.
+ */
+export function buildClaimResult(
+  partial: Partial<ClaimResult> & { streak: number }
+): ClaimResult {
+  return {
+    success: false,
+    reward: 0,
+    milestoneBonus: 0,
+    totalAwarded: 0,
+    nextReward: getDailyReward(partial.streak + 1),
+    ...getNextMilestone(partial.streak),
+    streakReset: false,
+    ...partial,
+  };
 }
 
 export function getClaimStatus(lastClaim: Date | null): ClaimStatus {
@@ -115,7 +147,8 @@ export function getClaimStatus(lastClaim: Date | null): ClaimStatus {
     };
   }
 
-  const elapsed = Date.now() - lastClaim.getTime();
+  // Clamp to 0 to handle clock skew (lastClaim in the future)
+  const elapsed = Math.max(0, Date.now() - lastClaim.getTime());
   const { MIN_CLAIM_INTERVAL_MS, GRACE_PERIOD_MS } = DAILY_LOGIN;
 
   if (elapsed < MIN_CLAIM_INTERVAL_MS) {
@@ -171,7 +204,7 @@ export class DailyLoginService {
         .where(eq(users.id, userId))
         .limit(1);
 
-      if (!user) throw new Error(`User not found: ${userId}`);
+      if (!user) throw new UserNotFoundError(userId);
 
       const status = getClaimStatus(user.lastDailyLogin);
       // Use effective streak (0 if expired) for all calculations to avoid
@@ -228,22 +261,9 @@ export class DailyLoginService {
   }
 
   static async claimDailyReward(userId: string): Promise<ClaimResult> {
-    const buildResult = (
-      partial: Partial<ClaimResult> & { streak: number }
-    ): ClaimResult => ({
-      success: false,
-      reward: 0,
-      milestoneBonus: 0,
-      totalAwarded: 0,
-      nextReward: getDailyReward(partial.streak + 1),
-      ...getNextMilestone(partial.streak),
-      streakReset: false,
-      ...partial,
-    });
-
     // Validate userId format before querying
     if (!userId || typeof userId !== 'string' || !isValidSnowflakeId(userId)) {
-      return buildResult({ streak: 0, error: 'Invalid userId format' });
+      return buildClaimResult({ streak: 0, error: 'Invalid userId format' });
     }
 
     // Acquire distributed lock to prevent concurrent claims by same user
@@ -259,7 +279,7 @@ export class DailyLoginService {
     });
 
     if (!lockAcquired) {
-      return buildResult({
+      return buildClaimResult({
         streak: 0,
         error: 'Another claim is in progress. Please try again.',
       });
@@ -269,7 +289,8 @@ export class DailyLoginService {
       // All reads, checks, and updates happen inside the protected section
       // to prevent TOCTOU race conditions
       const result = await db.transaction(async (tx) => {
-        // Read current user state INSIDE transaction
+        // Read current user state INSIDE transaction with FOR UPDATE lock
+        // to prevent concurrent balance mutations between read and update
         const [user] = await tx
           .select({
             dailyLoginStreak: users.dailyLoginStreak,
@@ -280,17 +301,18 @@ export class DailyLoginService {
           })
           .from(users)
           .where(eq(users.id, userId))
-          .limit(1);
+          .limit(1)
+          .for('update');
 
         if (!user) {
-          return buildResult({ streak: 0, error: 'User not found' });
+          return buildClaimResult({ streak: 0, error: 'User not found' });
         }
 
         // Check eligibility INSIDE transaction
         const status = getClaimStatus(user.lastDailyLogin);
 
         if (!status.canClaim) {
-          return buildResult({
+          return buildClaimResult({
             streak: Math.max(0, user.dailyLoginStreak),
             error: 'Cannot claim yet - must wait 24 hours between claims',
           });
