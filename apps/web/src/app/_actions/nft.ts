@@ -10,18 +10,25 @@ import {
   prepareMint,
 } from '@babylon/api/services/nft-mint-service';
 import { ValidationError } from '@babylon/shared';
-import { cookies } from 'next/headers';
 import type { Address, Hex } from 'viem';
 
-async function requirePrivyToken(explicitToken?: string): Promise<string> {
-  if (explicitToken) return explicitToken;
-  const token = (await cookies()).get('privy-token')?.value;
-  if (!token) throw new Error('Unauthorized');
-  return token;
-}
+import { requirePrivyToken } from './utils';
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Exponential backoff sleep with jitter for polling.
+ * Starts at baseMs and increases up to maxMs with each attempt.
+ */
+function backoffSleep(
+  attempt: number,
+  baseMs = 1000,
+  maxMs = 5000
+): Promise<void> {
+  // Exponential: 1s, 2s, 4s, 5s (capped), 5s, ...
+  const exponentialDelay = Math.min(baseMs * 2 ** attempt, maxMs);
+  // Add jitter (±10%) to prevent thundering herd
+  const jitter = exponentialDelay * 0.1 * (Math.random() * 2 - 1);
+  const finalDelay = Math.round(exponentialDelay + jitter);
+  return new Promise((resolve) => setTimeout(resolve, finalDelay));
 }
 
 export async function mintNftAction(input?: {
@@ -41,7 +48,9 @@ export async function mintNftAction(input?: {
     chainId: prepare.chainId,
   });
 
-  const maxAttempts = 15;
+  // Poll for transaction confirmation with exponential backoff.
+  // Total timeout ~60 seconds: attempts at 0s, 1s, 3s, 7s, 12s, 17s, 22s, 27s, 32s, 37s, 42s, 47s, 52s, 57s
+  const maxAttempts = 14;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const confirmed = await confirmMint(ctx.dbUserId, hash, prepare.to);
@@ -51,7 +60,7 @@ export async function mintNftAction(input?: {
         error instanceof ValidationError &&
         error.message.startsWith('Transaction not found:')
       ) {
-        await sleep(2000);
+        await backoffSleep(attempt);
         continue;
       }
       throw error;

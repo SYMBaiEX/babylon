@@ -12,7 +12,6 @@ import {
   identityRegistryAbi,
   WALLET_ERROR_MESSAGES,
 } from '@babylon/shared';
-import { cookies } from 'next/headers';
 import {
   type Address,
   encodeFunctionData,
@@ -22,12 +21,7 @@ import {
 } from 'viem';
 import type { AgentProfileMetadata } from '@/hooks/useUpdateAgentProfileTx';
 
-async function requirePrivyToken(explicitToken?: string): Promise<string> {
-  if (explicitToken) return explicitToken;
-  const token = (await cookies()).get('privy-token')?.value;
-  if (!token) throw new Error('Unauthorized');
-  return token;
-}
+import { requirePrivyToken } from './utils';
 
 function marketIdToBytes32(marketId: string): `0x${string}` {
   const bigintValue = BigInt(marketId);
