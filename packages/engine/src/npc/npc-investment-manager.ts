@@ -83,13 +83,57 @@ export class NPCInvestmentManager {
       throw new Error(`Actor state not found: ${poolId} (poolId = actorId)`);
     }
 
-    // Get open positions (closedAt is null)
+    // Get all positions (both open and closed) for this pool
     const positionResults = await db
       .select()
       .from(poolPositions)
       .where(eq(poolPositions.poolId, poolId));
 
-    const openPositions = positionResults.filter((p) => p.closedAt === null);
+    const availableBalance = Number.parseFloat(
+      actorBalance.tradingBalance?.toString() ?? '0'
+    );
+
+    // Get perp positions once and split into open/closed in memory.
+    const perpPositionsResult = await db
+      .select({
+        id: perpPositions.id,
+        ticker: perpPositions.ticker,
+        side: perpPositions.side,
+        size: perpPositions.size,
+        entryPrice: perpPositions.entryPrice,
+        currentPrice: perpPositions.currentPrice,
+        unrealizedPnL: perpPositions.unrealizedPnL,
+        leverage: perpPositions.leverage,
+        realizedPnL: perpPositions.realizedPnL,
+        closedAt: perpPositions.closedAt,
+      })
+      .from(perpPositions)
+      .where(eq(perpPositions.userId, poolId));
+
+    const openPerpPositions = perpPositionsResult.filter(
+      (p) => p.closedAt === null
+    );
+    const closedPerpPositions = perpPositionsResult.filter(
+      (p) => p.closedAt !== null
+    );
+
+    const perpPositionIds = new Set([
+      ...openPerpPositions.map((p) => p.id),
+      ...closedPerpPositions.map((p) => p.id),
+    ]);
+
+    // poolPositions may contain legacy perps; avoid double counting when perps
+    // already exist in perpPositions.
+    const shouldIncludePoolPosition = (position: typeof positionResults[0]) =>
+      position.marketType !== 'perp' || !perpPositionIds.has(position.id);
+
+    const openPositions = positionResults.filter(
+      (p) => p.closedAt === null && shouldIncludePoolPosition(p)
+    );
+    const closedPositions = positionResults.filter(
+      (p) => p.closedAt !== null && shouldIncludePoolPosition(p)
+    );
+
     // Map database PoolPosition to PortfolioPosition interface
     const positions: PortfolioPosition[] = openPositions.map((p) => ({
       id: p.id,
@@ -107,19 +151,67 @@ export class NPCInvestmentManager {
       unrealizedPnL: Number(p.unrealizedPnL),
       leverage: p.leverage ?? undefined,
     }));
-    const availableBalance = Number.parseFloat(
-      actorBalance.tradingBalance?.toString() ?? '0'
+
+    const perpPortfolioPositions: PortfolioPosition[] = openPerpPositions.map(
+      (p) => ({
+        id: p.id,
+        poolId,
+        marketType: 'perp',
+        ticker: p.ticker ?? undefined,
+        side: p.side,
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        currentPrice: Number(p.currentPrice),
+        unrealizedPnL: Number(p.unrealizedPnL),
+        leverage: p.leverage ?? undefined,
+      })
     );
 
-    // Calculate total invested capital (sum of all open position entry values)
-    const totalInvested = positions.reduce((sum, pos) => {
-      return sum + Number.parseFloat(pos.size?.toString() || '0');
+    // Calculate total invested capital (pool positions only)
+    const poolInvested = positions.reduce((sum, pos) => {
+      const size = Number.parseFloat(pos.size?.toString() || '0');
+      if (pos.marketType === 'perp') {
+        const leverage = Number.parseFloat(pos.leverage?.toString() || '1');
+        const effectiveLeverage =
+          Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+        return sum + Math.abs(size / effectiveLeverage);
+      }
+      return sum + Math.abs(size);
     }, 0);
 
+    const perpInvested = openPerpPositions.reduce((sum, pos) => {
+      const size = Number.parseFloat(pos.size?.toString() || '0');
+      const leverage = Number.parseFloat(pos.leverage?.toString() || '1');
+      const effectiveLeverage =
+        Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+      return sum + Math.abs(size / effectiveLeverage);
+    }, 0);
+
+    const totalInvested = poolInvested + perpInvested;
+
     // Calculate unrealized PnL from open positions
-    const unrealizedPnL = positions.reduce((sum, pos) => {
+    const poolUnrealizedPnL = positions.reduce((sum, pos) => {
       return sum + Number.parseFloat(pos.unrealizedPnL?.toString() || '0');
     }, 0);
+
+    const perpUnrealizedPnL = openPerpPositions.reduce((sum, pos) => {
+      return sum + Number.parseFloat(pos.unrealizedPnL?.toString() || '0');
+    }, 0);
+
+    const unrealizedPnL = poolUnrealizedPnL + perpUnrealizedPnL;
+
+    // Calculate realized PnL from closed pool positions
+    const realizedPnLFromPool = closedPositions.reduce((sum, pos) => {
+      return sum + Number.parseFloat(pos.realizedPnL?.toString() || '0');
+    }, 0);
+
+    // Calculate realized PnL from closed perp positions
+    const realizedPnLFromPerp = closedPerpPositions.reduce((sum, pos) => {
+      return sum + Number.parseFloat(pos.realizedPnL?.toString() || '0');
+    }, 0);
+
+    // Total realized PnL
+    const realizedPnL = realizedPnLFromPool + realizedPnLFromPerp;
 
     // Calculate total portfolio value
     const totalValue = availableBalance + totalInvested + unrealizedPnL;
@@ -127,9 +219,11 @@ export class NPCInvestmentManager {
     // Calculate utilization (how much capital is deployed)
     const utilization = totalValue > 0 ? (totalInvested / totalValue) * 100 : 0;
 
+    const allOpenPositions = [...positions, ...perpPortfolioPositions];
+
     // Calculate risk score based on leverage and concentration
     const riskScore = NPCInvestmentManager.calculateRiskScore(
-      positions,
+      allOpenPositions,
       totalValue
     );
 
@@ -137,8 +231,8 @@ export class NPCInvestmentManager {
       totalValue,
       availableBalance,
       unrealizedPnL,
-      realizedPnL: 0, // Could track from trade history
-      positionCount: positions.length,
+      realizedPnL,
+      positionCount: allOpenPositions.length,
       utilization,
       riskScore,
     };
