@@ -582,14 +582,17 @@ describe('Idempotency Check Logic', () => {
 
 describe('POST Handler Integration', () => {
   // Import the POST handler dynamically to ensure mocks are applied
-  let POST: (request: Request) => Promise<Response>;
-  let GET: (request: Request) => Promise<Response>;
+  // Using 'any' type as the route handlers use NextRequest/NextResponse
+  // which are not compatible with the base Request/Response types
+  // biome-ignore lint/suspicious/noExplicitAny: NextRequest/NextResponse type mismatch
+  let POST: (request: any) => Promise<any>;
+  // biome-ignore lint/suspicious/noExplicitAny: NextRequest/NextResponse type mismatch
+  let GET: (request: any) => Promise<any>;
 
   beforeAll(async () => {
     // Dynamic import after mocks are set up
-    const routeModule = await import(
-      '@babylon/web/src/app/api/cron/markets-tick/route'
-    );
+    // Using @/app/* path alias defined in tsconfig.json
+    const routeModule = await import('@/app/api/cron/markets-tick/route');
     POST = routeModule.POST;
     GET = routeModule.GET;
   });

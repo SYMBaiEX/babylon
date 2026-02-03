@@ -1930,10 +1930,8 @@ function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
  * allowing accurate gap-filling with correct durations.
  *
  * Uses threshold-based matching with 10% tolerance to handle minor variations.
- *
- * Exported for testing purposes.
  */
-export function inferGranularTimeframe(durationMs: number): string {
+function inferGranularTimeframe(durationMs: number): string {
   // Sort entries by duration ascending to find the best match
   const sortedEntries = Object.entries(MARKET_STRUCTURE).sort(
     (a, b) => a[1].durationMs - b[1].durationMs

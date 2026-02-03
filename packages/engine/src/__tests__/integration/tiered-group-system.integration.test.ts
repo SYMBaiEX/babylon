@@ -461,3 +461,30 @@ describe('Tier Capacity and Fill Rate', () => {
     expect(tier3!.maxMembers).toBe(500);
   });
 });
+
+describe('Minimum Group Protection', () => {
+  afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  test('user assigned 3 default groups should be at protection threshold', async () => {
+    const user = await createTestUser({ displayName: 'Protected User' });
+
+    // Assign exactly 3 default groups
+    const assignResult =
+      await UserAlphaGroupAssignmentService.assignDefaultGroups(user.id);
+
+    expect(assignResult.success).toBe(true);
+    expect(assignResult.groupsAssigned).toBe(3);
+
+    // User has been assigned exactly 3 groups (the minimum/default)
+    // This means they should be protected from being kicked below this threshold
+    expect(assignResult.groupsAssigned).toBe(
+      UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS
+    );
+  });
+
+  test('TARGET_DEFAULT_GROUPS should be 3', () => {
+    expect(UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS).toBe(3);
+  });
+});
