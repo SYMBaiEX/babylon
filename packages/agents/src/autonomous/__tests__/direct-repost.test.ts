@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from 'bun:test';
 const mockPost = {
   id: 'post-1',
   authorId: 'user-1',
-  content: 'original content',
+  content: '',
   originalPostId: 'post-0',
 };
 
@@ -119,5 +119,54 @@ describe('executeDirectRepost', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('Cannot repost a repost');
     expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  test('allows reposting an original post', async () => {
+    // Create a mock for an original post (no originalPostId)
+    const originalPost = {
+      id: 'post-original',
+      authorId: 'user-1',
+      content: 'Original content',
+      originalPostId: null,
+    };
+
+    // Override the select mock for this test to return original post
+    const mockDbSuccess = {
+      select: mock(() => ({
+        from: mock(() => ({
+          where: mock(() => ({
+            limit: mock(async () => [originalPost]),
+          })),
+        })),
+      })),
+      transaction: mock(async (callback: (tx: unknown) => Promise<void>) => {
+        // Simulate successful transaction
+        await callback({
+          insert: mock(() => ({ values: mock(async () => undefined) })),
+        });
+        return undefined;
+      }),
+    };
+
+    // Temporarily replace the db mock
+    const originalSelect = mockDb.select;
+    const originalTransaction = mockDb.transaction;
+    mockDb.select = mockDbSuccess.select;
+    mockDb.transaction = mockDbSuccess.transaction as typeof mockDb.transaction;
+
+    try {
+      const result = await executeDirectRepost({
+        agentUserId: 'user-2',
+        postId: 'post-original',
+        comment: undefined,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDbSuccess.transaction).toHaveBeenCalled();
+    } finally {
+      // Restore original mocks
+      mockDb.select = originalSelect;
+      mockDb.transaction = originalTransaction;
+    }
   });
 });
