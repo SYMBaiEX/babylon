@@ -51,7 +51,9 @@ const APP_PUBLIC_PREFIX_ALLOWLIST = [
 
 function isAppPublicAllowlistedPath(pathname: string): boolean {
   if (APP_PUBLIC_EXACT_ALLOWLIST.has(pathname)) return true;
-  return APP_PUBLIC_PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix));
+  return APP_PUBLIC_PREFIX_ALLOWLIST.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
 }
 
 /**
@@ -216,7 +218,10 @@ function isNftAccessResponse(
   value: unknown
 ): value is { success: true; data: { hasAccess: boolean } } {
   if (typeof value !== 'object' || value === null) return false;
-  if (!('success' in value) || (value as { success: unknown }).success !== true) {
+  if (
+    !('success' in value) ||
+    (value as { success: unknown }).success !== true
+  ) {
     return false;
   }
   if (!('data' in value)) return false;
@@ -309,7 +314,10 @@ export function middleware(request: NextRequest) {
 
   const cookieHeader = request.headers.get('cookie') ?? '';
   const authHeader = request.headers.get('authorization') ?? '';
-  const accessUrl = new URL('/api/nft/access', request.nextUrl.origin).toString();
+  const accessUrl = new URL(
+    '/api/nft/access',
+    request.nextUrl.origin
+  ).toString();
 
   const responsePromise = (async () => {
     const res = await fetch(accessUrl, {

@@ -19,4 +19,3 @@ export function getWaitlistHostnames(): Set<string> {
 export function isWaitlistHostname(hostname: string): boolean {
   return getWaitlistHostnames().has(hostname.toLowerCase());
 }
-

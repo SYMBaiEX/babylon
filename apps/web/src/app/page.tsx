@@ -1,9 +1,9 @@
 import { isNftGatingEnabled } from '@babylon/shared';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { HomePageClient } from './HomePageClient';
 import { ComingSoon } from '@/components/shared/ComingSoon';
 import { isWaitlistHostname } from '@/lib/host-routing';
+import { HomePageClient } from './HomePageClient';
 
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

@@ -4,7 +4,9 @@ import {
   NftIndexerUnavailableError,
 } from './nft-indexer-service';
 
-async function hasDbNftOrClaimAccessFallback(dbUserId: string): Promise<boolean> {
+async function hasDbNftOrClaimAccessFallback(
+  dbUserId: string
+): Promise<boolean> {
   const [owned] = await db
     .select({ tokenId: nftOwnership.tokenId })
     .from(nftOwnership)
