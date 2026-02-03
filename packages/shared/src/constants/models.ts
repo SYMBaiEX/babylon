@@ -39,12 +39,12 @@ export interface GroqModelConfig {
  * To change models, update the modelId values here.
  */
 export const GROQ_MODELS = {
-  /** Free tier model - fast and efficient */
+  /** Free tier model - versatile with tool calling support */
   FREE: {
-    displayName: 'GPT-OSS 20B',
-    modelId: 'openai/gpt-oss-20b',
+    displayName: 'Llama 70B',
+    modelId: 'llama-3.3-70b-versatile',
     tier: 'free',
-    description: 'Fast and efficient for everyday tasks',
+    description: 'Fast and capable with tool calling support',
   },
   /** Pro tier model - more capable */
   PRO: {
