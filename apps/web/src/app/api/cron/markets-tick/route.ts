@@ -160,8 +160,6 @@ const SYSTEM_MARKET_FEES = {
 /**
  * Market structure configuration - maintains exactly 10 active markets
  * with staggered timeframes for constant activity.
- *
- * Exported for testing purposes.
  */
 const MARKET_STRUCTURE: Record<
   string,
@@ -1930,8 +1928,6 @@ function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
  * allowing accurate gap-filling with correct durations.
  *
  * Uses threshold-based matching with 10% tolerance to handle minor variations.
- *
- * Exported for testing purposes.
  */
 function inferGranularTimeframe(durationMs: number): string {
   // Sort entries by duration ascending to find the best match
