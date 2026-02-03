@@ -1,13 +1,7 @@
 'use client';
 
-import type { OnboardingProfilePayload } from '@babylon/shared';
-import {
-  CHAIN,
-  getWalletErrorMessage,
-  logger,
-  POINTS,
-  WALLET_ERROR_MESSAGES,
-} from '@babylon/shared';
+import type { JsonValue, OnboardingProfilePayload } from '@babylon/shared';
+import { getWalletErrorMessage, logger, POINTS } from '@babylon/shared';
 import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
 import {
   useCallback,
@@ -22,18 +16,8 @@ import {
   OnboardingModal,
 } from '@/components/onboarding/OnboardingModal';
 import { useAuth } from '@/hooks/useAuth';
-import { useRegisterAgentTx } from '@/hooks/useRegisterAgentTx';
-import { apiFetch } from '@/utils/api-fetch';
-
-/**
- * Check if we're on a local network where smart wallets aren't supported.
- * Smart wallets (ERC-4337) require bundler infrastructure that only exists
- * on supported chains like Base/Base Sepolia, not on local Hardhat networks.
- */
-const isLocalNetwork = CHAIN.id === 31337;
-
-import type { JsonValue } from '@babylon/shared';
 import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
+import { apiFetch } from '@/utils/api-fetch';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
@@ -77,11 +61,12 @@ export function OnboardingProvider({
     needsOnboarding,
     needsOnchain,
     loadingProfile,
+    embeddedWalletReady,
     refresh,
     logout,
   } = useAuth();
 
-  const { user: privyUser } = usePrivy();
+  const { user: privyUser, getAccessToken } = usePrivy();
 
   // Detect if user authenticated via social login (Farcaster or Twitter)
   // These users skip the PROFILE stage - their data is auto-imported
@@ -98,8 +83,6 @@ export function OnboardingProvider({
 
   const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore();
   const { identityToken } = useIdentityToken();
-  const { registerAgent, smartWalletAddress, smartWalletReady } =
-    useRegisterAgentTx();
 
   const [stage, setStage] = useState<OnboardingStage>('PROFILE');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,8 +98,7 @@ export function OnboardingProvider({
   const [onchainReferralCode, setOnchainReferralCode] = useState<string | null>(
     null
   );
-  // Store last client-submitted registration txHash so retries can sync without re-signing
-  const [onchainTxHash, setOnchainTxHash] = useState<string | null>(null);
+  // Server-side tx flow: no client txHash caching required.
 
   // Track if social user auto-submit is currently in-flight (prevents StrictMode double-invoke)
   const socialAutoSubmitRef = useRef(false);
@@ -258,8 +240,7 @@ export function OnboardingProvider({
         if (data.user) {
           setUser({
             id: data.user.id,
-            walletAddress:
-              data.user.walletAddress ?? smartWalletAddress ?? undefined,
+            walletAddress: data.user.walletAddress ?? undefined,
             displayName: data.user.displayName ?? payload.displayName,
             email: user?.email,
             username: data.user.username ?? payload.username,
@@ -288,7 +269,6 @@ export function OnboardingProvider({
         clearReferralCode();
         setSubmittedProfile(payload);
         setOnchainReferralCode(referralCode ?? null);
-        setOnchainTxHash(null);
         setPendingOnchainSubmission({ ...payload });
         setStage('ONCHAIN');
         setIsSubmitting(false);
@@ -298,14 +278,7 @@ export function OnboardingProvider({
         throw err;
       }
     },
-    [
-      user,
-      setUser,
-      setNeedsOnboarding,
-      setNeedsOnchain,
-      identityToken,
-      smartWalletAddress,
-    ]
+    [user, setUser, setNeedsOnboarding, setNeedsOnchain, identityToken]
   );
 
   useEffect(() => {
@@ -317,7 +290,6 @@ export function OnboardingProvider({
       setHasProgressedPastSocialImport(false);
       setPendingOnchainSubmission(null);
       setOnchainReferralCode(null);
-      setOnchainTxHash(null);
       socialAutoSubmitRef.current = false;
       setSocialAutoSubmitAttempted(false);
       onchainSubmitInFlightRef.current = false;
@@ -621,15 +593,15 @@ export function OnboardingProvider({
         return;
       }
 
-      const body = {
-        walletAddress: smartWalletAddress ?? null,
-        referralCode: referralCode ?? null,
-      };
+      const callEndpoint = async (payload: Record<string, JsonValue>) => {
+        const accessToken = await getAccessToken().catch(() => null);
 
-      const callEndpoint = async (payload: Record<string, string | null>) => {
         const response = await apiFetch('/api/users/onboarding/onchain', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
           body: JSON.stringify(payload),
         });
 
@@ -682,93 +654,25 @@ export function OnboardingProvider({
         setNeedsOnboarding(false);
         setNeedsOnchain(false);
         setStage('COMPLETED');
-        setOnchainTxHash(null);
         void refresh().catch(() => undefined);
       };
 
-      const completeWithClient = async () => {
-        // On local networks (Hardhat), smart wallets (ERC-4337) don't work because
-        // there's no bundler infrastructure. Fall back to backend-signed transactions.
-        if (isLocalNetwork) {
-          logger.info(
-            'Local network detected - using backend-signed registration (no bundler available)',
-            { chainId: CHAIN.id },
-            'OnboardingProvider'
-          );
-          const data = await callEndpoint(body);
-          applyResponse(data);
-          return;
-        }
-
-        if (!smartWalletReady || !smartWalletAddress) {
-          throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-        }
-
-        // If we already have a tx hash from a previous attempt, reuse it so the
-        // user doesn't need to sign a second time just to sync backend state.
-        if (onchainTxHash) {
-          logger.info(
-            'Reusing existing on-chain registration txHash for backend sync',
-            { txHash: onchainTxHash },
-            'OnboardingProvider'
-          );
-          const data = await callEndpoint({
-            ...body,
-            txHash: onchainTxHash,
-          });
-          applyResponse(data);
-          return;
-        }
-
-        logger.info(
-          'Attempting client-signed on-chain registration',
-          { address: smartWalletAddress },
-          'OnboardingProvider'
-        );
-
-        // Check if wallet is already registered before submitting transaction
-        // If already registered, the server will handle syncing the state
-        const registrationResult = await registerAgent(profile).catch(
-          (txError: Error) => {
-            const errorMessage = txError.message.toLowerCase();
-            // If the error is "already registered", don't throw - let the server handle it
-            if (errorMessage.includes('already registered')) {
-              logger.info(
-                'Wallet already registered on-chain, syncing with server',
-                { address: smartWalletAddress },
-                'OnboardingProvider'
-              );
-              return 'already-registered';
-            }
-            // For other errors, re-throw
-            throw txError;
-          }
-        );
-
-        if (registrationResult === 'already-registered') {
-          // Call the endpoint without a txHash - server will detect existing registration
-          const data = await callEndpoint(body);
-          applyResponse(data);
-          return;
-        }
-
-        const txHash = registrationResult as string;
-        // Persist txHash immediately so a server/network error won't force a re-sign
-        setOnchainTxHash(txHash);
-        logger.info(
-          'Client-submitted on-chain registration transaction',
-          { txHash },
-          'OnboardingProvider'
-        );
-
-        const data = await callEndpoint({
-          ...body,
-          txHash,
-        });
-        applyResponse(data);
-      };
-
-      const response = await completeWithClient().catch((rawError: Error) => {
+      const response = await callEndpoint({
+        referralCode: referralCode ?? null,
+        username: profile.username,
+        displayName: profile.displayName ?? null,
+        email: profile.email ?? null,
+        bio: profile.bio ?? null,
+        profileImageUrl: profile.profileImageUrl ?? null,
+        coverImageUrl: profile.coverImageUrl ?? null,
+        importedFrom: profile.importedFrom ?? null,
+        twitterId: profile.twitterId ?? null,
+        twitterUsername: profile.twitterUsername ?? null,
+        farcasterFid: profile.farcasterFid ?? null,
+        farcasterUsername: profile.farcasterUsername ?? null,
+        tosAccepted: profile.tosAccepted ?? null,
+        privacyPolicyAccepted: profile.privacyPolicyAccepted ?? null,
+      }).catch((rawError: Error) => {
         // Use wallet-aware error message
         const userFriendlyMessage = getWalletErrorMessage(rawError);
         setError(userFriendlyMessage);
@@ -781,24 +685,20 @@ export function OnboardingProvider({
       });
 
       if (!response) return;
+      applyResponse(response);
     },
     [
-      onchainTxHash,
-      smartWalletReady,
+      getAccessToken,
       refresh,
-      registerAgent,
       setNeedsOnboarding,
       setNeedsOnchain,
       setUser,
-      smartWalletAddress,
       user,
     ]
   );
 
   useLayoutEffect(() => {
-    // On local networks, we use backend signing so smart wallet isn't required
-    const walletReady =
-      isLocalNetwork || (smartWalletReady && smartWalletAddress);
+    const walletReady = embeddedWalletReady;
 
     if (
       stage !== 'ONCHAIN' ||
@@ -823,11 +723,10 @@ export function OnboardingProvider({
   }, [
     stage,
     pendingOnchainSubmission,
-    smartWalletReady,
-    smartWalletAddress,
     isSubmitting,
     submitOnchain,
     onchainReferralCode,
+    embeddedWalletReady,
   ]);
 
   const handleRetryOnchain = useCallback(async () => {
@@ -862,7 +761,7 @@ export function OnboardingProvider({
         stage={stage}
         isSubmitting={isSubmitting}
         error={error}
-        isWalletReady={Boolean(smartWalletReady && smartWalletAddress)}
+        isWalletReady={embeddedWalletReady}
         onSubmitProfile={handleProfileSubmit}
         onRetryOnchain={handleRetryOnchain}
         onComplete={handleComplete}

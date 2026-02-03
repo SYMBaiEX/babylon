@@ -223,6 +223,16 @@ export {
 } from './redis';
 // Services
 export * from './services';
+export {
+  type AuthedPrivyUserContext,
+  getAuthedUserContextFromPrivyToken,
+} from './services/privy/authed-user';
+export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
+// Privy (embedded wallet server-side helpers)
+export {
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
+} from './services/privy/user-wallets';
 // SSE Event Broadcasting
 export {
   type AgentActivityEvent,

@@ -910,7 +910,7 @@ export function OnboardingModal({
                   {!isWalletReady && (
                     <div className="flex items-center gap-2 text-amber-500 text-sm">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Preparing your smart wallet...</span>
+                      <span>Preparing your wallet...</span>
                     </div>
                   )}
                   <button

@@ -96,6 +96,8 @@ import {
   InternalServerError,
   notifyNewAccount,
   PointsService,
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
@@ -140,78 +142,9 @@ interface SignupRequestBody {
   privacyPolicyAccepted?: boolean;
 }
 
-type PrivyWalletLite = {
-  id?: string | null;
-  address?: string;
-  chainType?: string;
-  chain_type?: string;
-  walletClientType?: string | null;
-  wallet_client?: string | null;
-  type?: string | null;
-};
-
-type PrivyUserWithSmartWallet = PrivyUser &
-  PrivyUserWithEmails & {
-    smartWallet?: { address?: string | null };
-    wallet?: PrivyWalletLite;
-    linkedAccounts?: PrivyWalletLite[];
-    linked_accounts?: PrivyWalletLite[];
-  };
-
-function pickSmartWalletAddress(user: PrivyUserWithSmartWallet): string | null {
-  const direct = user.smartWallet?.address?.toLowerCase() ?? null;
-  if (direct) return direct;
-
-  const accounts = [
-    ...(user.linkedAccounts ?? []),
-    ...(user.linked_accounts ?? []),
-  ];
-  const smartWallet = accounts.find(
-    (a) => a.type === 'smart_wallet' && typeof a.address === 'string'
-  );
-  return smartWallet?.address?.toLowerCase() ?? null;
-}
-
-function pickEmbeddedEvmWallet(
-  user: PrivyUserWithSmartWallet
-): PrivyWalletLite | null {
-  const candidates: PrivyWalletLite[] = [];
-  if (user.wallet) candidates.push(user.wallet);
-  for (const acc of user.linkedAccounts ?? []) {
-    if (acc?.type === 'wallet') candidates.push(acc);
-  }
-  for (const acc of user.linked_accounts ?? []) {
-    if (acc?.type === 'wallet') candidates.push(acc);
-  }
-  return (
-    candidates.find(
-      (w) =>
-        (w.walletClientType === 'privy' ||
-          w.wallet_client === 'privy' ||
-          Boolean(w.id)) &&
-        (!(w.chainType ?? w.chain_type) ||
-          (w.chainType ?? w.chain_type) === 'ethereum') &&
-        typeof w.address === 'string'
-    ) ?? null
-  );
-}
-
-async function ensureSmartWalletAddress(
-  privyClient: ReturnType<typeof getPrivyClient>,
-  privyId: string
-): Promise<{
-  smartWalletAddress: string | null;
-  embeddedWalletAddress: string | null;
-}> {
-  const user = (await privyClient.getUser(privyId)) as PrivyUserWithSmartWallet;
-  const smartWalletAddress = pickSmartWalletAddress(user);
-  const embeddedWallet = pickEmbeddedEvmWallet(user);
-
-  return {
-    smartWalletAddress,
-    embeddedWalletAddress: embeddedWallet?.address?.toLowerCase() ?? null,
-  };
-}
+type PrivyUserWithWallets = PrivyUser &
+  PrivyUserWithEmails &
+  PrivyUserWalletsLite;
 
 const SignupSchema = OnboardingProfileSchema.extend({
   identityToken: z
@@ -240,8 +173,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
   const privyId = authUser.privyId ?? authUser.userId;
-  // Prefer Privy smart wallet (AA) address over legacy/linked wallets
+  // Embedded-wallet-only: persist the embedded wallet (EOA) as the user's onchain identity.
   let walletAddress = authUser.walletAddress?.toLowerCase() ?? null;
+  let privyWalletId: string | null = null;
 
   // Capture and hash IP address for self-referral detection
   const registrationIpHash = getHashedClientIp(request.headers);
@@ -258,7 +192,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const privyClient = getPrivyClient();
     const identityUser = (await privyClient.getUserFromIdToken(
       identityToken
-    )) as PrivyUserWithSmartWallet;
+    )) as PrivyUserWithWallets;
 
     identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
     identityTwitterUsername = identityUser.twitter?.username ?? undefined;
@@ -277,15 +211,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const importedTwitter = parsedProfile.importedFrom === 'twitter';
   const importedFarcaster = parsedProfile.importedFrom === 'farcaster';
 
-  // Ensure smart wallet exists and prefer its address for DB persistence
   const privyClient = getPrivyClient();
-  const { smartWalletAddress, embeddedWalletAddress } =
-    await ensureSmartWalletAddress(privyClient, privyId);
-  walletAddress =
-    smartWalletAddress ??
-    embeddedWalletAddress ??
-    authUser.walletAddress?.toLowerCase() ??
-    null;
+  const privyUser = (await privyClient.getUser(
+    privyId
+  )) as PrivyUserWithWallets;
+  const embedded = pickEmbeddedEvmWallet(privyUser);
+  privyWalletId = embedded?.walletId ?? null;
+  walletAddress = embedded?.address?.toLowerCase() ?? walletAddress ?? null;
 
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
@@ -377,6 +309,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           bio: parsedProfile.bio ?? '',
           profileImageUrl: parsedProfile.profileImageUrl ?? null,
           coverImageUrl: parsedProfile.coverImageUrl ?? null,
+          privyWalletId,
           walletAddress,
           profileComplete: true,
           profileSetupCompletedAt: new Date(), // Track when profile was completed

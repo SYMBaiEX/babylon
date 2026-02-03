@@ -2,7 +2,6 @@
 
 import { logger, privyConfig } from '@babylon/shared';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
-import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import { Fragment, Suspense, useEffect, useRef, useState } from 'react';
@@ -183,7 +182,7 @@ function ThemedPrivyProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PrivyProviderWrapper appId={privyConfig.appId} config={config}>
-      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      {children}
     </PrivyProviderWrapper>
   );
 }

@@ -1,56 +1,45 @@
-import { CHAIN } from '@babylon/shared';
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
 import { useCallback } from 'react';
 import type { Address } from 'viem';
-import { useSmartWallet } from '@/hooks/useSmartWallet';
+import { sendSponsoredEthTransferAction } from '@/app/_actions/onchain';
+import { useAuth } from '@/hooks/useAuth';
 
-/**
- * Input for sending a points payment transaction.
- */
 interface PointsPaymentInput {
-  /** The recipient address */
   to: Address;
-  /** The amount to send in wei (can be bigint, string, or number) */
   amountWei: bigint | string | number;
 }
 
 /**
- * Hook for sending points payment transactions via smart wallet.
+ * Hook for sending points payment transactions.
  *
- * Enables users to purchase points by sending ETH to the points contract.
- * Transactions are executed through the smart wallet, enabling gasless
- * transactions when using an embedded wallet.
- *
- * @returns An object containing the `sendPointsPayment` function for executing
- * point purchase transactions.
- *
- * @example
- * ```tsx
- * const { sendPointsPayment } = useBuyPointsTx();
- *
- * const handlePurchase = async () => {
- *   const txHash = await sendPointsPayment({
- *     to: POINTS_CONTRACT_ADDRESS,
- *     amountWei: parseEther('0.1')
- *   });
- *   console.log('Transaction sent:', txHash);
- * };
- * ```
+ * Uses a server-side sponsored transaction flow (Privy embedded wallet + server actions).
+ * Note: Sponsorship covers gas, but the wallet must still hold the transferred value.
  */
 export function useBuyPointsTx() {
-  const { sendSmartWalletTransaction } = useSmartWallet();
+  const { embeddedWalletReady, embeddedWalletAddress, getAccessToken } =
+    useAuth();
 
   const sendPointsPayment = useCallback(
     async ({ to, amountWei }: PointsPaymentInput) => {
+      if (!embeddedWalletReady || !embeddedWalletAddress) {
+        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+      }
       const normalizedValue =
         typeof amountWei === 'bigint' ? amountWei : BigInt(amountWei);
 
-      return await sendSmartWalletTransaction({
+      const userJwt = await getAccessToken().catch(() => null);
+      if (!userJwt) {
+        throw new Error('Authentication required');
+      }
+
+      const { txHash } = await sendSponsoredEthTransferAction({
         to,
-        value: normalizedValue,
-        chain: CHAIN,
+        amountWei: normalizedValue.toString(),
+        userJwt,
       });
+      return txHash;
     },
-    [sendSmartWalletTransaction]
+    [embeddedWalletReady, embeddedWalletAddress, getAccessToken]
   );
 
   return { sendPointsPayment };

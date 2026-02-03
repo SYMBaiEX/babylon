@@ -163,7 +163,7 @@ const SYSTEM_MARKET_FEES = {
  *
  * Exported for testing purposes.
  */
-export const MARKET_STRUCTURE: Record<
+const MARKET_STRUCTURE: Record<
   string,
   { count: number; durationMs: number; label: string }
 > = {
@@ -1933,7 +1933,7 @@ function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
  *
  * Exported for testing purposes.
  */
-export function inferGranularTimeframe(durationMs: number): string {
+function inferGranularTimeframe(durationMs: number): string {
   // Sort entries by duration ascending to find the best match
   const sortedEntries = Object.entries(MARKET_STRUCTURE).sort(
     (a, b) => a[1].durationMs - b[1].durationMs
