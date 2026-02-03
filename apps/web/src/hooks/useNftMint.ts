@@ -146,40 +146,47 @@ export function useNftMint(): UseNftMintResult {
 
     setFlowState('minting');
 
-    let result: { txHash: string } & MintConfirmResponse;
     try {
       const userJwt = await getAccessToken().catch(() => null);
       if (!userJwt) {
         handleError('Authentication failed');
         return;
       }
-      result = await mintNftAction({ userJwt });
+
+      const result = await mintNftAction({ userJwt });
+
+      if (result.status === 'pending') {
+        // Transaction submitted but not yet confirmed
+        // Show a different toast and let user know they can check later
+        toast.info(result.message, { duration: 10000 });
+        setFlowState('eligible'); // Reset to eligible state so they can try again later
+        return;
+      }
+
+      // Transaction confirmed - update state with minted NFT
+      setMintedNft(result.nft);
+      setFlowState('revealing');
+      setEligibility((prev) =>
+        prev
+          ? {
+              ...prev,
+              hasMinted: true,
+              status: 'already_minted',
+              mintedNft: {
+                tokenId: result.nft.tokenId,
+                name: result.nft.name,
+                thumbnailUrl: result.nft.thumbnailUrl ?? result.nft.imageUrl,
+                txHash: result.txHash,
+              },
+            }
+          : null
+      );
+
+      toast.success('NFT minted successfully!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Transaction failed';
       handleError(message);
-      return;
     }
-
-    // Update state with minted NFT
-    setMintedNft(result.nft);
-    setFlowState('revealing');
-    setEligibility((prev) =>
-      prev
-        ? {
-            ...prev,
-            hasMinted: true,
-            status: 'already_minted',
-            mintedNft: {
-              tokenId: result.nft.tokenId,
-              name: result.nft.name,
-              thumbnailUrl: result.nft.thumbnailUrl ?? result.nft.imageUrl,
-              txHash: result.txHash,
-            },
-          }
-        : null
-    );
-
-    toast.success('NFT minted successfully!');
   }, [authenticated, eligibility, getAccessToken]);
 
   const resetFlow = useCallback(() => {

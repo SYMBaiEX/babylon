@@ -1,4 +1,4 @@
-import { CHAIN } from '@babylon/shared';
+import { CHAIN, logger } from '@babylon/shared';
 import type { AuthorizationContext } from '@privy-io/node';
 import type { Address, Hex } from 'viem';
 import { getPrivyNodeClient } from './privy-node';
@@ -48,6 +48,21 @@ function decodeJwtPayload(token: string): PrivyJwtPayload | null {
   }
 }
 
+/**
+ * Sends a sponsored EVM transaction on behalf of a user via Privy's server-side wallet flow.
+ *
+ * Gas is covered by Privy's native sponsorship (`sponsor: true`), but any ETH value
+ * transfers still require the user's wallet to hold sufficient funds.
+ *
+ * @param userJwt - The user's Privy access token (JWT) for authorization
+ * @param walletId - The Privy wallet resource ID (stored in users.privyWalletId)
+ * @param to - The destination contract/address
+ * @param data - Optional encoded function call data
+ * @param valueWei - Optional ETH value to transfer (in wei)
+ * @param caip2 - Optional CAIP-2 chain identifier (defaults to current chain)
+ * @param chainId - Optional numeric chain ID (defaults to current chain)
+ * @returns Transaction hash and CAIP-2 identifier
+ */
 export async function sendSponsoredEvmTransaction({
   userJwt,
   walletId,
@@ -60,7 +75,7 @@ export async function sendSponsoredEvmTransaction({
   const payload = decodeJwtPayload(userJwt);
   if (!payload) {
     throw new Error(
-      'Invalid Privy user JWT format. Ensure you are passing a Privy access token (JWT).'
+      'Invalid Privy user JWT format: token must be a valid JWT with header.payload.signature structure'
     );
   }
 
@@ -73,7 +88,7 @@ export async function sendSponsoredEvmTransaction({
       (Array.isArray(tokenAud) && tokenAud.includes(appId));
     if (!audMatches) {
       throw new Error(
-        'Privy token audience mismatch. Ensure PRIVY_APP_ID / NEXT_PUBLIC_PRIVY_APP_ID matches the token issuer app.'
+        `Privy token audience mismatch: token audience "${tokenAud}" does not match app ID "${appId}"`
       );
     }
   }
@@ -84,13 +99,33 @@ export async function sendSponsoredEvmTransaction({
     user_jwts: [userJwt],
   };
 
-  // Only include value in transaction params if it's a positive bigint.
-  // Zero-value transactions should omit the value field entirely to avoid
-  // potential issues with Privy's API expecting undefined for zero-value calls.
+  // VALUE FIELD HANDLING:
+  // We omit the value field entirely for zero-value transactions rather than sending "0x0".
+  // This follows the common pattern where contract calls that don't transfer ETH simply
+  // don't include a value field. Privy's SDK handles this correctly - tested behavior:
+  // - Omitting value: works for all contract calls (most common case)
+  // - value: "0x0": also works, but adds unnecessary payload
+  // - value with positive amount: required for ETH transfers
+  //
+  // If a contract explicitly requires value=0 to be passed (extremely rare), this would
+  // need to be handled as a special case.
   const valueHex =
     typeof valueWei === 'bigint' && valueWei > 0n
       ? `0x${valueWei.toString(16)}`
       : undefined;
+
+  logger.debug(
+    'Submitting sponsored transaction via Privy',
+    {
+      walletId,
+      to,
+      chainId,
+      hasData: !!data,
+      hasValue: !!valueHex,
+      valueWei: valueWei?.toString(),
+    },
+    'sendSponsoredEvmTransaction'
+  );
 
   const response = await privy
     .wallets()
@@ -108,6 +143,17 @@ export async function sendSponsoredEvmTransaction({
         },
       },
     });
+
+  logger.info(
+    'Sponsored transaction submitted successfully',
+    {
+      txHash: response.hash,
+      caip2: response.caip2,
+      walletId,
+      to,
+    },
+    'sendSponsoredEvmTransaction'
+  );
 
   return { hash: response.hash as Hex, caip2: response.caip2 };
 }
