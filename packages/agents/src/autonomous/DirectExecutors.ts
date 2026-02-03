@@ -20,7 +20,6 @@ import {
   PredictionDbAdapter,
   PredictionMarketService,
 } from '@babylon/core/markets/prediction';
-import { isPureRepost } from '@babylon/shared';
 import {
   actorState,
   aliasedTable,
@@ -54,6 +53,7 @@ import {
   storeTagsForPost,
   WalletService,
 } from '@babylon/engine';
+import { isPureRepost } from '@babylon/shared';
 import { agentPnLService } from '../services/AgentPnLService';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
