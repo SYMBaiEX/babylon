@@ -9,6 +9,51 @@ const ALLOWED_PATHS = new Set([
   '/manifest.webmanifest',
 ]);
 
+const DEFAULT_WAITLIST_HOSTS = [
+  'babylon.market',
+  'www.babylon.market',
+  'staging.babylon.market',
+] as const;
+
+function getWaitlistHosts(): Set<string> {
+  const raw = process.env.WAITLIST_HOSTNAMES;
+  if (!raw || raw.trim().length === 0) return new Set(DEFAULT_WAITLIST_HOSTS);
+  return new Set(
+    raw
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter((h) => h.length > 0)
+  );
+}
+
+const APP_PUBLIC_EXACT_ALLOWLIST = new Set([
+  '/',
+  '/nft',
+  '/share',
+  '/api-docs',
+  '/mcp',
+  '/.well-known',
+]);
+
+const APP_PUBLIC_PREFIX_ALLOWLIST = [
+  '/nft/',
+  '/share/',
+  '/api-docs/',
+  '/mcp/',
+  '/.well-known/',
+  '/api/og/',
+  '/api/auth/',
+  '/api/users/onboarding/',
+  '/api/onboarding/',
+  '/api/upload/',
+  '/api/waitlist/',
+] as const;
+
+function isAppPublicAllowlistedPath(pathname: string): boolean {
+  if (APP_PUBLIC_EXACT_ALLOWLIST.has(pathname)) return true;
+  return APP_PUBLIC_PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix));
+}
+
 /**
  * Production and staging origins for CORS requests
  */
@@ -118,9 +163,72 @@ function addCorsHeaders(
   return response;
 }
 
+function getHostname(request: NextRequest): string {
+  const hostHeader = request.headers.get('host') ?? '';
+  return hostHeader.split(':')[0]?.toLowerCase() ?? '';
+}
+
+function getWaitlistOrigin(hostname: string, protocol: string): string {
+  const fromEnv = process.env.NEXT_PUBLIC_WAITLIST_URL?.trim();
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+
+  if (hostname.endsWith('staging.babylon.market')) {
+    return `${protocol}//staging.babylon.market`;
+  }
+  if (hostname.endsWith('babylon.market')) {
+    return `${protocol}//babylon.market`;
+  }
+  return `${protocol}//${hostname}`;
+}
+
+function getAppOrigin(hostname: string, protocol: string): string {
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+
+  if (hostname.endsWith('staging.babylon.market')) {
+    return `${protocol}//app.staging.babylon.market`;
+  }
+  if (hostname.endsWith('babylon.market')) {
+    return `${protocol}//app.babylon.market`;
+  }
+
+  return `${protocol}//${hostname}`;
+}
+
+function isNftGatingEnabled(): boolean {
+  const flag = process.env.NFT_GATING_ENABLED ?? '';
+  return ['true', '1', 'yes', 'on'].includes(flag.toLowerCase());
+}
+
+function buildWaitlistRedirectUrl(request: NextRequest): string {
+  const hostname = getHostname(request);
+  const origin = getWaitlistOrigin(hostname, request.nextUrl.protocol);
+
+  const nextUrl = request.nextUrl.pathname + request.nextUrl.search;
+  const params = new URLSearchParams();
+  if (nextUrl !== '/' && nextUrl !== '') params.set('next', nextUrl);
+  const qs = params.toString();
+
+  return qs ? `${origin}/?${qs}` : `${origin}/`;
+}
+
+function isNftAccessResponse(
+  value: unknown
+): value is { success: true; data: { hasAccess: boolean } } {
+  if (typeof value !== 'object' || value === null) return false;
+  if (!('success' in value) || (value as { success: unknown }).success !== true) {
+    return false;
+  }
+  if (!('data' in value)) return false;
+  const data = (value as { data: unknown }).data;
+  if (typeof data !== 'object' || data === null) return false;
+  return 'hasAccess' in data;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const origin = request.headers.get('origin');
+  const hostname = getHostname(request);
 
   // Skip CORS handling for agent routes - handled in vercel.json with wildcard
   // Agent routes use Bearer token auth (not cookies), so they can use wildcard CORS
@@ -140,14 +248,39 @@ export function middleware(request: NextRequest) {
     return addCorsHeaders(response, origin);
   }
 
-  // Waitlist mode handling
-  const waitlistFlag =
-    process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? '';
-  const waitlistEnabled = ['true', '1', 'yes', 'on'].includes(
-    waitlistFlag.toLowerCase()
-  );
+  // Host-based routing:
+  // - Waitlist hosts: show waitlist (landing + waitlist dashboard)
+  // - Everything else: app host
+  const isWaitlistHost = getWaitlistHosts().has(hostname);
 
-  if (!waitlistEnabled) {
+  if (isWaitlistHost) {
+    if (ALLOWED_PATHS.has(pathname) || isAssetRequest(pathname)) {
+      return NextResponse.next();
+    }
+
+    // Keep the claim flow on the app host.
+    if (pathname === '/nft' || pathname.startsWith('/nft/')) {
+      const appOrigin = getAppOrigin(hostname, request.nextUrl.protocol);
+      return NextResponse.redirect(`${appOrigin}${pathname}${search}`);
+    }
+
+    // Keep share + well-known pages accessible from the waitlist host.
+    if (
+      pathname === '/share' ||
+      pathname.startsWith('/share/') ||
+      pathname.startsWith('/.well-known/')
+    ) {
+      return NextResponse.next();
+    }
+
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/';
+    redirectUrl.search = search;
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // App host behavior: enforce gating via /api/nft/access for non-public pages.
+  if (!isNftGatingEnabled()) {
     return NextResponse.next();
   }
 
@@ -155,11 +288,69 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = '/';
-  redirectUrl.search = search;
+  if (isAppPublicAllowlistedPath(pathname)) {
+    return NextResponse.next();
+  }
 
-  return NextResponse.redirect(redirectUrl);
+  const cachedAccess = request.cookies.get('ba_access')?.value ?? null;
+  if (cachedAccess === '1') {
+    return NextResponse.next();
+  }
+  if (cachedAccess === '0') {
+    return NextResponse.redirect(buildWaitlistRedirectUrl(request));
+  }
+
+  const hasAuthCookie = Boolean(request.cookies.get('privy-token')?.value);
+  const hasAuthHeader = Boolean(request.headers.get('authorization'));
+
+  if (!hasAuthCookie && !hasAuthHeader) {
+    return NextResponse.redirect(buildWaitlistRedirectUrl(request));
+  }
+
+  const cookieHeader = request.headers.get('cookie') ?? '';
+  const authHeader = request.headers.get('authorization') ?? '';
+  const accessUrl = new URL('/api/nft/access', request.nextUrl.origin).toString();
+
+  const responsePromise = (async () => {
+    const res = await fetch(accessUrl, {
+      method: 'GET',
+      headers: {
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        ...(authHeader ? { authorization: authHeader } : {}),
+        accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      return NextResponse.redirect(buildWaitlistRedirectUrl(request));
+    }
+
+    const json = (await res.json()) as unknown;
+    if (!isNftAccessResponse(json) || json.data.hasAccess !== true) {
+      const redirect = NextResponse.redirect(buildWaitlistRedirectUrl(request));
+      redirect.cookies.set('ba_access', '0', {
+        httpOnly: true,
+        secure: request.nextUrl.protocol === 'https:',
+        sameSite: 'lax',
+        maxAge: 300,
+        path: '/',
+      });
+      return redirect;
+    }
+
+    const next = NextResponse.next();
+    next.cookies.set('ba_access', '1', {
+      httpOnly: true,
+      secure: request.nextUrl.protocol === 'https:',
+      sameSite: 'lax',
+      maxAge: 300,
+      path: '/',
+    });
+    return next;
+  })();
+
+  return responsePromise;
 }
 
 export const config = {

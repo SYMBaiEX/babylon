@@ -4,7 +4,7 @@ import {
   NftIndexerUnavailableError,
 } from './nft-indexer-service';
 
-async function hasDbNftAccessFallback(dbUserId: string): Promise<boolean> {
+async function hasDbNftOrClaimAccessFallback(dbUserId: string): Promise<boolean> {
   const [owned] = await db
     .select({ tokenId: nftOwnership.tokenId })
     .from(nftOwnership)
@@ -13,12 +13,13 @@ async function hasDbNftAccessFallback(dbUserId: string): Promise<boolean> {
   if (owned) return true;
 
   const [row] = await db
-    .select({ hasMinted: nftSnapshot.hasMinted })
+    .select({ id: nftSnapshot.id })
     .from(nftSnapshot)
     .where(eq(nftSnapshot.userId, dbUserId))
     .limit(1);
 
-  return row?.hasMinted === true;
+  // A snapshot row indicates the user is eligible to claim (and includes minted users too).
+  return Boolean(row);
 }
 
 /**
@@ -39,14 +40,15 @@ export async function hasNftAccess(dbUserId: string): Promise<boolean> {
   const walletAddress = dbUser?.walletAddress ?? null;
   if (walletAddress) {
     try {
-      return await hasOnchainNftAccess(walletAddress);
+      const onchainAllowed = await hasOnchainNftAccess(walletAddress);
+      if (onchainAllowed) return true;
     } catch (error) {
       if (!(error instanceof NftIndexerUnavailableError)) throw error;
     }
   }
 
-  // Degraded mode: keep existing behavior (minted or DB ownership).
-  return hasDbNftAccessFallback(dbUserId);
+  // Degraded/best-effort mode: allow if eligible to claim or present in DB ownership.
+  return hasDbNftOrClaimAccessFallback(dbUserId);
 }
 
 export async function hasNftAccessForAuthUser(user: {
@@ -56,17 +58,16 @@ export async function hasNftAccessForAuthUser(user: {
   const walletAddress = user.walletAddress ?? null;
   if (walletAddress) {
     try {
-      return await hasOnchainNftAccess(walletAddress);
+      const onchainAllowed = await hasOnchainNftAccess(walletAddress);
+      if (onchainAllowed) return true;
     } catch (error) {
       if (!(error instanceof NftIndexerUnavailableError)) throw error;
-      // Short-circuit to DB fallback to avoid double indexer call via hasNftAccess
-      if (user.dbUserId) return hasDbNftAccessFallback(user.dbUserId);
-      return false;
     }
   }
 
   if (!user.dbUserId) return false;
-  return hasNftAccess(user.dbUserId);
+  // Allow claimable users (Top 100 snapshot) and minted users even if they don't currently hold.
+  return hasDbNftOrClaimAccessFallback(user.dbUserId);
 }
 
 export async function getNftAccessStatusForAuthUser(user: {
@@ -76,14 +77,19 @@ export async function getNftAccessStatusForAuthUser(user: {
   const walletAddress = user.walletAddress ?? null;
   if (walletAddress) {
     try {
-      const allowed = await hasOnchainNftAccess(walletAddress);
-      return { allowed, degraded: false };
+      const onchainAllowed = await hasOnchainNftAccess(walletAddress);
+      if (onchainAllowed) return { allowed: true, degraded: false };
     } catch (error) {
       if (!(error instanceof NftIndexerUnavailableError)) throw error;
     }
+
+    // Indexer is available but the user doesn't currently hold. Still allow if claimable.
+    if (!user.dbUserId) return { allowed: false, degraded: false };
+    const allowed = await hasDbNftOrClaimAccessFallback(user.dbUserId);
+    return { allowed, degraded: false };
   }
 
   if (!user.dbUserId) return { allowed: false, degraded: true };
-  const allowed = await hasDbNftAccessFallback(user.dbUserId);
+  const allowed = await hasDbNftOrClaimAccessFallback(user.dbUserId);
   return { allowed, degraded: true };
 }
