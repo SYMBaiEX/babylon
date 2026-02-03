@@ -13,12 +13,36 @@ export type SendSponsoredEvmTransactionInput = {
   chainId?: number;
 };
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+/**
+ * Expected structure of a Privy JWT payload.
+ * See: https://docs.privy.io/guide/server/authorization/verification
+ */
+interface PrivyJwtPayload {
+  /** Audience - the Privy app ID this token was issued for */
+  aud: string | string[];
+  /** Subject - the Privy user ID (did:privy:...) */
+  sub: string;
+  /** Issuer - Privy's issuer URL */
+  iss: string;
+  /** Issued at timestamp (seconds since epoch) */
+  iat: number;
+  /** Expiration timestamp (seconds since epoch) */
+  exp: number;
+  /** Session ID */
+  sid?: string;
+}
+
+/**
+ * Decodes a JWT payload without verification.
+ * Used only to extract claims for pre-flight validation before Privy API calls.
+ * Actual token verification is performed by Privy's SDK.
+ */
+function decodeJwtPayload(token: string): PrivyJwtPayload | null {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   try {
     const json = Buffer.from(parts[1] ?? '', 'base64url').toString('utf8');
-    return JSON.parse(json) as Record<string, unknown>;
+    return JSON.parse(json) as PrivyJwtPayload;
   } catch {
     return null;
   }
@@ -60,8 +84,13 @@ export async function sendSponsoredEvmTransaction({
     user_jwts: [userJwt],
   };
 
+  // Only include value in transaction params if it's a positive bigint.
+  // Zero-value transactions should omit the value field entirely to avoid
+  // potential issues with Privy's API expecting undefined for zero-value calls.
   const valueHex =
-    typeof valueWei === 'bigint' ? `0x${valueWei.toString(16)}` : undefined;
+    typeof valueWei === 'bigint' && valueWei > 0n
+      ? `0x${valueWei.toString(16)}`
+      : undefined;
 
   const response = await privy
     .wallets()
