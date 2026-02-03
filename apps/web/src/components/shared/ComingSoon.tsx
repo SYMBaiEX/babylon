@@ -30,8 +30,11 @@ import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
-import type { EligibilityApiResponse, EligibilityResponse } from '@/types/nft';
-import type { NftAccessResponse } from '@/types/nft';
+import type {
+  EligibilityApiResponse,
+  EligibilityResponse,
+  NftAccessResponse,
+} from '@/types/nft';
 
 // Blog URL from environment with fallback
 const blogUrl =
