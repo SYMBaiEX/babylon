@@ -47,7 +47,7 @@ export const balanceTransactions = pgTable(
   ]
 );
 
-// PointsTransaction
+// PointsTransaction - for reputation points (integer), NOT trading balance
 export const pointsTransactions = pgTable(
   'PointsTransaction',
   {

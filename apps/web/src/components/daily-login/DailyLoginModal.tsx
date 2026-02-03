@@ -32,7 +32,7 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
       id: i,
       left: Math.random() * 100,
       delay: Math.random() * 0.5,
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length] ?? '#0066FF',
       size: 6 + Math.random() * 8,
       isCircle: i % 2 === 0,
     }));

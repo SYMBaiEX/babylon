@@ -15,7 +15,7 @@
 
 import { afterAll, describe, expect, it } from 'bun:test';
 import { PointsService } from '@babylon/api';
-import { db, eq, pointsTransactions, users } from '@babylon/db';
+import { and, balanceTransactions, db, eq, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 import { TestScenarios } from '../unit/stripe/test-fixtures';
 
@@ -66,11 +66,11 @@ describe('PointsService Stripe Integration', () => {
    * Clean up test data after all tests
    */
   afterAll(async () => {
-    // Delete transactions first (foreign key)
+    // Delete balance transactions first
     for (const userId of testUserIds) {
       await db
-        .delete(pointsTransactions)
-        .where(eq(pointsTransactions.userId, userId));
+        .delete(balanceTransactions)
+        .where(eq(balanceTransactions.userId, userId));
     }
 
     // Then delete users
@@ -172,21 +172,30 @@ describe('PointsService Stripe Integration', () => {
         'stripe'
       );
 
-      // Get the transaction
+      // Get the transaction from balanceTransactions
+      // relatedId stores the paymentIntentId (payment intent ID) for stripe purchases
       const txResult = await db
         .select()
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, sessionId))
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.relatedId, paymentIntentId),
+            eq(balanceTransactions.type, 'stripe_purchase')
+          )
+        )
         .limit(1);
 
       expect(txResult.length).toBe(1);
       const tx = txResult[0]!;
       expect(tx.userId).toBe(userId);
-      expect(tx.amount).toBe(2500);
-      expect(tx.reason).toBe('purchase');
-      expect(tx.paymentProvider).toBe('stripe');
-      expect(tx.paymentTxHash).toBe(paymentIntentId);
-      expect(tx.paymentVerified).toBe(true);
+      expect(Number(tx.amount)).toBe(2500);
+      expect(tx.type).toBe('stripe_purchase');
+      // Verify description contains payment info
+      const description = JSON.parse(tx.description || '{}');
+      expect(description.paymentProvider).toBe('stripe');
+      expect(description.paymentTxHash).toBe(paymentIntentId);
+      expect(description.paymentRequestId).toBe(sessionId);
     });
 
     it('should fail for non-existent user', async () => {
@@ -316,15 +325,13 @@ describe('PointsService Stripe Integration', () => {
       expect(result.pointsAwarded).toBe(-10000);
       expect(result.newTotal).toBe(0);
 
-      // Check transaction has correct reason
+      // Check transaction has correct type in balanceTransactions
       const transactions = await db
         .select()
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.userId, userId));
+        .from(balanceTransactions)
+        .where(eq(balanceTransactions.userId, userId));
 
-      const disputeTx = transactions.find(
-        (tx) => tx.reason === 'purchase_dispute'
-      );
+      const disputeTx = transactions.find((tx) => tx.type === 'stripe_dispute');
       expect(disputeTx).toBeDefined();
     });
 
@@ -584,46 +591,58 @@ describe('PointsService Stripe Integration', () => {
   describe('Payment Provider Tracking', () => {
     it('should store crypto as payment provider when not specified', async () => {
       const userId = await createDbUser();
-      const sessionId = `x402_${Date.now()}`;
+      const txHash = `tx_${Date.now()}`;
 
       // Call without paymentProvider (defaults to 'crypto')
       await PointsService.purchasePoints(
         userId,
         10,
-        sessionId,
-        `tx_${Date.now()}`
+        `x402_${Date.now()}`,
+        txHash
       );
 
       const txResult = await db
         .select()
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, sessionId))
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.type, 'crypto_purchase')
+          )
+        )
         .limit(1);
 
       expect(txResult.length).toBe(1);
-      expect(txResult[0]!.paymentProvider).toBe('crypto');
+      const description = JSON.parse(txResult[0]!.description || '{}');
+      expect(description.paymentProvider).toBe('crypto');
     });
 
     it('should store stripe as payment provider when specified', async () => {
       const userId = await createDbUser();
-      const sessionId = `cs_test_${Date.now()}`;
+      const paymentIntentId = `pi_${Date.now()}`;
 
       await PointsService.purchasePoints(
         userId,
         10,
-        sessionId,
-        `pi_${Date.now()}`,
+        `cs_test_${Date.now()}`,
+        paymentIntentId,
         'stripe'
       );
 
       const txResult = await db
         .select()
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, sessionId))
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.type, 'stripe_purchase')
+          )
+        )
         .limit(1);
 
       expect(txResult.length).toBe(1);
-      expect(txResult[0]!.paymentProvider).toBe('stripe');
+      const description = JSON.parse(txResult[0]!.description || '{}');
+      expect(description.paymentProvider).toBe('stripe');
     });
   });
 });
