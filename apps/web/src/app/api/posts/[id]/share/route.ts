@@ -286,6 +286,7 @@ export const POST = withErrorHandling(
       throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
     }
 
+    // Backfill safety: legacy shares may still point at repost IDs
     if (post && isPureRepost(post) && shareTargetPostId !== postId) {
       const [existingRepostShare] = await db
         .select({ id: shares.id })

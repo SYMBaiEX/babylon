@@ -1715,7 +1715,7 @@ export async function executeDirectRepost(
     if (!resolvedPost) {
       return {
         success: false,
-        error: `Post not found: ${post.originalPostId}`,
+        error: 'Original post no longer exists',
       };
     }
 

@@ -199,4 +199,44 @@ describe('executeDirectRepost', () => {
       mockDb.transaction = originalTransaction;
     }
   });
+
+  test('does not redirect quote reposts', async () => {
+    const quotePost = {
+      id: 'post-quote',
+      authorId: 'user-3',
+      content: 'My take on this',
+      originalPostId: 'post-0',
+    };
+
+    mockDb.select = mock(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(async () => [quotePost]),
+        })),
+      })),
+    }));
+
+    let sharedPostId: string | undefined;
+    mockDb.transaction = mock(
+      async (callback: (tx: unknown) => Promise<void>) => {
+        await callback({
+          insert: mock(() => ({
+            values: mock(async (values: { postId: string }) => {
+              sharedPostId = values.postId;
+            }),
+          })),
+        });
+        return undefined;
+      }
+    ) as typeof mockDb.transaction;
+
+    const result = await executeDirectRepost({
+      agentUserId: 'user-2',
+      postId: 'post-quote',
+      comment: undefined,
+    });
+
+    expect(result.success).toBe(true);
+    expect(sharedPostId).toBe(quotePost.id);
+  });
 });
