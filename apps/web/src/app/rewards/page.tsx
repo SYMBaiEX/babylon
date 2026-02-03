@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { DailyStreakCard } from '@/components/daily-login';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton';
+import { RewardTaskList } from '@/components/rewards/RewardTaskList';
 import { Avatar } from '@/components/shared/Avatar';
 import { ExternalShareButton } from '@/components/shared/ExternalShareButton';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -167,9 +168,16 @@ export default function RewardsPage() {
   const handleCopyUrl = async () => {
     if (!referralData?.user.referralCode) return;
     const referralUrl = getReferralUrl(referralData.user.referralCode);
-    await navigator.clipboard.writeText(referralUrl);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
+    const success = await navigator.clipboard
+      .writeText(referralUrl)
+      .then(() => true)
+      .catch(() => false);
+    if (success) {
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    } else {
+      toast.error('Failed to copy referral link');
+    }
   };
 
   // Calculate total points earned from all sources
@@ -383,43 +391,11 @@ export default function RewardsPage() {
               <h2 className="mb-3 font-semibold text-foreground">
                 Earn Points
               </h2>
-              <div className="space-y-2">
-                {rewardTasks.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => handleTaskClick(task.id, task.action)}
-                    disabled={task.completed}
-                    className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition-colors ${
-                      task.completed
-                        ? 'border-green-500/30 bg-green-500/5'
-                        : 'cursor-pointer border-border hover:bg-muted/30'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground text-sm">
-                          {task.title}
-                        </span>
-                        {task.completed && (
-                          <Check className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
-                      <p className="truncate text-muted-foreground text-xs">
-                        {task.description}
-                      </p>
-                    </div>
-                    <span
-                      className={`ml-4 font-medium text-sm ${
-                        task.completed
-                          ? 'text-green-500'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {task.completed ? `✓ ${task.points}` : `+${task.points}`}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <RewardTaskList
+                tasks={rewardTasks}
+                onTaskClick={handleTaskClick}
+                variant="desktop"
+              />
             </div>
 
             {/* Share & Earn */}
@@ -586,43 +562,11 @@ export default function RewardsPage() {
               <h2 className="mb-3 font-semibold text-foreground">
                 Earn Points
               </h2>
-              <div className="space-y-2">
-                {rewardTasks.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => handleTaskClick(task.id, task.action)}
-                    disabled={task.completed}
-                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left transition-colors ${
-                      task.completed
-                        ? 'border-green-500/30 bg-green-500/5'
-                        : 'cursor-pointer border-border hover:bg-muted/30'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground text-sm">
-                          {task.title}
-                        </span>
-                        {task.completed && (
-                          <Check className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
-                      <p className="truncate text-muted-foreground text-xs">
-                        {task.description}
-                      </p>
-                    </div>
-                    <span
-                      className={`ml-3 font-medium text-sm ${
-                        task.completed
-                          ? 'text-green-500'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {task.completed ? `✓ ${task.points}` : `+${task.points}`}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <RewardTaskList
+                tasks={rewardTasks}
+                onTaskClick={handleTaskClick}
+                variant="mobile"
+              />
             </div>
 
             {/* Share & Earn */}
