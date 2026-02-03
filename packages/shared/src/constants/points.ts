@@ -30,6 +30,34 @@ export const POINTS = {
   REFERRAL_QUALIFIED: 100, // Bonus for referrer when referred user completes profile
   PRIVATE_GROUP_CREATE: 200, // Reward for creating a private group
   PRIVATE_CHANNEL_CREATE: 200, // Reward for creating a private channel
+
+  // Daily login rewards (BAB-88) - escalating rewards per streak day
+  DAILY_LOGIN_DAY_1: 50,
+  DAILY_LOGIN_DAY_2: 75,
+  DAILY_LOGIN_DAY_3: 100,
+  DAILY_LOGIN_DAY_4: 125,
+  DAILY_LOGIN_DAY_5: 150,
+  DAILY_LOGIN_DAY_6: 175,
+  DAILY_LOGIN_DAY_7: 200,
+
+  // Daily login milestone bonuses (awarded when streak reaches milestone)
+  DAILY_LOGIN_MILESTONE_7D: 500,
+  DAILY_LOGIN_MILESTONE_14D: 750,
+  DAILY_LOGIN_MILESTONE_30D: 1500,
+  DAILY_LOGIN_MILESTONE_60D: 3000,
+  DAILY_LOGIN_MILESTONE_90D: 5000,
+} as const;
+
+/**
+ * Daily login timing constants (in milliseconds)
+ */
+export const DAILY_LOGIN = {
+  /** Minimum time between claims (24 hours) */
+  MIN_CLAIM_INTERVAL_MS: 24 * 60 * 60 * 1000,
+  /** Grace period before streak resets (36 hours) */
+  GRACE_PERIOD_MS: 36 * 60 * 60 * 1000,
+  /** Number of days in a reward cycle before it repeats */
+  CYCLE_LENGTH: 7,
 } as const;
 
 /**
@@ -64,4 +92,5 @@ export type PointsReason =
   | 'transfer_sent'
   | 'transfer_received'
   | 'report_reward' // Reward for successful reporting of CSAM/scammer
-  | 'trading_pnl'; // Points from trading profit/loss
+  | 'trading_pnl' // Points from trading profit/loss
+  | 'daily_login'; // Points from daily login streak reward
