@@ -56,13 +56,22 @@ function getNextMilestone(streak: number): {
   nextMilestone: number;
   daysUntilMilestone: number;
 } {
-  const next = MILESTONES.find((m) => streak < m.days);
+  // Clamp to 0 to handle negative input defensively (matching service)
+  const safeStreak = Math.max(0, streak);
+  const next = MILESTONES.find((m) => safeStreak < m.days);
   return next
-    ? { nextMilestone: next.days, daysUntilMilestone: next.days - streak }
+    ? { nextMilestone: next.days, daysUntilMilestone: next.days - safeStreak }
     : { nextMilestone: 0, daysUntilMilestone: 0 };
 }
 
-function getClaimStatus(lastClaimMs: number | null): {
+/**
+ * getClaimStatus - with optional `now` parameter for deterministic testing
+ * When `now` is not provided, uses Date.now() (matches production behavior)
+ */
+function getClaimStatus(
+  lastClaimMs: number | null,
+  now: number = Date.now()
+): {
   canClaim: boolean;
   shouldResetStreak: boolean;
   timeUntilClaim: number;
@@ -77,7 +86,8 @@ function getClaimStatus(lastClaimMs: number | null): {
     };
   }
 
-  const elapsed = Date.now() - lastClaimMs;
+  // Clamp to 0 to handle clock skew (matching service)
+  const elapsed = Math.max(0, now - lastClaimMs);
   const { MIN_CLAIM_INTERVAL_MS, GRACE_PERIOD_MS } = DAILY_LOGIN;
 
   if (elapsed < MIN_CLAIM_INTERVAL_MS) {
@@ -361,9 +371,14 @@ describe('Daily Login - getNextMilestone', () => {
 
   describe('edge cases', () => {
     test('negative streaks treated as 0', () => {
+      // Negative streaks are clamped to 0, so daysUntilMilestone is 7 - 0 = 7
       expect(getNextMilestone(-1)).toEqual({
         nextMilestone: 7,
-        daysUntilMilestone: 8,
+        daysUntilMilestone: 7,
+      });
+      expect(getNextMilestone(-100)).toEqual({
+        nextMilestone: 7,
+        daysUntilMilestone: 7,
       });
     });
   });
@@ -372,9 +387,12 @@ describe('Daily Login - getNextMilestone', () => {
 // ─── getClaimStatus Tests ────────────────────────────────────────────────────
 
 describe('Daily Login - getClaimStatus', () => {
+  // Use a fixed timestamp for deterministic tests
+  const NOW = 1700000000000; // Fixed "now" for all tests
+
   describe('first-time user (null lastClaim)', () => {
     test('can claim immediately with no reset', () => {
-      const status = getClaimStatus(null);
+      const status = getClaimStatus(null, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
       expect(status.timeUntilClaim).toBe(0);
@@ -384,29 +402,28 @@ describe('Daily Login - getClaimStatus', () => {
 
   describe('within 24h window (cannot claim)', () => {
     test('1 second ago - cannot claim', () => {
-      const status = getClaimStatus(Date.now() - SECOND);
+      const status = getClaimStatus(NOW - SECOND, NOW);
       expect(status.canClaim).toBe(false);
       expect(status.shouldResetStreak).toBe(false);
-      expect(status.timeUntilClaim).toBeGreaterThan(23 * HOUR);
+      expect(status.timeUntilClaim).toBe(24 * HOUR - SECOND);
     });
 
     test('1 hour ago - cannot claim', () => {
-      const status = getClaimStatus(Date.now() - HOUR);
+      const status = getClaimStatus(NOW - HOUR, NOW);
       expect(status.canClaim).toBe(false);
-      expect(status.timeUntilClaim).toBeGreaterThan(22 * HOUR);
+      expect(status.timeUntilClaim).toBe(23 * HOUR);
     });
 
     test('23 hours 59 minutes ago - still cannot claim', () => {
-      const status = getClaimStatus(Date.now() - (24 * HOUR - MINUTE));
+      const status = getClaimStatus(NOW - (24 * HOUR - MINUTE), NOW);
       expect(status.canClaim).toBe(false);
-      expect(status.timeUntilClaim).toBeGreaterThan(0);
-      expect(status.timeUntilClaim).toBeLessThanOrEqual(MINUTE);
+      expect(status.timeUntilClaim).toBe(MINUTE);
     });
   });
 
   describe('exact 24h boundary', () => {
     test('exactly 24h ago - can claim, streak continues', () => {
-      const status = getClaimStatus(Date.now() - 24 * HOUR);
+      const status = getClaimStatus(NOW - 24 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
       expect(status.timeUntilClaim).toBe(0);
@@ -414,7 +431,7 @@ describe('Daily Login - getClaimStatus', () => {
     });
 
     test('24h + 1ms ago - can claim, streak continues', () => {
-      const status = getClaimStatus(Date.now() - (24 * HOUR + 1));
+      const status = getClaimStatus(NOW - (24 * HOUR + 1), NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
     });
@@ -422,38 +439,37 @@ describe('Daily Login - getClaimStatus', () => {
 
   describe('grace period (24-36h) - can claim, streak continues', () => {
     test('25 hours ago', () => {
-      const status = getClaimStatus(Date.now() - 25 * HOUR);
+      const status = getClaimStatus(NOW - 25 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
       expect(status.timeUntilReset).toBe(11 * HOUR);
     });
 
     test('30 hours ago', () => {
-      const status = getClaimStatus(Date.now() - 30 * HOUR);
+      const status = getClaimStatus(NOW - 30 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
       expect(status.timeUntilReset).toBe(6 * HOUR);
     });
 
     test('35 hours 59 minutes ago - barely within grace', () => {
-      const status = getClaimStatus(Date.now() - (36 * HOUR - MINUTE));
+      const status = getClaimStatus(NOW - (36 * HOUR - MINUTE), NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(false);
-      expect(status.timeUntilReset).toBeGreaterThan(0);
-      expect(status.timeUntilReset).toBeLessThanOrEqual(MINUTE);
+      expect(status.timeUntilReset).toBe(MINUTE);
     });
   });
 
   describe('exact 36h boundary (grace period expires)', () => {
     test('exactly 36h ago - streak resets', () => {
-      const status = getClaimStatus(Date.now() - 36 * HOUR);
+      const status = getClaimStatus(NOW - 36 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
       expect(status.timeUntilReset).toBe(0);
     });
 
     test('36h + 1ms ago - streak resets', () => {
-      const status = getClaimStatus(Date.now() - (36 * HOUR + 1));
+      const status = getClaimStatus(NOW - (36 * HOUR + 1), NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
     });
@@ -461,33 +477,34 @@ describe('Daily Login - getClaimStatus', () => {
 
   describe('long absence - streak resets', () => {
     test('48 hours ago', () => {
-      const status = getClaimStatus(Date.now() - 48 * HOUR);
+      const status = getClaimStatus(NOW - 48 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
     });
 
     test('1 week ago', () => {
-      const status = getClaimStatus(Date.now() - 7 * 24 * HOUR);
+      const status = getClaimStatus(NOW - 7 * 24 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
     });
 
     test('1 year ago', () => {
-      const status = getClaimStatus(Date.now() - 365 * 24 * HOUR);
+      const status = getClaimStatus(NOW - 365 * 24 * HOUR, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
     });
   });
 
   describe('edge cases', () => {
-    test('future lastClaim (clock skew) - cannot claim', () => {
-      const status = getClaimStatus(Date.now() + HOUR);
+    test('future lastClaim (clock skew) - elapsed clamped to 0, cannot claim', () => {
+      // With elapsed clamped to 0, this means timeUntilClaim = 24h
+      const status = getClaimStatus(NOW + HOUR, NOW);
       expect(status.canClaim).toBe(false);
-      expect(status.timeUntilClaim).toBeGreaterThan(24 * HOUR);
+      expect(status.timeUntilClaim).toBe(24 * HOUR);
     });
 
     test('lastClaim at epoch (very old) - streak resets', () => {
-      const status = getClaimStatus(0);
+      const status = getClaimStatus(0, NOW);
       expect(status.canClaim).toBe(true);
       expect(status.shouldResetStreak).toBe(true);
     });
@@ -658,15 +675,10 @@ describe('Daily Login - Invariants', () => {
   });
 
   test('claim status time values are non-negative', () => {
-    const testTimes = [
-      null,
-      Date.now(),
-      Date.now() - HOUR,
-      Date.now() - 25 * HOUR,
-      Date.now() - 48 * HOUR,
-    ];
+    const NOW = 1700000000000;
+    const testTimes = [null, NOW, NOW - HOUR, NOW - 25 * HOUR, NOW - 48 * HOUR];
     for (const time of testTimes) {
-      const status = getClaimStatus(time);
+      const status = getClaimStatus(time, NOW);
       expect(status.timeUntilClaim).toBeGreaterThanOrEqual(0);
       expect(status.timeUntilReset).toBeGreaterThanOrEqual(0);
     }

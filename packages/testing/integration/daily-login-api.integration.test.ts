@@ -116,15 +116,16 @@ async function getUserStreak(userId: string) {
 async function setUserStreak(
   userId: string,
   streak: number,
-  lastDailyLogin: Date | null
+  lastDailyLogin: Date | null,
+  options?: { longestStreak?: number; totalDailyLogins?: number }
 ): Promise<void> {
   await db
     .update(users)
     .set({
       dailyLoginStreak: streak,
       lastDailyLogin,
-      longestStreak: streak,
-      totalDailyLogins: streak,
+      longestStreak: options?.longestStreak ?? streak,
+      totalDailyLogins: options?.totalDailyLogins ?? streak,
     })
     .where(eq(users.id, userId));
 }
@@ -157,23 +158,25 @@ describe('Daily Login - Integration Tests', () => {
   // ─── HTTP Authentication Tests ───────────────────────────────────────────
 
   describe('HTTP - Authentication', () => {
-    test('GET without auth returns 401 or 500', async () => {
+    // Auth failures should return 401 Unauthorized, not 500.
+    // 500 would indicate a server bug that should be investigated.
+    test('GET without auth returns 401', async () => {
       if (skipIfNoServer()) return;
 
       const res = await fetch(`${BASE_URL}/api/users/daily-login`, {
         signal: AbortSignal.timeout(10000),
       });
-      expect([401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
 
-    test('POST without auth returns 401 or 500', async () => {
+    test('POST without auth returns 401', async () => {
       if (skipIfNoServer()) return;
 
       const res = await fetch(`${BASE_URL}/api/users/daily-login`, {
         method: 'POST',
         signal: AbortSignal.timeout(10000),
       });
-      expect([401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
 
     test('invalid Bearer token is rejected', async () => {
@@ -183,7 +186,7 @@ describe('Daily Login - Integration Tests', () => {
         headers: { Authorization: 'Bearer invalid-token-xyz' },
         signal: AbortSignal.timeout(10000),
       });
-      expect([401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
 
     test('malformed auth header is rejected', async () => {
@@ -193,7 +196,7 @@ describe('Daily Login - Integration Tests', () => {
         headers: { Authorization: 'NotBearer token' },
         signal: AbortSignal.timeout(10000),
       });
-      expect([401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
 
     test('empty Bearer token is rejected', async () => {
@@ -203,7 +206,7 @@ describe('Daily Login - Integration Tests', () => {
         headers: { Authorization: 'Bearer ' },
         signal: AbortSignal.timeout(10000),
       });
-      expect([401, 500]).toContain(res.status);
+      expect(res.status).toBe(401);
     });
   });
 
