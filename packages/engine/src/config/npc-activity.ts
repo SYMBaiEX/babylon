@@ -71,6 +71,24 @@ function envPositiveNumber(key: string, defaultValue: number): number {
 }
 
 /**
+ * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
+ * Returns the default and logs a warning if the value is < 0.
+ * Use for values where 0 is valid (e.g., to disable a feature).
+ */
+function envNonNegativeNumber(key: string, defaultValue: number): number {
+  const value = envNumber(key, defaultValue);
+  if (value < 0) {
+    logger.warn(
+      `${key}=${value} must be non-negative (>= 0), using default ${defaultValue}`,
+      { key, value, defaultValue },
+      'npc-activity'
+    );
+    return defaultValue;
+  }
+  return value;
+}
+
+/**
  * Parse an environment variable as a probability (0.0-1.0) with bounds checking.
  * Clamps the value to valid probability range to prevent configuration errors.
  */
@@ -129,23 +147,6 @@ function envBoolean(key: string, defaultValue: boolean): boolean {
     'npc-activity'
   );
   return defaultValue;
-}
-
-/**
- * Parse an environment variable as a non-negative number (>= 0) with bounds checking.
- * Returns the default and logs a warning if the value is < 0.
- */
-function envNonNegativeNumber(key: string, defaultValue: number): number {
-  const value = envNumber(key, defaultValue);
-  if (value < 0) {
-    logger.warn(
-      `${key}=${value} must be non-negative (>= 0), using default ${defaultValue}`,
-      { key, value, defaultValue },
-      'npc-activity'
-    );
-    return defaultValue;
-  }
-  return value;
 }
 
 // =============================================================================
@@ -408,6 +409,54 @@ export const NPC_ENGAGEMENT_CONFIG = {
    * @env NPC_ENGAGEMENT_POSTS_TO_CONSIDER
    */
   postsToConsider: envPositiveNumber('NPC_ENGAGEMENT_POSTS_TO_CONSIDER', 40),
+} as const;
+
+// =============================================================================
+// DIVERSITY CONFIGURATION (TikTok-inspired feed diversity)
+// =============================================================================
+
+/**
+ * Configuration for feed diversity mechanisms.
+ *
+ * Controls how NPC actions are distributed to prevent clustering and create
+ * an organic social media feel. Based on TikTok/Twitter feed algorithms.
+ */
+export const NPC_DIVERSITY_CONFIG = {
+  /**
+   * Maximum consecutive same action type allowed (TikTok-style).
+   * Used by the action diversity tracker to prevent clustering.
+   * E.g., 1 means never allow 2 likes in a row.
+   *
+   * @default 1 (TikTok rule: never consecutive same type)
+   * @env NPC_MAX_CONSECUTIVE_SAME_ACTION
+   */
+  maxConsecutiveSameAction: envPositiveNumber(
+    'NPC_MAX_CONSECUTIVE_SAME_ACTION',
+    1
+  ),
+
+  /**
+   * Timestamp stagger window in milliseconds.
+   * Actions within a tick get timestamps spread across this window.
+   * Set to 0 to disable timestamp staggering.
+   *
+   * @default 300000 (5 minutes)
+   * @env NPC_TIMESTAMP_STAGGER_MS
+   */
+  timestampStaggerMs: envNonNegativeNumber(
+    'NPC_TIMESTAMP_STAGGER_MS',
+    5 * 60 * 1000
+  ),
+
+  /**
+   * Number of recent actions to track for diversity checking.
+   * Larger values provide more context for detecting clustering patterns.
+   * Must be at least as large as maxConsecutiveSameAction.
+   *
+   * @default 5
+   * @env NPC_MAX_RECENT_ACTIONS
+   */
+  maxRecentActions: envPositiveNumber('NPC_MAX_RECENT_ACTIONS', 5),
 } as const;
 
 // =============================================================================
@@ -867,6 +916,7 @@ export const NPC_ACTIVITY_CONFIG = {
   posting: NPC_POSTING_CONFIG,
   trading: NPC_TRADING_CONFIG,
   engagement: NPC_ENGAGEMENT_CONFIG,
+  diversity: NPC_DIVERSITY_CONFIG,
   socialActions: NPC_SOCIAL_ACTIONS_CONFIG,
   groupDynamics: NPC_GROUP_DYNAMICS_CONFIG,
   contentPacing: NPC_CONTENT_PACING_CONFIG,
@@ -1079,6 +1129,11 @@ export function logCurrentConfig(): void {
   logger.info(
     'NPC Activity Configuration - Engagement',
     NPC_ENGAGEMENT_CONFIG,
+    'npc-activity'
+  );
+  logger.info(
+    'NPC Activity Configuration - Diversity',
+    NPC_DIVERSITY_CONFIG,
     'npc-activity'
   );
   logger.info(
