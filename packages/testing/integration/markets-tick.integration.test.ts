@@ -581,9 +581,10 @@ describe('Idempotency Check Logic', () => {
 // These tests exercise the actual HTTP endpoint behavior with a test database
 
 describe('POST Handler Integration', () => {
+  type MarketTickRoute = typeof import('@/app/api/cron/markets-tick/route');
   // Import the POST handler dynamically to ensure mocks are applied
-  let POST: (request: Request) => Promise<Response>;
-  let GET: (request: Request) => Promise<Response>;
+  let POST: MarketTickRoute['POST'];
+  let GET: MarketTickRoute['GET'];
 
   beforeAll(async () => {
     // Dynamic import after mocks are set up
