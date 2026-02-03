@@ -10,7 +10,7 @@
 
 import { db } from '@babylon/db';
 import type { JsonValue } from '@babylon/shared';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import { generateSnowflakeId, isPureRepost, logger } from '@babylon/shared';
 import {
   NPC_DIVERSITY_CONFIG,
   NPC_ENGAGEMENT_CONFIG,
@@ -319,11 +319,7 @@ export async function processNPCSocialEngagements(
     const postIds = recentPosts.map((p) => p.id);
     const shareTargetPostIds = new Set(postIds);
     for (const post of recentPosts) {
-      if (
-        typeof post.originalPostId === 'string' &&
-        post.originalPostId.trim().length > 0 &&
-        post.content.trim().length === 0
-      ) {
+      if (isPureRepost(post)) {
         shareTargetPostIds.add(post.originalPostId);
       }
     }
@@ -467,11 +463,9 @@ export async function processNPCSocialEngagements(
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post, random);
         // If this is a pure repost, share the original instead of the repost itself
-        const isPureRepost =
-          typeof post.originalPostId === 'string' &&
-          post.originalPostId.trim().length > 0 &&
-          post.content.trim().length === 0;
-        const shareTargetPostId = isPureRepost ? post.originalPostId! : post.id;
+        const shareTargetPostId = isPureRepost(post)
+          ? post.originalPostId
+          : post.id;
         const shareKey = `${shareTargetPostId}-${actor.id}`;
 
         // LIKE

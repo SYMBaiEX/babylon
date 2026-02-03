@@ -135,6 +135,7 @@ import {
 } from '@babylon/engine';
 import {
   generateSnowflakeId,
+  isPureRepost,
   logger,
   PostIdParamSchema,
   SharePostSchema,
@@ -199,15 +200,11 @@ export const POST = withErrorHandling(
       .where(eq(posts.id, postId))
       .limit(1);
 
-    const isPureRepost =
-      !!post &&
-      typeof post.originalPostId === 'string' &&
-      post.originalPostId.trim().length > 0 &&
-      post.content.trim().length === 0;
-    const shareTargetPostId = isPureRepost ? post!.originalPostId! : postId;
+    let shareTargetPostId = postId;
     let shareTargetPost = post;
 
-    if (post && isPureRepost) {
+    if (post && isPureRepost(post)) {
+      shareTargetPostId = post.originalPostId;
       const [resolvedPost] = await db
         .select({
           id: posts.id,
@@ -289,7 +286,7 @@ export const POST = withErrorHandling(
       throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
     }
 
-    if (isPureRepost && shareTargetPostId !== postId) {
+    if (post && isPureRepost(post) && shareTargetPostId !== postId) {
       const [existingRepostShare] = await db
         .select({ id: shares.id })
         .from(shares)
@@ -529,14 +526,8 @@ export const DELETE = withErrorHandling(
         .where(eq(posts.id, postId))
         .limit(1);
 
-      const isPureRepost =
-        !!post &&
-        typeof post.originalPostId === 'string' &&
-        post.originalPostId.trim().length > 0 &&
-        post.content.trim().length === 0;
-
-      if (isPureRepost) {
-        shareTargetPostId = post.originalPostId!;
+      if (post && isPureRepost(post)) {
+        shareTargetPostId = post.originalPostId;
         const [redirectedShare] = await db
           .select({ id: shares.id })
           .from(shares)

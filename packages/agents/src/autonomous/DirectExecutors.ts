@@ -20,6 +20,7 @@ import {
   PredictionDbAdapter,
   PredictionMarketService,
 } from '@babylon/core/markets/prediction';
+import { isPureRepost } from '@babylon/shared';
 import {
   actorState,
   aliasedTable,
@@ -1696,14 +1697,10 @@ export async function executeDirectRepost(
     return { success: false, error: `Post not found: ${postId}` };
   }
 
-  const isPureRepost =
-    typeof post.originalPostId === 'string' &&
-    post.originalPostId.trim().length > 0 &&
-    post.content.trim().length === 0;
   let targetPost = post;
   let targetPostId = postId;
 
-  if (isPureRepost) {
+  if (isPureRepost(post)) {
     const [resolvedPost] = await db
       .select({
         id: posts.id,
@@ -1712,7 +1709,7 @@ export async function executeDirectRepost(
         originalPostId: posts.originalPostId,
       })
       .from(posts)
-      .where(eq(posts.id, post.originalPostId!))
+      .where(eq(posts.id, post.originalPostId))
       .limit(1);
 
     if (!resolvedPost) {
