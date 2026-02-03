@@ -98,7 +98,8 @@ const DAILY_REWARDS = [
 // ─── Helper Functions (exported for testing) ─────────────────────────────────
 
 export function getDailyReward(streakDay: number): number {
-  const idx = Math.max(0, streakDay - 1) % DAILY_LOGIN.CYCLE_LENGTH;
+  // Math.floor ensures floats like 1.9 are handled predictably (treated as day 1)
+  const idx = Math.floor(Math.max(0, streakDay - 1)) % DAILY_LOGIN.CYCLE_LENGTH;
   return DAILY_REWARDS[idx] ?? DAILY_REWARDS[0];
 }
 
@@ -384,7 +385,23 @@ export class DailyLoginService {
       return result;
     } finally {
       // Always release lock, even on error
-      await DistributedLockService.releaseLock(lockId, processId);
+      // Wrap in try-catch to prevent lock release errors from masking transaction results
+      try {
+        await DistributedLockService.releaseLock(lockId, processId);
+      } catch (releaseError) {
+        logger.error(
+          'Failed to release distributed lock',
+          {
+            lockId,
+            processId,
+            error:
+              releaseError instanceof Error
+                ? releaseError.message
+                : String(releaseError),
+          },
+          'DailyLoginService'
+        );
+      }
     }
   }
 }
