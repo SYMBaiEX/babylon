@@ -192,6 +192,7 @@ export const POST = withErrorHandling(
         deletedAt: posts.deletedAt,
         authorId: posts.authorId,
         timestamp: posts.timestamp,
+        originalPostId: posts.originalPostId,
       })
       .from(posts)
       .where(eq(posts.id, postId))
@@ -241,6 +242,13 @@ export const POST = withErrorHandling(
       }
     } else if (post.deletedAt) {
       throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
+    }
+
+    if (post?.originalPostId) {
+      throw new BusinessLogicError(
+        'Cannot repost a repost. Please repost the original post.',
+        'CANNOT_REPOST_REPOST'
+      );
     }
 
     const [existingShare] = await db

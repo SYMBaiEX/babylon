@@ -456,6 +456,9 @@ export async function processNPCSocialEngagements(
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post, random);
+        const isRepostTarget =
+          typeof post.originalPostId === 'string' &&
+          post.originalPostId.trim().length > 0;
 
         // LIKE
         // Skip if global likes quota reached (other actors may still process shares/comments)
@@ -497,6 +500,7 @@ export async function processNPCSocialEngagements(
         // SHARE (creates both a Share record AND a visible repost Post)
         // Skip if diversity tracker says too many consecutive shares
         if (
+          !isRepostTarget &&
           !shareSet.has(key) &&
           result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick &&
           !diversityTracker.shouldSkipForDiversity('share')

@@ -1682,7 +1682,12 @@ export async function executeDirectRepost(
 
   // Verify post exists
   const [post] = await db
-    .select({ id: posts.id, authorId: posts.authorId, content: posts.content })
+    .select({
+      id: posts.id,
+      authorId: posts.authorId,
+      content: posts.content,
+      originalPostId: posts.originalPostId,
+    })
     .from(posts)
     .where(eq(posts.id, postId))
     .limit(1);
@@ -1694,6 +1699,13 @@ export async function executeDirectRepost(
   // Don't let agents repost their own content
   if (post.authorId === agentUserId) {
     return { success: false, error: 'Cannot repost own content' };
+  }
+
+  if (post.originalPostId) {
+    return {
+      success: false,
+      error: 'Cannot repost a repost. Please repost the original post.',
+    };
   }
 
   // Note: We rely on the transaction's unique constraint handling to detect duplicates.
