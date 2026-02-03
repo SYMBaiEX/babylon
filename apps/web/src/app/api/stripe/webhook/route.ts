@@ -663,9 +663,9 @@ async function handleDisputeClosed(
     )
     .limit(1);
 
-  const deductionTx = originalPurchaseResult[0];
+  const originalPurchase = originalPurchaseResult[0];
 
-  if (!deductionTx) {
+  if (!originalPurchase) {
     logger.warn(
       'No original purchase found for won dispute - cannot re-credit',
       { disputeId: dispute.id, paymentIntentId },
@@ -680,7 +680,7 @@ async function handleDisputeClosed(
     'Re-crediting points after winning dispute',
     {
       disputeId: dispute.id,
-      userId: deductionTx.userId,
+      userId: originalPurchase.userId,
       amountUSD,
     },
     'StripeWebhook'
@@ -688,7 +688,7 @@ async function handleDisputeClosed(
 
   // Re-credit points to user
   const result = await PointsService.creditDisputeWon(
-    deductionTx.userId,
+    originalPurchase.userId,
     dispute.id,
     amountUSD,
     eventId
@@ -699,18 +699,22 @@ async function handleDisputeClosed(
       `Re-credited ${result.pointsAwarded} points to user after winning dispute`,
       {
         disputeId: dispute.id,
-        userId: deductionTx.userId,
+        userId: originalPurchase.userId,
         pointsCredited: result.pointsAwarded,
         newBalance: result.newTotal,
       },
       'StripeWebhook'
     );
 
-    trackServerEvent(deductionTx.userId, 'stripe_dispute_won_points_credited', {
-      disputeId: dispute.id,
-      amountUSD,
-      pointsCredited: result.pointsAwarded,
-    });
+    trackServerEvent(
+      originalPurchase.userId,
+      'stripe_dispute_won_points_credited',
+      {
+        disputeId: dispute.id,
+        amountUSD,
+        pointsCredited: result.pointsAwarded,
+      }
+    );
 
     return { success: true, alreadyProcessed: result.alreadyAwarded };
   }
@@ -719,7 +723,7 @@ async function handleDisputeClosed(
     'Failed to re-credit points after dispute won',
     {
       disputeId: dispute.id,
-      userId: deductionTx.userId,
+      userId: originalPurchase.userId,
       error: result.error,
     },
     'StripeWebhook'
@@ -788,10 +792,11 @@ async function handleChargeRefunded(
   // Calculate incremental refund amount
   // charge.amount_refunded is CUMULATIVE, so we need to check how much we've already deducted
   // Refunds are stored in balanceTransactions with type = 'stripe_refund'
-  // We look for refunds that reference the original payment intent in their description
+  // Each refund stores originalPaymentIntentId in description JSON
   const existingRefundsResult = await db
     .select({
       amount: balanceTransactions.amount,
+      description: balanceTransactions.description,
     })
     .from(balanceTransactions)
     .where(
@@ -801,9 +806,19 @@ async function handleChargeRefunded(
       )
     );
 
-  // Sum already deducted points (amounts are negative for deductions)
+  // Filter refunds to only those for this specific payment intent
+  // Each refund transaction stores originalPaymentIntentId in its description JSON
+  const refundsForThisPayment = existingRefundsResult.filter((tx) => {
+    if (!tx.description) return false;
+    const desc = JSON.parse(tx.description) as {
+      originalPaymentIntentId?: string;
+    };
+    return desc.originalPaymentIntentId === paymentIntentId;
+  });
+
+  // Sum already deducted points for this payment (amounts are negative for deductions)
   // balanceTransactions stores amount as string
-  const alreadyDeductedPoints = existingRefundsResult.reduce(
+  const alreadyDeductedPoints = refundsForThisPayment.reduce(
     (sum, tx) => sum + Math.abs(Number(tx.amount)),
     0
   );
@@ -840,6 +855,8 @@ async function handleChargeRefunded(
       incrementalAmountUSD,
       incrementalPointsToDeduct,
       alreadyDeductedPoints,
+      refundsForThisPaymentCount: refundsForThisPayment.length,
+      totalRefundsForUser: existingRefundsResult.length,
       fullRefund: charge.refunded,
       paymentIntentId,
     },

@@ -21,10 +21,12 @@ import {
   withErrorHandling,
 } from '@babylon/api';
 import {
+  and,
   balanceTransactions,
   db,
   desc,
   eq,
+  inArray,
   pointsTransactions,
 } from '@babylon/db';
 import { UserIdParamSchema } from '@babylon/shared';
@@ -82,55 +84,59 @@ export const GET = withErrorHandling(
       .limit(100);
 
     // Get purchase-related balance transactions (Stripe/crypto purchases)
+    // Filter by type at the SQL level to ensure we get exactly 100 purchase transactions
     const purchaseTypes = Object.keys(BALANCE_TYPE_TO_REASON);
     const purchaseTransactionsRaw = await db
       .select()
       .from(balanceTransactions)
-      .where(eq(balanceTransactions.userId, canonicalUserId))
+      .where(
+        and(
+          eq(balanceTransactions.userId, canonicalUserId),
+          inArray(balanceTransactions.type, purchaseTypes)
+        )
+      )
       .orderBy(desc(balanceTransactions.createdAt))
       .limit(100);
 
-    // Filter to only purchase-related types and map to legacy format
-    const purchaseTransactions = purchaseTransactionsRaw
-      .filter((tx) => purchaseTypes.includes(tx.type))
-      .map((tx) => {
-        // Parse description JSON for additional metadata
-        let metadata: Record<string, unknown> = {};
-        let paymentProvider: string | null = null;
-        let paymentTxHash: string | null = null;
-        let paymentRequestId: string | null = null;
-        let paymentAmount: string | null = null;
+    // Map to legacy format for API compatibility
+    const purchaseTransactions = purchaseTransactionsRaw.map((tx) => {
+      // Parse description JSON for additional metadata
+      let metadata: Record<string, unknown> = {};
+      let paymentProvider: string | null = null;
+      let paymentTxHash: string | null = null;
+      let paymentRequestId: string | null = null;
+      let paymentAmount: string | null = null;
 
-        try {
-          if (tx.description) {
-            metadata = JSON.parse(tx.description);
-            paymentProvider = (metadata.paymentProvider as string) || null;
-            paymentTxHash = (metadata.paymentTxHash as string) || null;
-            paymentRequestId = (metadata.paymentRequestId as string) || null;
-            if (metadata.amountUSD) {
-              paymentAmount = String(metadata.amountUSD);
-            }
+      try {
+        if (tx.description) {
+          metadata = JSON.parse(tx.description);
+          paymentProvider = (metadata.paymentProvider as string) || null;
+          paymentTxHash = (metadata.paymentTxHash as string) || null;
+          paymentRequestId = (metadata.paymentRequestId as string) || null;
+          if (metadata.amountUSD) {
+            paymentAmount = String(metadata.amountUSD);
           }
-        } catch {
-          // Ignore JSON parse errors
         }
+      } catch {
+        // Ignore JSON parse errors
+      }
 
-        return {
-          id: tx.id,
-          userId: tx.userId,
-          amount: Number(tx.amount),
-          pointsBefore: Number(tx.balanceBefore),
-          pointsAfter: Number(tx.balanceAfter),
-          reason: BALANCE_TYPE_TO_REASON[tx.type] || tx.type,
-          metadata: tx.description,
-          createdAt: tx.createdAt.toISOString(),
-          paymentRequestId: paymentRequestId || tx.relatedId,
-          paymentTxHash: paymentTxHash || tx.relatedId,
-          paymentAmount,
-          paymentVerified: true,
-          paymentProvider,
-        };
-      });
+      return {
+        id: tx.id,
+        userId: tx.userId,
+        amount: Number(tx.amount),
+        pointsBefore: Number(tx.balanceBefore),
+        pointsAfter: Number(tx.balanceAfter),
+        reason: BALANCE_TYPE_TO_REASON[tx.type] || tx.type,
+        metadata: tx.description,
+        createdAt: tx.createdAt.toISOString(),
+        paymentRequestId: paymentRequestId || tx.relatedId,
+        paymentTxHash: paymentTxHash || tx.relatedId,
+        paymentAmount,
+        paymentVerified: true,
+        paymentProvider,
+      };
+    });
 
     // Combine and sort by date (most recent first)
     const allTransactions = [
