@@ -42,7 +42,7 @@
  */
 
 import { PointsService } from '@babylon/api';
-import { and, db, eq, pointsTransactions } from '@babylon/db';
+import { and, balanceTransactions, db, eq } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
@@ -501,17 +501,18 @@ async function handleDisputeCreated(
   }
 
   // Find the original transaction to get the userId
+  // Purchases are stored in balanceTransactions with relatedId = paymentIntentId
   const originalTxResult = await db
     .select({
-      userId: pointsTransactions.userId,
-      amount: pointsTransactions.amount,
-      paymentAmount: pointsTransactions.paymentAmount,
+      userId: balanceTransactions.userId,
+      amount: balanceTransactions.amount,
+      description: balanceTransactions.description,
     })
-    .from(pointsTransactions)
+    .from(balanceTransactions)
     .where(
       and(
-        eq(pointsTransactions.paymentTxHash, paymentIntentId),
-        eq(pointsTransactions.reason, 'purchase')
+        eq(balanceTransactions.relatedId, paymentIntentId),
+        eq(balanceTransactions.type, 'stripe_purchase')
       )
     )
     .limit(1);
@@ -645,26 +646,28 @@ async function handleDisputeClosed(
   }
 
   // Find the dispute deduction transaction to get the userId
-  const deductionTxResult = await db
+  // Dispute deductions are stored in balanceTransactions with type = 'stripe_dispute'
+  // We look for the original purchase to get the userId
+  const originalPurchaseResult = await db
     .select({
-      userId: pointsTransactions.userId,
-      amount: pointsTransactions.amount,
-      paymentAmount: pointsTransactions.paymentAmount,
+      userId: balanceTransactions.userId,
+      amount: balanceTransactions.amount,
+      description: balanceTransactions.description,
     })
-    .from(pointsTransactions)
+    .from(balanceTransactions)
     .where(
       and(
-        eq(pointsTransactions.paymentTxHash, paymentIntentId),
-        eq(pointsTransactions.reason, 'purchase_dispute')
+        eq(balanceTransactions.relatedId, paymentIntentId),
+        eq(balanceTransactions.type, 'stripe_purchase')
       )
     )
     .limit(1);
 
-  const deductionTx = deductionTxResult[0];
+  const deductionTx = originalPurchaseResult[0];
 
   if (!deductionTx) {
     logger.warn(
-      'No dispute deduction transaction found for won dispute',
+      'No original purchase found for won dispute - cannot re-credit',
       { disputeId: dispute.id, paymentIntentId },
       'StripeWebhook'
     );
@@ -755,17 +758,18 @@ async function handleChargeRefunded(
   }
 
   // Find the original transaction to get the userId
+  // Purchases are stored in balanceTransactions with relatedId = paymentIntentId
   const originalTxResult = await db
     .select({
-      userId: pointsTransactions.userId,
-      amount: pointsTransactions.amount,
-      paymentAmount: pointsTransactions.paymentAmount,
+      userId: balanceTransactions.userId,
+      amount: balanceTransactions.amount,
+      description: balanceTransactions.description,
     })
-    .from(pointsTransactions)
+    .from(balanceTransactions)
     .where(
       and(
-        eq(pointsTransactions.paymentTxHash, paymentIntentId),
-        eq(pointsTransactions.reason, 'purchase')
+        eq(balanceTransactions.relatedId, paymentIntentId),
+        eq(balanceTransactions.type, 'stripe_purchase')
       )
     )
     .limit(1);
@@ -783,21 +787,24 @@ async function handleChargeRefunded(
 
   // Calculate incremental refund amount
   // charge.amount_refunded is CUMULATIVE, so we need to check how much we've already deducted
+  // Refunds are stored in balanceTransactions with type = 'stripe_refund'
+  // We look for refunds that reference the original payment intent in their description
   const existingRefundsResult = await db
     .select({
-      amount: pointsTransactions.amount,
+      amount: balanceTransactions.amount,
     })
-    .from(pointsTransactions)
+    .from(balanceTransactions)
     .where(
       and(
-        eq(pointsTransactions.paymentTxHash, paymentIntentId),
-        eq(pointsTransactions.reason, 'purchase_refund')
+        eq(balanceTransactions.userId, originalTx.userId),
+        eq(balanceTransactions.type, 'stripe_refund')
       )
     );
 
   // Sum already deducted points (amounts are negative for deductions)
+  // balanceTransactions stores amount as string
   const alreadyDeductedPoints = existingRefundsResult.reduce(
-    (sum, tx) => sum + Math.abs(tx.amount),
+    (sum, tx) => sum + Math.abs(Number(tx.amount)),
     0
   );
 
