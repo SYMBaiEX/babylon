@@ -3,16 +3,6 @@
 import { cookies } from 'next/headers';
 
 /**
- * Error thrown when authentication is required but no valid token is found.
- */
-export class AuthenticationRequiredError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AuthenticationRequiredError';
-  }
-}
-
-/**
  * Retrieves the Privy authentication token from cookies or uses an explicitly provided token.
  *
  * This is a server-side helper for Next.js server actions that need to authenticate
@@ -21,7 +11,7 @@ export class AuthenticationRequiredError extends Error {
  *
  * @param explicitToken - Optional token passed directly from the client
  * @returns The Privy JWT token
- * @throws AuthenticationRequiredError if no token is found in either location
+ * @throws Error with descriptive message if no token is found
  */
 export async function requirePrivyToken(
   explicitToken?: string
@@ -32,7 +22,7 @@ export async function requirePrivyToken(
   const token = cookieStore.get('privy-token')?.value;
 
   if (!token) {
-    throw new AuthenticationRequiredError(
+    throw new Error(
       'Authentication required: no Privy token found. Please sign in and try again.'
     );
   }
