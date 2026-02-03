@@ -1701,7 +1701,7 @@ export async function executeDirectRepost(
     return { success: false, error: 'Cannot repost own content' };
   }
 
-  if (post.originalPostId) {
+  if (post.originalPostId && post.content.trim().length === 0) {
     return {
       success: false,
       error: 'Cannot repost a repost. Please repost the original post.',

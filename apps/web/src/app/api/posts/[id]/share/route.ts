@@ -189,6 +189,7 @@ export const POST = withErrorHandling(
     const [post] = await db
       .select({
         id: posts.id,
+        content: posts.content,
         deletedAt: posts.deletedAt,
         authorId: posts.authorId,
         timestamp: posts.timestamp,
@@ -244,7 +245,7 @@ export const POST = withErrorHandling(
       throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
     }
 
-    if (post?.originalPostId) {
+    if (post && post.originalPostId && post.content.trim().length === 0) {
       throw new BusinessLogicError(
         'Cannot repost a repost. Please repost the original post.',
         'CANNOT_REPOST_REPOST'

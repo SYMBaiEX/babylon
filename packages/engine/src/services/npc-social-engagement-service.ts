@@ -456,12 +456,12 @@ export async function processNPCSocialEngagements(
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post, random);
-        // Only skip sharing pure reposts (type='repost'), not quote posts
-        // Quote posts have originalPostId but are distinct content worth sharing
+        // Only skip sharing pure reposts (originalPostId + empty content), not quote posts
+        // Quote posts have originalPostId but include content worth sharing
         const isRepostTarget =
-          post.type === 'repost' &&
           typeof post.originalPostId === 'string' &&
-          post.originalPostId.trim().length > 0;
+          post.originalPostId.trim().length > 0 &&
+          post.content.trim().length === 0;
 
         // LIKE
         // Skip if global likes quota reached (other actors may still process shares/comments)
