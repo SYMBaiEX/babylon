@@ -263,8 +263,8 @@ describe('Daily Login - Integration Tests', () => {
 
       const responses = await Promise.all(requests);
       for (const res of responses) {
-        // Should be auth error or rate limit, not 500 crash
-        expect([401, 429, 500]).toContain(res.status);
+        // Should be auth error or rate limit - 500 would indicate a server crash
+        expect([401, 429]).toContain(res.status);
       }
     });
   });
@@ -683,21 +683,19 @@ describe('Daily Login - Error Handling', () => {
     expect(user).toBeUndefined();
   });
 
-  test('database accepts negative streak (no constraint)', async () => {
+  test('database rejects negative streak (CHECK constraint)', async () => {
     if (skipIfNoDb()) return;
 
     const tempUserId = await createTestUser();
 
     try {
-      // Service has safeguards, but DB schema allows negative
-      await db
-        .update(users)
-        .set({ dailyLoginStreak: -1 })
-        .where(eq(users.id, tempUserId));
-
-      const user = await getUserStreak(tempUserId);
-      // DB allows negative, but service normalizes on read
-      expect(user!.dailyLoginStreak).toBe(-1);
+      // CHECK constraint should reject negative values
+      await expect(
+        db
+          .update(users)
+          .set({ dailyLoginStreak: -1 })
+          .where(eq(users.id, tempUserId))
+      ).rejects.toThrow();
     } finally {
       await deleteTestUser(tempUserId);
     }

@@ -44,7 +44,8 @@ const DAILY_REWARDS = [
  * Keep these in sync with the service!
  */
 function getDailyReward(streakDay: number): number {
-  const idx = Math.max(0, streakDay - 1) % DAILY_LOGIN.CYCLE_LENGTH;
+  // Math.floor ensures floats like 1.9 are handled predictably (treated as day 1)
+  const idx = Math.floor(Math.max(0, streakDay - 1)) % DAILY_LOGIN.CYCLE_LENGTH;
   return DAILY_REWARDS[idx] ?? DAILY_REWARDS[0];
 }
 
@@ -236,11 +237,12 @@ describe('Daily Login - getDailyReward', () => {
   });
 
   describe('type coercion edge cases', () => {
-    test('floating point days fallback to default (array index undefined)', () => {
-      // JavaScript arrays with float indices return undefined → fallback to DAILY_REWARDS[0]
-      // This documents actual behavior, not ideal behavior
+    test('floating point days are floored to integer day', () => {
+      // Math.floor ensures floats are handled predictably
+      // 1.9 → floor(1.9 - 1) = floor(0.9) = 0 → DAILY_REWARDS[0] = Day 1
       expect(getDailyReward(1.9)).toBe(DAILY_REWARDS[0]);
-      expect(getDailyReward(7.999)).toBe(DAILY_REWARDS[0]); // float index → undefined → fallback
+      // 7.999 → floor(7.999 - 1) = floor(6.999) = 6 → DAILY_REWARDS[6] = Day 7
+      expect(getDailyReward(7.999)).toBe(DAILY_REWARDS[6]);
     });
   });
 });
