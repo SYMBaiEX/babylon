@@ -9,6 +9,7 @@ import {
   authenticate,
   DailyLoginService,
   successResponse,
+  UserNotFoundError,
   withErrorHandling,
 } from '@babylon/api';
 import type { NextRequest } from 'next/server';
@@ -23,10 +24,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       lastClaim: info.lastClaim?.toISOString() ?? null,
     });
   } catch (error) {
-    // If service throws (e.g., user not found), return 404
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('not found')) {
-      return new Response(JSON.stringify({ error: errorMessage }), {
+    // If service throws UserNotFoundError, return 404
+    if (error instanceof UserNotFoundError) {
+      return new Response(JSON.stringify({ error: error.message }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
