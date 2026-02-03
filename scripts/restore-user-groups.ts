@@ -10,7 +10,7 @@
  *   bun run scripts/restore-user-groups.ts --user=<user-id>
  */
 
-import { db, eq, like, users } from '@babylon/db';
+import { db, eq, ilike, users } from '@babylon/db';
 import {
   TieredGroupService,
   UserAlphaGroupAssignmentService,
@@ -60,7 +60,7 @@ async function main() {
           displayName: users.displayName,
         })
         .from(users)
-        .where(like(users.username, username))
+        .where(ilike(users.username, username))
         .limit(1);
 
       if (!userCI) {

@@ -475,9 +475,7 @@ describe('Minimum Group Protection', () => {
       await UserAlphaGroupAssignmentService.assignDefaultGroups(user.id);
 
     expect(assignResult.success).toBe(true);
-    expect(assignResult.groupsAssigned).toBe(3);
-
-    // User has been assigned exactly 3 groups (the minimum/default)
+    // User has been assigned exactly TARGET_DEFAULT_GROUPS (the minimum/default)
     // This means they should be protected from being kicked below this threshold
     expect(assignResult.groupsAssigned).toBe(
       UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS
