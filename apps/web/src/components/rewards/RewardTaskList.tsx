@@ -40,11 +40,13 @@ export function RewardTaskList({
       {tasks.map((task) => (
         <button
           key={task.id}
-          onClick={() => onTaskClick(task.id, task.action)}
-          disabled={task.completed}
+          onClick={
+            task.completed ? undefined : () => onTaskClick(task.id, task.action)
+          }
+          aria-disabled={task.completed}
           className={`flex w-full items-center justify-between rounded-md border text-left transition-colors ${paddingClass} ${
             task.completed
-              ? 'border-green-500/30 bg-green-500/5'
+              ? 'cursor-default border-green-500/30 bg-green-500/5'
               : 'cursor-pointer border-border hover:bg-muted/30'
           }`}
         >

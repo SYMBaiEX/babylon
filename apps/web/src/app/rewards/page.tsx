@@ -167,6 +167,13 @@ export default function RewardsPage() {
 
   const handleCopyUrl = async () => {
     if (!referralData?.user.referralCode) return;
+
+    // Guard against environments where clipboard API is not available
+    if (!navigator.clipboard?.writeText) {
+      toast.error('Clipboard not available in this browser');
+      return;
+    }
+
     const referralUrl = getReferralUrl(referralData.user.referralCode);
     const success = await navigator.clipboard
       .writeText(referralUrl)
