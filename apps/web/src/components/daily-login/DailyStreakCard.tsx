@@ -37,7 +37,18 @@ export function DailyStreakCard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setData(await res.json());
+        // Validate response is JSON before parsing
+        const contentType = res.headers.get('content-type');
+        if (!contentType?.includes('application/json')) {
+          console.warn(
+            'Daily login API returned unexpected content type:',
+            contentType
+          );
+          setData(null);
+          return;
+        }
+        const json = await res.json();
+        setData(json);
       } else {
         // Silently fail - don't show error toast, just don't render the card
         // This prevents blocking the page if the API/database isn't ready
@@ -45,7 +56,7 @@ export function DailyStreakCard() {
         setData(null);
       }
     } catch (error) {
-      // Silently fail - don't show error toast
+      // Silently fail - don't show error toast (includes JSON parse errors)
       console.warn('Daily login API error:', error);
       setData(null);
     }
@@ -57,18 +68,23 @@ export function DailyStreakCard() {
   }, [fetchData]);
 
   // Countdown timer - updates every minute when user can't claim
+  // Uses lastUpdateTime to calculate actual elapsed time instead of fixed intervals
+  // to prevent timer drift over extended periods
   const canClaim = data?.canClaim ?? false;
   useEffect(() => {
     if (canClaim) return;
+    let lastUpdateTime = Date.now();
     const id = setInterval(() => {
+      const now = Date.now();
+      const actualElapsed = now - lastUpdateTime;
+      lastUpdateTime = now;
       setData((prev) => {
         if (!prev) return prev;
-        const elapsed = 60_000;
-        const timeUntilClaim = Math.max(0, prev.timeUntilClaim - elapsed);
+        const timeUntilClaim = Math.max(0, prev.timeUntilClaim - actualElapsed);
         return {
           ...prev,
           timeUntilClaim,
-          timeUntilReset: Math.max(0, prev.timeUntilReset - elapsed),
+          timeUntilReset: Math.max(0, prev.timeUntilReset - actualElapsed),
           canClaim: timeUntilClaim <= 0,
         };
       });
