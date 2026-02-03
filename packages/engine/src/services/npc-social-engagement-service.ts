@@ -317,13 +317,23 @@ export async function processNPCSocialEngagements(
 
     // Get existing engagements
     const postIds = recentPosts.map((p) => p.id);
+    const shareTargetPostIds = new Set(postIds);
+    for (const post of recentPosts) {
+      if (
+        typeof post.originalPostId === 'string' &&
+        post.originalPostId.trim().length > 0 &&
+        post.content.trim().length === 0
+      ) {
+        shareTargetPostIds.add(post.originalPostId);
+      }
+    }
     const [existingReactions, existingShares] = await Promise.all([
       db.reaction.findMany({
         where: { postId: { in: postIds } },
         select: { postId: true, userId: true },
       }),
       db.share.findMany({
-        where: { postId: { in: postIds } },
+        where: { postId: { in: Array.from(shareTargetPostIds) } },
         select: { postId: true, userId: true },
       }),
     ]);
@@ -456,12 +466,13 @@ export async function processNPCSocialEngagements(
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post, random);
-        // Only skip sharing pure reposts (originalPostId + empty content), not quote posts
-        // Quote posts have originalPostId but include content worth sharing
-        const isRepostTarget =
+        // If this is a pure repost, share the original instead of the repost itself
+        const isPureRepost =
           typeof post.originalPostId === 'string' &&
           post.originalPostId.trim().length > 0 &&
           post.content.trim().length === 0;
+        const shareTargetPostId = isPureRepost ? post.originalPostId! : post.id;
+        const shareKey = `${shareTargetPostId}-${actor.id}`;
 
         // LIKE
         // Skip if global likes quota reached (other actors may still process shares/comments)
@@ -503,8 +514,7 @@ export async function processNPCSocialEngagements(
         // SHARE (creates both a Share record AND a visible repost Post)
         // Skip if diversity tracker says too many consecutive shares
         if (
-          !isRepostTarget &&
-          !shareSet.has(key) &&
+          !shareSet.has(shareKey) &&
           result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick &&
           !diversityTracker.shouldSkipForDiversity('share')
         ) {
@@ -515,7 +525,7 @@ export async function processNPCSocialEngagements(
                 await tx.share.create({
                   data: {
                     id: await generateSnowflakeId(),
-                    postId: post.id,
+                    postId: shareTargetPostId,
                     userId: actor.id,
                   },
                 });
@@ -529,7 +539,7 @@ export async function processNPCSocialEngagements(
                     content: '',
                     authorId: actor.id,
                     timestamp: getStaggeredTimestamp(), // Staggered for organic feel
-                    originalPostId: post.id,
+                    originalPostId: shareTargetPostId,
                     type: 'repost', // Explicit type for query filtering
                   },
                 });
@@ -537,7 +547,7 @@ export async function processNPCSocialEngagements(
 
               result.sharesCreated++;
               engagedActors.add(actor.id);
-              shareSet.add(key); // Only mark on success - allows retry on failure
+              shareSet.add(shareKey); // Only mark on success - allows retry on failure
               diversityTracker.recordAction('share');
             } catch (error) {
               // Unique constraint or other error - don't mark as processed, allows retry

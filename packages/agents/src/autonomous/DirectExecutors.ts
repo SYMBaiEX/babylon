@@ -1696,24 +1696,47 @@ export async function executeDirectRepost(
     return { success: false, error: `Post not found: ${postId}` };
   }
 
-  // Don't let agents repost their own content
-  if (post.authorId === agentUserId) {
-    return { success: false, error: 'Cannot repost own content' };
+  const isPureRepost =
+    typeof post.originalPostId === 'string' &&
+    post.originalPostId.trim().length > 0 &&
+    post.content.trim().length === 0;
+  let targetPost = post;
+  let targetPostId = postId;
+
+  if (isPureRepost) {
+    const [resolvedPost] = await db
+      .select({
+        id: posts.id,
+        authorId: posts.authorId,
+        content: posts.content,
+        originalPostId: posts.originalPostId,
+      })
+      .from(posts)
+      .where(eq(posts.id, post.originalPostId!))
+      .limit(1);
+
+    if (!resolvedPost) {
+      return {
+        success: false,
+        error: `Post not found: ${post.originalPostId}`,
+      };
+    }
+
+    targetPost = resolvedPost;
+    targetPostId = resolvedPost.id;
   }
 
-  if (post.originalPostId && post.content.trim().length === 0) {
-    return {
-      success: false,
-      error: 'Cannot repost a repost. Please repost the original post.',
-    };
+  // Don't let agents repost their own content
+  if (targetPost.authorId === agentUserId) {
+    return { success: false, error: 'Cannot repost own content' };
   }
 
   // Note: We rely on the transaction's unique constraint handling to detect duplicates.
   // The pre-check was removed to avoid TOCTOU race conditions.
 
   logger.info(
-    `[DirectExecutor] Reposting post ${postId}`,
-    { agentUserId, hasComment: !!comment },
+    `[DirectExecutor] Reposting post ${targetPostId}`,
+    { agentUserId, hasComment: !!comment, requestedPostId: postId },
     'DirectExecutors'
   );
 
@@ -1731,7 +1754,7 @@ export async function executeDirectRepost(
       await tx.insert(shares).values({
         id: shareId,
         userId: agentUserId,
-        postId,
+        postId: targetPostId,
         createdAt: now,
       });
 
@@ -1741,7 +1764,7 @@ export async function executeDirectRepost(
           id: quotePostId,
           content: comment!.trim(),
           authorId: agentUserId,
-          originalPostId: postId,
+          originalPostId: targetPostId,
           type: 'repost',
           timestamp: now,
           createdAt: now,
@@ -1750,7 +1773,7 @@ export async function executeDirectRepost(
     });
 
     logger.info(
-      `[DirectExecutor] Post reposted: ${postId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,
+      `[DirectExecutor] Post reposted: ${targetPostId} -> share ${shareId}${quotePostId ? ` with quote ${quotePostId}` : ''}`,
       undefined,
       'DirectExecutors'
     );
@@ -1773,7 +1796,9 @@ export async function executeDirectRepost(
       const [share] = await db
         .select({ id: shares.id })
         .from(shares)
-        .where(and(eq(shares.postId, postId), eq(shares.userId, agentUserId)))
+        .where(
+          and(eq(shares.postId, targetPostId), eq(shares.userId, agentUserId))
+        )
         .limit(1);
 
       if (!share?.id) {

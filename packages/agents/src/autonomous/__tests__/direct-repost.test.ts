@@ -15,9 +15,7 @@ const mockDb = {
       })),
     })),
   })),
-  transaction: mock(async () => {
-    throw new Error('transaction should not run for repost-of-repost');
-  }),
+  transaction: mock(async () => undefined),
 };
 
 mock.module('@babylon/db', () => ({
@@ -109,16 +107,48 @@ mock.module('../utils/resolvePerpTicker', () => ({
 const { executeDirectRepost } = await import('../DirectExecutors');
 
 describe('executeDirectRepost', () => {
-  test('rejects reposting a repost', async () => {
+  test('reposts the original when given a repost', async () => {
+    const originalPost = {
+      id: 'post-0',
+      authorId: 'user-9',
+      content: 'Original content',
+      originalPostId: null,
+    };
+    let selectCallCount = 0;
+    mockDb.select = mock(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(async () => {
+            selectCallCount += 1;
+            return selectCallCount === 1 ? [mockPost] : [originalPost];
+          }),
+        })),
+      })),
+    }));
+
+    let sharedPostId: string | undefined;
+    mockDb.transaction = mock(
+      async (callback: (tx: unknown) => Promise<void>) => {
+        await callback({
+          insert: mock(() => ({
+            values: mock(async (values: { postId: string }) => {
+              sharedPostId = values.postId;
+            }),
+          })),
+        });
+        return undefined;
+      }
+    ) as typeof mockDb.transaction;
+
     const result = await executeDirectRepost({
       agentUserId: 'user-2',
       postId: 'post-1',
       comment: undefined,
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('Cannot repost a repost');
-    expect(mockDb.transaction).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(mockDb.transaction).toHaveBeenCalled();
+    expect(sharedPostId).toBe(originalPost.id);
   });
 
   test('allows reposting an original post', async () => {
