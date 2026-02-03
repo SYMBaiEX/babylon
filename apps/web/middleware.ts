@@ -202,6 +202,14 @@ function isNftGatingEnabled(): boolean {
   return ['true', '1', 'yes', 'on'].includes(flag.toLowerCase());
 }
 
+function getAccessCacheMaxAgeSeconds(): number {
+  const raw = process.env.ACCESS_GATE_CACHE_SECONDS?.trim();
+  if (!raw) return 60;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0) return 60;
+  return Math.min(value, 300);
+}
+
 function buildWaitlistRedirectUrl(request: NextRequest): string {
   const hostname = getHostname(request);
   const origin = getWaitlistOrigin(hostname, request.nextUrl.protocol);
@@ -320,17 +328,28 @@ export function middleware(request: NextRequest) {
   ).toString();
 
   const responsePromise = (async () => {
-    const res = await fetch(accessUrl, {
-      method: 'GET',
-      headers: {
-        ...(cookieHeader ? { cookie: cookieHeader } : {}),
-        ...(authHeader ? { authorization: authHeader } : {}),
-        accept: 'application/json',
-      },
-      cache: 'no-store',
-    });
+    const maxAge = getAccessCacheMaxAgeSeconds();
+    const secure = request.nextUrl.protocol === 'https:';
+
+    let res: Response;
+    try {
+      res = await fetch(accessUrl, {
+        method: 'GET',
+        headers: {
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          ...(authHeader ? { authorization: authHeader } : {}),
+          accept: 'application/json',
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(1200),
+      });
+    } catch {
+      // Fail closed (redirect) but do not cache a negative result (avoids pinning during transient failures).
+      return NextResponse.redirect(buildWaitlistRedirectUrl(request));
+    }
 
     if (!res.ok) {
+      // Fail closed (redirect) but do not cache a negative result (avoids pinning during transient failures).
       return NextResponse.redirect(buildWaitlistRedirectUrl(request));
     }
 
@@ -339,9 +358,9 @@ export function middleware(request: NextRequest) {
       const redirect = NextResponse.redirect(buildWaitlistRedirectUrl(request));
       redirect.cookies.set('ba_access', '0', {
         httpOnly: true,
-        secure: request.nextUrl.protocol === 'https:',
+        secure,
         sameSite: 'lax',
-        maxAge: 300,
+        maxAge,
         path: '/',
       });
       return redirect;
@@ -350,9 +369,9 @@ export function middleware(request: NextRequest) {
     const next = NextResponse.next();
     next.cookies.set('ba_access', '1', {
       httpOnly: true,
-      secure: request.nextUrl.protocol === 'https:',
+      secure,
       sameSite: 'lax',
-      maxAge: 300,
+      maxAge,
       path: '/',
     });
     return next;

@@ -22,11 +22,6 @@ export function getBaseUrl(): string {
  * referrals should generally land on the waitlist domain (babylon.market).
  */
 export function getWaitlistBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    const fromEnv = process.env.NEXT_PUBLIC_WAITLIST_URL;
-    if (fromEnv && fromEnv.trim().length > 0) return fromEnv.trim();
-  }
-
   const fromEnv = process.env.NEXT_PUBLIC_WAITLIST_URL;
   if (fromEnv && fromEnv.trim().length > 0) return fromEnv.trim();
 
