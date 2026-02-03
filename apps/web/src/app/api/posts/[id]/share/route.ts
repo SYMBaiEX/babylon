@@ -511,11 +511,45 @@ export const DELETE = withErrorHandling(
     await ensureUserForAuth(user, { displayName: fallbackDisplayName });
     const canonicalUserId = getCanonicalUserId(user);
 
-    const [share] = await db
+    let shareTargetPostId = postId;
+    let [share] = await db
       .select({ id: shares.id })
       .from(shares)
       .where(and(eq(shares.userId, canonicalUserId), eq(shares.postId, postId)))
       .limit(1);
+
+    if (!share) {
+      const [post] = await db
+        .select({
+          id: posts.id,
+          content: posts.content,
+          originalPostId: posts.originalPostId,
+        })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
+
+      const isPureRepost =
+        !!post &&
+        typeof post.originalPostId === 'string' &&
+        post.originalPostId.trim().length > 0 &&
+        post.content.trim().length === 0;
+
+      if (isPureRepost) {
+        shareTargetPostId = post.originalPostId!;
+        const [redirectedShare] = await db
+          .select({ id: shares.id })
+          .from(shares)
+          .where(
+            and(
+              eq(shares.userId, canonicalUserId),
+              eq(shares.postId, shareTargetPostId)
+            )
+          )
+          .limit(1);
+        share = redirectedShare;
+      }
+    }
 
     if (!share) {
       throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
@@ -527,7 +561,7 @@ export const DELETE = withErrorHandling(
       .where(
         and(
           eq(posts.authorId, canonicalUserId),
-          eq(posts.originalPostId, postId),
+          eq(posts.originalPostId, shareTargetPostId),
           isNull(posts.deletedAt)
         )
       )
@@ -537,13 +571,17 @@ export const DELETE = withErrorHandling(
       await db.delete(posts).where(eq(posts.id, repostPost.id));
       logger.info(
         'Deleted repost post',
-        { repostPostId: repostPost.id, originalPostId: postId },
+        {
+          repostPostId: repostPost.id,
+          originalPostId: shareTargetPostId,
+          requestedPostId: postId,
+        },
         'DELETE /api/posts/[id]/share'
       );
     } else {
       logger.warn(
         'No repost post found to delete',
-        { postId, userId: canonicalUserId },
+        { postId: shareTargetPostId, userId: canonicalUserId },
         'DELETE /api/posts/[id]/share'
       );
     }
@@ -553,25 +591,25 @@ export const DELETE = withErrorHandling(
     const [shareCountResult] = await db
       .select({ count: count() })
       .from(shares)
-      .where(eq(shares.postId, postId));
+      .where(eq(shares.postId, shareTargetPostId));
     const shareCount = Number(shareCountResult?.count ?? 0);
 
     await cachedDb.invalidatePostsCache();
     await cachedDb.invalidateActorPostsCache(canonicalUserId);
     logger.info(
       'Invalidated post caches after unshare',
-      { postId },
+      { postId: shareTargetPostId, requestedPostId: postId },
       'DELETE /api/posts/[id]/share'
     );
 
     logger.info(
       'Post unshared successfully',
-      { postId, userId: canonicalUserId, shareCount },
+      { postId: shareTargetPostId, userId: canonicalUserId, shareCount },
       'DELETE /api/posts/[id]/share'
     );
 
     trackServerEvent(canonicalUserId, 'post_unshared', {
-      postId,
+      postId: shareTargetPostId,
       shareCount,
     });
 
