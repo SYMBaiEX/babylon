@@ -19,7 +19,7 @@ import {
   test,
 } from 'bun:test';
 import { DailyLoginService } from '@babylon/api';
-import { db, eq, users } from '@babylon/db';
+import { db, eq, sql, users } from '@babylon/db';
 import { generateSnowflakeId, POINTS } from '@babylon/shared';
 
 setDefaultTimeout(30000);
@@ -45,7 +45,8 @@ async function checkServerHealth(): Promise<boolean> {
 async function checkDatabaseHealth(): Promise<boolean> {
   if (!process.env.DATABASE_URL) return false;
   try {
-    await db.execute`SELECT 1`;
+    // Check both DB connection AND that daily login columns exist
+    await db.execute(sql`SELECT "dailyLoginStreak" FROM "User" LIMIT 0`);
     return true;
   } catch {
     return false;
@@ -85,6 +86,7 @@ async function createTestUser(): Promise<string> {
     longestStreak: 0,
     totalDailyLogins: 0,
     lastDailyLogin: null,
+    updatedAt: new Date(),
   });
 
   return id;
@@ -654,20 +656,12 @@ describe('Daily Login - Concurrency', () => {
   test('database handles rapid updates', async () => {
     if (skipIfNoDb() || !concurrencyTestUserId) return;
 
-    // Rapidly update streak values
-    const updates = [];
+    // Execute rapid sequential updates
     for (let i = 1; i <= 5; i++) {
-      updates.push(
-        db
-          .update(users)
-          .set({ dailyLoginStreak: i })
-          .where(eq(users.id, concurrencyTestUserId))
-      );
-    }
-
-    // Execute sequentially to avoid race conditions
-    for (const update of updates) {
-      await update;
+      await db
+        .update(users)
+        .set({ dailyLoginStreak: i })
+        .where(eq(users.id, concurrencyTestUserId));
     }
 
     const user = await getUserStreak(concurrencyTestUserId);

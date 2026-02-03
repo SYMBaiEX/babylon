@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { DailyLoginModal } from './DailyLoginModal';
-import { StreakBadge } from './StreakBadge';
 import {
   type ClaimResult,
   formatTimeRemaining,
@@ -40,10 +39,15 @@ export function DailyStreakCard() {
       if (res.ok) {
         setData(await res.json());
       } else {
-        toast.error('Failed to load daily login status');
+        // Silently fail - don't show error toast, just don't render the card
+        // This prevents blocking the page if the API/database isn't ready
+        console.warn('Daily login API not available:', res.status);
+        setData(null);
       }
-    } catch {
-      toast.error('Network error. Please check your connection.');
+    } catch (error) {
+      // Silently fail - don't show error toast
+      console.warn('Daily login API error:', error);
+      setData(null);
     }
     setLoading(false);
   }, [authenticated, getAccessToken]);
@@ -109,7 +113,9 @@ export function DailyStreakCard() {
     setClaiming(false);
   };
 
-  if (!authenticated || loading) {
+  if (!authenticated) return null;
+
+  if (loading) {
     return (
       <div className="rounded-lg border border-border bg-muted/30 p-4">
         <div className="mb-3 h-5 w-32 animate-pulse rounded bg-muted/50" />
@@ -119,6 +125,7 @@ export function DailyStreakCard() {
     );
   }
 
+  // Don't render if data failed to load (API/database not ready)
   if (!data) return null;
 
   const progress =
@@ -129,29 +136,28 @@ export function DailyStreakCard() {
 
   return (
     <>
-      <div className="rounded-lg border border-[#0066FF]/30 bg-gradient-to-r from-[#0066FF]/10 to-purple-500/10 p-4">
+      <div className="rounded-md border border-border p-4">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="font-bold text-foreground text-lg">Daily Rewards</h2>
+            <h2 className="font-semibold text-foreground">Daily Rewards</h2>
             <p className="text-muted-foreground text-sm">
               Claim daily to build your streak
             </p>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <StreakBadge streak={data.currentStreak} size="lg" />
+          <div className="text-right">
+            <div className="font-bold text-2xl text-foreground">
+              {data.currentStreak}
+            </div>
             <div className="text-muted-foreground text-xs">day streak</div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="mb-4 grid grid-cols-3 gap-4 text-center">
           {STAT_ITEMS.map(({ key, label, format }) => (
-            <div
-              key={key}
-              className="rounded-lg bg-background/50 p-2 text-center"
-            >
-              <div className="font-semibold text-foreground text-sm">
+            <div key={key}>
+              <div className="font-medium text-foreground text-sm">
                 {format(data[key])}
               </div>
               <div className="text-muted-foreground text-xs">{label}</div>
@@ -164,13 +170,13 @@ export function DailyStreakCard() {
           <div className="mb-4">
             <div className="mb-1 flex items-center justify-between text-xs">
               <span className="text-muted-foreground">
-                Next milestone: {data.nextMilestone} days
+                {data.nextMilestone}-day milestone
               </span>
-              <span className="text-foreground">
+              <span className="text-muted-foreground">
                 {data.daysUntilMilestone} days left
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-background/50">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-[#0066FF] transition-all duration-300"
                 style={{ width: `${progress}%` }}
@@ -184,19 +190,20 @@ export function DailyStreakCard() {
           <button
             onClick={handleClaim}
             disabled={claiming}
-            className="w-full rounded-lg bg-[#0066FF] py-3 font-semibold text-white transition-colors hover:bg-[#0066FF]/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-md bg-[#0066FF] py-2.5 font-medium text-sm text-white transition-colors hover:bg-[#0066FF]/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {claiming ? 'Claiming...' : `Claim +${data.nextReward} Points`}
           </button>
         ) : (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-center">
-            <div className="font-medium text-foreground text-sm">
-              Next claim in {formatTimeRemaining(data.timeUntilClaim)}
-            </div>
+          <div className="text-center text-sm">
+            <span className="text-muted-foreground">Next claim in </span>
+            <span className="font-medium text-foreground">
+              {formatTimeRemaining(data.timeUntilClaim)}
+            </span>
             {data.timeUntilReset > 0 && (
-              <div className="text-muted-foreground text-xs">
-                Streak expires in {formatTimeRemaining(data.timeUntilReset)}
-              </div>
+              <span className="ml-2 text-muted-foreground">
+                · Streak expires in {formatTimeRemaining(data.timeUntilReset)}
+              </span>
             )}
           </div>
         )}

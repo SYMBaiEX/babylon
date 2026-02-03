@@ -143,8 +143,12 @@ describe('Daily Login - Constants Validation', () => {
 
   test('milestones are in ascending order with increasing bonuses', () => {
     for (let i = 0; i < MILESTONES.length - 1; i++) {
-      expect(MILESTONES[i + 1].days).toBeGreaterThan(MILESTONES[i].days);
-      expect(MILESTONES[i + 1].bonus).toBeGreaterThan(MILESTONES[i].bonus);
+      const current = MILESTONES[i];
+      const next = MILESTONES[i + 1];
+      if (current && next) {
+        expect(next.days).toBeGreaterThan(current.days);
+        expect(next.bonus).toBeGreaterThan(current.bonus);
+      }
     }
   });
 });
@@ -170,7 +174,9 @@ describe('Daily Login - getDailyReward', () => {
     test('full cycle verification (days 1-14)', () => {
       for (let day = 1; day <= 14; day++) {
         const expectedIdx = (day - 1) % 7;
-        expect(getDailyReward(day)).toBe(DAILY_REWARDS[expectedIdx]);
+        const expected =
+          DAILY_REWARDS[expectedIdx as 0 | 1 | 2 | 3 | 4 | 5 | 6];
+        expect(getDailyReward(day)).toBe(expected);
       }
     });
   });
@@ -196,15 +202,26 @@ describe('Daily Login - getDailyReward', () => {
 
   describe('extreme values', () => {
     test('very large streak values cycle correctly', () => {
-      expect(getDailyReward(100)).toBe(DAILY_REWARDS[(100 - 1) % 7]);
-      expect(getDailyReward(365)).toBe(DAILY_REWARDS[(365 - 1) % 7]);
-      expect(getDailyReward(1000)).toBe(DAILY_REWARDS[(1000 - 1) % 7]);
-      expect(getDailyReward(10000)).toBe(DAILY_REWARDS[(10000 - 1) % 7]);
+      // Type assertion needed since modulo result is always 0-6 but TS doesn't infer this
+      type RewardIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+      expect(getDailyReward(100)).toBe(
+        DAILY_REWARDS[((100 - 1) % 7) as RewardIdx]
+      );
+      expect(getDailyReward(365)).toBe(
+        DAILY_REWARDS[((365 - 1) % 7) as RewardIdx]
+      );
+      expect(getDailyReward(1000)).toBe(
+        DAILY_REWARDS[((1000 - 1) % 7) as RewardIdx]
+      );
+      expect(getDailyReward(10000)).toBe(
+        DAILY_REWARDS[((10000 - 1) % 7) as RewardIdx]
+      );
     });
 
     test('MAX_SAFE_INTEGER cycles correctly without overflow', () => {
       const result = getDailyReward(Number.MAX_SAFE_INTEGER);
-      expect(DAILY_REWARDS).toContain(result);
+      const validRewards: number[] = [...DAILY_REWARDS];
+      expect(validRewards.includes(result)).toBe(true);
     });
   });
 

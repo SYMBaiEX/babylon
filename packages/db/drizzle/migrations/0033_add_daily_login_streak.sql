@@ -1,6 +1,9 @@
 -- Migration: Add daily login streak tracking fields to User table
 -- Purpose: BAB-88 - Daily Login Rewards & Streak System
 --
+-- DEPLOYMENT: This migration MUST run BEFORE deploying the API code that uses these columns.
+-- ROLLBACK: See 0033_rollback_add_daily_login_streak.sql
+--
 -- Fields:
 --   dailyLoginStreak: Current consecutive login streak (resets after 36h grace period)
 --   lastDailyLogin: Timestamp of last successful daily reward claim

@@ -6,6 +6,17 @@
  * - 36h grace period before streak resets
  * - Escalating rewards Day 1-7, then cycles
  * - Milestone bonuses at 7, 14, 30, 60, 90 days
+ *
+ * ## Deployment Notes
+ * - Migration `0033_add_daily_login_streak.sql` MUST run before deploying this code
+ * - Rollback available: `0033_rollback_add_daily_login_streak.sql`
+ *
+ * ## Assumptions
+ * - `virtualBalance` is user's spendable balance (rewards can be spent immediately)
+ * - `bonusPoints` tracks non-trading rewards (affects leaderboard categorization)
+ * - `reputationPoints` also updated for total points display
+ * - All timestamps are UTC (no timezone/calendar day logic)
+ * - `DistributedLockService` requires Redis (already deployed)
  */
 
 import { balanceTransactions, db, eq, sql, users } from '@babylon/db';
@@ -148,38 +159,72 @@ export class DailyLoginService {
   static async getStreakInfo(userId: string): Promise<StreakInfo> {
     this.validateUserId(userId);
 
-    const [user] = await db
-      .select({
-        dailyLoginStreak: users.dailyLoginStreak,
-        lastDailyLogin: users.lastDailyLogin,
-        longestStreak: users.longestStreak,
-        totalDailyLogins: users.totalDailyLogins,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    try {
+      const [user] = await db
+        .select({
+          dailyLoginStreak: users.dailyLoginStreak,
+          lastDailyLogin: users.lastDailyLogin,
+          longestStreak: users.longestStreak,
+          totalDailyLogins: users.totalDailyLogins,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    if (!user) throw new Error(`User not found: ${userId}`);
+      if (!user) throw new Error(`User not found: ${userId}`);
 
-    const status = getClaimStatus(user.lastDailyLogin);
-    // Use effective streak (0 if expired) for all calculations to avoid
-    // inconsistent UI state (e.g., "50 day streak" but "7 days to 7-day milestone")
-    const effectiveStreak = status.shouldResetStreak
-      ? 0
-      : user.dailyLoginStreak;
-    const milestone = getNextMilestone(effectiveStreak);
+      const status = getClaimStatus(user.lastDailyLogin);
+      // Use effective streak (0 if expired) for all calculations to avoid
+      // inconsistent UI state (e.g., "50 day streak" but "7 days to 7-day milestone")
+      const effectiveStreak = status.shouldResetStreak
+        ? 0
+        : user.dailyLoginStreak;
+      const milestone = getNextMilestone(effectiveStreak);
 
-    return {
-      currentStreak: effectiveStreak, // Use effective, not raw DB value
-      longestStreak: user.longestStreak,
-      nextReward: getDailyReward(effectiveStreak + 1),
-      ...milestone,
-      lastClaim: user.lastDailyLogin,
-      canClaim: status.canClaim,
-      timeUntilClaim: status.timeUntilClaim,
-      timeUntilReset: status.timeUntilReset,
-      totalDailyLogins: user.totalDailyLogins,
-    };
+      return {
+        currentStreak: effectiveStreak, // Use effective, not raw DB value
+        longestStreak: user.longestStreak,
+        nextReward: getDailyReward(effectiveStreak + 1),
+        ...milestone,
+        lastClaim: user.lastDailyLogin,
+        canClaim: status.canClaim,
+        timeUntilClaim: status.timeUntilClaim,
+        timeUntilReset: status.timeUntilReset,
+        totalDailyLogins: user.totalDailyLogins,
+      };
+    } catch (error) {
+      // Handle case where columns don't exist yet (migration not applied)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes('column') &&
+        (errorMessage.includes('dailyLoginStreak') ||
+          errorMessage.includes('lastDailyLogin') ||
+          errorMessage.includes('longestStreak') ||
+          errorMessage.includes('totalDailyLogins'))
+      ) {
+        logger.warn(
+          'Daily login columns not found - migration may not be applied',
+          { userId, error: errorMessage },
+          'DailyLoginService'
+        );
+        // Return default values so the UI doesn't break
+        return {
+          currentStreak: 0,
+          longestStreak: 0,
+          nextReward: getDailyReward(1),
+          daysUntilMilestone: 7,
+          nextMilestone: 7,
+          lastClaim: null,
+          canClaim: false,
+          timeUntilClaim: 0,
+          timeUntilReset: 0,
+          totalDailyLogins: 0,
+        };
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   static async claimDailyReward(userId: string): Promise<ClaimResult> {

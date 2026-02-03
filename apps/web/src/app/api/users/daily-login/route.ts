@@ -15,12 +15,25 @@ import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { userId } = await authenticate(request);
-  const info = await DailyLoginService.getStreakInfo(userId);
 
-  return successResponse({
-    ...info,
-    lastClaim: info.lastClaim?.toISOString() ?? null,
-  });
+  try {
+    const info = await DailyLoginService.getStreakInfo(userId);
+    return successResponse({
+      ...info,
+      lastClaim: info.lastClaim?.toISOString() ?? null,
+    });
+  } catch (error) {
+    // If service throws (e.g., user not found), return 404
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('not found')) {
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    // Re-throw to be handled by withErrorHandling
+    throw error;
+  }
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
