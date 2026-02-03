@@ -20,7 +20,13 @@ import {
   successResponse,
   withErrorHandling,
 } from '@babylon/api';
-import { balanceTransactions, db, desc, eq, pointsTransactions } from '@babylon/db';
+import {
+  balanceTransactions,
+  db,
+  desc,
+  eq,
+  pointsTransactions,
+} from '@babylon/db';
 import { UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 

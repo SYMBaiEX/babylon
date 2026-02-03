@@ -331,9 +331,7 @@ describe('PointsService Stripe Integration', () => {
         .from(balanceTransactions)
         .where(eq(balanceTransactions.userId, userId));
 
-      const disputeTx = transactions.find(
-        (tx) => tx.type === 'stripe_dispute'
-      );
+      const disputeTx = transactions.find((tx) => tx.type === 'stripe_dispute');
       expect(disputeTx).toBeDefined();
     });
 

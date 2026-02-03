@@ -6,21 +6,15 @@
  */
 
 import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
   describe,
   expect,
   test,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
 } from 'bun:test';
-import {
-  db,
-  actorState,
-  poolPositions,
-  perpPositions,
-  eq,
-} from '@babylon/db';
+import { actorState, db, eq, perpPositions, poolPositions } from '@babylon/db';
 import { NPCInvestmentManager } from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
@@ -69,9 +63,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
   });
 
   test('should return 0 realized PnL when no positions exist', async () => {
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     expect(metrics.realizedPnL).toBe(0);
     expect(metrics.unrealizedPnL).toBe(0);
@@ -116,9 +109,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
       },
     ]);
 
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     // Total realized should be 150 + (-75) = 75
     expect(metrics.realizedPnL).toBe(75);
@@ -175,9 +167,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
       },
     ]);
 
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     // Total realized should be 250 + (-100) = 150
     expect(metrics.realizedPnL).toBe(150);
@@ -229,9 +220,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
       lastUpdated: new Date(),
     });
 
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     expect(metrics.realizedPnL).toBe(90);
     expect(metrics.unrealizedPnL).toBe(0);
@@ -324,9 +314,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
       },
     ]);
 
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     // Unrealized: 50 (pool) + (-25) (perp) = 25
     expect(metrics.unrealizedPnL).toBe(25);
@@ -374,9 +363,8 @@ describe('NPCInvestmentManager - Realized PnL Calculation', () => {
       updatedAt: new Date(),
     });
 
-    const metrics = await NPCInvestmentManager.getPortfolioMetrics(
-      TEST_ACTOR_ID
-    );
+    const metrics =
+      await NPCInvestmentManager.getPortfolioMetrics(TEST_ACTOR_ID);
 
     // Should treat null as 0
     expect(metrics.realizedPnL).toBe(0);

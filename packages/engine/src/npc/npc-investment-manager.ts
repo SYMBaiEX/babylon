@@ -124,7 +124,7 @@ export class NPCInvestmentManager {
 
     // poolPositions may contain legacy perps; avoid double counting when perps
     // already exist in perpPositions.
-    const shouldIncludePoolPosition = (position: typeof positionResults[0]) =>
+    const shouldIncludePoolPosition = (position: (typeof positionResults)[0]) =>
       position.marketType !== 'perp' || !perpPositionIds.has(position.id);
 
     const openPositions = positionResults.filter(
