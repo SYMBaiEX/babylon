@@ -793,9 +793,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Failed to create or find user record');
   }
 
-  // Backfill/sync embedded wallet info (address + wallet id).
-  // - Missing values: backfill.
-  // - Mismatch vs client's embedded wallet address: resync (e.g. after user deletion / session relink).
+  // =====================================================================================
+  // EMBEDDED WALLET BACKFILL
+  // =====================================================================================
+  //
+  // This section handles backfilling/syncing embedded wallet information (privyWalletId
+  // and walletAddress) from Privy. This is necessary because:
+  //
+  // 1. Users created before the embedded wallet refactor may not have privyWalletId stored.
+  // 2. The wallet address may need to be synced if the user's embedded wallet changed
+  //    (e.g., after account deletion/recreation or session relink).
+  //
+  // BEHAVIOR:
+  // - On each request where wallet data is missing or mismatched, we call Privy's getUser API.
+  // - This is intentional for the backfill phase and ensures eventual consistency.
+  //
+  // PERFORMANCE NOTE:
+  // - The Privy API call adds ~100-200ms latency per request when backfill is needed.
+  // - Once wallet data is persisted, subsequent requests skip the backfill.
+  // - If this becomes a bottleneck in production, consider:
+  //   1. Adding a Redis-based cooldown (skip backfill for N minutes after failure)
+  //   2. Rate limiting backfill attempts per user session
+  //   3. Moving backfill to a background job
+  //
+  // =====================================================================================
   const dbWalletLower = dbUser.walletAddress?.toLowerCase() ?? null;
   const shouldBackfillWallet = !dbWalletLower || !dbUser.privyWalletId;
   const shouldResyncWallet =

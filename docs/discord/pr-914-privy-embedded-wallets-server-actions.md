@@ -6,8 +6,8 @@ PR: https://github.com/BabylonSocial/babylon/pull/914
   - Removed Privy Smart Wallet (AA) flow and related client hooks/providers
   - Single wallet model: Privy **Embedded Wallet (EOA)** becomes the canonical user wallet
 
-- “Seamless” onchain UX (no signature modal)
-  - Onchain writes are now executed server-side (Next server actions / API routes) using Privy server-side user wallet flow
+- "Seamless" on-chain UX (no signature modal)
+  - On-chain writes are now executed server-side (Next server actions / API routes) using Privy server-side user wallet flow
   - Gas is sponsored via Privy native gas sponsorship (`sponsor: true`) while keeping `msg.sender = user` (so existing contracts/permissions keep working)
 
 - Data model updates
@@ -15,8 +15,8 @@ PR: https://github.com/BabylonSocial/babylon/pull/914
   - `/api/users/me` backfills `privyWalletId` + `walletAddress` if missing for an existing user
 
 - Key flows updated
-  - Onboarding / onchain registration: submit `registerAgent(...)` from the user embedded wallet (sponsored)
-  - Betting / onchain actions: moved to server actions (sponsored)
+  - Onboarding / on-chain registration: submit `registerAgent(...)` from the user embedded wallet (sponsored)
+  - Betting / on-chain actions: moved to server actions (sponsored)
   - NFT mint/claim: moved to server action flow (prepare → send tx → confirm)
 
 - Ops / notes
