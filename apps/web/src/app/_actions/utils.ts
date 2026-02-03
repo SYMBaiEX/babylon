@@ -26,6 +26,16 @@ export async function requirePrivyToken(
   // for the access token. The cookie should always be present for authenticated users
   // in browser contexts where server actions are called.
   const cookieToken = cookieStore.get('privy-token')?.value;
+  const idToken = cookieStore.get('privy-id-token')?.value;
+
+  // DEBUG: Log what tokens are available
+  console.log('[requirePrivyToken] Token sources:', {
+    hasCookieToken: !!cookieToken,
+    hasIdToken: !!idToken,
+    hasExplicitToken: !!explicitToken,
+    cookieTokenLength: cookieToken?.length,
+    explicitTokenLength: explicitToken?.length,
+  });
 
   if (cookieToken) return cookieToken;
 
