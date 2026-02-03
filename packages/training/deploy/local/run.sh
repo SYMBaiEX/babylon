@@ -30,8 +30,9 @@ ENV_FILE="${BABYLON_ENV_FILE:-$DEPLOY_DIR/.env}"
 PROFILE="${BABYLON_PROFILE:-12gb}"
 STEPS="${BABYLON_STEPS:-100}"
 MIN_AGENTS="${BABYLON_MIN_AGENTS:-1}"
+HF_DATASET=""
 INTERACTIVE=false
-EXTRA_ARGS=""
+EXTRA_ARGS=()
 
 # ============================================================================
 # Parse Arguments
@@ -59,6 +60,10 @@ while [[ $# -gt 0 ]]; do
             MIN_AGENTS="$2"
             shift 2
             ;;
+        --hf-dataset)
+            HF_DATASET="$2"
+            shift 2
+            ;;
         --interactive|-i)
             INTERACTIVE=true
             shift
@@ -74,6 +79,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --profile <profile>  GPU profile: 12gb, 24gb, l40, a100, h100"
             echo "  --steps <n>          Training steps (default: $STEPS)"
             echo "  --min-agents <n>     Min agents per window (default: $MIN_AGENTS)"
+            echo "  --hf-dataset <id>    HuggingFace dataset instead of DB (e.g., elizaos/enkidu-trajectories-test)"
             echo "  --interactive, -i    Start interactive bash shell"
             echo "  --help, -h           Show this help"
             echo ""
@@ -85,7 +91,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            EXTRA_ARGS="$EXTRA_ARGS $1"
+            EXTRA_ARGS+=("$1")
             shift
             ;;
     esac
@@ -130,6 +136,9 @@ echo "Env file:   $ENV_FILE"
 echo "Profile:    $PROFILE"
 echo "Steps:      $STEPS"
 echo "Min agents: $MIN_AGENTS"
+if [[ -n "$HF_DATASET" ]]; then
+    echo "HF Dataset: $HF_DATASET"
+fi
 echo ""
 
 # Build docker run command
@@ -150,11 +159,20 @@ if [[ "$INTERACTIVE" == "true" ]]; then
 else
     echo "Starting training..."
     echo ""
-    "${DOCKER_CMD[@]}" "$IMAGE" \
-        python3 python/scripts/run_training.py \
-        --profile "$PROFILE" \
-        --steps "$STEPS" \
-        --min-agents-per-window "$MIN_AGENTS" \
-        $EXTRA_ARGS
+    
+    # Build training command
+    TRAIN_CMD=(
+        python3 python/scripts/run_training.py
+        --profile "$PROFILE"
+        --steps "$STEPS"
+        --min-agents-per-window "$MIN_AGENTS"
+    )
+    
+    # Add HF dataset if specified
+    if [[ -n "$HF_DATASET" ]]; then
+        TRAIN_CMD+=(--hf-dataset "$HF_DATASET")
+    fi
+    
+    "${DOCKER_CMD[@]}" "$IMAGE" "${TRAIN_CMD[@]}" "${EXTRA_ARGS[@]}"
 fi
 

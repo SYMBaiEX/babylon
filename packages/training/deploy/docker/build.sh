@@ -6,8 +6,10 @@
 # Usage:
 #   ./build.sh base                    # Build base image
 #   ./build.sh training                # Build training image
+#   ./build.sh benchmark               # Build benchmark image
 #   ./build.sh push-base               # Push base image
 #   ./build.sh push-training           # Push training image
+#   ./build.sh push-benchmark          # Push benchmark image
 #   ./build.sh all                     # Build and push everything
 #
 # Options:
@@ -18,6 +20,7 @@
 # Examples:
 #   ./build.sh base -t 0.2.0,latest
 #   ./build.sh training -o myorg -t 0.2.0
+#   ./build.sh benchmark -o myorg -t 0.2.0
 #   ./build.sh all -o myorg -t 0.2.0,latest
 
 set -e
@@ -31,6 +34,7 @@ TAGS="latest"
 BASE_TAG="latest"
 BASE_NAME="babylon-base"
 TRAINING_NAME="babylon-training"
+BENCHMARK_NAME="babylon-benchmark"
 
 # Directory setup
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,11 +52,13 @@ usage() {
     echo "Babylon Docker Build Script"
     echo ""
     echo "Commands:"
-    echo "  base            Build base image"
-    echo "  training        Build training image"
-    echo "  push-base       Push base image"
-    echo "  push-training   Push training image"
-    echo "  all             Build and push everything"
+    echo "  base             Build base image"
+    echo "  training         Build training image"
+    echo "  benchmark        Build benchmark image"
+    echo "  push-base        Push base image"
+    echo "  push-training    Push training image"
+    echo "  push-benchmark   Push benchmark image"
+    echo "  all              Build and push everything"
     echo ""
     echo "Options:"
     echo "  -o, --org <org>       Docker registry org (default: $ORG)"
@@ -63,6 +69,7 @@ usage() {
     echo "Examples:"
     echo "  ./build.sh base -t 0.2.0,latest"
     echo "  ./build.sh training -o myorg -t 0.2.0"
+    echo "  ./build.sh benchmark -o myorg -t 0.2.0"
     echo "  ./build.sh all -o myorg -t 0.2.0,latest"
 }
 
@@ -73,7 +80,7 @@ usage() {
 COMMAND=""
 while [[ $# -gt 0 ]]; do
     case $1 in
-        base|training|push-base|push-training|all)
+        base|training|benchmark|push-base|push-training|push-benchmark|all)
             COMMAND="$1"
             shift
             ;;
@@ -185,6 +192,44 @@ push_training() {
     green "✓ Training image pushed"
 }
 
+build_benchmark() {
+    blue "Building benchmark image..."
+    echo "  Org: $ORG"
+    echo "  Tags: ${TAG_ARRAY[*]}"
+    echo ""
+    
+    # Benchmark needs monorepo context - go to repo root
+    # TRAINING_DIR = packages/training, so go up 2 levels
+    REPO_ROOT="$(dirname "$(dirname "$TRAINING_DIR")")"
+    cd "$REPO_ROOT"
+    
+    # Build with first tag
+    local first_tag="${TAG_ARRAY[0]}"
+    docker build -f packages/training/deploy/docker/Dockerfile.bench \
+        -t "$ORG/$BENCHMARK_NAME:$first_tag" .
+    
+    # Tag additional tags
+    for tag in "${TAG_ARRAY[@]:1}"; do
+        docker tag "$ORG/$BENCHMARK_NAME:$first_tag" "$ORG/$BENCHMARK_NAME:$tag"
+    done
+    
+    green "✓ Benchmark image built: $ORG/$BENCHMARK_NAME"
+    for tag in "${TAG_ARRAY[@]}"; do
+        echo "  - $ORG/$BENCHMARK_NAME:$tag"
+    done
+}
+
+push_benchmark() {
+    blue "Pushing benchmark image..."
+    
+    for tag in "${TAG_ARRAY[@]}"; do
+        echo "  Pushing $ORG/$BENCHMARK_NAME:$tag"
+        docker push "$ORG/$BENCHMARK_NAME:$tag"
+    done
+    
+    green "✓ Benchmark image pushed"
+}
+
 # ============================================================================
 # Execute
 # ============================================================================
@@ -196,17 +241,25 @@ case $COMMAND in
     training)
         build_training
         ;;
+    benchmark)
+        build_benchmark
+        ;;
     push-base)
         push_base
         ;;
     push-training)
         push_training
         ;;
+    push-benchmark)
+        push_benchmark
+        ;;
     all)
         build_base
         push_base
         build_training
         push_training
+        build_benchmark
+        push_benchmark
         green ""
         green "✓ All done!"
         ;;

@@ -3,6 +3,13 @@
  *
  * Centralized configuration for all models available for benchmarking.
  * Add new models here to make them available for comparison.
+ *
+ * Supports multiple providers:
+ * - groq: Groq Cloud API
+ * - openai: OpenAI API
+ * - anthropic: Anthropic API
+ * - together: Together AI API
+ * - local: Local vLLM server (for trained models)
  */
 
 export interface ModelConfig {
@@ -26,6 +33,12 @@ export interface ModelConfig {
 
   /** Whether this is a baseline model */
   isBaseline: boolean;
+
+  /** For local models: path to adapter/checkpoint */
+  adapterPath?: string;
+
+  /** For local models: vLLM server URL */
+  vllmUrl?: string;
 
   /** Additional metadata */
   metadata?: Record<string, string | number | boolean>;
@@ -155,4 +168,78 @@ export function validateModelId(id: string): boolean {
 export function getModelDisplayName(idOrModelId: string): string {
   const model = getModelById(idOrModelId) ?? getModelByModelId(idOrModelId);
   return model?.displayName ?? idOrModelId;
+}
+
+/**
+ * Create a local vLLM model configuration
+ *
+ * Used for benchmarking trained models served by a local vLLM instance.
+ *
+ * @param options - Local model configuration options
+ * @returns ModelConfig for the local model
+ *
+ * @example
+ * ```typescript
+ * const localModel = createLocalModel({
+ *   id: 'trained-v1',
+ *   displayName: 'Trained Model v1.0',
+ *   baseModel: 'Qwen/Qwen3-4B',
+ *   adapterPath: './trained_models/final_model',
+ *   vllmUrl: 'http://localhost:9001',
+ * });
+ * ```
+ */
+export function createLocalModel(options: {
+  id: string;
+  displayName: string;
+  baseModel: string;
+  adapterPath?: string;
+  vllmUrl?: string;
+  parametersBillions?: number;
+}): ModelConfig {
+  return {
+    id: options.id,
+    displayName: options.displayName,
+    provider: 'local',
+    modelId: options.baseModel,
+    tier: 'standard',
+    parametersBillions: options.parametersBillions,
+    isBaseline: false,
+    adapterPath: options.adapterPath,
+    vllmUrl: options.vllmUrl || 'http://localhost:9001',
+    metadata: {
+      baseModel: options.baseModel,
+      isTrainedModel: true,
+    },
+  };
+}
+
+/**
+ * Create local model config from environment variables
+ *
+ * Reads from:
+ * - MODEL_PATH / ADAPTER_PATH: Path to trained adapter
+ * - VLLM_URL: vLLM server URL
+ * - BASE_MODEL: Base model name
+ * - MODEL_DISPLAY_NAME: Display name for reports
+ */
+export function createLocalModelFromEnv(): ModelConfig | null {
+  const modelPath = process.env.MODEL_PATH || process.env.ADAPTER_PATH;
+  const vllmUrl = process.env.VLLM_URL || 'http://localhost:9001';
+  const baseModel = process.env.BASE_MODEL || 'Qwen/Qwen3-4B';
+  const displayName =
+    process.env.MODEL_DISPLAY_NAME ||
+    (modelPath ? `Trained: ${modelPath.split('/').pop()}` : null);
+
+  if (!modelPath && !displayName) {
+    return null;
+  }
+
+  return createLocalModel({
+    id: 'local-trained',
+    displayName: displayName || 'Local Trained Model',
+    baseModel,
+    adapterPath: modelPath,
+    vllmUrl,
+  });
 }
