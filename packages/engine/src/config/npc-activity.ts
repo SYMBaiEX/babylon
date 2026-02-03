@@ -447,6 +447,16 @@ export const NPC_DIVERSITY_CONFIG = {
     'NPC_TIMESTAMP_STAGGER_MS',
     5 * 60 * 1000
   ),
+
+  /**
+   * Number of recent actions to track for diversity checking.
+   * Larger values provide more context for detecting clustering patterns.
+   * Must be at least as large as maxConsecutiveSameAction.
+   *
+   * @default 5
+   * @env NPC_MAX_RECENT_ACTIONS
+   */
+  maxRecentActions: envPositiveNumber('NPC_MAX_RECENT_ACTIONS', 5),
 } as const;
 
 // =============================================================================

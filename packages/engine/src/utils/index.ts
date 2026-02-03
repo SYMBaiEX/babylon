@@ -65,6 +65,14 @@ export {
   urgencyWeight,
   weightedPick,
 } from './entropy';
+// Feed diversity utilities (TikTok-inspired clustering prevention)
+export {
+  ActionDiversityTracker,
+  createDiscourseActionDeck,
+  type DiscourseActionType,
+  type EngagementActionType,
+  shuffleWithNoConsecutive,
+} from './feed-diversity';
 // Error utilities for consistent error handling
 export {
   formatError,

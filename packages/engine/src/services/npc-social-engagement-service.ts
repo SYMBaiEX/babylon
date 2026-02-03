@@ -18,6 +18,7 @@ import {
 import type { LLMJsonClient } from '../llm/types';
 import { secureRandom } from '../utils/entropy';
 import { formatError } from '../utils/error-utils';
+import { ActionDiversityTracker } from '../utils/feed-diversity';
 import { shuffleArray } from '../utils/randomization';
 import {
   formatActorFinanceGuardrails,
@@ -34,65 +35,6 @@ import {
 } from './npc-running-bit-service';
 import { safeExtractFromResponse } from './post-generation-helpers';
 import { StaticDataRegistry } from './static-data-registry';
-
-// =============================================================================
-// ACTION TYPE DIVERSITY TRACKER (TikTok-inspired)
-// =============================================================================
-
-type EngagementActionType = 'like' | 'share' | 'comment';
-
-/**
- * Tracks recent action types to prevent clustering.
- * Inspired by TikTok's "never 2 same in a row" rule.
- */
-class ActionDiversityTracker {
-  private recentActions: EngagementActionType[] = [];
-  private readonly maxRecent: number;
-  private readonly maxConsecutive: number;
-
-  constructor(maxRecent = 5, maxConsecutive = 2) {
-    // Ensure buffer can hold enough history to check consecutive actions
-    this.maxRecent = Math.max(maxRecent, maxConsecutive);
-    // Ensure maxConsecutive is at least 1
-    this.maxConsecutive = Math.max(1, maxConsecutive);
-  }
-
-  /**
-   * Record an action that was executed.
-   */
-  recordAction(type: EngagementActionType): void {
-    this.recentActions.push(type);
-    if (this.recentActions.length > this.maxRecent) {
-      this.recentActions.shift();
-    }
-  }
-
-  /**
-   * Check if executing this action type would create too many consecutive same types.
-   * Returns true if the action should be skipped/deferred for diversity.
-   */
-  shouldSkipForDiversity(type: EngagementActionType): boolean {
-    const lastN = this.recentActions.slice(-this.maxConsecutive);
-    return (
-      lastN.length >= this.maxConsecutive && lastN.every((t) => t === type)
-    );
-  }
-
-  /**
-   * Get the distribution of recent actions for logging.
-   */
-  getDistribution(): Record<EngagementActionType, number> {
-    const dist: Record<EngagementActionType, number> = {
-      like: 0,
-      share: 0,
-      comment: 0,
-    };
-    for (const action of this.recentActions) {
-      dist[action]++;
-    }
-    return dist;
-  }
-}
 
 // =============================================================================
 // TYPES
@@ -233,7 +175,7 @@ export async function processNPCSocialEngagements(
     // Initialize action diversity tracker (TikTok-style clustering prevention)
     // Tracks recent actions and skips if too many consecutive same types
     const diversityTracker = new ActionDiversityTracker(
-      5, // Track last 5 actions
+      NPC_DIVERSITY_CONFIG.maxRecentActions,
       NPC_DIVERSITY_CONFIG.maxConsecutiveSameAction
     );
 
@@ -244,11 +186,10 @@ export async function processNPCSocialEngagements(
       const offset = Math.floor(random() * STAGGER_WINDOW_MS);
       return new Date(baseNow.getTime() + offset);
     };
-    // Use baseNow for time window calculations, staggered for action timestamps
-    const now = baseNow;
 
     // Get recent posts (last 6 hours)
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    // Use baseNow for time window calculations, getStaggeredTimestamp() for action timestamps
+    const sixHoursAgo = new Date(baseNow.getTime() - 6 * 60 * 60 * 1000);
     const recentPostsRaw = await db.post.findMany({
       where: {
         deletedAt: null,
@@ -336,7 +277,7 @@ export async function processNPCSocialEngagements(
     // Add per-actor agenda fuel: positions + running bit (batch, no LLM calls)
     const [positionsByActorId, runningBitsByActorId] = await Promise.all([
       buildPositionsPromptContextByActorId(contextActorIds),
-      ensureRunningBits(contextActorIds, { now, currentDay }),
+      ensureRunningBits(contextActorIds, { now: baseNow, currentDay }),
     ]);
 
     const actorContextById = new Map<string, ActorContext>();
@@ -478,7 +419,7 @@ export async function processNPCSocialEngagements(
                   relatedQuestion: quotePost.relatedQuestion ?? null,
                   quoteOriginalPostId: quotePost.originalPostId ?? null,
                 },
-                timestamp: now,
+                timestamp: baseNow,
               },
             });
           } catch (_error) {
@@ -660,7 +601,7 @@ export async function processNPCSocialEngagements(
                       commentId,
                       relatedQuestion: post.relatedQuestion ?? null,
                     },
-                    timestamp: now,
+                    timestamp: baseNow,
                   },
                 });
               } catch (commentError) {
@@ -826,7 +767,7 @@ export async function processNPCSocialEngagements(
                   parentCommentId: root.id,
                   relatedQuestion: post.relatedQuestion ?? null,
                 },
-                timestamp: now,
+                timestamp: baseNow,
               },
             });
 
@@ -837,7 +778,7 @@ export async function processNPCSocialEngagements(
               authorId: author.id,
               content: authorReply,
               parentCommentId: root.id,
-              createdAt: now,
+              createdAt: baseNow,
             };
             postComments.unshift(created);
             commentById.set(commentId, created);
@@ -910,7 +851,7 @@ export async function processNPCSocialEngagements(
                     parentCommentId: parent.id,
                     relatedQuestion: post.relatedQuestion ?? null,
                   },
-                  timestamp: now,
+                  timestamp: baseNow,
                 },
               });
 
@@ -920,7 +861,7 @@ export async function processNPCSocialEngagements(
                 authorId: speaker.id,
                 content: replyText,
                 parentCommentId: parent.id,
-                createdAt: now,
+                createdAt: baseNow,
               };
               postComments.unshift(createdReply);
               commentById.set(replyId, createdReply);
