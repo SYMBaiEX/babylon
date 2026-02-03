@@ -20,6 +20,7 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
+import { NextRequest } from 'next/server';
 
 // Set test environment first (before any imports)
 process.env.NODE_ENV = 'test';
@@ -600,7 +601,7 @@ describe('POST Handler Integration', () => {
     }
 
     // Create a request with valid cron authorization header
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -621,7 +622,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -646,7 +647,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -673,15 +674,21 @@ describe('POST Handler Integration', () => {
       Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
     };
 
-    const getRequest = new Request('http://localhost/api/cron/markets-tick', {
-      method: 'GET',
-      headers,
-    });
+    const getRequest = new NextRequest(
+      'http://localhost/api/cron/markets-tick',
+      {
+        method: 'GET',
+        headers,
+      }
+    );
 
-    const postRequest = new Request('http://localhost/api/cron/markets-tick', {
-      method: 'POST',
-      headers,
-    });
+    const postRequest = new NextRequest(
+      'http://localhost/api/cron/markets-tick',
+      {
+        method: 'POST',
+        headers,
+      }
+    );
 
     const getResponse = await GET(getRequest);
     const postResponse = await POST(postRequest);
@@ -703,7 +710,7 @@ describe('POST Handler Integration', () => {
 
     // This test relies on the game state in the database
     // If there's no running game, the response should indicate skipped
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -727,7 +734,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
