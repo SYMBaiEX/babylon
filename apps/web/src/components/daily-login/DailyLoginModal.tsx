@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClaimResult } from './types';
 
 const CONFETTI_COLORS = ['#0066FF', '#22c55e', '#eab308', '#a855f7'];
@@ -23,6 +23,8 @@ interface Props {
 
 export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<Element | null>(null);
 
   // Generate confetti pieces once when modal opens (stable across renders)
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
@@ -36,12 +38,75 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
     }));
   }, []);
 
+  // Confetti effect
   useEffect(() => {
     if (!isOpen || !claimResult?.success) return;
     setShowConfetti(true);
     const timer = setTimeout(() => setShowConfetti(false), 3000);
     return () => clearTimeout(timer);
   }, [isOpen, claimResult?.success]);
+
+  // Handle ESC key to close modal
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  // Focus management and keyboard handling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Store the currently focused element to restore later
+    previousActiveElement.current = document.activeElement;
+
+    // Focus the modal when it opens
+    const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstFocusable = focusableElements?.[0];
+    const lastFocusable = focusableElements?.[focusableElements.length - 1];
+
+    // Focus the first focusable element (the Continue button)
+    firstFocusable?.focus();
+
+    // Add ESC key listener
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Focus trap: keep focus within the modal
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+
+      if (event.shiftKey) {
+        // Shift + Tab: if on first element, go to last
+        if (document.activeElement === firstFocusable) {
+          event.preventDefault();
+          lastFocusable?.focus();
+        }
+      } else {
+        // Tab: if on last element, go to first
+        if (document.activeElement === lastFocusable) {
+          event.preventDefault();
+          firstFocusable?.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTabKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleTabKey);
+
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus();
+      }
+    };
+  }, [isOpen, handleKeyDown]);
 
   if (!isOpen || !claimResult) return null;
 
@@ -58,14 +123,19 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop - clicking closes modal */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Confetti - uses inline animation to avoid global CSS injection */}
+      {/* Confetti - animation defined in globals.css */}
       {showConfetti && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+          aria-hidden="true"
+        >
           {confettiPieces.map((piece) => (
             <div
               key={piece.id}
@@ -81,17 +151,18 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
               }}
             />
           ))}
-          <style>
-            {`@keyframes confetti-fall {
-              0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-              100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-            }`}
-          </style>
         </div>
       )}
 
-      {/* Content */}
-      <div className="relative z-10 mx-4 w-full max-w-sm rounded-xl border border-[#0066FF]/30 bg-background p-6 shadow-xl">
+      {/* Modal Content */}
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="daily-login-modal-title"
+        aria-describedby="daily-login-modal-description"
+        className="relative z-10 mx-4 w-full max-w-sm rounded-xl border border-[#0066FF]/30 bg-background p-6 shadow-xl"
+      >
         {/* Streak Badge */}
         <div className="mb-4 flex justify-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#0066FF] to-purple-600">
@@ -99,10 +170,16 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
           </div>
         </div>
 
-        <h2 className="mb-2 text-center font-bold text-foreground text-xl">
+        <h2
+          id="daily-login-modal-title"
+          className="mb-2 text-center font-bold text-foreground text-xl"
+        >
           {streakReset ? 'New Streak Started' : 'Streak Extended'}
         </h2>
-        <p className="mb-6 text-center text-muted-foreground text-sm">
+        <p
+          id="daily-login-modal-description"
+          className="mb-6 text-center text-muted-foreground text-sm"
+        >
           {streakReset
             ? 'Your streak was reset. Keep claiming daily!'
             : `Day ${streak} complete!`}

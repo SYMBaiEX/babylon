@@ -46,6 +46,7 @@ export function StreakBadge({
         className
       )}
       title={`${streak} day streak`}
+      aria-label={`${streak} day streak`}
     >
       {streak}
     </div>
