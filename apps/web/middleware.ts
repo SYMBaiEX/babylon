@@ -63,9 +63,11 @@ const PRODUCTION_ORIGINS = [
   'https://babylon.market',
   'https://www.babylon.market',
   'https://app.babylon.market',
+  'https://play.babylon.market',
   'https://privy.babylon.market',
   'https://staging.babylon.market',
   'https://app.staging.babylon.market',
+  'https://play.staging.babylon.market',
 ] as const;
 
 /**
