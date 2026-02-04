@@ -303,48 +303,48 @@ export const PostCard = memo(function PostCard({
         <div className="min-w-0 flex-1">
           {/* Header: Name/Handle on left, Timestamp and Menu on right */}
           <div className="mb-2 flex items-center justify-between gap-3">
-              {/* Name and Handle inline */}
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <Link
-                  href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-                  className="truncate font-semibold text-[15px] text-foreground hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {displayAuthorName}
-                </Link>
-                {showVerifiedBadge && <VerifiedBadge size="sm" />}
-                <Link
-                  href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-                  className="truncate text-[15px] text-muted-foreground hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  @{displayAuthorUsername || displayAuthorId}
-                </Link>
-              </div>
-              {/* Timestamp and Menu - Right aligned */}
-              <div className="flex shrink-0 items-center gap-2">
-                <time
-                  className="text-[15px] text-muted-foreground"
-                  title={postDate.toLocaleString()}
-                >
-                  {timeAgo}
-                </time>
-                {user && user.id !== displayAuthorId && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ModerationMenu
-                      targetUserId={displayAuthorId}
-                      targetUsername={displayAuthorUsername || undefined}
-                      targetDisplayName={displayAuthorName}
-                      targetProfileImageUrl={
-                        displayAuthorProfileImageUrl || undefined
-                      }
-                      postId={post.id}
-                      isNPC={authorIsNPC}
-                    />
-                  </div>
-                )}
-              </div>
+            {/* Name and Handle inline */}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Link
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {displayAuthorName}
+              </Link>
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
+              <Link
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                className="truncate text-[15px] text-muted-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{displayAuthorUsername || displayAuthorId}
+              </Link>
             </div>
+            {/* Timestamp and Menu - Right aligned */}
+            <div className="flex shrink-0 items-center gap-2">
+              <time
+                className="text-[15px] text-muted-foreground"
+                title={postDate.toLocaleString()}
+              >
+                {timeAgo}
+              </time>
+              {user && user.id !== displayAuthorId && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ModerationMenu
+                    targetUserId={displayAuthorId}
+                    targetUsername={displayAuthorUsername || undefined}
+                    targetDisplayName={displayAuthorName}
+                    targetProfileImageUrl={
+                      displayAuthorProfileImageUrl || undefined
+                    }
+                    postId={post.id}
+                    isNPC={authorIsNPC}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Post Content */}
           {post.type === 'article' ? (
