@@ -540,11 +540,11 @@ export function MessageInput({
             <div
               ref={highlightRef}
               className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl pr-14',
+                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl',
                 compact
                   ? 'px-3 py-2.5 text-sm md:text-xs'
                   : 'px-4 py-4 text-sm',
-                'text-foreground'
+                'pr-14 text-foreground'
               )}
               aria-hidden="true"
             >
@@ -570,11 +570,11 @@ export function MessageInput({
               autoCorrect="off"
               autoCapitalize="off"
               className={cn(
-                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl',
                 compact
                   ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
                   : 'min-h-[56px] px-4 py-4 text-sm',
-                'message-input bg-sidebar-accent/50',
+                'message-input bg-sidebar-accent/50 pr-14',
                 'text-transparent caret-foreground placeholder:text-muted-foreground',
                 'outline-none focus:ring-2 focus:ring-primary/50',
                 'disabled:cursor-not-allowed disabled:opacity-50'
@@ -592,11 +592,11 @@ export function MessageInput({
             disabled={sending || disabled}
             rows={1}
             className={cn(
-              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+              'max-h-40 w-full resize-none overflow-y-auto rounded-xl',
               compact
                 ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
                 : 'min-h-[56px] px-4 py-4 text-sm',
-              'message-input bg-sidebar-accent/50',
+              'message-input bg-sidebar-accent/50 pr-14',
               'text-foreground placeholder:text-muted-foreground',
               'outline-none focus:ring-2 focus:ring-primary/50',
               'disabled:cursor-not-allowed disabled:opacity-50'
