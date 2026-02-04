@@ -4,11 +4,23 @@
  * Handles agents responding to direct messages autonomously
  */
 
-import { and, db, desc, eq, gte, messages, ne, users } from '@babylon/db';
+import {
+  and,
+  chatParticipants,
+  db,
+  desc,
+  eq,
+  gte,
+  messages,
+  ne,
+  users,
+} from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
+import { getAgentContext, isNpcUser } from './agent-context';
+import { executeDirectMessage } from './DirectExecutors';
 
 /**
  * Service for autonomous direct message responses
@@ -26,13 +38,22 @@ export class AutonomousDMService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<number> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
+
+    const config = await getAgentConfig(agentUserId);
+
+    // For user-controlled agents, get the owner ID to filter out owner DMs
+    // (Owner should use Agents/team chat instead of DMs)
+    let ownerUserId: string | null = null;
+    if (!isNpcUser(agentUserId)) {
+      const [agentRecord] = await db
+        .select({ managedBy: users.managedBy })
+        .from(users)
+        .where(eq(users.id, agentUserId))
+        .limit(1);
+      ownerUserId = agentRecord?.managedBy ?? null;
     }
 
     // Get agent's DM chats (non-group chats)
@@ -49,6 +70,30 @@ export class AutonomousDMService {
     for (const chatParticipant of dmChatsRaw) {
       const chat = chatParticipant.chat;
       if (!chat || chat.isGroup) continue; // Skip group chats
+
+      // Skip DMs with the owner - owner should use Agents chat instead
+      // Directly check if owner is a participant (more reliable than checking arbitrary other participant)
+      if (ownerUserId && chat.id) {
+        const ownerParticipation = await db
+          .select({ userId: chatParticipants.userId })
+          .from(chatParticipants)
+          .where(
+            and(
+              eq(chatParticipants.chatId, chat.id),
+              eq(chatParticipants.userId, ownerUserId)
+            )
+          )
+          .limit(1);
+
+        if (ownerParticipation.length > 0) {
+          logger.debug(
+            `Skipping DM with owner ${ownerUserId} - use Agents chat instead`,
+            undefined,
+            'AutonomousDM'
+          );
+          continue;
+        }
+      }
 
       // Get recent messages in this chat
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -78,9 +123,9 @@ export class AutonomousDMService {
       if (!latestMessage) continue;
 
       // Generate response
-      const prompt = `${agent.agentSystem}
+      const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName} in a direct message conversation.
+You are ${agentDisplayName} in a direct message conversation.
 
 Recent conversation:
 ${allMessages
@@ -94,13 +139,14 @@ Latest message from them:
 Task: Generate a helpful, friendly response (1-2 sentences).
 Be authentic to your personality.
 Keep it under 200 characters.
+If mentioning markets, use SHORT SUMMARIES (e.g., "the TeslAI bet") not full questions.
 
 Generate ONLY the response text, nothing else.`;
 
       // Use small model (llama-3.1-8b-instant) for fast DM responses
       const responseContent = await callGroqDirect({
         prompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'small', // Free tier: Frequent operation, use fast model
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.8,
@@ -116,19 +162,24 @@ Generate ONLY the response text, nothing else.`;
       }
 
       // Create response message
-      await db.message.create({
-        data: {
-          id: await generateSnowflakeId(),
-          chatId: chat.id,
-          senderId: agentUserId,
-          content: cleanContent,
-          createdAt: new Date(),
-        },
+      const result = await executeDirectMessage({
+        agentUserId,
+        chatId: chat.id,
+        content: cleanContent,
       });
+
+      if (!result.success) {
+        logger.warn(
+          `Failed to create DM response: ${result.error}`,
+          undefined,
+          'AutonomousDM'
+        );
+        continue;
+      }
 
       responsesCreated++;
       logger.info(
-        `Agent ${agent.displayName} responded to DM in chat ${chat.id}`,
+        `Agent ${agentDisplayName} responded to DM in chat ${chat.id}`,
         undefined,
         'AutonomousDM'
       );

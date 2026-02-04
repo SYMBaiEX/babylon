@@ -97,22 +97,29 @@
  * @see {@link /lib/services/following-mechanics} Following mechanics
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  authenticate,
+  BusinessLogicError,
+  ensureUserForAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { comments, db, eq, posts, users } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { parsePostId } from '@babylon/engine';
 import {
   FollowingMechanics,
   GroupChatService,
   MessageQualityChecker,
+  parsePostId,
   ReplyRateLimiter,
 } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { ensureUserForAuth } from '@babylon/api';
-import { PostIdParamSchema, ReplyToPostSchema } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  logger,
+  PostIdParamSchema,
+  ReplyToPostSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
 
 /**
  * POST /api/posts/[id]/reply
@@ -123,6 +130,9 @@ export const POST = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
+    // Wire engine services for notifications
+    ensureEngineServices();
+
     // 1. Authenticate user
     const user = await authenticate(request);
     const { id: postId } = PostIdParamSchema.parse(await context.params);

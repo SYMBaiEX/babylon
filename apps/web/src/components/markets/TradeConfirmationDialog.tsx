@@ -1,5 +1,6 @@
 'use client';
 
+import { cn, formatCurrency } from '@babylon/shared';
 import {
   AlertTriangle,
   CheckCircle,
@@ -17,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@babylon/shared';
 
 /**
  * Trade type discriminator for confirmation dialog.
@@ -154,14 +154,9 @@ export function TradeConfirmationDialog({
 }: TradeConfirmationDialogProps) {
   if (!tradeDetails) return null;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-  };
+  /** Use shared formatCurrency for price formatting */
+  const formatPrice = (amount: number) =>
+    formatCurrency(amount, { useThousandsSeparator: true });
 
   const getTitle = () => {
     switch (tradeDetails.type) {
@@ -498,7 +493,16 @@ export function TradeConfirmationDialog({
         {renderDetails()}
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel
+            disabled={isSubmitting}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenChange(false);
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={(e) => {
               e.preventDefault();

@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
   boolean,
+  decimal,
   doublePrecision,
   index,
   integer,
@@ -10,7 +11,6 @@ import {
   timestamp,
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
-import { actors } from './actors';
 import { agentStatusEnum, agentTypeEnum } from './enums';
 import { users } from './users';
 
@@ -174,8 +174,14 @@ export const agentPointsTransactions = pgTable(
     id: text('id').primaryKey(),
     type: text('type').notNull(),
     amount: integer('amount').notNull(),
-    balanceBefore: integer('balanceBefore').notNull(),
-    balanceAfter: integer('balanceAfter').notNull(),
+    balanceBefore: decimal('balanceBefore', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
+    balanceAfter: decimal('balanceAfter', {
+      precision: 18,
+      scale: 2,
+    }).notNull(),
     description: text('description').notNull(),
     relatedId: text('relatedId'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
@@ -316,6 +322,7 @@ export const agentCapabilities = pgTable(
 );
 
 // ExternalAgentConnection
+// NOTE: After modifying this schema, run `bun run db:generate` to create a migration.
 export const externalAgentConnections = pgTable(
   'ExternalAgentConnection',
   {
@@ -330,6 +337,9 @@ export const externalAgentConnections = pgTable(
     isHealthy: boolean('isHealthy').notNull().default(true),
     lastHealthCheck: timestamp('lastHealthCheck', { mode: 'date' }),
     lastConnected: timestamp('lastConnected', { mode: 'date' }),
+    registeredByUserId: text('registeredByUserId'),
+    revokedAt: timestamp('revokedAt', { mode: 'date' }),
+    revokedBy: text('revokedBy'),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
@@ -340,6 +350,7 @@ export const externalAgentConnections = pgTable(
     index('ExternalAgentConnection_externalId_idx').on(table.externalId),
     index('ExternalAgentConnection_protocol_idx').on(table.protocol),
     index('ExternalAgentConnection_isHealthy_idx').on(table.isHealthy),
+    index('ExternalAgentConnection_revokedAt_idx').on(table.revokedAt),
   ]
 );
 
@@ -413,16 +424,13 @@ export const agentTradesRelations = relations(agentTrades, ({ one }) => ({
   }),
 }));
 
+// Note: actorId references actor IDs from StaticDataRegistry (static) and actorState (dynamic)
 export const agentRegistriesRelations = relations(
   agentRegistries,
   ({ one }) => ({
     user: one(users, {
       fields: [agentRegistries.userId],
       references: [users.id],
-    }),
-    actor: one(actors, {
-      fields: [agentRegistries.actorId],
-      references: [actors.id],
     }),
     capabilities: one(agentCapabilities, {
       fields: [agentRegistries.id],
@@ -482,7 +490,3 @@ export type ExternalAgentConnection =
   typeof externalAgentConnections.$inferSelect;
 export type NewExternalAgentConnection =
   typeof externalAgentConnections.$inferInsert;
-
-
-
-

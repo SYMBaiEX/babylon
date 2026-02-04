@@ -61,15 +61,17 @@
  * ```
  */
 
+import {
+  authenticate,
+  cachedDb,
+  createNotification,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { createNotification } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
 
 const TransferPointsSchema = z.object({
   recipientId: z.string().min(1, 'Recipient ID is required'),
@@ -104,6 +106,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   if (senderId === recipientId) {
     return NextResponse.json(
       { error: 'Cannot send points to yourself' },
+      { status: 400 }
+    );
+  }
+
+  // Check if trying to send to Agent0 network agent or app (not local User records)
+  if (recipientId.startsWith('agent0-') || recipientId.startsWith('app-')) {
+    return NextResponse.json(
+      {
+        error:
+          'Cannot send points to external agents or apps. Points can only be sent to Babylon users and agents.',
+      },
       { status: 400 }
     );
   }
@@ -211,6 +224,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       sender: updatedSender,
       recipient: updatedRecipient,
     };
+  });
+
+  // Invalidate cache for both users to update UI immediately
+  await Promise.all([
+    cachedDb.invalidateUserCache(senderId),
+    cachedDb.invalidateUserCache(recipientId),
+  ]).catch((error) => {
+    logger.warn('Failed to invalidate user cache after points transfer', {
+      error,
+      senderId,
+      recipientId,
+    });
   });
 
   logger.info(

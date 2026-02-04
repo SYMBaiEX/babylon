@@ -67,15 +67,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
+import {
+  createNotification,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
 import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { createNotification } from '@babylon/api';
 import { WalletService } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const HumanReviewActionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -207,39 +210,30 @@ async function refundAppealStake(
   userId: string,
   stakeAmount: number
 ): Promise<void> {
-  try {
-    await WalletService.credit(
+  await WalletService.credit(
+    userId,
+    stakeAmount,
+    'appeal_stake_refund',
+    'Appeal stake refund - account restored via human review',
+    undefined
+  );
+
+  // Clear stake flags
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      appealStaked: false,
+      appealStakeAmount: null,
+      appealStakeTxHash: null,
+    },
+  });
+
+  logger.info(
+    'Appeal stake refunded',
+    {
       userId,
       stakeAmount,
-      'appeal_stake_refund',
-      'Appeal stake refund - account restored via human review',
-      undefined
-    );
-
-    // Clear stake flags
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        appealStaked: false,
-        appealStakeAmount: null,
-        appealStakeTxHash: null,
-      },
-    });
-
-    logger.info(
-      'Appeal stake refunded',
-      {
-        userId,
-        stakeAmount,
-      },
-      'HumanReview'
-    );
-  } catch (error) {
-    logger.error(
-      'Failed to refund appeal stake',
-      { error, userId, stakeAmount },
-      'HumanReview'
-    );
-    // Don't throw - refund failure shouldn't block account restoration
-  }
+    },
+    'HumanReview'
+  );
 }

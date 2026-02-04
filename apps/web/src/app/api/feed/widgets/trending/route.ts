@@ -69,22 +69,21 @@
  * @see {@link /lib/services/trending-grouping-service} Trending grouping service
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { desc, eq, posts, postTags } from '@babylon/db';
 import {
   type AuthenticatedUser,
   optionalAuth,
+  withErrorHandling,
 } from '@babylon/api';
-import { asPublic, asUser } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { getCurrentTrendingTags } from '@babylon/engine';
+import { asPublic, asUser, desc, eq, posts, postTags } from '@babylon/db';
 import {
   generateTrendingSummary,
+  getCurrentTrendingTags,
   groupTrendingTags,
   type TrendingTag,
 } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Server-side cache with longer TTL
 interface CachedTrendingData {
@@ -125,149 +124,126 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       undefined,
       'GET /api/feed/widgets/trending'
     );
-    try {
-      const result = await ongoingRequest;
-      return NextResponse.json({
-        success: true,
-        trending: result,
-      });
-    } catch (error) {
-      logger.error(
-        'Ongoing trending request failed',
-        { error },
-        'GET /api/feed/widgets/trending'
-      );
-      // Fall through to regenerate
-    }
-  }
-
-  // Create the processing promise
-  const processingPromise = (async () => {
-    try {
-      // Get trending tags from cache (get more tags for better grouping)
-      const trending = await getCurrentTrendingTags(10);
-
-      if (!trending || trending.length === 0) {
-        logger.info(
-          'No trending tags available',
-          undefined,
-          'GET /api/feed/widgets/trending'
-        );
-        return [];
-      }
-
-      // Optional auth - trending tags are public but RLS still applies
-      const authUser: AuthenticatedUser | null = await optionalAuth(
-        request
-      ).catch(() => null);
-
-      // First, get all trending items with summaries
-      const trendingItems: TrendingTag[] = await Promise.all(
-        trending.map(async (item) => {
-          const recentPosts =
-            authUser && authUser.userId
-              ? await asUser(authUser, async (db) => {
-                  return await db
-                    .select({
-                      postId: postTags.postId,
-                      postContent: posts.content,
-                    })
-                    .from(postTags)
-                    .innerJoin(posts, eq(postTags.postId, posts.id))
-                    .where(eq(postTags.tagId, item.tag.id))
-                    .orderBy(desc(postTags.createdAt))
-                    .limit(3);
-                })
-              : await asPublic(async (db) => {
-                  return await db
-                    .select({
-                      postId: postTags.postId,
-                      postContent: posts.content,
-                    })
-                    .from(postTags)
-                    .innerJoin(posts, eq(postTags.postId, posts.id))
-                    .where(eq(postTags.tagId, item.tag.id))
-                    .orderBy(desc(postTags.createdAt))
-                    .limit(3);
-                });
-
-          const postContents = recentPosts.map((pt) => pt.postContent);
-
-          const summary = await generateTrendingSummary(
-            item.tag.displayName,
-            item.tag.category,
-            postContents
-          );
-
-          return {
-            id: item.tag.id, // Use actual tag ID, not trending record ID
-            tag: item.tag.displayName,
-            tagSlug: item.tag.name,
-            category: item.tag.category,
-            postCount: item.postCount,
-            summary,
-            rank: item.rank,
-          };
-        })
-      );
-
-      // Filter out null values
-      const validItems = trendingItems.filter(
-        (item): item is NonNullable<typeof item> => item !== null
-      );
-
-      // Group related tags using LLM analysis
-      const groupedTrending = await groupTrendingTags(validItems);
-
-      // Return top 5 groups
-      const topGroups = groupedTrending.slice(0, 5);
-
-      // Cache the result
-      trendingCache = {
-        data: topGroups,
-        timestamp: Date.now(),
-      };
-
-      const duration = Date.now() - startTime;
-      logger.info(
-        'Generated trending data',
-        {
-          groups: topGroups.length,
-          durationMs: duration,
-        },
-        'GET /api/feed/widgets/trending'
-      );
-
-      return topGroups;
-    } finally {
-      ongoingRequest = null;
-    }
-  })();
-
-  ongoingRequest = processingPromise;
-
-  try {
-    const result = await processingPromise;
-
-    if (result.length === 0) {
-      return NextResponse.json({
-        success: true,
-        trending: [],
-        message: 'No trending data yet - check back after first game tick',
-      });
-    }
-
+    const result = await ongoingRequest;
     return NextResponse.json({
       success: true,
       trending: result,
     });
-  } catch (error) {
-    logger.error(
-      'Failed to generate trending data',
-      { error },
+  }
+
+  // Create the processing promise
+  const processingPromise = (async () => {
+    // Get trending tags from cache (get more tags for better grouping)
+    const trending = await getCurrentTrendingTags(10);
+
+    if (!trending || trending.length === 0) {
+      logger.info(
+        'No trending tags available',
+        undefined,
+        'GET /api/feed/widgets/trending'
+      );
+      return [];
+    }
+
+    // Optional auth - trending tags are public but RLS still applies
+    const authUser: AuthenticatedUser | null = await optionalAuth(
+      request
+    ).catch(() => null);
+
+    // First, get all trending items with summaries
+    const trendingItems: TrendingTag[] = await Promise.all(
+      trending.map(async (item) => {
+        const recentPosts =
+          authUser && authUser.userId
+            ? await asUser(authUser, async (db) => {
+                return await db
+                  .select({
+                    postId: postTags.postId,
+                    postContent: posts.content,
+                  })
+                  .from(postTags)
+                  .innerJoin(posts, eq(postTags.postId, posts.id))
+                  .where(eq(postTags.tagId, item.tag.id))
+                  .orderBy(desc(postTags.createdAt))
+                  .limit(3);
+              })
+            : await asPublic(async (db) => {
+                return await db
+                  .select({
+                    postId: postTags.postId,
+                    postContent: posts.content,
+                  })
+                  .from(postTags)
+                  .innerJoin(posts, eq(postTags.postId, posts.id))
+                  .where(eq(postTags.tagId, item.tag.id))
+                  .orderBy(desc(postTags.createdAt))
+                  .limit(3);
+              });
+
+        const postContents = recentPosts.map((pt) => pt.postContent);
+
+        const summary = await generateTrendingSummary(
+          item.tag.displayName,
+          item.tag.category,
+          postContents
+        );
+
+        return {
+          id: item.tag.id, // Use actual tag ID, not trending record ID
+          tag: item.tag.displayName,
+          tagSlug: item.tag.name,
+          category: item.tag.category,
+          postCount: item.postCount,
+          summary,
+          rank: item.rank,
+        };
+      })
+    );
+
+    // Filter out null values
+    const validItems = trendingItems.filter(
+      (item): item is NonNullable<typeof item> => item !== null
+    );
+
+    // Group related tags using LLM analysis
+    const groupedTrending = await groupTrendingTags(validItems);
+
+    // Return top 5 groups
+    const topGroups = groupedTrending.slice(0, 5);
+
+    // Cache the result
+    trendingCache = {
+      data: topGroups,
+      timestamp: Date.now(),
+    };
+
+    const duration = Date.now() - startTime;
+    logger.info(
+      'Generated trending data',
+      {
+        groups: topGroups.length,
+        durationMs: duration,
+      },
       'GET /api/feed/widgets/trending'
     );
-    ongoingRequest = null;
-    throw error;
+
+    return topGroups;
+  })();
+
+  ongoingRequest = processingPromise;
+
+  const result = await processingPromise;
+
+  if (result.length === 0) {
+    return NextResponse.json({
+      success: true,
+      trending: [],
+      message: 'No trending data yet - check back after first game tick',
+    });
   }
+
+  return NextResponse.json({
+    success: true,
+    trending: result,
+  });
 });

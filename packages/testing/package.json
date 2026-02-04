@@ -21,18 +21,25 @@
     "test:synpress": "playwright test --config=synpress.config.ts"
   },
   "dependencies": {
-    "@babylon/api": "workspace:*",
-    "@babylon/shared": "workspace:*",
-    "@babylon/engine": "workspace:*",
-    "@babylon/db": "workspace:*",
+    "@babylon/a2a": "workspace:*",
     "@babylon/agents": "workspace:*",
-    "@babylon/training": "workspace:*",
-    "@babylon/contracts": "workspace:*"
+    "@babylon/api": "workspace:*",
+    "@babylon/contracts": "workspace:*",
+    "@babylon/db": "workspace:*",
+    "@babylon/engine": "workspace:*",
+    "@babylon/shared": "workspace:*",
+    "@babylon/training": "workspace:*"
   },
   "devDependencies": {
+    "@elizaos/core": "^1.7.0",
     "@playwright/test": "^1.56.1",
+    "@synthetixio/synpress": "^4.1.1",
+    "@synthetixio/synpress-cache": "^0.0.13",
+    "@synthetixio/synpress-metamask": "^0.0.13",
     "dotenv": "^16.4.5",
-    "next": "^16.0.5",
-    "playwright": "^1.56.1"
+    "nanoid": "^5.1.6",
+    "next": "16.0.7",
+    "playwright": "^1.56.1",
+    "stripe": "^20.2.0"
   }
 }

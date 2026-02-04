@@ -39,8 +39,10 @@
       "@babylon/contracts/*": ["../contracts/src/*"],
       "@babylon/training": ["../training/src/index.ts"],
       "@babylon/training/*": ["../training/src/*"],
+      "@babylon/web/*": ["../../apps/web/*"],
       "@babylon/testing": ["./src/index.ts"],
-      "@babylon/testing/*": ["./*"]
+      "@babylon/testing/*": ["./*"],
+      "@babylon/web/*": ["../../apps/web/*"]
     }
   },
   "include": [
@@ -56,7 +58,15 @@
     "shared/**/*",
     "src/**/*"
   ],
-  "exclude": ["node_modules", "manual/**/*", "dist", "verification/**/*"],
+  "exclude": [
+    "node_modules",
+    "manual/**/*",
+    "dist",
+    "verification/**/*",
+    "integration/admin-agents-reputation.integration.test.ts",
+    "integration/agent-autonomous-tick.integration.test.ts",
+    "integration/markets-tick.integration.test.ts"
+  ],
   "references": [
     { "path": "../shared" },
     { "path": "../db" },

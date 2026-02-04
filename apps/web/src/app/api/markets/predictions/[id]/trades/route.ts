@@ -1,107 +1,38 @@
-/**
- * Prediction Market Trades API
- *
- * @route GET /api/markets/predictions/[id]/trades - Get market trades
- * @access Public
- *
- * @description
- * Returns all trades for a prediction market with pagination and Redis caching.
- * Includes trades from positions (buys/sells) and balance transactions. Cached
- * for 30 seconds for performance.
- *
- * @openapi
- * /api/markets/predictions/{id}/trades:
- *   get:
- *     tags:
- *       - Markets
- *     summary: Get prediction market trades
- *     description: Returns all trades for a market with pagination and caching
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Market/question ID
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 50
- *         description: Trades per page
- *       - in: query
- *         name: offset
- *         schema:
- *           type: integer
- *           minimum: 0
- *           default: 0
- *         description: Pagination offset
- *     responses:
- *       200:
- *         description: Trades retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 trades:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       type:
- *                         type: string
- *                         enum: [position, balance]
- *                       user:
- *                         type: object
- *                       side:
- *                         type: string
- *                         enum: [YES, NO]
- *                       shares:
- *                         type: number
- *                       amount:
- *                         type: number
- *                       price:
- *                         type: number
- *                       timestamp:
- *                         type: string
- *                         format: date-time
- *                 total:
- *                   type: integer
- *                 hasMore:
- *                   type: boolean
- *                 marketId:
- *                   type: string
- *                 question:
- *                   type: string
- *
- * @example
- * ```typescript
- * const response = await fetch(`/api/markets/predictions/${marketId}/trades?limit=20`);
- * const { trades, hasMore } = await response.json();
- * ```
- *
- * @see {@link /lib/cache} Caching service
- */
-
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { db } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { getCache, setCache } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+// GET /api/markets/predictions/[id]/trades – paginated trades for a market
 import type { JsonValue } from '@babylon/api';
+import {
+  getCache,
+  optionalAuth,
+  setCache,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, inArray, markets, sql, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const QuerySchema = z.object({
-  limit: z.coerce.number().min(1).max(100).default(50),
+  limit: z.coerce.number().min(1).max(100).default(20),
   offset: z.coerce.number().min(0).default(0),
 });
+
+type PredictionTradeRow = {
+  id: string;
+  type: 'balance' | 'npc';
+  userId: string;
+  transactionType: string | null;
+  amount: number | string;
+  marketId: string | null;
+  marketType: string | null;
+  ticker: string | null;
+  action: string | null;
+  side: string | null;
+  price: number | string | null;
+  sentiment: number | string | null;
+  reason: string | null;
+  timestampMs: number | string | bigint;
+};
 
 export const GET = withErrorHandling(
   async (
@@ -116,7 +47,7 @@ export const GET = withErrorHandling(
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const queryParams = QuerySchema.parse({
-      limit: searchParams.get('limit') || '50',
+      limit: searchParams.get('limit') || '20',
       offset: searchParams.get('offset') || '0',
     });
 
@@ -127,163 +58,140 @@ export const GET = withErrorHandling(
     );
 
     // Check Redis cache first
-    const cacheKey = `prediction-trades:${marketId}:${queryParams.limit}:${queryParams.offset}`;
+    const cacheKey = `prediction-trades:v2:${marketId}:${queryParams.limit}:${queryParams.offset}`;
     const cached = await getCache<Record<string, JsonValue>>(cacheKey);
 
     if (cached) {
-      logger.debug(
-        'Cache hit for prediction trades',
-        { marketId },
-        'PredictionTrades'
-      );
       return successResponse(cached);
     }
 
-    // Verify market exists
-    const market = await db.market.findUnique({
-      where: { id: marketId },
-      select: {
-        id: true,
-        question: true,
-        resolved: true,
-        resolution: true,
-      },
-    });
+    // Verify market exists (drizzle) - used for response metadata
+    const [market] = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
 
     if (!market) {
-      return NextResponse.json({ error: 'Market not found' }, { status: 404 });
+      return successResponse({ error: 'Market not found' }, 404);
     }
 
-    // Get positions for this market (user trades)
-    const positionsRaw = await db.position.findMany({
-      where: {
-        marketId: marketId,
-        shares: { gt: '0' }, // Only positions with shares (shares is string)
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: queryParams.limit,
-      skip: queryParams.offset,
-    });
+    const limitPlusOne = queryParams.limit + 1;
 
-    // Get users for positions
-    const userIds = [...new Set(positionsRaw.map((p) => p.userId))];
-    const users =
+    // Merge balance (user/agent) trades and NPC trades into a single time-sorted feed.
+    // Use epoch-millis to avoid timezone ambiguity with timestamp (no tz) columns.
+    const tradeRows = (await db.execute(sql`
+      select
+        bt."id" as "id",
+        'balance' as "type",
+        bt."userId" as "userId",
+        bt."type" as "transactionType",
+        bt."amount"::float8 as "amount",
+        bt."relatedId" as "marketId",
+        null::text as "marketType",
+        null::text as "ticker",
+        null::text as "action",
+        null::text as "side",
+        null::float8 as "price",
+        null::float8 as "sentiment",
+        null::text as "reason",
+        (extract(epoch from bt."createdAt") * 1000)::bigint as "timestampMs"
+      from "BalanceTransaction" bt
+      where bt."relatedId" = ${marketId}
+        and bt."type" in ('pred_buy', 'pred_sell')
+
+      union all
+
+      select
+        nt."id" as "id",
+        'npc' as "type",
+        nt."npcActorId" as "userId",
+        null::text as "transactionType",
+        nt."amount"::float8 as "amount",
+        nt."marketId" as "marketId",
+        nt."marketType" as "marketType",
+        nt."ticker" as "ticker",
+        nt."action" as "action",
+        nt."side" as "side",
+        nt."price"::float8 as "price",
+        nt."sentiment"::float8 as "sentiment",
+        nt."reason" as "reason",
+        (extract(epoch from nt."executedAt") * 1000)::bigint as "timestampMs"
+      from "NPCTrade" nt
+      where nt."marketType" = 'prediction'
+        and nt."marketId" = ${marketId}
+
+      order by "timestampMs" desc
+      limit ${limitPlusOne}
+      offset ${queryParams.offset}
+    `)) as PredictionTradeRow[];
+
+    const hasMore = tradeRows.length > queryParams.limit;
+    const pageRows = hasMore
+      ? tradeRows.slice(0, queryParams.limit)
+      : tradeRows;
+
+    const userIds = [
+      ...new Set(pageRows.map((row) => row.userId).filter(Boolean)),
+    ] as string[];
+    const userRows =
       userIds.length > 0
-        ? await db.user.findMany({
-            where: { id: { in: userIds } },
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-              profileImageUrl: true,
-              isActor: true,
-            },
-          })
+        ? await db
+            .select({
+              id: users.id,
+              username: users.username,
+              displayName: users.displayName,
+              profileImageUrl: users.profileImageUrl,
+              isActor: users.isActor,
+            })
+            .from(users)
+            .where(inArray(users.id, userIds))
         : [];
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
 
-    // Join positions with users
-    const positions = positionsRaw.map((pos) => ({
-      ...pos,
-      User: userMap.get(pos.userId),
-    }));
+    const trades = pageRows.map((row) => {
+      const timestamp = new Date(Number(row.timestampMs)).toISOString();
+      if (row.type === 'balance') {
+        return {
+          id: row.id,
+          type: 'balance' as const,
+          user: userMap.get(row.userId) ?? null,
+          transactionType: row.transactionType,
+          amount: Number(row.amount),
+          timestamp,
+          marketId,
+        };
+      }
 
-    // Get total count for pagination
-    const totalPositions = await db.position.count({
-      where: {
-        marketId: marketId,
-        shares: { gt: '0' }, // shares is string
-      },
+      return {
+        id: row.id,
+        type: 'npc' as const,
+        user: userMap.get(row.userId) ?? null,
+        marketType: row.marketType ?? 'prediction',
+        ticker: row.ticker ?? '',
+        action: row.action ?? 'unknown',
+        side: row.side ?? null,
+        amount: Number(row.amount),
+        price: Number(row.price ?? 0),
+        sentiment: row.sentiment != null ? Number(row.sentiment) : null,
+        reason: row.reason ?? null,
+        timestamp,
+      };
     });
-
-    // Get balance transactions for these positions
-    const positionIds = positions.map((p) => p.id);
-    const balanceTransactions =
-      positionIds.length > 0
-        ? await db.balanceTransaction.findMany({
-            where: {
-              type: { in: ['pred_buy', 'pred_sell'] },
-              relatedId: { in: positionIds },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: queryParams.limit,
-            select: {
-              id: true,
-              type: true,
-              amount: true,
-              userId: true,
-              createdAt: true,
-              relatedId: true,
-              description: true,
-            },
-          })
-        : [];
-
-    // Fetch users for transactions
-    const txUserIds = [...new Set(balanceTransactions.map((tx) => tx.userId))];
-    const txUsers = await db.user.findMany({
-      where: { id: { in: txUserIds } },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-        isActor: true,
-      },
-    });
-    const txUsersMap = new Map(txUsers.map((u) => [u.id, u]));
-
-    // Format trades
-    const trades = [
-      // Position trades
-      ...positions.map((pos) => ({
-        id: pos.id,
-        type: 'position' as const,
-        user: pos.User,
-        side: pos.side ? 'YES' : 'NO',
-        shares: Number(pos.shares),
-        avgPrice: Number(pos.avgPrice),
-        amount: Number(pos.shares) * Number(pos.avgPrice),
-        timestamp: pos.updatedAt,
-        marketId: pos.marketId,
-      })),
-      // Balance transaction trades
-      ...balanceTransactions.map((tx) => ({
-        id: tx.id,
-        type: 'balance' as const,
-        user: txUsersMap.get(tx.userId) || null,
-        transactionType: tx.type,
-        amount: Number(tx.amount),
-        description: tx.description,
-        relatedId: tx.relatedId,
-        timestamp: tx.createdAt,
-        marketId,
-      })),
-    ]
-      // Sort by timestamp descending
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      // Apply pagination
-      .slice(0, queryParams.limit);
-
-    const total = totalPositions + balanceTransactions.length;
-    const hasMore = queryParams.offset + queryParams.limit < total;
 
     const result = {
       trades,
-      total,
+      total: queryParams.offset + trades.length + (hasMore ? 1 : 0),
       hasMore,
       marketId: market.id,
       question: market.question,
     };
 
-    // Cache for 30 seconds
-    await setCache(cacheKey, result, { ttl: 30, namespace: 'market-trades' });
-
-    logger.info(
-      `Returned ${trades.length} trades for prediction market ${marketId}`,
-      { total, hasMore },
-      'PredictionTrades'
-    );
+    // Cache briefly; feed is also updated via SSE.
+    await setCache(cacheKey, result, { ttl: 10, namespace: 'market-trades' });
 
     return successResponse(result);
   }

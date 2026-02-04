@@ -13,7 +13,7 @@ Comprehensive autonomous agent system with:
 - **Batch Response System** - Intelligent interaction processing
 - **Autonomous Coordinator** - Orchestrated tick execution
 - **Full Action Coverage** - 9 actions for trading, social, messaging
-- **7 Providers** - Complete data access
+- **15 Providers** - Complete data access
 
 ---
 
@@ -104,15 +104,23 @@ Orchestrates complete ticks:
 - SEND_MESSAGE
 - CREATE_GROUP
 
-### 5. Providers (7 Total)
+### 5. Providers (15 Total)
 
 - BABYLON_DASHBOARD (comprehensive context)
+- BABYLON_GOALS
+- BABYLON_AGENT_WALLET
 - BABYLON_MARKETS
+- BABYLON_MARKET_MOVERS
 - BABYLON_PORTFOLIO
 - BABYLON_FEED
 - BABYLON_TRENDING
+- BABYLON_TRENDING_TOPICS
+- BABYLON_HEADLINES
 - BABYLON_MESSAGES
 - BABYLON_NOTIFICATIONS
+- BABYLON_USER_WALLET
+- BABYLON_USER_PROFILE
+- BABYLON_ENTITY_MENTIONS
 
 ---
 
@@ -151,7 +159,7 @@ Orchestrates complete ticks:
 ## 🎓 File Structure
 
 ```
-src/lib/agents/
+src/
 ├── autonomous/
 │   ├── index.ts                              # Exports
 │   ├── AutonomousCoordinator.ts             # Main orchestrator ⭐
@@ -286,7 +294,6 @@ for (const agentId of agents) {
 - `autonomous/` - Service implementations
 - `plugins/babylon/` - Plugin and providers
 - `examples/autonomous-agent-setup.ts` - Integration examples
-- `AUTONOMOUS_TEST_RESULTS.md` - Test verification
 
 ---
 
@@ -296,7 +303,7 @@ for (const agentId of agents) {
 - ✅ Batch Response Service
 - ✅ Dashboard Provider  
 - ✅ All 9 Actions
-- ✅ All 7 Providers
+- ✅ All 15 Providers
 - ✅ Error Handling
 - ✅ Logging System
 

@@ -1,152 +1,21 @@
 /**
- * Agent Points Wallet API
+ * Agent Wallet API
  *
  * @route GET /api/agents/[agentId]/wallet - Get wallet balance
- * @route POST /api/agents/[agentId]/wallet - Deposit/withdraw points
+ * @route POST /api/agents/[agentId]/wallet - Deposit/withdraw
  * @access Authenticated (owner only)
  *
  * @description
- * Manages agent points wallet, view balance, and transaction history.
- * Points are used for all agent operations: chat, trading, posting, etc.
- *
- * @openapi
- * /api/agents/{agentId}/wallet:
- *   get:
- *     tags:
- *       - Agents
- *     summary: Get wallet balance
- *     description: Returns wallet balance and transaction history (owner only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: agentId
- *         required: true
- *         schema:
- *           type: string
- *         description: Agent user ID
- *     responses:
- *       200:
- *         description: Wallet info retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 balance:
- *                   type: object
- *                   properties:
- *                     current:
- *                       type: number
- *                     totalDeposited:
- *                       type: number
- *                     totalSpent:
- *                       type: number
- *                 transactions:
- *                   type: array
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not agent owner
- *       404:
- *         description: Agent not found
- *   post:
- *     tags:
- *       - Agents
- *     summary: Deposit/withdraw points
- *     description: Deposits or withdraws points from agent wallet (owner only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: agentId
- *         required: true
- *         schema:
- *           type: string
- *         description: Agent user ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - action
- *               - amount
- *             properties:
- *               action:
- *                 type: string
- *                 enum: [deposit, withdraw]
- *               amount:
- *                 type: number
- *                 minimum: 0.01
- *     responses:
- *       200:
- *         description: Transaction completed successfully
- *       400:
- *         description: Invalid action or amount
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not agent owner
- *       404:
- *         description: Agent not found
- *
- * @example
- * ```typescript
- * // Get balance
- * const { balance } = await fetch(`/api/agents/${agentId}/wallet`, {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * }).then(r => r.json());
- *
- * // Deposit points
- * await fetch(`/api/agents/${agentId}/wallet`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ action: 'deposit', amount: 100 })
- * });
- * ```
- * @throws {500} Internal server error or insufficient balance
- *
- * @example
- * ```typescript
- * // Get wallet info
- * const wallet = await fetch(`/api/agents/${agentId}/wallet`, {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * const { balance, transactions } = await wallet.json();
- *
- * // Deposit points
- * await fetch(`/api/agents/${agentId}/wallet`, {
- *   method: 'POST',
- *   body: JSON.stringify({
- *     action: 'deposit',
- *     amount: 500
- *   })
- * });
- *
- * // Withdraw points
- * await fetch(`/api/agents/${agentId}/wallet`, {
- *   method: 'POST',
- *   body: JSON.stringify({
- *     action: 'withdraw',
- *     amount: 100
- *   })
- * });
- * ```
- *
- * @see {@link /lib/agents/services/AgentService} Points management
- * @see {@link /src/app/agents/[agentId]/page.tsx} Wallet UI
+ * Manages agent wallet balance and transaction history.
+ * Uses the unified virtualBalance for all agent operations.
  */
 
+import { agentService } from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
+import { balanceTransactions, db, desc, eq, users } from '@babylon/db';
+import { BABYLON_POINTS_SYMBOL, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { agentService } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
 
 export async function GET(
   req: NextRequest,
@@ -155,28 +24,41 @@ export async function GET(
   const user = await authenticateUser(req);
   const { agentId } = await params;
 
+  // Verify ownership and get agent
   const agent = await agentService.getAgent(agentId, user.id);
 
-  const transactions = await db.agentPointsTransaction.findMany({
-    where: { agentUserId: agentId },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  });
+  // Get user's balance (source for deposits)
+  const userResult = await db
+    .select({ virtualBalance: users.virtualBalance })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  const userBalance = Number(userResult[0]?.virtualBalance ?? 0);
+
+  // Get agent's balance transactions
+  const transactions = await db
+    .select()
+    .from(balanceTransactions)
+    .where(eq(balanceTransactions.userId, agentId))
+    .orderBy(desc(balanceTransactions.createdAt))
+    .limit(100);
 
   return NextResponse.json({
     success: true,
     balance: {
-      current: agent!.agentPointsBalance,
-      totalDeposited: agent!.agentTotalDeposited,
-      totalWithdrawn: agent!.agentTotalWithdrawn,
-      totalSpent: agent!.agentTotalPointsSpent,
+      current: Number(agent?.virtualBalance ?? 0),
+      totalDeposited: Number(agent?.totalDeposited ?? 0),
+      totalWithdrawn: Number(agent?.totalWithdrawn ?? 0),
+      lifetimePnL: Number(agent?.lifetimePnL ?? 0),
     },
+    userBalance,
     transactions: transactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
-      amount: tx.amount,
-      balanceBefore: tx.balanceBefore,
-      balanceAfter: tx.balanceAfter,
+      amount: Number(tx.amount),
+      balanceBefore: Number(tx.balanceBefore),
+      balanceAfter: Number(tx.balanceAfter),
       description: tx.description,
       relatedId: tx.relatedId,
       createdAt: tx.createdAt.toISOString(),
@@ -194,30 +76,40 @@ export async function POST(
 
   const { action, amount } = body;
 
-  let agent;
   if (action === 'deposit') {
-    agent = await agentService.depositPoints(agentId, user.id, amount);
+    await agentService.depositTradingBalance(agentId, user.id, amount);
     logger.info(
-      `Deposited ${amount} points to agent ${agentId}`,
+      `Deposited ${BABYLON_POINTS_SYMBOL}${amount} to agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   } else {
-    agent = await agentService.withdrawPoints(agentId, user.id, amount);
+    await agentService.withdrawTradingBalance(agentId, user.id, amount);
     logger.info(
-      `Withdrew ${amount} points from agent ${agentId}`,
+      `Withdrew ${BABYLON_POINTS_SYMBOL}${amount} from agent ${agentId}`,
       undefined,
       'AgentsAPI'
     );
   }
 
+  // Re-fetch agent and user balance
+  const agent = await agentService.getAgent(agentId, user.id);
+  const userResult = await db
+    .select({ virtualBalance: users.virtualBalance })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  const userBalance = Number(userResult[0]?.virtualBalance ?? 0);
+
   return NextResponse.json({
     success: true,
     balance: {
-      current: agent.agentPointsBalance,
-      totalDeposited: agent.agentTotalDeposited,
-      totalWithdrawn: agent.agentTotalWithdrawn,
+      current: Number(agent?.virtualBalance ?? 0),
+      totalDeposited: Number(agent?.totalDeposited ?? 0),
+      totalWithdrawn: Number(agent?.totalWithdrawn ?? 0),
     },
-    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} ${amount} points successfully`,
+    userBalance,
+    message: `${action === 'deposit' ? 'Deposited' : 'Withdrew'} ${BABYLON_POINTS_SYMBOL}${amount.toFixed(2)} successfully`,
   });
 }

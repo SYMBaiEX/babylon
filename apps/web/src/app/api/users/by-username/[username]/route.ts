@@ -69,7 +69,12 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  NotFoundError,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   comments,
   count,
@@ -78,13 +83,11 @@ import {
   follows,
   positions,
   reactions,
+  sql,
   users,
 } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { UsernameParamSchema } from '@babylon/shared';
+import { logger, UsernameParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/by-username/[username]
@@ -101,7 +104,7 @@ export const GET = withErrorHandling(
     // Optional authentication
     await optionalAuth(request);
 
-    // Get user profile by username
+    // Get user profile by username (case-insensitive)
     const [dbUser] = await db
       .select({
         id: users.id,
@@ -112,6 +115,8 @@ export const GET = withErrorHandling(
         profileImageUrl: users.profileImageUrl,
         coverImageUrl: users.coverImageUrl,
         isActor: users.isActor,
+        isAgent: users.isAgent,
+        managedBy: users.managedBy,
         profileComplete: users.profileComplete,
         hasUsername: users.hasUsername,
         hasBio: users.hasBio,
@@ -131,7 +136,7 @@ export const GET = withErrorHandling(
         createdAt: users.createdAt,
       })
       .from(users)
-      .where(eq(users.username, username))
+      .where(sql`lower(${users.username}) = lower(${username})`)
       .limit(1);
 
     if (!dbUser) {
@@ -184,14 +189,16 @@ export const GET = withErrorHandling(
         profileImageUrl: dbUser.profileImageUrl,
         coverImageUrl: dbUser.coverImageUrl,
         isActor: dbUser.isActor,
+        isAgent: dbUser.isAgent,
+        managedBy: dbUser.managedBy,
         profileComplete: dbUser.profileComplete,
         hasUsername: dbUser.hasUsername,
         hasBio: dbUser.hasBio,
         hasProfileImage: dbUser.hasProfileImage,
         onChainRegistered: dbUser.onChainRegistered,
         nftTokenId: dbUser.nftTokenId,
-        virtualBalance: Number(dbUser.virtualBalance),
-        lifetimePnL: Number(dbUser.lifetimePnL),
+        virtualBalance: Number(dbUser.virtualBalance ?? 0),
+        lifetimePnL: Number(dbUser.lifetimePnL ?? 0),
         reputationPoints: dbUser.reputationPoints,
         referralCount: dbUser.referralCount,
         referralCode: dbUser.referralCode,

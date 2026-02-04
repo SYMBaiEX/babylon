@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 /**
  * JSON-serializable value types
+ * Note: undefined is NOT included as it's not valid JSON - use optional properties instead
  */
 export type JsonValue =
   | string
@@ -179,7 +180,9 @@ export interface PostHogClient {
       persistence?: string;
       enable_recording_console_log?: boolean;
       capture_exceptions?: boolean;
-      sanitize_properties?: (properties: StringRecord<JsonValue>) => StringRecord<JsonValue>;
+      sanitize_properties?: (
+        properties: StringRecord<JsonValue>
+      ) => StringRecord<JsonValue>;
     }
   ): void;
   capture(event: string, properties?: StringRecord<JsonValue>): void;

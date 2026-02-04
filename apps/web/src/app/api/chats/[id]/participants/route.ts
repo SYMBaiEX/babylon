@@ -122,14 +122,19 @@
  * @see {@link /lib/services/notification-service} Notification service
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  NFTVerificationService,
+  NotFoundError,
+  notifyGroupChatInvite,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
 import { asSystem, asUser } from '@babylon/db';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { notifyGroupChatInvite } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/chats/[id]/participants
@@ -146,6 +151,8 @@ export const POST = withErrorHandling(
     if (!chatId) {
       throw new BusinessLogicError('Chat ID is required', 'CHAT_ID_REQUIRED');
     }
+
+    await requireNftChatAccess(user, chatId);
 
     // Validate request body
     const body = await request.json();
@@ -210,6 +217,52 @@ export const POST = withErrorHandling(
       return chat;
     });
 
+    // Verify NFT ownership for NFT-gated chats
+    if (chat.nftGated && chat.requiredNftContractAddress) {
+      const usersToVerify = await asSystem(async (db) =>
+        db.user.findMany({
+          where: {
+            id: { in: userIds },
+            isActor: false,
+            isBanned: false,
+          },
+          select: {
+            id: true,
+            walletAddress: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
+        })
+      );
+
+      const verificationResults = await Promise.all(
+        usersToVerify.map(async (user) => ({
+          user,
+          verification: await NFTVerificationService.verifyChatAccess(
+            user.walletAddress ?? null,
+            chat.requiredNftContractAddress!,
+            chat.requiredNftTokenId ?? null,
+            chat.requiredNftChainId ?? undefined
+          ),
+        }))
+      );
+
+      const usersWithoutNft = verificationResults.filter(
+        (r) => !r.verification.canAccess
+      );
+
+      if (usersWithoutNft.length > 0) {
+        const userNames = usersWithoutNft
+          .map((r) => r.user.displayName || r.user.username || r.user.id)
+          .join(', ');
+        throw new BusinessLogicError(
+          `The following users do not own the required NFT: ${userNames}. ${usersWithoutNft[0]?.verification.reason || ''}`,
+          'NFT_REQUIRED'
+        );
+      }
+    }
+
     // Verify all users exist and add them to the chat
     const addedUsers = await asSystem(async (db) => {
       // Verify users exist and are not actors
@@ -265,13 +318,14 @@ export const POST = withErrorHandling(
         )
       );
 
-      // Get updated chat info
+      // Get updated chat info (including groupId for notification linking)
       const updatedChat = await db.chat.findUnique({
         where: { id: chatId },
         select: {
           id: true,
           name: true,
           isGroup: true,
+          groupId: true,
         },
       });
 
@@ -289,7 +343,7 @@ export const POST = withErrorHandling(
           notifyGroupChatInvite(
             newUser.id,
             user.userId,
-            chatId,
+            updatedChat?.groupId,
             updatedChat?.name || 'a group chat'
           )
         )
@@ -343,6 +397,8 @@ export const GET = withErrorHandling(
     if (!chatId) {
       throw new BusinessLogicError('Chat ID is required', 'CHAT_ID_REQUIRED');
     }
+
+    await requireNftChatAccess(user, chatId);
 
     // Get chat participants
     const participants = await asUser(user, async (db) => {

@@ -4,7 +4,7 @@
  */
 
 import type { AgentCard } from '@a2a-js/sdk';
-import { db, eq, users } from '@babylon/db';
+import { db, eq, userAgentConfigs, users } from '@babylon/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -97,7 +97,7 @@ function createAgentCardObject(
 
     provider: {
       organization: 'Babylon',
-      url: 'https://babylon.game',
+      url: 'https://babylon.market',
     },
 
     iconUrl: profileImageUrl || `${BASE_URL}/logo.svg`,
@@ -105,7 +105,7 @@ function createAgentCardObject(
     documentationUrl: `${BASE_URL}/docs`,
 
     capabilities: {
-      streaming: false, // Streaming not yet implemented (message/stream, tasks/resubscribe)
+      streaming: true,
       pushNotifications: false,
       stateTransitionHistory: true,
     },
@@ -126,35 +126,50 @@ function createAgentCardObject(
  * Generate an agent card for a specific agent
  */
 export async function generateAgentCard(agentId: string): Promise<AgentCard> {
-  const [agent] = await db
+  // Get user and agent config from separate tables
+  const [user] = await db
     .select({
       id: users.id,
       displayName: users.displayName,
       bio: users.bio,
       profileImageUrl: users.profileImageUrl,
-      agentSystem: users.agentSystem,
-      agentPersonality: users.agentPersonality,
-      agentTradingStrategy: users.agentTradingStrategy,
       isAgent: users.isAgent,
-      a2aEnabled: users.a2aEnabled,
     })
     .from(users)
     .where(eq(users.id, agentId))
     .limit(1);
 
-  if (!agent || !agent.isAgent || !agent.a2aEnabled) {
-    throw new Error(`Agent ${agentId} not found or A2A not enabled`);
+  if (!user || !user.isAgent) {
+    throw new Error(`Agent ${agentId} not found`);
   }
 
-  const agentName = agent.displayName || `Agent ${agentId.substring(0, 8)}`;
+  // Get agent config
+  const [agentConfig] = await db
+    .select({
+      systemPrompt: userAgentConfigs.systemPrompt,
+      personality: userAgentConfigs.personality,
+      tradingStrategy: userAgentConfigs.tradingStrategy,
+      a2aEnabled: userAgentConfigs.a2aEnabled,
+    })
+    .from(userAgentConfigs)
+    .where(eq(userAgentConfigs.userId, agentId))
+    .limit(1);
+
+  if (!agentConfig?.a2aEnabled) {
+    throw new Error(`Agent ${agentId} does not have A2A enabled`);
+  }
+
+  const agentName = user.displayName || `Agent ${agentId.substring(0, 8)}`;
   const agentDescription =
-    agent.bio || agent.agentSystem || 'Autonomous agent on Babylon platform';
+    user.bio ||
+    agentConfig.systemPrompt ||
+    'Autonomous agent on Babylon platform';
 
   return createAgentCardObject(
     agentId,
     agentName,
     agentDescription,
-    agent.profileImageUrl
+    user.profileImageUrl
   );
 }
 
@@ -166,13 +181,13 @@ export function generateAgentCardSync(agent: {
   displayName: string | null;
   bio: string | null;
   profileImageUrl: string | null;
-  agentSystem: string | null;
-  agentPersonality: string | null;
-  agentTradingStrategy: string | null;
+  systemPrompt?: string | null;
+  personality?: string | null;
+  tradingStrategy?: string | null;
 }): AgentCard {
   const agentName = agent.displayName || `Agent ${agent.id.substring(0, 8)}`;
   const agentDescription =
-    agent.bio || agent.agentSystem || 'Autonomous agent on Babylon platform';
+    agent.bio || agent.systemPrompt || 'Autonomous agent on Babylon platform';
 
   return createAgentCardObject(
     agent.id,

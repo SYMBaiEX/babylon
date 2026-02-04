@@ -39,6 +39,9 @@
  * ```
  */
 
+import { successResponse } from '@babylon/api';
+import { BabylonLLMClient } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import {
   adjectives,
@@ -49,9 +52,6 @@ import {
   starWars,
   uniqueNamesGenerator,
 } from 'unique-names-generator';
-import { BabylonLLMClient } from '@babylon/engine';
-import { successResponse } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 interface ProfileData {
   name: string;

@@ -7,9 +7,18 @@
  * for each evaluation.
  */
 
-import { count, db, desc, eq, messages, posts, reports, users } from '@babylon/db';
-import { callClaudeDirect } from '../claude-service';
+import {
+  count,
+  db,
+  desc,
+  eq,
+  messages,
+  posts,
+  reports,
+  users,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { callClaudeDirect } from '../claude-service';
 
 /**
  * NotificationService interface for dependency injection
@@ -143,31 +152,23 @@ export async function evaluateReport(
   );
 
   // Send notification to reporter about evaluation result
-  try {
-    const [report] = await db
-      .select({
-        reporterId: reports.reporterId,
-        reportedUserId: reports.reportedUserId,
-      })
-      .from(reports)
-      .where(eq(reports.id, reportId))
-      .limit(1);
+  const [report] = await db
+    .select({
+      reporterId: reports.reporterId,
+      reportedUserId: reports.reportedUserId,
+    })
+    .from(reports)
+    .where(eq(reports.id, reportId))
+    .limit(1);
 
-    if (report) {
-      const notificationService = getNotificationService();
-      await notificationService.createNotification({
-        userId: report.reporterId,
-        type: 'system',
-        title: 'Report Evaluation Complete',
-        message: `Your report has been evaluated. Outcome: ${evaluation.outcome.replace('_', ' ')}. ${evaluation.reasoning.substring(0, 100)}...`,
-      });
-    }
-  } catch {
-    logger.warn(
-      'Failed to send evaluation notification',
-      { reportId },
-      'ReportEvaluation'
-    );
+  if (report) {
+    const notificationService = getNotificationService();
+    await notificationService.createNotification({
+      userId: report.reporterId,
+      type: 'system',
+      title: 'Report Evaluation Complete',
+      message: `Your report has been evaluated. Outcome: ${evaluation.outcome.replace('_', ' ')}. ${evaluation.reasoning.substring(0, 100)}...`,
+    });
   }
 
   return evaluation;
@@ -419,68 +420,46 @@ Respond with a JSON object:
   "recommendedActions": ["action1", "action2", ...]
 }`;
 
-  try {
-    const response = await callClaudeDirect({
-      prompt,
-      system:
-        'You are a moderation AI for a right-leaning libertarian platform. You ONLY ban for scamming (stealing points/money) or CSAM. You do NOT ban for crude jokes, harassment, or offensive language.',
-      model: 'claude-sonnet-4-5',
-      temperature: 0.2, // Lower temperature for more consistent evaluations
-      maxTokens: 4096,
-    });
+  const response = await callClaudeDirect({
+    prompt,
+    system:
+      'You are a moderation AI for a right-leaning libertarian platform. You ONLY ban for scamming (stealing points/money) or CSAM. You do NOT ban for crude jokes, harassment, or offensive language.',
+    model: 'claude-sonnet-4-5',
+    temperature: 0.2, // Lower temperature for more consistent evaluations
+    maxTokens: 4096,
+  });
 
-    const content = response.trim();
+  const content = response.trim();
 
-    // Try to extract JSON from the response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
-
-    const evaluation = JSON.parse(jsonMatch[0]) as ReportEvaluationResult;
-
-    // Validate outcome
-    if (
-      ![
-        'valid_report',
-        'invalid_report',
-        'abusive_reporter',
-        'insufficient_evidence',
-      ].includes(evaluation.outcome)
-    ) {
-      evaluation.outcome = 'insufficient_evidence';
-    }
-
-    // Add evidence summary
-    evaluation.evidenceSummary = {
-      chatMessages: context.chatMessages.length,
-      posts: context.posts.length,
-      reportsReceived: context.reported.recentReportsReceived,
-      reportsSent: context.reporter.recentReportsSent,
-    };
-
-    return evaluation;
-  } catch (error) {
-    logger.error(
-      'AI evaluation failed',
-      { error, reportId: context.report.id },
-      'ReportEvaluation'
-    );
-
-    // Fallback: basic heuristic evaluation
-    return {
-      outcome: 'insufficient_evidence',
-      confidence: 0.5,
-      reasoning: 'AI evaluation failed, using fallback heuristics',
-      recommendedActions: ['Manual review required'],
-      evidenceSummary: {
-        chatMessages: context.chatMessages.length,
-        posts: context.posts.length,
-        reportsReceived: context.reported.recentReportsReceived,
-        reportsSent: context.reporter.recentReportsSent,
-      },
-    };
+  // Try to extract JSON from the response
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in AI response');
   }
+
+  const evaluation = JSON.parse(jsonMatch[0]) as ReportEvaluationResult;
+
+  // Validate outcome
+  if (
+    ![
+      'valid_report',
+      'invalid_report',
+      'abusive_reporter',
+      'insufficient_evidence',
+    ].includes(evaluation.outcome)
+  ) {
+    evaluation.outcome = 'insufficient_evidence';
+  }
+
+  // Add evidence summary
+  evaluation.evidenceSummary = {
+    chatMessages: context.chatMessages.length,
+    posts: context.posts.length,
+    reportsReceived: context.reported.recentReportsReceived,
+    reportsSent: context.reporter.recentReportsSent,
+  };
+
+  return evaluation;
 }
 
 /**
@@ -499,4 +478,3 @@ export async function storeEvaluationResult(
     })
     .where(eq(reports.id, reportId));
 }
-

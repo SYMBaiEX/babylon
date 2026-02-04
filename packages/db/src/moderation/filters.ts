@@ -5,7 +5,8 @@
  * Used to exclude blocked or muted users from feeds and search results.
  */
 
-import { and, db, eq } from '../index';
+import { and, eq } from 'drizzle-orm';
+import { db } from '../db';
 import { userBlocks, userMutes } from '../schema';
 
 /**
@@ -152,4 +153,3 @@ export function buildBlockedUsersWhereClause(blockedUserIds: string[]) {
     },
   };
 }
-

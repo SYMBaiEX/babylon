@@ -86,6 +86,27 @@ export interface RelationshipContext {
   history?: string;
 }
 
+/**
+ * Signal analysis summary for a prediction market
+ * Provides aggregated signal direction from feed content
+ */
+export interface MarketSignalContext {
+  /** Market/question ID */
+  marketId: string;
+  /** Aggregated YES evidence weight */
+  yesSignal: number;
+  /** Aggregated NO evidence weight */
+  noSignal: number;
+  /** Net signal (yesSignal - noSignal) */
+  netSignal: number;
+  /** Signal strength (0-1) */
+  strength: number;
+  /** Suggested outcome based on signal */
+  suggestedOutcome: 'YES' | 'NO' | 'UNCERTAIN';
+  /** Confidence in suggested outcome (0-1) */
+  confidence: number;
+}
+
 export interface NPCMarketContext {
   // NPC identity
   npcId: string;
@@ -108,6 +129,10 @@ export interface NPCMarketContext {
 
   // Current positions
   currentPositions: NPCPosition[];
+
+  // Signal analysis for prediction markets (internal use only)
+  // Helps NPCs make better-informed trading decisions
+  marketSignals?: MarketSignalContext[];
 }
 
 export interface MarketSnapshots {
@@ -115,4 +140,3 @@ export interface MarketSnapshots {
   predictions: PredictionMarketSnapshot[];
   timestamp: string;
 }
-

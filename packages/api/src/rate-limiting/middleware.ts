@@ -4,16 +4,13 @@
  * Provides helpers to apply rate limiting and duplicate detection to API routes
  */
 
-import { NextResponse } from 'next/server';
 import { logger } from '@babylon/shared';
-import {
-  checkRateLimit,
-  type RATE_LIMIT_CONFIGS,
-} from './user-rate-limiter';
+import { NextResponse } from 'next/server';
 import {
   checkDuplicate,
   type DUPLICATE_DETECTION_CONFIGS,
 } from '../utils/duplicate-detector';
+import { checkRateLimit, type RATE_LIMIT_CONFIGS } from './user-rate-limiter';
 
 /**
  * Error response for rate limit exceeded
@@ -122,11 +119,13 @@ export function checkRateLimitAndDuplicates(
   rateLimitConfig: (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS],
   duplicateConfig?: (typeof DUPLICATE_DETECTION_CONFIGS)[keyof typeof DUPLICATE_DETECTION_CONFIGS]
 ): NextResponse | null {
-  // Skip rate limiting in test environment if DISABLE_RATE_LIMITING is set
-  if (
-    process.env.NODE_ENV === 'test' &&
-    process.env.DISABLE_RATE_LIMITING === 'true'
-  ) {
+  // SECURITY: Only skip rate limiting in test environment with EXPLICIT flag
+  // Additional safeguard: also require not being in production
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const disableFlag = process.env.DISABLE_RATE_LIMITING === 'true';
+
+  if (isTestEnv && disableFlag && !isProduction) {
     return null;
   }
 
@@ -148,7 +147,7 @@ export function checkRateLimitAndDuplicates(
       logger.warn('Duplicate content detected', {
         userId,
         actionType: duplicateConfig.actionType,
-        lastPostedAt: duplicateResult.lastPostedAt,
+        lastPostedAt: duplicateResult.lastPostedAt?.toISOString(),
       });
       return duplicateContentError(duplicateResult.lastPostedAt);
     }
@@ -176,4 +175,3 @@ export function addRateLimitHeaders(
   response.headers.set('X-RateLimit-Reset', resetAt.toISOString());
   return response;
 }
-

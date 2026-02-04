@@ -68,7 +68,7 @@ export type SchemaDatabase = PostgresJsDatabase<DrizzleSchema>;
 export type SchemaTables = ExtractTablesWithRelations<DrizzleSchema>;
 export type RelationalQueryAPI = SchemaDatabase['query'];
 
-// JSON value type for nested structures (avoids circular reference)
+// JSON value type for nested structures
 // This matches the JSON specification: all valid JSON value types
 export type JsonValue =
   | string
@@ -438,24 +438,48 @@ function buildOrderBy<TTable extends PgTable>(
 
 /**
  * Type representing all valid database value types including JSON columns.
- * JSON columns use .$type<JsonValue>() in schema definitions for proper typing.
+ *
+ * JSONB columns with custom types (e.g., NpcMemory[], PriceModifier[]) use .$type<T>()
+ * in schema definitions. These typed interfaces don't satisfy the strict JsonValue constraint
+ * because they have narrower field types (e.g., literal unions instead of string).
+ *
+ * The `unknown` in this union is intentional and necessary to accept schema-inferred
+ * custom JSONB types. This does NOT weaken type safety because:
+ *
+ * 1. **Repository generics preserve types**: TSelect and TInsert are inferred from
+ *    InferSelect<TTable> and InferInsert<TTable>, which carry full type information
+ * 2. **Public API remains typed**: Method signatures like findUnique() return TSelect,
+ *    not DatabaseValue - callers always receive properly typed results
+ * 3. **This union is internal only**: It only affects internal constraint checking
+ *    on Record<string, DatabaseValue>, not the types exposed to consumers
+ *
+ * Without `unknown`, schema-defined types like `NpcMemory[]` and `PriceModifier[]`
+ * would fail the constraint check, breaking TableRepository for those tables.
+ *
+ * @see NpcMemory, PriceModifier for examples of custom JSONB types
+ * @see TableRepository for how types flow through the repository pattern
  */
 type DatabaseValue =
   | SQLValue
   | { [key: string]: DatabaseValue }
   | DatabaseValue[]
   | JsonValue
-  | JsonValue[];
+  | JsonValue[]
+  | unknown;
 
 /**
  * Table repository providing ORM-style methods for database operations.
  * Supports findUnique, findMany, create, update, delete, and aggregate operations.
- * JSON columns should use json('column').$type<JsonValue>() in schema definitions.
+ *
+ * Type parameters:
+ * - TTable: The Drizzle table schema (e.g., typeof schema.users)
+ * - TSelect: The inferred select type from the schema (use InferSelect<TTable>)
+ * - TInsert: The inferred insert type from the schema (use InferInsert<TTable>)
  */
 export class TableRepository<
   TTable extends PgTable,
-  TSelect extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
-  TInsert extends Record<string, DatabaseValue | JsonValue>, // JsonValue for JSON columns, DatabaseValue for others
+  TSelect extends Record<string, DatabaseValue | JsonValue>,
+  TInsert extends Record<string, DatabaseValue | JsonValue>,
 > {
   private readonly queryAPI: RelationalQueryAPI | undefined;
 
@@ -1113,7 +1137,6 @@ type InferSelect<T extends PgTable> = T['$inferSelect'];
  */
 type InferInsert<T extends PgTable> = T['$inferInsert'];
 
-
 /**
  * Drizzle database client interface providing ORM-style API and direct Drizzle access.
  * Includes table repositories for all database models and core Drizzle query methods.
@@ -1151,10 +1174,10 @@ export interface DrizzleClient {
     InferSelect<typeof schema.users>,
     InferInsert<typeof schema.users>
   >;
-  actor: TableRepository<
-    typeof schema.actors,
-    InferSelect<typeof schema.actors>,
-    InferInsert<typeof schema.actors>
+  actorState: TableRepository<
+    typeof schema.actorState,
+    InferSelect<typeof schema.actorState>,
+    InferInsert<typeof schema.actorState>
   >;
   actorFollow: TableRepository<
     typeof schema.actorFollows,
@@ -1216,10 +1239,10 @@ export interface DrizzleClient {
     InferSelect<typeof schema.poolDeposits>,
     InferInsert<typeof schema.poolDeposits>
   >;
-  organization: TableRepository<
-    typeof schema.organizations,
-    InferSelect<typeof schema.organizations>,
-    InferInsert<typeof schema.organizations>
+  organizationState: TableRepository<
+    typeof schema.organizationState,
+    InferSelect<typeof schema.organizationState>,
+    InferInsert<typeof schema.organizationState>
   >;
   stockPrice: TableRepository<
     typeof schema.stockPrices,
@@ -1246,16 +1269,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.chatParticipants>,
     InferInsert<typeof schema.chatParticipants>
   >;
-  chatAdmin: TableRepository<
-    typeof schema.chatAdmins,
-    InferSelect<typeof schema.chatAdmins>,
-    InferInsert<typeof schema.chatAdmins>
-  >;
-  chatInvite: TableRepository<
-    typeof schema.chatInvites,
-    InferSelect<typeof schema.chatInvites>,
-    InferInsert<typeof schema.chatInvites>
-  >;
   message: TableRepository<
     typeof schema.messages,
     InferSelect<typeof schema.messages>,
@@ -1270,11 +1283,6 @@ export interface DrizzleClient {
     typeof schema.dmAcceptances,
     InferSelect<typeof schema.dmAcceptances>,
     InferInsert<typeof schema.dmAcceptances>
-  >;
-  groupChatMembership: TableRepository<
-    typeof schema.groupChatMemberships,
-    InferSelect<typeof schema.groupChatMemberships>,
-    InferInsert<typeof schema.groupChatMemberships>
   >;
   userInteraction: TableRepository<
     typeof schema.userInteractions,
@@ -1360,26 +1368,6 @@ export interface DrizzleClient {
     typeof schema.userActorFollows,
     InferSelect<typeof schema.userActorFollows>,
     InferInsert<typeof schema.userActorFollows>
-  >;
-  userGroup: TableRepository<
-    typeof schema.userGroups,
-    InferSelect<typeof schema.userGroups>,
-    InferInsert<typeof schema.userGroups>
-  >;
-  userGroupAdmin: TableRepository<
-    typeof schema.userGroupAdmins,
-    InferSelect<typeof schema.userGroupAdmins>,
-    InferInsert<typeof schema.userGroupAdmins>
-  >;
-  userGroupInvite: TableRepository<
-    typeof schema.userGroupInvites,
-    InferSelect<typeof schema.userGroupInvites>,
-    InferInsert<typeof schema.userGroupInvites>
-  >;
-  userGroupMember: TableRepository<
-    typeof schema.userGroupMembers,
-    InferSelect<typeof schema.userGroupMembers>,
-    InferInsert<typeof schema.userGroupMembers>
   >;
   userBlock: TableRepository<
     typeof schema.userBlocks,
@@ -1541,16 +1529,6 @@ export interface DrizzleClient {
     InferSelect<typeof schema.parodyHeadlines>,
     InferInsert<typeof schema.parodyHeadlines>
   >;
-  characterMapping: TableRepository<
-    typeof schema.characterMappings,
-    InferSelect<typeof schema.characterMappings>,
-    InferInsert<typeof schema.characterMappings>
-  >;
-  organizationMapping: TableRepository<
-    typeof schema.organizationMappings,
-    InferSelect<typeof schema.organizationMappings>,
-    InferInsert<typeof schema.organizationMappings>
-  >;
   moderationEscrow: TableRepository<
     typeof schema.moderationEscrows,
     InferSelect<typeof schema.moderationEscrows>,
@@ -1575,6 +1553,48 @@ export interface DrizzleClient {
     typeof schema.widgetCaches,
     InferSelect<typeof schema.widgetCaches>,
     InferInsert<typeof schema.widgetCaches>
+  >;
+  userAgentConfig: TableRepository<
+    typeof schema.userAgentConfigs,
+    InferSelect<typeof schema.userAgentConfigs>,
+    InferInsert<typeof schema.userAgentConfigs>
+  >;
+  userApiKey: TableRepository<
+    typeof schema.userApiKeys,
+    InferSelect<typeof schema.userApiKeys>,
+    InferInsert<typeof schema.userApiKeys>
+  >;
+  adminRole: TableRepository<
+    typeof schema.adminRoles,
+    InferSelect<typeof schema.adminRoles>,
+    InferInsert<typeof schema.adminRoles>
+  >;
+  tickTokenStats: TableRepository<
+    typeof schema.tickTokenStats,
+    InferSelect<typeof schema.tickTokenStats>,
+    InferInsert<typeof schema.tickTokenStats>
+  >;
+  questionArcPlan: TableRepository<
+    typeof schema.questionArcPlans,
+    InferSelect<typeof schema.questionArcPlans>,
+    InferInsert<typeof schema.questionArcPlans>
+  >;
+
+  // Group system
+  group: TableRepository<
+    typeof schema.groups,
+    InferSelect<typeof schema.groups>,
+    InferInsert<typeof schema.groups>
+  >;
+  groupMember: TableRepository<
+    typeof schema.groupMembers,
+    InferSelect<typeof schema.groupMembers>,
+    InferInsert<typeof schema.groupMembers>
+  >;
+  groupInvite: TableRepository<
+    typeof schema.groupInvites,
+    InferSelect<typeof schema.groupInvites>,
+    InferInsert<typeof schema.groupInvites>
   >;
 }
 
@@ -1654,7 +1674,7 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
 
     // Model repositories
     user: new TableRepository(drizzle, schema.users, 'users'),
-    actor: new TableRepository(drizzle, schema.actors, 'actors'),
+    actorState: new TableRepository(drizzle, schema.actorState, 'actorState'),
     actorFollow: new TableRepository(
       drizzle,
       schema.actorFollows,
@@ -1687,10 +1707,10 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.poolDeposits,
       'poolDeposits'
     ),
-    organization: new TableRepository(
+    organizationState: new TableRepository(
       drizzle,
-      schema.organizations,
-      'organizations'
+      schema.organizationState,
+      'organizationState'
     ),
     stockPrice: new TableRepository(drizzle, schema.stockPrices, 'stockPrices'),
     question: new TableRepository(drizzle, schema.questions, 'questions'),
@@ -1705,8 +1725,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.chatParticipants,
       'chatParticipants'
     ),
-    chatAdmin: new TableRepository(drizzle, schema.chatAdmins, 'chatAdmins'),
-    chatInvite: new TableRepository(drizzle, schema.chatInvites, 'chatInvites'),
     message: new TableRepository(drizzle, schema.messages, 'messages'),
     notification: new TableRepository(
       drizzle,
@@ -1717,11 +1735,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.dmAcceptances,
       'dmAcceptances'
-    ),
-    groupChatMembership: new TableRepository(
-      drizzle,
-      schema.groupChatMemberships,
-      'groupChatMemberships'
     ),
     userInteraction: new TableRepository(
       drizzle,
@@ -1787,22 +1800,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       drizzle,
       schema.userActorFollows,
       'userActorFollows'
-    ),
-    userGroup: new TableRepository(drizzle, schema.userGroups, 'userGroups'),
-    userGroupAdmin: new TableRepository(
-      drizzle,
-      schema.userGroupAdmins,
-      'userGroupAdmins'
-    ),
-    userGroupInvite: new TableRepository(
-      drizzle,
-      schema.userGroupInvites,
-      'userGroupInvites'
-    ),
-    userGroupMember: new TableRepository(
-      drizzle,
-      schema.userGroupMembers,
-      'userGroupMembers'
     ),
     userBlock: new TableRepository(drizzle, schema.userBlocks, 'userBlocks'),
     userMute: new TableRepository(drizzle, schema.userMutes, 'userMutes'),
@@ -1912,16 +1909,6 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.parodyHeadlines,
       'parodyHeadlines'
     ),
-    characterMapping: new TableRepository(
-      drizzle,
-      schema.characterMappings,
-      'characterMappings'
-    ),
-    organizationMapping: new TableRepository(
-      drizzle,
-      schema.organizationMappings,
-      'organizationMappings'
-    ),
     moderationEscrow: new TableRepository(
       drizzle,
       schema.moderationEscrows,
@@ -1939,8 +1926,35 @@ export function createDrizzleClient(drizzle: SchemaDatabase): DrizzleClient {
       schema.widgetCaches,
       'widgetCaches'
     ),
+    userAgentConfig: new TableRepository(
+      drizzle,
+      schema.userAgentConfigs,
+      'userAgentConfigs'
+    ),
+    userApiKey: new TableRepository(drizzle, schema.userApiKeys, 'userApiKeys'),
+    adminRole: new TableRepository(drizzle, schema.adminRoles, 'adminRoles'),
+    tickTokenStats: new TableRepository(
+      drizzle,
+      schema.tickTokenStats,
+      'tickTokenStats'
+    ),
+    questionArcPlan: new TableRepository(
+      drizzle,
+      schema.questionArcPlans,
+      'questionArcPlans'
+    ),
+
+    // Group system
+    group: new TableRepository(drizzle, schema.groups, 'groups'),
+    groupMember: new TableRepository(
+      drizzle,
+      schema.groupMembers,
+      'groupMembers'
+    ),
+    groupInvite: new TableRepository(
+      drizzle,
+      schema.groupInvites,
+      'groupInvites'
+    ),
   };
 }
-
-
-

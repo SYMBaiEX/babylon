@@ -7,11 +7,15 @@
  * @packageDocumentation
  */
 
-import { db } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
 import type { BabylonRuntime } from '../plugins/babylon/types';
+import { agentPnLService } from '../services/AgentPnLService';
+import {
+  getAgentConfig,
+  isAutonomousTradingEnabled,
+} from '../shared/agent-config';
+import { logger } from '../shared/logger';
 
 /**
  * Type guard to check if runtime has A2A client
@@ -96,8 +100,15 @@ export class AutonomousA2AService {
       };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousTrading) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const config = await getAgentConfig(agentUserId);
+
+    if (!agent || !agent.isAgent || !isAutonomousTradingEnabled(config)) {
       return {
         success: false,
         marketId: undefined,
@@ -149,7 +160,10 @@ export class AutonomousA2AService {
     }
 
     // Get portfolio for context
-    const portfolio = (await a2aClient.sendRequest('a2a.getPortfolio', {})) as unknown as {
+    const portfolio = (await a2aClient.sendRequest(
+      'a2a.getPortfolio',
+      {}
+    )) as unknown as {
       balance: number;
       positions: Array<PortfolioPosition>;
       pnl: number;
@@ -168,7 +182,7 @@ export class AutonomousA2AService {
     const predictions = shuffledPredictions.slice(0, 5);
     const perpetuals = shuffledPerpetuals.slice(0, 5);
 
-    const prompt = `${agent.agentSystem}
+    const prompt = `${config?.systemPrompt ?? 'You are an autonomous trading agent.'}
 
 You are ${agent.displayName}, an autonomous trading agent making a prediction market trading decision.
 
@@ -181,7 +195,7 @@ Available Prediction Markets:
 ${
   predictions.length > 0
     ? predictions
-        .map((m, i) => {
+        .map((m: PredictionMarket, i: number) => {
           const totalShares = m.yesShares + m.noShares;
           const yesPrice = totalShares > 0 ? m.yesShares / totalShares : 0.5;
           const noPrice = 1 - yesPrice;
@@ -199,7 +213,7 @@ Available Perpetual Markets:
 ${
   perpetuals.length > 0
     ? perpetuals
-        .map((m, i) => {
+        .map((m, i: number) => {
           const priceChange = m.priceChange24h || 0;
           const changePercent = (priceChange * 100).toFixed(1);
           const trend = priceChange > 0 ? '📈' : priceChange < 0 ? '📉' : '➡️';
@@ -253,7 +267,7 @@ Your JSON response:`;
     const { callGroqDirect } = await import('../llm/direct-groq');
     const decision = await callGroqDirect({
       prompt,
-      system: agent.agentSystem || undefined,
+      system: config?.systemPrompt ?? undefined,
       modelSize: 'large',
       runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
@@ -345,18 +359,17 @@ Your JSON response:`;
         reasoning,
       });
 
-      await db.agentTrade.create({
-        data: {
-          id: await generateSnowflakeId(),
-          agentUserId,
-          marketType: 'perp',
-          ticker,
-          action: 'open',
-          side: side.toLowerCase() as 'long' | 'short',
-          amount: size,
-          price: tradeResult.entryPrice || 0,
-          reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
-        },
+      // Record trade via shared service (DRY - same as DirectExecutors)
+      await agentPnLService.recordTrade({
+        agentId: agentUserId,
+        userId: agentUserId, // A2A trades are self-managed
+        marketType: 'perp',
+        ticker,
+        action: 'open',
+        side: side.toLowerCase() as 'long' | 'short',
+        amount: size,
+        price: tradeResult.entryPrice || 0,
+        reasoning: `LLM decision (${perpLeverage}x leverage): ${reasoning}`,
       });
 
       return {
@@ -408,18 +421,17 @@ Your JSON response:`;
       reasoning,
     });
 
-    await db.agentTrade.create({
-      data: {
-        id: await generateSnowflakeId(),
-        agentUserId,
-        marketType: 'prediction',
-        marketId,
-        action: 'open',
-        side: outcome.toLowerCase() as 'yes' | 'no',
-        amount,
-        price: tradeResult.avgPrice || 0,
-        reasoning: `LLM decision: ${reasoning}`,
-      },
+    // Record trade via shared service (DRY - same as DirectExecutors)
+    await agentPnLService.recordTrade({
+      agentId: agentUserId,
+      userId: agentUserId, // A2A trades are self-managed
+      marketType: 'prediction',
+      marketId,
+      action: 'open',
+      side: outcome.toLowerCase() as 'yes' | 'no',
+      amount,
+      price: tradeResult.avgPrice || 0,
+      reasoning: `LLM decision: ${reasoning}`,
     });
 
     return {
@@ -445,8 +457,15 @@ Your JSON response:`;
       return { success: false };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousPosting) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const postingConfig = await getAgentConfig(agentUserId);
+
+    if (!agent || !agent.isAgent || !postingConfig?.autonomousPosting) {
       return { success: false };
     }
 
@@ -479,7 +498,13 @@ Your JSON response:`;
       return { success: false, engagements: 0 };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+
     if (!agent || !agent.isAgent) {
       return { success: false, engagements: 0 };
     }
@@ -529,6 +554,7 @@ Your JSON response:`;
       if (post && post.id) {
         await a2aClient.sendRequest('a2a.likePost', {
           postId: post.id,
+          userId: agentUserId, // Pass the agent's actual user ID
         });
         engagements++;
 
@@ -554,8 +580,19 @@ Your JSON response:`;
       return { success: false, actionsTaken: 0 };
     }
 
-    const agent = await db.user.findUnique({ where: { id: agentUserId } });
-    if (!agent || !agent.isAgent || !agent.autonomousTrading) {
+    const agentResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
+    const agent = agentResult[0];
+    const tradingConfig = await getAgentConfig(agentUserId);
+
+    if (
+      !agent ||
+      !agent.isAgent ||
+      !isAutonomousTradingEnabled(tradingConfig)
+    ) {
       return { success: false, actionsTaken: 0 };
     }
 

@@ -10,7 +10,10 @@ import { logger } from '../../shared/logger';
  * Service unavailable error
  */
 class ServiceUnavailableError extends Error {
-  constructor(message: string, public readonly retryAfter?: number) {
+  constructor(
+    message: string,
+    public readonly retryAfter?: number
+  ) {
     super(message);
     this.name = 'ServiceUnavailableError';
   }
@@ -163,4 +166,3 @@ export class CircuitBreaker {
     logger.info(`${this.name} circuit manually reset`, { state: this.state });
   }
 }
-

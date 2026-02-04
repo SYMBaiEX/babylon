@@ -5,9 +5,9 @@
  * Analyzes entry timing, exit timing, hold duration, and risk management.
  */
 
-import { eq } from 'drizzle-orm';
 import { db } from '@babylon/db';
 import { positions, questions, users } from '@babylon/db/schema';
+import { eq } from 'drizzle-orm';
 import type { TradeMetrics } from './reputation-calculation-service';
 
 interface TradePosition {
@@ -229,7 +229,8 @@ export async function calculateTradeMetrics(
 
   // User's total balance at trade time (approximate with current balance + PnL)
   const totalUserBalance =
-    Number(userBalance.virtualBalance) + Number(userBalance.totalDeposited);
+    Number(userBalance.virtualBalance ?? 0) +
+    Number(userBalance.totalDeposited ?? 0);
   const riskScore = calculateRiskScore(tradePosition, totalUserBalance);
 
   // Combined timing score (weighted average of entry and exit)
@@ -293,4 +294,3 @@ export function getTradeFeedbackSummary(metrics: TradeMetrics): string {
 
   return summary;
 }
-

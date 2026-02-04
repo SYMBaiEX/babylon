@@ -4,11 +4,11 @@ pragma solidity ^0.8.27;
 import {LibMarket} from "../libraries/LibMarket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {ChainlinkOracleMock} from "../oracles/ChainlinkOracleMock.sol";
-import {UMAOracleMock} from "../oracles/UMAOracleMock.sol";
+import {MockOracle} from "../oracles/MockOracle.sol";
 
 /// @title OracleFacet
 /// @notice Facet for oracle integration and market resolution
-/// @dev Handles both Chainlink and UMA oracle requests
+/// @dev Handles Chainlink and mock oracle requests for testing
 contract OracleFacet {
     event OracleRequested(
         bytes32 indexed marketId,
@@ -41,10 +41,10 @@ contract OracleFacet {
         emit OracleRequested(_marketId, requestId, "chainlink");
     }
 
-    /// @notice Request UMA optimistic oracle resolution
+    /// @notice Request mock oracle resolution (for testing)
     /// @param _marketId Market to resolve
     /// @param _proposedOutcome Proposed outcome
-    function requestUMAResolution(
+    function requestMockResolution(
         bytes32 _marketId,
         uint8 _proposedOutcome
     ) external payable {
@@ -55,15 +55,15 @@ contract OracleFacet {
         require(_proposedOutcome < market.numOutcomes, "Invalid outcome");
 
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
-        require(ms.umaOracle != address(0), "UMA oracle not set");
+        require(ms.mockOracle != address(0), "Mock oracle not set");
 
-        UMAOracleMock oracle = UMAOracleMock(payable(ms.umaOracle));
+        MockOracle oracle = MockOracle(payable(ms.mockOracle));
         bytes32 assertionId = oracle.assertTruth{value: msg.value}(
             _marketId,
             bytes32(uint256(_proposedOutcome))
         );
 
-        emit OracleRequested(_marketId, assertionId, "uma");
+        emit OracleRequested(_marketId, assertionId, "mock");
     }
 
     /// @notice Chainlink oracle callback
@@ -88,15 +88,15 @@ contract OracleFacet {
         emit OracleResponseReceived(_marketId, _requestId, _outcome);
     }
 
-    /// @notice UMA oracle callback
+    /// @notice Mock oracle callback
     /// @param _marketId Market identifier
     /// @param _outcome Resolved outcome
-    function umaOracleCallback(
+    function mockOracleCallback(
         bytes32 _marketId,
         uint8 _outcome
     ) external {
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
-        require(msg.sender == ms.umaOracle, "Only UMA oracle");
+        require(msg.sender == ms.mockOracle, "Only mock oracle");
 
         LibMarket.Market storage market = LibMarket.getMarket(_marketId);
         require(!market.resolved, "Already resolved");
@@ -116,21 +116,21 @@ contract OracleFacet {
         ms.chainlinkOracle = _oracle;
     }
 
-    /// @notice Set UMA oracle address (diamond owner only)
-    /// @param _oracle UMA oracle address
-    function setUMAOracle(address _oracle) external {
+    /// @notice Set mock oracle address (diamond owner only)
+    /// @param _oracle Mock oracle address
+    function setMockOracle(address _oracle) external {
         LibDiamond.enforceIsContractOwner();
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
-        ms.umaOracle = _oracle;
+        ms.mockOracle = _oracle;
     }
 
     /// @notice Get configured oracle addresses
     function getOracleAddresses() external view returns (
         address chainlinkOracle,
-        address umaOracle
+        address mockOracle
     ) {
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
-        return (ms.chainlinkOracle, ms.umaOracle);
+        return (ms.chainlinkOracle, ms.mockOracle);
     }
 
     /// @notice Manual resolution fallback (diamond owner only)

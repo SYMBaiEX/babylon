@@ -1,6 +1,13 @@
 'use client';
 
 import {
+  calculateExpectedPayout,
+  PredictionPricing,
+} from '@babylon/core/markets/prediction/client';
+import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn, type JsonValue } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
+import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
@@ -13,17 +20,10 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-
+import { formatPrice } from '@/app/markets/_lib/formatters';
 import { FollowButton } from '@/components/interactions';
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpMarketsStore } from '@/stores/perpMarketsStore';
-import {
-  calculateExpectedPayout,
-  PredictionPricing,
-} from '@babylon/engine/client';
-import { cn } from '@babylon/shared';
-
-import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
 
 /**
  * Format error message from API response payload.
@@ -35,15 +35,20 @@ import type { PerpPositionFromAPI, PredictionPosition } from '@babylon/shared';
  * @param fallback - Fallback error message
  * @returns Formatted error message string
  */
-const formatErrorMessage = (payload: unknown, fallback: string): string => {
-  if (!payload || typeof payload !== 'object') {
+interface ErrorResponsePayload {
+  error?: string | { message?: string };
+  message?: string;
+}
+
+const formatErrorMessage = (
+  payload: ErrorResponsePayload | JsonValue,
+  fallback: string
+): string => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return fallback;
   }
 
-  const data = payload as {
-    error?: string | { message?: string };
-    message?: string;
-  };
+  const data = payload as ErrorResponsePayload;
 
   if (typeof data.error === 'string') {
     return data.error;
@@ -140,6 +145,7 @@ export function PositionDetailModal({
   onSuccess,
 }: PositionDetailModalProps) {
   const { user, authenticated, login } = useAuth();
+  const { getAccessToken } = usePrivy();
   const [activeTab, setActiveTab] = useState<'details' | 'trade'>('details');
 
   // Trading state
@@ -178,7 +184,8 @@ export function PositionDetailModal({
     const response = await fetch(`/api/markets/predictions/${marketId}`);
     if (response.ok) {
       const marketData = await response.json();
-      setPredictionMarket(marketData);
+      const payload = (marketData as { market?: unknown }).market ?? marketData;
+      setPredictionMarket(payload as PredictionMarket);
       setSide('yes');
     }
   }, []);
@@ -200,36 +207,50 @@ export function PositionDetailModal({
 
     const sizeNum = parseFloat(size) || 0;
     if (sizeNum < perpMarket.minOrderSize) {
-      toast.error(`Minimum order size is $${perpMarket.minOrderSize}`);
+      toast.error(
+        `Minimum order size is ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`
+      );
       return;
     }
 
     setLoading(true);
-    const response = await fetch('/api/markets/perps/open', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${window.__privyAccessToken || ''}`,
-      },
-      body: JSON.stringify({
-        ticker: perpMarket.ticker,
-        side,
-        size: sizeNum,
-        leverage,
-      }),
-    });
 
-    const responseData = await response.json();
-    if (!response.ok) {
-      toast.error(formatErrorMessage(responseData, 'Failed to open position'));
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
 
-    toast.success('Position opened!');
-    onClose();
-    if (onSuccess) onSuccess();
-    setLoading(false);
+    try {
+      const response = await fetch('/api/markets/perps/open', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ticker: perpMarket.ticker,
+          side,
+          size: sizeNum,
+          leverage,
+        }),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        toast.error(
+          formatErrorMessage(responseData, 'Failed to open position')
+        );
+        return;
+      }
+
+      toast.success('Position opened!');
+      onClose();
+      onSuccess?.();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePredictionTrade = async () => {
@@ -237,45 +258,47 @@ export function PositionDetailModal({
 
     const amountNum = parseFloat(amount) || 0;
     if (amountNum < 1) {
-      toast.error('Minimum bet is $1');
+      toast.error(`Minimum bet is ${BABYLON_POINTS_SYMBOL}1`);
       return;
     }
 
     setLoading(true);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+
+    const token = await getAccessToken();
     if (!token) {
-      toast.error('Authentication required');
+      toast.error('Authentication required. Please log in.');
       setLoading(false);
       return;
     }
 
-    const response = await fetch(
-      `/api/markets/predictions/${predictionMarket.id}/buy`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${predictionMarket.id}/buy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            side,
+            amount: amountNum,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(formatErrorMessage(errorData, 'Failed to buy shares'));
+        return;
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      toast.error(formatErrorMessage(errorData, 'Failed to buy shares'));
+      toast.success(`Bought ${side.toUpperCase()} shares!`);
+      onClose();
+      onSuccess?.();
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast.success(`Bought ${side.toUpperCase()} shares!`);
-    onClose();
-    if (onSuccess) onSuccess();
-    setLoading(false);
   };
 
   if (!isOpen || !data) return null;
@@ -284,10 +307,6 @@ export function PositionDetailModal({
     return points.toLocaleString('en-US', {
       maximumFractionDigits: 0,
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
   };
 
   const formatPercent = (value: number) => {
@@ -518,12 +537,12 @@ export function PositionDetailModal({
                       <span
                         className={cn(
                           'rounded px-2 py-1 font-medium text-sm',
-                          (data as PerpPositionFromAPI).side === 'LONG'
+                          (data as PerpPositionFromAPI).side === 'long'
                             ? 'bg-green-600/20 text-green-600'
                             : 'bg-red-600/20 text-red-600'
                         )}
                       >
-                        {(data as PerpPositionFromAPI).side}
+                        {(data as PerpPositionFromAPI).side.toUpperCase()}
                       </span>
                       {(data as PerpPositionFromAPI).leverage && (
                         <span className="rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
@@ -698,7 +717,7 @@ export function PositionDetailModal({
 
                   <div>
                     <label className="mb-2 block text-muted-foreground text-sm">
-                      Amount (USD)
+                      Amount (PTS)
                     </label>
                     <input
                       type="number"
@@ -707,7 +726,7 @@ export function PositionDetailModal({
                       min="1"
                       step="1"
                       className="w-full rounded bg-muted/50 px-4 py-3 font-medium text-base text-foreground focus:bg-muted focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                      placeholder="Min: $1"
+                      placeholder={`Min: ${BABYLON_POINTS_SYMBOL}1`}
                     />
                   </div>
 
@@ -806,7 +825,7 @@ export function PositionDetailModal({
                   <div className="space-y-4 rounded bg-muted p-4">
                     <div className="flex items-center justify-between">
                       <label className="font-medium text-muted-foreground text-sm">
-                        Position Size (USD)
+                        Position Size (PTS)
                       </label>
                       <input
                         type="number"
@@ -815,7 +834,7 @@ export function PositionDetailModal({
                         min={perpMarket.minOrderSize}
                         step="10"
                         className="w-32 rounded bg-background/50 px-3 py-1.5 text-right font-medium text-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
-                        placeholder={`Min: $${perpMarket.minOrderSize}`}
+                        placeholder={`Min: ${BABYLON_POINTS_SYMBOL}${perpMarket.minOrderSize}`}
                       />
                     </div>
                     <div>

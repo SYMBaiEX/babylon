@@ -92,6 +92,10 @@ export function cleanupExpiredSessions(): void {
 
 /**
  * Verify agent credentials against environment configuration
+ *
+ * @security Uses separate AGENT_SECRET (not CRON_SECRET) for agent auth.
+ * Falls back to CRON_SECRET for backwards compatibility but prefers AGENT_SECRET.
+ * In development, also accepts dev agent credentials.
  */
 export function verifyAgentCredentials(
   agentId: string,
@@ -100,11 +104,34 @@ export function verifyAgentCredentials(
   const configuredAgentId =
     process.env.BABYLON_AGENT_ID ??
     (!isProduction ? DEFAULT_TEST_AGENT_ID : undefined);
-  const configuredAgentSecret = process.env.CRON_SECRET;
 
+  // Use separate AGENT_SECRET, fallback to CRON_SECRET for backwards compatibility
+  const configuredAgentSecret =
+    process.env.AGENT_SECRET || process.env.CRON_SECRET;
+
+  // In development, also check dev credentials
+  if (!isProduction) {
+    // Lazy import to avoid circular dependency
+    const { isValidAgentSecret, getDevCredentials } =
+      require('./dev-credentials') as typeof import('./dev-credentials');
+
+    const devCreds = getDevCredentials();
+    if (devCreds) {
+      // In dev, accept either the default test agent or the dev credentials
+      if (
+        (agentId === DEFAULT_TEST_AGENT_ID ||
+          agentId === devCreds.adminUserId) &&
+        isValidAgentSecret(agentSecret)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Production validation
   if (!configuredAgentSecret) {
     logger.error(
-      'CRON_SECRET not configured in environment',
+      'AGENT_SECRET (or CRON_SECRET) not configured in environment',
       undefined,
       'AgentAuth'
     );
@@ -173,5 +200,3 @@ export async function verifyAgentSession(
 export function getSessionDuration(): number {
   return SESSION_DURATION;
 }
-
-

@@ -1,7 +1,7 @@
 /**
  * Multi-Agent Runtime Manager
  *
- * Unified runtime factory for all agent types (USER_CONTROLLED, NPC, EXTERNAL).
+ * Runtime factory for all agent types (USER_CONTROLLED, NPC, EXTERNAL).
  * Manages multiple concurrent Eliza agent runtimes in a serverless environment.
  * Each agent gets its own isolated runtime instance with its own character configuration.
  *
@@ -12,32 +12,45 @@
  * @packageDocumentation
  */
 
-import { actors, db, eq, users } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
+import {
+  type ActorData,
+  loadActorById,
+  StaticDataRegistry,
+} from '@babylon/engine';
+import {
+  COORDINATOR_RUNTIME_ID as COORDINATOR_RUNTIME_ID_STRING,
+  COORDINATOR_SYSTEM_PROMPT,
+  GROQ_MODELS,
+} from '@babylon/shared';
 import {
   AgentRuntime,
   type Character,
   type Plugin,
   type UUID,
 } from '@elizaos/core';
-import { loadActorById, type ActorData } from '@babylon/engine';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
-import {
-  AgentType,
-  type UnifiedAgentRegistration,
-} from '../types/agent-registry';
-import { agentRegistry } from '../services/agent-registry.service';
-import type { JsonValue } from '../types/common';
+import { anthropicPlugin } from '@elizaos/plugin-anthropic';
+import { openaiPlugin } from '@elizaos/plugin-openai';
 import { babylonPlugin } from '../plugins/babylon';
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration';
 import { groqPlugin } from '../plugins/groq';
-import { experiencePlugin } from '../plugins/plugin-experience/src';
+import { agentCorePlugin } from '../plugins/plugin-agent-core/src';
+// TODO: experiencePlugin disabled due to missing plugin implementation
+// Re-enable when plugin-experience is properly implemented and exports valid Plugin
+// import { experiencePlugin } from '../plugins/plugin-experience/src';
 import { trajectoryLoggerPlugin } from '../plugins/plugin-trajectory-logger/src';
 import {
   wrapPluginActions,
   wrapPluginProviders,
 } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
 import { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { userCorePlugin } from '../plugins/plugin-user-core/src';
+import { agentRegistry } from '../services/agent-registry.service';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
+import { generateSnowflakeId } from '../shared/snowflake';
+import { type AgentRegistration, AgentType } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Extended AgentRuntime with Babylon-specific properties
@@ -47,7 +60,6 @@ interface ExtendedAgentRuntime extends AgentRuntime {
   currentModelVersion?: string;
   currentModel?: string;
   trajectoryLogger?: TrajectoryLoggerService;
-  modelDelegates?: Record<string, unknown>;
 }
 
 /** Global runtime cache for warm container reuse */
@@ -55,6 +67,107 @@ const globalRuntimes = new Map<string, AgentRuntime>();
 
 /** Global trajectory logger instances per agent */
 const trajectoryLoggers = new Map<string, TrajectoryLoggerService>();
+
+/** Pending runtime creation promises to prevent race conditions */
+const pendingRuntimePromises = new Map<string, Promise<AgentRuntime>>();
+
+/** Coordinator runtime ID cast to UUID type for ElizaOS */
+const COORDINATOR_RUNTIME_ID = COORDINATOR_RUNTIME_ID_STRING as UUID;
+
+/**
+ * Creates adapter stub methods for ElizaOS runtime.
+ * Babylon doesn't use ElizaOS's memory/DB system, so we stub these out.
+ */
+function createAdapterStubs(existingAdapter: unknown): unknown {
+  return {
+    ...(existingAdapter as object),
+    // Lifecycle
+    init: async () => {},
+    close: async () => {},
+    isReady: async () => true,
+    // Agent methods
+    getAgent: async () => null,
+    getAgents: async () => [],
+    createAgent: async () => true,
+    updateAgent: async () => true,
+    deleteAgent: async () => true,
+    // Entity methods
+    getEntitiesByIds: async () => [],
+    createEntities: async () => true,
+    updateEntity: async () => {},
+    getEntitiesForRoom: async () => [],
+    // Room/Participant methods
+    getParticipantsForRoom: async () => [],
+    getParticipantsForEntity: async () => [],
+    addParticipantsRoom: async () => true,
+    removeParticipant: async () => true,
+    isRoomParticipant: async () => false,
+    getParticipantUserState: async () => null,
+    setParticipantUserState: async () => {},
+    getRoomsByIds: async () => [],
+    getRoomsByWorld: async () => [],
+    getRoomsForParticipant: async () => [],
+    getRoomsForParticipants: async () => [],
+    createRooms: async (rooms: unknown[]) => rooms, // Return rooms to avoid "Failed to create room" error
+    deleteRoom: async () => {},
+    deleteRoomsByWorldId: async () => {},
+    updateRoom: async () => {},
+    // World methods
+    createWorld: async () => crypto.randomUUID() as UUID,
+    getWorld: async () => null,
+    getAllWorlds: async () => [],
+    updateWorld: async () => {},
+    removeWorld: async () => {},
+    // Memory methods
+    createMemory: async (memory: { id?: string } | null) =>
+      (memory?.id || crypto.randomUUID()) as UUID,
+    getMemories: async () => [],
+    getMemoryById: async () => null,
+    getMemoriesByIds: async () => [],
+    getMemoriesByRoomIds: async () => [],
+    getMemoriesByWorldId: async () => [],
+    searchMemories: async () => [],
+    updateMemory: async () => true,
+    deleteMemory: async () => {},
+    deleteManyMemories: async () => {},
+    deleteAllMemories: async () => {},
+    countMemories: async () => 0,
+    // Logging
+    log: async () => {},
+    getLogs: async () => [],
+    deleteLog: async () => {},
+    // Cache
+    getCache: async () => undefined,
+    setCache: async () => true,
+    deleteCache: async () => true,
+    // Embeddings
+    getCachedEmbeddings: async () => [],
+    ensureEmbeddingDimension: async () => {},
+    // Relationships
+    createRelationship: async () => true,
+    getRelationship: async () => null,
+    getRelationships: async () => [],
+    updateRelationship: async () => {},
+    // Tasks
+    createTask: async () => crypto.randomUUID() as UUID,
+    getTask: async () => null,
+    getTasks: async () => [],
+    getTasksByName: async () => [],
+    updateTask: async () => {},
+    deleteTask: async () => {},
+    // Components
+    getComponent: async () => null,
+    getComponents: async () => [],
+    createComponent: async () => true,
+    updateComponent: async () => {},
+    deleteComponent: async () => {},
+    // Misc
+    getConnection: async () => null,
+    runMigrations: async () => {},
+    runPluginMigrations: async () => {},
+    db: null,
+  };
+}
 
 export class AgentRuntimeManager {
   private static instance: AgentRuntimeManager;
@@ -120,7 +233,8 @@ export class AgentRuntimeManager {
       // Cache runtime
       globalRuntimes.set(agentUserId, runtime);
 
-      logger.info(
+      // Use debug level for per-agent runtime creation to reduce startup noise
+      logger.debug(
         `Runtime created for ${registration.type} agent ${agentUserId}`,
         undefined,
         'AgentRuntimeManager'
@@ -145,89 +259,58 @@ export class AgentRuntimeManager {
       throw new Error(`User ${agentUserId} is not an agent`);
     }
 
+    // Get agent config from separate table
+    const agentConfig = await getAgentConfig(agentUserId);
+
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!agentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      try {
-        const parsed = JSON.parse(agentUser.agentMessageExamples as string);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-        logger.warn(
-          'agentMessageExamples is not an array, using bio',
-          {
-            agentId: agentUser.id,
-            type: typeof parsed,
-          },
-          'AgentRuntimeManager'
-        );
-        return [agentUser.bio || ''];
-      } catch (error) {
-        const exampleValue = agentUser.agentMessageExamples;
-        const displayValue =
-          typeof exampleValue === 'string'
-            ? exampleValue.substring(0, 50)
-            : String(exampleValue);
-
-        logger.warn(
-          'Failed to parse agentMessageExamples, using bio',
-          {
-            agentId: agentUser.id,
-            value: displayValue,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'AgentRuntimeManager'
-        );
-        return [agentUser.bio || ''];
+      const parsed =
+        typeof agentConfig.messageExamples === 'string'
+          ? JSON.parse(agentConfig.messageExamples)
+          : agentConfig.messageExamples;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
+      logger.warn(
+        'messageExamples is not an array, using bio',
+        {
+          agentId: agentUser.id,
+          type: typeof parsed,
+        },
+        'AgentRuntimeManager'
+      );
+      return [agentUser.bio || ''];
     };
 
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!agentConfig?.style) {
         return undefined;
       }
 
-      try {
-        return JSON.parse(agentUser.agentStyle as string) as Record<
-          string,
-          JsonValue
-        >;
-      } catch (error) {
-        const styleValue = agentUser.agentStyle;
-        const displayValue =
-          typeof styleValue === 'string'
-            ? styleValue.substring(0, 50)
-            : String(styleValue);
-
-        logger.warn(
-          'Failed to parse agentStyle, using defaults',
-          {
-            agentId: agentUser.id,
-            value: displayValue,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'AgentRuntimeManager'
-        );
-        return undefined;
-      }
+      const style =
+        typeof agentConfig.style === 'string'
+          ? JSON.parse(agentConfig.style)
+          : agentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     logger.info(
-      'Agent using Groq model',
+      'Agent using Groq models',
       {
         agentId: agentUserId,
-        model: 'groq-qwen-32b',
+        modelSmall: GROQ_MODELS.FREE.modelId,
+        modelLarge: GROQ_MODELS.PRO.modelId,
       },
       'AgentRuntimeManager'
     );
 
     // Build character from agent user config
-    // Always use qwen 32b (TEXT_LARGE) - free chat, 1pt per tick
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
-      system: agentUser.agentSystem || 'You are a helpful AI agent',
+      system: agentConfig?.systemPrompt || 'You are a helpful AI agent',
       bio: parseBio(),
       messageExamples: [],
       style: parseStyle(),
@@ -235,8 +318,8 @@ export class AgentRuntimeManager {
       settings: {
         // GROQ configuration (always available)
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        LARGE_GROQ_MODEL: 'qwen/qwen3-32b',
-        SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',
+        GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
+        GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
     };
@@ -258,12 +341,16 @@ export class AgentRuntimeManager {
     const trajectoryLogger = new TrajectoryLoggerService();
     trajectoryLoggers.set(agentUserId, trajectoryLogger);
 
-    // Create runtime with groq, experience, and trajectory logger plugins
+    // Create runtime with groq, experience, trajectory logger, and agent core plugins
     // Type cast plugins to ensure compatibility across different @elizaos/core versions
     const plugins: Plugin[] = [
-      groqPlugin as Plugin,
-      experiencePlugin as Plugin,
+      agentCorePlugin as Plugin,
+      // experiencePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
+      // Conditionally add LLM plugins based on available API keys
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+      ...(process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
     const runtimeConfig = {
@@ -279,6 +366,11 @@ export class AgentRuntimeManager {
     const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime;
 
     runtime.currentModel = 'groq';
+
+    // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
 
     // Configure logger
     if (!runtime.logger || !runtime.logger.log) {
@@ -311,23 +403,9 @@ export class AgentRuntimeManager {
       runtime.logger = customLogger as typeof runtime.logger;
     }
 
-    // Cannot call initialize() without SQL plugin - manually register models instead
-    // CRITICAL: Must set modelDelegates, not models Map
-    // This is what runtime.initialize() does internally
-    if (groqPlugin.models) {
-      const modelDelegates = runtime.modelDelegates || {};
-      for (const [type, handler] of Object.entries(groqPlugin.models)) {
-        modelDelegates[type] = handler;
-      }
-      runtime.modelDelegates = modelDelegates;
-      logger.info(
-        `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
-        {
-          agentUserId,
-          types: Object.keys(modelDelegates),
-        }
-      );
-    }
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
 
     // Wrap Babylon plugin BEFORE registering (so wrapped version is used)
     // This ensures all actions and provider accesses are logged when executed
@@ -355,11 +433,23 @@ export class AgentRuntimeManager {
     // Cache runtime
     globalRuntimes.set(agentUserId, runtime);
 
-    logger.info(
+    // Use debug level for per-agent runtime creation to reduce startup noise
+    logger.debug(
       `Runtime created for agent user ${agentUserId}`,
       undefined,
       'AgentRuntimeManager'
     );
+
+    // Register plugins
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    const pluginsToLoad = plugins;
+
+    for (const plugin of pluginsToLoad) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
 
     return runtime;
   }
@@ -369,7 +459,7 @@ export class AgentRuntimeManager {
    * Uses registry data or falls back to User model
    */
   private async createUserAgentRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
     if (!registration.userId) {
       throw new Error(
@@ -388,37 +478,36 @@ export class AgentRuntimeManager {
       throw new Error(`User ${registration.userId} not found`);
     }
 
-    // Parse bio from agentMessageExamples or bio field
+    // Get agent config from separate table
+    const userAgentConfig = await getAgentConfig(registration.userId);
+
+    // Parse bio from messageExamples or bio field
     const parseBio = (): string[] => {
-      if (!agentUser.agentMessageExamples) {
+      if (!userAgentConfig?.messageExamples) {
         return [agentUser.bio || ''];
       }
 
-      try {
-        const parsed = JSON.parse(agentUser.agentMessageExamples as string);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-        return [agentUser.bio || ''];
-      } catch {
-        return [agentUser.bio || ''];
+      const parsed =
+        typeof userAgentConfig.messageExamples === 'string'
+          ? JSON.parse(userAgentConfig.messageExamples)
+          : userAgentConfig.messageExamples;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
+      return [agentUser.bio || ''];
     };
 
     // Parse style
     const parseStyle = (): Record<string, JsonValue> | undefined => {
-      if (!agentUser.agentStyle) {
+      if (!userAgentConfig?.style) {
         return undefined;
       }
 
-      try {
-        return JSON.parse(agentUser.agentStyle as string) as Record<
-          string,
-          JsonValue
-        >;
-      } catch {
-        return undefined;
-      }
+      const style =
+        typeof userAgentConfig.style === 'string'
+          ? JSON.parse(userAgentConfig.style)
+          : userAgentConfig.style;
+      return style as Record<string, JsonValue>;
     };
 
     // Build Character configuration
@@ -433,7 +522,12 @@ export class AgentRuntimeManager {
     };
 
     // Create runtime with standard plugins
-    return this.createRuntimeWithPlugins(registration.agentId, character);
+    // Pass userId for Babylon integration (User table lookup)
+    return this.createRuntimeWithPlugins(
+      registration.agentId,
+      character,
+      registration.userId
+    );
   }
 
   /**
@@ -441,17 +535,15 @@ export class AgentRuntimeManager {
    * Loads ActorData and creates Character from NPC configuration
    */
   private async createNpcRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
-    // Verify actor exists in database
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, registration.agentId))
-      .limit(1);
+    // Verify actor exists in static registry
+    const actor = StaticDataRegistry.getActor(registration.agentId);
 
     if (!actor) {
-      throw new Error(`Actor ${registration.agentId} not found in database`);
+      throw new Error(
+        `Actor ${registration.agentId} not found in static registry`
+      );
     }
 
     // Load full ActorData from JSON files
@@ -482,8 +574,13 @@ export class AgentRuntimeManager {
       settings: this.getModelSettings(),
     };
 
-    // Create runtime with standard plugins
-    return this.createRuntimeWithPlugins(registration.agentId, character);
+    // Create runtime with standard plugins - pass isNpc=true to skip OpenAI/Anthropic validation
+    return this.createRuntimeWithPlugins(
+      registration.agentId,
+      character,
+      undefined,
+      true
+    );
   }
 
   /**
@@ -491,7 +588,7 @@ export class AgentRuntimeManager {
    * Minimal Character config for external agents using A2A/MCP protocols
    */
   private async createExternalRuntime(
-    registration: UnifiedAgentRegistration
+    registration: AgentRegistration
   ): Promise<AgentRuntime> {
     // External agents may not have full Character config
     // Use minimal viable configuration
@@ -512,10 +609,17 @@ export class AgentRuntimeManager {
   /**
    * Create AgentRuntime with standard plugin configuration
    * Shared logic for all agent types
+   *
+   * @param agentId - The agent's unique identifier (used for Eliza runtime)
+   * @param character - Character configuration
+   * @param userId - Optional User table ID for USER_CONTROLLED agents (used for Babylon integration)
+   * @param isNpc - Whether this is an NPC agent (skips OpenAI plugin to avoid validation spam)
    */
   private async createRuntimeWithPlugins(
     agentId: string,
-    character: Character
+    character: Character,
+    userId?: string,
+    isNpc?: boolean
   ): Promise<AgentRuntime> {
     // Database configuration
     const dbPort = process.env.POSTGRES_DEV_PORT || 5432;
@@ -529,10 +633,17 @@ export class AgentRuntimeManager {
     trajectoryLoggers.set(agentId, trajectoryLogger);
 
     // Create runtime with standard plugins
+    // NPCs use GROQ only - skip OpenAI/Anthropic to avoid API validation spam during bootstrap
     const plugins: Plugin[] = [
-      groqPlugin as Plugin,
-      experiencePlugin as Plugin,
+      agentCorePlugin as Plugin,
       trajectoryLoggerPlugin as Plugin,
+      // GROQ is always available for NPCs
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      // Only load Anthropic/OpenAI for non-NPC agents to avoid validation spam
+      ...(!isNpc && process.env.ANTHROPIC_API_KEY
+        ? [anthropicPlugin as Plugin]
+        : []),
+      ...(!isNpc && process.env.OPENAI_API_KEY ? [openaiPlugin as Plugin] : []),
     ];
 
     const runtimeConfig = {
@@ -553,14 +664,33 @@ export class AgentRuntimeManager {
     }
     runtime.currentModel = 'groq';
 
+    // Stub adapter methods - Babylon uses its own DB, not ElizaOS's
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
+
     // Configure logger
     this.configureLogger(runtime, character.name);
 
-    // Register Groq model handlers
-    this.registerModelHandlers(runtime, agentId);
+    // Register plugins
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    const pluginsToLoad = plugins;
+
+    for (const plugin of pluginsToLoad) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
+
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
 
     // Wrap and enhance with Babylon plugin
-    await this.enhanceWithBabylon(runtime, agentId, trajectoryLogger);
+    // Use userId for USER_CONTROLLED agents (User table lookup), agentId for NPCs
+    const babylonAgentId = userId || agentId;
+    await this.enhanceWithBabylon(runtime, babylonAgentId, trajectoryLogger);
 
     // Store trajectory logger reference on runtime
     runtime.trajectoryLogger = trajectoryLogger;
@@ -575,9 +705,10 @@ export class AgentRuntimeManager {
   private getModelSettings(): Record<string, string> {
     return {
       // GROQ configuration (always available)
+      // Keys must match what groq.ts plugin looks up via runtime.getSetting()
       GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-      LARGE_GROQ_MODEL: 'qwen/qwen3-32b',
-      SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',
+      GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
+      GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     };
   }
@@ -617,28 +748,6 @@ export class AgentRuntimeManager {
   }
 
   /**
-   * Register Groq model handlers on runtime
-   */
-  private registerModelHandlers(runtime: AgentRuntime, agentId: string): void {
-    const extendedRuntime = runtime as ExtendedAgentRuntime;
-    if (groqPlugin.models) {
-      const modelDelegates = extendedRuntime.modelDelegates || {};
-      for (const [type, handler] of Object.entries(groqPlugin.models)) {
-        modelDelegates[type] = handler;
-      }
-      extendedRuntime.modelDelegates = modelDelegates;
-      logger.info(
-        `Registered ${Object.keys(modelDelegates).length} Groq model handlers`,
-        {
-          agentId,
-          types: Object.keys(modelDelegates),
-        },
-        'AgentRuntimeManager'
-      );
-    }
-  }
-
-  /**
    * Enhance runtime with Babylon plugin (wrapped for trajectory logging)
    */
   private async enhanceWithBabylon(
@@ -666,6 +775,151 @@ export class AgentRuntimeManager {
   }
 
   /**
+   * Get or create the global coordinator runtime.
+   *
+   * The coordinator is a shared runtime used for team chat when no agents are tagged.
+   * It uses plugin-user-core (limited actions) instead of plugin-agent-core.
+   *
+   * @returns The global coordinator runtime instance
+   */
+  public async getCoordinatorRuntime(): Promise<AgentRuntime> {
+    // Check cache first
+    if (globalRuntimes.has(COORDINATOR_RUNTIME_ID)) {
+      logger.debug(
+        'Using cached coordinator runtime',
+        undefined,
+        'AgentRuntimeManager'
+      );
+      return globalRuntimes.get(COORDINATOR_RUNTIME_ID)!;
+    }
+
+    // Check if there's already a pending creation to avoid race conditions
+    const pendingPromise = pendingRuntimePromises.get(COORDINATOR_RUNTIME_ID);
+    if (pendingPromise) {
+      logger.debug(
+        'Waiting for pending coordinator runtime creation',
+        undefined,
+        'AgentRuntimeManager'
+      );
+      return pendingPromise;
+    }
+
+    // Create new coordinator runtime with pending-promise guard
+    const creationPromise = (async () => {
+      try {
+        const runtime = await this.createCoordinatorRuntime();
+
+        // Cache it
+        globalRuntimes.set(COORDINATOR_RUNTIME_ID, runtime);
+
+        logger.info(
+          'Coordinator runtime created and cached',
+          undefined,
+          'AgentRuntimeManager'
+        );
+
+        return runtime;
+      } finally {
+        // Clear pending entry on completion or error
+        pendingRuntimePromises.delete(COORDINATOR_RUNTIME_ID);
+      }
+    })();
+
+    // Store the pending promise so concurrent callers await it
+    pendingRuntimePromises.set(COORDINATOR_RUNTIME_ID, creationPromise);
+
+    return creationPromise;
+  }
+
+  /**
+   * Create the global coordinator runtime.
+   *
+   * Key differences from agent runtimes:
+   * - Uses plugin-user-core instead of plugin-agent-core
+   * - Has limited actions (read-only, informational)
+   * - Does not have Babylon plugin enhancement (no agent-specific features)
+   * - Shared across all users
+   */
+  private async createCoordinatorRuntime(): Promise<AgentRuntime> {
+    // Database configuration
+    const dbPort = process.env.POSTGRES_DEV_PORT || 5432;
+    const postgresUrl =
+      process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      `postgres://postgres:password@localhost:${dbPort}/babylon`;
+
+    // Create trajectory logger for coordinator
+    const trajectoryLogger = new TrajectoryLoggerService();
+    trajectoryLoggers.set(COORDINATOR_RUNTIME_ID, trajectoryLogger);
+
+    // Character configuration for coordinator
+    const character: Character = {
+      name: 'Coordinator',
+      system: COORDINATOR_SYSTEM_PROMPT,
+      bio: [
+        'Team chat coordinator for Babylon - helps users understand and coordinate their AI agents',
+      ],
+      messageExamples: [],
+      plugins: [],
+      settings: this.getModelSettings(),
+    };
+
+    // Plugins for coordinator - uses userCorePlugin instead of agentCorePlugin
+    // Note: openaiPlugin is intentionally omitted for coordinator as it uses read-only
+    // actions (userCorePlugin) and doesn't require the full capabilities of OpenAI models.
+    // The coordinator relies on Groq/Anthropic for cost efficiency with its limited scope.
+    const plugins: Plugin[] = [
+      userCorePlugin as Plugin, // Limited actions for coordinator
+      trajectoryLoggerPlugin as Plugin,
+      ...(process.env.GROQ_API_KEY ? [groqPlugin as Plugin] : []),
+      ...(process.env.ANTHROPIC_API_KEY ? [anthropicPlugin as Plugin] : []),
+    ];
+
+    const runtimeConfig = {
+      character,
+      agentId: COORDINATOR_RUNTIME_ID,
+      plugins,
+      settings: {
+        ...character.settings,
+        POSTGRES_URL: postgresUrl,
+      },
+    };
+
+    const runtime = new AgentRuntime(runtimeConfig) as ExtendedAgentRuntime;
+
+    runtime.currentModel = 'groq';
+
+    // Stub adapter methods - Babylon uses its own DB
+    runtime.adapter = createAdapterStubs(
+      runtime.adapter
+    ) as typeof runtime.adapter;
+
+    // Configure logger
+    this.configureLogger(runtime, 'Coordinator');
+
+    // Register plugins
+    const pluginRegistrationPromises: Promise<void>[] = [];
+    for (const plugin of plugins) {
+      if (plugin) {
+        pluginRegistrationPromises.push(runtime.registerPlugin(plugin));
+      }
+    }
+    await Promise.all(pluginRegistrationPromises);
+
+    // Initialize runtime to signal services that runtime is ready
+    // This prevents 30s timeout errors in services waiting for runtime initialization
+    await runtime.initialize();
+
+    // Store trajectory logger reference
+    runtime.trajectoryLogger = trajectoryLogger;
+
+    // NOTE: We intentionally do NOT call enhanceWithBabylon here
+    // The coordinator doesn't need agent-specific Babylon features
+
+    return runtime;
+  }
+
+  /**
    * Get trajectory logger for an agent
    */
   public getTrajectoryLogger(
@@ -683,16 +937,7 @@ export class AgentRuntimeManager {
       trajectoryLoggers.delete(agentUserId);
 
       // Update registry status if agent exists in registry
-      try {
-        await agentRegistry.clearRuntimeInstance(agentUserId);
-      } catch {
-        // Agent may not be in registry (unregistered agents), ignore error
-        logger.debug(
-          `Could not clear registry for ${agentUserId}, likely unregistered agent`,
-          undefined,
-          'AgentRuntimeManager'
-        );
-      }
+      await agentRegistry.clearRuntimeInstance(agentUserId);
 
       logger.info(
         `Runtime cleared for agent ${agentUserId}`,
@@ -733,6 +978,9 @@ export const agentRuntimeManager = {
   },
   async getRuntime(agentUserId: string) {
     return getManagerInstance().getRuntime(agentUserId);
+  },
+  async getCoordinatorRuntime() {
+    return getManagerInstance().getCoordinatorRuntime();
   },
   getTrajectoryLogger(agentUserId: string) {
     return getManagerInstance().getTrajectoryLogger(agentUserId);

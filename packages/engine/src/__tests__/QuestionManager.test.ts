@@ -33,18 +33,16 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { BabylonLLMClient } from '../llm/openai-client';
-import type { Question } from '../types/shared';
 import { QuestionManager } from '../QuestionManager';
+import type { Question } from '../types/shared';
+import { toDateString } from '../utils/date-utils';
 
 /**
  * Mock LLM client interface for testing
  * Only implements the methods required by QuestionManager
  */
 interface MockLLMClient
-  extends Pick<
-    BabylonLLMClient,
-    'generateJSON' | 'getProvider' | 'getStats'
-  > {}
+  extends Pick<BabylonLLMClient, 'generateJSON' | 'getProvider' | 'getStats'> {}
 
 // Mock LLM client for testing - implements MockLLMClient interface
 const mockLLMImpl: MockLLMClient = {
@@ -126,12 +124,12 @@ describe('QuestionManager', () => {
     // Test 1 day
     const oneDay = new Date(createdDate);
     oneDay.setDate(oneDay.getDate() + 1);
-    expect(oneDay.toISOString().split('T')[0]).toBe('2025-11-02');
+    expect(toDateString(oneDay)).toBe('2025-11-02');
 
     // Test 7 days
     const sevenDays = new Date(createdDate);
     sevenDays.setDate(sevenDays.getDate() + 7);
-    expect(sevenDays.toISOString().split('T')[0]).toBe('2025-11-08');
+    expect(toDateString(sevenDays)).toBe('2025-11-08');
   });
 
   test('tracks question status transitions', () => {
@@ -202,7 +200,6 @@ describe('QuestionManager', () => {
       status: 'active' as const,
     }));
 
-    // Should only keep 20
     const activeQuestions = questions
       .filter((q) => q.status === 'active')
       .slice(0, 20);

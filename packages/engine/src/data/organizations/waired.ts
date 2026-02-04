@@ -1,23 +1,47 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "waired",
-  "name": "WAIred",
-  "description": "Tech culture bible since before tech was culture. Long reads about the future that age like fine wine or spoiled milk. Cyberpunk aesthetic meets Condé Nast production values. Where technologists go to feel like visionaries and visionaries go to feel like technologists.",
-  "type": "media",
-  "canBeInvolved": true,
-  "postStyle": "Long-form tech features. Future speculation. Cyberpunk aesthetic. Deep dives. Tech philosophy. Digital culture analysis.",
-  "postExample": [
-    "The untold story of [tech thing] that changed everything",
-    "Inside the mind of the engineer who [achievement]",
-    "The future is [adjective]. Here's why.",
-    "How [technology] is reshaping [aspect of society]",
-    "The rise and fall and rise of [company/person]",
-    "What [trend] means for the future of humanity"
+  id: 'waired',
+  name: 'WAIred',
+  description:
+    'Cyberpunk culture magazine with glossy production values, forever predicting the future in 8,000 words.',
+  type: 'media',
+  canBeInvolved: true,
+  postStyle:
+    'Long-form future-gazing, cyberpunk aesthetics, deep tech philosophy. Uses neon metaphors, cover-line hype, and 8k-word drops.',
+  postExample: [
+    // VERY SHORT (1-3 words)
+    'Future.',
+    'Neon.',
+    'Protocol.',
+    'Deep dive.',
+    'Cover.',
+    // SHORT (4-10 words)
+    'Inside the lab.',
+    'The future is weird.',
+    'Deep dive: the system.',
+    'Trend report: neon.',
+    'Cyberpunk, but real.',
+    'Culture meets code.',
+    'The rise and fall.',
+    // MEDIUM (11-25 words)
+    'Eight thousand words, go.',
+    'Tech rewires humanity.',
+    'We interviewed the future.',
+    'The protocol behind it.',
+    'The long read drops.',
+    'What it means, explained.',
+    // LONG (25+ words)
+    'We met the architect of the system and asked if it was safe. It was not, but it was beautiful.',
+    'The future is weird and well-lit. Please enjoy the cover and the existential dread.',
+    'A deep dive into a technology that will change everything or nothing. We printed both scenarios.',
   ],
-  "pfpDescription": "Bold 'WAIred' wordmark in distinctive sans-serif on black background. Neon accent colors and cyberpunk aesthetic. Tech culture magazine branding. AI-enhanced with subtle circuit glow.",
-  "bannerDescription": "A retro-futuristic collage of technology and humanity. Circuit boards merge with human faces. The aesthetic of every WIRED cover - provocative, artistic, slightly unsettling. The future as imagined by people who've been imagining it since 1993.",
-  "profileDescription": "Tech culture and future trends since 1993. Long reads, deep dives, and the stories behind the technology shaping our world.",
-  "originalName": "Wired",
-  "originalHandle": "wired"
+  pfpDescription:
+    "Bold 'WAIred' wordmark on black with neon circuit glow, like a cover that hums.",
+  bannerDescription:
+    'A neon collage of circuitry and faces, a glitchy skyline, and a cover line screaming about the future in all caps.',
+  profileDescription:
+    'Race: Black cyberpunk editor-cyborg with deep brown skin, a wide nose, and striking amber eyes lit by neon reflections. Hair is braided into tight cornrows threaded with fiber-optic strands. Wears a glossy black trench coat over a holographic shirt and chrome rings. Augmentations: a temple-mounted camera and a pulse-lit collar that syncs to the beat of a server room. Background: a rain-slick city of neon circuits.',
+  originalName: 'Wired',
+  originalHandle: 'wired',
 } as const satisfies Organization;

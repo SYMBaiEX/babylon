@@ -49,6 +49,9 @@
     "baseUrl": ".",
     "paths": {
       "@babylon/contracts": ["../../packages/contracts/src/index.ts"],
+      "@babylon/contracts/deployments/*": [
+        "../../packages/contracts/deployments/*"
+      ],
       "@babylon/contracts/*": ["../../packages/contracts/src/*"],
       "@babylon/db": ["../../packages/db/src/index.ts"],
       "@babylon/db/*": ["../../packages/db/src/*"],
@@ -59,8 +62,11 @@
       "@babylon/a2a": ["../../packages/a2a/src/index.ts"],
       "@babylon/a2a/*": ["../../packages/a2a/src/*"],
       "@babylon/mcp": ["../../packages/mcp/src/index.ts"],
+      "@babylon/mcp/*": ["../../packages/mcp/src/*"],
       "@babylon/engine": ["../../packages/engine/src/index.ts"],
       "@babylon/engine/*": ["../../packages/engine/src/*"],
+      "@babylon/core": ["../../packages/core/markets/index.ts"],
+      "@babylon/core/markets/*": ["../../packages/core/markets/*"],
       "@babylon/shared": ["../../packages/shared/src/index.ts"],
       "@babylon/shared/*": ["../../packages/shared/src/*"],
       "@/components/*": ["./src/components/*"],

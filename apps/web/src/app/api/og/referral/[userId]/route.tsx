@@ -40,9 +40,9 @@
  * ```
  */
 
+import { db } from '@babylon/db';
 import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
-import { db } from '@babylon/db';
 
 // Use Node.js runtime for full database support
 export const runtime = 'nodejs';

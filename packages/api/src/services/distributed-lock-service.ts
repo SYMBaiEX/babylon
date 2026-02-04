@@ -6,9 +6,9 @@
  * Supports automatic stale lock recovery.
  */
 
-import { randomBytes } from 'crypto';
-import { db, eq, generationLocks } from '@babylon/db';
+import { and, db, eq, generationLocks, lte } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { randomBytes } from 'crypto';
 
 export interface LockOptions {
   lockId: string;
@@ -21,10 +21,10 @@ export class DistributedLockService {
   /**
    * Acquire a distributed lock
    *
-   * @description Uses a "check-first, create-second" pattern to avoid triggering
-   * unique constraint errors in normal cases. Race conditions (multiple processes
-   * checking and creating simultaneously) are handled gracefully with proper error
-   * recovery. Supports automatic stale lock recovery for expired locks.
+   * @description Uses atomic conditional UPDATE with RETURNING to prevent TOCTOU
+   * race conditions. First attempts to update an existing expired lock, then falls
+   * back to INSERT if no lock exists. This pattern is safe against concurrent
+   * acquisition attempts from multiple processes.
    *
    * @param {LockOptions} options - Lock acquisition options
    * @param {string} options.lockId - Unique lock identifier
@@ -42,7 +42,36 @@ export class DistributedLockService {
     const lockHolder =
       processId || `serverless-${Date.now()}-${randomBytes(8).toString('hex')}`;
 
-    // First, check if lock already exists (avoids unique constraint errors in most cases)
+    // First, try to atomically update an existing expired lock
+    // This is TOCTOU-safe: only succeeds if lock is expired at update time
+    // Note: expiresAt is notNull per schema, so we only check lte()
+    const updateResult = await db
+      .update(generationLocks)
+      .set({
+        lockedBy: lockHolder,
+        lockedAt: now,
+        expiresAt: expiry,
+        operation,
+      })
+      .where(
+        and(eq(generationLocks.id, lockId), lte(generationLocks.expiresAt, now))
+      )
+      .returning({ id: generationLocks.id });
+
+    if (updateResult.length > 0) {
+      logger.info(
+        `Lock ${lockId} acquired (recovered stale)`,
+        {
+          lockId,
+          lockHolder,
+          expiresAt: expiry.toISOString(),
+        },
+        'DistributedLockService'
+      );
+      return true;
+    }
+
+    // Check if lock exists and is still valid
     const [existingLock] = await db
       .select()
       .from(generationLocks)
@@ -50,42 +79,7 @@ export class DistributedLockService {
       .limit(1);
 
     if (existingLock) {
-      // Lock exists - check if it's expired
-      if (existingLock.expiresAt <= now) {
-        // Expired - try to recover atomically using conditional update
-        await db
-          .update(generationLocks)
-          .set({
-            lockedBy: lockHolder,
-            lockedAt: now,
-            expiresAt: expiry,
-            operation,
-          })
-          .where(eq(generationLocks.id, lockId));
-
-        // Check if we updated (need to verify the lock is still expired)
-        const [updatedLock] = await db
-          .select()
-          .from(generationLocks)
-          .where(eq(generationLocks.id, lockId))
-          .limit(1);
-
-        if (updatedLock && updatedLock.lockedBy === lockHolder) {
-          logger.info(
-            `Lock ${lockId} acquired (recovered stale)`,
-            {
-              lockId,
-              lockHolder,
-              expiresAt: expiry,
-            },
-            'DistributedLockService'
-          );
-          return true;
-        }
-        // Someone else recovered it between our check and update - fall through to log
-      }
-
-      // Lock exists and is valid (or was just recovered by another process)
+      // Lock exists and is not expired (otherwise update would have succeeded)
       const ageMinutes = Math.round(
         (now.getTime() - existingLock.lockedAt.getTime()) / 1000 / 60
       );
@@ -105,68 +99,39 @@ export class DistributedLockService {
     }
 
     // No lock exists - try to create it
-    try {
-      await db.insert(generationLocks).values({
+    // Use onConflictDoNothing to handle race with another insert
+    const insertResult = await db
+      .insert(generationLocks)
+      .values({
         id: lockId,
         lockedBy: lockHolder,
         lockedAt: now,
         expiresAt: expiry,
         operation,
-      });
+      })
+      .onConflictDoNothing()
+      .returning({ id: generationLocks.id });
 
+    if (insertResult.length > 0) {
       logger.info(
         `Lock ${lockId} acquired (created)`,
         {
           lockId,
           lockHolder,
-          expiresAt: expiry,
+          expiresAt: expiry.toISOString(),
         },
         'DistributedLockService'
       );
       return true;
-    } catch (error: unknown) {
-      // Handle unique constraint violation (race condition - another process created it first)
-      const errorCode =
-        typeof error === 'object' && error !== null && 'code' in error
-          ? (error as { code: string }).code
-          : '';
-
-      if (errorCode === '23505') {
-        // PostgreSQL unique violation - another process acquired the lock first
-        const [currentLock] = await db
-          .select()
-          .from(generationLocks)
-          .where(eq(generationLocks.id, lockId))
-          .limit(1);
-
-        if (currentLock) {
-          const ageMinutes = Math.round(
-            (now.getTime() - currentLock.lockedAt.getTime()) / 1000 / 60
-          );
-          logger.info(
-            `Lock ${lockId} held by ${currentLock.lockedBy} - skipping`,
-            {
-              lockId,
-              holder: currentLock.lockedBy,
-              ageMinutes,
-              expiresIn: Math.round(
-                (currentLock.expiresAt.getTime() - now.getTime()) / 1000
-              ),
-            },
-            'DistributedLockService'
-          );
-        }
-        return false;
-      }
-
-      // Other error
-      logger.error(
-        `Failed to acquire lock ${lockId}`,
-        { error },
-        'DistributedLockService'
-      );
-      return false;
     }
+
+    // Another process won the race between our check and insert
+    logger.info(
+      `Lock ${lockId} lost race to another process`,
+      { lockId },
+      'DistributedLockService'
+    );
+    return false;
   }
 
   /**
@@ -191,35 +156,29 @@ export class DistributedLockService {
       return;
     }
 
-    // Only delete if we're the holder
-    const [existingLock] = await db
-      .select()
-      .from(generationLocks)
-      .where(eq(generationLocks.id, lockId))
-      .limit(1);
+    // Atomic delete with ownership check - prevents TOCTOU race condition
+    // Only deletes if we still own the lock at delete time
+    const deleteResult = await db
+      .delete(generationLocks)
+      .where(
+        and(
+          eq(generationLocks.id, lockId),
+          eq(generationLocks.lockedBy, processId)
+        )
+      )
+      .returning({ id: generationLocks.id });
 
-    if (existingLock && existingLock.lockedBy === processId) {
-      await db.delete(generationLocks).where(eq(generationLocks.id, lockId));
-
+    if (deleteResult.length > 0) {
       logger.info(
         `Lock ${lockId} released`,
         { lockId, lockHolder: processId },
         'DistributedLockService'
       );
-    } else if (existingLock) {
-      logger.warn(
-        `Lock ${lockId} not held by this process`,
-        {
-          lockId,
-          requestedHolder: processId,
-          actualHolder: existingLock.lockedBy,
-        },
-        'DistributedLockService'
-      );
     } else {
+      // Lock either doesn't exist, expired and was taken by another process, or we don't own it
       logger.info(
-        `Lock ${lockId} already released or expired`,
-        { lockId },
+        `Lock ${lockId} not released - not held by this process or already released`,
+        { lockId, processId },
         'DistributedLockService'
       );
     }
@@ -251,4 +210,3 @@ export class DistributedLockService {
     return lock;
   }
 }
-

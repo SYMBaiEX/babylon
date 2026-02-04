@@ -1,3 +1,4 @@
+import type { JsonValue } from '@babylon/shared';
 import type { IAgentRuntime, Plugin } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import { experienceEvaluator } from './evaluators/experienceEvaluator';
@@ -20,7 +21,7 @@ export const experiencePlugin: Plugin = {
     marketOutcomeEvaluator, // Learns from market outcomes (trust + performance)
   ],
 
-  init: async (config: Record<string, unknown>, runtime: IAgentRuntime) => {
+  init: async (config: Record<string, JsonValue>, runtime: IAgentRuntime) => {
     void runtime; // Runtime currently unused during initialization
 
     logger.info(

@@ -66,4 +66,3 @@ export type FeeType =
  */
 export type FeeTransactionType =
   (typeof FEE_CONFIG.TRANSACTION_TYPES)[keyof typeof FEE_CONFIG.TRANSACTION_TYPES];
-

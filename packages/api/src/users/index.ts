@@ -5,15 +5,17 @@
  */
 
 export {
-  ensureUserForAuth,
-  getCanonicalUserId,
   type CanonicalUser,
   type EnsureUserOptions,
+  ensureUserForAuth,
+  getCanonicalUserId,
 } from './ensure-user';
 
 export {
+  findTargetByIdentifier,
   findUserByIdentifier,
   findUserByIdentifierWithSelect,
+  requireTargetByIdentifier,
   requireUserByIdentifier,
+  type TargetLookupResult,
 } from './user-lookup';
-

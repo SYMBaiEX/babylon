@@ -1,287 +1,466 @@
 """
-PostgreSQL Trajectory Reader
-Strong types, async, no error hiding
+Babylon Trajectory Reader
+
+Reads trajectories from PostgreSQL database or local JSON files for training.
+Validates LLM call quality to ensure training data authenticity.
 """
 
-import asyncpg
-from typing import List
-import logging
 import json
-from datetime import datetime, timedelta
+import os
+from dataclasses import dataclass
+from typing import Optional, List, Dict
+from pathlib import Path
+import logging
 
-from ..models import BabylonTrajectory, MarketOutcomes, WindowStatistics, StockOutcome, TrajectoryStep, EnvironmentState, LLMCall, Action, ProviderAccess
+# Handle optional psycopg2 import for JSON-only workflows.
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class TrajectoryRow:
+    """Raw trajectory data from database. Used by PostgresTrajectoryReader."""
+
+    trajectory_id: str
+    agent_id: str
+    window_id: str
+    steps_json: str
+    metrics_json: str
+    metadata_json: str
+    total_reward: float
+    episode_length: int
+    final_status: str
+    final_pnl: Optional[float]
+    trades_executed: Optional[int]
+    ai_judge_reward: Optional[float]
+    archetype: Optional[str]
+
+
+def get_connection():
+    """
+    Get PostgreSQL connection from environment.
+
+    Returns:
+        psycopg2 connection
+
+    Raises:
+        ValueError: If DATABASE_URL not set
+        ImportError: If psycopg2 is not installed
+    """
+    if psycopg2 is None:
+        raise ImportError(
+            "psycopg2 is not installed. Please install it with 'pip install psycopg2-binary'")
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable required")
+    return psycopg2.connect(database_url)
+
+
+def validate_llm_calls(steps: list, min_steps_with_llm: int = 3) -> tuple[bool, list[str]]:
+    """
+    Validate trajectory steps contain real LLM calls.
+
+    Training data MUST have actual LLM calls with real prompts and responses.
+    Synthetic or placeholder data will cause training failures.
+
+    Args:
+        steps: List of trajectory steps
+        min_steps_with_llm: Minimum steps with valid LLM calls
+
+    Returns:
+        Tuple of (is_valid, list of issue descriptions)
+    """
+    issues: list[str] = []
+    steps_with_llm = 0
+
+    if not steps:
+        issues.append("Trajectory has no steps.")
+        return False, issues
+
+    for i, step in enumerate(steps):
+        llm_calls = step.get("llmCalls") or step.get("llm_calls") or []
+        if not llm_calls:
+            continue
+
+        valid_calls_in_step = 0
+        for call_idx, call in enumerate(llm_calls):
+            system_prompt = call.get("systemPrompt") or call.get(
+                "system_prompt") or ""
+            user_prompt = call.get("userPrompt") or call.get(
+                "user_prompt") or ""
+            response = call.get("response") or ""
+
+            call_issues = []
+            if len(system_prompt) < 20:
+                call_issues.append("system_prompt too short")
+            if len(user_prompt) < 20:
+                call_issues.append("user_prompt too short")
+            if len(response) < 20:
+                call_issues.append("response too short")
+
+            if not call_issues:
+                valid_calls_in_step += 1
+            else:
+                issues.append(
+                    f"Step {i}, Call {call_idx}: " + ", ".join(call_issues))
+
+        if valid_calls_in_step > 0:
+            steps_with_llm += 1
+
+    if steps_with_llm < min_steps_with_llm:
+        issues.append(
+            f"Only {steps_with_llm}/{len(steps)} steps have valid LLM calls (need at least {min_steps_with_llm})")
+
+    return len(issues) == 0, issues
+
+
 class PostgresTrajectoryReader:
-    """Read Babylon trajectories from PostgreSQL - fail fast on errors"""
-    
-    def __init__(self, db_url: str):
-        self.db_url = db_url
-        self.pool: asyncpg.Pool | None = None
+    """Reads Babylon trajectories from a PostgreSQL database."""
+
+    def __init__(self, database_url: str):
+        if psycopg2 is None:
+            raise ImportError(
+                "psycopg2 is not installed for PostgresTrajectoryReader. Please install it with 'pip install psycopg2-binary'")
+        if not database_url:
+            raise ValueError(
+                "DATABASE_URL must be provided for PostgresTrajectoryReader")
+        self.db_url = database_url
+        self.conn = None
         
-    async def connect(self):
-        """Initialize connection pool - raises on failure"""
-        if self.pool is None:
-            self.pool = await asyncpg.create_pool(
-                self.db_url,
-                min_size=2,
-                max_size=10,
-                command_timeout=60
+        # Detect Supabase pooler and warn
+        if "pooler.supabase.com" in database_url or ":6543" in database_url:
+            logger.warning(
+                "⚠️  Detected Supabase pooler connection. "
+                "Consider using direct connection (port 5432) for reliability."
             )
-            logger.info("PostgreSQL connection pool created")
-    
-    async def close(self):
-        """Close connection pool"""
-        if self.pool:
-            await self.pool.close()
-            self.pool = None
-            logger.info("PostgreSQL connection pool closed")
-    
-    async def get_window_ids(
-        self,
-        min_agents: int = 5,
-        lookback_hours: int = 24
-    ) -> List[str]:
-        """
-        Get window IDs with enough agents
+
+    async def __aenter__(self):
+        """Connect to the database upon entering the async context."""
+        # Check to satisfy Pylance's static analysis
+        if psycopg2 is None:
+            raise ImportError(
+                "psycopg2 is not installed, cannot connect to database.")
         
-        Raises:
-            RuntimeError: If not connected
-            asyncpg.PostgresError: On query failure
-        """
-        if not self.pool:
-            raise RuntimeError("Not connected - call connect() first")
-        
-        # Calculate cutoff time
-        cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
-        
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT "windowId"
-                FROM trajectories
-                WHERE 
-                    "windowId" IS NOT NULL
-                    AND "createdAt" > $1
-                GROUP BY "windowId"
-                HAVING COUNT(DISTINCT "agentId") >= $2
-                ORDER BY "windowId" DESC
-                """,
-                cutoff_time,
-                min_agents
-            )
-            
-        return [row['windowId'] for row in rows]
-    
+        # Set connection options for pooler compatibility
+        self.conn = psycopg2.connect(
+            self.db_url,
+            options='-c statement_timeout=120000'  # 2 minute timeout
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close the database connection upon exiting the context."""
+        if self.conn:
+            self.conn.close()
+
+    async def get_window_ids(self, limit: int = 100, only_scored: bool = True, lookback_hours: int = 168, min_agents: int = 1) -> list[str]:
+        if not self.conn:
+            raise ConnectionError("Database not connected.")
+        with self.conn.cursor() as cur:
+            query = """
+                SELECT DISTINCT "windowId" FROM trajectories
+                WHERE "isTrainingData" = true AND "createdAt" > NOW() - INTERVAL '%s hours'
+            """
+            params = [lookback_hours]
+            if only_scored:
+                query += ' AND "aiJudgeReward" IS NOT NULL'
+            query += ' ORDER BY "windowId" DESC LIMIT %s'
+            params.append(limit)
+            cur.execute(query, tuple(params))
+            return [row[0] for row in cur.fetchall() if row[0]]
+
     async def get_trajectories_by_window(
-        self,
-        window_id: str,
-        min_actions: int = 5
-    ) -> List[BabylonTrajectory]:
-        """
-        Get all trajectories for a window
-        
-        Returns validated Pydantic models - raises on validation errors
-        """
-        if not self.pool:
-            raise RuntimeError("Not connected - call connect() first")
-        
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT 
-                    id, "trajectoryId", "agentId", "windowId",
-                    "startTime", "endTime", "durationMs",
-                    "scenarioId", "episodeId",
-                    "stepsJson", "totalReward", "finalPnL", "finalBalance",
-                    "tradesExecuted", "postsCreated", "episodeLength", "finalStatus"
-                FROM trajectories
-                WHERE "windowId" = $1
-                ORDER BY "createdAt"
-                """,
-                window_id
-            )
-        
-        trajectories = []
+        self, window_id: str, min_score: Optional[float] = None,
+        validate: bool = True, min_actions: int = 1
+    ) -> list[TrajectoryRow]:
+        if not self.conn:
+            raise ConnectionError("Database not connected.")
+        with self.conn.cursor() as cur:
+            query = """
+                SELECT "trajectoryId", "agentId", "windowId", "stepsJson", "metricsJson", "metadataJson",
+                       "totalReward", "episodeLength", "finalStatus", "finalPnL", "tradesExecuted",
+                       "aiJudgeReward", "archetype"
+                FROM trajectories WHERE "windowId" = %s AND "isTrainingData" = true AND "episodeLength" >= %s
+            """
+            params: list = [window_id, min_actions]
+            if min_score is not None:
+                query += ' AND "aiJudgeReward" >= %s'
+                params.append(min_score)
+            cur.execute(query, tuple(params))
+            rows = cur.fetchall()
+
+        results = []
         for row in rows:
-            # Parse steps JSON
-            steps_data = json.loads(row['stepsJson'] or '[]')
-            
-            if not steps_data:
+            trajectory = TrajectoryRow(
+                trajectory_id=row[0], agent_id=row[1], window_id=row[2], steps_json=row[3],
+                metrics_json=row[4], metadata_json=row[5], total_reward=float(
+                    row[6] or 0.0),
+                episode_length=int(row[7] or 0), final_status=row[8] or "unknown",
+                final_pnl=float(row[9]) if row[9] else None, trades_executed=int(row[10]) if row[10] else None,
+                ai_judge_reward=float(row[11]) if row[11] else None, archetype=row[12],
+            )
+            if validate:
+                try:
+                    steps = json.loads(trajectory.steps_json)
+                    is_valid, issues = validate_llm_calls(steps)
+                    if not is_valid:
+                        logger.debug(
+                            f"Skipping DB trajectory {trajectory.trajectory_id}: {issues}")
+                        continue
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(
+                        f"Could not parse steps_json for trajectory {trajectory.trajectory_id}")
+                    continue
+            results.append(trajectory)
+        return results
+
+
+class JsonTrajectoryReader:
+    """Reads Babylon trajectories from a local directory of JSON files."""
+
+    def __init__(self, directory_path: str):
+        self._directory = Path(directory_path)
+        self._trajectories_by_window: Dict[str, List[Dict]] = {}
+        self._ground_truth: Optional[Dict] = None
+
+        if not self._directory.is_dir():
+            raise FileNotFoundError(
+                f"Source directory not found: {self._directory.resolve()}")
+
+        self._load_ground_truth()
+        self._scan_files()
+        logger.info(
+            f"Found {len(self._trajectories_by_window)} windows in {self._directory}")
+    
+    def _load_ground_truth(self):
+        """Load ground truth for enhanced rewards if available."""
+        gt_path = self._directory / "ground-truth.json"
+        if not gt_path.exists():
+            # Check parent directory (trajectories may be in subdirectory)
+            gt_path = self._directory.parent / "ground-truth.json"
+        
+        if gt_path.exists():
+            try:
+                with open(gt_path, "r", encoding="utf-8") as f:
+                    self._ground_truth = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to load ground truth from {gt_path}: {e}")
+                self._ground_truth = None
+                return
+            logger.info(f"Loaded ground truth from {gt_path}")
+    
+    def _build_price_context(self) -> Dict:
+        """Build price context from ground truth for enhanced rewards."""
+        if not self._ground_truth:
+            return {}
+        
+        price_context = {}
+        if "priceHistory" in self._ground_truth:
+            initial_prices = {}
+            final_prices = {}
+            for ticker, history in self._ground_truth["priceHistory"].items():
+                if history and len(history) > 0:
+                    initial_prices[ticker] = history[0]
+                    final_prices[ticker] = history[-1]
+            price_context = {
+                "initialPrices": initial_prices,
+                "finalPrices": final_prices,
+                "priceHistory": self._ground_truth["priceHistory"],
+            }
+        
+        return price_context
+
+    def _scan_files(self):
+        file_count = 0
+        price_context = self._build_price_context()
+        
+        for file_path in self._directory.glob("*.json"):
+            # Skip ground-truth.json
+            if file_path.name == "ground-truth.json":
                 continue
             
-            # Validate and convert steps
-            steps = []
-            for s in steps_data:
-                # Handle both snake_case and camelCase keys in step data
-                step_num = s.get('stepNumber', s.get('step_number', 0))
-                ts = s.get('timestamp', 0)
-                env_state_data = s.get('environmentState', s.get('environment_state', {}))
+            file_count += 1
+            try:
+                with file_path.open('r', encoding='utf-8') as f:
+                    data = json.load(f)
+                trajectory_data = data.get('trajectory', data)
                 
-                # Build environment state with flexible key access
-                env_state = EnvironmentState(
-                    agent_balance=env_state_data.get('agentBalance', env_state_data.get('agent_balance', 0)),
-                    agent_pnl=env_state_data.get('agentPnL', env_state_data.get('agent_pnl', 0)),
-                    open_positions=env_state_data.get('openPositions', env_state_data.get('open_positions', 0)),
-                    active_markets=env_state_data.get('activeMarkets', env_state_data.get('active_markets', 0)),
-                )
+                # Merge ground truth into metadata for enhanced rewards
+                if price_context:
+                    metadata = trajectory_data.get("metadata", {})
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata) if metadata else {}
+                        except json.JSONDecodeError as e:
+                            logger.warning(
+                                f"Malformed metadata JSON in {file_path}, ignoring metadata: {e}"
+                            )
+                            metadata = {}
+                    metadata["ground_truth"] = price_context
+                    trajectory_data["metadata"] = metadata
                 
-                # Provider accesses
-                provider_data = s.get('providerAccesses', s.get('provider_accesses', []))
-                provider_accesses = [ProviderAccess(**p) for p in provider_data] if provider_data else []
-                
-                # LLM calls
-                llm_data = s.get('llmCalls', s.get('llm_calls', []))
-                llm_calls = []
-                for llm in llm_data:
-                    llm_calls.append(LLMCall(
-                        model=llm.get('model', ''),
-                        system_prompt=llm.get('systemPrompt', llm.get('system_prompt', '')),
-                        user_prompt=llm.get('userPrompt', llm.get('user_prompt', '')),
-                        response=llm.get('response', ''),
-                        reasoning=llm.get('reasoning'),
-                        temperature=llm.get('temperature', 0.7),
-                        max_tokens=llm.get('maxTokens', llm.get('max_tokens', 100)),
-                        latency_ms=llm.get('latencyMs', llm.get('latency_ms')),
-                        purpose=llm.get('purpose', 'action'),
-                        action_type=llm.get('actionType', llm.get('action_type'))
-                    ))
-                
-                # Action
-                action_data = s.get('action', {})
-                action = Action(
-                    action_type=action_data.get('actionType', action_data.get('action_type', 'wait')),
-                    parameters=action_data.get('parameters', {}),
-                    success=action_data.get('success', True),
-                    result=action_data.get('result'),
-                    error=action_data.get('error'),
-                    reasoning=action_data.get('reasoning'),
-                )
-                
-                steps.append(TrajectoryStep(
-                    step_number=step_num,
-                    timestamp=ts,
-                    environment_state=env_state,
-                    provider_accesses=provider_accesses,
-                    llm_calls=llm_calls,
-                    action=action,
-                    reward=s.get('reward', 0.0)
-                ))
-            
-            # Only include if meets minimum actions
-            if len(steps) >= min_actions:
-                trajectories.append(BabylonTrajectory(
-                    id=row['id'],
-                    trajectory_id=row['trajectoryId'],
-                    agent_id=row['agentId'],
-                    window_id=row['windowId'],
-                    start_time=row['startTime'],
-                    end_time=row['endTime'],
-                    duration_ms=row['durationMs'] or 0,
-                    scenario_id=row['scenarioId'],
-                    episode_id=row['episodeId'],
-                    steps=steps,
-                    total_reward=float(row['totalReward'] or 0),
-                    final_pnl=float(row['finalPnL'] or 0),
-                    final_balance=float(row['finalBalance']) if row['finalBalance'] else None,
-                    trades_executed=row['tradesExecuted'],
-                    posts_created=row['postsCreated'],
-                    episode_length=row['episodeLength'] or len(steps),
-                    final_status=row['finalStatus'] or 'unknown'
-                ))
-        
-        return trajectories
-    
-    async def get_market_outcomes(self, window_id: str) -> MarketOutcomes | None:
-        """Get market outcomes for window - strong types"""
-        if not self.pool:
-            raise RuntimeError("Not connected")
-        
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT 
-                    "stockTicker", "startPrice", "endPrice",
-                    "changePercent", sentiment, "newsEvents"
-                FROM market_outcomes
-                WHERE "windowId" = $1 AND "stockTicker" IS NOT NULL
-                """,
-                window_id
-            )
-        
-        if not rows:
-            return None
-        
-        # Parse window time
-        window_start = datetime.fromisoformat(window_id.replace('Z', '+00:00'))
-        window_end = window_start + timedelta(hours=1)
-        
-        stocks = {}
-        for row in rows:
-            stocks[row['stockTicker']] = StockOutcome(
-                ticker=row['stockTicker'],
-                start_price=float(row['startPrice']),
-                end_price=float(row['endPrice']),
-                change_percent=float(row['changePercent']),
-                sentiment=row['sentiment'],
-                news_events=row['newsEvents'] if row['newsEvents'] else []
-            )
-        
-        return MarketOutcomes(
-            window_id=window_id,
-            window_start=window_start,
-            window_end=window_end,
-            stocks=stocks
+                window_id = trajectory_data.get("windowId", "default_window")
+                if window_id not in self._trajectories_by_window:
+                    self._trajectories_by_window[window_id] = []
+                self._trajectories_by_window[window_id].append(trajectory_data)
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(f"Skipping invalid JSON file {file_path}: {e}")
+
+        if file_count == 0:
+            logger.warning(
+                f"No JSON files found in directory: {self._directory}")
+
+    def get_window_ids(self) -> List[str]:
+        return list(self._trajectories_by_window.keys())
+
+    def get_trajectories_by_window(self, window_id: str) -> List[Dict]:
+        return self._trajectories_by_window.get(window_id, [])
+
+
+def get_window_ids(limit: int = 100, only_scored: bool = True) -> list[str]:
+    """
+    Get distinct window IDs with training data.
+
+    Args:
+        limit: Maximum windows to return
+        only_scored: Only return windows with scored trajectories
+
+    Returns:
+        List of window IDs
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    query = 'SELECT DISTINCT "windowId" FROM trajectories WHERE "isTrainingData" = true'
+    if only_scored:
+        query += ' AND "aiJudgeReward" IS NOT NULL'
+    query += ' ORDER BY "windowId" DESC LIMIT %s'
+    cur.execute(query, (limit,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [row[0] for row in rows if row[0]]
+
+
+def get_trajectories_by_window(
+    window_id: str,
+    min_score: Optional[float] = None,
+    validate: bool = True,
+) -> list[TrajectoryRow]:
+    """
+    Get trajectories for a specific window.
+
+    Args:
+        window_id: Window ID to query
+        min_score: Optional minimum AI judge score
+        validate: Whether to validate LLM calls
+
+    Returns:
+        List of trajectory rows
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    query = """
+        SELECT "trajectoryId", "agentId", "windowId", "stepsJson", "metricsJson", "metadataJson",
+               "totalReward", "episodeLength", "finalStatus", "finalPnL", "tradesExecuted", 
+               "aiJudgeReward", "archetype"
+        FROM trajectories WHERE "windowId" = %s AND "isTrainingData" = true
+    """
+    params: list = [window_id]
+    if min_score is not None:
+        query += ' AND "aiJudgeReward" >= %s'
+        params.append(min_score)
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    results: list[TrajectoryRow] = []
+    for row in rows:
+        trajectory = TrajectoryRow(
+            trajectory_id=row[0], agent_id=row[1], window_id=row[2], steps_json=row[3],
+            metrics_json=row[4], metadata_json=row[5], total_reward=float(
+                row[6] or 0.0),
+            episode_length=int(row[7] or 0), final_status=row[8] or "unknown",
+            final_pnl=float(row[9]) if row[9] else None, trades_executed=int(row[10]) if row[10] else None,
+            ai_judge_reward=float(row[11]) if row[11] else None, archetype=row[12],
         )
-    
-    async def get_window_stats(self, window_id: str) -> WindowStatistics | None:
-        """Get statistics for window - validated"""
-        if not self.pool:
-            raise RuntimeError("Not connected")
-        
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                SELECT 
-                    "windowId",
-                    COUNT(DISTINCT "agentId") as agent_count,
-                    COUNT(*) as trajectory_count,
-                    COALESCE(SUM("episodeLength"), 0) as total_actions,
-                    COALESCE(AVG("finalPnL"), 0) as avg_pnl,
-                    COALESCE(MIN("finalPnL"), 0) as min_pnl,
-                    COALESCE(MAX("finalPnL"), 0) as max_pnl,
-                    MIN("startTime") as start_time,
-                    MAX("endTime") as end_time
-                FROM trajectories
-                WHERE "windowId" = $1
-                GROUP BY "windowId"
-                """,
-                window_id
-            )
-        
-        if not row:
-            return None
-        
-        return WindowStatistics(
-            window_id=row['windowId'],
-            agent_count=row['agent_count'],
-            trajectory_count=row['trajectory_count'],
-            total_actions=row['total_actions'],
-            avg_pnl=float(row['avg_pnl']),
-            min_pnl=float(row['min_pnl']),
-            max_pnl=float(row['max_pnl']),
-            start_time=row['start_time'],
-            end_time=row['end_time']
-        )
-    
-    async def __aenter__(self):
-        await self.connect()
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        if validate:
+            steps = json.loads(trajectory.steps_json)
+            is_valid, _ = validate_llm_calls(steps)
+            if not is_valid:
+                continue
+        results.append(trajectory)
+    return results
 
 
+def get_all_training_trajectories(
+    limit: int = 1000,
+    min_score: Optional[float] = None,
+    archetype: Optional[str] = None,
+) -> list[TrajectoryRow]:
+    """
+    Get all training trajectories.
 
+    Args:
+        limit: Maximum trajectories to return
+        min_score: Optional minimum AI judge score
+        archetype: Optional filter by archetype
+
+    Returns:
+        List of trajectory rows
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    query = """
+        SELECT "trajectoryId", "agentId", "windowId", "stepsJson", "metricsJson", "metadataJson",
+               "totalReward", "episodeLength", "finalStatus", "finalPnL", "tradesExecuted", 
+               "aiJudgeReward", "archetype"
+        FROM trajectories WHERE "isTrainingData" = true
+    """
+    params: list = []
+    if min_score is not None:
+        query += ' AND "aiJudgeReward" >= %s'
+        params.append(min_score)
+    if archetype is not None:
+        query += ' AND "archetype" = %s'
+        params.append(archetype)
+    query += ' ORDER BY "createdAt" DESC LIMIT %s'
+    params.append(limit)
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [TrajectoryRow(
+        trajectory_id=r[0], agent_id=r[1], window_id=r[2], steps_json=r[3],
+        metrics_json=r[4], metadata_json=r[5], total_reward=float(r[6] or 0.0),
+        episode_length=int(r[7] or 0), final_status=r[8] or "unknown",
+        final_pnl=float(r[9]) if r[9] else None, trades_executed=int(r[10]) if r[10] else None,
+        ai_judge_reward=float(r[11]) if r[11] else None, archetype=r[12],
+    ) for r in rows]
+
+
+def get_trajectory_stats() -> dict:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*), COUNT("aiJudgeReward"), AVG("aiJudgeReward"),
+               MIN("aiJudgeReward"), MAX("aiJudgeReward"), COUNT(DISTINCT "archetype")
+        FROM trajectories WHERE "isTrainingData" = true
+    """)
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row is None:
+        return {"total": 0, "scored": 0, "avg_score": 0.0, "min_score": 0.0, "max_score": 0.0, "archetypes": 0}
+
+    return {
+        "total": row[0] or 0, "scored": row[1] or 0,
+        "avg_score": float(row[2]) if row[2] else 0.0,
+        "min_score": float(row[3]) if row[3] else 0.0,
+        "max_score": float(row[4]) if row[4] else 0.0,
+        "archetypes": row[5] or 0,
+    }

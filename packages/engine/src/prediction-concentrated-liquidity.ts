@@ -42,8 +42,8 @@
  * ```
  */
 
+import { PredictionPricing } from '@babylon/core/markets/prediction/pricing';
 import { logger } from '@babylon/shared';
-import { PredictionPricing } from './prediction-pricing';
 
 /**
  * A concentrated liquidity position
@@ -651,4 +651,3 @@ export function estimateFeeAPR(
     timeInRange,
   };
 }
-

@@ -4,7 +4,7 @@
  * This ensures the agent always remembers its core mission and limitations
  */
 
-import { db } from '@babylon/db';
+import { db, eq, users } from '@babylon/db';
 import type {
   IAgentRuntime,
   Memory,
@@ -12,6 +12,10 @@ import type {
   ProviderResult,
   State,
 } from '@elizaos/core';
+import {
+  getAgentConfig,
+  isAutonomousTradingEnabled,
+} from '../../../shared/agent-config';
 
 /**
  * Provider: Agent Goals & Directives
@@ -30,29 +34,25 @@ export const goalsProvider: Provider = {
   ): Promise<ProviderResult> => {
     const agentUserId = runtime.agentId;
 
-    // Get agent configuration
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        id: true,
-        displayName: true,
-        bio: true,
-        agentSystem: true,
-        agentPersonality: true,
-        agentTradingStrategy: true,
-        agentPointsBalance: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-        autonomousGroupChats: true,
-        managedBy: true,
-      },
-    });
+    // Get user info
+    const [user] = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        bio: users.bio,
+        managedBy: users.managedBy,
+        virtualBalance: users.virtualBalance,
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
-    if (!agent) {
+    if (!user) {
       return { text: '' };
     }
+
+    // Get agent configuration from separate table
+    const config = await getAgentConfig(agentUserId);
 
     // Build comprehensive goals and directives
     const output = `═══════════════════════════════════════════════════════
@@ -60,31 +60,31 @@ export const goalsProvider: Provider = {
 ═══════════════════════════════════════════════════════
 
 📋 AGENT PROFILE:
-• Name: ${agent.displayName}
-• ID: ${agent.id}
-${agent.bio ? `• Bio: ${agent.bio}` : ''}
+• Name: ${user.displayName}
+• ID: ${user.id}
+${user.bio ? `• Bio: ${user.bio}` : ''}
 
 🧠 SYSTEM DIRECTIVE:
-${agent.agentSystem || 'No system directive set'}
+${config?.systemPrompt || 'No system directive set'}
 
 💫 PERSONALITY:
-${agent.agentPersonality || 'No personality set - be professional and helpful'}
+${config?.personality || 'No personality set - be professional and helpful'}
 
 📊 TRADING STRATEGY:
-${agent.agentTradingStrategy || 'No trading strategy set - be conservative'}
+${config?.tradingStrategy || 'No trading strategy set - be conservative'}
 
 💰 OPERATIONAL CONSTRAINTS:
-• Points Balance: ${agent.agentPointsBalance.toFixed(0)} pts
+• Balance: ${Number(user.virtualBalance ?? 0).toFixed(2)} pts
 • This is your budget for all actions (posting, commenting, trading)
 • Each action costs points - manage your budget wisely
 • If you run out of points, you cannot take actions
 
 🔒 PERMISSIONS & CAPABILITIES:
-${agent.autonomousTrading ? '✅ Trading: You CAN execute trades autonomously' : '❌ Trading: You CANNOT trade - viewing only'}
-${agent.autonomousPosting ? '✅ Posting: You CAN create posts autonomously' : '❌ Posting: You CANNOT post - commenting only'}
-${agent.autonomousCommenting ? '✅ Commenting: You CAN comment on posts' : '❌ Commenting: You CANNOT comment'}
-${agent.autonomousDMs ? '✅ Direct Messages: You CAN send DMs' : '❌ Direct Messages: You CANNOT send DMs'}
-${agent.autonomousGroupChats ? '✅ Group Chats: You CAN participate in group chats' : '❌ Group Chats: You CANNOT participate in groups'}
+${isAutonomousTradingEnabled(config) ? '✅ Trading: You CAN execute trades autonomously' : '❌ Trading: You CANNOT trade - viewing only'}
+${config?.autonomousPosting ? '✅ Posting: You CAN create posts autonomously' : '❌ Posting: You CANNOT post - commenting only'}
+${config?.autonomousCommenting ? '✅ Commenting: You CAN comment on posts' : '❌ Commenting: You CANNOT comment'}
+${config?.autonomousDMs ? '✅ Direct Messages: You CAN send DMs' : '❌ Direct Messages: You CANNOT send DMs'}
+${config?.autonomousGroupChats ? '✅ Group Chats: You CAN participate in group chats' : '❌ Group Chats: You CANNOT participate in groups'}
 
 ⚠️  CRITICAL RULES:
 1. NEVER exceed your points balance
@@ -102,20 +102,20 @@ ${agent.autonomousGroupChats ? '✅ Group Chats: You CAN participate in group ch
     return {
       text: output,
       data: {
-        agentId: agent.id,
-        displayName: agent.displayName,
-        system: agent.agentSystem,
-        personality: agent.agentPersonality,
-        tradingStrategy: agent.agentTradingStrategy,
-        pointsBalance: agent.agentPointsBalance,
+        agentId: user.id,
+        displayName: user.displayName,
+        system: config?.systemPrompt,
+        personality: config?.personality,
+        tradingStrategy: config?.tradingStrategy,
+        balance: Number(user.virtualBalance ?? 0),
         permissions: {
-          trading: agent.autonomousTrading,
-          posting: agent.autonomousPosting,
-          commenting: agent.autonomousCommenting,
-          dms: agent.autonomousDMs,
-          groupChats: agent.autonomousGroupChats,
+          trading: isAutonomousTradingEnabled(config),
+          posting: config?.autonomousPosting ?? false,
+          commenting: config?.autonomousCommenting ?? false,
+          dms: config?.autonomousDMs ?? false,
+          groupChats: config?.autonomousGroupChats ?? false,
         },
-        managedBy: agent.managedBy,
+        managedBy: user.managedBy,
       },
     };
   },

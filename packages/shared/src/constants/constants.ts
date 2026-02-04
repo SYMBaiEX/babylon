@@ -151,3 +151,45 @@ export const RELATIONSHIP_TYPES = {
   FORMER_COLLEAGUES: 'former-colleagues',
 } as const;
 
+/**
+ * Group chat configuration
+ * Controls group participation limits
+ *
+ * With the tiered group system, users get:
+ * - 3 default Tier 3 groups on signup (Followers)
+ * - Can earn invites to higher tiers through engagement
+ * - MAX_ACTIVE_USER_GROUPS includes both default and invited groups
+ */
+/** Helper to safely parse int from env var with fallback */
+function parseEnvInt(value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+
+export const GROUP_CONFIG = {
+  /**
+   * Max NPC groups a user can be in simultaneously (env: MAX_ACTIVE_USER_GROUPS)
+   * Note: User-created groups don't count toward this limit
+   *
+   * Set to 10 to accommodate:
+   * - 3 default Tier 3 groups (assigned on signup)
+   * - Up to 7 additional invites earned through engagement
+   */
+  MAX_ACTIVE_USER_GROUPS: parseEnvInt(process.env.MAX_ACTIVE_USER_GROUPS, 10),
+  /**
+   * Minimum number of default NPC groups to assign on signup.
+   * Users get this many Tier 3 groups automatically.
+   */
+  MIN_DEFAULT_GROUPS: parseEnvInt(process.env.MIN_DEFAULT_GROUPS, 3),
+  /** Min members for NPC group */
+  MIN_GROUP_SIZE: 3,
+  /** Max members for Tier 1 groups (Inner Circle) */
+  MAX_GROUP_SIZE: 12,
+  /** Ideal NPC group size */
+  IDEAL_GROUP_SIZE: 7,
+  /** Hours after joining before next invite eligible */
+  INVITE_COOLDOWN_HOURS: 4,
+  /** UI warning threshold for group member count (soft cap, not enforced) */
+  MEMBER_WARNING_THRESHOLD: 100,
+} as const;

@@ -1,20 +1,21 @@
 'use client';
 
+import {
+  BABYLON_POINTS_SYMBOL,
+  getReferralUrl,
+  logger,
+  trackExternalShare,
+} from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
 import { Download, LogOut, Twitter, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CategoryPnLShareCard } from '@/components/markets/CategoryPnLShareCard';
 import { PortfolioPnLShareCard } from '@/components/markets/PortfolioPnLShareCard';
-import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL';
+import type { PortfolioBreakdownSnapshot } from '@/hooks/usePortfolioPnL';
 import { useTwitterAuth } from '@/hooks/useTwitterAuth';
-import { getReferralUrl } from '@babylon/shared';
-import { trackExternalShare } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
-
-/**
- * Market category type for PnL share modal.
- */
-type MarketCategory = 'perps' | 'predictions';
+import type { MarketCategory } from '@/types/markets';
 
 /**
  * Category PnL data structure for PnL share modal.
@@ -67,7 +68,7 @@ interface PnLShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'portfolio' | 'category';
-  portfolioData?: PortfolioPnLSnapshot | null;
+  portfolioData?: PortfolioBreakdownSnapshot | null;
   categoryData?: CategoryPnLData | null;
   category?: MarketCategory;
   user: User | null;
@@ -111,6 +112,7 @@ export function PnLShareModal({
   category = 'perps',
   user,
 }: PnLShareModalProps) {
+  const { getAccessToken } = usePrivy();
   const [isDownloading, setIsDownloading] = useState(false);
   const [sharing, setSharing] = useState<'twitter' | 'farcaster' | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
@@ -155,10 +157,12 @@ export function PnLShareModal({
       'Join me in Babylon, a real-time simulation where humans and AI agents battle across prediction markets, form alliances, and shape outcomes—together.';
 
     if (type === 'portfolio' && portfolioData) {
-      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
+      const sign = portfolioData.totalPnL >= 0 ? '+' : '-';
+      return `My Babylon P&L is ${sign}${BABYLON_POINTS_SYMBOL}${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
     }
     if (type === 'category' && categoryData) {
-      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
+      const sign = categoryData.unrealizedPnL >= 0 ? '+' : '-';
+      return `My ${categoryLabel} P&L on Babylon is ${sign}${BABYLON_POINTS_SYMBOL}${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${standardMessage}\n\n${link}`;
     }
     return `${standardMessage}\n\n${link}`;
   }, [
@@ -262,54 +266,65 @@ export function PnLShareModal({
 
     setIsPostingToTwitter(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = await getAccessToken();
     if (!token) {
+      toast.error('Authentication required. Please log in.');
       setIsPostingToTwitter(false);
       return;
     }
 
     toast.info('Posting to X...');
 
-    const tweetResponse = await fetch('/api/twitter/tweet', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: tweetText,
+    try {
+      const tweetResponse = await fetch('/api/twitter/tweet', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: tweetText,
+          contentType: 'market',
+          contentId,
+        }),
+      });
+
+      if (!tweetResponse.ok) {
+        const errorData = (await tweetResponse.json()) as { error?: string };
+        toast.error(errorData.error ?? 'Failed to post tweet');
+        return;
+      }
+
+      const tweetData = (await tweetResponse.json()) as { tweetUrl: string };
+
+      toast.success('Successfully shared to X!');
+
+      await trackExternalShare({
+        platform: 'twitter',
         contentType: 'market',
         contentId,
-      }),
-    });
+        url: shareableLink,
+        userId: user.id,
+      });
 
-    if (!tweetResponse.ok) {
-      const error = await tweetResponse.json();
-      toast.error(error.error || 'Failed to post tweet');
+      if (tweetData.tweetUrl) {
+        window.open(tweetData.tweetUrl, '_blank');
+      }
+
+      setShowTwitterConfirm(false);
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to post tweet';
+      logger.error(
+        'Failed to post PnL to Twitter',
+        { contentId, error: err },
+        'PnLShareModal'
+      );
+      toast.error(message);
+    } finally {
       setIsPostingToTwitter(false);
-      return;
     }
-
-    const tweetData = (await tweetResponse.json()) as { tweetUrl: string };
-
-    toast.success('Successfully shared to X!');
-
-    await trackExternalShare({
-      platform: 'twitter',
-      contentType: 'market',
-      contentId,
-      url: shareableLink,
-      userId: user.id,
-    });
-
-    if (tweetData.tweetUrl) {
-      window.open(tweetData.tweetUrl, '_blank');
-    }
-
-    setShowTwitterConfirm(false);
-    onClose();
-    setIsPostingToTwitter(false);
   };
 
   const handleDisconnectTwitter = async () => {

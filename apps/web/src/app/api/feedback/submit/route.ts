@@ -64,19 +64,22 @@
  * ```
  */
 
+import { submitFeedbackToAgent0 } from '@babylon/agents';
+import {
+  authenticate,
+  BusinessLogicError,
+  requireUserByIdentifier,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { updateFeedbackMetrics } from '@babylon/engine';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { submitFeedbackToAgent0 } from '@babylon/agents';
-import { updateFeedbackMetrics } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 
 const FeedbackSubmitSchema = z
   .object({
-    fromUserId: z.string().min(1, 'fromUserId is required'),
     toUserId: z.string().min(1, 'toUserId is required'),
     score: z.number().min(0).max(100).optional(),
     stars: z.number().int().min(1).max(5).optional(),
@@ -88,7 +91,9 @@ const FeedbackSubmitSchema = z
     path: ['score'],
   });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
   const json = await request.json();
   const parsed = FeedbackSubmitSchema.parse(json);
 
@@ -96,8 +101,15 @@ export async function POST(request: NextRequest) {
 
   const score = body.stars !== undefined ? body.stars * 20 : body.score!;
 
-  const fromUser = await requireUserByIdentifier(body.fromUserId);
+  const fromUser = await requireUserByIdentifier(authUser.userId);
   const toUser = await requireUserByIdentifier(body.toUserId);
+
+  if (fromUser.id === toUser.id) {
+    throw new BusinessLogicError(
+      'Cannot submit feedback to yourself',
+      'SELF_FEEDBACK'
+    );
+  }
 
   const now = new Date();
   const feedback = await db.feedback.create({
@@ -145,4 +157,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

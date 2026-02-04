@@ -787,7 +787,7 @@ export class SimulationA2AInterface {
 
     const result = await this.engine.performAction('create_post', {
       content,
-      marketId,
+      marketId: marketId ?? null,
     });
 
     if (!result.success) {

@@ -8,7 +8,7 @@ import { mock } from 'bun:test';
 
 mock.module('@babylon/engine', async () => {
   const actualEngine = await import('@babylon/engine');
-  
+
   const createMockClient = () => ({
     getStats: () => ({ provider: 'mock', model: 'mock-model' }),
     getProvider: () => 'mock',

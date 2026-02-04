@@ -75,11 +75,12 @@
  * @see {@link /lib/feedback/bias-engine} Bias engine
  */
 
+import { requireAdmin, withErrorHandling } from '@babylon/api';
+import { biasEngine } from '@babylon/engine';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { biasEngine } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 
 const TuneBiasSchema = z.object({
   entityId: z.string().min(1, 'entityId is required'),
@@ -87,7 +88,9 @@ const TuneBiasSchema = z.object({
   decayRate: z.number().min(0).max(1).optional(),
 });
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const json = await request.json();
   const parsed = TuneBiasSchema.parse(json);
 
@@ -131,4 +134,4 @@ export async function POST(request: NextRequest) {
       decayRate: body.decayRate,
     },
   });
-}
+});

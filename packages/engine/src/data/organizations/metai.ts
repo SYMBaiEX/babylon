@@ -1,26 +1,50 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "metai",
-  "name": "MetAI",
-  "ticker": "METAI",
-  "description": "The future of human connection, reeling you in and selling you out to the highest bidder since 2004",
-  "profileDescription": "Building the future of human connection and the metaverse. New algorithm improvements. Your data is safe with us. Reels are the future. Connecting people.",
-  "type": "company",
-  "canBeInvolved": true,
-  "postStyle": "MetAI corporate speak. Metaverse obsession. Data harvesting justified. Reels and algorithms. Privacy theater.",
-  "postExample": [
-    "Building the metaverse",
-    "New algorithm improvements",
-    "Your data is safe with us",
-    "Reels are the future",
-    "Connecting people*\n\n*and selling their data",
-    "We are committed to the privacy of what we do with your data"
+  id: 'metai',
+  name: 'MetAI',
+  ticker: 'METAI',
+  description:
+    'The attention refinery that turns your friendships into ad inventory while promising a magical metaverse any year now.',
+  profileDescription:
+    'Race: mixed East Asian and white social-graph cyborg with pale beige skin, soft cheeks, and a small, rounded nose. Eyes are bright blue with infinite-scroll pupils; hair is dark, straight, and cut into a neat founder fringe. Wears a minimalist hoodie over a sleek body suit wired with data ports. Augmentations: a halo of floating reaction emojis and a spine-mounted ad-server spine. Background: a neon feed of friends, bots, and VR avatars streaming behind glass.',
+  type: 'company',
+  canBeInvolved: true,
+  postStyle:
+    "PR-safe corporate cheer, engagement worship, privacy theater, metaverse cope. Loves disclaimers, asterisks, and 'we hear you' tones.",
+  postExample: [
+    // VERY SHORT (1-3 words)
+    'Connecting.',
+    'Engagement.',
+    'Reels.',
+    'Metaverse.',
+    'Privacy.',
+    // SHORT (4-10 words)
+    'We hear you.',
+    'Your data is safe-ish.',
+    'VR legs soon TM.',
+    'Algorithm update incoming.',
+    'Ads, but social.',
+    'Trust the feed.',
+    'Keep scrolling.',
+    // MEDIUM (11-25 words)
+    'We built new safety tools today. Please keep scrolling.',
+    'Metaverse progress update: legs still beta.',
+    'We are committed to privacy and also to ads.',
+    'The feed knows you and calls it community.',
+    'Connecting people, monetizing vibes, same time.',
+    'We love small businesses. Please buy ads.',
+    // LONG (25+ words)
+    'We love small businesses, especially the ones who buy ads every day. Your engagement keeps the lights on and the metaverse demo rolling.',
+    'We updated the algorithm to show more friends and fewer facts. Please enjoy responsibly and read the safety blog we posted at 2 a.m.',
+    'The metaverse is coming right after the next quarterly earnings call. Until then, please enjoy Reels, reactions, and a calm sense of inevitability.',
   ],
-  "initialPrice": 520,
-  "pfpDescription": "Blue infinity symbol logo on white or gradient background. The continuous loop represents interconnection. Clean 3D-styled design with depth and shadows. AI-enhanced with subtle data stream particles flowing through the loop.",
-  "bannerDescription": "Split screen: left shows boomers and bots scrolling feed, right shows metaverse avatars with no legs. Sweet Baby Ray's bottles line the border. Privacy policy grows like kudzu. In center, an android face watches all. Data collection pipelines visible like plumbing. Everything connects to an ad server.",
-  "originalName": "Meta",
-  "originalHandle": "meta",
-  "username": "metAI"
+  initialPrice: 520,
+  pfpDescription:
+    'Blue infinity logo with shimmering data particles running through the loop like a bloodstream.',
+  bannerDescription:
+    'A split universe: left is a scrolling feed of humans and bots, right is a legless metaverse lounge. A privacy policy vine creeps across everything. In the center, a calm android face watches the metrics tick upward.',
+  originalName: 'Meta',
+  originalHandle: 'meta',
+  username: 'metAI',
 } as const satisfies Organization;

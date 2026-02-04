@@ -1,3 +1,4 @@
+import type { GameOnboardingStep } from '@babylon/shared';
 import { relations } from 'drizzle-orm';
 import {
   bigint,
@@ -7,20 +8,94 @@ import {
   index,
   integer,
   json,
+  jsonb,
   pgTable,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
 import type { JsonValue } from '../types';
-import { agentPerformanceMetrics } from './agents';
 import { onboardingStatusEnum } from './enums';
+
+// Re-export for consumers
+export type { GameOnboardingStep } from '@babylon/shared';
+
+/**
+ * Game onboarding state stored in JSONB
+ * Note: startedAt and completedAt are ISO date strings since JSONB serializes dates as strings
+ */
+export interface GameOnboardingState {
+  completedSteps: GameOnboardingStep[];
+  currentStep: GameOnboardingStep;
+  startedAt: string | null;
+  completedAt: string | null;
+  rewards: Array<{ step: GameOnboardingStep; points: number }>;
+}
+
+/**
+ * Default game onboarding state.
+ * This constant is used to generate the SQL default for the state column,
+ * ensuring TypeScript validates the default against the GameOnboardingState interface.
+ */
+export const DEFAULT_GAME_ONBOARDING_STATE: GameOnboardingState = {
+  completedSteps: [],
+  currentStep: 'welcome',
+  startedAt: null,
+  completedAt: null,
+  rewards: [],
+};
+
+/**
+ * GameOnboarding - Tracks user's game tutorial progress
+ */
+export const gameOnboarding = pgTable(
+  'GameOnboarding',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Current step in the tutorial
+    currentStep: text('currentStep')
+      .$type<GameOnboardingStep>()
+      .notNull()
+      .default('welcome'),
+
+    // Full state as JSONB for flexibility
+    // The default is generated from DEFAULT_GAME_ONBOARDING_STATE constant,
+    // ensuring TypeScript validates the default against the GameOnboardingState interface.
+    state: jsonb('state')
+      .$type<GameOnboardingState>()
+      .default(DEFAULT_GAME_ONBOARDING_STATE),
+
+    // Quick access flags
+    isComplete: boolean('isComplete').notNull().default(false),
+    skippedAt: timestamp('skippedAt', { mode: 'date' }),
+
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Note: userId already has unique() constraint which creates an implicit unique index
+    // so a separate index on userId would be redundant
+    index('GameOnboarding_isComplete_idx').on(table.isComplete),
+    index('GameOnboarding_currentStep_idx').on(table.currentStep),
+  ]
+);
+
+export type GameOnboardingRow = typeof gameOnboarding.$inferSelect;
+export type NewGameOnboardingRow = typeof gameOnboarding.$inferInsert;
 
 // User - Main user table
 export const users = pgTable(
   'User',
   {
     id: text('id').primaryKey(),
+    // Privy embedded wallet id (used for server-side wallet actions).
+    // This is not the Privy user id (did:privy:...), it's the wallet resource id.
+    privyWalletId: text('privyWalletId'),
     walletAddress: text('walletAddress').unique(),
     username: text('username').unique(),
     displayName: text('displayName'),
@@ -190,59 +265,38 @@ export const users = pgTable(
     emailVerified: boolean('emailVerified').notNull().default(false),
     email: text('email'),
     waitlistGraduatedAt: timestamp('waitlistGraduatedAt', { mode: 'date' }),
-    // Agent fields
-    agentCount: integer('agentCount').notNull().default(0),
-    totalAgentPnL: decimal('totalAgentPnL', { precision: 18, scale: 2 })
-      .notNull()
-      .default('0'),
-    agentErrorMessage: text('agentErrorMessage'),
-    agentLastChatAt: timestamp('agentLastChatAt', { mode: 'date' }),
-    agentLastTickAt: timestamp('agentLastTickAt', { mode: 'date' }),
-    agentMessageExamples: json('agentMessageExamples').$type<JsonValue>(),
-    agentModelTier: text('agentModelTier').notNull().default('free'),
-    agentPersonality: text('agentPersonality'),
-    agentPointsBalance: integer('agentPointsBalance').notNull().default(0),
-    agentStatus: text('agentStatus').notNull().default('idle'),
-    agentStyle: json('agentStyle').$type<JsonValue>(),
-    agentSystem: text('agentSystem'),
-    agentTotalDeposited: integer('agentTotalDeposited').notNull().default(0),
-    agentTotalPointsSpent: integer('agentTotalPointsSpent')
-      .notNull()
-      .default(0),
-    agentTotalWithdrawn: integer('agentTotalWithdrawn').notNull().default(0),
-    agentTradingStrategy: text('agentTradingStrategy'),
-    autonomousCommenting: boolean('autonomousCommenting')
-      .notNull()
-      .default(false),
-    autonomousDMs: boolean('autonomousDMs').notNull().default(false),
-    autonomousGroupChats: boolean('autonomousGroupChats')
-      .notNull()
-      .default(false),
-    autonomousPosting: boolean('autonomousPosting').notNull().default(false),
-    autonomousTrading: boolean('autonomousTrading').notNull().default(false),
-    a2aEnabled: boolean('a2aEnabled').notNull().default(false),
+    // Agent flags (config stored in UserAgentConfig table)
     isAgent: boolean('isAgent').notNull().default(false),
     managedBy: text('managedBy'),
-    agentGoals: json('agentGoals').$type<JsonValue>(),
-    agentDirectives: json('agentDirectives').$type<JsonValue>(),
-    agentConstraints: json('agentConstraints').$type<JsonValue>(),
-    agentPersonaPrompt: text('agentPersonaPrompt'),
-    agentPlanningHorizon: text('agentPlanningHorizon')
+    // Unified total points (wallet + positions, excludes agents)
+    totalPoints: decimal('totalPoints', { precision: 18, scale: 2 })
       .notNull()
-      .default('single'),
-    agentRiskTolerance: text('agentRiskTolerance').notNull().default('medium'),
-    agentMaxActionsPerTick: integer('agentMaxActionsPerTick')
+      .default('0'),
+    // Dirty flag for incremental totalPoints recompute
+    totalPointsDirtyAt: timestamp('totalPointsDirtyAt', { mode: 'date' }),
+    // Game guide completion tracking
+    gameGuideCompletedAt: timestamp('gameGuideCompletedAt', { mode: 'date' }),
+    // Profile chain sync tracking (database-first architecture)
+    profileChainSyncNeeded: boolean('profileChainSyncNeeded')
       .notNull()
-      .default(3),
+      .default(false),
+    profileChainSyncAt: timestamp('profileChainSyncAt', { mode: 'date' }),
+    profileChainSyncError: text('profileChainSyncError'),
+    // Daily login streak tracking (BAB-88)
+    dailyLoginStreak: integer('dailyLoginStreak').notNull().default(0),
+    lastDailyLogin: timestamp('lastDailyLogin', { mode: 'date' }),
+    longestStreak: integer('longestStreak').notNull().default(0),
+    totalDailyLogins: integer('totalDailyLogins').notNull().default(0),
   },
   (table) => [
-    index('User_agentCount_idx').on(table.agentCount),
-    index('User_autonomousTrading_idx').on(table.autonomousTrading),
     index('User_displayName_idx').on(table.displayName),
     index('User_earnedPoints_idx').on(table.earnedPoints),
     index('User_invitePoints_idx').on(table.invitePoints),
     index('User_isActor_idx').on(table.isActor),
+    // Admin stats indexes for optimized user signups queries
+    index('User_isActor_createdAt_idx').on(table.isActor, table.createdAt),
     index('User_isAgent_idx').on(table.isAgent),
+    index('User_isAgent_createdAt_idx').on(table.isAgent, table.createdAt),
     index('User_isAgent_managedBy_idx').on(table.isAgent, table.managedBy),
     index('User_isBanned_isActor_idx').on(table.isBanned, table.isActor),
     index('User_isScammer_idx').on(table.isScammer),
@@ -254,15 +308,53 @@ export const users = pgTable(
     ),
     index('User_referralCode_idx').on(table.referralCode),
     index('User_reputationPoints_idx').on(table.reputationPoints),
-    index('User_totalAgentPnL_idx').on(table.totalAgentPnL),
+    index('User_totalPoints_idx').on(table.totalPoints),
     index('User_username_idx').on(table.username),
     index('User_waitlistJoinedAt_idx').on(table.waitlistJoinedAt),
     index('User_waitlistPosition_idx').on(table.waitlistPosition),
     index('User_walletAddress_idx').on(table.walletAddress),
     index('User_registrationIpHash_idx').on(table.registrationIpHash),
     index('User_lastReferralIpHash_idx').on(table.lastReferralIpHash),
+    // Index for efficient profile chain sync queries
+    index('User_profileChainSyncNeeded_onChainRegistered_idx').on(
+      table.profileChainSyncNeeded,
+      table.onChainRegistered
+    ),
+    // Indexes for daily login streak (BAB-88)
+    index('User_dailyLoginStreak_idx').on(table.dailyLoginStreak),
+    index('User_longestStreak_idx').on(table.longestStreak),
+    index('User_lastDailyLogin_idx').on(table.lastDailyLogin),
   ]
 );
+
+// UserPointsSnapshot - Daily/weekly snapshots of totalPoints for gain tracking
+export const userPointsSnapshots = pgTable(
+  'UserPointsSnapshot',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    totalPoints: decimal('totalPoints', { precision: 18, scale: 2 })
+      .notNull()
+      .default('0'),
+    snapshotDate: timestamp('snapshotDate', { mode: 'date' }).notNull(),
+    period: text('period').notNull().default('daily'), // 'daily' | 'weekly'
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('UserPointsSnapshot_userId_idx').on(table.userId),
+    index('UserPointsSnapshot_userId_period_snapshotDate_idx').on(
+      table.userId,
+      table.period,
+      table.snapshotDate
+    ),
+    index('UserPointsSnapshot_snapshotDate_idx').on(table.snapshotDate),
+  ]
+);
+
+export type UserPointsSnapshot = typeof userPointsSnapshots.$inferSelect;
+export type NewUserPointsSnapshot = typeof userPointsSnapshots.$inferInsert;
 
 // OnboardingIntent
 export const onboardingIntents = pgTable(
@@ -397,7 +489,9 @@ export const referrals = pgTable(
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
     completedAt: timestamp('completedAt', { mode: 'date' }),
     qualifiedAt: timestamp('qualifiedAt', { mode: 'date' }),
-    signupPointsAwarded: boolean('signupPointsAwarded').notNull().default(false),
+    signupPointsAwarded: boolean('signupPointsAwarded')
+      .notNull()
+      .default(false),
     suspiciousReferralFlags: json('suspiciousReferralFlags').$type<JsonValue>(),
   },
   (table) => [
@@ -530,50 +624,20 @@ export const userApiKeys = pgTable(
   ]
 );
 
-// Relations
-export const usersRelations = relations(users, ({ many, one }) => ({
-  onboardingIntent: one(onboardingIntents, {
-    fields: [users.id],
-    references: [onboardingIntents.userId],
-  }),
-  followerFollows: many(follows, { relationName: 'Follow_followerIdToUser' }),
-  followingFollows: many(follows, { relationName: 'Follow_followingIdToUser' }),
-  targetFavorites: many(favorites, {
-    relationName: 'Favorite_targetUserIdToUser',
-  }),
-  userFavorites: many(favorites, { relationName: 'Favorite_userIdToUser' }),
-  blockerBlocks: many(userBlocks, {
-    relationName: 'UserBlock_blockerIdToUser',
-  }),
-  blockedBlocks: many(userBlocks, {
-    relationName: 'UserBlock_blockedIdToUser',
-  }),
-  muterMutes: many(userMutes, { relationName: 'UserMute_muterIdToUser' }),
-  mutedMutes: many(userMutes, { relationName: 'UserMute_mutedIdToUser' }),
-  referrerReferrals: many(referrals, {
-    relationName: 'Referral_referrerIdToUser',
-  }),
-  referredReferrals: many(referrals, {
-    relationName: 'Referral_referredUserIdToUser',
-  }),
-  twitterOAuthToken: one(twitterOAuthTokens, {
-    fields: [users.id],
-    references: [twitterOAuthTokens.userId],
-  }),
-  userActorFollows: many(userActorFollows),
-  profileUpdateLogs: many(profileUpdateLogs),
-  manager: one(users, {
-    fields: [users.managedBy],
+export const userPointsSnapshotsRelations = relations(
+  userPointsSnapshots,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userPointsSnapshots.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const gameOnboardingRelations = relations(gameOnboarding, ({ one }) => ({
+  user: one(users, {
+    fields: [gameOnboarding.userId],
     references: [users.id],
-    relationName: 'UserToUser',
-  }),
-  managedAgents: many(users, { relationName: 'UserToUser' }),
-  AgentPerformanceMetrics: one(agentPerformanceMetrics, {
-    fields: [users.id],
-    references: [agentPerformanceMetrics.userId],
-  }),
-  apiKeys: many(userApiKeys, {
-    relationName: 'UserApiKey_userIdToUser',
   }),
 }));
 
@@ -717,7 +781,3 @@ export type UserInteraction = typeof userInteractions.$inferSelect;
 export type NewUserInteraction = typeof userInteractions.$inferInsert;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type NewUserApiKey = typeof userApiKeys.$inferInsert;
-
-
-
-

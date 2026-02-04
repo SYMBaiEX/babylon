@@ -508,4 +508,3 @@ export function suggestDomainsFromKeywords(keywords: string[]): string[] {
 
   return Array.from(suggestions);
 }
-

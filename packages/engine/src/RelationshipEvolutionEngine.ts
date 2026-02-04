@@ -13,20 +13,20 @@
 
 import {
   actorRelationships,
-  actors as actorsSchema,
   and,
   db,
   desc,
   eq,
   gte,
-  inArray,
   npcInteractions,
   or,
 } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import type { Actor, Organization } from './types/shared';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { isSimulationMode } from './storage-bridge';
+import type { Actor, ActorRelationship, Organization } from './types/shared';
+import { first } from './utils/array-utils';
 
 export interface RelationshipChange {
   actor1Id: string;
@@ -59,6 +59,16 @@ export class RelationshipEvolutionEngine {
     actors: Actor[],
     organizations: Organization[]
   ): Promise<number> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      logger.debug(
+        'Skipping initial relationships in simulation mode',
+        undefined,
+        'RelationshipEvolutionEngine'
+      );
+      return 0;
+    }
+
     logger.info(
       'Generating initial NPC relationships...',
       undefined,
@@ -104,7 +114,7 @@ export class RelationshipEvolutionEngine {
 
           if (this.llm && sharedOrgs.length > 0) {
             // LLM-DRIVEN: Generate relationship from context
-            const org = orgMap.get(sharedOrgs[0]!);
+            const org = orgMap.get(first(sharedOrgs)!);
             const context = `both affiliated with ${org?.name || 'same organization'}`;
 
             // Check if relationship already exists
@@ -139,7 +149,8 @@ export class RelationshipEvolutionEngine {
             sentiment = llmResult.sentiment;
           } else if (sharedOrgs.length > 0) {
             // Fallback: Simple template
-            const org = orgMap.get(sharedOrgs[0]!);
+            const fallbackOrgId = first(sharedOrgs)!;
+            const org = orgMap.get(fallbackOrgId);
             const orgName = org?.name.toLowerCase() || 'same company';
             history = `both work at ${orgName}`;
             type = 'acquaintances';
@@ -241,7 +252,13 @@ Also determine:
 
 Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
 
-    const response = await this.llm!.generateJSON<{
+    if (!this.llm) {
+      throw new Error(
+        'LLM client required for generateRelationshipDescription'
+      );
+    }
+
+    const response = await this.llm.generateJSON<{
       description: string;
       type: string;
       sentiment: number;
@@ -264,10 +281,14 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
   async trackInteraction(
     interaction: Omit<Interaction, 'timestamp'>
   ): Promise<void> {
+    // In simulation mode, interactions are not persisted to DB
+    if (isSimulationMode()) {
+      return;
+    }
+
     // Sort IDs to ensure consistency
     const sorted = [interaction.actor1Id, interaction.actor2Id].sort();
-    const id1 = sorted[0]!;
-    const id2 = sorted[1]!;
+    const [id1, id2] = sorted as [string, string];
 
     await db.insert(npcInteractions).values({
       id: await generateSnowflakeId(),
@@ -285,6 +306,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
    * This is the KEY method - uses LLM to generate natural text descriptions
    */
   async analyzeAndUpdateRelationships(): Promise<number> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return 0;
+    }
+
     if (!this.llm) {
       logger.warn(
         'No LLM client available, skipping relationship analysis',
@@ -354,19 +380,9 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
         )
         .limit(1);
 
-      // Get actor names for prompt
-      const [[actor1], [actor2]] = await Promise.all([
-        db
-          .select({ name: actorsSchema.name })
-          .from(actorsSchema)
-          .where(eq(actorsSchema.id, actor1Id))
-          .limit(1),
-        db
-          .select({ name: actorsSchema.name })
-          .from(actorsSchema)
-          .where(eq(actorsSchema.id, actor2Id))
-          .limit(1),
-      ]);
+      // Get actor names from static registry
+      const actor1 = StaticDataRegistry.getActor(actor1Id);
+      const actor2 = StaticDataRegistry.getActor(actor2Id);
 
       if (!actor1 || !actor2) continue;
 
@@ -522,6 +538,11 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
    * Just the text descriptions, nothing else
    */
   async getRelationshipContextForActor(actorId: string): Promise<string> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return '';
+    }
+
     // Get relationships for this actor
     const relationships = await db
       .select()
@@ -544,13 +565,13 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
       rel.actor1Id === actorId ? rel.actor2Id : rel.actor1Id
     );
 
-    // Get actor names
-    const actors = await db
-      .select({ id: actorsSchema.id, name: actorsSchema.name })
-      .from(actorsSchema)
-      .where(inArray(actorsSchema.id, otherActorIds));
-
-    const actorNameMap = new Map(actors.map((a) => [a.id, a.name]));
+    // Get actor names from static registry
+    const actorNameMap = new Map(
+      otherActorIds.map((id) => {
+        const actor = StaticDataRegistry.getActor(id);
+        return [id, actor?.name || 'Unknown'];
+      })
+    );
 
     // SIMPLEST FORMAT: Just list the relationships
     const lines = relationships.map((rel) => {
@@ -563,5 +584,93 @@ Return JSON: { "description": "...", "type": "...", "sentiment": 0.0 }`;
     });
 
     return lines.join('\n');
+  }
+
+  // =============================================================================
+  // STATIC QUERY METHODS (consolidated from RelationshipManager)
+  // =============================================================================
+
+  /**
+   * Get all relationships for an actor (static method for queries)
+   */
+  static async getActorRelationships(
+    actorId: string
+  ): Promise<ActorRelationship[]> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return [];
+    }
+
+    const relationships = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          eq(actorRelationships.actor1Id, actorId),
+          eq(actorRelationships.actor2Id, actorId)
+        )
+      );
+
+    return relationships.map((rel) => ({
+      id: rel.id,
+      actor1Id: rel.actor1Id,
+      actor2Id: rel.actor2Id,
+      relationshipType:
+        rel.relationshipType as ActorRelationship['relationshipType'],
+      strength: rel.strength,
+      sentiment: rel.sentiment,
+      isPublic: rel.isPublic,
+      history: rel.history || undefined,
+      affects: rel.affects as Record<string, number> | undefined,
+      createdAt: rel.createdAt,
+      updatedAt: rel.updatedAt,
+    }));
+  }
+
+  /**
+   * Get specific relationship between two actors
+   */
+  static async getRelationship(
+    actor1Id: string,
+    actor2Id: string
+  ): Promise<ActorRelationship | null> {
+    // In simulation mode, relationships are not persisted to DB
+    if (isSimulationMode()) {
+      return null;
+    }
+
+    const [relationship] = await db
+      .select()
+      .from(actorRelationships)
+      .where(
+        or(
+          and(
+            eq(actorRelationships.actor1Id, actor1Id),
+            eq(actorRelationships.actor2Id, actor2Id)
+          ),
+          and(
+            eq(actorRelationships.actor1Id, actor2Id),
+            eq(actorRelationships.actor2Id, actor1Id)
+          )
+        )
+      )
+      .limit(1);
+
+    if (!relationship) return null;
+
+    return {
+      id: relationship.id,
+      actor1Id: relationship.actor1Id,
+      actor2Id: relationship.actor2Id,
+      relationshipType:
+        relationship.relationshipType as ActorRelationship['relationshipType'],
+      strength: relationship.strength,
+      sentiment: relationship.sentiment,
+      isPublic: relationship.isPublic,
+      history: relationship.history || undefined,
+      affects: relationship.affects as Record<string, number> | undefined,
+      createdAt: relationship.createdAt,
+      updatedAt: relationship.updatedAt,
+    };
   }
 }

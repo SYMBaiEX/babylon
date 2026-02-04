@@ -4,11 +4,11 @@
  * @route GET /api/game/control - Get game state
  * @route POST /api/game/control - Start/pause game
  * @access GET: Public
- * @access POST: Admin (ADMIN_TOKEN or dev)
+ * @access POST: Admin (requireAdmin middleware)
  *
  * @description
  * Controls the main continuous game engine. GET returns current game state.
- * POST starts or pauses the game (admin only).
+ * POST starts or pauses the game (admin only via requireAdmin middleware).
  *
  * @openapi
  * /api/game/control:
@@ -41,9 +41,9 @@
  *     tags:
  *       - Game
  *     summary: Start/pause game
- *     description: Controls game engine (admin only, requires ADMIN_TOKEN)
+ *     description: Controls game engine (admin only, uses requireAdmin middleware)
  *     security:
- *       - CronSecret: []
+ *       - PrivyAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -60,92 +60,51 @@
  *       200:
  *         description: Game control action completed successfully
  *       401:
- *         description: Unauthorized (admin token required)
+ *         description: Unauthorized (admin required)
  *
  * @example
  * ```typescript
- * // Get state
+ * // Get state (public)
  * const { game } = await fetch('/api/game/control').then(r => r.json());
  *
- * // Control game
+ * // Control game (admin only - in dev, use x-dev-admin-token header)
  * await fetch('/api/game/control', {
  *   method: 'POST',
- *   headers: { 'x-admin-token': adminToken },
+ *   headers: { 'x-dev-admin-token': devAdminToken },
  *   body: JSON.stringify({ action: 'start' })
  * });
  * ```
+ *
  * @property {string} pausedAt - When game was paused (ISO)
  * @property {string} lastTickAt - Last game tick timestamp (ISO)
  * @property {number} activeQuestions - Number of active questions
  *
  * @throws {400} Invalid action (POST)
- * @throws {401} Unauthorized - admin token required (POST)
+ * @throws {401} Unauthorized - admin required (POST)
  * @throws {500} Internal server error
- *
- * @example
- * ```typescript
- * // Start the game (admin only)
- * const response = await fetch('/api/game/control', {
- *   method: 'POST',
- *   headers: {
- *     'x-admin-token': process.env.ADMIN_TOKEN
- *   },
- *   body: JSON.stringify({ action: 'start' })
- * });
- *
- * // Pause the game (admin only)
- * await fetch('/api/game/control', {
- *   method: 'POST',
- *   headers: { 'x-admin-token': process.env.ADMIN_TOKEN },
- *   body: JSON.stringify({ action: 'pause' })
- * });
- *
- * // Get current game state (public)
- * const state = await fetch('/api/game/control');
- * const { game } = await state.json();
- * console.log(`Game is ${game.isRunning ? 'running' : 'paused'}`);
- * console.log(`Current day: ${game.currentDay}`);
- * ```
- *
- * **Admin Authentication:**
- * ```typescript
- * // Set in environment
- * ADMIN_TOKEN=your-secret-token
- *
- * // Use in requests
- * headers: { 'x-admin-token': process.env.ADMIN_TOKEN }
- * ```
  *
  * @see {@link /lib/game-service} Game engine implementation
  * @see {@link /lib/serverless-game-tick} Game tick logic
  * @see {@link /api/cron/game-tick} Game tick cron job
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  BadRequestError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { asSystem } from '@babylon/db';
-import { AuthorizationError, BadRequestError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface ControlRequest {
   action: 'start' | 'pause';
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Check for admin authorization
-  const adminToken = request.headers.get('x-admin-token');
-  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
-  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
-  const isDev = process.env.NODE_ENV === 'development';
-
-  if (!isAdmin && !isDev) {
-    throw new AuthorizationError(
-      'Admin authorization required',
-      'game',
-      'control'
-    );
-  }
+  // Require admin authentication (uses secure dev token in dev mode)
+  await requireAdmin(request);
 
   const body = (await request.json()) as ControlRequest;
   const { action } = body;

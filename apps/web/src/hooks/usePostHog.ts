@@ -1,7 +1,10 @@
 import { useCallback } from 'react';
 import { posthog } from '@/lib/posthog';
 
-type StringRecord = Record<string, string | number | boolean | null | undefined>;
+type StringRecord = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
 
 /**
  * Main PostHog analytics hook for tracking events throughout the app.
@@ -30,14 +33,11 @@ type StringRecord = Record<string, string | number | boolean | null | undefined>
  */
 export function usePostHog() {
   // Track generic event
-  const track = useCallback(
-    (event: string, properties?: StringRecord) => {
-      if (posthog && typeof window !== 'undefined') {
-        posthog.capture(event, properties);
-      }
-    },
-    []
-  );
+  const track = useCallback((event: string, properties?: StringRecord) => {
+    if (posthog && typeof window !== 'undefined') {
+      posthog.capture(event, properties);
+    }
+  }, []);
 
   // Track user action (with automatic timestamp)
   const trackAction = useCallback(
@@ -76,11 +76,7 @@ export function usePostHog() {
 
   // Track form submission
   const trackFormSubmit = useCallback(
-    (
-      formName: string,
-      success: boolean,
-      properties?: StringRecord
-    ) => {
+    (formName: string, success: boolean, properties?: StringRecord) => {
       track('form_submit', {
         form: formName,
         success,

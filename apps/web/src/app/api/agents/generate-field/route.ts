@@ -97,152 +97,296 @@
 
 import { createGroq } from '@ai-sdk/groq';
 import Anthropic from '@anthropic-ai/sdk';
-import { generateText } from 'ai';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 import {
+  authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
-import { authenticateUser } from '@babylon/api';
+import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
+import { logger } from '@babylon/shared';
+import { parseKeyValueXml } from '@elizaos/core';
+import { generateText } from 'ai';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+
+const MAX_TOKENS = 500;
+const MAX_ATTEMPTS = 3;
+const MIN_CONTENT_LENGTH = 10;
+const RETRY_BASE_DELAY_MS = 500; // Base delay for exponential backoff
+
+/**
+ * XML output format instructions appended to all prompts
+ */
+const XML_FORMAT_INSTRUCTIONS = `
+
+# Required Output Format (use exactly this structure)
+
+Your response MUST start with <response> immediately. No <think> tags. No reasoning.
+
+<response>
+<content>your generated content here</content>
+</response>`;
+
+/**
+ * Extract content from XML response using parseKeyValueXml
+ * The response MUST be wrapped in <response> tags - anything outside (like <think>) is ignored
+ */
+function extractContent(raw: string): string | null {
+  // Extract <response>...</response> block (ignores anything outside like <think> tags)
+  const responseMatch = raw.match(/<response>([\s\S]*?)<\/response>/i);
+  if (!responseMatch) {
+    return null;
+  }
+
+  // Parse the XML response with error handling
+  let parsed: { content?: string } | null;
+  try {
+    parsed = parseKeyValueXml(responseMatch[0]) as {
+      content?: string;
+    } | null;
+  } catch (error) {
+    logger.warn(
+      'Failed to parse XML response',
+      { error: error instanceof Error ? error.message : String(error) },
+      'GenerateField'
+    );
+    return null;
+  }
+
+  if (!parsed?.content) {
+    return null;
+  }
+
+  // Clean up the content
+  return parsed.content.trim().replace(/^["']|["']$/g, ''); // Remove leading/trailing quotes
+}
 
 export async function POST(req: NextRequest) {
-  try {
-    const user = await authenticateUser(req);
+  const user = await authenticateUser(req);
 
-    // Apply rate limiting - 10 field generations per minute
-    const rateLimitError = checkRateLimitAndDuplicates(
-      user.userId,
-      null, // No duplicate detection for field generation
-      RATE_LIMIT_CONFIGS.GENERATE_AGENT_FIELD
+  // Apply rate limiting - 10 field generations per minute
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null, // No duplicate detection for field generation
+    RATE_LIMIT_CONFIGS.GENERATE_AGENT_FIELD
+  );
+
+  if (rateLimitError) {
+    logger.warn(
+      'Agent field generation rate limit exceeded',
+      { userId: user.userId },
+      'GenerateField'
     );
+    return rateLimitError;
+  }
 
-    if (rateLimitError) {
-      logger.warn(
-        'Agent field generation rate limit exceeded',
-        { userId: user.userId },
-        'GenerateField'
-      );
-      return rateLimitError;
-    }
+  const { fieldName, currentValue, context } = await req.json();
 
-    const { fieldName, currentValue, context } = await req.json();
+  if (!fieldName) {
+    return NextResponse.json(
+      { success: false, error: 'Missing fieldName' },
+      { status: 400 }
+    );
+  }
 
-    const prompt = buildPromptForField(fieldName, currentValue, context);
-    const systemPrompt =
-      'You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic.';
+  const basePrompt = buildPromptForField(fieldName, currentValue, context);
+  const systemPrompt =
+    'You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic. Always output your response in the required XML format.';
 
-    let generatedValue: string;
-
-    // Use Groq qwen/qwen3-32b if available, otherwise fall back to Claude
-    if (process.env.GROQ_API_KEY) {
-      const groq = createGroq({
-        apiKey: process.env.GROQ_API_KEY,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
-
-      const result = await generateText({
-        model: groq.languageModel('qwen/qwen3-32b'),
-        prompt,
-        system: systemPrompt,
-        temperature: 0.8,
-        maxOutputTokens: 300,
-      });
-
-      generatedValue = result.text.trim();
-      logger.info(
-        'Generated agent field with Groq',
-        { fieldName, provider: 'groq' },
-        'GenerateField'
-      );
-
-      if (isPromptLoggingEnabled()) {
-        await logPrompt({
-          promptType: `generate_field_${fieldName}`,
-          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
-          output: generatedValue,
-          metadata: {
-            provider: 'groq',
-            model: 'qwen/qwen3-32b',
-            temperature: 0.8,
-            maxTokens: 300,
-          },
-        });
-      }
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      const anthropic = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      });
-
-      const message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 300,
-        temperature: 0.8,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const firstContent = message.content[0]!;
-      generatedValue = (firstContent as { text: string }).text.trim();
-      logger.info(
-        'Generated agent field with Claude',
-        { fieldName, provider: 'claude' },
-        'GenerateField'
-      );
-
-      if (isPromptLoggingEnabled()) {
-        await logPrompt({
-          promptType: `generate_field_${fieldName}`,
-          input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
-          output: generatedValue,
-          metadata: {
-            provider: 'claude',
-            model: 'claude-sonnet-4-5',
-            temperature: 0.8,
-            maxTokens: 300,
-          },
-        });
-      }
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'No LLM API key configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.',
-        },
-        { status: 503 }
-      );
-    }
-
-    // Strip any <think>...</think> tags and their content (from reasoning models like Qwen)
-    // Also remove leading/trailing quotes
-    const cleanedValue = generatedValue
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
-      .replace(/^["']|["']$/g, '')
-      .trim();
-
-    return NextResponse.json({
-      success: true,
-      value: cleanedValue,
-    });
-  } catch (error) {
-    logger.error('Error generating agent field', { error }, 'generate-field');
+  // Validate API keys are configured before attempting generation
+  if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       {
         success: false,
         error:
-          error instanceof Error ? error.message : 'Failed to generate field',
+          'No LLM API key configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.',
+      },
+      { status: 503 }
+    );
+  }
+
+  let cleanedValue: string | null = null;
+
+  // Retry loop for robust generation
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const isRetry = attempt > 1;
+
+    // Add XML format instructions, with stronger reminder on retry
+    const prompt = isRetry
+      ? `CRITICAL: You have ${MAX_TOKENS} tokens max. Your response MUST start with <response> immediately. No <think> tags. No reasoning. Output valid XML only.\n\n${basePrompt}${XML_FORMAT_INSTRUCTIONS}`
+      : `${basePrompt}${XML_FORMAT_INSTRUCTIONS}`;
+
+    let generatedValue: string | undefined;
+
+    try {
+      // Use Groq qwen/qwen3-32b if available, otherwise fall back to Claude
+      if (process.env.GROQ_API_KEY) {
+        const groq = createGroq({
+          apiKey: process.env.GROQ_API_KEY,
+          baseURL: 'https://api.groq.com/openai/v1',
+        });
+
+        const result = await generateText({
+          model: groq.languageModel('qwen/qwen3-32b'),
+          prompt,
+          system: systemPrompt,
+          temperature: isRetry ? 0.6 : 0.8, // Lower temperature on retry for more predictable output
+          maxOutputTokens: MAX_TOKENS,
+        });
+
+        generatedValue = result.text.trim();
+        logger.info(
+          'Generated agent field with Groq',
+          { fieldName, provider: 'groq', attempt },
+          'GenerateField'
+        );
+
+        if (isPromptLoggingEnabled()) {
+          await logPrompt({
+            promptType: `generate_field_${fieldName}`,
+            input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+            output: generatedValue,
+            metadata: {
+              provider: 'groq',
+              model: 'qwen/qwen3-32b',
+              temperature: isRetry ? 0.6 : 0.8,
+              maxTokens: MAX_TOKENS,
+            },
+          });
+        }
+      } else {
+        // Anthropic path (we know key exists from validation above)
+        const anthropic = new Anthropic({
+          apiKey: process.env.ANTHROPIC_API_KEY,
+        });
+
+        const message = await anthropic.messages.create({
+          model: 'claude-sonnet-4-5',
+          max_tokens: MAX_TOKENS,
+          temperature: isRetry ? 0.6 : 0.8,
+          system: systemPrompt,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        });
+
+        // Defensive check for Anthropic response content
+        const firstContent = message.content[0];
+        if (!firstContent || firstContent.type !== 'text') {
+          logger.warn(
+            'Unexpected Anthropic response format',
+            { fieldName, contentType: firstContent?.type, attempt },
+            'GenerateField'
+          );
+          continue; // Retry
+        }
+        generatedValue = firstContent.text.trim();
+        logger.info(
+          'Generated agent field with Claude',
+          { fieldName, provider: 'claude', attempt },
+          'GenerateField'
+        );
+
+        if (isPromptLoggingEnabled()) {
+          await logPrompt({
+            promptType: `generate_field_${fieldName}`,
+            input: `System: ${systemPrompt}\n\nUser: ${prompt}`,
+            output: generatedValue,
+            metadata: {
+              provider: 'claude',
+              model: 'claude-sonnet-4-5',
+              temperature: isRetry ? 0.6 : 0.8,
+              maxTokens: MAX_TOKENS,
+            },
+          });
+        }
+      }
+    } catch (apiError) {
+      logger.warn(
+        `LLM API error on attempt ${attempt}`,
+        {
+          fieldName,
+          error: apiError instanceof Error ? apiError.message : 'Unknown',
+        },
+        'GenerateField'
+      );
+      if (attempt === MAX_ATTEMPTS) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'LLM API error. Please try again.',
+          },
+          { status: 500 }
+        );
+      }
+      // Exponential backoff before retry
+      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+      continue; // Retry on earlier attempts
+    }
+
+    // Guard against undefined (shouldn't happen, but TypeScript requires it)
+    // This can occur if the Anthropic path continues without setting generatedValue
+    if (!generatedValue) {
+      logger.warn(
+        `No response generated on attempt ${attempt}`,
+        { fieldName, attempt },
+        'GenerateField'
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+      }
+      continue;
+    }
+
+    // Try to extract clean content
+    cleanedValue = extractContent(generatedValue);
+
+    if (cleanedValue && cleanedValue.length >= MIN_CONTENT_LENGTH) {
+      // Success! We got valid content
+      break;
+    }
+
+    // Log warning and retry with exponential backoff
+    // Avoid logging raw model output - only log safe metadata
+    logger.warn(
+      `No valid <response> block found on attempt ${attempt}`,
+      {
+        fieldName,
+        rawLength: generatedValue.length,
+        hasResponseTag: generatedValue.includes('<response>'),
+      },
+      'GenerateField'
+    );
+
+    // Exponential backoff before retry (500ms, 1000ms, etc.)
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+    }
+  }
+
+  // If all attempts failed, return error
+  if (!cleanedValue || cleanedValue.length < MIN_CONTENT_LENGTH) {
+    logger.error(
+      `Failed to generate valid content after ${MAX_ATTEMPTS} attempts`,
+      { fieldName },
+      'GenerateField'
+    );
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to generate valid content. Please try again.',
       },
       { status: 500 }
     );
   }
+
+  return NextResponse.json({
+    success: true,
+    value: cleanedValue,
+  });
 }
 
 /**

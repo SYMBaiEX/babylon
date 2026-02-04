@@ -3,14 +3,15 @@
  *
  * @description
  * Search for users by username or display name with fuzzy matching.
- * Returns real users only (excludes NPCs, banned users, and current user).
+ * Returns real users only by default (excludes NPCs, agents, banned users, and current user).
  * Designed for user mention autocomplete, friend finding, and social discovery.
  *
  * **Features:**
  * - Case-insensitive search
  * - Matches username OR display name
  * - Excludes current user (no self-mentions)
- * - Excludes NPCs/actors
+ * - Excludes NPCs/actors by default
+ * - Excludes agents by default (use includeAgents=true to include)
  * - Excludes banned users
  * - Limits to 20 results (performance)
  * - Alphabetically sorted results
@@ -46,6 +47,13 @@
  *           minLength: 2
  *         description: Search query (username or display name)
  *         example: alice
+ *       - in: query
+ *         name: includeAgents
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *         description: Include AI agents in results (default false)
+ *         example: false
  *     responses:
  *       200:
  *         description: Search results
@@ -69,6 +77,9 @@
  *                         type: string
  *                       bio:
  *                         type: string
+ *                       isAgent:
+ *                         type: boolean
+ *                         description: Present when includeAgents=true, indicates if this is a user-created agent
  *       401:
  *         description: Unauthorized
  *
@@ -85,6 +96,9 @@
  *   console.log(`@${user.username} - ${user.displayName}`);
  * });
  *
+ * // Include agents in search
+ * const withAgents = await fetch('/api/users/search?q=alice&includeAgents=true');
+ *
  * // Too short query
  * const empty = await fetch('/api/users/search?q=a');
  * // Returns { users: [] }
@@ -94,16 +108,15 @@
  * @see {@link /src/components/MentionAutocomplete} Autocomplete UI
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import {
+  asUser,
   getBlockedByUserIds,
   getBlockedUserIds,
   getMutedUserIds,
 } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/search
@@ -112,9 +125,10 @@ import {
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
-  // Get query parameter
+  // Get query parameters
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
+  const includeAgents = searchParams.get('includeAgents') === 'true';
 
   if (!query || query.trim().length < 2) {
     return successResponse({ users: [] });
@@ -132,6 +146,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const excludedUserIds = [...blockedIds, ...mutedIds, ...blockedByIds];
 
   // Search for users (excluding the current user, NPCs, and blocked/muted users)
+  // Optionally include AI agents if includeAgents=true
   const users = await asUser(user, async (db) => {
     return await db.user.findMany({
       where: {
@@ -157,14 +172,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               not: user.userId, // Exclude current user
             },
           },
+          // Conditionally exclude blocked/muted users only if the array is not empty
+          ...(excludedUserIds.length > 0
+            ? [{ id: { notIn: excludedUserIds } }]
+            : []),
           {
-            id: {
-              notIn: excludedUserIds, // Exclude blocked/muted users
-            },
+            isActor: false, // Always exclude NPCs (use /api/agents/search for those)
           },
-          {
-            isActor: false, // Exclude NPCs
-          },
+          // Exclude agents unless includeAgents is true
+          ...(includeAgents ? [] : [{ isAgent: false }]),
           {
             isBanned: false, // Exclude banned users
           },
@@ -176,6 +192,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         username: true,
         profileImageUrl: true,
         bio: true,
+        // Include isAgent when agents are included to distinguish them from humans
+        ...(includeAgents && { isAgent: true }),
       },
       take: 20, // Limit results
       orderBy: [
@@ -188,7 +206,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   logger.info(
     'User search completed',
-    { userId: user.userId, query: searchTerm, results: users.length },
+    {
+      userId: user.userId,
+      query: searchTerm,
+      results: users.length,
+      includeAgents,
+    },
     'GET /api/users/search'
   );
 

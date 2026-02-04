@@ -4,12 +4,14 @@ pragma solidity ^0.8.27;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {UD60x18, ud, intoUint256, exp, ln} from "@prb/math/src/UD60x18.sol";
 import {LibMarket} from "../libraries/LibMarket.sol";
-import {LibDiamond} from "../libraries/LibDiamond.sol";
 
 /// @title PredictionMarketFacet
 /// @notice Facet for prediction market operations
 /// @dev Implements LMSR (Logarithmic Market Scoring Rule) pricing
 contract PredictionMarketFacet is ReentrancyGuard {
+    /// @notice Minimum shares to prevent dust attacks
+    uint256 public constant MIN_SHARES = 0.0001 ether; // 10^14 wei minimum
+    
     event MarketCreated(bytes32 indexed marketId, string question, uint8 numOutcomes, uint256 liquidity);
     event SharesPurchased(bytes32 indexed marketId, address indexed buyer, uint8 outcome, uint256 shares, uint256 cost);
     event SharesSold(bytes32 indexed marketId, address indexed seller, uint8 outcome, uint256 shares, uint256 payout);
@@ -36,7 +38,12 @@ contract PredictionMarketFacet is ReentrancyGuard {
 
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
 
-        marketId = keccak256(abi.encodePacked(_question, block.timestamp, block.number));
+        // Generate unique market ID using question, time, block, and counter to prevent collisions
+        marketId = keccak256(abi.encodePacked(_question, block.timestamp, block.number, ms.marketIds.length, msg.sender));
+        
+        // Verify market doesn't already exist (defensive check)
+        require(ms.markets[marketId].createdAt == 0, "Market ID collision");
+        
         LibMarket.Market storage market = ms.markets[marketId];
 
         market.id = marketId;
@@ -58,16 +65,31 @@ contract PredictionMarketFacet is ReentrancyGuard {
         emit MarketCreated(marketId, _question, market.numOutcomes, market.liquidity);
     }
 
-    /// @notice Calculate cost to buy shares using LMSR
+    /// @notice Calculate total cost to buy shares using LMSR (base + fee)
     /// @param _marketId The market ID
     /// @param _outcome The outcome to buy
     /// @param _numShares Number of shares to buy
-    /// @return cost The cost in wei
+    /// @return cost The total cost in wei (base LMSR cost + fee)
     function calculateCost(
         bytes32 _marketId,
         uint8 _outcome,
         uint256 _numShares
     ) public view returns (uint256 cost) {
+        (uint256 totalCost, ) = calculateCostWithFee(_marketId, _outcome, _numShares);
+        return totalCost;
+    }
+
+    /// @notice Calculate cost and fee separately using LMSR
+    /// @param _marketId The market ID
+    /// @param _outcome The outcome to buy
+    /// @param _numShares Number of shares to buy
+    /// @return totalCost The total cost (base + fee)
+    /// @return fee The fee portion
+    function calculateCostWithFee(
+        bytes32 _marketId,
+        uint8 _outcome,
+        uint256 _numShares
+    ) public view returns (uint256 totalCost, uint256 fee) {
         LibMarket.Market storage market = LibMarket.getMarket(_marketId);
         require(!market.resolved, "Market already resolved");
         require(_outcome < market.numOutcomes, "Invalid outcome");
@@ -81,12 +103,12 @@ contract PredictionMarketFacet is ReentrancyGuard {
         uint256 newShares = market.shares[_outcome] + _numShares;
         uint256 newCost = _costFunctionWithShares(market, b, _outcome, newShares);
 
-        // Cost is difference
-        cost = newCost - currentCost;
+        // Base cost is difference
+        uint256 baseCost = newCost - currentCost;
 
-        // Add fee
-        uint256 fee = (cost * market.feeRate) / 10000;
-        cost += fee;
+        // Calculate fee separately
+        fee = (baseCost * market.feeRate) / 10000;
+        totalCost = baseCost + fee;
     }
 
     /// @notice Buy shares in a market
@@ -98,35 +120,35 @@ contract PredictionMarketFacet is ReentrancyGuard {
         uint8 _outcome,
         uint256 _numShares
     ) external nonReentrant {
-        require(_numShares > 0, "Must buy at least 1 share");
+        require(_numShares >= MIN_SHARES, "Shares below minimum");
 
         LibMarket.Market storage market = LibMarket.getMarket(_marketId);
         require(!market.resolved, "Market already resolved");
         require(block.timestamp < market.resolveAt, "Market expired");
         require(_outcome < market.numOutcomes, "Invalid outcome");
 
-        uint256 cost = calculateCost(_marketId, _outcome, _numShares);
+        // Get cost and fee separately to ensure accurate fee distribution
+        (uint256 totalCost, uint256 fee) = calculateCostWithFee(_marketId, _outcome, _numShares);
 
         // Check and deduct balance
-        LibMarket.subtractBalance(msg.sender, cost);
+        LibMarket.subtractBalance(msg.sender, totalCost);
 
         // Update market state (CEI pattern)
         market.shares[_outcome] += _numShares;
-        market.totalVolume += cost;
+        market.totalVolume += totalCost;
 
         // Update position
         LibMarket.Position storage position = LibMarket.getPosition(msg.sender, _marketId);
         position.shares[_outcome] += _numShares;
-        position.totalInvested += cost;
+        position.totalInvested += totalCost;
 
-        // Distribute fee (consistent with calculateCost - fees added on top of LMSR cost)
+        // Distribute exact fee to recipient
         LibMarket.MarketStorage storage ms = LibMarket.marketStorage();
-        uint256 fee = (cost * market.feeRate) / 10000;
         if (fee > 0 && ms.feeRecipient != address(0)) {
             LibMarket.addBalance(ms.feeRecipient, fee);
         }
 
-        emit SharesPurchased(_marketId, msg.sender, _outcome, _numShares, cost);
+        emit SharesPurchased(_marketId, msg.sender, _outcome, _numShares, totalCost);
     }
 
     /// @notice Sell shares in a market
@@ -138,7 +160,7 @@ contract PredictionMarketFacet is ReentrancyGuard {
         uint8 _outcome,
         uint256 _numShares
     ) external nonReentrant {
-        require(_numShares > 0, "Must sell at least 1 share");
+        require(_numShares >= MIN_SHARES, "Shares below minimum");
 
         LibMarket.Market storage market = LibMarket.getMarket(_marketId);
         require(!market.resolved, "Market already resolved");

@@ -18,7 +18,8 @@ export interface BabylonA2ARuntime extends IAgentRuntime {
  * Initialize A2A client for Babylon
  */
 export async function initializeA2AClient(
-  endpoint?: string
+  endpoint?: string,
+  apiKey?: string
 ): Promise<A2AClient> {
   const babylonEndpoint =
     endpoint ||
@@ -26,12 +27,33 @@ export async function initializeA2AClient(
     process.env.NEXT_PUBLIC_APP_URL + '/.well-known/agent-card.json' ||
     'http://localhost:3000/.well-known/agent-card.json';
 
+  // Get API key from parameter or environment
+  const effectiveApiKey = apiKey || process.env.BABYLON_A2A_API_KEY;
+
   logger.info('Initializing A2A client for Babylon', {
     endpoint: babylonEndpoint,
+    hasApiKey: !!effectiveApiKey,
   });
 
-  // Use SDK to create client from agent card
-  const client = await A2AClient.fromCardUrl(babylonEndpoint);
+  // Create custom fetch that includes API key header for authentication
+  const authenticatedFetch = async (
+    url: string | URL | Request,
+    init?: RequestInit
+  ): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+
+    // Add API key for A2A authentication
+    if (effectiveApiKey) {
+      headers.set('x-babylon-api-key', effectiveApiKey);
+    }
+
+    return fetch(url, { ...init, headers });
+  };
+
+  // Use SDK to create client from agent card with authenticated fetch
+  const client = await A2AClient.fromCardUrl(babylonEndpoint, {
+    fetchImpl: authenticatedFetch,
+  } as Parameters<typeof A2AClient.fromCardUrl>[1]);
 
   // Validate Babylon capabilities
   const card = await client.getAgentCard();

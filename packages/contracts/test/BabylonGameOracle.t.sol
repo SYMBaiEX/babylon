@@ -1,30 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import {BabylonGameOracle} from "../src/game/BabylonGameOracle.sol";
-import {Predimarket} from "../src/prediction-markets/Predimarket.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract MockERC20 is ERC20 {
-    constructor() ERC20("Test Token", "TEST") {
-        _mint(msg.sender, 1000000 * 10**18);
-    }
-    
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
-
+/**
+ * @title BabylonGameOracleTest
+ * @notice Tests for BabylonGameOracle - THE GAME IS THE PREDICTION ORACLE
+ * @dev Tests the IPredictionOracle implementation that external contracts query
+ * 
+ * Architecture:
+ * - Game engine commits/reveals outcomes via BabylonGameOracle
+ * - BabylonGameOracle stores outcomes on-chain
+ * - External contracts (Diamond, etc.) query getOutcome(sessionId)
+ */
 contract BabylonGameOracleTest is Test {
     BabylonGameOracle public oracle;
-    Predimarket public predimarket;
-    MockERC20 public token;
     
     address public gameServer = address(0x1);
     address public user1 = address(0x2);
     address public user2 = address(0x3);
-    address public treasury = address(0x4);
     
     bytes32 public sessionId;
     string public questionId = "test-question-1";
@@ -49,23 +44,8 @@ contract BabylonGameOracleTest is Test {
     );
     
     function setUp() public {
-        // Deploy token
-        token = new MockERC20();
-        
-        // Deploy oracle
+        // Deploy oracle - THE GAME IS THE PREDICTION ORACLE
         oracle = new BabylonGameOracle(gameServer);
-        
-        // Deploy predimarket
-        predimarket = new Predimarket(
-            address(token),
-            address(oracle),
-            treasury,
-            address(this)
-        );
-        
-        // Mint tokens to users
-        token.mint(user1, 10000 * 10**18);
-        token.mint(user2, 10000 * 10**18);
         
         // Generate commitment
         commitment = keccak256(abi.encode(outcome, salt));
@@ -93,7 +73,7 @@ contract BabylonGameOracleTest is Test {
         assertEq(storedQuestionId, questionId, "Question ID should match");
         
         // Verify outcome not finalized yet
-        (bool outcomeResult, bool finalized) = oracle.getOutcome(sessionId);
+        (, bool finalized) = oracle.getOutcome(sessionId);
         assertFalse(finalized, "Should not be finalized");
         
         // Verify statistics
@@ -132,7 +112,7 @@ contract BabylonGameOracleTest is Test {
             1000 * 10**18  // totalPayout
         );
         
-        // Verify outcome is finalized
+        // Verify outcome is finalized - THIS IS WHAT EXTERNAL CONTRACTS QUERY
         (bool outcomeResult, bool finalized) = oracle.getOutcome(sessionId);
         assertTrue(finalized, "Should be finalized");
         assertEq(outcomeResult, outcome, "Outcome should match");
@@ -148,6 +128,42 @@ contract BabylonGameOracleTest is Test {
         assertEq(committed, 1, "Should have 1 committed");
         assertEq(revealed, 1, "Should have 1 revealed");
         assertEq(pending, 0, "Should have 0 pending");
+    }
+    
+    function testIPredictionOracleInterface() public {
+        // Commit game
+        vm.prank(gameServer);
+        sessionId = oracle.commitBabylonGame(
+            questionId,
+            1,
+            question,
+            commitment,
+            "crypto"
+        );
+        
+        // Before reveal: getOutcome returns (false, false)
+        (, bool finalizedBefore) = oracle.getOutcome(sessionId);
+        assertFalse(finalizedBefore, "Should not be finalized before reveal");
+        
+        // Reveal game
+        address[] memory winners = new address[](1);
+        winners[0] = user1;
+        
+        vm.prank(gameServer);
+        oracle.revealBabylonGame(sessionId, outcome, salt, "", winners, 0);
+        
+        // After reveal: getOutcome returns (true, true)
+        (bool outcomeAfter, bool finalizedAfter) = oracle.getOutcome(sessionId);
+        assertTrue(finalizedAfter, "Should be finalized after reveal");
+        assertTrue(outcomeAfter, "Outcome should be YES (true)");
+        
+        // isWinner should work
+        assertTrue(oracle.isWinner(sessionId, user1), "User1 should be winner");
+        assertFalse(oracle.isWinner(sessionId, user2), "User2 should not be winner");
+        
+        // verifyCommitment should work
+        assertTrue(oracle.verifyCommitment(commitment), "Commitment should exist");
+        assertFalse(oracle.verifyCommitment(bytes32(0)), "Zero commitment should not exist");
     }
     
     function testRevealWithInvalidSalt() public {
@@ -245,73 +261,12 @@ contract BabylonGameOracleTest is Test {
         
         (uint256 committedAfter, , ) = oracle.getStatistics();
         assertEq(committedAfter, committedBefore + 3, "Should have 3 more committed");
-    }
-    
-    function testPredimarketIntegration() public {
-        // Commit game
-        vm.prank(gameServer);
-        sessionId = oracle.commitBabylonGame(
-            questionId,
-            1,
-            question,
-            commitment,
-            "crypto"
-        );
         
-        // Create market
-        predimarket.createMarketWithType(
-            sessionId,
-            question,
-            1000 * 10**18,  // liquidity
-            Predimarket.GameType.GENERIC,
-            address(oracle)
-        );
-        
-        // Users trade
-        vm.startPrank(user1);
-        token.approve(address(predimarket), 1000 * 10**18);
-        predimarket.buy(sessionId, true, 100 * 10**18, 0);  // Buy YES
-        vm.stopPrank();
-        
-        vm.startPrank(user2);
-        token.approve(address(predimarket), 1000 * 10**18);
-        predimarket.buy(sessionId, false, 100 * 10**18, 0);  // Buy NO
-        vm.stopPrank();
-        
-        // Reveal game
-        address[] memory winners = new address[](1);
-        winners[0] = user1;
-        
-        vm.prank(gameServer);
-        oracle.revealBabylonGame(
-            sessionId,
-            outcome,  // true (YES wins)
-            salt,
-            "",
-            winners,
-            200 * 10**18
-        );
-        
-        // Resolve market
-        predimarket.resolveMarket(sessionId);
-        
-        // Verify market resolved correctly
-        Predimarket.Market memory market = predimarket.getMarket(sessionId);
-        assertTrue(market.resolved, "Market should be resolved");
-        assertTrue(market.outcome, "Outcome should be true");
-        
-        // User1 (YES) should be able to claim
-        uint256 balanceBefore = token.balanceOf(user1);
-        vm.prank(user1);
-        predimarket.claimPayout(sessionId);
-        uint256 balanceAfter = token.balanceOf(user1);
-        
-        assertTrue(balanceAfter > balanceBefore, "Winner should receive payout");
-        
-        // User2 (NO) should not receive payout
-        vm.prank(user2);
-        vm.expectRevert();
-        predimarket.claimPayout(sessionId);
+        // Verify each session can be queried via IPredictionOracle
+        for (uint i = 0; i < 3; i++) {
+            (, bool finalized) = oracle.getOutcome(sessionIds[i]);
+            assertFalse(finalized, "Each session should not be finalized yet");
+        }
     }
     
     function testPauseUnpause() public {
@@ -363,5 +318,32 @@ contract BabylonGameOracleTest is Test {
         
         vm.stopPrank();
     }
+    
+    function testQuestionIdMappings() public {
+        vm.prank(gameServer);
+        sessionId = oracle.commitBabylonGame(
+            questionId,
+            1,
+            question,
+            commitment,
+            "crypto"
+        );
+        
+        // Test bidirectional mappings
+        bytes32 lookedUpSessionId = oracle.getSessionIdByQuestionId(questionId);
+        assertEq(lookedUpSessionId, sessionId, "Session ID lookup should match");
+        
+        string memory lookedUpQuestionId = oracle.getQuestionIdBySessionId(sessionId);
+        assertEq(lookedUpQuestionId, questionId, "Question ID lookup should match");
+    }
+    
+    function testContractMetadata() public view {
+        string memory metadata = oracle.getContractMetadata();
+        assertTrue(bytes(metadata).length > 0, "Metadata should not be empty");
+        // Should contain prediction-oracle type
+        assertTrue(
+            keccak256(bytes(metadata)) == keccak256(bytes('{"type":"prediction-oracle","subtype":"babylon-game","name":"Babylon Game Oracle","category":"social-prediction","version":"1.0.0"}')),
+            "Metadata should match expected format"
+        );
+    }
 }
-

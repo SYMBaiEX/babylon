@@ -1,63 +1,13 @@
 /**
- * Babylon Game World Generator
- *
- * @module engine/GameWorld
- *
- * @description
- * Generates complete narrative worlds with NPCs, events, and predetermined outcomes
- * that agents observe and bet on. This is the "reality" of the game - agents don't
- * participate in or influence this world, they only observe and predict outcomes.
- *
- * **What This Generates:**
- * - 30 days of narrative events and developments
- * - NPC conversations and private discussions
- * - Clues and information reveals (public and leaked)
- * - News reports, rumors, and expert analysis
- * - Social media feed posts and reactions
- * - Final outcome revelation
- *
- * **World vs Betting:**
- * - GameWorld = what actually happens (predetermined narrative)
- * - Agents = observers who bet on outcomes (don't affect world)
- * - Feed = how agents learn about the world (filtered, biased)
- * - Markets = where agents bet on predictions
- *
- * **Generation Phases:**
- * - **Early (Days 1-10)**: Rumors, leaks, initial reports
- * - **Mid (Days 11-20)**: Meetings, analysis, developments
- * - **Late (Days 21-30)**: Revelations, whistleblowers, final events
- *
- * **LLM Integration:**
- * - Optional LLM for rich content generation
- * - Falls back to templates if LLM unavailable
- * - Uses prompts from @/prompts for consistency
- *
- * **Event Types:**
- * - announcement, meeting, leak, development
- * - scandal, rumor, deal, conflict, revelation
- *
- * @see {@link GameEngine} - Production system (not used in GameEngine)
- * @see {@link FeedGenerator} - Converts events to social media posts
- *
- * @example
- * ```typescript
- * const world = new GameWorld({ outcome: true }, llmClient);
- *
- * world.on('feed:post', (post) => {
- *   console.log(`${post.authorName}: ${post.content}`);
- * });
- *
- * const finalWorld = await world.generate();
- * console.log(`Question: ${finalWorld.question}`);
- * console.log(`Outcome: ${finalWorld.outcome ? 'YES' : 'NO'}`);
- * console.log(`Events: ${finalWorld.events.length}`);
- * console.log(`Timeline: ${finalWorld.timeline.length} days`);
- * ```
+ * Generates complete narrative worlds with NPCs, events, and predetermined outcomes.
+ * This is the "reality" of the game - agents observe and predict, but don't influence.
  */
 
+import type { PerpMarketRecord } from '@babylon/core/markets/perps';
+import { generateSnowflakeId, type WorldEvent } from '@babylon/shared';
 import { EventEmitter } from 'events';
-import { characterMappingService } from './services/character-mapping-service';
-import { generateSnowflakeId } from '@babylon/shared';
+import { type FeedEvent, FeedGenerator } from './FeedGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
 import {
   daySummary,
   expertAnalysis,
@@ -66,14 +16,67 @@ import {
   renderPrompt,
   rumor,
 } from './prompts';
-import type { PerpMarket } from './types/perps';
+import { characterMappingService } from './services/character-mapping-service';
+import { TrendingTopicsEngine } from './TrendingTopicsEngine';
 import type { JsonValue } from './types/common';
-import { type FeedEvent, FeedGenerator } from './FeedGenerator';
-import type { BabylonLLMClient } from './llm/openai-client';
+import type { FeedPost } from './types/shared';
+import { firstOrThrow } from './utils/array-utils';
+import {
+  type EventCooldownState,
+  generateSentimentSignal,
+  securePickN,
+  secureRandom,
+  secureShuffle,
+  shouldFireEvent,
+} from './utils/entropy';
 
 export interface MarketContext {
-  markets: PerpMarket[];
+  markets: PerpMarketRecord[];
   significantMoves: { ticker: string; change: number }[];
+}
+
+/**
+ * Causal event type for generating events from hidden facts
+ */
+export type CausalEventType =
+  | 'leak'
+  | 'rumor'
+  | 'scandal'
+  | 'development'
+  | 'deal'
+  | 'announcement';
+
+/**
+ * Scheduled causal event from hidden narrative facts
+ */
+export interface ScheduledCausalEvent {
+  /** Tick when this event should occur */
+  tick: number;
+  /** Day when this event should occur */
+  day: number;
+  /** Hour when this event should occur */
+  hour: number;
+  /** Type of event */
+  eventType: CausalEventType;
+  /** Description of the event */
+  description: string;
+  /** Tickers affected by this event */
+  affectedTickers: string[];
+  /** Whether the event is positive or negative */
+  isPositive: boolean;
+  /** ID of the source hidden fact */
+  sourceFactId: string;
+}
+
+/**
+ * Context for causal event generation
+ * Contains pre-calculated events from hidden narrative facts
+ */
+export interface CausalEventContext {
+  /** List of scheduled causal events from hidden narrative facts */
+  scheduledEvents: ScheduledCausalEvent[];
+  /** Current tick number in the simulation */
+  currentTick: number;
 }
 
 /**
@@ -93,16 +96,6 @@ export interface GameWorldEvents {
   event: { type: string; data: JsonValue };
 }
 
-/**
- * World generation configuration
- *
- * @interface WorldConfig
- *
- * @property outcome - Predetermined outcome (true = success/YES, false = failure/NO)
- * @property numNPCs - Number of NPCs in the world (default: 8)
- * @property duration - Game duration in days (default: 30)
- * @property verbosity - Content detail level (default: 'normal')
- */
 export interface WorldConfig {
   outcome: boolean;
   numNPCs?: number;
@@ -110,76 +103,10 @@ export interface WorldConfig {
   verbosity?: 'minimal' | 'normal' | 'detailed';
 }
 
-/**
- * World Event - Actual story events that occur in the game
- *
- * @interface WorldEvent
- *
- * @description
- * Canonical representation of events that happen in the game world. These are the
- * "actual events" that actors observe and react to via the social feed. Each event
- * can point toward a question outcome and has varying levels of visibility.
- *
- * **This is THE WorldEvent:**
- * - Used throughout entire engine (GameWorld, FeedGenerator, GameEngine)
- * - Represents what "actually happened" (not just posts/reactions)
- * - Feed posts are reactions TO these events
- *
- * @property id - Unique event identifier
- * @property day - Game day number (1-30) when event occurred
- * @property type - Event category (determines impact and reactions)
- * @property description - Event description (max 150 chars, dramatic and specific)
- * @property actors - Actor IDs involved in this event
- * @property visibility - Who can see this event
- * @property pointsToward - Optional hint toward question outcome
- * @property relatedQuestion - Optional prediction market question ID
- *
- * **Event Types:**
- * - `announcement`: Official public statements
- * - `meeting`: Private meetings (may leak)
- * - `leak`: Information leaked to media
- * - `development`: Progress updates
- * - `scandal`: Negative revelations
- * - `rumor`: Unconfirmed reports
- * - `deal`: Business transactions
- * - `conflict`: Disputes or conflicts
- * - `revelation`: Major discoveries
- * - `development:occurred`: Internal development marker
- * - `news:published`: News article published marker
- *
- * **Visibility Levels:**
- * - `public`: Everyone sees it
- * - `leaked`: Media has it, public soon
- * - `secret`: Only involved actors know
- * - `private`: Small group knows
- * - `group`: Group chat only
- */
-export interface WorldEvent {
-  id: string;
-  day: number;
-  type:
-    | 'announcement'
-    | 'meeting'
-    | 'leak'
-    | 'development'
-    | 'scandal'
-    | 'rumor'
-    | 'deal'
-    | 'conflict'
-    | 'revelation'
-    | 'development:occurred'
-    | 'news:published';
-  description: string;
-  actors: string[];
-  visibility: 'public' | 'leaked' | 'secret' | 'private' | 'group';
-  pointsToward?: 'YES' | 'NO' | null;
-  relatedQuestion?: number | null;
-}
+// WorldEvent is now imported from @babylon/shared (see imports above)
+// Re-export for backwards compatibility with files that import from './GameWorld'
+export type { WorldEvent };
 
-/**
- * EmitterEvent - Internal EventEmitter format for tracking world state changes
- * Used by GameWorld for event emission and logging
- */
 interface EmitterEvent {
   type: EmitterEventType;
   day: number;
@@ -336,7 +263,63 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   private currentDay = 0;
   private npcs: NPC[] = [];
   private feedGenerator: FeedGenerator;
+  private trendingTopics?: TrendingTopicsEngine;
+  private recentPosts: FeedPost[] = [];
+  private tickCount = 0;
   private llm?: BabylonLLMClient;
+
+  // Event cooldown state for probability-based generation
+  private eventCooldowns: {
+    rumor: EventCooldownState;
+    leak: EventCooldownState;
+    development: EventCooldownState;
+    meeting: EventCooldownState;
+    scandal: EventCooldownState;
+    revelation: EventCooldownState;
+  } = {
+    rumor: {
+      lastOccurrence: 0,
+      minCooldown: 2,
+      baseProbability: 0.25,
+      decayRate: 0.15,
+      maxProbability: 0.8,
+    },
+    leak: {
+      lastOccurrence: 0,
+      minCooldown: 3,
+      baseProbability: 0.15,
+      decayRate: 0.1,
+      maxProbability: 0.6,
+    },
+    development: {
+      lastOccurrence: 0,
+      minCooldown: 4,
+      baseProbability: 0.2,
+      decayRate: 0.12,
+      maxProbability: 0.7,
+    },
+    meeting: {
+      lastOccurrence: 0,
+      minCooldown: 3,
+      baseProbability: 0.18,
+      decayRate: 0.1,
+      maxProbability: 0.65,
+    },
+    scandal: {
+      lastOccurrence: 0,
+      minCooldown: 5,
+      baseProbability: 0.1,
+      decayRate: 0.08,
+      maxProbability: 0.5,
+    },
+    revelation: {
+      lastOccurrence: 0,
+      minCooldown: 6,
+      baseProbability: 0.08,
+      decayRate: 0.06,
+      maxProbability: 0.4,
+    },
+  };
 
   /**
    * Create a new GameWorld generator
@@ -369,6 +352,36 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
     this.llm = llm;
     this.feedGenerator = new FeedGenerator(llm);
+
+    // Initialize trending topics engine if LLM is available
+    if (llm) {
+      this.trendingTopics = new TrendingTopicsEngine(llm);
+      this.feedGenerator.setTrendingTopics(this.trendingTopics);
+    }
+  }
+
+  /**
+   * Get all NPCs in the world
+   *
+   * @returns Array of NPCs with their roles, personalities, and reliability
+   *
+   * @description
+   * Returns the list of NPCs created for this world. Each NPC has:
+   * - id: Unique identifier (e.g., 'npc-0')
+   * - name: Display name (e.g., 'Insider Ian')
+   * - role: Role type (insider, expert, journalist, etc.)
+   * - personality: Personality description
+   * - reliability: How often they tell truth (0-1)
+   * - knowsTruth: Whether they know the actual outcome
+   *
+   * @example
+   * ```typescript
+   * const npcs = world.getNPCs();
+   * const insiders = npcs.filter(npc => npc.role === 'insider');
+   * ```
+   */
+  getNPCs(): NPC[] {
+    return this.npcs;
   }
 
   /**
@@ -484,6 +497,21 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
         this.npcs
       );
 
+      // Accumulate posts for trending analysis and update trends
+      this.tickCount++;
+      if (feedPosts.length > 0) {
+        this.recentPosts = [...this.recentPosts, ...feedPosts].slice(-200);
+
+        // Update trending topics (engine handles interval internally)
+        if (this.trendingTopics) {
+          await this.trendingTopics.updateTrends(
+            this.recentPosts,
+            this.tickCount
+          );
+          this.feedGenerator.updateTrendContext();
+        }
+      }
+
       // Emit each feed post as it would appear
       feedPosts.forEach((post) => {
         this.emit('feed:post', post);
@@ -509,7 +537,9 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     this.emitEvent(
       'outcome:revealed',
       { outcome: this.config.outcome },
-      `The truth is revealed: The outcome is ${this.config.outcome ? 'SUCCESS' : 'FAILURE'}`
+      `The truth is revealed: The outcome is ${
+        this.config.outcome ? 'SUCCESS' : 'FAILURE'
+      }`
     );
 
     this.emitEvent('world:ended', {
@@ -586,53 +616,80 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
   /**
    * Generate mid-game world events (Days 11-20)
-   * Uses LLM for expert analysis and NPC conversations
+   * Signals become more balanced with slight bias toward truth.
+   * Uses probability-based triggers with phase-appropriate signal strength.
    */
   private async generateMidWorldEvents(day: number): Promise<WorldEvent[]> {
     const events: WorldEvent[] = [];
     const allWorldEvents = this.events.filter((e) => e.day < day);
 
-    if (day === 15) {
-      const expert = this.npcs.find((n) => n.role === 'expert');
+    // Development event - key turning points
+    if (shouldFireEvent(this.eventCooldowns.development, day)) {
+      const experts = this.npcs.filter((n) => n.role === 'expert');
+      const expert = experts.length > 0 ? secureShuffle(experts)[0] : undefined;
 
-      // Generate expert analysis using LLM
       const expertAnalysisText = expert
         ? await this.generateExpertAnalysis(expert, allWorldEvents)
         : this.config.outcome
           ? 'Major breakthrough achieved in critical testing phase'
           : 'Critical system failure discovered during final tests';
 
+      // Mid-phase: moderate signal strength, moderate noise
+      const sentimentSignal = generateSentimentSignal(
+        this.config.outcome,
+        0.5, // medium signal
+        0.25 // moderate noise
+      );
+
+      // Pick random mix of experts and insiders
+      const relevantNpcs = this.npcs.filter(
+        (n) => n.role === 'expert' || n.role === 'insider'
+      );
+      const selectedNpcs = securePickN(relevantNpcs, 2);
+
       const event = this.createEvent(
-        `world-${day}-1`,
+        `world-${day}-${secureRandom().toString(36).slice(2, 8)}`,
         day,
         'development',
         expertAnalysisText,
-        this.npcs
-          .filter((n) => n.role === 'expert' || n.role === 'insider')
-          .map((n) => n.id)
-          .slice(0, 2),
+        selectedNpcs.map((n) => n.id),
         'public',
-        this.config.outcome ? 'YES' : 'NO'
+        this.sentimentToDirection(sentimentSignal)
       );
       this.emitWorldEvent(event);
       events.push(event);
     }
 
-    if (day % 4 === 0) {
-      // Generate NPC conversation using LLM
+    // Meeting event - leaked conversations
+    if (shouldFireEvent(this.eventCooldowns.meeting, day)) {
+      // Pick random subset of NPCs for the conversation
+      const shuffledNpcs = secureShuffle(this.npcs);
+      const participants = shuffledNpcs.slice(
+        0,
+        2 + Math.floor(secureRandom() * 2)
+      ); // 2-3 participants
+
       const conversationText = await this.generateNPCConversation(
         day,
-        this.npcs.slice(0, 3),
+        participants,
         allWorldEvents
       );
 
+      // Meetings can reveal mixed signals
+      const sentimentSignal = generateSentimentSignal(
+        this.config.outcome,
+        0.45,
+        0.3
+      );
+
       const event = this.createEvent(
-        `world-${day}-2`,
+        `world-${day}-${secureRandom().toString(36).slice(2, 8)}`,
         day,
         'meeting',
         conversationText,
-        this.npcs.slice(0, 3).map((n) => n.id),
-        'leaked'
+        participants.map((n) => n.id),
+        'leaked',
+        this.sentimentToDirection(sentimentSignal)
       );
       this.emitWorldEvent(event);
       events.push(event);
@@ -643,63 +700,125 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
   /**
    * Generate late game world events (Days 21-30)
-   * Uses LLM for dramatic reveals and final analysis
+   * Signals become clearer and more strongly point toward the truth.
+   * Higher probability of significant events as resolution approaches.
    */
   private async generateLateWorldEvents(day: number): Promise<WorldEvent[]> {
     const events: WorldEvent[] = [];
     const allWorldEvents = this.events.filter((e) => e.day < day);
 
-    if (day === 25) {
-      const whistleblower = this.npcs.find((n) => n.role === 'whistleblower');
-      const journalist = this.npcs.find((n) => n.role === 'journalist');
+    // Calculate urgency multiplier - probability increases as we approach day 30
+    const daysRemaining = 30 - day;
+    const urgencyMultiplier = 1 + (10 - daysRemaining) * 0.1; // 1.0 to 2.0
 
-      // Generate whistleblower news report using LLM
+    // Scandal/revelation events - more likely in late game
+    const adjustedScandalState = {
+      ...this.eventCooldowns.scandal,
+      baseProbability:
+        this.eventCooldowns.scandal.baseProbability * urgencyMultiplier,
+    };
+
+    if (shouldFireEvent(adjustedScandalState, day)) {
+      this.eventCooldowns.scandal.lastOccurrence = day;
+
+      const whistleblowers = this.npcs.filter(
+        (n) => n.role === 'whistleblower'
+      );
+      const journalists = this.npcs.filter((n) => n.role === 'journalist');
+      const whistleblower =
+        whistleblowers.length > 0
+          ? secureShuffle(whistleblowers)[0]
+          : undefined;
+      const journalist =
+        journalists.length > 0 ? secureShuffle(journalists)[0] : undefined;
+
       const whistleblowerReport = journalist
         ? await this.generateNewsReport(day, journalist, allWorldEvents)
         : this.config.outcome
           ? 'Whistleblower leaks documents confirming project success'
           : 'Whistleblower reveals documents showing project failure';
 
+      // Late phase: strong signal, low noise
+      const sentimentSignal = generateSentimentSignal(
+        this.config.outcome,
+        0.75, // strong signal
+        0.15 // low noise
+      );
+
       const event = this.createEvent(
-        `world-${day}-1`,
+        `world-${day}-${secureRandom().toString(36).slice(2, 8)}`,
         day,
         'scandal',
         whistleblowerReport,
         whistleblower ? [whistleblower.id] : [],
         'public',
-        this.config.outcome ? 'YES' : 'NO'
+        this.sentimentToDirection(sentimentSignal)
       );
       this.emitWorldEvent(event);
       events.push(event);
     }
 
-    if (day === 29) {
-      const expert = this.npcs.find((n) => n.role === 'expert');
+    // Development/revelation events - climactic moments
+    const adjustedDevState = {
+      ...this.eventCooldowns.development,
+      baseProbability:
+        this.eventCooldowns.development.baseProbability * urgencyMultiplier,
+    };
 
-      // Generate final expert analysis using LLM
+    if (shouldFireEvent(adjustedDevState, day)) {
+      this.eventCooldowns.development.lastOccurrence = day;
+
+      const experts = this.npcs.filter((n) => n.role === 'expert');
+      const expert = experts.length > 0 ? secureShuffle(experts)[0] : undefined;
+
       const finalAnalysis = expert
         ? await this.generateExpertAnalysis(expert, allWorldEvents)
         : this.config.outcome
           ? 'Final test successful - all systems operational'
           : 'Final test failed - project officially cancelled';
 
+      // Very late (last 3 days): very strong signal
+      const signalStrength = daysRemaining <= 3 ? 0.9 : 0.7;
+      const noiseLevel = daysRemaining <= 3 ? 0.05 : 0.15;
+      const sentimentSignal = generateSentimentSignal(
+        this.config.outcome,
+        signalStrength,
+        noiseLevel
+      );
+
+      const relevantNpcs = this.npcs.filter(
+        (n) => n.role === 'insider' || n.role === 'expert'
+      );
+      const selectedNpcs = securePickN(relevantNpcs, 2);
+
       const event = this.createEvent(
-        `world-${day}-1`,
+        `world-${day}-${secureRandom().toString(36).slice(2, 8)}`,
         day,
         'development',
         finalAnalysis,
-        this.npcs
-          .filter((n) => n.role === 'insider' || n.role === 'expert')
-          .map((n) => n.id)
-          .slice(0, 2),
+        selectedNpcs.map((n) => n.id),
         'public',
-        this.config.outcome ? 'YES' : 'NO'
+        this.sentimentToDirection(sentimentSignal)
       );
       this.emitWorldEvent(event);
       events.push(event);
     }
 
     return events;
+  }
+
+  /**
+   * Convert a sentiment signal (-1 to 1) to a direction
+   * Uses fuzzy threshold to avoid perfect correlation
+   */
+  private sentimentToDirection(sentiment: number): 'YES' | 'NO' | null {
+    // Add slight randomness to threshold
+    const threshold = 0.2 + secureRandom() * 0.15;
+
+    if (Math.abs(sentiment) < threshold) {
+      return null; // Ambiguous
+    }
+    return sentiment > 0 ? 'YES' : 'NO';
   }
 
   /**
@@ -775,8 +894,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'Will the climate summit reach an agreement?',
       'Will the merger between MegaCorp and TechGiant close?',
     ];
-    const index = Math.floor(Math.random() * questions.length);
-    return questions[index] ?? questions[0]!;
+    // Validate that questions array is non-empty
+    firstOrThrow(questions, 'No questions available');
+    const index = Math.floor(secureRandom() * questions.length);
+    return questions[index]!;
   }
 
   private generatePersonality(): string {
@@ -787,8 +908,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       'emotional',
       'contrarian',
     ];
-    const index = Math.floor(Math.random() * personalities.length);
-    return personalities[index] ?? personalities[0]!;
+    // Validate non-empty (compile-time guarantee, but explicit for safety)
+    firstOrThrow(personalities, 'No personalities available');
+    const index = Math.floor(secureRandom() * personalities.length);
+    return personalities[index]!;
   }
 
   private async generateNewsReport(
@@ -809,6 +932,11 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       ? 'hints at'
       : 'speculates about';
 
+    const recentEventsStr =
+      events.length > 0
+        ? events.map((e) => e.description).join('; ')
+        : 'Quiet period in the markets.';
+
     const prompt = renderPrompt(newsReport, {
       day: day.toString(),
       question: this.generateQuestion(),
@@ -816,7 +944,7 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       journalistName: journalist.name,
       journalistRole: journalist.role,
       journalistReliability: journalist.reliability.toString(),
-      recentEvents: events.map((e) => e.description).join('; '),
+      recentEvents: recentEventsStr, // Use patched variable
       reputationContext,
       truthContext,
     });
@@ -858,22 +986,30 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
             'Unconfirmed: Internal memos show concerns',
             'Rumor: Key stakeholders expressing doubts',
           ];
-      const index = Math.floor(Math.random() * rumors.length);
-      return rumors[index] ?? rumors[0]!;
+      // Validate non-empty (compile-time guarantee, but explicit for safety)
+      firstOrThrow(rumors, 'No rumors available');
+      const index = Math.floor(secureRandom() * rumors.length);
+      return rumors[index]!;
     }
 
     const outcomeHint = this.config.outcome
       ? 'Leans positive'
       : 'Raises concerns';
 
+    // Handle empty events list
+    const recentEventsStr =
+      events.length > 0
+        ? events
+            .slice(-3)
+            .map((e) => e.description)
+            .join('; ')
+        : 'No major public events yet, but tension is building.';
+
     const prompt = renderPrompt(rumor, {
       day: day.toString(),
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
-      recentEvents: events
-        .slice(-3)
-        .map((e) => e.description)
-        .join('; '),
+      recentEvents: recentEventsStr, // Use patched variable
       outcomeHint,
     });
 
@@ -913,10 +1049,13 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
       participants: participantsStr,
-      recentEvents: events
-        .slice(-2)
-        .map((e) => e.description)
-        .join('; '),
+      recentEvents:
+        events.length > 0
+          ? events
+              .slice(-2)
+              .map((e) => e.description)
+              .join('; ')
+          : 'The current state of the market.',
     });
 
     const rawResponse = await this.llm.generateJSON<
@@ -925,14 +1064,19 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
     // Handle XML structure
     const response =
-      'response' in rawResponse && rawResponse.response
+      rawResponse && 'response' in rawResponse && rawResponse.response
         ? rawResponse.response
         : (rawResponse as { conversation: string });
 
+    // SAFEGUARD: Ensure we have a string before processing
+    const textToProcess =
+      typeof response?.conversation === 'string'
+        ? response.conversation
+        : 'NPCs discuss the situation.';
+
     // Apply character mapping to replace any real names with fictional equivalents
-    const processed = await characterMappingService.transformText(
-      response.conversation
-    );
+    const processed =
+      await characterMappingService.transformText(textToProcess);
     return processed.transformedText;
   }
 
@@ -941,7 +1085,9 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     events: WorldEvent[]
   ): Promise<string> {
     if (!this.llm) {
-      return `${expert.name} publishes analysis: ${this.config.outcome ? 'Indicators positive' : 'Warning signs evident'}`;
+      return `${expert.name} publishes analysis: ${
+        this.config.outcome ? 'Indicators positive' : 'Warning signs evident'
+      }`;
     }
 
     const confidenceContext = expert.knowsTruth
@@ -957,10 +1103,13 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       expertRole: expert.role,
       knowsTruth: expert.knowsTruth.toString(),
       reliability: expert.reliability.toString(),
-      recentEvents: events
-        .slice(-5)
-        .map((e) => e.description)
-        .join('; '),
+      recentEvents:
+        events.length > 0
+          ? events
+              .slice(-5)
+              .map((e) => e.description)
+              .join('; ')
+          : 'Underlying market indicators.',
       confidenceContext,
       reliabilityContext,
     });
@@ -1041,7 +1190,10 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
 
     // Simple group messages (fallback for non-LLM mode)
     // NOTE: GameGenerator provides LLM-powered group messages for full game generation
-    if (worldEvents.length > 0 && day % 3 === 0) {
+    // Use probability instead of deterministic day check
+    const shouldGenerateGroupMessages =
+      worldEvents.length > 0 && secureRandom() < 0.35;
+    if (shouldGenerateGroupMessages) {
       const firstEvent = worldEvents[0];
       if (firstEvent) {
         messages['group-0'] = [
@@ -1061,6 +1213,15 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   /**
    * Create a properly structured WorldEvent
    * Used by event generation methods to create game story events
+   *
+   * @param id - Unique event identifier
+   * @param day - Day number
+   * @param type - Event type
+   * @param description - Event description
+   * @param actors - Actor IDs involved
+   * @param visibility - Event visibility level
+   * @param pointsToward - Direction signal (derived from sentiment if not provided)
+   * @param sentimentData - Optional sentiment signal data
    */
   private createEvent(
     id: string,
@@ -1069,8 +1230,28 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     description: string,
     actors: string[],
     visibility: WorldEvent['visibility'],
-    pointsToward?: WorldEvent['pointsToward']
+    pointsToward?: WorldEvent['pointsToward'],
+    sentimentData?: {
+      sentimentSignal: number;
+      signalClarity: number;
+      sourceReliability: number;
+    }
   ): WorldEvent {
+    // Generate default sentiment data if not provided but pointsToward is
+    let sentiment = sentimentData;
+    if (!sentiment && pointsToward) {
+      // Convert pointsToward to sentiment signal
+      sentiment = {
+        sentimentSignal: generateSentimentSignal(
+          pointsToward === 'YES',
+          0.6,
+          0.2
+        ),
+        signalClarity: 0.5 + secureRandom() * 0.3,
+        sourceReliability: 0.5 + secureRandom() * 0.3,
+      };
+    }
+
     return {
       id,
       day,
@@ -1079,6 +1260,12 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
       actors,
       visibility,
       pointsToward,
+      // Include sentiment data if available
+      ...(sentiment && {
+        sentimentSignal: sentiment.sentimentSignal,
+        signalClarity: sentiment.signalClarity,
+        sourceReliability: sentiment.sourceReliability,
+      }),
     };
   }
 
@@ -1104,15 +1291,32 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   }
 
   /**
-   * Generate events for a specific tick, incorporating market feedback
+   * Generate events for a specific tick, incorporating market feedback and causal events
    * This replaces/augments the static daily generation
+   *
+   * @param day - Current day (1-30)
+   * @param hour - Current hour (0-23)
+   * @param marketContext - Optional market context for market-driven events
+   * @param causalContext - Optional causal context for hidden fact-driven events
    */
   public async generateTickEvents(
     day: number,
     hour: number,
-    marketContext?: MarketContext
+    marketContext?: MarketContext,
+    causalContext?: CausalEventContext
   ): Promise<WorldEvent[]> {
     const events: WorldEvent[] = [];
+
+    // 0. Check for Causal Events from Hidden Facts (takes priority)
+    // These are deterministic events based on hidden narrative facts
+    if (causalContext && causalContext.scheduledEvents.length > 0) {
+      const causalEvents = await this.generateEventsFromCausalContext(
+        day,
+        hour,
+        causalContext
+      );
+      events.push(...causalEvents);
+    }
 
     // 1. Check for Market-Driven Events (Emergence)
     if (marketContext && marketContext.significantMoves.length > 0) {
@@ -1145,29 +1349,144 @@ export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
     }
 
     // 2. Standard Narrative Events (from existing logic)
+    // Only generate if no causal events occurred this tick (to avoid noise)
     // Simple probabilistic event generation for non-market hours
     // Events mostly happen during day hours (8am - 8pm)
-    const isDaytime = hour >= 8 && hour <= 20;
-    const eventChance = isDaytime ? 0.1 : 0.02; // 10% chance per hour during day, 2% at night
+    if (events.length === 0) {
+      const isDaytime = hour >= 8 && hour <= 20;
+      const eventChance = isDaytime ? 0.1 : 0.02; // 10% chance per hour during day, 2% at night
 
-    if (Math.random() < eventChance) {
-      // Generate a random event appropriate for the game phase
-      let newEvent: WorldEvent[] = [];
-      if (day <= 10) {
-        newEvent = await this.generateEarlyWorldEvents(day);
-      } else if (day <= 20) {
-        newEvent = await this.generateMidWorldEvents(day);
-      } else {
-        newEvent = await this.generateLateWorldEvents(day);
-      }
+      if (Math.random() < eventChance) {
+        // Generate a random event appropriate for the game phase
+        let newEvent: WorldEvent[] = [];
+        if (day <= 10) {
+          newEvent = await this.generateEarlyWorldEvents(day);
+        } else if (day <= 20) {
+          newEvent = await this.generateMidWorldEvents(day);
+        } else {
+          newEvent = await this.generateLateWorldEvents(day);
+        }
 
-      // Add if we got one
-      if (newEvent.length > 0) {
-        events.push(...newEvent);
+        // Add if we got one
+        if (newEvent.length > 0) {
+          events.push(...newEvent);
+        }
       }
     }
 
     return events;
+  }
+
+  /**
+   * Generate WorldEvents from scheduled causal events
+   * Matches events to the current day/hour based on their scheduled timing
+   */
+  private async generateEventsFromCausalContext(
+    day: number,
+    hour: number,
+    causalContext: CausalEventContext
+  ): Promise<WorldEvent[]> {
+    const events: WorldEvent[] = [];
+
+    for (const scheduledEvent of causalContext.scheduledEvents) {
+      // Check if this event is scheduled for the current day and hour
+      if (scheduledEvent.day === day && scheduledEvent.hour === hour) {
+        // Map CausalEventType to WorldEvent type
+        const worldEventType = this.mapCausalEventTypeToWorldEventType(
+          scheduledEvent.eventType
+        );
+
+        // Calculate sentiment signal based on positive/negative
+        const sentimentSignal = scheduledEvent.isPositive ? 0.6 : -0.6;
+
+        // Find relevant NPCs for this event
+        const relevantNpcs = this.findRelevantNpcsForEvent(
+          scheduledEvent.eventType
+        );
+
+        const worldEvent: WorldEvent = {
+          id: await generateSnowflakeId(),
+          day,
+          type: worldEventType,
+          visibility: 'public',
+          description: scheduledEvent.description,
+          actors: relevantNpcs.map((npc) => npc.id),
+          pointsToward: scheduledEvent.isPositive ? 'YES' : 'NO',
+          sentimentSignal,
+          signalClarity: 0.7, // Causal events have high clarity
+          sourceReliability: 0.8, // Causal events are reliable
+        };
+
+        // Emit the world event so it's tracked and broadcast
+        this.emitWorldEvent(worldEvent);
+        events.push(worldEvent);
+      }
+    }
+
+    return events;
+  }
+
+  /**
+   * Map causal event type to WorldEvent type
+   */
+  private mapCausalEventTypeToWorldEventType(
+    causalType: CausalEventType
+  ): WorldEvent['type'] {
+    const mapping: Record<CausalEventType, WorldEvent['type']> = {
+      leak: 'leak',
+      rumor: 'rumor',
+      scandal: 'scandal',
+      development: 'development',
+      deal: 'deal',
+      announcement: 'announcement',
+    };
+    return mapping[causalType];
+  }
+
+  /**
+   * Find NPCs relevant to a particular event type
+   */
+  private findRelevantNpcsForEvent(eventType: CausalEventType): NPC[] {
+    switch (eventType) {
+      case 'leak':
+        // Leaks come from insiders or whistleblowers
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'insider' || npc.role === 'whistleblower'
+          )
+          .slice(0, 1);
+      case 'rumor':
+        // Rumors spread from various sources
+        return this.npcs
+          .filter((npc) => npc.role === 'journalist' || npc.role === 'insider')
+          .slice(0, 2);
+      case 'scandal':
+        // Scandals involve whistleblowers and journalists
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'whistleblower' || npc.role === 'journalist'
+          )
+          .slice(0, 2);
+      case 'development':
+        // Developments come from experts
+        return this.npcs
+          .filter((npc) => npc.role === 'expert' || npc.role === 'insider')
+          .slice(0, 1);
+      case 'deal':
+        // Deals involve insiders and politicians
+        return this.npcs
+          .filter((npc) => npc.role === 'insider' || npc.role === 'politician')
+          .slice(0, 2);
+      case 'announcement':
+        // Announcements from politicians or journalists
+        return this.npcs
+          .filter(
+            (npc) => npc.role === 'politician' || npc.role === 'journalist'
+          )
+          .slice(0, 1);
+      default:
+        return [];
+    }
   }
 
   /**

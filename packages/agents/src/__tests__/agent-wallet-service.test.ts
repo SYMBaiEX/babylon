@@ -3,7 +3,7 @@
  * Verifies Privy integration and on-chain registration with mocked dependencies
  */
 
-import { describe, expect, mock, test, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ethers } from 'ethers';
 
 // Mock database

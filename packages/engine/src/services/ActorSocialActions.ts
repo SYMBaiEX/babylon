@@ -6,20 +6,22 @@
  */
 
 import {
-  actors,
   and,
   chatParticipants,
   chats,
   db,
   eq,
-  groupChatMemberships,
+  groupMembers,
+  groups,
   gte,
   messages,
   userInteractions,
 } from '@babylon/db';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { NPC_SOCIAL_ACTIONS_CONFIG } from '../config/npc-activity';
+import { clamp01 } from '../utils/math-utils';
 import { GroupChatService } from './group-chat-service';
+import { StaticDataRegistry } from './static-data-registry';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -31,12 +33,6 @@ export interface SocialAction {
 }
 
 export class ActorSocialActions {
-  // Probability thresholds
-  private static readonly BASE_INVITE_PROBABILITY = 0.05; // 5% base chance per check
-  private static readonly BASE_DM_PROBABILITY = 0.03; // 3% base chance per check
-  private static readonly MIN_INTERACTIONS_FOR_ACTION = 2; // Minimum interactions needed
-  private static readonly MIN_INTERACTION_QUALITY = 0.6; // Minimum average quality
-
   /**
    * Process random social actions for actors
    * Called periodically to randomly invite users or send DMs
@@ -44,8 +40,8 @@ export class ActorSocialActions {
   static async processRandomSocialActions(): Promise<SocialAction[]> {
     const actions: SocialAction[] = [];
 
-    // Get all actors
-    const actorList = await db.select().from(actors).limit(50); // Limit to prevent overload
+    // Get all actors from static registry (limit to prevent overload)
+    const actorList = StaticDataRegistry.getAllActors().slice(0, 50);
 
     // Get all active users with interactions
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -93,7 +89,8 @@ export class ActorSocialActions {
       for (const { userId, interactions } of actorInteractions) {
         if (
           !userId ||
-          interactions.length < ActorSocialActions.MIN_INTERACTIONS_FOR_ACTION
+          interactions.length <
+            NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction
         ) {
           continue;
         }
@@ -101,19 +98,20 @@ export class ActorSocialActions {
         const avgQuality =
           interactions.reduce((sum, i) => sum + i.qualityScore, 0) /
           interactions.length;
-        if (avgQuality < ActorSocialActions.MIN_INTERACTION_QUALITY) {
+        if (avgQuality < NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality) {
           continue;
         }
 
-        // Check if user is already in a chat with this actor
+        // Check if user is already in this NPC's group specifically
         const [existingMembership] = await db
-          .select()
-          .from(groupChatMemberships)
+          .select({ id: groupMembers.id })
+          .from(groupMembers)
+          .innerJoin(groups, eq(groups.id, groupMembers.groupId))
           .where(
             and(
-              eq(groupChatMemberships.userId, userId),
-              eq(groupChatMemberships.npcAdminId, actor.id),
-              eq(groupChatMemberships.isActive, true)
+              eq(groupMembers.userId, userId),
+              eq(groupMembers.isActive, true),
+              eq(groups.ownerId, actor.id) // Only check groups owned by this NPC
             )
           )
           .limit(1);
@@ -155,21 +153,27 @@ export class ActorSocialActions {
         }
 
         // Calculate probabilities based on interaction quality and count
-        const qualityFactor = Math.min(
-          avgQuality / ActorSocialActions.MIN_INTERACTION_QUALITY,
-          1.5
-        );
+        // Use safe denominators to prevent division by zero (fallback to 1 if zero)
+        const qualityDenominator =
+          NPC_SOCIAL_ACTIONS_CONFIG.minInteractionQuality || 1;
+        const countDenominator =
+          NPC_SOCIAL_ACTIONS_CONFIG.minInteractionsForAction || 1;
+        const qualityFactor = Math.min(avgQuality / qualityDenominator, 1.5);
         const countFactor = Math.min(
-          interactions.length / ActorSocialActions.MIN_INTERACTIONS_FOR_ACTION,
+          interactions.length / countDenominator,
           2.0
         );
 
-        const inviteProbability =
-          ActorSocialActions.BASE_INVITE_PROBABILITY *
-          qualityFactor *
-          countFactor;
-        const dmProbability =
-          ActorSocialActions.BASE_DM_PROBABILITY * qualityFactor * countFactor;
+        const inviteProbability = clamp01(
+          NPC_SOCIAL_ACTIONS_CONFIG.baseInviteProbability *
+            qualityFactor *
+            countFactor
+        );
+        const dmProbability = clamp01(
+          NPC_SOCIAL_ACTIONS_CONFIG.baseDmProbability *
+            qualityFactor *
+            countFactor
+        );
 
         if (!userId) throw new Error('User ID is required');
         if (!actor.id) throw new Error('Actor ID is required');

@@ -5,45 +5,44 @@
  * 1. Caching data with a TTL (10 seconds)
  * 2. Deduplicating concurrent requests via a fetchPromise
  * 3. Providing a single polling mechanism that all components share
+ * 4. Supporting real-time SSE updates via updateMarketStats
  *
  * Usage:
  * ```tsx
- * import { usePerpMarkets, usePerpMarketsPolling } from '@/stores/perpMarketsStore';
+ * import { usePerpMarkets, usePerpMarketsPolling, usePerpMarketsRealtime } from '@/stores/perpMarketsStore';
  *
  * function MyComponent() {
  *   const { markets, loading, error, refetch } = usePerpMarkets();
  *   usePerpMarketsPolling(30000); // Optional: enable polling every 30s
+ *   usePerpMarketsRealtime(); // Optional: enable SSE real-time updates
  *   return <div>{markets.map(m => ...)}</div>;
  * }
  * ```
  */
 
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { create } from 'zustand';
-import { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { logger } from '@babylon/shared';
+import {
+  type PerpPriceUpdateSSE,
+  type PerpTradeSSE,
+  usePerpMarketsSubscription,
+  usePerpPriceSubscription,
+} from '@/hooks/usePerpMarketStream';
+import type { PerpMarket } from '@/types/markets';
+import { MARKETS_CONFIG } from '@/types/markets';
+
+// Re-export for backwards compatibility
+export type { PerpMarket } from '@/types/markets';
 
 /**
- * Perp market data structure from API
+ * Partial update for market stats (from SSE events).
  */
-export interface PerpMarket {
-  ticker: string;
-  organizationId: string;
-  name: string;
-  currentPrice: number;
-  change24h: number;
-  changePercent24h: number;
-  high24h: number;
-  low24h: number;
-  volume24h: number;
-  openInterest: number;
-  fundingRate: {
-    rate: number;
-    nextFundingTime: string;
-    predictedRate: number;
-  };
-  maxLeverage: number;
-  minOrderSize: number;
+interface MarketStatsUpdate {
+  currentPrice?: number;
+  changePercent24h?: number;
+  openInterest?: number;
+  volume24h?: number;
 }
 
 interface PerpMarketsState {
@@ -61,10 +60,14 @@ interface PerpMarketsState {
   // Actions
   fetchMarkets: (force?: boolean) => Promise<void>;
   subscribe: (intervalMs: number) => () => void;
+  /** Invalidate cache to force next fetch */
+  invalidateCache: () => void;
+  /** Update specific market stats (from SSE) without full refetch */
+  updateMarketStats: (ticker: string, stats: MarketStatsUpdate) => void;
 }
 
-// Cache TTL in milliseconds (10 seconds)
-const CACHE_TTL = 10000;
+// Use centralized cache TTL
+const CACHE_TTL = MARKETS_CONFIG.CACHE_TTL_MS;
 
 export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
   markets: [],
@@ -118,11 +121,6 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to fetch markets';
-        logger.error(
-          'Failed to fetch perp markets',
-          { error: err },
-          'perpMarketsStore'
-        );
         set({ error: errorMessage });
       } finally {
         set({ loading: false, fetchPromise: null });
@@ -164,6 +162,37 @@ export const usePerpMarketsStore = create<PerpMarketsState>((set, get) => ({
         set({ pollingInterval: null });
       }
     };
+  },
+
+  invalidateCache: () => {
+    set({ lastFetchedAt: null });
+  },
+
+  updateMarketStats: (ticker: string, stats: MarketStatsUpdate) => {
+    const state = get();
+    const upperTicker = ticker.toUpperCase();
+
+    const updatedMarkets = state.markets.map((market) => {
+      if (market.ticker.toUpperCase() !== upperTicker) {
+        return market;
+      }
+
+      return {
+        ...market,
+        ...(stats.currentPrice !== undefined && {
+          currentPrice: stats.currentPrice,
+        }),
+        ...(stats.changePercent24h !== undefined && {
+          changePercent24h: stats.changePercent24h,
+        }),
+        ...(stats.openInterest !== undefined && {
+          openInterest: stats.openInterest,
+        }),
+        ...(stats.volume24h !== undefined && { volume24h: stats.volume24h }),
+      };
+    });
+
+    set({ markets: updatedMarkets });
   },
 }));
 
@@ -218,35 +247,80 @@ export function usePerpMarketsPolling(intervalMs = 30000) {
 }
 
 /**
- * Get a specific market by ticker (memoized)
+ * Hook for enabling real-time SSE updates on perp markets.
+ *
+ * Subscribes to perp trade events and price updates to update the store
+ * in real-time when trades occur. Complements polling for immediate feedback.
+ *
+ * @example
+ * ```tsx
+ * function MarketsPage() {
+ *   usePerpMarketsRealtime(); // Enable real-time updates
+ *   const { markets } = usePerpMarkets();
+ *   // markets will update in real-time when trades occur
+ * }
+ * ```
  */
-export function usePerpMarket(ticker: string) {
-  const { markets, loading, error, refetch } = usePerpMarkets();
-
-  const market = useMemo(
-    () =>
-      markets.find((m) => m.ticker.toLowerCase() === ticker.toLowerCase()),
-    [markets, ticker]
+export function usePerpMarketsRealtime() {
+  const updateMarketStats = usePerpMarketsStore(
+    (state) => state.updateMarketStats
   );
 
-  return { market, loading, error, refetch };
+  // Handle trade events (OI and volume updates)
+  const handleTrade = useCallback(
+    (event: PerpTradeSSE) => {
+      updateMarketStats(event.ticker, {
+        openInterest: event.openInterest,
+        volume24h: event.volume24h,
+      });
+    },
+    [updateMarketStats]
+  );
+
+  usePerpMarketsSubscription({ onTrade: handleTrade });
+
+  // Handle price update events
+  usePerpPriceSubscription({
+    onPriceUpdate: useCallback(
+      (update: PerpPriceUpdateSSE) => {
+        updateMarketStats(update.ticker, {
+          currentPrice: update.newPrice ?? update.price,
+          changePercent24h: update.changePercent,
+        });
+      },
+      [updateMarketStats]
+    ),
+  });
 }
 
 /**
- * Get top movers (gainers and losers) - memoized
+ * Get a specific market by ticker (memoized)
+ *
+ * @returns market - The market object if found
+ * @returns loading - True while fetching
+ * @returns error - Error message if fetch failed
+ * @returns refetch - Function to force refetch
+ * @returns initialLoadComplete - True once the first fetch has completed
  */
-export function usePerpTopMovers(count = 4) {
+export function usePerpMarket(ticker: string) {
   const { markets, loading, error, refetch } = usePerpMarkets();
+  const lastFetchedAt = usePerpMarketsStore((state) => state.lastFetchedAt);
 
-  const { topGainers, topLosers } = useMemo(() => {
-    const sorted = [...markets].sort(
-      (a, b) => b.changePercent24h - a.changePercent24h
-    );
-    return {
-      topGainers: sorted.slice(0, count),
-      topLosers: sorted.slice(-count).reverse(),
-    };
-  }, [markets, count]);
+  const market = useMemo(
+    () => markets.find((m) => m.ticker.toLowerCase() === ticker.toLowerCase()),
+    [markets, ticker]
+  );
 
-  return { topGainers, topLosers, loading, error, refetch };
+  // Initial load is complete when we've fetched at least once
+  const initialLoadComplete = lastFetchedAt !== null;
+
+  return { market, loading, error, refetch, initialLoadComplete };
+}
+
+/**
+ * Invalidate the markets cache.
+ * Call after actions that affect market stats (trading, etc.)
+ */
+export function invalidatePerpMarketsCache() {
+  usePerpMarketsStore.getState().invalidateCache();
 }

@@ -24,6 +24,11 @@ export interface PerpPosition {
   fundingPaid: number; // Cumulative funding paid/received
   openedAt: string; // ISO timestamp
   lastUpdated: string;
+  closedAt?: string | null; // ISO timestamp when position was closed, null if open
+  // Agent position metadata (optional)
+  isAgentPosition?: boolean; // True if this position belongs to an agent
+  agentId?: string; // Agent's user ID (only set if isAgentPosition=true)
+  agentName?: string; // Agent's display name (only set if isAgentPosition=true)
 }
 
 export interface FundingRate {

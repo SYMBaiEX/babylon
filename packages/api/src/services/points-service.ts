@@ -6,9 +6,10 @@
  * point types (reputation, invite, bonus) and provides leaderboard functionality.
  */
 import {
-  actors,
+  actorState,
   and,
   asc,
+  balanceTransactions,
   count,
   db,
   desc,
@@ -16,16 +17,20 @@ import {
   gt,
   gte,
   isNull,
+  type JsonValue,
   ne,
   pointsTransactions,
   referrals,
   sql,
   users,
 } from '@babylon/db';
-import { POINTS, type PointsReason, logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-
-import type { JsonValue } from '../types';
+import { StaticDataRegistry } from '@babylon/engine';
+import {
+  generateSnowflakeId,
+  logger,
+  POINTS,
+  type PointsReason,
+} from '@babylon/shared';
 
 /**
  * Maximum number of unqualified referrals that can earn signup points at any time.
@@ -39,7 +44,7 @@ const UNQUALIFIED_REFERRAL_LIMIT = 10;
  *
  * @description Categories for filtering leaderboard results.
  */
-type LeaderboardCategory = 'all' | 'earned' | 'referral';
+type LeaderboardCategory = 'all' | 'earned' | 'referral' | 'total';
 
 /**
  * Result of awarding points to a user
@@ -847,74 +852,397 @@ export class PointsService {
   }
 
   /**
-   * Purchase points via x402 payment (100 points = $1)
+   * Purchase trading points (virtual balance) via payment (100 points = $1)
+   *
+   * Supports multiple payment providers:
+   * - 'crypto': On-chain ETH payment via x402
+   * - 'stripe': Credit card payment via Stripe Checkout
+   *
+   * NOTE: This adds to virtualBalance (trading balance), NOT reputationPoints.
+   * Users buy trading points to trade on the platform.
+   *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks paymentRequestId inside transaction to prevent duplicates.
+   *
+   * @param userId - User ID to credit points to
+   * @param amountUSD - Amount paid in USD
+   * @param paymentRequestId - Unique payment identifier (x402 request ID or Stripe session ID)
+   * @param paymentTxHash - Optional transaction hash (blockchain tx or Stripe payment intent ID)
+   * @param paymentProvider - Payment provider used ('crypto' or 'stripe')
    */
   static async purchasePoints(
     userId: string,
     amountUSD: number,
     paymentRequestId: string,
-    paymentTxHash?: string
+    paymentTxHash?: string,
+    paymentProvider: 'crypto' | 'stripe' = 'crypto'
   ): Promise<AwardPointsResult> {
     const pointsAmount = Math.floor(amountUSD * 100);
+    const transactionType = `${paymentProvider}_purchase`;
+    // Use payment intent ID as relatedId for Stripe (enables dispute/refund lookups)
+    // Fall back to session ID for crypto or when payment intent not available
+    const relatedIdValue = paymentTxHash || paymentRequestId;
 
-    // Get current user state
-    const userResult = await db
-      .select({ reputationPoints: users.reputationPoints })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this payment already been processed?
+      // Check both by relatedId (payment intent) and by session ID in description
+      const existingTransaction = await tx
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.type, transactionType),
+            eq(balanceTransactions.relatedId, relatedIdValue)
+          )
+        )
+        .limit(1);
 
-    const user = userResult[0];
+      if (existingTransaction.length > 0) {
+        logger.info(
+          `Purchase already processed for paymentRequestId ${paymentRequestId}`,
+          { userId, paymentRequestId, paymentProvider },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
 
-    if (!user) {
-      return {
-        success: false,
-        pointsAwarded: 0,
-        newTotal: 0,
-        error: 'User not found',
-      };
-    }
+      // Get current balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const pointsBefore = user.reputationPoints;
-    const pointsAfter = pointsBefore + pointsAmount;
+      const user = userResult[0];
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
+      if (!user) {
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
+
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      const balanceAfter = balanceBefore + pointsAmount;
+
+      // Atomic balance update
       await tx
         .update(users)
-        .set({ reputationPoints: pointsAfter })
+        .set({
+          virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) + ${pointsAmount}`,
+        })
         .where(eq(users.id, userId));
 
-      await tx.insert(pointsTransactions).values({
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      // Store paymentTxHash (payment intent ID) in relatedId for dispute/refund lookups
+      await tx.insert(balanceTransactions).values({
         id: await generateSnowflakeId(),
         userId,
-        amount: pointsAmount,
-        pointsBefore,
-        pointsAfter,
-        reason: 'purchase',
-        metadata: JSON.stringify({
+        type: transactionType,
+        amount: String(pointsAmount),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: relatedIdValue, // Payment intent ID (for lookups) or session ID
+        description: JSON.stringify({
           amountUSD,
           pointsPerDollar: 100,
           purchasedAt: new Date().toISOString(),
+          paymentProvider,
+          paymentRequestId, // Session ID for reference
+          paymentTxHash, // Payment intent ID for reference
         }),
-        paymentRequestId,
-        paymentTxHash,
-        paymentAmount: amountUSD.toFixed(2),
-        paymentVerified: true,
       });
+
+      return {
+        success: true,
+        pointsAwarded: pointsAmount,
+        newTotal: balanceAfter,
+      };
     });
 
-    logger.info(
-      `User ${userId} purchased ${pointsAmount} points for $${amountUSD}`,
-      { userId, pointsAmount, amountUSD, paymentRequestId },
-      'PointsService'
-    );
+    if (result.success && !result.alreadyAwarded) {
+      logger.info(
+        `User ${userId} purchased ${pointsAmount} trading points for $${amountUSD} via ${paymentProvider}`,
+        { userId, pointsAmount, amountUSD, paymentRequestId, paymentProvider },
+        'PointsService'
+      );
+    }
 
-    return {
-      success: true,
-      pointsAwarded: pointsAmount,
-      newTotal: pointsAfter,
-    };
+    return result;
+  }
+
+  /**
+   * Reverse a points purchase due to refund or dispute
+   *
+   * Deducts points from the user's trading balance (virtualBalance).
+   * Used by Stripe webhook handlers for:
+   * - charge.refunded: Full or partial refund processed
+   * - charge.dispute.created: Customer initiated chargeback
+   *
+   * NOTE: Points are deducted from virtualBalance, floored at 0.
+   * If user has already spent the points, they will have a 0 balance.
+   *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks stripeEventId inside transaction to prevent duplicates.
+   *
+   * @param userId - User ID to deduct points from
+   * @param paymentIntentId - Stripe Payment Intent ID to find original transaction
+   * @param reason - 'refund' or 'dispute'
+   * @param amountUSD - Amount being refunded/disputed in USD
+   * @param stripeEventId - Stripe event ID for idempotency
+   */
+  static async reversePointsPurchase(
+    userId: string,
+    paymentIntentId: string,
+    reason: 'refund' | 'dispute',
+    amountUSD: number,
+    stripeEventId: string
+  ): Promise<AwardPointsResult> {
+    const pointsToDeduct = Math.floor(amountUSD * 100);
+    const transactionType =
+      reason === 'refund' ? 'stripe_refund' : 'stripe_dispute';
+
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this event already been processed?
+      // Use balanceTransactions with relatedId = stripeEventId
+      const existingReversal = await tx
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.relatedId, stripeEventId)
+          )
+        )
+        .limit(1);
+
+      if (existingReversal.length > 0) {
+        logger.info(
+          `Reversal already processed for event ${stripeEventId}`,
+          { userId, stripeEventId, reason },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
+
+      // Get current user balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const user = userResult[0];
+
+      if (!user) {
+        logger.error(
+          `Cannot reverse points: user not found`,
+          { userId, paymentIntentId, reason },
+          'PointsService'
+        );
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
+
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      // Floor at 0 - we don't allow negative trading balance
+      const balanceAfter = Math.max(0, balanceBefore - pointsToDeduct);
+      const actualDeduction = balanceBefore - balanceAfter;
+
+      // Atomic balance update - deduct but floor at 0
+      await tx
+        .update(users)
+        .set({
+          virtualBalance: sql`GREATEST(0, COALESCE(CAST("virtualBalance" AS NUMERIC), 0) - ${pointsToDeduct})`,
+        })
+        .where(eq(users.id, userId));
+
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      await tx.insert(balanceTransactions).values({
+        id: await generateSnowflakeId(),
+        userId,
+        type: transactionType,
+        amount: String(-actualDeduction), // Negative for deduction
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: stripeEventId, // Used for idempotency
+        description: JSON.stringify({
+          amountUSD,
+          pointsRequested: pointsToDeduct,
+          pointsActuallyDeducted: actualDeduction,
+          originalPaymentIntentId: paymentIntentId,
+          reversalReason: reason,
+          reversedAt: new Date().toISOString(),
+        }),
+      });
+
+      logger.info(
+        `Reversed ${actualDeduction} trading points from user ${userId} due to ${reason}`,
+        {
+          userId,
+          paymentIntentId,
+          reason,
+          pointsRequested: pointsToDeduct,
+          pointsDeducted: actualDeduction,
+          balanceBefore,
+          balanceAfter,
+          stripeEventId,
+        },
+        'PointsService'
+      );
+
+      return {
+        success: true,
+        pointsAwarded: -actualDeduction,
+        newTotal: balanceAfter,
+      };
+    });
+
+    return result;
+  }
+
+  /**
+   * Re-credit points after winning a dispute
+   *
+   * When a merchant wins a chargeback dispute, re-credit the points
+   * that were previously deducted.
+   *
+   * CONCURRENCY: Uses atomic SQL update to prevent race conditions.
+   * IDEMPOTENCY: Checks stripeEventId inside transaction to prevent duplicates.
+   *
+   * @param userId - User ID to credit points to
+   * @param disputeId - Stripe Dispute ID
+   * @param amountUSD - Original dispute amount in USD
+   * @param stripeEventId - Stripe event ID for idempotency
+   */
+  static async creditDisputeWon(
+    userId: string,
+    disputeId: string,
+    amountUSD: number,
+    stripeEventId: string
+  ): Promise<AwardPointsResult> {
+    const pointsToCredit = Math.floor(amountUSD * 100);
+
+    // Execute everything in a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Idempotency check: has this event already been processed?
+      // Use balanceTransactions with relatedId = stripeEventId
+      const existingCredit = await tx
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.relatedId, stripeEventId)
+          )
+        )
+        .limit(1);
+
+      if (existingCredit.length > 0) {
+        logger.info(
+          `Dispute win credit already processed for event ${stripeEventId}`,
+          { userId, stripeEventId, disputeId },
+          'PointsService'
+        );
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: 0,
+          alreadyAwarded: true,
+        };
+      }
+
+      // Get current user balance (inside transaction for consistency)
+      const userResult = await tx
+        .select({ virtualBalance: users.virtualBalance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const user = userResult[0];
+
+      if (!user) {
+        logger.error(
+          `Cannot credit dispute win: user not found`,
+          { userId, disputeId },
+          'PointsService'
+        );
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        };
+      }
+
+      const balanceBefore = Number(user.virtualBalance ?? 0);
+      const balanceAfter = balanceBefore + pointsToCredit;
+
+      // Atomic balance update
+      await tx
+        .update(users)
+        .set({
+          virtualBalance: sql`COALESCE(CAST("virtualBalance" AS NUMERIC), 0) + ${pointsToCredit}`,
+        })
+        .where(eq(users.id, userId));
+
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      await tx.insert(balanceTransactions).values({
+        id: await generateSnowflakeId(),
+        userId,
+        type: 'stripe_dispute_won',
+        amount: String(pointsToCredit),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: stripeEventId, // Used for idempotency
+        description: JSON.stringify({
+          amountUSD,
+          pointsCredited: pointsToCredit,
+          disputeId,
+          creditedAt: new Date().toISOString(),
+        }),
+      });
+
+      logger.info(
+        `Re-credited ${pointsToCredit} trading points to user ${userId} after winning dispute`,
+        {
+          userId,
+          disputeId,
+          pointsCredited: pointsToCredit,
+          balanceBefore,
+          balanceAfter,
+          stripeEventId,
+        },
+        'PointsService'
+      );
+
+      return {
+        success: true,
+        pointsAwarded: pointsToCredit,
+        newTotal: balanceAfter,
+      };
+    });
+
+    return result;
   }
 
   /**
@@ -1021,30 +1349,64 @@ export class PointsService {
       referralCount: users.referralCount,
       virtualBalance: users.virtualBalance,
       lifetimePnL: users.lifetimePnL,
+      totalPoints: users.totalPoints,
       createdAt: users.createdAt,
       onChainRegistered: users.onChainRegistered,
       nftTokenId: users.nftTokenId,
     };
 
     // Build users query based on category
+    // All modes exclude actors (isActor=false) AND agents (isAgent=false)
     let usersResult;
-    if (pointsCategory === 'all') {
+    let totalCountForTotal: number | null = null;
+    if (pointsCategory === 'total') {
+      // Use DB-level ordering and pagination for 'total' mode
+      const [countResult] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)));
+      totalCountForTotal = countResult?.count ?? 0;
+
+      usersResult = await db
+        .select(userSelectFields)
+        .from(users)
+        .where(and(eq(users.isActor, false), eq(users.isAgent, false)))
+        .orderBy(desc(users.totalPoints))
+        .limit(pageSize)
+        .offset(skip);
+    } else if (pointsCategory === 'all') {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
         .where(
-          and(eq(users.isActor, false), gte(users.reputationPoints, minPoints))
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gte(users.reputationPoints, minPoints)
+          )
         );
     } else if (pointsCategory === 'earned') {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), ne(users.earnedPoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            ne(users.earnedPoints, 0)
+          )
+        );
     } else {
       usersResult = await db
         .select(userSelectFields)
         .from(users)
-        .where(and(eq(users.isActor, false), gt(users.invitePoints, 0)));
+        .where(
+          and(
+            eq(users.isActor, false),
+            eq(users.isAgent, false),
+            gt(users.invitePoints, 0)
+          )
+        );
     }
 
     const combined = [
@@ -1057,9 +1419,10 @@ export class PointsService {
         invitePoints: user.invitePoints,
         earnedPoints: user.earnedPoints,
         bonusPoints: user.bonusPoints,
+        totalPoints: Number(user.totalPoints ?? 0),
         referralCount: user.referralCount,
-        balance: Number(user.virtualBalance),
-        lifetimePnL: Number(user.lifetimePnL),
+        balance: Number(user.virtualBalance ?? 0),
+        lifetimePnL: Number(user.lifetimePnL ?? 0),
         createdAt: user.createdAt,
         isActor: false,
         tier: null as string | null,
@@ -1069,72 +1432,92 @@ export class PointsService {
     ];
 
     if (pointsCategory === 'all') {
-      const actorsResult = await db
+      // Get actor states with sufficient reputation points
+      const actorStates = await db
         .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          profileImageUrl: actors.profileImageUrl,
-          reputationPoints: actors.reputationPoints,
-          tier: actors.tier,
-          createdAt: actors.createdAt,
+          id: actorState.id,
+          reputationPoints: actorState.reputationPoints,
+          createdAt: actorState.createdAt,
         })
-        .from(actors)
-        .where(gte(actors.reputationPoints, minPoints));
+        .from(actorState)
+        .where(gte(actorState.reputationPoints, minPoints));
 
+      // Combine with static data
       combined.push(
-        ...actorsResult.map((actor) => ({
-          id: actor.id,
-          username: actor.id,
-          displayName: actor.name,
-          profileImageUrl: actor.profileImageUrl,
-          allPoints: actor.reputationPoints,
-          invitePoints: 0,
-          earnedPoints: 0,
-          bonusPoints: 0,
-          referralCount: 0,
-          balance: 0,
-          lifetimePnL: 0,
-          createdAt: actor.createdAt,
-          isActor: true,
-          tier: actor.tier,
-          onChainRegistered: false,
-          nftTokenId: null as number | null,
-        }))
+        ...actorStates
+          .map((state) => {
+            const staticActor = StaticDataRegistry.getActor(state.id);
+            if (!staticActor) return null;
+            return {
+              id: state.id,
+              username: state.id,
+              displayName: staticActor.name,
+              profileImageUrl:
+                staticActor.profileImageUrl ?? (null as string | null),
+              allPoints: state.reputationPoints,
+              invitePoints: 0,
+              earnedPoints: 0,
+              bonusPoints: 0,
+              totalPoints: 0,
+              referralCount: 0,
+              balance: 0,
+              lifetimePnL: 0,
+              createdAt: state.createdAt,
+              isActor: true,
+              tier: staticActor.tier,
+              onChainRegistered: false,
+              nftTokenId: null as number | null,
+            };
+          })
+          .filter((a): a is NonNullable<typeof a> => a !== null)
       );
     }
 
-    const sortField: 'allPoints' | 'earnedPoints' | 'invitePoints' =
-      pointsCategory === 'all'
-        ? 'allPoints'
-        : pointsCategory === 'earned'
-          ? 'earnedPoints'
-          : 'invitePoints';
+    const sortField:
+      | 'allPoints'
+      | 'earnedPoints'
+      | 'invitePoints'
+      | 'totalPoints' =
+      pointsCategory === 'total'
+        ? 'totalPoints'
+        : pointsCategory === 'all'
+          ? 'allPoints'
+          : pointsCategory === 'earned'
+            ? 'earnedPoints'
+            : 'invitePoints';
 
-    combined.sort((a, b) => {
-      const comparison = b[sortField] - a[sortField];
-      if (comparison !== 0) {
-        return comparison;
-      }
-
-      if (pointsCategory === 'referral') {
-        const referralComparison = b.referralCount - a.referralCount;
-        if (referralComparison !== 0) {
-          return referralComparison;
+    // For 'total' mode, DB already handled ordering and pagination
+    if (pointsCategory !== 'total') {
+      combined.sort((a, b) => {
+        const comparison = b[sortField] - a[sortField];
+        if (comparison !== 0) {
+          return comparison;
         }
-      }
 
-      if (pointsCategory === 'earned') {
-        const pnlComparison = b.lifetimePnL - a.lifetimePnL;
-        if (pnlComparison !== 0) {
-          return pnlComparison;
+        if (pointsCategory === 'referral') {
+          const referralComparison = b.referralCount - a.referralCount;
+          if (referralComparison !== 0) {
+            return referralComparison;
+          }
         }
-      }
 
-      return b.allPoints - a.allPoints;
-    });
+        if (pointsCategory === 'earned') {
+          const pnlComparison = b.lifetimePnL - a.lifetimePnL;
+          if (pnlComparison !== 0) {
+            return pnlComparison;
+          }
+        }
 
-    const paginatedResults = combined.slice(skip, skip + pageSize);
+        return b.allPoints - a.allPoints;
+      });
+    }
+
+    const totalCount =
+      pointsCategory === 'total' ? (totalCountForTotal ?? 0) : combined.length;
+    const paginatedResults =
+      pointsCategory === 'total'
+        ? combined
+        : combined.slice(skip, skip + pageSize);
 
     const resultsWithRank = paginatedResults.map((entry, index) => ({
       ...entry,
@@ -1143,10 +1526,10 @@ export class PointsService {
 
     return {
       users: resultsWithRank,
-      totalCount: combined.length,
+      totalCount,
       page,
       pageSize,
-      totalPages: Math.ceil(combined.length / pageSize),
+      totalPages: Math.ceil(totalCount / pageSize),
       pointsCategory,
     };
   }
@@ -1181,11 +1564,11 @@ export class PointsService {
         )
       );
 
-    // Count actors with more points
+    // Count actors with more points using actorState table
     const [higherActorsResult] = await db
       .select({ count: count() })
-      .from(actors)
-      .where(gt(actors.reputationPoints, user.reputationPoints));
+      .from(actorState)
+      .where(gt(actorState.reputationPoints, user.reputationPoints));
 
     const higherUsersCount = higherUsersResult?.count ?? 0;
     const higherActorsCount = higherActorsResult?.count ?? 0;

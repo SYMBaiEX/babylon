@@ -9,7 +9,7 @@ For RL training to work correctly, the model MUST see identical prompts during
 training as it saw during rollout. This module preserves EXACT prompts:
 
 CANONICAL PROMPT FORMAT (from autonomous services):
-1. system_prompt: The agent's personality/strategy (agent.agentSystem)
+1. system_prompt: The agent's personality/strategy (from userAgentConfigs.systemPrompt)
    - Contains: persona, trading strategy, behavioral guidelines
    - Example: "You are a degen trader who loves high risk plays..."
 

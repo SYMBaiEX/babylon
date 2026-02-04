@@ -5,13 +5,28 @@
  * Considers goals, constraints, and opportunities to generate comprehensive action plans.
  */
 
+import { countTokensSync, truncateToTokenLimitSync } from '@babylon/api';
 import type { JsonValue } from '@babylon/db';
-import { db } from '@babylon/db';
+import {
+  agentLogs,
+  and,
+  db,
+  desc,
+  eq,
+  getDbInstance,
+  inArray,
+  isNull,
+  perpPositions,
+  positions,
+  users,
+} from '@babylon/db';
+import { StaticDataRegistry, type StaticOrganization } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
+import { sql } from 'drizzle-orm';
+import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
-import { countTokensSync, truncateToTokenLimitSync } from '@babylon/engine';
-import { callGroqDirect } from '../llm/direct-groq';
 import type {
   AgentConstraints,
   AgentDirective,
@@ -22,6 +37,14 @@ import { autonomousCommentingService } from './AutonomousCommentingService';
 import { autonomousDMService } from './AutonomousDMService';
 import { autonomousPostingService } from './AutonomousPostingService';
 import { autonomousTradingService } from './AutonomousTradingService';
+import type {
+  PendingChatMessage,
+  PendingCommentReply,
+} from './templates/multi-step-decision';
+import {
+  gatherPendingChatMessages,
+  gatherPendingCommentReplies,
+} from './utils';
 
 /**
  * Agent interface for planning
@@ -169,27 +192,18 @@ export class AutonomousPlanningCoordinator {
       'PlanningCoordinator'
     );
 
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        id: true,
-        displayName: true,
-        agentSystem: true,
-        agentTradingStrategy: true,
-        agentModelTier: true,
-        agentMaxActionsPerTick: true,
-        agentRiskTolerance: true,
-        agentPlanningHorizon: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        autonomousDMs: true,
-      },
-    });
+    const [agent] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
     if (!agent) {
       throw new Error('Agent not found');
     }
+
+    // Get agent config from separate table
+    const agentConfig = await getAgentConfig(agentUserId);
 
     // Gather full planning context
     const context = await this.getPlanningContext(agentUserId);
@@ -197,13 +211,13 @@ export class AutonomousPlanningCoordinator {
     // Convert agent to PlanningAgent (null -> undefined for optional fields)
     const planningAgent: PlanningAgent = {
       displayName: agent.displayName ?? 'Agent',
-      agentSystem: agent.agentSystem ?? undefined,
-      agentMaxActionsPerTick: agent.agentMaxActionsPerTick ?? undefined,
-      agentRiskTolerance: agent.agentRiskTolerance ?? undefined,
-      autonomousTrading: agent.autonomousTrading ?? undefined,
-      autonomousPosting: agent.autonomousPosting ?? undefined,
-      autonomousCommenting: agent.autonomousCommenting ?? undefined,
-      autonomousDMs: agent.autonomousDMs ?? undefined,
+      agentSystem: agentConfig?.systemPrompt ?? undefined,
+      agentMaxActionsPerTick: agentConfig?.maxActionsPerTick ?? undefined,
+      agentRiskTolerance: agentConfig?.riskTolerance ?? undefined,
+      autonomousTrading: agentConfig?.autonomousTrading ?? undefined,
+      autonomousPosting: agentConfig?.autonomousPosting ?? undefined,
+      autonomousCommenting: agentConfig?.autonomousCommenting ?? undefined,
+      autonomousDMs: agentConfig?.autonomousDMs ?? undefined,
     };
 
     // If no goals configured, use simplified planning
@@ -241,7 +255,7 @@ export class AutonomousPlanningCoordinator {
     // Use LARGE model (trained W&B model if available, else qwen3-32b) for complex planning
     const planResponse = await callGroqDirect({
       prompt: finalPrompt,
-      system: agent.agentSystem || undefined,
+      system: planningAgent.agentSystem ?? undefined,
       modelSize: 'large', // Uses trained W&B model if available
       runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
       temperature: 0.7,
@@ -299,72 +313,100 @@ export class AutonomousPlanningCoordinator {
         target: g.target ? JSON.parse(JSON.stringify(g.target)) : undefined,
       })) as AgentGoal[];
 
-    // Get directives
-    const agent = await db.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        agentDirectives: true,
-        agentConstraints: true,
-        virtualBalance: true,
-        lifetimePnL: true,
-        agentMaxActionsPerTick: true,
-        agentRiskTolerance: true,
-      },
-    });
+    // Get user and agent config
+    const [user] = await db
+      .select({
+        virtualBalance: users.virtualBalance,
+        lifetimePnL: users.lifetimePnL,
+      })
+      .from(users)
+      .where(eq(users.id, agentUserId))
+      .limit(1);
 
-    const directives = agent?.agentDirectives
-      ? (JSON.parse(JSON.stringify(agent.agentDirectives)) as AgentDirective[])
+    const config = await getAgentConfig(agentUserId);
+
+    const directives = config?.directives
+      ? (JSON.parse(JSON.stringify(config.directives)) as AgentDirective[])
       : [];
 
-    const constraints = agent?.agentConstraints
-      ? (JSON.parse(JSON.stringify(agent.agentConstraints)) as AgentConstraints)
+    const constraints = config?.constraints
+      ? (JSON.parse(JSON.stringify(config.constraints)) as AgentConstraints)
       : null;
 
     // If constraints exist, merge with agent settings
-    if (constraints && agent) {
-      constraints.general.maxActionsPerTick = agent.agentMaxActionsPerTick;
-      constraints.general.riskTolerance = agent.agentRiskTolerance as
+    if (constraints && config) {
+      constraints.general.maxActionsPerTick = config.maxActionsPerTick;
+      constraints.general.riskTolerance = config.riskTolerance as
         | 'low'
         | 'medium'
         | 'high';
     }
 
     // Get portfolio info
-    const positions = await db.position.count({
-      where: { userId: agentUserId, status: 'active' },
-    });
-
-    const perpPositions = await db.perpPosition.count({
-      where: { userId: agentUserId, closedAt: null },
-    });
-
-    // Get pending interactions
-    const pendingInteractions =
-      await autonomousBatchResponseService.gatherPendingInteractions(
-        agentUserId
+    const [positionCountResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(positions)
+      .where(
+        and(eq(positions.userId, agentUserId), eq(positions.status, 'active'))
       );
+    const positionsCount = positionCountResult?.count ?? 0;
+
+    const [perpPositionCountResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(perpPositions)
+      .where(
+        and(
+          eq(perpPositions.userId, agentUserId),
+          isNull(perpPositions.closedAt)
+        )
+      );
+    const perpPositionsCount = perpPositionCountResult?.count ?? 0;
+
+    // Get pending interactions using new utilities
+    const [pendingCommentReplies, pendingChatMessages] = await Promise.all([
+      gatherPendingCommentReplies(agentUserId),
+      gatherPendingChatMessages(agentUserId),
+    ]);
 
     // Get recent actions (last 10)
-    const recentLogs = await db.agentLog.findMany({
-      where: {
-        agentUserId,
-        type: { in: ['trade', 'post', 'comment', 'dm'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
+    const recentLogs = await db
+      .select()
+      .from(agentLogs)
+      .where(
+        and(
+          eq(agentLogs.agentUserId, agentUserId),
+          inArray(agentLogs.type, ['trade', 'post', 'comment', 'dm'])
+        )
+      )
+      .orderBy(desc(agentLogs.createdAt))
+      .limit(10);
 
     // Detect trading opportunities
     const tradingOpportunities = await detectTradingOpportunities(
       agentUserId,
-      Number(agent?.virtualBalance || 0)
+      Number(user?.virtualBalance ?? 0)
     );
 
     // Detect social opportunities
     const socialOpportunities = await detectSocialOpportunities(
       agentUserId,
-      pendingInteractions
+      pendingCommentReplies,
+      pendingChatMessages
     );
+
+    // Combine pending interactions for context (convert to unified format)
+    const pendingForContext = [
+      ...pendingCommentReplies.slice(0, 5).map((p) => ({
+        type: 'comment_reply' as const,
+        content: p.content,
+        author: p.author,
+      })),
+      ...pendingChatMessages.slice(0, 5).map((p) => ({
+        type: p.isGroupChat ? ('group_message' as const) : ('dm' as const),
+        content: p.content,
+        author: p.author,
+      })),
+    ];
 
     return {
       goals: {
@@ -379,15 +421,11 @@ export class AutonomousPlanningCoordinator {
       },
       constraints,
       portfolio: {
-        balance: Number(agent?.virtualBalance || 0),
-        pnl: Number(agent?.lifetimePnL || 0),
-        positions: positions + perpPositions,
+        balance: Number(user?.virtualBalance ?? 0),
+        pnl: Number(user?.lifetimePnL ?? 0),
+        positions: positionsCount + perpPositionsCount,
       },
-      pending: pendingInteractions.slice(0, 10).map((p) => ({
-        type: p.type,
-        content: p.content,
-        author: p.author,
-      })),
+      pending: pendingForContext.slice(0, 10),
       opportunities: {
         trading: tradingOpportunities,
         social: socialOpportunities,
@@ -542,15 +580,15 @@ Your action plan (JSON only):`;
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       reasoning: string;
-    actions: Array<{
-      type: string;
-      priority: number;
-      goalId?: string;
-      reasoning: string;
-      estimatedImpact: number;
-      params?: Record<string, JsonValue>;
-    }>;
-  };
+      actions: Array<{
+        type: string;
+        priority: number;
+        goalId?: string;
+        reasoning: string;
+        estimatedImpact: number;
+        params?: Record<string, JsonValue>;
+      }>;
+    };
 
     const actions: PlannedAction[] = parsed.actions.map((a) => ({
       type: a.type as PlannedAction['type'],
@@ -950,10 +988,17 @@ async function detectTradingOpportunities(
   }
 
   // Get perp markets with significant price movement
-  const perpMarkets = await db.organization.findMany({
-    where: { type: 'company' },
-    take: 10,
-  });
+  const orgStates = await getDbInstance().getAllOrganizationStates();
+  const priceMap = new Map(
+    orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+  );
+  const perpMarkets = StaticDataRegistry.getAllOrganizations()
+    .filter((o): o is StaticOrganization => o.type === 'company')
+    .slice(0, 10)
+    .map((o: StaticOrganization) => ({
+      ...o,
+      currentPrice: priceMap.get(o.id) ?? o.initialPrice,
+    }));
 
   for (const org of perpMarkets) {
     const currentPrice = Number(org.currentPrice || org.initialPrice || 100);
@@ -985,7 +1030,8 @@ async function detectTradingOpportunities(
  */
 async function detectSocialOpportunities(
   agentUserId: string,
-  pendingInteractions: Array<{ type: string; content: string; author: string }>
+  pendingCommentReplies: PendingCommentReply[],
+  pendingChatMessages: PendingChatMessage[]
 ): Promise<
   Array<{
     type: string;
@@ -999,25 +1045,48 @@ async function detectSocialOpportunities(
     engagementScore: number;
   }> = [];
 
-  // High-value interactions (direct questions, mentions)
-  for (const interaction of pendingInteractions) {
-    const content = interaction.content.toLowerCase();
+  // High-value comment reply interactions (direct questions, mentions)
+  for (const reply of pendingCommentReplies) {
+    const content = reply.content.toLowerCase();
     const isQuestion = content.includes('?');
     const isMention = content.includes('@') || content.includes(agentUserId);
     const isDirect = isQuestion || isMention;
 
     if (isDirect) {
       opportunities.push({
-        type: interaction.type,
-        description: `${interaction.author}: ${interaction.content.substring(0, 60)}...`,
+        type: 'comment_reply',
+        description: `${reply.author}: ${reply.content.substring(0, 60)}...`,
         engagementScore: 0.8,
       });
-    } else if (interaction.content.length > 50) {
+    } else if (reply.content.length > 50) {
       // Substantive comment
       opportunities.push({
-        type: interaction.type,
-        description: `${interaction.author}: ${interaction.content.substring(0, 60)}...`,
+        type: 'comment_reply',
+        description: `${reply.author}: ${reply.content.substring(0, 60)}...`,
         engagementScore: 0.5,
+      });
+    }
+  }
+
+  // High-value chat message interactions
+  for (const msg of pendingChatMessages) {
+    const content = msg.content.toLowerCase();
+    const isQuestion = content.includes('?');
+    const isMention = content.includes('@') || content.includes(agentUserId);
+    const isDirect = isQuestion || isMention;
+    const msgType = msg.isGroupChat ? 'group_message' : 'dm';
+
+    if (isDirect) {
+      opportunities.push({
+        type: msgType,
+        description: `${msg.author}: ${msg.content.substring(0, 60)}...`,
+        engagementScore: 0.9, // DMs and group mentions are high priority
+      });
+    } else if (msg.content.length > 50) {
+      opportunities.push({
+        type: msgType,
+        description: `${msg.author}: ${msg.content.substring(0, 60)}...`,
+        engagementScore: 0.6,
       });
     }
   }

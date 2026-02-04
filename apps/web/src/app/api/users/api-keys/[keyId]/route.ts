@@ -5,12 +5,16 @@
  * @access Authenticated (own keys only)
  */
 
+import {
+  authenticate,
+  invalidateCachedKey,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { asUser, eq, userApiKeys } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { userApiKeys, eq, asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 /**
  * DELETE /api/users/api-keys/[keyId] - Revoke API key
@@ -54,6 +58,12 @@ export const DELETE = withErrorHandling(
       );
     }
 
+    // Immediately invalidate cached key to prevent continued use
+    const revokedKey = deleted[0];
+    if (revokedKey?.keyHash) {
+      invalidateCachedKey(revokedKey.keyHash);
+    }
+
     logger.info(
       'API key revoked',
       { userId: authUser.userId, keyId },
@@ -65,4 +75,3 @@ export const DELETE = withErrorHandling(
     });
   }
 );
-

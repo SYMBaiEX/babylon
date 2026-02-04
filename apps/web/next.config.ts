@@ -1,21 +1,20 @@
+import { config } from 'dotenv';
 import type { NextConfig } from 'next';
 import * as path from 'path';
-import { config } from 'dotenv';
 
 // Use process.cwd() which works reliably in Next.js config context
 // This is the app directory (apps/web), so go up two levels to get monorepo root
 const monorepoRoot = path.resolve(process.cwd(), '../..');
 
+// Capture any Sentry auth token explicitly provided by the environment before dotenv runs.
+// We intentionally ignore tokens sourced from local `.env` files to avoid stale/invalid tokens
+// breaking developer builds when CI is set in the environment (common in some shells/CI runners).
+const sentryAuthTokenFromProcessEnv = process.env.SENTRY_AUTH_TOKEN;
+
 // Load .env files from monorepo root before Next.js processes them
 // This ensures env vars are available during config evaluation and at runtime
 config({ path: path.join(monorepoRoot, '.env') });
 config({ path: path.join(monorepoRoot, '.env.local') });
-
-const waitlistFlag =
-  process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? 'false';
-const waitlistEnabled = ['true', '1', 'yes', 'on'].includes(
-  waitlistFlag.toLowerCase()
-);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -43,22 +42,6 @@ const nextConfig: NextConfig = {
   typescript: {
     // Ignore type errors during build - we run typecheck separately via turbo
     ignoreBuildErrors: true,
-  },
-  env: {
-    WAITLIST_MODE: process.env.WAITLIST_MODE ?? 'false',
-  },
-  async redirects() {
-    if (!waitlistEnabled) return [];
-
-    return [
-      {
-        // Redirect everything except root and static/API assets to home during waitlist
-        source:
-          '/:path((?!$|_next|api|assets|static|images|fonts|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|\\.well-known|monitoring).*)',
-        destination: '/',
-        permanent: false,
-      },
-    ];
   },
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,
@@ -91,6 +74,9 @@ const nextConfig: NextConfig = {
     'drizzle-orm',
     'drizzle-orm/postgres-js',
     'ioredis', // Node.js Redis client - requires tls/net modules not available in edge runtime
+    // NOTE: @elizaos/core was removed from externals because it's ESM-only ("type": "module").
+    // Externalizing ESM packages causes require() errors at Vercel runtime (ERR_REQUIRE_ESM).
+    // Webpack now bundles it directly which resolves the ESM compatibility issue.
   ],
   images: {
     qualities: [100, 75],
@@ -160,7 +146,10 @@ const nextConfig: NextConfig = {
 
     // Alias electron to stub module to prevent webpack from trying to resolve it
     // electron-fetch checks process.versions.electron at runtime, so the stub is safe
-    const electronStubPath = path.join(process.cwd(), 'webpack-electron-stub.js');
+    const electronStubPath = path.join(
+      process.cwd(),
+      'webpack-electron-stub.js'
+    );
     config.resolve.alias = {
       ...config.resolve.alias,
       electron: electronStubPath,
@@ -191,13 +180,15 @@ const nextConfig: NextConfig = {
     // CRITICAL: For client builds, completely ignore server-only packages
     if (!isServer) {
       config.plugins.push(
-        // Ignore server-only Babylon packages in client builds
+        // Ignore server-only Babylon packages in client builds (including subpaths)
         new webpack.IgnorePlugin({
-          resourceRegExp: /^@babylon\/(api|db|contracts|training|agents)$/,
+          resourceRegExp:
+            /^@babylon\/(api|db|contracts|training|agents)(\/.*)?$/,
         }),
         // Ignore server-only npm packages
         new webpack.IgnorePlugin({
-          resourceRegExp: /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
+          resourceRegExp:
+            /^(ioredis|postgres|electron-fetch|agent0-sdk|ipfs-http-client)$/,
         }),
         // Ignore @elizaos/core for client builds (it imports node:fs)
         new webpack.IgnorePlugin({
@@ -225,12 +216,14 @@ const nextConfig: NextConfig = {
       }),
       // Ignore postgres package for client-side builds only
       // postgres requires Node.js built-ins (net, tls, crypto, stream) not available in browser
-      ...(isServer ? [] : [
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^postgres$/,
-          contextRegExp: /node_modules/,
-        })
-      ])
+      ...(isServer
+        ? []
+        : [
+            new webpack.IgnorePlugin({
+              resourceRegExp: /^postgres$/,
+              contextRegExp: /node_modules/,
+            }),
+          ])
     );
 
     // Configure externals for optional dependencies and server-only packages
@@ -242,6 +235,7 @@ const nextConfig: NextConfig = {
       // to externalize them so they're resolved at runtime from node_modules
       // NOTE: Do NOT externalize @babylon/* packages - they are TypeScript source files
       // and must be transpiled by webpack via transpilePackages
+      // NOTE: @elizaos/core intentionally excluded - it's ESM-only and must be bundled
       const serverExternalPackagesList = [
         'postgres',
         'drizzle-orm',
@@ -249,7 +243,7 @@ const nextConfig: NextConfig = {
         'ioredis',
         'swagger-jsdoc',
       ];
-      
+
       if (!Array.isArray(config.externals)) {
         if (typeof config.externals === 'function') {
           const originalExternals = config.externals;
@@ -261,12 +255,14 @@ const nextConfig: NextConfig = {
               }: {
                 request: string | undefined;
               },
-              callback: (
-                error?: Error | null,
-                result?: string
-              ) => void
+              callback: (error?: Error | null, result?: string) => void
             ) => {
-              if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+              if (
+                request &&
+                serverExternalPackagesList.some(
+                  (pkg) => request === pkg || request.startsWith(pkg + '/')
+                )
+              ) {
                 // Externalize server-only packages - resolve at runtime
                 return callback(null, 'commonjs ' + request);
               }
@@ -285,12 +281,14 @@ const nextConfig: NextConfig = {
             }: {
               request: string | undefined;
             },
-            callback: (
-              error?: Error | null,
-              result?: string
-            ) => void
+            callback: (error?: Error | null, result?: string) => void
           ) => {
-            if (request && serverExternalPackagesList.some(pkg => request === pkg || request.startsWith(pkg + '/'))) {
+            if (
+              request &&
+              serverExternalPackagesList.some(
+                (pkg) => request === pkg || request.startsWith(pkg + '/')
+              )
+            ) {
               // Externalize server-only packages - resolve at runtime
               return callback(null, 'commonjs ' + request);
             }
@@ -347,10 +345,7 @@ const nextConfig: NextConfig = {
       // Webpack externals function signature: ({context, request}, callback)
       const externalizeServerOnly = (
         { request }: { context?: string; request?: string },
-        callback: (
-          error?: Error | null,
-          result?: string
-        ) => void
+        callback: (error?: Error | null, result?: string) => void
       ) => {
         // Externalize server-only packages (exact match or subpath)
         if (
@@ -394,6 +389,13 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Only enable Sentry uploads in CI/Vercel builds.
+// This prevents local builds from failing if a developer has a stale/invalid token set.
+const sentryAuthToken =
+  process.env.CI || process.env.VERCEL
+    ? sentryAuthTokenFromProcessEnv
+    : undefined;
+
 const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
@@ -404,13 +406,13 @@ const sentryWebpackPluginOptions = {
 
   // Auth token for uploading source maps and creating releases
   // Set SENTRY_AUTH_TOKEN in environment to enable source map uploads
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+  authToken: sentryAuthToken,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
   // Suppress warnings when auth token is not provided (e.g., local development)
-  hideSourceMaps: !process.env.SENTRY_AUTH_TOKEN,
+  hideSourceMaps: !sentryAuthToken,
 
   // Disable telemetry to suppress warnings during build
   telemetry: false,
@@ -441,6 +443,12 @@ const sentryWebpackPluginOptions = {
 async function getConfig(): Promise<NextConfig> {
   let resolvedConfig: NextConfig = nextConfig;
 
+  // If we're not uploading sourcemaps/releases, don't wrap the config at all.
+  // This prevents local builds from invoking Sentry CLI when a stale token is present.
+  if (!sentryAuthToken) {
+    return resolvedConfig;
+  }
+
   try {
     const { withSentryConfig } = await import('@sentry/nextjs');
     resolvedConfig = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
@@ -458,4 +466,3 @@ async function getConfig(): Promise<NextConfig> {
 }
 
 export default getConfig();
-

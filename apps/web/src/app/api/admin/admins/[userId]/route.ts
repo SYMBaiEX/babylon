@@ -58,13 +58,19 @@
  * ```
  */
 
+import {
+  BusinessLogicError,
+  getClientIp,
+  logAdminAction,
+  NotFoundError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const AdminActionSchema = z.object({
   action: z.enum(['promote', 'demote']),
@@ -177,6 +183,31 @@ export const POST = withErrorHandling(
       },
       'POST /api/admin/admins/[userId]'
     );
+
+    // Audit log the privilege change (persist to database)
+    // This is a critical security operation that MUST be logged
+    logAdminAction(action === 'promote' ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN', {
+      adminId: adminUser.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'user',
+      resourceId: userId,
+      previousValue: {
+        isAdmin: targetUser.isAdmin,
+      },
+      newValue: {
+        isAdmin: action === 'promote',
+      },
+      metadata: {
+        targetUsername: updatedUser.username,
+        action,
+      },
+    }).catch((err) => {
+      logger.error(
+        'Failed to persist critical audit log for privilege change',
+        { err, userId, action },
+        'POST /api/admin/admins/[userId]'
+      );
+    });
 
     return successResponse({
       message: `User ${action}d successfully`,

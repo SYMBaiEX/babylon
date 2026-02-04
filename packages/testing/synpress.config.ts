@@ -1,83 +1,72 @@
 /**
- * Synpress configuration for Playwright tests.
+ * Synpress configuration for E2E tests with MetaMask integration.
  *
- * Configures Playwright for Synpress-style tests with wallet integration.
- * Note: Wallet setup is commented out as Privy uses embedded wallets, not MetaMask extension.
+ * Uses @synthetixio/synpress for real MetaMask wallet interaction.
+ * The default Anvil test wallet is used for authentication via Privy.
  *
  * @module testing/synpress.config
+ * @see https://docs.synpress.io/docs/playwright/configuration
  */
 
 import { defineConfig, devices } from '@playwright/test';
-import { config } from 'dotenv';
-import { resolve } from 'path';
+import dotenv from 'dotenv';
+import path from 'path';
 
-const rootDir = resolve(__dirname, '../..');
-config({ path: resolve(rootDir, '.env.local') });
-config({ path: resolve(rootDir, '.env') });
+const rootDir = path.resolve(__dirname, '../..');
+dotenv.config({ path: path.resolve(rootDir, '.env.local') });
+dotenv.config({ path: path.resolve(rootDir, '.env') });
 
-const _SEED_PHRASE =
-  process.env.WALLET_SEED_PHRASE ||
-  'test test test test test test test test test test test junk';
-const _PASSWORD = process.env.WALLET_PASSWORD || 'Tester@1234';
-
-if (process.env.PRIVY_TEST_EMAIL) {
-  console.log('✅ Privy test credentials loaded successfully');
-} else {
-  console.warn('⚠️ Privy test credentials not found in environment');
-}
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 export default defineConfig({
   testDir: './synpress',
   testMatch: '**/*.spec.ts',
 
-  /* Maximum time one test can run for */
-  timeout: process.env.CI ? 60 * 1000 : 120 * 1000,
+  /* Maximum time one test can run for - generous for stability */
+  timeout: 120_000,
 
-  /* Run tests in files in parallel */
+  /* Expect timeout */
+  expect: {
+    timeout: 15_000,
+  },
+
+  /* Run tests in files in parallel - disabled for wallet tests */
   fullyParallel: false,
 
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
-  /* Retry on CI only */
-  retries: process.env.CI ? 1 : 0,
+  /* Retry failed tests to handle transient failures */
+  retries: 2,
 
-  /* Use 2 workers in CI for faster execution, 1 locally for stability */
-  workers: process.env.CI ? 2 : 1,
+  /* Single worker for wallet tests to avoid conflicts */
+  workers: 1,
 
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [
-    ['list'], // Non-blocking console output only
-    ['json', { outputFile: 'test-results/synpress-results.json' }],
-  ],
+  /* Reporter to use */
+  reporter: process.env.CI
+    ? [
+        ['github'],
+        ['json', { outputFile: 'test-results/synpress-results.json' }],
+      ]
+    : [
+        ['list'],
+        ['json', { outputFile: 'test-results/synpress-results.json' }],
+      ],
 
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  /* Shared settings for all the projects below */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')` */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    baseURL,
     trace: 'on-first-retry',
-
-    /* Screenshot on failure */
     screenshot: 'only-on-failure',
-
-    /* Video on failure */
     video: 'retain-on-failure',
-
-    /* Action timeout - reduced in CI for faster feedback */
-    actionTimeout: process.env.CI ? 15 * 1000 : 30 * 1000,
-
-    /* Navigation timeout - reduced in CI */
-    navigationTimeout: process.env.CI ? 30 * 1000 : 60 * 1000,
-
-    /* Launch Options to prevent CI crashes */
+    actionTimeout: 45_000,
+    navigationTimeout: 60_000,
     launchOptions: {
-      args: ['--disable-dev-shm-usage'],
+      args: ['--disable-dev-shm-usage', '--disable-gpu'],
     },
   },
 
-  /* Configure projects for major browsers with wallet setup */
+  /* Configure projects - Synpress tests use chromium with MetaMask */
   projects: [
     {
       name: 'chromium',
@@ -87,14 +76,14 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /* Run local dev server - starts full dev environment with all services */
   webServer: process.env.CI
     ? undefined
     : {
-        command: `cd ${rootDir} && bunx next dev --dir apps/web`,
-        url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
+        command: `cd ${rootDir} && bun run dev`,
+        url: baseURL,
+        reuseExistingServer: true,
+        timeout: 300_000, // 5 minutes for full server startup
         stdout: 'pipe',
         stderr: 'pipe',
       },

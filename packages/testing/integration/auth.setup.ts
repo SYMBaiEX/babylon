@@ -70,27 +70,21 @@ setup('extract auth tokens for integration tests', async ({ page }) => {
     }
 
     // Get user ID from API
-    try {
-      const response = await fetch(`${apiUrl}/api/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const response = await fetch(`${apiUrl}/api/users/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      if (!response.ok) {
-        throw new Error(
-          `API request failed: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const userData = await response.json();
-      return {
-        accessToken: token,
-        userId: userData.user?.id || null,
-      };
-    } catch (error) {
+    if (!response.ok) {
       throw new Error(
-        `Failed to fetch user data: ${error instanceof Error ? error.message : String(error)}`
+        `API request failed: ${response.status} ${response.statusText}`
       );
     }
+
+    const userData = await response.json();
+    return {
+      accessToken: token,
+      userId: userData.user?.id || null,
+    };
   }, baseURL);
 
   if (!accessToken) {

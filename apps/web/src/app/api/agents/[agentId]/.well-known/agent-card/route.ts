@@ -52,10 +52,10 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
 import { generateAgentCardSync } from '@babylon/a2a';
-import { logger } from '@babylon/shared';
+import { getAgentConfig } from '@babylon/agents';
+import { db } from '@babylon/db';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,68 +63,45 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
-  try {
-    const { agentId } = await params;
+  const { agentId } = await params;
 
-    const agent = await db.user.findUnique({
-      where: { id: agentId },
-      select: {
-        id: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        agentSystem: true,
-        agentPersonality: true,
-        agentTradingStrategy: true,
-        isAgent: true,
-        a2aEnabled: true,
-      },
-    });
+  const agent = await db.user.findUnique({
+    where: { id: agentId },
+    select: {
+      id: true,
+      displayName: true,
+      bio: true,
+      profileImageUrl: true,
+      isAgent: true,
+    },
+  });
 
-    if (!agent || !agent.isAgent) {
-      return NextResponse.json(
-        {
-          error: 'Agent not found',
-        },
-        { status: 404 }
-      );
-    }
-
-    if (!agent.a2aEnabled) {
-      return NextResponse.json(
-        {
-          error: 'A2A is not enabled for this agent',
-        },
-        { status: 403 }
-      );
-    }
-
-    const agentCard = generateAgentCardSync({
-      id: agent.id,
-      displayName: agent.displayName,
-      bio: agent.bio,
-      profileImageUrl: agent.profileImageUrl,
-      agentSystem: agent.agentSystem,
-      agentPersonality: agent.agentPersonality,
-      agentTradingStrategy: agent.agentTradingStrategy,
-    });
-
-    return NextResponse.json(agentCard, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-      },
-    });
-  } catch (error) {
-    logger.error('Error generating agent card', {
-      error,
-      agentId: (await params).agentId,
-    });
+  if (!agent || !agent.isAgent) {
     return NextResponse.json(
       {
-        error: 'Failed to generate agent card',
+        error: 'Agent not found',
       },
-      { status: 500 }
+      { status: 404 }
     );
   }
+
+  // Get agent config for agent-specific fields
+  const agentConfig = await getAgentConfig(agentId);
+
+  const agentCard = generateAgentCardSync({
+    id: agent.id,
+    displayName: agent.displayName,
+    bio: agent.bio,
+    profileImageUrl: agent.profileImageUrl,
+    systemPrompt: agentConfig?.systemPrompt,
+    personality: agentConfig?.personality,
+    tradingStrategy: agentConfig?.tradingStrategy,
+  });
+
+  return NextResponse.json(agentCard, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+    },
+  });
 }

@@ -7,6 +7,7 @@ import "../core/DiamondCutFacet.sol";
 import "../core/DiamondLoupeFacet.sol";
 import "../core/PredictionMarketFacet.sol";
 import "../core/OracleFacet.sol";
+import "../core/GameOracleFacet.sol";
 import "../core/LiquidityPoolFacet.sol";
 import "../core/PerpetualMarketFacet.sol";
 import "../core/ReferralSystemFacet.sol";
@@ -14,35 +15,27 @@ import "../core/PriceStorageFacet.sol";
 import "../identity/ERC8004IdentityRegistry.sol";
 import "../identity/ERC8004ReputationSystem.sol";
 import "../oracles/ChainlinkOracleMock.sol";
-import "../oracles/UMAOracleMock.sol";
+import "../oracles/MockOracle.sol";
 import "../libraries/LibDiamond.sol";
 
-// Oracle system imports
+// Oracle system - Game as Prediction Oracle
 import {BabylonGameOracle} from "../src/game/BabylonGameOracle.sol";
-import {Predimarket} from "../src/prediction-markets/Predimarket.sol";
-import {MarketFactory} from "../src/prediction-markets/MarketFactory.sol";
-import {Contest} from "../src/game/Contest.sol";
 import {BanManager} from "../src/moderation/BanManager.sol";
-import {ReportingSystem} from "../src/moderation/ReportingSystem.sol";
-import {ReputationLabelManager} from "../src/moderation/ReputationLabelManager.sol";
-
-// Mock ERC20 for testing
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
-/// @title MockERC20
-/// @notice Mock ERC20 token for testing prediction markets
-contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
-        _mint(msg.sender, 1000000 * 10**18); // Mint 1M tokens
-    }
-    
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
 
 /// @title DeployBabylon
 /// @notice Deployment script for Babylon prediction market on Base L2
+/// @dev Consolidated architecture: Diamond + BabylonGameOracle
+/// 
+/// Architecture:
+/// - Diamond: PredictionMarketFacet handles LMSR trading
+/// - BabylonGameOracle: IPredictionOracle interface for game outcomes
+/// - GameOracleFacet: Bridges oracle outcomes to Diamond markets
+/// 
+/// Flow:
+/// 1. Game engine commits/reveals outcomes to BabylonGameOracle
+/// 2. BabylonGameOracle stores outcomes on-chain
+/// 3. GameOracleFacet reads outcomes and resolves Diamond markets
+/// 4. External contracts can query BabylonGameOracle directly
 contract DeployBabylon is Script {
     // Deployed contracts - Diamond system
     Diamond public diamond;
@@ -50,6 +43,7 @@ contract DeployBabylon is Script {
     DiamondLoupeFacet public diamondLoupeFacet;
     PredictionMarketFacet public predictionMarketFacet;
     OracleFacet public oracleFacet;
+    GameOracleFacet public gameOracleFacet;
     LiquidityPoolFacet public liquidityPoolFacet;
     PerpetualMarketFacet public perpetualMarketFacet;
     ReferralSystemFacet public referralSystemFacet;
@@ -61,21 +55,13 @@ contract DeployBabylon is Script {
     
     // Oracle mocks
     ChainlinkOracleMock public chainlinkOracle;
-    UMAOracleMock public umaOracle;
+    MockOracle public mockOracle;
     
-    // Oracle system - new contracts
+    // Game Oracle - The game IS the prediction oracle
     BabylonGameOracle public babylonOracle;
-    Predimarket public predimarket;
-    MarketFactory public marketFactory;
-    Contest public contestOracle;
     
-    // Moderation system
+    // Moderation
     BanManager public banManager;
-    ReportingSystem public reportingSystem;
-    ReputationLabelManager public labelManager;
-    
-    // Test token (for testnet/localnet only)
-    MockERC20 public testToken;
 
     // Deployment configuration
     address public deployer;
@@ -108,6 +94,9 @@ contract DeployBabylon is Script {
 
         oracleFacet = new OracleFacet();
         console.log("OracleFacet:", address(oracleFacet));
+        
+        gameOracleFacet = new GameOracleFacet();
+        console.log("GameOracleFacet:", address(gameOracleFacet));
 
         // 2. Deploy Diamond with DiamondCutFacet
         console.log("\n2. Deploying Diamond...");
@@ -135,20 +124,21 @@ contract DeployBabylon is Script {
         // 4. Add PredictionMarketFacet
         console.log("\n4. Adding PredictionMarketFacet...");
         IDiamondCut.FacetCut[] memory marketCut = new IDiamondCut.FacetCut[](1);
-        bytes4[] memory marketSelectors = new bytes4[](13);
+        bytes4[] memory marketSelectors = new bytes4[](14);
         marketSelectors[0] = PredictionMarketFacet.createMarket.selector;
         marketSelectors[1] = PredictionMarketFacet.calculateCost.selector;
-        marketSelectors[2] = PredictionMarketFacet.buyShares.selector;
-        marketSelectors[3] = PredictionMarketFacet.sellShares.selector;
-        marketSelectors[4] = PredictionMarketFacet.calculateSellPayout.selector;
-        marketSelectors[5] = PredictionMarketFacet.resolveMarket.selector;
-        marketSelectors[6] = PredictionMarketFacet.claimWinnings.selector;
-        marketSelectors[7] = PredictionMarketFacet.deposit.selector;
-        marketSelectors[8] = PredictionMarketFacet.withdraw.selector;
-        marketSelectors[9] = PredictionMarketFacet.getBalance.selector;
-        marketSelectors[10] = PredictionMarketFacet.getMarket.selector;
-        marketSelectors[11] = PredictionMarketFacet.getMarketShares.selector;
-        marketSelectors[12] = PredictionMarketFacet.getPosition.selector;
+        marketSelectors[2] = PredictionMarketFacet.calculateCostWithFee.selector;
+        marketSelectors[3] = PredictionMarketFacet.buyShares.selector;
+        marketSelectors[4] = PredictionMarketFacet.sellShares.selector;
+        marketSelectors[5] = PredictionMarketFacet.calculateSellPayout.selector;
+        marketSelectors[6] = PredictionMarketFacet.resolveMarket.selector;
+        marketSelectors[7] = PredictionMarketFacet.claimWinnings.selector;
+        marketSelectors[8] = PredictionMarketFacet.deposit.selector;
+        marketSelectors[9] = PredictionMarketFacet.withdraw.selector;
+        marketSelectors[10] = PredictionMarketFacet.getBalance.selector;
+        marketSelectors[11] = PredictionMarketFacet.getMarket.selector;
+        marketSelectors[12] = PredictionMarketFacet.getMarketShares.selector;
+        marketSelectors[13] = PredictionMarketFacet.getPosition.selector;
 
         marketCut[0] = IDiamondCut.FacetCut({
             facetAddress: address(predictionMarketFacet),
@@ -163,11 +153,11 @@ contract DeployBabylon is Script {
         IDiamondCut.FacetCut[] memory oracleCut = new IDiamondCut.FacetCut[](1);
         bytes4[] memory oracleSelectors = new bytes4[](8);
         oracleSelectors[0] = OracleFacet.requestChainlinkResolution.selector;
-        oracleSelectors[1] = OracleFacet.requestUMAResolution.selector;
+        oracleSelectors[1] = OracleFacet.requestMockResolution.selector;
         oracleSelectors[2] = OracleFacet.oracleCallback.selector;
-        oracleSelectors[3] = OracleFacet.umaOracleCallback.selector;
+        oracleSelectors[3] = OracleFacet.mockOracleCallback.selector;
         oracleSelectors[4] = OracleFacet.setChainlinkOracle.selector;
-        oracleSelectors[5] = OracleFacet.setUMAOracle.selector;
+        oracleSelectors[5] = OracleFacet.setMockOracle.selector;
         oracleSelectors[6] = OracleFacet.manualResolve.selector;
         oracleSelectors[7] = OracleFacet.getOracleAddresses.selector;
 
@@ -178,6 +168,28 @@ contract DeployBabylon is Script {
         });
 
         IDiamondCut(address(diamond)).diamondCut(oracleCut, address(0), "");
+        
+        // 5b. Add GameOracleFacet
+        console.log("\n5b. Adding GameOracleFacet...");
+        IDiamondCut.FacetCut[] memory gameOracleCut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory gameOracleSelectors = new bytes4[](9);
+        gameOracleSelectors[0] = GameOracleFacet.setGameOracle.selector;
+        gameOracleSelectors[1] = GameOracleFacet.getGameOracle.selector;
+        gameOracleSelectors[2] = GameOracleFacet.linkMarketToSession.selector;
+        gameOracleSelectors[3] = GameOracleFacet.getSessionForMarket.selector;
+        gameOracleSelectors[4] = GameOracleFacet.getMarketForSession.selector;
+        gameOracleSelectors[5] = GameOracleFacet.resolveFromGameOracle.selector;
+        gameOracleSelectors[6] = GameOracleFacet.queryOracleOutcome.selector;
+        gameOracleSelectors[7] = GameOracleFacet.isWinnerInSession.selector;
+        gameOracleSelectors[8] = GameOracleFacet.createMarketForSession.selector;
+
+        gameOracleCut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(gameOracleFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: gameOracleSelectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(gameOracleCut, address(0), "");
 
         // 6. Deploy and add new facets (LiquidityPool, PerpetualMarket, ReferralSystem)
         console.log("\n6. Deploying new facets...");
@@ -198,19 +210,21 @@ contract DeployBabylon is Script {
         IDiamondCut.FacetCut[] memory newFacetsCut = new IDiamondCut.FacetCut[](4);
 
         // LiquidityPoolFacet selectors
-        bytes4[] memory liquiditySelectors = new bytes4[](12);
+        bytes4[] memory liquiditySelectors = new bytes4[](14);
         liquiditySelectors[0] = LiquidityPoolFacet.createLiquidityPool.selector;
         liquiditySelectors[1] = LiquidityPoolFacet.addLiquidity.selector;
         liquiditySelectors[2] = LiquidityPoolFacet.removeLiquidity.selector;
         liquiditySelectors[3] = LiquidityPoolFacet.swap.selector;
-        liquiditySelectors[4] = LiquidityPoolFacet.getPool.selector;
-        liquiditySelectors[5] = LiquidityPoolFacet.getLPPosition.selector;
-        liquiditySelectors[6] = LiquidityPoolFacet.getSwapOutput.selector;
-        liquiditySelectors[7] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[4] = LiquidityPoolFacet.setPoolActive.selector;
+        liquiditySelectors[5] = LiquidityPoolFacet.claimRewards.selector;
+        liquiditySelectors[6] = LiquidityPoolFacet.getPool.selector;
+        liquiditySelectors[7] = LiquidityPoolFacet.getLPPosition.selector;
         liquiditySelectors[8] = LiquidityPoolFacet.getReserves.selector;
-        liquiditySelectors[9] = LiquidityPoolFacet.getPriceImpact.selector;
-        liquiditySelectors[10] = LiquidityPoolFacet.getPendingRewards.selector;
-        liquiditySelectors[11] = LiquidityPoolFacet.claimRewards.selector;
+        liquiditySelectors[9] = LiquidityPoolFacet.getSwapOutput.selector;
+        liquiditySelectors[10] = LiquidityPoolFacet.getPriceImpact.selector;
+        liquiditySelectors[11] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[12] = LiquidityPoolFacet.getImpermanentLoss.selector;
+        liquiditySelectors[13] = LiquidityPoolFacet.getPendingRewards.selector;
 
         newFacetsCut[0] = IDiamondCut.FacetCut({
             facetAddress: address(liquidityPoolFacet),
@@ -238,17 +252,19 @@ contract DeployBabylon is Script {
         });
 
         // ReferralSystemFacet selectors
-        bytes4[] memory referralSelectors = new bytes4[](10);
+        bytes4[] memory referralSelectors = new bytes4[](12);
         referralSelectors[0] = ReferralSystemFacet.registerReferral.selector;
         referralSelectors[1] = ReferralSystemFacet.payReferralCommission.selector;
         referralSelectors[2] = ReferralSystemFacet.claimReferralEarnings.selector;
-        referralSelectors[3] = ReferralSystemFacet.getReferralData.selector;
-        referralSelectors[4] = ReferralSystemFacet.getTierInfo.selector;
-        referralSelectors[5] = ReferralSystemFacet.getReferralChain.selector;
-        referralSelectors[6] = ReferralSystemFacet.getTotalReferrals.selector;
-        referralSelectors[7] = ReferralSystemFacet.getTotalCommissions.selector;
-        referralSelectors[8] = ReferralSystemFacet.isReferred.selector;
-        referralSelectors[9] = ReferralSystemFacet.calculateCommission.selector;
+        referralSelectors[3] = ReferralSystemFacet.initializeReferralSystem.selector;
+        referralSelectors[4] = ReferralSystemFacet.getReferralData.selector;
+        referralSelectors[5] = ReferralSystemFacet.getTierInfo.selector;
+        referralSelectors[6] = ReferralSystemFacet.getReferralChain.selector;
+        referralSelectors[7] = ReferralSystemFacet.getTotalStats.selector;
+        referralSelectors[8] = ReferralSystemFacet.getTotalReferrals.selector;
+        referralSelectors[9] = ReferralSystemFacet.getTotalCommissions.selector;
+        referralSelectors[10] = ReferralSystemFacet.isReferred.selector;
+        referralSelectors[11] = ReferralSystemFacet.calculateCommission.selector;
 
         newFacetsCut[2] = IDiamondCut.FacetCut({
             facetAddress: address(referralSystemFacet),
@@ -292,94 +308,30 @@ contract DeployBabylon is Script {
             chainlinkOracle = new ChainlinkOracleMock();
             console.log("ChainlinkOracle:", address(chainlinkOracle));
 
-            umaOracle = new UMAOracleMock();
-            console.log("UMAOracle:", address(umaOracle));
+            mockOracle = new MockOracle();
+            console.log("MockOracle:", address(mockOracle));
 
             // Set oracle addresses in diamond
             OracleFacet(address(diamond)).setChainlinkOracle(address(chainlinkOracle));
-            OracleFacet(address(diamond)).setUMAOracle(address(umaOracle));
+            OracleFacet(address(diamond)).setMockOracle(address(mockOracle));
         } else {
             console.log("\n10. Skipping Oracle Mocks (Mainnet - use real oracles)");
         }
         
-        // 11. Deploy Test ERC20 Token (for testnet/localnet)
-        if (block.chainid == 84532 || block.chainid == 31337) {
-            console.log("\n11. Deploying Test ERC20 Token...");
-            testToken = new MockERC20("Babylon Test Token", "BTT");
-            console.log("TestToken:", address(testToken));
-        }
-        
-        // 12. Deploy Babylon Game Oracle
-        console.log("\n12. Deploying Babylon Game Oracle...");
+        // 11. Deploy Babylon Game Oracle - THE GAME IS THE PREDICTION ORACLE
+        console.log("\n11. Deploying Babylon Game Oracle (IPredictionOracle)...");
         babylonOracle = new BabylonGameOracle(deployer); // Deployer is game server initially
         console.log("BabylonGameOracle:", address(babylonOracle));
         
-        // 13. Deploy Predimarket (LMSR prediction market)
-        console.log("\n13. Deploying Predimarket...");
-        address paymentToken = block.chainid == 84532 || block.chainid == 31337 
-            ? address(testToken)  // Use test token on testnet/localnet
-            : address(0); // TODO: Set to real token on mainnet (USDC, etc.)
+        // 12. Configure GameOracleFacet to use BabylonGameOracle
+        console.log("\n12. Configuring GameOracleFacet...");
+        GameOracleFacet(address(diamond)).setGameOracle(address(babylonOracle));
+        console.log("GameOracle set in Diamond");
         
-        require(paymentToken != address(0), "Payment token not set");
-        
-        predimarket = new Predimarket(
-            paymentToken,           // Payment token
-            address(babylonOracle), // Oracle address
-            deployer,               // Treasury
-            deployer                // Owner
-        );
-        console.log("Predimarket:", address(predimarket));
-        
-        // 14. Deploy Market Factory
-        console.log("\n14. Deploying Market Factory...");
-        marketFactory = new MarketFactory(
-            address(predimarket),
-            address(babylonOracle),
-            1000 * 1e18,  // Default liquidity: 1000 tokens
-            deployer       // Owner
-        );
-        console.log("MarketFactory:", address(marketFactory));
-        
-        // 15. Deploy Contest Oracle
-        console.log("\n15. Deploying Contest Oracle...");
-        contestOracle = new Contest(deployer); // Deployer is TEE publisher initially
-        console.log("ContestOracle:", address(contestOracle));
-        
-        // 16. Deploy Moderation System
-        console.log("\n16. Deploying Moderation System...");
-        
-        // BanManager
+        // 13. Deploy BanManager (standalone moderation)
+        console.log("\n13. Deploying BanManager...");
         banManager = new BanManager(deployer, deployer); // governance, owner
         console.log("BanManager:", address(banManager));
-        
-        // ReputationLabelManager
-        labelManager = new ReputationLabelManager(
-            address(banManager),
-            address(predimarket),  // Uses Predimarket for voting
-            deployer,              // Governance
-            deployer               // Owner
-        );
-        console.log("ReputationLabelManager:", address(labelManager));
-        
-        // ReportingSystem
-        reportingSystem = new ReportingSystem(
-            address(banManager),
-            address(labelManager),
-            address(predimarket),      // Uses Predimarket for voting
-            address(identityRegistry), // Identity registry
-            deployer,                  // Governance
-            deployer                   // Owner
-        );
-        console.log("ReportingSystem:", address(reportingSystem));
-        
-        // 17. Configure integrations
-        console.log("\n17. Configuring integrations...");
-        
-        // Authorize ReportingSystem and ReputationLabelManager to create markets in Predimarket
-        // Note: Predimarket needs addAuthorizedCreator function - we'll call it through owner
-        // predimarket.addAuthorizedCreator(address(reportingSystem));
-        // predimarket.addAuthorizedCreator(address(labelManager));
-        console.log("Moderation system configured (manual authorization needed)");
 
         vm.stopBroadcast();
 
@@ -391,6 +343,7 @@ contract DeployBabylon is Script {
         console.log("DiamondLoupeFacet:", address(diamondLoupeFacet));
         console.log("PredictionMarketFacet:", address(predictionMarketFacet));
         console.log("OracleFacet:", address(oracleFacet));
+        console.log("GameOracleFacet:", address(gameOracleFacet));
         console.log("LiquidityPoolFacet:", address(liquidityPoolFacet));
         console.log("PerpetualMarketFacet:", address(perpetualMarketFacet));
         console.log("ReferralSystemFacet:", address(referralSystemFacet));
@@ -400,71 +353,20 @@ contract DeployBabylon is Script {
         console.log("IdentityRegistry:", address(identityRegistry));
         console.log("ReputationSystem:", address(reputationSystem));
         
-        console.log("\n--- Oracle System ---");
+        console.log("\n--- Game Oracle (IPredictionOracle) ---");
         console.log("BabylonGameOracle:", address(babylonOracle));
-        console.log("Predimarket:", address(predimarket));
-        console.log("MarketFactory:", address(marketFactory));
-        console.log("ContestOracle:", address(contestOracle));
+        console.log("  -> External contracts query: oracle.getOutcome(sessionId)");
+        console.log("  -> Diamond resolves via: GameOracleFacet.resolveFromGameOracle()");
         
-        console.log("\n--- Moderation System ---");
+        console.log("\n--- Moderation ---");
         console.log("BanManager:", address(banManager));
-        console.log("ReputationLabelManager:", address(labelManager));
-        console.log("ReportingSystem:", address(reportingSystem));
         
         if (block.chainid == 84532 || block.chainid == 31337) {
             console.log("\n--- Test Infrastructure ---");
             console.log("ChainlinkOracle (Mock):", address(chainlinkOracle));
-            console.log("UMAOracle (Mock):", address(umaOracle));
-            console.log("TestToken (BTT):", address(testToken));
+            console.log("MockOracle:", address(mockOracle));
         }
         
         console.log("\n==========================================================");
-
-        // Save deployment addresses
-        // _saveDeployment();  // Skipping file save - will save manually
-    }
-
-    function _saveDeployment() internal {
-        string memory json = "deployment";
-
-        // Diamond system
-        vm.serializeAddress(json, "diamond", address(diamond));
-        vm.serializeAddress(json, "diamondCutFacet", address(diamondCutFacet));
-        vm.serializeAddress(json, "diamondLoupeFacet", address(diamondLoupeFacet));
-        vm.serializeAddress(json, "predictionMarketFacet", address(predictionMarketFacet));
-        vm.serializeAddress(json, "oracleFacet", address(oracleFacet));
-        vm.serializeAddress(json, "liquidityPoolFacet", address(liquidityPoolFacet));
-        vm.serializeAddress(json, "perpetualMarketFacet", address(perpetualMarketFacet));
-        vm.serializeAddress(json, "referralSystemFacet", address(referralSystemFacet));
-        
-        // Identity system
-        vm.serializeAddress(json, "identityRegistry", address(identityRegistry));
-        vm.serializeAddress(json, "reputationSystem", address(reputationSystem));
-        
-        // Oracle system
-        vm.serializeAddress(json, "babylonOracle", address(babylonOracle));
-        vm.serializeAddress(json, "predimarket", address(predimarket));
-        vm.serializeAddress(json, "marketFactory", address(marketFactory));
-        vm.serializeAddress(json, "contestOracle", address(contestOracle));
-        
-        // Moderation system
-        vm.serializeAddress(json, "banManager", address(banManager));
-        vm.serializeAddress(json, "reportingSystem", address(reportingSystem));
-        vm.serializeAddress(json, "labelManager", address(labelManager));
-
-        // Test infrastructure (testnet/localnet only)
-        if (block.chainid == 84532 || block.chainid == 31337) {
-            vm.serializeAddress(json, "chainlinkOracle", address(chainlinkOracle));
-            vm.serializeAddress(json, "umaOracle", address(umaOracle));
-            vm.serializeAddress(json, "testToken", address(testToken));
-        }
-
-        string memory chainFolder = block.chainid == 8453 ? "base" : 
-                                   block.chainid == 31337 ? "local" : "base-sepolia";
-        string memory output = vm.serializeAddress(json, "deployer", deployer);
-
-        vm.writeJson(output, string.concat("./packages/contracts/deployments/", chainFolder, "/index.json"));
-
-        console.log("\nDeployment saved to ./packages/contracts/deployments/", chainFolder, "/index.json");
     }
 }

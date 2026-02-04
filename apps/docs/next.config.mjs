@@ -1,4 +1,8 @@
+import path from 'node:path';
 import nextra from 'nextra';
+
+// Next.js runs from `apps/docs`, so go up two levels for the monorepo root.
+const monorepoRoot = path.resolve(process.cwd(), '../..');
 
 const withNextra = nextra({
   latex: true,
@@ -10,6 +14,10 @@ const withNextra = nextra({
 
 export default withNextra({
   output: 'standalone',
+  // Explicitly set the monorepo root to avoid lockfile/root inference warnings.
+  turbopack: {
+    root: monorepoRoot,
+  },
   images: {
     unoptimized: true,
   },

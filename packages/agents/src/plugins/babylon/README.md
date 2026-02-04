@@ -16,7 +16,7 @@ There is **NO database fallback mode**. A2A is the **ONLY** supported communicat
 2. Configure `BABYLON_A2A_ENDPOINT` in `.env.local`
 3. Configure `AGENT_DEFAULT_PRIVATE_KEY` in `.env.local`
 
-**See:** `START_HERE.md` or `QUICKSTART.md` for setup.
+**See:** `apps/docs/content/a2a/server-configuration.mdx` for setup.
 
 ---
 
@@ -265,7 +265,7 @@ Babylon Plugin (A2A REQUIRED)
       ↓
 A2A Client ←WebSocket→ A2A Server (ws://localhost:8765)
       ↓                        ↓
-74 A2A Methods          Message Router
+A2A Methods             Message Router
       ↓                        ↓
 Full Platform Access    Database/Services
 ```
@@ -280,7 +280,7 @@ Full Platform Access    Database/Services
 
 ## A2A Method Coverage
 
-This plugin provides access to **ALL 58+ A2A methods**:
+This plugin provides access to **A2A methods across these categories**:
 
 ### Agent Discovery (2)
 - discover, getInfo
@@ -428,10 +428,8 @@ AGENT_DEFAULT_PRIVATE_KEY="0x<generated_key>"
 
 ## Documentation
 
-- **A2A_SETUP.md** - A2A server setup and configuration
-- **example.ts** - 8 code examples
-- **INTEGRATION.md** - Architecture and integration patterns
-- **A2A Protocol Spec** - `/src/a2a/README.md`
+- **A2A Setup** - See `apps/docs/content/a2a/server-configuration.mdx`
+- **A2A Protocol Spec** - See `apps/docs/vendor/A2A_protocol.md`
 
 ---
 

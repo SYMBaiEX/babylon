@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { desc, relations } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -196,6 +196,10 @@ export const worldFacts = pgTable(
     index('WorldFact_category_isActive_idx').on(table.category, table.isActive),
     index('WorldFact_priority_idx').on(table.priority),
     index('WorldFact_lastUpdated_idx').on(table.lastUpdated),
+    index('WorldFact_source_createdAt_idx').on(
+      table.source,
+      desc(table.createdAt)
+    ),
   ]
 );
 
@@ -293,49 +297,27 @@ export const parodyHeadlines = pgTable(
   ]
 );
 
-// CharacterMapping
-export const characterMappings = pgTable(
-  'CharacterMapping',
+// TickTokenStats - Stores LLM token usage statistics per game tick
+export const tickTokenStats = pgTable(
+  'TickTokenStats',
   {
     id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
+    tickId: text('tickId').notNull(),
+    tickStartedAt: timestamp('tickStartedAt', { mode: 'date' }).notNull(),
+    tickCompletedAt: timestamp('tickCompletedAt', { mode: 'date' }).notNull(),
+    tickDurationMs: integer('tickDurationMs').notNull(),
+    totalCalls: integer('totalCalls').notNull(),
+    totalInputTokens: integer('totalInputTokens').notNull(),
+    totalOutputTokens: integer('totalOutputTokens').notNull(),
+    totalTokens: integer('totalTokens').notNull(),
+    byPromptType: json('byPromptType').$type<JsonValue>().notNull(),
+    byModel: json('byModel').$type<JsonValue>().notNull(),
     createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
   },
   (table) => [
-    index('CharacterMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('CharacterMapping_priority_idx').on(table.priority),
-  ]
-);
-
-// OrganizationMapping
-export const organizationMappings = pgTable(
-  'OrganizationMapping',
-  {
-    id: text('id').primaryKey(),
-    realName: text('realName').notNull().unique(),
-    parodyName: text('parodyName').notNull(),
-    category: text('category').notNull(),
-    aliases: text('aliases').array().notNull().default([]),
-    isActive: boolean('isActive').notNull().default(true),
-    priority: integer('priority').notNull().default(0),
-    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull(),
-  },
-  (table) => [
-    index('OrganizationMapping_category_isActive_idx').on(
-      table.category,
-      table.isActive
-    ),
-    index('OrganizationMapping_priority_idx').on(table.priority),
+    index('TickTokenStats_tickStartedAt_idx').on(table.tickStartedAt),
+    index('TickTokenStats_tickId_idx').on(table.tickId),
+    index('TickTokenStats_createdAt_idx').on(table.createdAt),
   ]
 );
 
@@ -368,6 +350,77 @@ export const parodyHeadlinesRelations = relations(
   })
 );
 
+// AdminAuditLog - Stores audit trail for all admin actions
+export const adminAuditLogs = pgTable(
+  'AdminAuditLog',
+  {
+    id: text('id').primaryKey(),
+    adminId: text('adminId').notNull(),
+    action: text('action').notNull(),
+    resourceType: text('resourceType').notNull(),
+    resourceId: text('resourceId'),
+    previousValue: json('previousValue').$type<JsonValue>(),
+    newValue: json('newValue').$type<JsonValue>(),
+    ipAddress: text('ipAddress'),
+    userAgent: text('userAgent'),
+    metadata: json('metadata').$type<JsonValue>(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('AdminAuditLog_adminId_idx').on(table.adminId),
+    index('AdminAuditLog_action_idx').on(table.action),
+    index('AdminAuditLog_resourceType_idx').on(table.resourceType),
+    index('AdminAuditLog_resourceId_idx').on(table.resourceId),
+    index('AdminAuditLog_createdAt_idx').on(table.createdAt),
+    index('AdminAuditLog_adminId_createdAt_idx').on(
+      table.adminId,
+      table.createdAt
+    ),
+  ]
+);
+
+// AnalyticsDailySnapshot - Stores daily analytics snapshots for the admin dashboard
+export const analyticsDailySnapshots = pgTable(
+  'AnalyticsDailySnapshot',
+  {
+    id: text('id').primaryKey(),
+    date: timestamp('date', { mode: 'date' }).notNull().unique(),
+    // User metrics
+    totalUsers: integer('totalUsers').notNull().default(0),
+    newUsers: integer('newUsers').notNull().default(0),
+    activeUsers: integer('activeUsers').notNull().default(0),
+    bannedUsers: integer('bannedUsers').notNull().default(0),
+    // Social metrics
+    totalPosts: integer('totalPosts').notNull().default(0),
+    newPosts: integer('newPosts').notNull().default(0),
+    totalComments: integer('totalComments').notNull().default(0),
+    newComments: integer('newComments').notNull().default(0),
+    totalReactions: integer('totalReactions').notNull().default(0),
+    newReactions: integer('newReactions').notNull().default(0),
+    // Trading metrics
+    totalMarkets: integer('totalMarkets').notNull().default(0),
+    activeMarkets: integer('activeMarkets').notNull().default(0),
+    totalTrades: integer('totalTrades').notNull().default(0),
+    newTrades: integer('newTrades').notNull().default(0),
+    // Engagement metrics
+    totalFollows: integer('totalFollows').notNull().default(0),
+    newFollows: integer('newFollows').notNull().default(0),
+    totalReferrals: integer('totalReferrals').notNull().default(0),
+    newReferrals: integer('newReferrals').notNull().default(0),
+    // Moderation metrics
+    totalReports: integer('totalReports').notNull().default(0),
+    newReports: integer('newReports').notNull().default(0),
+    resolvedReports: integer('resolvedReports').notNull().default(0),
+    // Additional data as JSON
+    metadata: json('metadata').$type<JsonValue>(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('AnalyticsDailySnapshot_date_idx').on(table.date),
+    index('AnalyticsDailySnapshot_createdAt_idx').on(table.createdAt),
+  ]
+);
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -397,9 +450,11 @@ export type RSSHeadline = typeof rssHeadlines.$inferSelect;
 export type NewRSSHeadline = typeof rssHeadlines.$inferInsert;
 export type ParodyHeadline = typeof parodyHeadlines.$inferSelect;
 export type NewParodyHeadline = typeof parodyHeadlines.$inferInsert;
-export type CharacterMapping = typeof characterMappings.$inferSelect;
-export type NewCharacterMapping = typeof characterMappings.$inferInsert;
-export type OrganizationMapping = typeof organizationMappings.$inferSelect;
-export type NewOrganizationMapping = typeof organizationMappings.$inferInsert;
-
-
+export type TickTokenStatsRow = typeof tickTokenStats.$inferSelect;
+export type NewTickTokenStatsRow = typeof tickTokenStats.$inferInsert;
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type NewAdminAuditLog = typeof adminAuditLogs.$inferInsert;
+export type AnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferSelect;
+export type NewAnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferInsert;

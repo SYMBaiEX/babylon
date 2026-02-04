@@ -16,6 +16,6 @@ export interface AuthenticatedUser {
   privyId?: string;
   walletAddress?: string;
   email?: string;
+  isAdmin?: boolean;
   isAgent?: boolean;
 }
-

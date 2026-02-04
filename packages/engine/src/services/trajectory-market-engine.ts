@@ -3,17 +3,37 @@
  *
  * Wraps MarketDecisionEngine to record all decisions as trajectories for RL training.
  * Can be toggled on/off via environment variable for zero-overhead in production.
+ *
+ * Supports archetype-aware recording for RL scoring:
+ * - Each decision includes NPC archetype in metadata
+ * - Archetype resolved via optional resolver function
+ * - Default fallback to 'trader' if no resolver provided
  */
 
-import type { MarketDecisionEngine } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import {
-  TrajectoryRecorder,
   type Action,
+  type ArchetypeResolver,
   type EnvironmentState,
   getCurrentWindowId,
+  TrajectoryRecorder,
 } from '@babylon/training';
+import type { MarketDecisionEngine } from '../MarketDecisionEngine';
 import type { TradingDecision } from '../types/market-decisions';
+
+/**
+ * Configuration options for TrajectoryMarketEngine
+ */
+export interface TrajectoryMarketEngineOptions {
+  /** Enable trajectory recording (default: true) */
+  enableRecording?: boolean;
+  /** Sampling rate 0.0-1.0 (default: 1.0 = record all) */
+  samplingRate?: number;
+  /** Function to resolve archetype from NPC ID */
+  archetypeResolver?: ArchetypeResolver;
+  /** Default archetype when resolver not provided or returns null */
+  defaultArchetype?: string;
+}
 
 export class TrajectoryMarketEngine {
   private engine: MarketDecisionEngine;
@@ -21,24 +41,26 @@ export class TrajectoryMarketEngine {
   private trajectoryId: string | null = null;
   private enabled: boolean;
   private samplingRate: number;
+  private archetypeResolver: ArchetypeResolver | null;
+  private defaultArchetype: string;
 
   constructor(
     engine: MarketDecisionEngine,
-    options: {
-      enableRecording?: boolean;
-      samplingRate?: number;
-    } = {}
+    options: TrajectoryMarketEngineOptions = {}
   ) {
     this.engine = engine;
 
-    // Check environment variable for recording flag
-    const envEnabled = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
-    this.enabled = options.enableRecording ?? envEnabled;
+    // Always enable trajectory recording for RL training
+    this.enabled = options.enableRecording ?? true;
 
     // Sampling rate (1.0 = record everything, 0.5 = record 50%)
     this.samplingRate =
       options.samplingRate ??
       Number.parseFloat(process.env.TRAJECTORY_SAMPLING_RATE || '1.0');
+
+    // Archetype resolution
+    this.archetypeResolver = options.archetypeResolver ?? null;
+    this.defaultArchetype = options.defaultArchetype ?? 'trader';
 
     if (this.enabled) {
       this.recorder = new TrajectoryRecorder();
@@ -46,6 +68,8 @@ export class TrajectoryMarketEngine {
         'Trajectory recording enabled for market decisions',
         {
           samplingRate: this.samplingRate,
+          hasArchetypeResolver: this.archetypeResolver !== null,
+          defaultArchetype: this.defaultArchetype,
         },
         'TrajectoryMarketEngine'
       );
@@ -53,42 +77,40 @@ export class TrajectoryMarketEngine {
   }
 
   /**
+   * Resolve archetype for an NPC
+   */
+  private resolveArchetype(npcId: string): string {
+    if (this.archetypeResolver) {
+      const archetype = this.archetypeResolver(npcId);
+      if (archetype) return archetype;
+    }
+    return this.defaultArchetype;
+  }
+
+  /**
    * Generate batch decisions with optional trajectory recording
    */
-  async generateBatchDecisions(): Promise<TradingDecision[]> {
+  async generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+  }): Promise<TradingDecision[]> {
     // Check if we should record this batch (sampling)
     const shouldRecord = this.enabled && Math.random() < this.samplingRate;
 
     if (shouldRecord && this.recorder) {
-      try {
-        await this.startRecording();
-      } catch (error) {
-        logger.warn(
-          'Failed to start trajectory recording, continuing without',
-          { error }
-        );
-      }
+      await this.startRecording();
     }
 
     // Generate decisions using underlying engine
-    const decisions = await this.engine.generateBatchDecisions();
+    const decisions = await this.engine.generateBatchDecisions(options);
 
     // Record each decision if recording is active
     if (this.trajectoryId && this.recorder) {
-      try {
-        await this.recordDecisions(decisions);
-      } catch (error) {
-        logger.warn('Failed to record decisions, continuing anyway', { error });
-      }
+      await this.recordDecisions(decisions);
     }
 
     // End recording
     if (this.trajectoryId && this.recorder) {
-      try {
-        await this.endRecording(decisions);
-      } catch (error) {
-        logger.warn('Failed to end trajectory recording', { error });
-      }
+      await this.endRecording(decisions);
     }
 
     return decisions;
@@ -120,11 +142,19 @@ export class TrajectoryMarketEngine {
 
   /**
    * Record each decision as a step
+   *
+   * Each step includes:
+   * - Environment state (balance, positions, etc.)
+   * - LLM call with reasoning
+   * - Action with archetype metadata for RL scoring
    */
   private async recordDecisions(decisions: TradingDecision[]): Promise<void> {
     if (!this.recorder || !this.trajectoryId) return;
 
     for (const decision of decisions) {
+      // Resolve archetype for this NPC
+      const archetype = this.resolveArchetype(decision.npcId);
+
       // Build environment state
       const envState: EnvironmentState = {
         agentBalance: 0, // Would need pool balance data
@@ -137,32 +167,37 @@ export class TrajectoryMarketEngine {
       // Start step
       this.recorder.startStep(this.trajectoryId, envState);
 
-      // Log LLM call if available (would need to capture this from engine)
-      // For now, we'll record the decision reasoning as the LLM output
-      if (decision.reasoning) {
-        this.recorder.logLLMCall(this.trajectoryId, {
-          model: 'market-decision-model',
-          purpose: 'action',
-          actionType: decision.action,
-          systemPrompt:
-            'You are an NPC making trading decisions in prediction markets.',
-          userPrompt: `NPC: ${decision.npcName}, Action: ${decision.action}, Market: ${decision.ticker || decision.marketId || 'unknown'}`,
-          response: decision.reasoning,
-          reasoning: decision.reasoning,
-          temperature: 0.7,
-          maxTokens: 1000,
-          latencyMs: 0,
-        });
-      }
+      // Log LLM call representing the decision
+      // We reconstruct the prompt logic here since we can't intercept the raw prompt easily
+      // This ensures the dataset is complete even if fields are missing
+      const reasoning = decision.reasoning || 'No reasoning provided';
 
-      // Build action
+      this.recorder.logLLMCall(this.trajectoryId, {
+        model: 'market-decision-model',
+        purpose: 'action',
+        actionType: decision.action,
+        systemPrompt:
+          'You are an NPC making trading decisions based on market data, social sentiment, and your specific character archetype. Output structured XML decisions.',
+        userPrompt: `Trader: ${decision.npcName} (ID: ${decision.npcId})
+Archetype: ${archetype}
+Context: Analyze current market conditions and private intel.
+Action Required: Determine best trading action.`,
+        response: reasoning,
+        reasoning: reasoning,
+        temperature: 0.5,
+        maxTokens: 1000,
+        latencyMs: 0,
+      });
+
+      // Build action with archetype metadata
       const action: Action = {
         actionType: decision.action,
         parameters: {
           npcId: decision.npcId,
           npcName: decision.npcName,
-          ticker: decision.ticker,
-          marketId: decision.marketId,
+          archetype: archetype,
+          ticker: decision.ticker ?? '',
+          marketId: decision.marketId ?? '',
           marketType: decision.marketType,
           amount: decision.amount,
           confidence: decision.confidence,
@@ -173,6 +208,7 @@ export class TrajectoryMarketEngine {
           action: decision.action,
           amount: decision.amount,
           market: decision.ticker || decision.marketId || 'unknown',
+          archetype: archetype,
         },
       };
 

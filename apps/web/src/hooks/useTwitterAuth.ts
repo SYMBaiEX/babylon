@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -69,8 +70,7 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
       return;
     }
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       setLoading(false);
       return;
@@ -130,8 +130,7 @@ export function useTwitterAuth(): UseTwitterAuthReturn {
   const disconnectTwitter = useCallback(async () => {
     if (!user?.id) return;
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) return;
 
     const response = await fetch('/api/twitter/disconnect', {

@@ -1,9 +1,10 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Check, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Share verification modal component for verifying external shares.
@@ -55,8 +56,7 @@ export function ShareVerificationModal({
 
     setVerifying(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -64,51 +64,44 @@ export function ShareVerificationModal({
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(userId)}/verify-share`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            shareId,
-            platform,
-            postUrl: postUrl.trim(),
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast.error(data.message || data.error || 'Failed to verify share');
-        setVerifying(false);
-        return;
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(userId)}/verify-share`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          shareId,
+          platform,
+          postUrl: postUrl.trim(),
+        }),
       }
+    );
 
-      if (data.verified) {
-        const pointsMessage =
-          data.points?.awarded > 0
-            ? `Share verified! You earned ${data.points.awarded} points.`
-            : 'Share verified! Thank you for sharing!';
-        toast.success(pointsMessage);
+    const data = await response.json();
 
-        setTimeout(() => {
-          // Reload the page to update points display
-          window.location.reload();
-        }, 2000);
-      } else {
-        toast.error(
-          data.message || 'Could not verify your post. Please check the URL.'
-        );
-      }
-    } catch (error) {
-      toast.error(
-        `An error occurred while verifying. Please try again. ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    } finally {
+    if (!response.ok) {
+      toast.error(data.message || data.error || 'Failed to verify share');
       setVerifying(false);
+      return;
     }
+
+    if (data.verified) {
+      const pointsMessage =
+        data.points?.awarded > 0
+          ? `Share verified! You earned ${data.points.awarded} points.`
+          : 'Share verified! Thank you for sharing!';
+      toast.success(pointsMessage);
+
+      setTimeout(() => {
+        // Reload the page to update points display
+        window.location.reload();
+      }, 2000);
+    } else {
+      toast.error(
+        data.message || 'Could not verify your post. Please check the URL.'
+      );
+    }
+    setVerifying(false);
   };
 
   const platformName = platform === 'twitter' ? 'X' : 'Farcaster';

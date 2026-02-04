@@ -46,10 +46,9 @@
  * @see {@link /lib/sse/event-broadcaster} Event broadcaster
  */
 
-import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import { connections, successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
-import { connections } from '@babylon/api';
+import type { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 

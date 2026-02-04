@@ -180,4 +180,3 @@ export function sanitizeContent(content: string): string {
 
   return sanitized.trim();
 }
-

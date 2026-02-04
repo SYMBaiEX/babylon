@@ -1,14 +1,14 @@
 /**
  * Tests for Token Counter utilities
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
+  budgetTokens,
   countTokensSync,
-  truncateToTokenLimitSync,
   getModelTokenLimit,
   getSafeContextLimit,
-  budgetTokens,
   MODEL_TOKEN_LIMITS,
+  truncateToTokenLimitSync,
 } from '@babylon/api';
 
 describe('Token Counter Utilities', () => {
@@ -56,7 +56,10 @@ describe('Token Counter Utilities', () => {
 
     it('should preserve end when option is true', () => {
       const text = 'START' + 'x'.repeat(100) + 'END';
-      const result = truncateToTokenLimitSync(text, 5, { preserveEnd: true, ellipsis: false });
+      const result = truncateToTokenLimitSync(text, 5, {
+        preserveEnd: true,
+        ellipsis: false,
+      });
       expect(result.text.endsWith('END')).toBe(true);
     });
 
@@ -119,7 +122,7 @@ describe('Token Counter Utilities', () => {
         { name: 'system', priority: 1, minTokens: 1000 },
         { name: 'user', priority: 1, minTokens: 500 },
       ]);
-      
+
       expect(result.system).toBeGreaterThanOrEqual(1000);
       expect(result.user).toBeGreaterThanOrEqual(500);
     });
@@ -129,7 +132,7 @@ describe('Token Counter Utilities', () => {
         { name: 'low', priority: 1 },
         { name: 'high', priority: 3 },
       ]);
-      
+
       const high = result['high'] ?? 0;
       const low = result['low'] ?? 0;
       // High priority should get ~3x more than low
@@ -142,7 +145,7 @@ describe('Token Counter Utilities', () => {
         { name: 'a', priority: 1, minTokens: 800 },
         { name: 'b', priority: 1, minTokens: 800 },
       ]);
-      
+
       const a = result['a'] ?? 0;
       const b = result['b'] ?? 0;
       // Both should be scaled down
@@ -154,7 +157,7 @@ describe('Token Counter Utilities', () => {
         { name: 'required', priority: 1, minTokens: 2000 },
         { name: 'optional', priority: 2 },
       ]);
-      
+
       expect(result['required'] ?? 0).toBeGreaterThanOrEqual(2000);
       expect(result['optional'] ?? 0).toBeGreaterThan(0);
     });
@@ -165,8 +168,9 @@ describe('Token Counter Utilities', () => {
         { name: 'b', priority: 1 },
         { name: 'c', priority: 1 },
       ]);
-      
-      const total = (result['a'] ?? 0) + (result['b'] ?? 0) + (result['c'] ?? 0);
+
+      const total =
+        (result['a'] ?? 0) + (result['b'] ?? 0) + (result['c'] ?? 0);
       // Should use most of the budget (may lose some to rounding)
       expect(total).toBeGreaterThan(9000);
     });
@@ -189,4 +193,3 @@ describe('Token Counter Utilities', () => {
     });
   });
 });
-

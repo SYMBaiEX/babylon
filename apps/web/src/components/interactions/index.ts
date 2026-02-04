@@ -12,6 +12,7 @@
 
 export { CommentCard } from './CommentCard';
 export { CommentInput } from './CommentInput';
+export { CommentInteractionBar } from './CommentInteractionBar';
 export { DeleteButton } from './DeleteButton';
 export { FollowButton } from './FollowButton';
 export { InteractionBar } from './InteractionBar';

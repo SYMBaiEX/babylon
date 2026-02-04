@@ -1,6 +1,6 @@
 /**
  * Contract ABIs for ERC-8004 and Prediction Market interactions
- * 
+ *
  * These ABIs are shared across the Babylon codebase for interacting with
  * on-chain contracts. ERC-8004 operations should primarily use the Agent0 SDK
  * (@babylon/agents/agent0), but these ABIs are available for direct contract
@@ -105,21 +105,268 @@ export const PREDICTION_MARKET_ABI = [
 export const ORACLE_ABI = [
   // Oracle resolution requests
   'function requestChainlinkResolution(bytes32 _marketId) external payable',
-  'function requestUMAResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
+  'function requestMockResolution(bytes32 _marketId, uint8 _proposedOutcome) external payable',
 
   // Oracle callbacks
   'function oracleCallback(bytes32 _requestId, bytes32 _marketId, uint8 _outcome) external',
-  'function umaOracleCallback(bytes32 _marketId, uint8 _outcome) external',
+  'function mockOracleCallback(bytes32 _marketId, uint8 _outcome) external',
 
   // Oracle management
   'function setChainlinkOracle(address _oracle) external',
-  'function setUMAOracle(address _oracle) external',
+  'function setMockOracle(address _oracle) external',
   'function manualResolve(bytes32 _marketId, uint8 _outcome) external',
-  'function getOracleAddresses() external view returns (address chainlinkOracle, address umaOracle)',
+  'function getOracleAddresses() external view returns (address chainlinkOracle, address mockOracle)',
 
   // Events
   'event OracleRequested(bytes32 indexed marketId, bytes32 indexed requestId, string oracleType)',
   'event OracleResponseReceived(bytes32 indexed marketId, bytes32 indexed requestId, uint8 outcome)',
+] as const;
+
+// ProtoMonkeys NFT ABI
+export const PROTO_MONKEYS_NFT_ABI = [
+  // Mint function with signature verification
+  {
+    name: 'mint',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'nonce', type: 'bytes32' },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [],
+  },
+
+  // View functions
+  {
+    name: 'hasMinted',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'totalMinted',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'availableSupply',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'MAX_SUPPLY',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'signer',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    name: 'baseURI',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'string' }],
+  },
+  {
+    name: 'isNonceUsed',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'nonce', type: 'bytes32' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+
+  // ERC721 standard functions
+  {
+    name: 'name',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'string' }],
+  },
+  {
+    name: 'symbol',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'string' }],
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'ownerOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    name: 'tokenURI',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'string' }],
+  },
+
+  // ERC721 transfer functions
+  {
+    name: 'transferFrom',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'tokenId', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'safeTransferFrom',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'tokenId', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+
+  // ERC721 approval functions
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'tokenId', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'setApprovalForAll',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'operator', type: 'address' },
+      { name: 'approved', type: 'bool' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'getApproved',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    name: 'isApprovedForAll',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'operator', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+
+  // Owner functions
+  {
+    name: 'setSigner',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'newSigner', type: 'address' }],
+    outputs: [],
+  },
+  {
+    name: 'setBaseURI',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'newBaseURI', type: 'string' }],
+    outputs: [],
+  },
+
+  // Events
+  {
+    type: 'event',
+    name: 'Transfer',
+    inputs: [
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'tokenId', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'Approval',
+    inputs: [
+      { name: 'owner', type: 'address', indexed: true },
+      { name: 'approved', type: 'address', indexed: true },
+      { name: 'tokenId', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'ApprovalForAll',
+    inputs: [
+      { name: 'owner', type: 'address', indexed: true },
+      { name: 'operator', type: 'address', indexed: true },
+      { name: 'approved', type: 'bool', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'NFTMinted',
+    inputs: [
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'tokenId', type: 'uint256', indexed: true },
+      { name: 'nonce', type: 'bytes32', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'SignerUpdated',
+    inputs: [
+      { name: 'oldSigner', type: 'address', indexed: true },
+      { name: 'newSigner', type: 'address', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'BaseURIUpdated',
+    inputs: [
+      { name: 'oldBaseURI', type: 'string', indexed: false },
+      { name: 'newBaseURI', type: 'string', indexed: false },
+    ],
+  },
+
+  // Errors
+  { type: 'error', name: 'InvalidSignature', inputs: [] },
+  { type: 'error', name: 'DeadlineExpired', inputs: [] },
+  { type: 'error', name: 'NonceAlreadyUsed', inputs: [] },
+  { type: 'error', name: 'AlreadyMinted', inputs: [] },
+  { type: 'error', name: 'SoldOut', inputs: [] },
+  { type: 'error', name: 'InvalidSigner', inputs: [] },
+  { type: 'error', name: 'InvalidRecipient', inputs: [] },
 ] as const;
 
 // Diamond Loupe ABI (for facet discovery)
@@ -153,4 +400,3 @@ export const PRICE_STORAGE_FACET_ABI = [
   'event PriceBatchSubmitted(bytes32 indexed marketId, uint256 startTick, uint256 endTick, bytes32 merkleRoot)',
   'event AuthorizedUpdaterSet(bytes32 indexed marketId, address indexed updater, bool authorized)',
 ] as const;
-

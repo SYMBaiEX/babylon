@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  cn,
+  formatCurrency as formatCurrencyShared,
+  logger,
+} from '@babylon/shared';
+import {
   AlertCircle,
   ArrowLeftRight,
   CheckCircle,
@@ -14,24 +19,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-
-/**
- * Get authentication token from window if available.
- *
- * Note: Admin API routes use cookie-based authentication via requireAdmin middleware.
- * The privy-token cookie is automatically sent with requests, so explicit Authorization
- * header is optional. However, we can include it if available for consistency with
- * other admin components.
- *
- * @returns Authentication token or null
- */
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  // Try to get token from window if available (some admin components use this)
-  return (window as { __privyAccessToken?: string }).__privyAccessToken || null;
-}
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Escrow schema for validation.
@@ -108,45 +96,49 @@ export function EscrowManagementTab() {
   const [refundReason, setRefundReason] = useState('');
   const [isRefunding, setIsRefunding] = useState(false);
 
-  const fetchEscrows = useCallback((showRefreshing = false) => {
-    const fetchLogic = async () => {
-      const token = getAuthToken();
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-      if (statusFilter !== 'all') {
-        params.set('status', statusFilter);
-      }
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/api/admin/moderation-escrow/list?${params}`,
-        {
-          headers,
+  const fetchEscrows = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        const token = getAuthToken();
+        const params = new URLSearchParams({
+          limit: '100',
+        });
+        if (statusFilter !== 'all') {
+          params.set('status', statusFilter);
         }
-      );
-      if (!response.ok) throw new Error('Failed to fetch escrows');
-      const data = await response.json();
-      const validation = z.array(EscrowSchema).safeParse(data.escrows);
-      if (!validation.success) {
-        throw new Error('Invalid escrow data structure');
-      }
-      setEscrows(validation.data || []);
-      setLoading(false);
-    };
 
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      fetchLogic();
-    }
-  }, [statusFilter]);
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `/api/admin/moderation-escrow/list?${params}`,
+          {
+            headers,
+          }
+        );
+        if (!response.ok) {
+          toast.error('Failed to fetch escrows');
+          setLoading(false);
+          return;
+        }
+        const data = await response.json();
+        const validated = z.array(EscrowSchema).parse(data.escrows);
+        setEscrows(validated);
+        setLoading(false);
+      };
+
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        void fetchLogic();
+      }
+    },
+    [statusFilter]
+  );
 
   useEffect(() => {
     fetchEscrows();
@@ -159,50 +151,50 @@ export function EscrowManagementTab() {
     }
 
     setIsRefunding(true);
-    try {
-      const token = getAuthToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch('/api/admin/moderation-escrow/refund', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          escrowId: selectedEscrow.id,
-          refundTxHash: refundTxHash.trim(),
-          reason: refundReason.trim() || undefined,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to refund escrow');
-      }
-
-      toast.success('Escrow refunded successfully');
-      setShowRefundModal(false);
-      setSelectedEscrow(null);
-      setRefundTxHash('');
-      setRefundReason('');
-      fetchEscrows(true);
-    } catch (error) {
-      logger.error('Failed to refund escrow', { error }, 'EscrowManagementTab');
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to refund escrow'
-      );
-    } finally {
-      setIsRefunding(false);
+    const token = getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const response = await fetch('/api/admin/moderation-escrow/refund', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        escrowId: selectedEscrow.id,
+        refundTxHash: refundTxHash.trim(),
+        reason: refundReason.trim() || undefined,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      setIsRefunding(false);
+      logger.error(
+        'Failed to refund escrow',
+        { error: data.error },
+        'EscrowManagementTab'
+      );
+      toast.error(data.error || 'Failed to refund escrow');
+      return;
+    }
+
+    toast.success('Escrow refunded successfully');
+    setShowRefundModal(false);
+    setSelectedEscrow(null);
+    setRefundTxHash('');
+    setRefundReason('');
+    fetchEscrows(true);
+    setIsRefunding(false);
   };
 
+  /** Use shared formatCurrency for currency formatting */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    return `$${num.toFixed(2)}`;
+    return formatCurrencyShared(num);
   };
 
   const formatDate = (dateString: string) => {

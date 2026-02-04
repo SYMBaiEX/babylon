@@ -3,10 +3,10 @@ import {
   cleanupExpiredSessions,
   createAgentSession,
   getSessionDuration,
+  type SessionStore,
   setSessionStore,
   verifyAgentCredentials,
   verifyAgentSession,
-  type SessionStore,
 } from '../agent-auth';
 
 describe('Agent Authentication', () => {
@@ -51,7 +51,10 @@ describe('Agent Authentication', () => {
     it('uses default test agent ID in non-production', () => {
       delete process.env.BABYLON_AGENT_ID;
       process.env.NODE_ENV = 'development';
-      const result = verifyAgentCredentials('babylon-agent-alice', 'test-secret');
+      const result = verifyAgentCredentials(
+        'babylon-agent-alice',
+        'test-secret'
+      );
       expect(result).toBe(true);
     });
   });
@@ -59,7 +62,7 @@ describe('Agent Authentication', () => {
   describe('createAgentSession', () => {
     it('creates a session with correct properties', async () => {
       const session = await createAgentSession('agent-1', 'token-123');
-      
+
       expect(session.agentId).toBe('agent-1');
       expect(session.sessionToken).toBe('token-123');
       expect(session.expiresAt).toBeGreaterThan(Date.now());
@@ -69,9 +72,9 @@ describe('Agent Authentication', () => {
   describe('verifyAgentSession', () => {
     it('returns agent info for valid session', async () => {
       await createAgentSession('agent-1', 'valid-token');
-      
+
       const result = await verifyAgentSession('valid-token');
-      
+
       expect(result).toEqual({ agentId: 'agent-1' });
     });
 
@@ -87,18 +90,20 @@ describe('Agent Authentication', () => {
         agentId: 'agent-1',
         expiresAt: Date.now() - 1000, // Already expired
       };
-      
+
       let deleted = false;
       const mockStore: SessionStore = {
         get: async () => JSON.stringify(expiredSession),
         set: async () => {},
-        delete: async () => { deleted = true; },
+        delete: async () => {
+          deleted = true;
+        },
       };
-      
+
       setSessionStore(mockStore);
-      
+
       const result = await verifyAgentSession('expired-token');
-      
+
       expect(result).toBeNull();
       expect(deleted).toBe(true);
     });
@@ -108,13 +113,13 @@ describe('Agent Authentication', () => {
     it('removes expired sessions from in-memory store', async () => {
       // Create sessions directly in memory
       await createAgentSession('agent-valid', 'valid-token');
-      
+
       // Verify it exists
       expect(await verifyAgentSession('valid-token')).not.toBeNull();
-      
+
       // Cleanup should not remove valid sessions
       cleanupExpiredSessions();
-      
+
       expect(await verifyAgentSession('valid-token')).not.toBeNull();
     });
 
@@ -124,9 +129,9 @@ describe('Agent Authentication', () => {
         set: async () => {},
         delete: async () => {},
       };
-      
+
       setSessionStore(mockStore);
-      
+
       // Should not throw
       cleanupExpiredSessions();
     });
@@ -142,24 +147,27 @@ describe('Agent Authentication', () => {
   describe('Custom SessionStore', () => {
     it('uses custom store when configured', async () => {
       const stored: Map<string, string> = new Map();
-      
+
       const customStore: SessionStore = {
         get: async (key) => stored.get(key) ?? null,
-        set: async (key, value) => { stored.set(key, value); },
-        delete: async (key) => { stored.delete(key); },
+        set: async (key, value) => {
+          stored.set(key, value);
+        },
+        delete: async (key) => {
+          stored.delete(key);
+        },
       };
-      
+
       setSessionStore(customStore);
-      
+
       await createAgentSession('custom-agent', 'custom-token');
-      
+
       // Verify it's in the custom store
       expect(stored.has('agent:session:custom-token')).toBe(true);
-      
+
       // Verify we can retrieve it
       const result = await verifyAgentSession('custom-token');
       expect(result).toEqual({ agentId: 'custom-agent' });
     });
   });
 });
-

@@ -103,23 +103,16 @@
  * @see {@link /lib/moderation/filters} Moderation filters
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import {
-  and,
-  db,
-  eq,
-  isUniqueConstraintError,
-  toDatabaseErrorType,
-  userMutes,
-  users,
-} from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { MuteUserSchema } from '@babylon/shared';
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { and, db, eq, userMutes, users } from '@babylon/db';
+import { generateSnowflakeId, logger, MuteUserSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const POST = withErrorHandling(
   async (
@@ -131,23 +124,7 @@ export const POST = withErrorHandling(
     const { userId: targetUserId } = await context.params;
 
     // Parse request body
-    let body: { action: string; reason?: string };
-    try {
-      body = (await request.json()) as { action: string; reason?: string };
-    } catch (error) {
-      logger.error(
-        'Failed to parse request body',
-        { error, userId: authUser.userId, targetUserId },
-        'POST /api/users/[userId]/mute'
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request body',
-        },
-        { status: 400 }
-      );
-    }
+    const body = (await request.json()) as { action: string; reason?: string };
     const { action, reason } = MuteUserSchema.parse(body);
 
     logger.info(
@@ -200,59 +177,18 @@ export const POST = withErrorHandling(
         throw new BusinessLogicError('User is already muted', 'ALREADY_MUTED');
       }
 
-      // Create mute - handle race condition where mute might be created concurrently
-      let mute;
-      try {
-        const muteId = await generateSnowflakeId();
-        const [insertedMute] = await db
-          .insert(userMutes)
-          .values({
-            id: muteId,
-            muterId: authUser.userId,
-            mutedId: targetUserId,
-            reason: reason || null,
-          })
-          .returning();
-        mute = insertedMute;
-      } catch (error: unknown) {
-        // Handle unique constraint violation (race condition)
-        if (isUniqueConstraintError(toDatabaseErrorType(error))) {
-          // Race condition: mute was created by another concurrent request
-          // Fetch the existing mute and return success
-          const [raceConditionMute] = await db
-            .select()
-            .from(userMutes)
-            .where(
-              and(
-                eq(userMutes.muterId, authUser.userId),
-                eq(userMutes.mutedId, targetUserId)
-              )
-            )
-            .limit(1);
-
-          if (raceConditionMute) {
-            logger.info(
-              'User muted successfully (race condition handled)',
-              {
-                userId: authUser.userId,
-                targetUserId,
-                muteId: raceConditionMute.id,
-              },
-              'POST /api/users/[userId]/mute'
-            );
-
-            return successResponse({
-              success: true,
-              message: 'User muted successfully',
-              mute: raceConditionMute,
-            });
-          }
-          // If we can't find the mute, throw the original error
-          throw error;
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      // Create mute
+      const muteId = await generateSnowflakeId();
+      const [insertedMute] = await db
+        .insert(userMutes)
+        .values({
+          id: muteId,
+          muterId: authUser.userId,
+          mutedId: targetUserId,
+          reason: reason || null,
+        })
+        .returning();
+      const mute = insertedMute;
 
       logger.info(
         'User muted successfully',

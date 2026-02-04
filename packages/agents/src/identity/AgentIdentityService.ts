@@ -20,9 +20,13 @@ import {
 } from '@babylon/db';
 import { getAgent0Client } from '../agent0/Agent0Client';
 import { syncAfterAgent0Registration } from '../agent0/reputation/agent0-reputation-sync';
-import { agentWalletService } from './AgentWalletService';
+import {
+  getAgentConfig,
+  isAutonomousTradingEnabled,
+} from '../shared/agent-config';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
+import { agentWalletService } from './AgentWalletService';
 
 /**
  * Service for agent identity management
@@ -97,9 +101,12 @@ export class AgentIdentityService {
     if (!agentUser.walletAddress)
       throw new Error('Agent must have wallet before Agent0 registration');
 
+    // Get agent config for capabilities
+    const config = await getAgentConfig(agentUserId);
+
     const agent0Client = getAgent0Client();
     const capabilities = {
-      strategies: agentUser.agentTradingStrategy
+      strategies: config?.tradingStrategy
         ? ['autonomous-trading', 'prediction-markets', 'social-interaction']
         : ['chat', 'analysis'],
       markets: ['prediction', 'perp', 'crypto'],
@@ -117,8 +124,8 @@ export class AgentIdentityService {
       userType: 'agent',
       x402Support: true,
       moderationEscrowSupport: true,
-      autonomousTrading: agentUser.autonomousTrading,
-      autonomousPosting: agentUser.autonomousPosting,
+      autonomousTrading: isAutonomousTradingEnabled(config),
+      autonomousPosting: config?.autonomousPosting ?? false,
       skills: [],
       domains: [],
     };

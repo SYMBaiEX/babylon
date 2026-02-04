@@ -7,9 +7,14 @@ import "../core/DiamondCutFacet.sol";
 import "../core/DiamondLoupeFacet.sol";
 import "../core/PredictionMarketFacet.sol";
 import "../core/OracleFacet.sol";
+import "../core/LiquidityPoolFacet.sol";
+import "../core/PerpetualMarketFacet.sol";
+import "../core/ReferralSystemFacet.sol";
+import "../core/PriceStorageFacet.sol";
+import "../core/GameOracleFacet.sol";
 import "../libraries/LibDiamond.sol";
 import "../oracles/ChainlinkOracleMock.sol";
-import "../oracles/UMAOracleMock.sol";
+import "../oracles/MockOracle.sol";
 
 /// @title DiamondTestSetup
 /// @notice Base test contract with Diamond deployment and facet setup
@@ -19,8 +24,13 @@ contract DiamondTestSetup is Test {
     DiamondLoupeFacet public diamondLoupeFacet;
     PredictionMarketFacet public predictionMarketFacet;
     OracleFacet public oracleFacet;
+    LiquidityPoolFacet public liquidityPoolFacet;
+    PerpetualMarketFacet public perpetualMarketFacet;
+    ReferralSystemFacet public referralSystemFacet;
+    PriceStorageFacet public priceStorageFacet;
+    GameOracleFacet public gameOracleFacet;
     ChainlinkOracleMock public chainlinkOracle;
-    UMAOracleMock public umaOracle;
+    MockOracle public mockOracle;
 
     address public owner;
     address public user1;
@@ -44,6 +54,11 @@ contract DiamondTestSetup is Test {
         diamondLoupeFacet = new DiamondLoupeFacet();
         predictionMarketFacet = new PredictionMarketFacet();
         oracleFacet = new OracleFacet();
+        liquidityPoolFacet = new LiquidityPoolFacet();
+        perpetualMarketFacet = new PerpetualMarketFacet();
+        referralSystemFacet = new ReferralSystemFacet();
+        priceStorageFacet = new PriceStorageFacet();
+        gameOracleFacet = new GameOracleFacet();
 
         // Deploy Diamond with DiamondCutFacet and DiamondLoupeFacet
         diamond = new Diamond(address(diamondCutFacet), address(diamondLoupeFacet));
@@ -67,20 +82,21 @@ contract DiamondTestSetup is Test {
 
         // Add PredictionMarketFacet
         IDiamondCut.FacetCut[] memory marketCut = new IDiamondCut.FacetCut[](1);
-        bytes4[] memory marketSelectors = new bytes4[](13);
+        bytes4[] memory marketSelectors = new bytes4[](14);
         marketSelectors[0] = PredictionMarketFacet.createMarket.selector;
         marketSelectors[1] = PredictionMarketFacet.calculateCost.selector;
-        marketSelectors[2] = PredictionMarketFacet.buyShares.selector;
-        marketSelectors[3] = PredictionMarketFacet.sellShares.selector;
-        marketSelectors[4] = PredictionMarketFacet.calculateSellPayout.selector;
-        marketSelectors[5] = PredictionMarketFacet.resolveMarket.selector;
-        marketSelectors[6] = PredictionMarketFacet.claimWinnings.selector;
-        marketSelectors[7] = PredictionMarketFacet.deposit.selector;
-        marketSelectors[8] = PredictionMarketFacet.withdraw.selector;
-        marketSelectors[9] = PredictionMarketFacet.getBalance.selector;
-        marketSelectors[10] = PredictionMarketFacet.getMarket.selector;
-        marketSelectors[11] = PredictionMarketFacet.getMarketShares.selector;
-        marketSelectors[12] = PredictionMarketFacet.getPosition.selector;
+        marketSelectors[2] = PredictionMarketFacet.calculateCostWithFee.selector;
+        marketSelectors[3] = PredictionMarketFacet.buyShares.selector;
+        marketSelectors[4] = PredictionMarketFacet.sellShares.selector;
+        marketSelectors[5] = PredictionMarketFacet.calculateSellPayout.selector;
+        marketSelectors[6] = PredictionMarketFacet.resolveMarket.selector;
+        marketSelectors[7] = PredictionMarketFacet.claimWinnings.selector;
+        marketSelectors[8] = PredictionMarketFacet.deposit.selector;
+        marketSelectors[9] = PredictionMarketFacet.withdraw.selector;
+        marketSelectors[10] = PredictionMarketFacet.getBalance.selector;
+        marketSelectors[11] = PredictionMarketFacet.getMarket.selector;
+        marketSelectors[12] = PredictionMarketFacet.getMarketShares.selector;
+        marketSelectors[13] = PredictionMarketFacet.getPosition.selector;
 
         marketCut[0] = IDiamondCut.FacetCut({
             facetAddress: address(predictionMarketFacet),
@@ -94,11 +110,11 @@ contract DiamondTestSetup is Test {
         IDiamondCut.FacetCut[] memory oracleCut = new IDiamondCut.FacetCut[](1);
         bytes4[] memory oracleSelectors = new bytes4[](8);
         oracleSelectors[0] = OracleFacet.requestChainlinkResolution.selector;
-        oracleSelectors[1] = OracleFacet.requestUMAResolution.selector;
+        oracleSelectors[1] = OracleFacet.requestMockResolution.selector;
         oracleSelectors[2] = OracleFacet.oracleCallback.selector;
-        oracleSelectors[3] = OracleFacet.umaOracleCallback.selector;
+        oracleSelectors[3] = OracleFacet.mockOracleCallback.selector;
         oracleSelectors[4] = OracleFacet.setChainlinkOracle.selector;
-        oracleSelectors[5] = OracleFacet.setUMAOracle.selector;
+        oracleSelectors[5] = OracleFacet.setMockOracle.selector;
         oracleSelectors[6] = OracleFacet.manualResolve.selector;
         oracleSelectors[7] = OracleFacet.getOracleAddresses.selector;
 
@@ -110,13 +126,147 @@ contract DiamondTestSetup is Test {
 
         IDiamondCut(address(diamond)).diamondCut(oracleCut, address(0), "");
 
+        // Add LiquidityPoolFacet
+        _addLiquidityPoolFacet();
+
+        // Add PerpetualMarketFacet
+        _addPerpetualMarketFacet();
+
+        // Add ReferralSystemFacet
+        _addReferralSystemFacet();
+
+        // Add PriceStorageFacet
+        _addPriceStorageFacet();
+
+        // Add GameOracleFacet
+        _addGameOracleFacet();
+
         // Deploy oracles
         chainlinkOracle = new ChainlinkOracleMock();
-        umaOracle = new UMAOracleMock();
+        mockOracle = new MockOracle();
 
         // Set oracle addresses in diamond
         OracleFacet(address(diamond)).setChainlinkOracle(address(chainlinkOracle));
-        OracleFacet(address(diamond)).setUMAOracle(address(umaOracle));
+        OracleFacet(address(diamond)).setMockOracle(address(mockOracle));
+    }
+
+    function _addLiquidityPoolFacet() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](14);
+        selectors[0] = LiquidityPoolFacet.createLiquidityPool.selector;
+        selectors[1] = LiquidityPoolFacet.addLiquidity.selector;
+        selectors[2] = LiquidityPoolFacet.removeLiquidity.selector;
+        selectors[3] = LiquidityPoolFacet.swap.selector;
+        selectors[4] = LiquidityPoolFacet.setPoolActive.selector;
+        selectors[5] = LiquidityPoolFacet.claimRewards.selector;
+        selectors[6] = LiquidityPoolFacet.getPool.selector;
+        selectors[7] = LiquidityPoolFacet.getLPPosition.selector;
+        selectors[8] = LiquidityPoolFacet.getReserves.selector;
+        selectors[9] = LiquidityPoolFacet.getSwapOutput.selector;
+        selectors[10] = LiquidityPoolFacet.getPriceImpact.selector;
+        selectors[11] = LiquidityPoolFacet.getUtilization.selector;
+        selectors[12] = LiquidityPoolFacet.getImpermanentLoss.selector;
+        selectors[13] = LiquidityPoolFacet.getPendingRewards.selector;
+
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(liquidityPoolFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _addPerpetualMarketFacet() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](10);
+        selectors[0] = PerpetualMarketFacet.createPerpetualMarket.selector;
+        selectors[1] = PerpetualMarketFacet.openPosition.selector;
+        selectors[2] = PerpetualMarketFacet.closePosition.selector;
+        selectors[3] = PerpetualMarketFacet.liquidatePosition.selector;
+        selectors[4] = PerpetualMarketFacet.updateFundingRate.selector;
+        selectors[5] = PerpetualMarketFacet.getPerpetualMarket.selector;
+        selectors[6] = PerpetualMarketFacet.getPosition.selector;
+        selectors[7] = PerpetualMarketFacet.getLiquidationPrice.selector;
+        selectors[8] = PerpetualMarketFacet.getMarkPrice.selector;
+        selectors[9] = PerpetualMarketFacet.getFundingRate.selector;
+
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(perpetualMarketFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _addReferralSystemFacet() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](12);
+        selectors[0] = ReferralSystemFacet.registerReferral.selector;
+        selectors[1] = ReferralSystemFacet.payReferralCommission.selector;
+        selectors[2] = ReferralSystemFacet.claimReferralEarnings.selector;
+        selectors[3] = ReferralSystemFacet.initializeReferralSystem.selector;
+        selectors[4] = ReferralSystemFacet.getReferralData.selector;
+        selectors[5] = ReferralSystemFacet.getTierInfo.selector;
+        selectors[6] = ReferralSystemFacet.getReferralChain.selector;
+        selectors[7] = ReferralSystemFacet.getTotalStats.selector;
+        selectors[8] = ReferralSystemFacet.getTotalReferrals.selector;
+        selectors[9] = ReferralSystemFacet.getTotalCommissions.selector;
+        selectors[10] = ReferralSystemFacet.isReferred.selector;
+        selectors[11] = ReferralSystemFacet.calculateCommission.selector;
+
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(referralSystemFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _addPriceStorageFacet() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](9);
+        selectors[0] = PriceStorageFacet.updatePrices.selector;
+        selectors[1] = PriceStorageFacet.updatePrice.selector;
+        selectors[2] = PriceStorageFacet.submitPriceBatch.selector;
+        selectors[3] = PriceStorageFacet.getLatestPrice.selector;
+        selectors[4] = PriceStorageFacet.getPriceAtTick.selector;
+        selectors[5] = PriceStorageFacet.getGlobalTickCounter.selector;
+        selectors[6] = PriceStorageFacet.incrementTickCounter.selector;
+        selectors[7] = PriceStorageFacet.setAuthorizedUpdater.selector;
+        selectors[8] = PriceStorageFacet.getAuthorizedUpdater.selector;
+
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(priceStorageFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _addGameOracleFacet() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](9);
+        selectors[0] = GameOracleFacet.setGameOracle.selector;
+        selectors[1] = GameOracleFacet.getGameOracle.selector;
+        selectors[2] = GameOracleFacet.linkMarketToSession.selector;
+        selectors[3] = GameOracleFacet.getSessionForMarket.selector;
+        selectors[4] = GameOracleFacet.getMarketForSession.selector;
+        selectors[5] = GameOracleFacet.resolveFromGameOracle.selector;
+        selectors[6] = GameOracleFacet.queryOracleOutcome.selector;
+        selectors[7] = GameOracleFacet.isWinnerInSession.selector;
+        selectors[8] = GameOracleFacet.createMarketForSession.selector;
+
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(gameOracleFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
     /// @notice Helper to create a basic binary market

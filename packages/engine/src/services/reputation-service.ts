@@ -6,6 +6,13 @@
  * Also provides an optional interface for syncing reputation to ERC-8004.
  */
 
+import { db, eq, inArray, positions, users } from '@babylon/db';
+import {
+  getCurrentRpcUrl,
+  logger,
+  REPUTATION_SYSTEM_ABI,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
+} from '@babylon/shared';
 import {
   type Address,
   createPublicClient,
@@ -16,9 +23,6 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { db, eq, positions, users } from '@babylon/db';
-import { logger, REPUTATION_SYSTEM_BASE_SEPOLIA, getCurrentRpcUrl } from '@babylon/shared';
-import { REPUTATION_SYSTEM_ABI } from '@babylon/shared';
 
 // =============================================================================
 // Reputation Sync Interface
@@ -150,7 +154,7 @@ export class ReputationService {
         onChainRegistered: users.onChainRegistered,
       })
       .from(users)
-      .where(eq(users.id, userIds[0] ?? '')); // Simplified - in real usage would use inArray
+      .where(inArray(users.id, userIds));
 
     const userMap = new Map(usersData.map((u) => [u.id, u]));
 

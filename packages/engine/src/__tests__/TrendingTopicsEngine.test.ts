@@ -1,11 +1,14 @@
 /**
  * Tests for TrendingTopicsEngine
+ *
+ * The engine updates every 4 ticks by default (every 4 hours, 6x per day)
+ * and skips LLM regeneration when topics haven't changed significantly.
  */
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { BabylonLLMClient } from '../llm/openai-client';
-import type { FeedPost } from '../types/shared';
 import { TrendingTopicsEngine } from '../TrendingTopicsEngine';
+import type { FeedPost } from '../types/shared';
 
 /**
  * Mock LLM client interface for testing
@@ -40,6 +43,7 @@ describe('TrendingTopicsEngine', () => {
     mockLLM = mockImpl as BabylonLLMClient;
 
     engine = new TrendingTopicsEngine(mockLLM);
+    // Use default interval of 4 ticks (every 4 hours)
   });
 
   describe('Validation', () => {
@@ -66,7 +70,7 @@ describe('TrendingTopicsEngine', () => {
       expect(trends).toEqual([]);
     });
 
-    it('should throw error if LLM returns no trends', async () => {
+    it('should use tag as trendName when LLM returns empty trends array', async () => {
       mockLLM.generateJSON = mock(async () => ({ trends: [] }));
 
       const posts: FeedPost[] = [
@@ -81,14 +85,21 @@ describe('TrendingTopicsEngine', () => {
         },
       ];
 
-      // Should not throw - will keep previous trends on failure
       await engine.updateTrends(posts, 10);
+
+      // When LLM returns empty trends, trendName defaults to the tag
+      const trends = engine.getTrends();
+      expect(trends.length).toBeGreaterThan(0);
+      // Each trend should have the tag as trendName
+      for (const trend of trends) {
+        expect(trend.trendName).toBe(trend.tag);
+      }
     });
 
-    it('should validate trend descriptions are not empty', async () => {
+    it('should use tag when LLM returns empty trendName', async () => {
       mockLLM.generateJSON = mock(async () => ({
         trends: [
-          { trendName: '', description: '' }, // Empty!
+          { trendName: '', description: '' }, // Empty strings
         ],
       }));
 
@@ -107,9 +118,9 @@ describe('TrendingTopicsEngine', () => {
       await engine.updateTrends(posts, 10);
       const trends = engine.getTrends();
 
-      // Should use fallbacks for empty values
-      expect(trends[0]?.trendName).toBe('ai'); // Fallback to tag
-      expect(trends[0]?.description).toContain('posts discussing'); // Fallback description
+      // Empty trendName/description defaults to tag-based values
+      expect(trends[0]?.trendName).toBe('ai');
+      expect(trends[0]?.description).toContain('posts discussing');
     });
   });
 
@@ -172,7 +183,6 @@ describe('TrendingTopicsEngine', () => {
       await engine.updateTrends(posts, 10);
       const trends = engine.getTrends();
 
-      // Crypto should rank higher due to recency despite same count
       const cryptoTrend = trends.find((t) => t.tag === 'crypto');
       expect(cryptoTrend).toBeDefined();
       expect(cryptoTrend!.recency).toBeGreaterThan(0.9);
@@ -259,7 +269,208 @@ describe('TrendingTopicsEngine', () => {
       expect(callCount1).toBe(callCount2); // No new LLM call
     });
 
-    it('should update after interval', async () => {
+    it('should update after interval when topics change', async () => {
+      const posts1: FeedPost[] = [
+        {
+          id: 'post-1',
+          content: 'Test',
+          author: 'user-1',
+          authorName: 'User',
+          timestamp: '2025-11-15T10:00:00Z',
+          day: 1,
+          tags: ['test'],
+        },
+      ];
+
+      await engine.updateTrends(posts1, 10);
+      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      // Different posts with different tags (significant change)
+      const posts2: FeedPost[] = [
+        {
+          id: 'post-2',
+          content: 'Crypto news',
+          author: 'user-2',
+          authorName: 'User2',
+          timestamp: '2025-11-15T11:00:00Z',
+          day: 2,
+          tags: ['crypto', 'bitcoin'],
+        },
+      ];
+
+      await engine.updateTrends(posts2, 20); // 10 ticks later
+      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      expect(callCount2).toBeGreaterThan(callCount1); // New LLM call
+    });
+
+    it('should allow configuring update interval with minimum enforcement', async () => {
+      engine.setUpdateInterval(0); // Try to set below minimum
+      // Minimum is enforced at 1
+      expect(engine.getUpdateInterval()).toBe(1);
+
+      engine.setUpdateInterval(8); // Valid interval (every 8 hours)
+      expect(engine.getUpdateInterval()).toBe(8);
+    });
+
+    it('should have default interval of 4 ticks (6x per day)', () => {
+      const freshEngine = new TrendingTopicsEngine(mockLLM);
+      expect(freshEngine.getUpdateInterval()).toBe(4);
+    });
+  });
+
+  describe('Change Detection', () => {
+    it('should skip LLM call when topics are unchanged', async () => {
+      const posts: FeedPost[] = [
+        {
+          id: 'post-1',
+          content: 'AI news',
+          author: 'user-1',
+          authorName: 'User',
+          timestamp: '2025-11-15T10:00:00Z',
+          day: 1,
+          tags: ['ai', 'tech'],
+        },
+        {
+          id: 'post-2',
+          content: 'More AI',
+          author: 'user-2',
+          authorName: 'User2',
+          timestamp: '2025-11-15T10:30:00Z',
+          day: 1,
+          tags: ['ai'],
+        },
+      ];
+
+      // First update - generates trends
+      await engine.updateTrends(posts, 10);
+      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+      expect(callCount1).toBe(1);
+
+      // Same posts, interval passed - should skip LLM due to no change
+      await engine.updateTrends(posts, 20);
+      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+      expect(callCount2).toBe(1); // Still 1, no new call
+    });
+
+    it('should regenerate when new topics appear', async () => {
+      const posts1: FeedPost[] = [
+        {
+          id: 'post-1',
+          content: 'AI news',
+          author: 'user-1',
+          authorName: 'User',
+          timestamp: '2025-11-15T10:00:00Z',
+          day: 1,
+          tags: ['ai'],
+        },
+      ];
+
+      await engine.updateTrends(posts1, 10);
+      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      // Completely new topics
+      const posts2: FeedPost[] = [
+        {
+          id: 'post-2',
+          content: 'Crypto crash',
+          author: 'user-2',
+          authorName: 'User2',
+          timestamp: '2025-11-15T11:00:00Z',
+          day: 2,
+          tags: ['crypto', 'crash'],
+        },
+        {
+          id: 'post-3',
+          content: 'Bitcoin drops',
+          author: 'user-3',
+          authorName: 'User3',
+          timestamp: '2025-11-15T11:30:00Z',
+          day: 2,
+          tags: ['bitcoin'],
+        },
+      ];
+
+      await engine.updateTrends(posts2, 20);
+      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      expect(callCount2).toBeGreaterThan(callCount1);
+    });
+
+    it('should force update when requested', async () => {
+      const posts: FeedPost[] = [
+        {
+          id: 'post-1',
+          content: 'AI news',
+          author: 'user-1',
+          authorName: 'User',
+          timestamp: '2025-11-15T10:00:00Z',
+          day: 1,
+          tags: ['ai'],
+        },
+      ];
+
+      await engine.updateTrends(posts, 10);
+      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      // Force update even with same posts
+      await engine.forceTrendUpdate(posts, 20);
+      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
+        .calls.length;
+
+      expect(callCount2).toBeGreaterThan(callCount1);
+    });
+
+    it('should update trend counts without regenerating descriptions', async () => {
+      const posts1: FeedPost[] = [
+        {
+          id: 'post-1',
+          content: 'AI news',
+          author: 'user-1',
+          authorName: 'User',
+          timestamp: '2025-11-15T10:00:00Z',
+          day: 1,
+          tags: ['ai'],
+        },
+      ];
+
+      await engine.updateTrends(posts1, 10);
+      const trends1 = engine.getTrends();
+      const aiTrend1 = trends1.find((t) => t.tag === 'ai');
+      expect(aiTrend1?.count).toBe(1);
+
+      // Add more posts with same tag
+      const posts2: FeedPost[] = [
+        ...posts1,
+        {
+          id: 'post-2',
+          content: 'More AI',
+          author: 'user-2',
+          authorName: 'User2',
+          timestamp: '2025-11-15T10:30:00Z',
+          day: 1,
+          tags: ['ai'],
+        },
+      ];
+
+      // Update - should update counts without LLM call
+      await engine.updateTrends(posts2, 20);
+      const trends2 = engine.getTrends();
+      const aiTrend2 = trends2.find((t) => t.tag === 'ai');
+      expect(aiTrend2?.count).toBe(2);
+    });
+
+    it('should report needsUpdate correctly', async () => {
+      expect(engine.needsUpdate(2)).toBe(false); // Not enough ticks passed (need 4)
+      expect(engine.needsUpdate(5)).toBe(true); // Interval reached (4 ticks)
+
       const posts: FeedPost[] = [
         {
           id: 'post-1',
@@ -273,40 +484,9 @@ describe('TrendingTopicsEngine', () => {
       ];
 
       await engine.updateTrends(posts, 10);
-      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
-        .calls.length;
-
-      await engine.updateTrends(posts, 20); // 10 ticks later
-      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
-        .calls.length;
-
-      expect(callCount2).toBeGreaterThan(callCount1); // New LLM call
-    });
-
-    it('should allow configuring update interval', async () => {
-      engine.setUpdateInterval(5); // Update every 5 ticks
-
-      const posts: FeedPost[] = [
-        {
-          id: 'post-1',
-          content: 'Test',
-          author: 'user-1',
-          authorName: 'User',
-          timestamp: '2025-11-15T10:00:00Z',
-          day: 1,
-          tags: ['test'],
-        },
-      ];
-
-      await engine.updateTrends(posts, 5);
-      const callCount1 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
-        .calls.length;
-
-      await engine.updateTrends(posts, 10); // 5 ticks later
-      const callCount2 = (mockLLM.generateJSON as ReturnType<typeof mock>).mock
-        .calls.length;
-
-      expect(callCount2).toBeGreaterThan(callCount1); // Should update
+      expect(engine.getLastUpdateTick()).toBe(10);
+      expect(engine.needsUpdate(12)).toBe(false); // Only 2 ticks since last update
+      expect(engine.needsUpdate(15)).toBe(true); // 5 ticks since last update (> 4)
     });
   });
 });

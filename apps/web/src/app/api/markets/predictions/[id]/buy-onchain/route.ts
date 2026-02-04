@@ -1,99 +1,16 @@
-/**
- * On-Chain Prediction Market Buy API
- *
- * @route POST /api/markets/predictions/[id]/buy-onchain - Buy shares on-chain
- * @access Authenticated
- *
- * @description
- * Verifies and records on-chain share purchases using real Base Sepolia ETH.
- * User signs transaction client-side, backend verifies on-chain transaction,
- * then updates database to match on-chain state.
- *
- * @openapi
- * /api/markets/predictions/{id}/buy-onchain:
- *   post:
- *     tags:
- *       - Markets
- *     summary: Buy shares on-chain
- *     description: Verifies and records on-chain share purchase (Base Sepolia)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Market/question ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - side
- *               - numShares
- *               - txHash
- *               - walletAddress
- *             properties:
- *               side:
- *                 type: string
- *                 enum: [yes, no]
- *               numShares:
- *                 type: number
- *                 minimum: 0.01
- *               txHash:
- *                 type: string
- *                 pattern: '^0x'
- *                 description: On-chain transaction hash
- *               walletAddress:
- *                 type: string
- *                 pattern: '^0x'
- *                 description: Wallet address that signed transaction
- *     responses:
- *       200:
- *         description: On-chain purchase verified and recorded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 verified:
- *                   type: boolean
- *                 position:
- *                   type: object
- *       400:
- *         description: Invalid transaction or verification failed
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Market not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/markets/predictions/${marketId}/buy-onchain`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({
- *     side: 'yes',
- *     numShares: 10,
- *     txHash: '0x...',
- *     walletAddress: '0x...'
- *   })
- * });
- * ```
- */
-
+// POST /api/markets/predictions/[id]/buy-onchain – verify on-chain buy (legacy)
+import {
+  authenticate,
+  BusinessLogicError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const OnChainBuySchema = z.object({
   side: z.enum(['yes', 'no']),

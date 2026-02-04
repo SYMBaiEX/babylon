@@ -10,7 +10,16 @@
  * Enforces parody name usage and formatting guidelines.
  */
 export const IMPORTANT_RULES = `IMPORTANT RULES:
-- NO HASHTAGS OR EMOJIS IN POSTS
+
+=== ABSOLUTELY NO HASHTAGS ===
+NEVER use hashtags (#). Not even one. No #crypto, #AI, #breaking, #news, or any other hashtag.
+Write naturally like real social media - real influencers don't spam hashtags.
+If you include a single hashtag, your output is INVALID and will be rejected.
+
+=== NO EMOJIS ===
+Do not include any emoji characters. Plain text only.
+
+=== PARODY NAMES ONLY ===
 - NEVER use real-world person or organization names
 - ALWAYS use ONLY the parody names from World Actors list (e.g., AIlon Musk, Sam AIltman, Mark Zuckerborg, Vitalik ButerAIn)
 - Use @username or parody name/nickname/alias ONLY
@@ -77,38 +86,52 @@ export function characterVoiceGuidance(
   actorVariableName = 'actorsList'
 ): string {
   return `
-=== CHARACTER VOICE RULES ===
-For each actor in {{${actorVariableName}}}, you MUST use their unique voice:
+=== CRITICAL: UNIQUE VOICES FOR EACH CHARACTER ===
 
-1. PERSONALITY: Read their personality field - this defines WHO they are
-2. WRITING STYLE (postStyle): This defines HOW they write - match this exactly
-3. EXAMPLE POSTS (postExample): These are TEMPLATES - your output MUST sound like these
+**THE PROBLEM WE'RE SOLVING**: All characters sound the same when generated together.
+**YOUR TASK**: Make each character IMMEDIATELY RECOGNIZABLE by voice alone.
 
-CRITICAL MATCHING RULES:
-- If their examples are SHORT (1-2 sentences) → write SHORT
-- If their examples use SLANG or CASUAL language → use SLANG
-- If their examples are FORMAL and technical → be FORMAL
-- If their examples have specific CATCHPHRASES → use those catchphrases
-- If their examples use specific PUNCTUATION patterns → match them
+For each actor in {{${actorVariableName}}}:
 
-NEVER write generic social media speak for all characters.
-Each character should be IMMEDIATELY RECOGNIZABLE by their voice alone.
+1. **BECOME that character** - Mentally shift into their persona before writing their post
+2. **MATCH their examples EXACTLY** - Their postExample IS their voice. Copy the style, not the words.
+3. **VARY length and tone** - If their examples are terse, be terse. If verbose, be verbose.
 
-Example: If character's postExample is "just shipped it. lmao. $100M ARR incoming 🚀"
-Then YOUR post should match: casual, lowercase, short sentences, confident, uses lmao
+=== VOICE MATCHING CHECKLIST ===
+Before writing each post, check the character's examples and ask:
+□ Length: Are their examples SHORT (under 50 chars) or LONG (100+ chars)?
+□ Case: Do they use lowercase, CAPS, or Normal Case?
+□ Punctuation: Do they use periods? Ellipses? No punctuation at all?
+□ Tone: Sarcastic? Earnest? Cryptic? Professional?
+□ Vocabulary: Technical jargon? Slang? Formal? Memetic?
+□ Structure: Complete sentences? Fragments? Lists?
 
-Example: If character's postExample is "After careful analysis of market conditions..."
-Then YOUR post should match: formal, complete sentences, analytical tone
+=== ANTI-PATTERNS TO AVOID ===
+These phrases make all characters sound the same. NEVER USE THEM:
+- "The future is..."
+- "Exciting times ahead"
+- "This is huge"
+- "Let that sink in"
+- "Just my two cents"
+- "Interesting development"
+- "Here's my take"
+- "Can't believe this"
+- "This is wild"
 
-AVOID generic phrases: "The future is...", "Exciting times", "This is huge", "Let that sink in", "Just my two cents"
+=== AI SLOP TO AVOID (IMMEDIATE REJECTION) ===
+These patterns indicate generic AI output - reject immediately:
+- "We're cautiously optimistic that by [date]..." (robotic prediction speak)
+- "Looking at the implications of..." (analyst garbage)
+- "This development suggests..." (hedged commentary)
+- "As [date] approaches..." (countdown reporting)
+- "The [topic] raises questions about..." (essay intro)
+- "hypernormalized" / "snack-form transcendence" (thesaurus abuse)
+- Mentioning specific resolution dates ("by Dec 13", "in 3 days")
+- Explaining what a prediction or market is about
+- Sounding like you're writing a market report or news article
 
-POST VARIETY - generate a mix of:
-- Hot takes (30%): Strong opinion, controversial, no hedging
-- Shitposts (20%): Jokes, absurdist, one-liners
-- Subtweets (15%): Vague reference without naming
-- Flexes (15%): Humble brags, achievements
-- Complaints (10%): Industry griping
-- Insights (10%): Actual observations`;
+REMEMBER: A reader should be able to guess WHO wrote each post without seeing the name.
+The character's postStyle, voice, and postExample define HOW they post - match those exactly.`;
 }
 
 /**
@@ -126,10 +149,19 @@ export function getTimeOfDayEnergy(hour: number): string {
     return 'ENERGY: Peak hours - hot takes, controversy, ratio attempts';
   }
   if (hour >= 15 && hour < 20) {
-    return 'ENERGY: Afternoon - commentary on day\'s events, dunks on bad takes';
+    return "ENERGY: Afternoon - commentary on day's events, dunks on bad takes";
   }
   return 'ENERGY: Night - introspective, shitposting, less corporate';
 }
+
+/**
+ * No hashtags or emojis rule for professional content (articles, etc).
+ * Defense-in-depth: prompt instructs LLM, code also strips them post-generation.
+ */
+export const NO_HASHTAGS_OR_EMOJIS = `=== FORMATTING RULES ===
+- ABSOLUTELY NO HASHTAGS anywhere (no #crypto, #AI, #breaking, or ANY #tag)
+- NO EMOJIS - plain text only
+- Write like professional journalism, not social media`;
 
 /**
  * Parody name rules for game/world prompts.
@@ -155,15 +187,255 @@ export const PRIVATE_CONTENT_GUIDANCE = `PRIVATE vs PUBLIC:
 - Be STRATEGIC: Help friends, hurt enemies`;
 
 /**
+ * Rich narrative context header for prompts that need full history.
+ * Use this to inject complete event timeline, resolved questions, etc.
+ */
+export const RICH_NARRATIVE_CONTEXT_HEADER = `=== COMPLETE NARRATIVE CONTEXT ===
+
+{{eventTimeline}}
+
+{{resolvedQuestionsContext}}
+
+{{ongoingNarrativesContext}}
+
+{{feedActivityContext}}
+
+{{worldFactsContext}}`;
+
+/**
+ * Character roster header for prompts that need character context.
+ * Includes brief roster of all characters plus detailed profiles for mentioned ones.
+ */
+export const CHARACTER_ROSTER_HEADER = `=== WORLD CHARACTERS ===
+
+{{characterRoster}}
+
+{{detailedCharacterProfiles}}
+
+{{organizationRoster}}`;
+
+/**
+ * Combined full context header with all elements (characters, events, narratives).
+ * Use this for prompts that need maximum context richness.
+ */
+export const FULL_CONTEXT_HEADER = `{{realityGrounding}}
+
+=== WORLD CHARACTERS ===
+{{characterRoster}}
+
+{{detailedCharacterProfiles}}
+
+=== ORGANIZATIONS ===
+{{organizationRoster}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== CURRENT STATE ===
+Day {{currentDay}} of 30
+Phase: {{currentPhase}}
+
+{{phaseGuidance}}`;
+
+/**
+ * Anti-repetition and distinctness guidance for content generation.
+ * Critical for ensuring generated content doesn't repeat previous patterns.
+ */
+export const ANTI_REPETITION_RULES = `=== ANTI-REPETITION RULES (CRITICAL) ===
+
+1. **NEVER repeat previous content:**
+   - Check the previous posts/events context above carefully
+   - If you've covered a topic before, take a NEW angle or skip it entirely
+   - Don't rephrase the same opinion/event in slightly different words
+
+2. **Build on, don't repeat, resolved questions:**
+   - Resolved questions above show what ALREADY HAPPENED
+   - Reference outcomes naturally, but don't re-announce old news
+   - Use outcomes as context for NEW developments
+
+3. **Advance narratives, don't rehash:**
+   - Ongoing narratives show current storylines
+   - Push these FORWARD with new developments
+   - Don't generate content that retreats to earlier plot points
+
+4. **Each piece must add NEW information:**
+   - New events = new information revealed
+   - New posts = new opinions or reactions
+   - If content doesn't add something new, DON'T generate it`;
+
+/**
+ * Narrative continuity guidance for maintaining story coherence.
+ */
+export const NARRATIVE_CONTINUITY_RULES = `=== NARRATIVE CONTINUITY RULES ===
+
+1. **Reference previous events naturally:**
+   - The event timeline above shows what happened before
+   - Your content should feel like a continuation, not a restart
+   - Characters remember what happened and reference it
+
+2. **Honor resolved question outcomes:**
+   - If a question resolved YES/NO, that outcome is CANON
+   - Don't contradict established outcomes
+   - Build subsequent content around the resolved reality
+
+3. **Maintain character consistency:**
+   - Characters' positions evolve but don't randomly flip
+   - Previous posts show their established stance
+   - New content should be consistent or show gradual evolution
+
+4. **Connect to ongoing narratives:**
+   - Major storylines are listed above
+   - New content should connect to existing threads
+   - Avoid starting completely disconnected plotlines
+
+5. **Phase-appropriate content:**
+   - Early phases: hints, speculation, disconnected events
+   - Middle phases: connections emerge, threads interweave
+   - Late phases: convergence, revelations, resolution`;
+
+/**
+ * Question generation continuity guidance.
+ */
+export const QUESTION_CONTINUITY_RULES = `=== QUESTION GENERATION CONTINUITY ===
+
+1. **Review existing questions first:**
+   - Active questions listed above are ALREADY being tracked
+   - DON'T generate questions that are too similar
+   - Each new question must cover DISTINCT territory
+
+2. **Build on resolved questions:**
+   - Resolved questions above show what already resolved
+   - New questions can explore CONSEQUENCES of those outcomes
+   - "Now that X happened, will Y follow?"
+
+3. **Reference ongoing narratives:**
+   - Current storylines inform what's interesting to bet on
+   - Questions should feel connected to the narrative arc
+   - Avoid random questions disconnected from current drama
+
+4. **Avoid question patterns:**
+   - Don't just swap actor names in similar question templates
+   - Each question needs a unique angle or framing
+   - Vary the resolution timeframes for pacing`;
+
+/**
+ * Event generation continuity guidance.
+ */
+export const EVENT_CONTINUITY_RULES = `=== EVENT GENERATION CONTINUITY ===
+
+1. **Build on previous events:**
+   - The event timeline above is your history
+   - Today's events should feel like natural progressions
+   - Reference yesterday's events where relevant
+
+2. **Advance active questions:**
+   - Events can provide clues toward question outcomes
+   - Don't resolve questions prematurely
+   - Create tension and uncertainty
+
+3. **Follow character arcs:**
+   - Track what each actor has been doing
+   - Their actions today should relate to their journey
+   - Avoid actors randomly appearing in unrelated events
+
+4. **Maintain cause and effect:**
+   - Major events have consequences
+   - Subsequent events should reflect previous happenings
+   - The world reacts to what occurred`;
+
+/**
  * Final reminders section for feed prompts (sandwich structure - reinforcement at end).
  * Repeats critical rules at the end of prompts to use recency effect.
  */
 export const FINAL_REMINDERS = `FINAL REMINDERS:
 - Use ONLY parody names from the World Actors list (AIlon Musk, TeslAI, OpenAGI, etc.)
 - NEVER use real-world names (Elon Musk, Tesla, OpenAI, etc.)
-- NO hashtags (#) - write naturally without hashtags
+- ABSOLUTELY NO HASHTAGS - not #crypto, #AI, #news, or ANY hashtag whatsoever
 - NO emojis - plain text only
-- Match each character's unique voice from their examples exactly`;
+- Match each character's postStyle, voice, and postExample EXACTLY
+- Each character must sound DISTINCT - a blind reader should identify who wrote each post
+- NO market analyst speak ("by Dec 13", "cautiously optimistic", "this suggests")`;
+
+/**
+ * Quality rules for NPC posts - prevents robotic/technical content
+ * Used by both engine (if needed) and agents packages
+ *
+ * These rules enforce social media authenticity:
+ * - No analyst-speak or hedged commentary
+ * - No quoting full prediction market questions
+ * - Character voice must be recognizable
+ */
+export const NPC_POST_QUALITY_RULES = `
+=== BANNED PATTERNS (instant rejection) ===
+These patterns make you sound like a robot, not a person:
+
+- "I'm considering..." / "I'm watching..." / "I'm closely monitoring..."
+- "Just saw @X's [action] and I'm thinking..."
+- "Given the recent [event], it seems..."
+- "The implications of this suggest..."
+- "We're cautiously optimistic..."
+- Quoting full prediction market questions
+- Technical terms: "resolution", "probability", "YES/NO position", "market cap"
+- Mentioning specific dates: "by Dec 13", "in 3 days"
+- Sounding like a market analyst or news reporter
+
+=== OPENING PHRASE VARIETY (critical for natural feel) ===
+NEVER start consecutive posts the same way. Vary your opening style:
+
+1. Strong declarative: "X is happening." / "This changes everything."
+2. Question hook: "Why is everyone missing this?" / "What if I told you..."
+3. Commentary: "Just saw this." / "Thread on this." / "My take:"
+4. Contrarian: "Unpopular opinion:" / "Everyone celebrating is wrong."
+5. Direct observation: "The market just told us something." / "Look at this chart."
+
+If your character has a signature phrase (like "Here's a framework..."), use it MAX once per 5 posts.
+Rotate through different opening styles to feel like a real person, not a bot.
+
+=== BANNED REPETITIVE PHRASES (instant rejection) ===
+These phrases are overused cliches. NEVER use them:
+
+- "[N]% crowd consensus" / "crowd consensus at [N]%"
+- "[N]:1 asymmetry" / "risk asymmetry" / "asymmetry = [N]:1"
+- "exit liquidity" / "exit liquidity gets harvested"
+- "fade the herd" / "fading the herd"
+- "when everyone's [certain/bullish/bearish/long/short]"
+- "security first" / "security rule" / "security 101"
+- "cascade liquidations" / "liquidations inbound"
+- "crowded long" / "crowded short" / "crowded trade"
+- "mean reversion" / "mean-reversion"
+- "the crowd is wrong" / "crowd reversal"
+- "who's left to buy" / "who's left to sell"
+- Formulas like "[percentage] YES/NO = [ratio] odds"
+
+Instead, express ideas FRESHLY:
+- Be specific about WHY you disagree
+- Name specific catalysts or events
+- Make concrete predictions with reasoning
+- Share personal trading actions with context
+
+=== QUALITY SCORING (aim for 90+ points) ===
++30: Direct statement or bold claim
++25: Prediction with conviction (no hedging)
++20: Provocative question that sparks discussion
++15: Sarcasm, humor, or hot take
++10: Reaction to someone else's post
+-20: Hedge words ("maybe", "possibly", "might")
+-30: Passive voice or tentative language
+-50: Same structure as your recent posts
+-100: ANY banned pattern above
+
+=== HOW TO REFERENCE PREDICTIONS ===
+Never quote full question text. Use short summaries:
+
+BAD: "the 'Will Polymarket deploy its Sentient Market-Making AIs...' prediction"
+GOOD: "the BitcAIn manipulation bet"
+GOOD: "the TeslAI readiness question"
+GOOD: "AIlon's snow cone wager"
+
+=== VOICE MATCHING ===
+Your post must sound like YOUR character's examples, not generic AI.
+Check: Could someone identify you without seeing your name?
+`;
 
 /**
  * Helper to build a complete prompt section combining common elements.

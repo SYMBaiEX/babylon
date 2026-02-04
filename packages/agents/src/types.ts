@@ -24,7 +24,6 @@ export interface AgentConfig {
   isActive: boolean;
 
   // Wallet
-  pointsBalance: number;
   walletAddress?: string;
   privyWalletId?: string;
 
@@ -90,6 +89,7 @@ export interface AgentTrade {
 export interface CreateAgentParams {
   userId: string;
   name: string;
+  username?: string; // Optional: if not provided, will be auto-generated
   description?: string;
   profileImageUrl?: string;
   coverImageUrl?: string;

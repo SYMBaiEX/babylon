@@ -1,14 +1,8 @@
 # Configuration
 
-Complete guide to configuring Babylon for development and production.
+Environment variables for Babylon.
 
-## Environment Variables
-
-Babylon uses environment variables for configuration. Create a `.env.local` file in the root directory.
-
-### Required Variables
-
-These variables are **required** for the application to run:
+## Required Variables
 
 ```env
 # Database
@@ -18,370 +12,100 @@ DATABASE_URL="postgresql://user:password@localhost:5432/babylon"
 NEXT_PUBLIC_PRIVY_APP_ID="your_privy_app_id"
 PRIVY_APP_SECRET="your_privy_app_secret"
 
-# AI Provider (fallback chain: groq -> claude -> openai)
-GROQ_API_KEY="gsk_..." # Primary - Fast inference
-ANTHROPIC_API_KEY="sk-..." # Claude fallback
-OPENAI_API_KEY="sk-..." # Final fallback
+# AI Provider (at least one - fallback: groq → claude → openai)
+GROQ_API_KEY="gsk_..."
 ```
 
-### Authentication Setup
-
-#### Privy Configuration
+## Privy Setup
 
 1. Sign up at [privy.io](https://privy.io)
-2. Create a new app
-3. Configure allowed domains:
- - Add `http://localhost:3000` for development
- - Add your production domain
- - **Important**: Add `https://farcaster.xyz` for Farcaster Mini App support
-4. Enable authentication methods:
- - Email
- - Wallet (MetaMask, Rabby, etc.)
- - Farcaster (optional)
- - Twitter (optional)
-5. Copy your App ID and App Secret to `.env.local`
+2. Create app, add `http://localhost:3000` to allowed domains
+3. Copy App ID and App Secret
 
-### Optional Variables
+## Optional Variables
 
-#### Redis (Production Recommended)
-
-For real-time event broadcasting across multiple instances:
+### Redis (Production)
 
 ```env
 UPSTASH_REDIS_REST_URL="https://your-redis.upstash.io"
 UPSTASH_REDIS_REST_TOKEN="your_token"
 ```
 
-Get free Redis from [Upstash](https://upstash.com).
-
-#### Blockchain Integration
-
-For on-chain features and Agent0 integration:
+### Blockchain
 
 ```env
-# Enable Agent0 integration
 AGENT0_ENABLED="true"
-
-# RPC URLs
 BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
-BASE_RPC_URL="https://mainnet.base.org"
-ETHEREUM_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
-
-# Private keys (never commit these!)
 BABYLON_GAME_PRIVATE_KEY="0x..."
-DEPLOYER_PRIVATE_KEY="0x..."
 ```
 
-#### Storage Configuration
-
-For user-uploaded images:
+### Storage
 
 ```env
 # AWS S3
-AWS_ACCESS_KEY_ID="your_access_key"
-AWS_SECRET_ACCESS_KEY="your_secret_key"
-AWS_REGION="us-east-1"
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
 AWS_S3_BUCKET="babylon-uploads"
 
-# OR Vercel Blob Storage
-BLOB_READ_WRITE_TOKEN="vercel_blob_token"
+# OR Vercel Blob
+BLOB_READ_WRITE_TOKEN="..."
 ```
 
-#### Social Authentication
-
-For social login and sharing features:
+### Agent Configuration
 
 ```env
-# Twitter OAuth
-TWITTER_CLIENT_ID="your_client_id"
-TWITTER_CLIENT_SECRET="your_client_secret"
-TWITTER_CALLBACK_URL="http://localhost:3000/api/auth/twitter/callback"
-
-# Farcaster
-FARCASTER_CLIENT_ID="your_client_id"
-FARCASTER_CLIENT_SECRET="your_client_secret"
-```
-
-#### Cron Security
-
-For protecting cron endpoints:
-
-```env
-CRON_SECRET="your_random_secret_here"
-```
-
-Generate with: `openssl rand -hex 32`
-
-#### Agent Configuration
-
-For autonomous agents:
-
-```env
-# Agent authentication (BABYLON_AGENT_ID defaults to "babylon-agent-alice" locally)
-# Set a unique value in staging/production to match your deployed agent.
-BABYLON_AGENT_ID="babylon-agent-default"
-CRON_SECRET="generate_with_openssl_rand_hex_32"
-
-# Trading limits
+BABYLON_AGENT_ID="my-agent"           # Defaults to "babylon-agent-alice" locally
+CRON_SECRET="openssl rand -hex 32"    # Generate with openssl
 BABYLON_MAX_TRADE_SIZE="100"
-BABYLON_MAX_POSITION_SIZE="500"
 BABYLON_MIN_CONFIDENCE="0.6"
-
 ```
 
-#### AI Provider Setup
-
-Babylon supports multiple AI providers with automatic fallback:
-
-**1. Groq (Recommended)**
-- Ultra-fast inference with open-source models
-- Get API key: [https://console.groq.com](https://console.groq.com)
-
-**2. Claude (Fallback)**
-- Anthropic's Claude models
-- Get API key: [https://console.anthropic.com](https://console.anthropic.com)
-
-**3. OpenAI (Final Fallback)**
-- GPT models
-- Get API key: [https://platform.openai.com](https://platform.openai.com)
-
-The system will automatically use the first available provider in the order: groq → claude → openai.
-
-#### Sentry Error Tracking
-
-For error tracking and performance monitoring:
+### Error Tracking
 
 ```env
-# Sentry DSN (required for error tracking)
-NEXT_PUBLIC_SENTRY_DSN="https://your-dsn@sentry.io/project-id"
 SENTRY_DSN="https://your-dsn@sentry.io/project-id"
-
-# Source Map Upload (optional, for better stack traces)
-SENTRY_ORG="your-org"
-SENTRY_PROJECT="your-project"
-SENTRY_AUTH_TOKEN="your-auth-token"
-
-# Release Tracking (optional, set via CI/CD)
-NEXT_PUBLIC_SENTRY_RELEASE="1.0.0"
-SENTRY_RELEASE="1.0.0"
 ```
 
-Get your DSN from [Sentry Project Settings](https://sentry.io/settings/projects/).
+## AI Providers
 
-## Complete .env.local Example
+Automatic fallback chain:
+1. **Groq** - Fast inference ([console.groq.com](https://console.groq.com))
+2. **Claude** - Best reasoning ([console.anthropic.com](https://console.anthropic.com))
+3. **OpenAI** - Reliable ([platform.openai.com](https://platform.openai.com))
 
-```env
-# ============================================
-# DATABASE
-# ============================================
-DATABASE_URL="postgresql://babylon_user:password@localhost:5432/babylon"
-
-# ============================================
-# AUTHENTICATION (Required)
-# ============================================
-NEXT_PUBLIC_PRIVY_APP_ID="clp..."
-PRIVY_APP_SECRET="..."
-
-# ============================================
-# AI PROVIDERS (At least one required)
-# ============================================
-OPENAI_API_KEY="sk-..."
-GROQ_API_KEY="gsk_..."
-
-# ============================================
-# REDIS (Optional - Production Recommended)
-# ============================================
-UPSTASH_REDIS_REST_URL=""
-UPSTASH_REDIS_REST_TOKEN=""
-
-# ============================================
-# BLOCKCHAIN (Optional)
-# ============================================
-AGENT0_ENABLED="false"
-BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
-BABYLON_GAME_PRIVATE_KEY=""
-DEPLOYER_PRIVATE_KEY=""
-
-# ============================================
-# STORAGE (Optional)
-# ============================================
-AWS_ACCESS_KEY_ID=""
-AWS_SECRET_ACCESS_KEY=""
-AWS_REGION="us-east-1"
-AWS_S3_BUCKET="babylon-uploads"
-
-# OR use Vercel Blob
-BLOB_READ_WRITE_TOKEN=""
-
-# ============================================
-# SOCIAL AUTH (Optional)
-# ============================================
-TWITTER_CLIENT_ID=""
-TWITTER_CLIENT_SECRET=""
-FARCASTER_CLIENT_ID=""
-FARCASTER_CLIENT_SECRET=""
-
-# ============================================
-# SECURITY
-# ============================================
-CRON_SECRET="generate_with_openssl_rand_hex_32"
-
-# ============================================
-# AGENT CONFIGURATION (Optional)
-# ============================================
-# BABYLON_AGENT_ID defaults to "babylon-agent-alice" for local testing.
-# Set a custom value when deploying shared environments.
-BABYLON_AGENT_ID="babylon-agent-default"
-CRON_SECRET=""
-BABYLON_MAX_TRADE_SIZE="100"
-BABYLON_MAX_POSITION_SIZE="500"
-BABYLON_MIN_CONFIDENCE="0.6"
-
-# ============================================
-# SENTRY ERROR TRACKING (Optional)
-# ============================================
-# Sentry DSN for error tracking and performance monitoring
-# Get your DSN from https://sentry.io/settings/projects/
-NEXT_PUBLIC_SENTRY_DSN="https://your-dsn@sentry.io/project-id"
-SENTRY_DSN="https://your-dsn@sentry.io/project-id"
-
-# Source Map Upload (Optional - for better stack traces in production)
-# Get auth token from https://sentry.io/settings/account/api/auth-tokens/
-SENTRY_ORG="your-org"
-SENTRY_PROJECT="your-project"
-SENTRY_AUTH_TOKEN="your-auth-token"
-
-# Release Tracking (Optional - set via CI/CD or manually)
-# Format: version or git commit hash
-NEXT_PUBLIC_SENTRY_RELEASE=""
-SENTRY_RELEASE=""
-
-# ============================================
-# DEVELOPMENT
-# ============================================
-NODE_ENV="development"
-NEXT_PUBLIC_API_URL="http://localhost:3000"
-```
-
-## Configuration by Environment
+## Environments
 
 ### Development
-
 ```env
 NODE_ENV="development"
 NEXT_PUBLIC_API_URL="http://localhost:3000"
-```
-
-### Staging
-
-```env
-NODE_ENV="production"
-NEXT_PUBLIC_API_URL="https://staging.babylon.market"
 ```
 
 ### Production
-
 ```env
 NODE_ENV="production"
 NEXT_PUBLIC_API_URL="https://babylon.market"
 ```
 
-## Vercel Environment Variables
+## Security
 
-When deploying to Vercel, set environment variables in the dashboard:
-
-1. Go to your project settings
-2. Navigate to "Environment Variables"
-3. Add each variable
-4. Set the appropriate environment (Production, Preview, Development)
-
-### Environment-Specific Variables
-
-- **Production Only**: 
- - `CRON_SECRET`
- - Production RPC URLs
- - Production API keys
-
-- **All Environments**:
- - `DATABASE_URL` (different per environment)
- - `NEXT_PUBLIC_PRIVY_APP_ID`
- - `PRIVY_APP_SECRET`
-
-## Security Best Practices
-
-### Never Commit Secrets
-
-Add to `.gitignore`:
-
-```
-.env.local
-.env.*.local
-.env.production.local
-```
-
-### Rotate Secrets Regularly
-
-- API keys
-- Database passwords
-- Private keys
-- OAuth secrets
-
-### Use Vercel's Secret Management
-
-Store sensitive values in Vercel and reference them:
-
-```bash
-vercel secrets add database-url "postgresql://..."
-```
-
-### Restrict API Key Permissions
-
-- Create separate API keys for development/production
-- Use read-only keys where possible
-- Enable IP restrictions if available
-
-## Validating Configuration
-
-Check if all required variables are set:
-
-```bash
-
-```
-
-This will:
-- Check if required variables exist
-- Validate API key formats
-- Test database connection
-- Verify external service connectivity
+- Never commit secrets (add `.env.local` to `.gitignore`)
+- Rotate keys regularly
+- Use separate keys for dev/production
 
 ## Troubleshooting
 
-### Database Connection Issues
-
+**Database Connection**
 ```env
-# Try with direct URL (no connection pooling)
 DATABASE_URL="postgresql://user:pass@localhost:5432/babylon"
-
-# For production, use connection pooling
-DATABASE_URL="postgresql://user:pass@host:5432/babylon?pgbouncer=true"
-DIRECT_DATABASE_URL="postgresql://user:pass@host:5432/babylon"
 ```
 
-### Privy Authentication Fails
-
-- Verify App ID is correct (starts with `clp`)
-- Check that domains are whitelisted
-- Ensure callback URLs match exactly
-
-### Agent0 Registration Fails
-
-- Ensure you have testnet ETH in your wallet
-- Check RPC URL is accessible
-- Verify private key format (with or without `0x` prefix)
+**Privy Auth Fails**
+- Check App ID starts with `clp`
+- Verify domains are whitelisted
 
 ## Next Steps
 
 - [Run Locally](/getting-started/local-development)
 - [Deploy to Vercel](/deployment/vercel)
-- [Set Up Agent0](/agents/agent0-integration)
 

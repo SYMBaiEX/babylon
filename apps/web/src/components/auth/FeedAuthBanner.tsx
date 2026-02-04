@@ -1,9 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Feed authentication banner content component.
@@ -51,7 +51,7 @@ function FeedAuthBannerContent() {
         'border-border border-t-2'
       )}
     >
-      <div className="mx-auto max-w-7xl px-4 py-4">
+      <div className="mark mx-auto max-w-7xl px-4 py-4 md:pl-20 lg:pl-64 xl:pr-96">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
             <h3 className="mb-1 font-bold text-lg">Join the conversation.</h3>

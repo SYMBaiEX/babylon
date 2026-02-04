@@ -13,9 +13,6 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "../shared" },
-    { "path": "../contracts" }
-  ]
+  "exclude": ["node_modules", "dist", "src/__tests__/**/*"],
+  "references": [{ "path": "../shared" }, { "path": "../contracts" }]
 }

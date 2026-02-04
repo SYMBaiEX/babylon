@@ -6,6 +6,7 @@
  */
 
 import {
+  and,
   count,
   db,
   eq,
@@ -14,7 +15,6 @@ import {
   llmCallLogs,
   trajectories,
   users,
-  and,
 } from '@babylon/db';
 import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '../utils/logger';
@@ -49,12 +49,10 @@ export class ModelUsageVerifier {
     runtime: IAgentRuntime
   ): Promise<ModelUsageStats> {
     const settings = runtime.character?.settings;
-    
+
     // Check for different model providers
     const groqModel = String(
-      settings?.LARGE_GROQ_MODEL ||
-        settings?.SMALL_GROQ_MODEL ||
-        ''
+      settings?.GROQ_LARGE_MODEL || settings?.GROQ_SMALL_MODEL || ''
     );
     const claudeModel = String(settings?.CLAUDE_MODEL || '');
     const openaiModel = String(settings?.OPENAI_MODEL || '');

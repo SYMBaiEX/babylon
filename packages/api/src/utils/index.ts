@@ -6,18 +6,16 @@
  */
 
 export {
+  clearApiKeyCache,
   generateApiKey,
   generateTestApiKey,
+  getApiKeyCacheStats,
   hashApiKey,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
+  validateUserApiKey,
   verifyApiKey,
 } from './api-keys';
-
-export {
-  getClientIp,
-  getHashedClientIp,
-  hashIpAddress,
-} from './ip-utils';
-
 export {
   checkDuplicate,
   cleanupDuplicates,
@@ -26,15 +24,24 @@ export {
   DUPLICATE_DETECTION_CONFIGS,
   getDuplicateStats,
 } from './duplicate-detector';
+export {
+  type DeploymentEnvironment,
+  getDeploymentEnvironment,
+} from './environment';
+export {
+  getClientIp,
+  getHashedClientIp,
+  hashIpAddress,
+} from './ip-utils';
 
 // Token counter utilities (moved from @babylon/shared)
 export {
+  budgetTokens,
   countTokens,
   countTokensSync,
-  truncateToTokenLimit,
-  truncateToTokenLimitSync,
-  MODEL_TOKEN_LIMITS,
   getModelTokenLimit,
   getSafeContextLimit,
-  budgetTokens,
+  MODEL_TOKEN_LIMITS,
+  truncateToTokenLimit,
+  truncateToTokenLimitSync,
 } from './token-counter';

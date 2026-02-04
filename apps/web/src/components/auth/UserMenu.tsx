@@ -1,15 +1,22 @@
 'use client';
 
-import { Check, Copy, Key, LogOut, Settings } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { getDisplayReferralUrl, getReferralUrl } from '@babylon/shared';
+import {
+  BookOpen,
+  Check,
+  Copy,
+  Key,
+  LogOut,
+  MoreHorizontal,
+  Settings,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useGameGuide } from '@/components/providers/GameGuideProvider';
 import { Avatar } from '@/components/shared/Avatar';
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  getDisplayReferralUrl,
-  getReferralUrl,
-} from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -36,6 +43,7 @@ let userMenuIntervalId: ReturnType<typeof setInterval> | null = null;
 export function UserMenu() {
   const { logout, refresh } = useAuth();
   const { user, setUser } = useAuthStore();
+  const { openGuide } = useGameGuide();
   const router = useRouter();
   const [tradingBalance, setTradingBalance] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -56,7 +64,11 @@ export function UserMenu() {
 
       // Skip if we fetched recently (within 5 seconds) unless force refresh
       const now = Date.now();
-      if (!forceRefresh && now - lastFetchTimeRef.current < 5000 && lastFetchedUserIdRef.current === user.id) {
+      if (
+        !forceRefresh &&
+        now - lastFetchTimeRef.current < 5000 &&
+        lastFetchedUserIdRef.current === user.id
+      ) {
         return;
       }
 
@@ -64,8 +76,7 @@ export function UserMenu() {
       if (userMenuFetchInFlight) return;
       userMenuFetchInFlight = true;
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         userMenuFetchInFlight = false;
         return;
@@ -80,66 +91,83 @@ export function UserMenu() {
       currentFetchController = new AbortController();
       const fetchController = currentFetchController;
 
-      try {
-        // Fetch both trading balance and user profile (for latest reputation points)
-        const [balanceResponse, profileResponse] = await Promise.all([
-          fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
-            headers,
-            signal: fetchController.signal,
-          }),
-          fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
-            headers,
-            signal: fetchController.signal,
-          }),
-        ]);
-
-        if (!isMounted || fetchController.signal.aborted) {
-          userMenuFetchInFlight = false;
-          return;
-        }
-
-        // Update trading balance
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json();
-          if (isMounted && !fetchController.signal.aborted) {
-            setTradingBalance(Number(balanceData.balance || 0));
-          }
-        }
-
-        // Update reputation points from profile
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          if (isMounted && !fetchController.signal.aborted && profileData.user) {
-            const newReputationPoints = profileData.user.reputationPoints;
-            // Only update if reputation points changed
-            if (newReputationPoints !== undefined && newReputationPoints !== user.reputationPoints) {
-              setUser({
-                ...user,
-                reputationPoints: newReputationPoints,
-              });
-            }
-          }
-        }
-
-        if (isMounted && !fetchController.signal.aborted) {
-          lastFetchedUserIdRef.current = user.id;
-          lastFetchTimeRef.current = now;
-        }
-      } catch (error) {
+      // Fetch both trading balance and user profile (for latest reputation points)
+      const [balanceResponse, profileResponse] = await Promise.all([
+        fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
+          headers,
+          signal: fetchController.signal,
+        }),
+        fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
+          headers,
+          signal: fetchController.signal,
+        }),
+      ]).catch((error) => {
         // Ignore abort errors
         if (error instanceof Error && error.name === 'AbortError') {
-          return;
+          return [null, null];
         }
         // Silently handle network errors - component will show previous state or null
         if (isMounted) {
           console.warn('Failed to fetch user menu data:', error);
         }
-      } finally {
+        return [null, null];
+      });
+
+      if (
+        !isMounted ||
+        fetchController.signal.aborted ||
+        !balanceResponse ||
+        !profileResponse
+      ) {
         if (isMounted) {
           userMenuFetchInFlight = false;
         }
         currentFetchController = null;
+        return;
       }
+
+      // Update trading balance
+      if (balanceResponse.ok) {
+        const balanceData = await balanceResponse.json();
+        if (isMounted && !fetchController.signal.aborted) {
+          setTradingBalance(Number(balanceData.balance || 0));
+        }
+      }
+
+      // Update points from profile
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        if (isMounted && !fetchController.signal.aborted && profileData.user) {
+          const newTotalPoints = profileData.user.totalPoints;
+          const newReputationPoints = profileData.user.reputationPoints;
+          const updates: Partial<typeof user> = {};
+          if (
+            newTotalPoints !== undefined &&
+            newTotalPoints !== user.totalPoints
+          ) {
+            updates.totalPoints = newTotalPoints;
+          }
+          if (
+            newReputationPoints !== undefined &&
+            newReputationPoints !== user.reputationPoints
+          ) {
+            updates.reputationPoints = newReputationPoints;
+          }
+          if (Object.keys(updates).length > 0) {
+            setUser({ ...user, ...updates });
+          }
+        }
+      }
+
+      if (isMounted && !fetchController.signal.aborted) {
+        lastFetchedUserIdRef.current = user.id;
+        lastFetchTimeRef.current = now;
+      }
+
+      if (isMounted) {
+        userMenuFetchInFlight = false;
+      }
+      currentFetchController = null;
     };
 
     // Clear any existing interval
@@ -204,7 +232,7 @@ export function UserMenu() {
   const trigger = (
     <div
       data-testid="user-menu"
-      className="flex cursor-pointer items-center gap-3 rounded-full px-3 py-2.5 transition-colors hover:bg-sidebar-accent"
+      className="group flex w-full cursor-pointer items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-sidebar-accent"
     >
       <Avatar
         id={user.id}
@@ -215,35 +243,39 @@ export function UserMenu() {
         imageUrl={user.profileImageUrl || undefined}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-[15px] text-sidebar-foreground leading-5">
+        <p className="truncate text-lg text-sidebar-foreground leading-5 group-hover:text-black dark:group-hover:text-white">
           {displayName}
         </p>
-        <p className="truncate text-[13px] text-muted-foreground leading-4">
+        <p className="truncate text-muted-foreground text-xs leading-4">
           @{username}
         </p>
       </div>
+      <MoreHorizontal className="h-5 w-5 shrink-0 text-muted-foreground" />
     </div>
   );
 
-  // Use reputation points from authStore (synced when rewards are claimed)
-  const reputationPoints = user?.reputationPoints ?? 0;
+  // Use total points from authStore (synced from profile API)
+  const totalPointsValue = user?.totalPoints ?? 0;
   const tradingBalanceValue = tradingBalance ?? 0;
 
   return (
-    <Dropdown trigger={trigger} placement="top-right" width="default">
+    <Dropdown
+      trigger={trigger}
+      placement="top-left"
+      width="sidebar"
+      popoverClassName="border-r-0 rounded-r-none"
+    >
       {/* Points Display */}
-      <div className="border-sidebar-accent border-b px-5 py-4">
+      <div className="border-sidebar-accent border-b px-4 py-3">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-muted-foreground text-sm">
-            Reputation
-          </span>
-          <span className="font-bold text-foreground text-xl">
-            {reputationPoints.toLocaleString()}
+          <span className="text-muted-foreground text-sm">Total Points</span>
+          <span className="font-semibold text-lg text-sidebar-foreground">
+            {totalPointsValue.toLocaleString()}
           </span>
         </div>
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-1 flex items-center justify-between">
           <span className="text-muted-foreground text-xs">Trading Balance</span>
-          <span className="font-semibold text-foreground text-sm">
+          <span className="text-sidebar-foreground text-sm">
             {tradingBalanceValue.toLocaleString()}
           </span>
         </div>
@@ -251,49 +283,53 @@ export function UserMenu() {
 
       {user?.referralCode && (
         <DropdownItem onClick={handleCopyReferralCode}>
-          <div className="flex items-center gap-3 py-2">
+          <div className="flex items-center gap-3">
             {copiedCode ? (
-              <>
-                <Check className="h-5 w-5 text-green-500" />
-                <span className="font-semibold text-green-500 text-sm">
-                  Link Copied!
-                </span>
-              </>
+              <Check className="h-6 w-6 text-green-500" />
             ) : (
-              <>
-                <Copy className="h-5 w-5" style={{ color: '#0066FF' }} />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="font-semibold text-foreground text-sm">
-                    Copy Referral Link
-                  </span>
-                  <span className="truncate font-mono text-muted-foreground text-xs">
-                    {getDisplayReferralUrl(user.referralCode)}
-                  </span>
-                </div>
-              </>
+              <Copy className="h-6 w-6 text-sidebar-foreground" />
             )}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span
+                className={
+                  copiedCode ? 'text-green-500' : 'text-sidebar-foreground'
+                }
+              >
+                {copiedCode ? 'Link Copied!' : 'Copy Referral Link'}
+              </span>
+              <span className="truncate font-mono text-muted-foreground text-xs">
+                {getDisplayReferralUrl(user.referralCode)}
+              </span>
+            </div>
           </div>
         </DropdownItem>
       )}
 
       <DropdownItem onClick={() => router.push('/settings')}>
-        <div className="flex items-center gap-3 py-2">
-          <Settings className="h-5 w-5" style={{ color: '#0066FF' }} />
-          <span className="font-semibold text-foreground text-sm">Settings</span>
+        <div className="flex items-center gap-3">
+          <Settings className="h-6 w-6 text-sidebar-foreground" />
+          <span className="text-sidebar-foreground">Settings</span>
+        </div>
+      </DropdownItem>
+
+      <DropdownItem onClick={openGuide}>
+        <div className="flex items-center gap-3">
+          <BookOpen className="h-6 w-6 text-sidebar-foreground" />
+          <span className="text-sidebar-foreground">Game Guide</span>
         </div>
       </DropdownItem>
 
       <DropdownItem onClick={() => router.push('/settings?tab=api')}>
-        <div className="flex items-center gap-3 py-2">
-          <Key className="h-5 w-5" style={{ color: '#0066FF' }} />
-          <span className="font-semibold text-foreground text-sm">API Keys</span>
+        <div className="flex items-center gap-3">
+          <Key className="h-6 w-6 text-sidebar-foreground" />
+          <span className="text-sidebar-foreground">API Keys</span>
         </div>
       </DropdownItem>
 
       <DropdownItem onClick={logout}>
-        <div className="flex items-center gap-3 py-2 text-destructive hover:text-destructive/90">
-          <LogOut className="h-5 w-5" />
-          <span className="font-semibold">Logout</span>
+        <div className="flex items-center gap-3 text-destructive">
+          <LogOut className="h-6 w-6" />
+          <span>Logout</span>
         </div>
       </DropdownItem>
     </Dropdown>

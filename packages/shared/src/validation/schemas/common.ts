@@ -3,8 +3,8 @@
  */
 
 import { z } from 'zod';
-import { isValidSnowflakeId } from '../../utils/snowflake';
 import { JsonValueSchema } from '../../types/common';
+import { isValidSnowflakeId } from '../../utils/snowflake';
 
 /**
  * Snowflake ID validation schema
@@ -15,14 +15,6 @@ export const SnowflakeIdSchema = z
   .refine((val) => isValidSnowflakeId(val), {
     message: 'Invalid Snowflake ID format',
   });
-
-/**
- * UUID validation schema
- * Kept for legacy compatibility and external system integration
- */
-export const UUIDSchema = z.string().uuid({
-  message: 'Invalid UUID format',
-});
 
 /**
  * User ID schema - accepts UUID, Privy DID, or username formats
@@ -420,10 +412,9 @@ export const LeaderboardQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => {
-      // Default to 'all' if invalid, undefined, or empty
-      if (!val || !['all', 'earned', 'referral'].includes(val)) {
-        return undefined; // Will be handled as 'all' in route handler (pointsType ?? 'all')
+      if (!val || !['all', 'earned', 'referral', 'total'].includes(val)) {
+        return undefined;
       }
-      return val as 'all' | 'earned' | 'referral';
+      return val as 'all' | 'earned' | 'referral' | 'total';
     }),
 });

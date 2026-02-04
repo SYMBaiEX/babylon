@@ -6,10 +6,18 @@
  */
 
 import { db, eq, trainedModels } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import { del, list, put } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger';
+
+export interface ModelMetadata {
+  trainingBatch?: string;
+  accuracy?: number;
+  avgReward?: number;
+  baseModel?: string;
+}
 
 export interface ModelVersion {
   version: string;
@@ -17,13 +25,7 @@ export interface ModelVersion {
   blobUrl: string;
   size: number;
   uploadedAt: Date;
-  metadata: {
-    trainingBatch?: string;
-    accuracy?: number;
-    avgReward?: number;
-    baseModel?: string;
-    [key: string]: unknown;
-  };
+  metadata: ModelMetadata & Record<string, JsonValue | undefined>;
 }
 
 export class ModelStorageService {
@@ -72,14 +74,13 @@ export class ModelStorageService {
       size: (blob as { size?: number }).size || 0,
     });
 
-    // Save to database using Drizzle
+    // Save to database using native Drizzle
     await db.insert(trainedModels).values({
       id: `model-${Date.now()}`,
       modelId: `babylon-agent-${options.version}`,
       version: options.version,
       baseModel:
-        (options.metadata?.baseModel as string) ||
-        'unsloth/Qwen3-4B-128K',
+        (options.metadata?.baseModel as string) || 'unsloth/Qwen3-4B-128K',
       storagePath: blob.url,
       accuracy: (options.metadata?.accuracy as number) || null,
       avgReward: (options.metadata?.avgReward as number) || null,
@@ -91,8 +92,7 @@ export class ModelStorageService {
     return {
       version: options.version,
       baseModel:
-        (options.metadata?.baseModel as string) ||
-        'unsloth/Qwen3-4B-128K',
+        (options.metadata?.baseModel as string) || 'unsloth/Qwen3-4B-128K',
       blobUrl: blob.url,
       size: (blob as { size?: number }).size || 0,
       uploadedAt: new Date(),
@@ -235,7 +235,7 @@ export class ModelStorageService {
       await del(blob.url);
     }
 
-    // Update database using Drizzle
+    // Update database using native Drizzle
     await db
       .update(trainedModels)
       .set({

@@ -1,10 +1,10 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { Bell, MessageCircle, Send, User, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Notification type for admin notifications tab.
@@ -60,8 +60,7 @@ export function NotificationsTab() {
   // Fetch current user ID on mount
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) return;
 
       const response = await fetch('/api/users/me', {
@@ -71,13 +70,7 @@ export function NotificationsTab() {
       });
 
       if (response.ok) {
-        let data;
-        try {
-          data = await response.json();
-        } catch {
-          // Silently fail - this is just for debug info
-          return;
-        }
+        const data = await response.json();
         setCurrentUserId(data.user?.id || null);
       }
     };
@@ -97,8 +90,7 @@ export function NotificationsTab() {
     }
 
     startSending(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -119,18 +111,7 @@ export function NotificationsTab() {
         }),
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse notification response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
 
       if (response.ok && data.success) {
         toast.success(data.message || 'Notification sent successfully');
@@ -150,8 +131,7 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -166,18 +146,7 @@ export function NotificationsTab() {
         }
       );
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse debug DM response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
       logger.debug('Debug DM response', { data }, 'NotificationsTab');
       setDebugInfo(data);
 
@@ -208,8 +177,7 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -230,18 +198,7 @@ export function NotificationsTab() {
         }),
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse test DM response',
-          { error: parseError },
-          'NotificationsTab'
-        );
-        toast.error('Failed to parse response');
-        return;
-      }
+      const data = await response.json();
 
       if (response.ok && data.success) {
         const chatId = data.chatId;
@@ -678,8 +635,7 @@ function GroupInviteSection() {
 
     setSending(true);
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
 
     if (!token) {
       throw new Error('Not authenticated');
@@ -699,18 +655,7 @@ function GroupInviteSection() {
       }),
     });
 
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      logger.error(
-        'Failed to parse group invite response',
-        { error: parseError },
-        'NotificationsTab'
-      );
-      toast.error('Failed to parse response');
-      return;
-    }
+    const data = await response.json();
 
     if (response.ok && data.success) {
       toast.success(data.message || 'Group invite sent successfully');

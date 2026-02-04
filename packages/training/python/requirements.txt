@@ -1,8 +1,15 @@
-# Babylon RL Training - Atropos Framework
-# Supports: CUDA (GPU), MLX (Apple Silicon), CPU, and distributed training
+# Babylon RL Training - Atropos + Tinker Framework
+# Supports: Tinker Cloud (RECOMMENDED), CUDA (GPU), MLX (Apple Silicon), CPU
 
 # ===========================================
-# Core Atropos Framework (replaces openpipe-art)
+# Tinker API (RECOMMENDED - Cloud Training)
+# ===========================================
+# Tinker provides cloud-based training without local GPU requirements
+# Get API key from: https://tinker-docs.thinkingmachines.ai/
+tinker>=0.1.0
+
+# ===========================================
+# Core Atropos Framework (for environments)
 # ===========================================
 atroposlib>=0.3.0
 
@@ -13,6 +20,12 @@ asyncpg>=0.29.0
 psycopg2-binary>=2.9.9
 
 # ===========================================
+# HuggingFace (for datasets and model push)
+# ===========================================
+datasets>=2.14.7  # CVE-2023-47248 fix
+huggingface-hub>=0.20.0
+
+# ===========================================
 # HTTP/API
 # ===========================================
 httpx>=0.26.0
@@ -20,26 +33,9 @@ aiohttp>=3.9.0
 requests>=2.31.0
 
 # ===========================================
-# OpenAI-compatible client (for inference)
+# OpenAI-compatible client (for RLAIF judge)
 # ===========================================
 openai>=1.0.0
-
-# ===========================================
-# Training Framework
-# ===========================================
-torch>=2.1.0
-transformers>=4.36.0
-peft>=0.8.0
-
-# ===========================================
-# Inference Server
-# ===========================================
-vllm>=0.3.0
-
-# ===========================================
-# Monitoring (optional - logs to file by default)
-# ===========================================
-# tensorboard>=2.15.0  # Optional: for local visualization
 
 # ===========================================
 # Configuration
@@ -56,6 +52,11 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 
 # ===========================================
+# Experiment Tracking (Optional)
+# ===========================================
+wandb>=0.16.0  # W&B integration, falls back to offline mode if no API key
+
+# ===========================================
 # Utilities
 # ===========================================
 tqdm>=4.66.0
@@ -64,6 +65,18 @@ numpy>=1.24.0
 tenacity>=8.2.0
 rich>=13.0.0
 jsonlines>=4.0.0
+
+# ============================================
+# OPTIONAL: Local Training (GPU/CPU)
+# ============================================
+# Only needed if NOT using Tinker for training
+# Uncomment if you need local fallback:
+#
+# torch>=2.1.0
+# transformers>=4.36.0
+# peft>=0.8.0
+# vllm>=0.3.0
+# accelerate>=1.12.0
 
 # ============================================
 # OPTIONAL: MLX Backend (Apple Silicon only)
@@ -78,11 +91,3 @@ jsonlines>=4.0.0
 #   - mlx-community/Qwen2.5-3B-Instruct-4bit
 #   - mlx-community/Qwen2.5-7B-Instruct-4bit
 #   - mlx-community/Qwen3-4B-4bit
-
-# ============================================
-# OPTIONAL: CPU Backend (transformers/peft)
-# ============================================
-# Already included above for GPU training
-# For CPU-only, use smaller models:
-#   - Qwen/Qwen2.5-0.5B-Instruct
-#   - Qwen/Qwen2.5-1.5B-Instruct

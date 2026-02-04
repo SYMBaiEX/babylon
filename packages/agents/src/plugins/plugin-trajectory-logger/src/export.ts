@@ -25,7 +25,7 @@ import type { Trajectory } from './types';
 
 export interface ExportOptions {
   // Dataset configuration
-  datasetName: string; // e.g., 'elizaos/babylon-agent-trajectories'
+  datasetName: string; // e.g., 'BabylonSocial/babylon-agent-trajectories'
   huggingFaceToken?: string;
 
   // Data filtering
@@ -58,53 +58,45 @@ export interface ExportResult {
 export async function exportToHuggingFace(
   options: ExportOptions
 ): Promise<ExportResult> {
-  try {
-    // Build where conditions
-    const conditions = buildWhereConditions(options);
+  // Build where conditions
+  const conditions = buildWhereConditions(options);
 
-    // Fetch trajectories using Drizzle
-    const result = await db
-      .select({
-        trajectoryId: trajectories.trajectoryId,
-        agentId: trajectories.agentId,
-        episodeId: trajectories.episodeId,
-        scenarioId: trajectories.scenarioId,
-        startTime: trajectories.startTime,
-        durationMs: trajectories.durationMs,
-        stepsJson: trajectories.stepsJson,
-        metricsJson: trajectories.metricsJson,
-        metadataJson: trajectories.metadataJson,
-        totalReward: trajectories.totalReward,
-        finalStatus: trajectories.finalStatus,
-        finalPnL: trajectories.finalPnL,
-        aiJudgeReward: trajectories.aiJudgeReward,
-        aiJudgeReasoning: trajectories.aiJudgeReasoning,
-      })
-      .from(trajectories)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(trajectories.startTime))
-      .limit(options.maxTrajectories || 10000);
+  // Fetch trajectories using Drizzle
+  const result = await db
+    .select({
+      trajectoryId: trajectories.trajectoryId,
+      agentId: trajectories.agentId,
+      episodeId: trajectories.episodeId,
+      scenarioId: trajectories.scenarioId,
+      startTime: trajectories.startTime,
+      durationMs: trajectories.durationMs,
+      stepsJson: trajectories.stepsJson,
+      metricsJson: trajectories.metricsJson,
+      metadataJson: trajectories.metadataJson,
+      totalReward: trajectories.totalReward,
+      finalStatus: trajectories.finalStatus,
+      finalPnL: trajectories.finalPnL,
+      aiJudgeReward: trajectories.aiJudgeReward,
+      aiJudgeReasoning: trajectories.aiJudgeReasoning,
+    })
+    .from(trajectories)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(trajectories.startTime))
+    .limit(options.maxTrajectories || 10000);
 
-    console.log(`Exporting ${result.length} trajectories...`);
+  console.log(`Exporting ${result.length} trajectories...`);
 
-    // Transform to training format
-    const dataset = result.map((traj) => transformForTraining(traj));
+  // Transform to training format
+  const dataset = result.map((traj) => transformForTraining(traj));
 
-    // Split into train/validation/test
-    const splits = splitDataset(dataset, options.splitRatio);
+  // Split into train/validation/test
+  const splits = splitDataset(dataset, options.splitRatio);
 
-    // Export based on format
-    if (options.format === 'parquet' || options.format === 'arrow') {
-      return await exportToParquet<TrainingTrajectory>(splits, options);
-    } else {
-      return await exportToJSONL<TrainingTrajectory>(splits, options);
-    }
-  } catch (error) {
-    return {
-      success: false,
-      trajectoriesExported: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+  // Export based on format
+  if (options.format === 'parquet' || options.format === 'arrow') {
+    return await exportToParquet<TrainingTrajectory>(splits, options);
+  } else {
+    return await exportToJSONL<TrainingTrajectory>(splits, options);
   }
 }
 
@@ -314,48 +306,44 @@ async function exportToJSONL<T extends object>(
   splits: { train: T[]; validation: T[]; test: T[] },
   options: ExportOptions
 ): Promise<ExportResult> {
-  try {
-    // Check if we're in a Node.js environment with file system access
-    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-      throw new Error(
-        'exportToJSONL requires Node.js environment with file system access. Not available in edge runtime.'
-      );
-    }
-
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-
-    // Create export directory
-    const exportDir = path.resolve(process.cwd(), 'exports', 'trajectories');
-    await fs.mkdir(exportDir, { recursive: true });
-
-    // Write splits
-    for (const [splitName, data] of Object.entries(splits)) {
-      if (data.length === 0) continue;
-
-      const filePath = path.join(exportDir, `${splitName}.jsonl`);
-      const lines = data.map((item: T) => JSON.stringify(item)).join('\n');
-      await fs.writeFile(filePath, lines, 'utf-8');
-
-      console.log(`Exported ${data.length} trajectories to ${filePath}`);
-    }
-
-    // If HuggingFace token provided, upload
-    if (options.huggingFaceToken) {
-      await uploadToHuggingFaceHub(exportDir, options);
-    }
-
-    return {
-      success: true,
-      trajectoriesExported:
-        splits.train.length + splits.validation.length + splits.test.length,
-      datasetUrl: options.huggingFaceToken
-        ? `https://huggingface.co/datasets/${options.datasetName}`
-        : undefined,
-    };
-  } catch (error) {
-    throw new Error(`JSONL export failed: ${error}`);
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'exportToJSONL requires Node.js environment with file system access. Not available in edge runtime.'
+    );
   }
+
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // Create export directory
+  const exportDir = path.resolve(process.cwd(), 'exports', 'trajectories');
+  await fs.mkdir(exportDir, { recursive: true });
+
+  // Write splits
+  for (const [splitName, data] of Object.entries(splits)) {
+    if (data.length === 0) continue;
+
+    const filePath = path.join(exportDir, `${splitName}.jsonl`);
+    const lines = data.map((item: T) => JSON.stringify(item)).join('\n');
+    await fs.writeFile(filePath, lines, 'utf-8');
+
+    console.log(`Exported ${data.length} trajectories to ${filePath}`);
+  }
+
+  // If HuggingFace token provided, upload
+  if (options.huggingFaceToken) {
+    await uploadToHuggingFaceHub(exportDir, options);
+  }
+
+  return {
+    success: true,
+    trajectoriesExported:
+      splits.train.length + splits.validation.length + splits.test.length,
+    datasetUrl: options.huggingFaceToken
+      ? `https://huggingface.co/datasets/${options.datasetName}`
+      : undefined,
+  };
 }
 
 /**
@@ -378,91 +366,25 @@ async function uploadToHuggingFaceHub(
   exportDir: string,
   options: ExportOptions
 ): Promise<void> {
-  try {
-    if (!options.huggingFaceToken) {
-      throw new Error('HuggingFace token is required for upload');
-    }
-
-    // Try using child_process to call huggingface-cli (most reliable method)
-    try {
-      const { exec } = await import('node:child_process');
-      const { promisify } = await import('node:util');
-      const execAsync = promisify(exec);
-
-      // Set token as environment variable for huggingface-cli
-      process.env.HUGGINGFACE_HUB_TOKEN = options.huggingFaceToken;
-
-      console.log('Uploading to Hugging Face Hub...');
-      console.log(`Dataset: ${options.datasetName}`);
-
-      await execAsync(
-        `huggingface-cli upload ${options.datasetName} ${exportDir} --repo-type dataset`
-      );
-      console.log('✅ Successfully uploaded via huggingface-cli');
-    } catch (_cliError) {
-      // Fallback: Try @huggingface/hub npm package if available
-      try {
-        const hubModule = await import('@huggingface/hub');
-        // Handle different export styles
-        const HfApi = (
-          hubModule as {
-            HfApi?: new (args: {
-              token: string;
-            }) => {
-              uploadFile: (args: {
-                repoId: string;
-                path: string;
-                fileContent: string;
-                repoType: string;
-              }) => Promise<void>;
-            };
-          }
-        ).HfApi;
-
-        if (!HfApi) {
-          throw new Error('HfApi not found in @huggingface/hub');
-        }
-
-        const api = new HfApi({ token: options.huggingFaceToken });
-        const fs = await import('node:fs/promises');
-        const path = await import('node:path');
-        const files = await fs.readdir(exportDir);
-
-        for (const file of files) {
-          const filePath = path.join(exportDir, file);
-          const stats = await fs.stat(filePath);
-
-          if (stats.isFile()) {
-            const fileContent = await fs.readFile(filePath, 'utf-8');
-            await api.uploadFile({
-              repoId: options.datasetName,
-              path: file,
-              fileContent: fileContent,
-              repoType: 'dataset',
-            });
-            console.log(`Uploaded ${file}`);
-          }
-        }
-
-        console.log('✅ Successfully uploaded to Hugging Face Hub');
-      } catch (_importError) {
-        // If both methods fail, provide instructions
-        console.warn('Neither huggingface-cli nor @huggingface/hub available.');
-        console.log('\n📦 To upload to Hugging Face Hub:');
-        console.log('1. Install: pip install huggingface_hub');
-        console.log('2. Login: huggingface-cli login');
-        console.log(
-          `3. Upload: huggingface-cli upload ${options.datasetName} ${exportDir} --repo-type dataset`
-        );
-        throw new Error(
-          'HuggingFace upload failed: neither huggingface-cli nor @huggingface/hub available'
-        );
-      }
-    }
-  } catch (error) {
-    console.error('Failed to upload to Hugging Face Hub:', error);
-    throw error;
+  if (!options.huggingFaceToken) {
+    throw new Error('HuggingFace token is required for upload');
   }
+
+  // Try using child_process to call huggingface-cli (most reliable method)
+  const { exec } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execAsync = promisify(exec);
+
+  // Set token as environment variable for huggingface-cli
+  process.env.HUGGINGFACE_HUB_TOKEN = options.huggingFaceToken;
+
+  console.log('Uploading to Hugging Face Hub...');
+  console.log(`Dataset: ${options.datasetName}`);
+
+  await execAsync(
+    `huggingface-cli upload ${options.datasetName} ${exportDir} --repo-type dataset`
+  );
+  console.log('✅ Successfully uploaded via huggingface-cli');
 }
 
 /**
@@ -471,83 +393,75 @@ async function uploadToHuggingFaceHub(
 export async function exportGroupedByScenario(
   options: Omit<ExportOptions, 'format'>
 ): Promise<ExportResult> {
-  try {
-    // Check if we're in a Node.js environment with file system access
-    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-      throw new Error(
-        'exportGroupedByScenario requires Node.js environment with file system access. Not available in edge runtime.'
-      );
-    }
-
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-    const exportDir = path.resolve(process.cwd(), 'exports', 'scenarios');
-    await fs.mkdir(exportDir, { recursive: true });
-
-    // Build conditions
-    const baseConditions = buildWhereConditions(options);
-    baseConditions.push(isNotNull(trajectories.scenarioId));
-
-    // Get distinct scenario IDs
-    const scenarioResults = await db
-      .selectDistinct({ scenarioId: trajectories.scenarioId })
-      .from(trajectories)
-      .where(baseConditions.length > 0 ? and(...baseConditions) : undefined);
-
-    let totalExported = 0;
-
-    for (const { scenarioId } of scenarioResults) {
-      if (!scenarioId) continue;
-
-      // Get all trajectories for this scenario
-      const trajResults = await db
-        .select()
-        .from(trajectories)
-        .where(and(eq(trajectories.scenarioId, scenarioId), ...baseConditions))
-        .orderBy(trajectories.startTime);
-
-      if (trajResults.length < 2) continue; // Need at least 2 for comparison
-
-      const transformed = trajResults.map((traj) =>
-        transformForTraining({
-          trajectoryId: traj.trajectoryId,
-          agentId: traj.agentId,
-          episodeId: traj.episodeId,
-          scenarioId: traj.scenarioId,
-          startTime: traj.startTime,
-          durationMs: traj.durationMs,
-          stepsJson: traj.stepsJson,
-          metricsJson: traj.metricsJson,
-          metadataJson: traj.metadataJson,
-          totalReward: traj.totalReward,
-          finalStatus: traj.finalStatus,
-          finalPnL: traj.finalPnL,
-          aiJudgeReward: traj.aiJudgeReward,
-          aiJudgeReasoning: traj.aiJudgeReasoning,
-        })
-      );
-
-      const filePath = path.join(exportDir, `scenario-${scenarioId}.jsonl`);
-      const lines = transformed.map((item) => JSON.stringify(item)).join('\n');
-      await fs.writeFile(filePath, lines, 'utf-8');
-
-      console.log(
-        `Exported ${trajResults.length} trajectories for scenario ${scenarioId}`
-      );
-      totalExported += trajResults.length;
-    }
-
-    return {
-      success: true,
-      trajectoriesExported: totalExported,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      trajectoriesExported: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'exportGroupedByScenario requires Node.js environment with file system access. Not available in edge runtime.'
+    );
   }
+
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const exportDir = path.resolve(process.cwd(), 'exports', 'scenarios');
+  await fs.mkdir(exportDir, { recursive: true });
+
+  // Build conditions
+  const baseConditions = buildWhereConditions(options);
+  baseConditions.push(isNotNull(trajectories.scenarioId));
+
+  // Get distinct scenario IDs
+  const scenarioResults = await db
+    .selectDistinct({ scenarioId: trajectories.scenarioId })
+    .from(trajectories)
+    .where(baseConditions.length > 0 ? and(...baseConditions) : undefined);
+
+  let totalExported = 0;
+
+  for (const { scenarioId } of scenarioResults) {
+    if (!scenarioId) continue;
+
+    // Get all trajectories for this scenario
+    const trajResults = await db
+      .select()
+      .from(trajectories)
+      .where(and(eq(trajectories.scenarioId, scenarioId), ...baseConditions))
+      .orderBy(trajectories.startTime);
+
+    if (trajResults.length < 2) continue; // Need at least 2 for comparison
+
+    const transformed = trajResults.map((traj) =>
+      transformForTraining({
+        trajectoryId: traj.trajectoryId,
+        agentId: traj.agentId,
+        episodeId: traj.episodeId,
+        scenarioId: traj.scenarioId,
+        startTime: traj.startTime,
+        durationMs: traj.durationMs,
+        stepsJson: traj.stepsJson,
+        metricsJson: traj.metricsJson,
+        metadataJson: traj.metadataJson,
+        totalReward: traj.totalReward,
+        finalStatus: traj.finalStatus,
+        finalPnL: traj.finalPnL,
+        aiJudgeReward: traj.aiJudgeReward,
+        aiJudgeReasoning: traj.aiJudgeReasoning,
+      })
+    );
+
+    const filePath = path.join(exportDir, `scenario-${scenarioId}.jsonl`);
+    const lines = transformed.map((item) => JSON.stringify(item)).join('\n');
+    await fs.writeFile(filePath, lines, 'utf-8');
+
+    console.log(
+      `Exported ${trajResults.length} trajectories for scenario ${scenarioId}`
+    );
+    totalExported += trajResults.length;
+  }
+
+  return {
+    success: true,
+    trajectoriesExported: totalExported,
+  };
 }
 
 /**
@@ -557,75 +471,67 @@ export async function exportGroupedByScenario(
 export async function exportForOpenPipeART(
   options: ExportOptions
 ): Promise<ExportResult> {
-  try {
-    // Check if we're in a Node.js environment with file system access
-    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-      throw new Error(
-        'exportForOpenPipeART requires Node.js environment with file system access. Not available in edge runtime.'
-      );
-    }
-
-    const { toARTTrajectory } = await import('./art-format');
-
-    const conditions = buildWhereConditions(options);
-
-    const trajResults = await db
-      .select()
-      .from(trajectories)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .limit(options.maxTrajectories || 10000)
-      .orderBy(trajectories.startTime);
-
-    const artFormat = trajResults.map((traj) => {
-      const steps = JSON.parse(traj.stepsJson);
-      const metrics = JSON.parse(traj.metricsJson);
-      const metadata = JSON.parse(traj.metadataJson);
-
-      const trajectory = {
-        trajectoryId: traj.trajectoryId,
-        agentId:
-          traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
-        scenarioId: traj.scenarioId,
-        groupIndex: traj.batchId
-          ? parseInt(traj.batchId.split('-').pop() || '0')
-          : undefined,
-        startTime: traj.startTime.getTime(),
-        endTime: traj.endTime.getTime(),
-        durationMs: traj.durationMs,
-        steps,
-        totalReward: traj.totalReward,
-        rewardComponents: JSON.parse(traj.rewardComponentsJson),
-        metrics,
-        metadata,
-      };
-
-      return toARTTrajectory(trajectory as Trajectory);
-    });
-
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-    const exportDir = path.resolve(process.cwd(), 'exports', 'openpipe-art');
-    await fs.mkdir(exportDir, { recursive: true });
-
-    const filePath = path.join(exportDir, 'trajectories.jsonl');
-    const lines = artFormat.map((item) => JSON.stringify(item)).join('\n');
-    await fs.writeFile(filePath, lines, 'utf-8');
-
-    console.log(
-      `Exported ${artFormat.length} trajectories in OpenPipe ART format`
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'exportForOpenPipeART requires Node.js environment with file system access. Not available in edge runtime.'
     );
-
-    return {
-      success: true,
-      trajectoriesExported: artFormat.length,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      trajectoriesExported: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
   }
+
+  const { toARTTrajectory } = await import('./art-format');
+
+  const conditions = buildWhereConditions(options);
+
+  const trajResults = await db
+    .select()
+    .from(trajectories)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .limit(options.maxTrajectories || 10000)
+    .orderBy(trajectories.startTime);
+
+  const artFormat = trajResults.map((traj) => {
+    const steps = JSON.parse(traj.stepsJson);
+    const metrics = JSON.parse(traj.metricsJson);
+    const metadata = JSON.parse(traj.metadataJson);
+
+    const trajectory = {
+      trajectoryId: traj.trajectoryId,
+      agentId:
+        traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
+      scenarioId: traj.scenarioId,
+      groupIndex: traj.batchId
+        ? parseInt(traj.batchId.split('-').pop() || '0')
+        : undefined,
+      startTime: traj.startTime.getTime(),
+      endTime: traj.endTime.getTime(),
+      durationMs: traj.durationMs,
+      steps,
+      totalReward: traj.totalReward,
+      rewardComponents: JSON.parse(traj.rewardComponentsJson),
+      metrics,
+      metadata,
+    };
+
+    return toARTTrajectory(trajectory as Trajectory);
+  });
+
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const exportDir = path.resolve(process.cwd(), 'exports', 'openpipe-art');
+  await fs.mkdir(exportDir, { recursive: true });
+
+  const filePath = path.join(exportDir, 'trajectories.jsonl');
+  const lines = artFormat.map((item) => JSON.stringify(item)).join('\n');
+  await fs.writeFile(filePath, lines, 'utf-8');
+
+  console.log(
+    `Exported ${artFormat.length} trajectories in OpenPipe ART format`
+  );
+
+  return {
+    success: true,
+    trajectoriesExported: artFormat.length,
+  };
 }
 
 /**
@@ -635,139 +541,131 @@ export async function exportForOpenPipeART(
 export async function exportGroupedForGRPO(
   options: ExportOptions
 ): Promise<ExportResult> {
-  try {
-    // Check if we're in a Node.js environment with file system access
-    if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
-      throw new Error(
-        'exportGroupedForGRPO requires Node.js environment with file system access. Not available in edge runtime.'
-      );
-    }
+  // Check if we're in a Node.js environment with file system access
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') {
+    throw new Error(
+      'exportGroupedForGRPO requires Node.js environment with file system access. Not available in edge runtime.'
+    );
+  }
 
-    const { groupTrajectories, toARTTrajectory } = await import('./art-format');
+  const { groupTrajectories, toARTTrajectory } = await import('./art-format');
 
-    // CRITICAL: Enforce maxTrajectories limit to prevent 200GB disk usage
-    const MAX_TRAJECTORIES = options.maxTrajectories || 2000; // Default hard limit
-    const MAX_TRAJECTORIES_PER_SCENARIO = 50; // Limit per scenario to prevent huge files
+  // CRITICAL: Enforce maxTrajectories limit to prevent 200GB disk usage
+  const MAX_TRAJECTORIES = options.maxTrajectories || 2000; // Default hard limit
+  const MAX_TRAJECTORIES_PER_SCENARIO = 50; // Limit per scenario to prevent huge files
 
-    const baseConditions = buildWhereConditions(options);
+  const baseConditions = buildWhereConditions(options);
 
-    // Get scenarios with counts using raw SQL for groupBy
-    const scenarioCountsRaw = await db.execute(sql`
+  // Get scenarios with counts using raw SQL for groupBy
+  const scenarioCountsRaw = await db.execute(sql`
       SELECT "scenarioId", COUNT(*) as count 
       FROM trajectories 
       WHERE "scenarioId" IS NOT NULL AND "isTrainingData" = true
       GROUP BY "scenarioId"
     `);
 
-    // Type for raw SQL scenario count row with index signature for compatibility
-    interface ScenarioCountRow {
-      scenarioId: string | null;
-      count: string | number;
-      [key: string]: string | number | null;
-    }
+  // Type for raw SQL scenario count row with index signature for compatibility
+  interface ScenarioCountRow {
+    scenarioId: string | null;
+    count: string | number;
+    [key: string]: string | number | null;
+  }
 
-    // Type guard for scenario count row
-    function isScenarioCountRow(row: object): row is ScenarioCountRow {
-      return 'scenarioId' in row && 'count' in row;
-    }
+  // Type guard for scenario count row
+  function isScenarioCountRow(row: object): row is ScenarioCountRow {
+    return 'scenarioId' in row && 'count' in row;
+  }
 
-    // Validate and type the raw SQL result
-    if (!Array.isArray(scenarioCountsRaw)) {
-      throw new Error('Invalid scenario counts result from database');
-    }
-    const scenarioCounts: Array<{ scenarioId: string; count: string }> = (
-      scenarioCountsRaw as object[]
+  // Validate and type the raw SQL result
+  if (!Array.isArray(scenarioCountsRaw)) {
+    throw new Error('Invalid scenario counts result from database');
+  }
+  const scenarioCounts: Array<{ scenarioId: string; count: string }> = (
+    scenarioCountsRaw as object[]
+  )
+    .filter(
+      (row): row is ScenarioCountRow =>
+        row !== null && typeof row === 'object' && isScenarioCountRow(row)
     )
-      .filter(
-        (row): row is ScenarioCountRow =>
-          row !== null && typeof row === 'object' && isScenarioCountRow(row)
-      )
-      .map((row) => ({
-        scenarioId: String(row.scenarioId),
-        count: String(row.count),
-      }));
+    .map((row) => ({
+      scenarioId: String(row.scenarioId),
+      count: String(row.count),
+    }));
 
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-    const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
-    await fs.mkdir(exportDir, { recursive: true });
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const exportDir = path.resolve(process.cwd(), 'exports', 'grpo-groups');
+  await fs.mkdir(exportDir, { recursive: true });
 
-    let totalExported = 0;
-    let remainingQuota = MAX_TRAJECTORIES;
+  let totalExported = 0;
+  let remainingQuota = MAX_TRAJECTORIES;
 
-    for (const { scenarioId, count } of scenarioCounts) {
-      const countNum = parseInt(count);
-      if (!scenarioId || countNum < 2) continue; // Need at least 2 for comparison
-      if (remainingQuota <= 0) break; // Stop if we've hit the limit
+  for (const { scenarioId, count } of scenarioCounts) {
+    const countNum = parseInt(count);
+    if (!scenarioId || countNum < 2) continue; // Need at least 2 for comparison
+    if (remainingQuota <= 0) break; // Stop if we've hit the limit
 
-      // Calculate how many trajectories we can take for this scenario
-      const takeForScenario = Math.min(
-        MAX_TRAJECTORIES_PER_SCENARIO,
-        remainingQuota
-      );
-
-      const trajResults = await db
-        .select()
-        .from(trajectories)
-        .where(and(eq(trajectories.scenarioId, scenarioId), ...baseConditions))
-        .orderBy(trajectories.startTime)
-        .limit(takeForScenario);
-
-      // Convert to trajectory objects
-      const trajObjects = trajResults.map((traj, index) => ({
-        trajectoryId: traj.trajectoryId,
-        agentId:
-          traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
-        scenarioId: traj.scenarioId,
-        groupIndex: index,
-        startTime: traj.startTime.getTime(),
-        endTime: traj.endTime.getTime(),
-        durationMs: traj.durationMs,
-        steps: JSON.parse(traj.stepsJson),
-        totalReward: traj.totalReward,
-        rewardComponents: JSON.parse(traj.rewardComponentsJson),
-        metrics: JSON.parse(traj.metricsJson),
-        metadata: JSON.parse(traj.metadataJson),
-      }));
-
-      const groups = groupTrajectories(trajObjects as Trajectory[]);
-
-      for (const group of groups) {
-        // Skip if we've hit the global limit
-        if (remainingQuota <= 0) break;
-
-        const artFormat = {
-          groupId: group.groupId,
-          scenarioId: group.scenarioId,
-          sharedPrefix: group.sharedPrefix || [],
-          trajectories: group.trajectories.map((t) => toARTTrajectory(t)),
-          createdAt: group.createdAt,
-        };
-
-        const filePath = path.join(exportDir, `group-${scenarioId}.jsonl`);
-        await fs.writeFile(filePath, JSON.stringify(artFormat) + '\n', 'utf-8');
-
-        const exported = group.trajectories.length;
-        totalExported += exported;
-        remainingQuota -= exported;
-      }
-    }
-
-    console.log(
-      `Exported ${totalExported} trajectories in ${scenarioCounts.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`
+    // Calculate how many trajectories we can take for this scenario
+    const takeForScenario = Math.min(
+      MAX_TRAJECTORIES_PER_SCENARIO,
+      remainingQuota
     );
 
-    return {
-      success: true,
-      trajectoriesExported: totalExported,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      trajectoriesExported: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    const trajResults = await db
+      .select()
+      .from(trajectories)
+      .where(and(eq(trajectories.scenarioId, scenarioId), ...baseConditions))
+      .orderBy(trajectories.startTime)
+      .limit(takeForScenario);
+
+    // Convert to trajectory objects
+    const trajObjects = trajResults.map((traj, index) => ({
+      trajectoryId: traj.trajectoryId,
+      agentId:
+        traj.agentId as `${string}-${string}-${string}-${string}-${string}`,
+      scenarioId: traj.scenarioId,
+      groupIndex: index,
+      startTime: traj.startTime.getTime(),
+      endTime: traj.endTime.getTime(),
+      durationMs: traj.durationMs,
+      steps: JSON.parse(traj.stepsJson),
+      totalReward: traj.totalReward,
+      rewardComponents: JSON.parse(traj.rewardComponentsJson),
+      metrics: JSON.parse(traj.metricsJson),
+      metadata: JSON.parse(traj.metadataJson),
+    }));
+
+    const groups = groupTrajectories(trajObjects as Trajectory[]);
+
+    for (const group of groups) {
+      // Skip if we've hit the global limit
+      if (remainingQuota <= 0) break;
+
+      const artFormat = {
+        groupId: group.groupId,
+        scenarioId: group.scenarioId,
+        sharedPrefix: group.sharedPrefix || [],
+        trajectories: group.trajectories.map((t) => toARTTrajectory(t)),
+        createdAt: group.createdAt,
+      };
+
+      const filePath = path.join(exportDir, `group-${scenarioId}.jsonl`);
+      await fs.writeFile(filePath, JSON.stringify(artFormat) + '\n', 'utf-8');
+
+      const exported = group.trajectories.length;
+      totalExported += exported;
+      remainingQuota -= exported;
+    }
   }
+
+  console.log(
+    `Exported ${totalExported} trajectories in ${scenarioCounts.length} GRPO groups (limit: ${MAX_TRAJECTORIES})`
+  );
+
+  return {
+    success: true,
+    trajectoriesExported: totalExported,
+  };
 }
 
 /**

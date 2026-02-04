@@ -63,9 +63,16 @@
  *         description: Post not found
  */
 
-import type { NextRequest } from 'next/server';
+import type { JsonValue } from '@babylon/api';
 import {
-  actors,
+  authenticate,
+  BusinessLogicError,
+  NotFoundError,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
   comments,
   count,
@@ -73,19 +80,14 @@ import {
   eq,
   isNull,
   lte,
-  organizations,
   posts,
   reactions,
   shares,
   users,
 } from '@babylon/db';
-import { authenticate, optionalAuth } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { gameService } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import { PostIdParamSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+import { gameService, StaticDataRegistry } from '@babylon/engine';
+import { logger, PostIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/posts/[id]
@@ -192,12 +194,7 @@ export const GET = withErrorHandling(
         const commentCount = Number(commentCountResult?.count ?? 0);
         const shareCount = Number(shareCountResult?.count ?? 0);
 
-        // Get author info
-        const [actor] = await db
-          .select({ name: actors.name })
-          .from(actors)
-          .where(eq(actors.id, gamePost.authorId))
-          .limit(1);
+        const actor = StaticDataRegistry.getActor(gamePost.authorId);
 
         const [userRecord] = actor
           ? []
@@ -280,30 +277,14 @@ export const GET = withErrorHandling(
               .where(eq(users.id, originalPost.authorId))
               .limit(1);
 
-            const [originalActor] = !originalUser
-              ? await db
-                  .select({
-                    id: actors.id,
-                    name: actors.name,
-                    profileImageUrl: actors.profileImageUrl,
-                  })
-                  .from(actors)
-                  .where(eq(actors.id, originalPost.authorId))
-                  .limit(1)
-              : [];
+            const originalActor = !originalUser
+              ? StaticDataRegistry.getActor(originalPost.authorId)
+              : null;
 
-            const [originalOrg] =
+            const originalOrg =
               !originalUser && !originalActor
-                ? await db
-                    .select({
-                      id: organizations.id,
-                      name: organizations.name,
-                      imageUrl: organizations.imageUrl,
-                    })
-                    .from(organizations)
-                    .where(eq(organizations.id, originalPost.authorId))
-                    .limit(1)
-                : [];
+                ? StaticDataRegistry.getOrganization(originalPost.authorId)
+                : null;
 
             const originalAuthor = originalUser || originalActor || originalOrg;
 
@@ -351,6 +332,7 @@ export const GET = withErrorHandling(
             sentiment: null,
             slant: null,
             category: null,
+            imageUrl: null,
             authorId: gamePost.authorId,
             authorName,
             authorUsername,
@@ -403,11 +385,7 @@ export const GET = withErrorHandling(
             timestamp = new Date(timestampNum);
             if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
               const potentialActorId = parts[2];
-              const [actorRecord] = await db
-                .select({ id: actors.id })
-                .from(actors)
-                .where(eq(actors.id, potentialActorId))
-                .limit(1);
+              const actorRecord = StaticDataRegistry.getActor(potentialActorId);
               if (actorRecord) {
                 authorId = potentialActorId;
               }
@@ -495,20 +473,11 @@ export const GET = withErrorHandling(
         isShared = !!sharedResult;
       }
 
-      // Get author info
       let authorName = createdPost.authorId;
       let authorUsername: string | null = null;
       let authorProfileImageUrl: string | null = null;
 
-      const [actorRecord] = await db
-        .select({
-          id: actors.id,
-          name: actors.name,
-          profileImageUrl: actors.profileImageUrl,
-        })
-        .from(actors)
-        .where(eq(actors.id, createdPost.authorId))
-        .limit(1);
+      const actorRecord = StaticDataRegistry.getActor(createdPost.authorId);
 
       if (actorRecord) {
         authorName = actorRecord.name;
@@ -548,6 +517,7 @@ export const GET = withErrorHandling(
           sentiment: createdPost.sentiment || null,
           slant: createdPost.slant || null,
           category: createdPost.category || null,
+          imageUrl: createdPost.imageUrl || null,
           authorId: createdPost.authorId,
           authorName,
           authorUsername,
@@ -628,20 +598,11 @@ export const GET = withErrorHandling(
       isShared = !!sharedResult;
     }
 
-    // Get author info
     let authorName = post.authorId;
     let authorUsername: string | null = null;
     let authorProfileImageUrl: string | null = null;
 
-    const [actor] = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-        profileImageUrl: actors.profileImageUrl,
-      })
-      .from(actors)
-      .where(eq(actors.id, post.authorId))
-      .limit(1);
+    const actor = StaticDataRegistry.getActor(post.authorId);
 
     if (actor) {
       authorName = actor.name;
@@ -650,15 +611,7 @@ export const GET = withErrorHandling(
         actor.profileImageUrl || `/images/actors/${actor.id}.jpg`;
     } else {
       // Check if it's an organization (for articles)
-      const [org] = await db
-        .select({
-          id: organizations.id,
-          name: organizations.name,
-          imageUrl: organizations.imageUrl,
-        })
-        .from(organizations)
-        .where(eq(organizations.id, post.authorId))
-        .limit(1);
+      const org = StaticDataRegistry.getOrganization(post.authorId);
 
       if (org) {
         authorName = org.name;
@@ -709,30 +662,14 @@ export const GET = withErrorHandling(
           .where(eq(users.id, originalPost.authorId))
           .limit(1);
 
-        const [originalActor] = !originalUser
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                profileImageUrl: actors.profileImageUrl,
-              })
-              .from(actors)
-              .where(eq(actors.id, originalPost.authorId))
-              .limit(1)
-          : [];
+        const originalActor = !originalUser
+          ? StaticDataRegistry.getActor(originalPost.authorId)
+          : null;
 
-        const [originalOrg] =
+        const originalOrg =
           !originalUser && !originalActor
-            ? await db
-                .select({
-                  id: organizations.id,
-                  name: organizations.name,
-                  imageUrl: organizations.imageUrl,
-                })
-                .from(organizations)
-                .where(eq(organizations.id, originalPost.authorId))
-                .limit(1)
-            : [];
+            ? StaticDataRegistry.getOrganization(originalPost.authorId)
+            : null;
 
         const originalAuthor = originalUser || originalActor || originalOrg;
 
@@ -787,6 +724,7 @@ export const GET = withErrorHandling(
         sentiment: post.sentiment || null,
         slant: post.slant || null,
         category: post.category || null,
+        imageUrl: post.imageUrl || null,
         authorId: post.authorId,
         authorName: authorName,
         authorUsername: authorUsername,

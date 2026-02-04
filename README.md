@@ -1,12 +1,12 @@
 <div align="center">
 
-  <img src="docs/public/logo_full.svg" alt="Babylon Logo" width="600">
+  <h1>🎮 Babylon</h1>
 
   <p><strong>A multiplayer prediction market game with autonomous AI agents and continuous RL training</strong></p>
   
   <p>
-    <a href="https://github.com/elizaOS/babylon"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
-    <a href="https://github.com/elizaOS/babylon"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"></a>
+    <a href="https://github.com/BabylonSocial/babylon"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
+    <a href="https://github.com/BabylonSocial/babylon"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"></a>
     <a href="https://docs.babylon.market"><img src="https://img.shields.io/badge/docs-available-blue" alt="Documentation"></a>
     <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0-blue" alt="TypeScript"></a>
     <a href="https://soliditylang.org/"><img src="https://img.shields.io/badge/Solidity-0.8-363636" alt="Solidity"></a>
@@ -14,15 +14,8 @@
 
 </div>
 
-<div align="center">
-
-  <img src="docs/public/game_preview.jpg" alt="Babylon Game Preview" width="800">
-
-</div>
 
 ---
-
-# 🎮 Babylon
 
 A real-time prediction market game with autonomous NPCs, perpetual futures, and gamified social mechanics.
 
@@ -30,8 +23,12 @@ A real-time prediction market game with autonomous NPCs, perpetual futures, and 
 
 ## 📦 Installation
 
+**Requirements:**
+- Node.js >= 18.0.0 (for Error cause support)
+- Bun >= 1.3.0
+
 ```bash
-git clone https://github.com/elizaOS/babylon.git
+git clone https://github.com/BabylonSocial/babylon.git
 cd babylon
 bun install
 
@@ -49,15 +46,16 @@ bun run db:push
 bun install
 
 # 2. Configure environment
-cp .env.example .env.local
-# Edit .env.local with your Privy credentials + GROQ_API_KEY
+cp .env.example .env
+# (Optional) Create .env.local for Next.js-only overrides
+# Edit .env (and optionally .env.local) with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
 bun run db:push
 bun run db:seed
 
 # 4. (Optional) Enable Agent0 Integration
-# Add to .env.local:
+# Add to .env:
 # AGENT0_ENABLED=true
 # BASE_SEPOLIA_RPC_URL=...
 # BABYLON_GAME_PRIVATE_KEY=...
@@ -77,19 +75,19 @@ Visit `http://localhost:3000` - everything runs and generates content automatica
 ```bash
 bun run dev   # ← Web + Game Engine (both automatically!)
 ```
-Runs both web server AND game daemon. Content generates every 60 seconds.
+Runs web server plus the local cron simulator. Content is generated via cron endpoints every 60 seconds.
 
-**Web Only** (No Content Generation):
+**Web Only** (UI/API only, no local cron simulator):
 ```bash
-bun run dev:web-only   # Just Next.js, no daemon
+bun run dev:web
 ```
-Use if you're only working on frontend and don't need live content.
+Use if you're only working on frontend and don't need live cron-driven content.
 
-**Serverless Mode** (Test Vercel Cron Locally):
+**Next.js Only** (Run Next directly):
 ```bash
-bun run dev:cron-mode   # Web + Cron simulator (not daemon)
+bun run dev:next-only
 ```
-Tests the serverless cron endpoint instead of daemon. Good for verifying Vercel behavior.
+Useful if you want to bypass Turbo and run the Next dev flow directly.
 
 ### Real-Time Updates
 
@@ -125,6 +123,23 @@ Visit `http://localhost:3000`
 
 ---
 
+## 🤖 AI Assistants (Ruler)
+
+This repo uses **Ruler** to centralize AI coding instructions in `.ruler/**`.
+
+```bash
+# Install deps
+bun install
+
+# Generate local agent config files (gitignored)
+bun run ruler:apply
+```
+
+- Edit rules in `.ruler/**` only (generated files like `AGENTS.md`, `CLAUDE.md`, MCP configs should not be edited manually).
+- For OpenAI Codex CLI to pick up the project config/MCP, set `CODEX_HOME="$(pwd)/.codex"`.
+
+---
+
 ## 🧪 Testing
 
 ```bash
@@ -153,13 +168,130 @@ See `.env.example` for complete list.
 
 ---
 
+## 🖼️ NFT Deployment (ProtoMonkeys)
+
+Deploy the ProtoMonkeys NFT collection for the Top 100 leaderboard rewards.
+
+### Local Development (Automatic)
+
+**NFT minting works automatically with `bun run dev`!** The dev startup:
+1. Deploys ProtoMonkeysNFT contract to local Hardhat
+2. Seeds the NFT collection (100 NFTs with placeholder metadata)
+3. Creates eligibility snapshots for all test users
+
+```bash
+bun run dev   # ← NFT minting ready out of the box!
+```
+
+Visit `http://localhost:3000/nft` to mint your NFT.
+
+### Manual Local Setup (if needed)
+
+```bash
+# 1. Start local Hardhat node
+cd packages/contracts
+bun hardhat:node
+
+# 2. Deploy NFT contract (new terminal)
+NFT_SIGNER_ADDRESS=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 \
+NFT_BASE_URI=http://localhost:3000/api/nft/metadata/ \
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFTLocal \
+  --rpc-url http://localhost:8545 --broadcast
+
+# 3. Set the deployed address in .env
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=31337
+NFT_SIGNER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# 4. Seed NFT collection and snapshots
+bun run scripts/seed-nft-collection.ts
+bun run scripts/seed-nft-snapshot-local.ts
+```
+
+### Environment Variables (Production)
+
+```bash
+# NFT Contract Configuration
+NFT_CONTRACT_ADDRESS=0x...          # Set after deployment
+NFT_CHAIN_ID=1                      # 1 = Mainnet, 11155111 = Sepolia, 31337 = Local
+NFT_SIGNER_PRIVATE_KEY=0x...        # Backend signer private key (NEVER COMMIT)
+NFT_SIGNER_ADDRESS=0x...            # Public address of signer
+NFT_BASE_URI=https://babylon.market/api/nft/metadata/
+```
+
+Generate a signer keypair for production:
+```bash
+cast wallet new  # Save the private key securely!
+```
+
+### Sepolia Testnet
+
+```bash
+cd packages/contracts
+
+# Deploy to Sepolia
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
+  --rpc-url https://rpc.sepolia.org \
+  --broadcast --verify
+
+# Update environment
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=11155111
+```
+
+### Ethereum Mainnet
+
+```bash
+cd packages/contracts
+
+# Deploy to mainnet (requires ETH for gas)
+forge script script/DeployProtoMonkeysNFT.s.sol:DeployProtoMonkeysNFT \
+  --rpc-url https://eth.llamarpc.com \
+  --broadcast --verify
+
+# Update environment
+NFT_CONTRACT_ADDRESS=<deployed_address>
+NFT_CHAIN_ID=1
+```
+
+### Post-Deployment Setup
+
+```bash
+# 1. Seed NFT collection with metadata (100 NFTs)
+bun run scripts/seed-nft-collection.ts
+
+# 2. Create eligibility snapshot from leaderboard (top 100 users)
+# This populates the nftSnapshot table for mint eligibility
+```
+
+### Contract Tests
+
+```bash
+cd packages/contracts
+forge test --match-contract ProtoMonkeysNFT -vvv
+```
+
+### Architecture
+
+| Component | Description |
+|-----------|-------------|
+| `ProtoMonkeysNFT.sol` | ERC-721 contract with ECDSA signature-gated minting |
+| `/api/nft/eligibility` | Check if user is in top 100 snapshot |
+| `/api/nft/mint/prepare` | Generate signed mint transaction |
+| `/api/nft/mint/confirm` | Verify on-chain mint, update database |
+| `/api/nft/metadata/[tokenId]` | ERC-721 metadata endpoint |
+
+See [`docs/nft-drop-implementation-plan.md`](docs/nft-drop-implementation-plan.md) for complete technical details.
+
+---
+
 ## 📚 Documentation
 
 **[📖 Full Documentation →](https://docs.babylon.market)**
 
 - Smart Contracts: `bun run deploy:local|testnet`
-- RL Training: See `python/README.md`
-- Game Control: `bun run game:start|pause|status`
+- RL Training: See `packages/training/README.md`
+- Game Control: `babylon game start|pause|status` (via CLI)
 
 ---
 

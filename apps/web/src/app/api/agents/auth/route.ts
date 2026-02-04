@@ -78,17 +78,18 @@
  * @see {@link /examples/babylon-typescript-agent} Example agent usage
  */
 
-import { randomBytes } from 'crypto';
-import type { NextRequest } from 'next/server';
 import {
+  AuthorizationError,
   cleanupExpiredSessions,
   createAgentSession,
   getSessionDuration,
+  successResponse,
   verifyAgentCredentials,
+  withErrorHandling,
 } from '@babylon/api';
-import { AuthorizationError, successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { AgentAuthSchema } from '@babylon/shared';
+import { AgentAuthSchema, logger } from '@babylon/shared';
+import { randomBytes } from 'crypto';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/agents/auth

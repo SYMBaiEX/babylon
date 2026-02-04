@@ -265,9 +265,8 @@ export async function calculateAgent0ReputationScore(
   }
 
   // Use standard reputation calculation
-  return await recalculateReputation(userId).then(
-    (m) => m?.reputationScore ?? 50
-  );
+  const updatedMetrics = await recalculateReputation(userId);
+  return updatedMetrics?.reputationScore ?? 50;
 }
 
 /**
@@ -312,4 +311,3 @@ async function calculateOverspendingRatio(userId: string): Promise<number> {
 
   return Math.min(1, totalSent / totalEarned);
 }
-

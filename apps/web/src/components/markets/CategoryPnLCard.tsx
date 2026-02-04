@@ -1,5 +1,5 @@
+import { cn, formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react';
-import { cn } from '@babylon/shared';
 
 /**
  * Market category type for category PnL card.
@@ -65,18 +65,9 @@ interface CategoryPnLCardProps {
 }
 
 /**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
-/**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points currency, defaulting to 0 if invalid.
  *
  * @param value - Value to format
  * @returns Formatted currency string
@@ -84,7 +75,7 @@ const formatter = new Intl.NumberFormat('en-US', {
 function formatCurrency(value: number | null | undefined) {
   const safeValue =
     typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return formatter.format(safeValue);
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 /**

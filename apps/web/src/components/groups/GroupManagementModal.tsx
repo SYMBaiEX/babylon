@@ -1,7 +1,9 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
+  Bot,
   Crown,
   Loader2,
   LogOut,
@@ -9,14 +11,16 @@ import {
   Settings,
   Shield,
   Trash2,
+  User,
   UserMinus,
   UserPlus,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
+import { GroupTypeBadge } from './MemberTypeBadge';
 
 /**
  * Member structure for group management modal.
@@ -26,6 +30,7 @@ interface Member {
   displayName: string | null;
   username: string | null;
   profileImageUrl: string | null;
+  memberType: 'user' | 'agent' | 'npc';
   isAdmin: boolean;
   joinedAt: Date | string;
 }
@@ -37,6 +42,7 @@ interface GroupDetails {
   id: string;
   name: string;
   description: string | null;
+  type: 'user' | 'npc' | 'agent' | 'team';
   members: Member[];
   isAdmin: boolean;
   isCreator: boolean;
@@ -44,48 +50,37 @@ interface GroupDetails {
 }
 
 /**
- * User structure for group management modal.
+ * Search result for adding members
  */
-interface User {
+interface SearchResult {
   id: string;
   displayName: string | null;
   username: string | null;
   profileImageUrl: string | null;
+  type: 'user' | 'agent' | 'npc';
 }
+
+type SearchTab = 'users' | 'npcs';
 
 /**
  * Group management modal component for managing group members and settings.
  *
  * Provides comprehensive group management interface including member list,
- * adding/removing members, promoting/demoting admins, and deleting groups.
- * Includes user search for adding members and confirmation dialogs for
- * destructive actions.
+ * adding/removing members with tabbed search (users including user-created
+ * agents, and NPCs), promoting/demoting admins, and deleting groups.
  *
  * Features:
- * - Member list display
- * - Add member functionality
+ * - Member list display with type badges
+ * - Tabbed search for adding members (Users / NPCs)
+ * - Users tab includes human users and user-created agents
+ * - NPCs tab includes only system NPCs
  * - Remove member functionality
  * - Promote/demote admin functionality
  * - Delete group functionality
  * - Leave group functionality
- * - User search
  * - Confirmation dialogs
  * - Loading states
  * - Error handling
- * - Body scroll lock and escape key handling
- *
- * @param props - GroupManagementModal component props
- * @returns Group management modal element or null if not open
- *
- * @example
- * ```tsx
- * <GroupManagementModal
- *   isOpen={showModal}
- *   onClose={() => setShowModal(false)}
- *   groupId="group-123"
- *   onGroupUpdated={() => refreshGroups()}
- * />
- * ```
  */
 interface GroupManagementModalProps {
   isOpen: boolean;
@@ -110,8 +105,9 @@ export function GroupManagementModal({
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [activeTab, setActiveTab] = useState<SearchTab>('users');
 
   // Confirm dialogs
   const [confirmAction, setConfirmAction] = useState<{
@@ -126,6 +122,9 @@ export function GroupManagementModal({
       setGroupDetails(null);
       setError(null);
       setShowAddMember(false);
+      setSearchQuery('');
+      setSearchResults([]);
+      setActiveTab('users');
       return;
     }
 
@@ -140,8 +139,9 @@ export function GroupManagementModal({
       });
 
       if (!response.ok) {
+        setError('Failed to load group details');
         setLoading(false);
-        throw new Error('Failed to load group details');
+        return;
       }
 
       const data = await response.json();
@@ -152,82 +152,162 @@ export function GroupManagementModal({
     loadGroupDetails();
   }, [isOpen, groupId, getAccessToken]);
 
-  // Search for users to add
+  // Search for users or NPCs based on active tab
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
       return;
     }
 
-    const searchUsers = async () => {
+    const searchMembers = async () => {
       setSearching(true);
-      const token = await getAccessToken();
-      const response = await fetch(
-        `/api/users/search?q=${encodeURIComponent(searchQuery)}`,
-        {
+      try {
+        const token = await getAccessToken();
+
+        // Use different endpoint based on active tab
+        // Users tab includes human users + user-created agents
+        // NPCs tab only includes NPCs
+        const endpoint =
+          activeTab === 'users'
+            ? `/api/users/search?q=${encodeURIComponent(searchQuery)}&includeAgents=true`
+            : `/api/agents/search?q=${encodeURIComponent(searchQuery)}`;
+
+        const response = await fetch(endpoint, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
-      );
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Filter out existing members
-        const existingMemberIds = groupDetails?.members.map((m) => m.id) || [];
-        setSearchResults(
-          (data.users || []).filter(
-            (u: User) => !existingMemberIds.includes(u.id)
-          )
-        );
+        if (response.ok) {
+          const data = await response.json();
+          const existingMemberIds =
+            groupDetails?.members.map((m) => m.id) || [];
+
+          const results: SearchResult[] =
+            activeTab === 'users'
+              ? (data.users || [])
+                  .filter(
+                    (u: { id: string }) => !existingMemberIds.includes(u.id)
+                  )
+                  .map(
+                    (u: {
+                      id: string;
+                      displayName: string | null;
+                      username: string | null;
+                      profileImageUrl: string | null;
+                      isAgent?: boolean;
+                    }) => ({
+                      id: u.id,
+                      displayName: u.displayName,
+                      username: u.username,
+                      profileImageUrl: u.profileImageUrl,
+                      // Distinguish between human users and user-created agents
+                      type: u.isAgent ? ('agent' as const) : ('user' as const),
+                    })
+                  )
+              : // Filter to only include NPCs (not user-created agents)
+                (data.agents || [])
+                  .filter(
+                    (a: { id: string; type: 'agent' | 'npc' }) =>
+                      !existingMemberIds.includes(a.id) && a.type === 'npc'
+                  )
+                  .map(
+                    (a: {
+                      id: string;
+                      displayName: string | null;
+                      username: string | null;
+                      profileImageUrl: string | null;
+                      type: 'agent' | 'npc';
+                    }) => ({
+                      id: a.id,
+                      displayName: a.displayName,
+                      username: a.username,
+                      profileImageUrl: a.profileImageUrl,
+                      type: a.type,
+                    })
+                  );
+          setSearchResults(results);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (error) {
+        console.error('Member search failed:', error);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
       }
-      setSearching(false);
     };
 
-    const debounce = setTimeout(searchUsers, 300);
+    const debounce = setTimeout(searchMembers, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, getAccessToken, groupDetails]);
+  }, [searchQuery, activeTab, getAccessToken, groupDetails]);
+
+  // Clear search when switching tabs
+  const handleTabChange = (tab: SearchTab) => {
+    setActiveTab(tab);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   const handleAddMember = async (userId: string) => {
     if (!groupId) return;
 
     setActionLoading(userId);
-    const token = await getAccessToken();
-    const response = await fetch(`/api/groups/${groupId}/members`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ userId }),
-    });
+    setError(null);
 
-    if (!response.ok) {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/groups/${groupId}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to add member');
+        return;
+      }
+
+      const result = await response.json();
+
+      // Show appropriate feedback based on whether user was added or invited
+      if (result.added) {
+        toast.success('Member added to group');
+      } else if (result.invited) {
+        toast.success('Invite sent - waiting for acceptance');
+      }
+
+      // Reload group details
+      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (detailsResponse.ok) {
+        const data = await detailsResponse.json();
+        setGroupDetails(data.group);
+      }
+
+      setSearchQuery('');
+      setSearchResults([]);
+      onGroupUpdated?.();
+    } catch (err) {
+      console.error('Failed to add member:', err);
+      setError('Network error. Please try again.');
+    } finally {
       setActionLoading(null);
-      throw new Error('Failed to add member');
     }
-
-    // Reload group details
-    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (detailsResponse.ok) {
-      const data = await detailsResponse.json();
-      setGroupDetails(data.group);
-    }
-
-    setSearchQuery('');
-    setSearchResults([]);
-    onGroupUpdated?.();
-    setActionLoading(null);
   };
 
   const handleRemoveMember = async (userId: string) => {
     if (!groupId) return;
 
     setActionLoading(userId);
+    setError(null);
     const token = await getAccessToken();
     const response = await fetch(
       `/api/groups/${groupId}/members?userId=${userId}`,
@@ -240,9 +320,11 @@ export function GroupManagementModal({
     );
 
     if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || 'Failed to remove member');
       setActionLoading(null);
       setConfirmAction(null);
-      throw new Error('Failed to remove member');
+      return;
     }
 
     // Reload group details
@@ -265,6 +347,7 @@ export function GroupManagementModal({
     if (!groupId) return;
 
     setActionLoading(userId);
+    setError(null);
     const token = await getAccessToken();
     const response = await fetch(`/api/groups/${groupId}/admins`, {
       method: 'POST',
@@ -276,9 +359,11 @@ export function GroupManagementModal({
     });
 
     if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || 'Failed to promote member');
       setActionLoading(null);
       setConfirmAction(null);
-      throw new Error('Failed to promote member');
+      return;
     }
 
     // Reload group details
@@ -301,6 +386,7 @@ export function GroupManagementModal({
     if (!groupId) return;
 
     setActionLoading(userId);
+    setError(null);
     const token = await getAccessToken();
     const response = await fetch(
       `/api/groups/${groupId}/admins?userId=${userId}`,
@@ -313,9 +399,11 @@ export function GroupManagementModal({
     );
 
     if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || 'Failed to remove admin status');
       setActionLoading(null);
       setConfirmAction(null);
-      throw new Error('Failed to remove admin status');
+      return;
     }
 
     // Reload group details
@@ -338,6 +426,7 @@ export function GroupManagementModal({
     if (!groupId) return;
 
     setActionLoading('delete');
+    setError(null);
     const token = await getAccessToken();
     const response = await fetch(`/api/groups/${groupId}`, {
       method: 'DELETE',
@@ -347,9 +436,11 @@ export function GroupManagementModal({
     });
 
     if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || 'Failed to delete group');
       setActionLoading(null);
       setConfirmAction(null);
-      throw new Error('Failed to delete group');
+      return;
     }
 
     onGroupUpdated?.();
@@ -360,6 +451,7 @@ export function GroupManagementModal({
     if (!groupId || !user) return;
 
     setActionLoading('leave');
+    setError(null);
     const token = await getAccessToken();
     const response = await fetch(
       `/api/groups/${groupId}/members?userId=${user.id}`,
@@ -372,9 +464,11 @@ export function GroupManagementModal({
     );
 
     if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || 'Failed to leave group');
       setActionLoading(null);
       setConfirmAction(null);
-      throw new Error('Failed to leave group');
+      return;
     }
 
     onGroupUpdated?.();
@@ -410,6 +504,9 @@ export function GroupManagementModal({
     onClose();
   };
 
+  // NPC groups cannot have members added via this modal
+  const isNpcGroup = groupDetails?.type === 'npc';
+
   return (
     <>
       <div
@@ -431,6 +528,7 @@ export function GroupManagementModal({
               <h2 className="font-bold text-xl">
                 {groupDetails?.name || 'Group Settings'}
               </h2>
+              {groupDetails && <GroupTypeBadge type={groupDetails.type} />}
             </div>
             <button
               onClick={handleClose}
@@ -469,8 +567,8 @@ export function GroupManagementModal({
                     </button>
                   )}
 
-                  {/* Delete Group (admins only) */}
-                  {groupDetails.isAdmin && (
+                  {/* Delete Group (admins only, not for NPC groups) */}
+                  {groupDetails.isAdmin && !isNpcGroup && (
                     <button
                       onClick={() => setConfirmAction({ type: 'delete' })}
                       disabled={!!actionLoading}
@@ -482,13 +580,23 @@ export function GroupManagementModal({
                   )}
                 </div>
 
+                {/* NPC Group Notice */}
+                {isNpcGroup && (
+                  <div className="rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
+                    <p className="text-purple-700 text-sm dark:text-purple-300">
+                      This is an NPC-controlled group. Member management is
+                      handled by the tiered invitation system.
+                    </p>
+                  </div>
+                )}
+
                 {/* Members Section */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="block font-semibold text-sm">
                       Members ({groupDetails.members.length})
                     </label>
-                    {groupDetails.isAdmin && (
+                    {groupDetails.isAdmin && !isNpcGroup && (
                       <button
                         onClick={() => setShowAddMember(!showAddMember)}
                         className="rounded-lg border border-border bg-sidebar px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent"
@@ -509,13 +617,46 @@ export function GroupManagementModal({
                   </div>
 
                   {/* Add Member Section */}
-                  {showAddMember && groupDetails.isAdmin && (
-                    <div className="space-y-2 rounded-lg border border-border bg-sidebar p-3">
+                  {showAddMember && groupDetails.isAdmin && !isNpcGroup && (
+                    <div className="space-y-3 rounded-lg border border-border bg-sidebar p-3">
+                      {/* Search Tabs */}
+                      <div className="flex rounded-lg border border-border bg-background p-1">
+                        <button
+                          onClick={() => handleTabChange('users')}
+                          className={cn(
+                            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                            activeTab === 'users'
+                              ? 'bg-sidebar font-medium text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          Users
+                        </button>
+                        <button
+                          onClick={() => handleTabChange('npcs')}
+                          className={cn(
+                            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                            activeTab === 'npcs'
+                              ? 'bg-sidebar font-medium text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <Bot className="h-3.5 w-3.5" />
+                          NPCs
+                        </button>
+                      </div>
+
+                      {/* Search Input */}
                       <div className="relative">
                         <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
                         <input
                           type="text"
-                          placeholder="Search users..."
+                          placeholder={
+                            activeTab === 'users'
+                              ? 'Search users...'
+                              : 'Search NPCs...'
+                          }
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full rounded-lg border border-border bg-background py-2.5 pr-10 pl-9 transition-colors focus:border-primary focus:outline-none"
@@ -525,38 +666,56 @@ export function GroupManagementModal({
                         )}
                       </div>
 
+                      {/* Search Results */}
                       {searchResults.length > 0 && (
                         <div className="max-h-[150px] overflow-hidden overflow-y-auto rounded-lg border border-border bg-background">
-                          {searchResults.map((user) => (
+                          {searchResults.map((result) => (
                             <button
-                              key={user.id}
-                              onClick={() => handleAddMember(user.id)}
-                              disabled={actionLoading === user.id}
+                              key={result.id}
+                              onClick={() => handleAddMember(result.id)}
+                              disabled={actionLoading === result.id}
                               className="flex w-full items-center gap-2 p-2.5 text-left transition-colors hover:bg-sidebar disabled:opacity-50"
                             >
                               <Avatar
-                                imageUrl={user.profileImageUrl || undefined}
-                                name={user.username || user.displayName || '?'}
+                                id={result.id}
+                                src={result.profileImageUrl || undefined}
+                                name={
+                                  result.username || result.displayName || '?'
+                                }
+                                type={result.type === 'npc' ? 'actor' : 'user'}
                                 size="sm"
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate font-medium text-sm">
-                                  {user.displayName ||
-                                    user.username ||
+                                  {result.displayName ||
+                                    result.username ||
                                     'Unknown'}
                                 </div>
+                                {result.username && (
+                                  <div className="truncate text-muted-foreground text-xs">
+                                    @{result.username}
+                                  </div>
+                                )}
                               </div>
-                              {actionLoading === user.id && (
+                              {actionLoading === result.id && (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               )}
                             </button>
                           ))}
                         </div>
                       )}
+
+                      {searchQuery.length >= 2 &&
+                        searchResults.length === 0 &&
+                        !searching && (
+                          <div className="py-2 text-center text-muted-foreground text-sm">
+                            No {activeTab === 'users' ? 'users' : 'NPCs'} found
+                          </div>
+                        )}
                     </div>
                   )}
 
-                  {/* Members */}
+                  {/* Members List */}
                   <div className="space-y-2">
                     {groupDetails.members.map((member) => {
                       const isCreator = member.id === groupDetails.createdById;
@@ -566,8 +725,12 @@ export function GroupManagementModal({
                           className="flex items-center gap-3 rounded-lg border border-border bg-sidebar p-3 transition-colors hover:bg-sidebar/80"
                         >
                           <Avatar
-                            imageUrl={member.profileImageUrl || undefined}
+                            id={member.id}
+                            src={member.profileImageUrl || undefined}
                             name={member.username || member.displayName || '?'}
+                            type={
+                              member.memberType === 'npc' ? 'actor' : 'user'
+                            }
                             size="md"
                           />
                           <div className="min-w-0 flex-1">
@@ -591,14 +754,52 @@ export function GroupManagementModal({
                             )}
                           </div>
 
-                          {/* Actions (only for admins, not for creator) */}
-                          {groupDetails.isAdmin && !isCreator && (
-                            <div className="flex items-center gap-1">
-                              {!member.isAdmin ? (
+                          {/* Actions (only for admins, not for creator, not for NPC groups) */}
+                          {groupDetails.isAdmin &&
+                            !isCreator &&
+                            !isNpcGroup && (
+                              <div className="flex items-center gap-1">
+                                {!member.isAdmin ? (
+                                  <button
+                                    onClick={() =>
+                                      setConfirmAction({
+                                        type: 'promote',
+                                        userId: member.id,
+                                        userName:
+                                          member.displayName ||
+                                          member.username ||
+                                          'this user',
+                                      })
+                                    }
+                                    disabled={!!actionLoading}
+                                    className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
+                                    title="Make Admin"
+                                  >
+                                    <Shield className="h-4 w-4 text-primary" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      setConfirmAction({
+                                        type: 'demote',
+                                        userId: member.id,
+                                        userName:
+                                          member.displayName ||
+                                          member.username ||
+                                          'this user',
+                                      })
+                                    }
+                                    disabled={!!actionLoading}
+                                    className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
+                                    title="Remove Admin"
+                                  >
+                                    <Shield className="h-4 w-4 text-muted-foreground" />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() =>
                                     setConfirmAction({
-                                      type: 'promote',
+                                      type: 'remove',
                                       userId: member.id,
                                       userName:
                                         member.displayName ||
@@ -608,48 +809,12 @@ export function GroupManagementModal({
                                   }
                                   disabled={!!actionLoading}
                                   className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                  title="Make Admin"
+                                  title="Remove Member"
                                 >
-                                  <Shield className="h-4 w-4 text-primary" />
+                                  <UserMinus className="h-4 w-4 text-red-500" />
                                 </button>
-                              ) : (
-                                <button
-                                  onClick={() =>
-                                    setConfirmAction({
-                                      type: 'demote',
-                                      userId: member.id,
-                                      userName:
-                                        member.displayName ||
-                                        member.username ||
-                                        'this user',
-                                    })
-                                  }
-                                  disabled={!!actionLoading}
-                                  className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                  title="Remove Admin"
-                                >
-                                  <Shield className="h-4 w-4 text-muted-foreground" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() =>
-                                  setConfirmAction({
-                                    type: 'remove',
-                                    userId: member.id,
-                                    userName:
-                                      member.displayName ||
-                                      member.username ||
-                                      'this user',
-                                  })
-                                }
-                                disabled={!!actionLoading}
-                                className="rounded-md p-2 transition-colors hover:bg-background disabled:opacity-50"
-                                title="Remove Member"
-                              >
-                                <UserMinus className="h-4 w-4 text-red-500" />
-                              </button>
-                            </div>
-                          )}
+                              </div>
+                            )}
                         </div>
                       );
                     })}
@@ -687,13 +852,13 @@ export function GroupManagementModal({
                 {confirmAction.type === 'delete' &&
                   'This will permanently delete the group and all its data. This action cannot be undone.'}
                 {confirmAction.type === 'remove' &&
-                  `Remove ${confirmAction.userName} from this group? They can be re-invited later.`}
+                  `Remove ${confirmAction.userName} from this group? They can be re-added later.`}
                 {confirmAction.type === 'promote' &&
                   `Give ${confirmAction.userName} admin privileges? They will be able to manage members and settings.`}
                 {confirmAction.type === 'demote' &&
                   `Remove admin privileges from ${confirmAction.userName}? They will remain a regular member.`}
                 {confirmAction.type === 'leave' &&
-                  'Are you sure you want to leave this group? You will need to be re-invited to join again.'}
+                  'Are you sure you want to leave this group? You will need to be re-added to join again.'}
               </p>
 
               <div className="flex gap-3">

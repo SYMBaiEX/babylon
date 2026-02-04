@@ -85,4 +85,3 @@ export const PERPS_TRADER_PRIORITY_METRICS = [
   'trading.tradesExecuted',
   'behavior.socialToTradeRatio',
 ];
-

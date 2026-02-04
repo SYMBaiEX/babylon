@@ -14,7 +14,7 @@
  * import { A2AClient } from '@a2a-js/sdk/client';
  *
  * const client = new A2AClient({
- *   endpoint: 'https://babylon.game/api/a2a',
+ *   endpoint: 'https://babylon.market/api/a2a',
  *   agentCard: babylonAgentCard
  * });
  * ```
@@ -29,6 +29,10 @@ export type { ListTasksParams, ListTasksResult } from './extended-task-store';
 export { ExtendedTaskStore } from './extended-task-store';
 export * from './handlers/escrow-handlers';
 export * from './payments';
+export {
+  PersistentTaskStore,
+  type TaskStatusUpdate,
+} from './persistent-task-store';
 export {
   generateAgentCard,
   generateAgentCardSync,

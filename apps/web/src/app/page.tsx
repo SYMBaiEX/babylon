@@ -1,122 +1,36 @@
-'use client';
-
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { isNftGatingEnabled } from '@babylon/shared';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { ComingSoon } from '@/components/shared/ComingSoon';
-import { Skeleton } from '@/components/shared/Skeleton';
-import { useAuth } from '@/hooks/useAuth';
-import { useLoginModal } from '@/hooks/useLoginModal';
+import { isWaitlistHostname } from '@/lib/host-routing';
+import { HomePageClient } from './HomePageClient';
 
-const waitlistModeEnabled = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
+type HomePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-function HomePageContent() {
-  const router = useRouter();
-  const { authenticated } = useAuth();
-  const { showLoginModal } = useLoginModal();
-  const searchParams = useSearchParams();
-  const [shouldShowApp, setShouldShowApp] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const hostHeader = (await headers()).get('host') ?? '';
+  const hostname = hostHeader.split(':')[0]?.toLowerCase() ?? '';
+  const isWaitlistHost = isWaitlistHostname(hostname);
 
-  useEffect(() => {
-    // Enforce waitlist mode via environment flag instead of relying on URL
-    if (waitlistModeEnabled) {
-      setShouldShowApp(false);
-      setIsChecking(false);
-      return;
-    }
-
-    // Check if force coming soon mode is enabled via URL parameter (?comingsoon=true)
-    const forceComingSoon = searchParams.get('comingsoon') === 'true';
-
-    // If force coming soon is enabled, show coming soon page
-    if (forceComingSoon) {
-      setShouldShowApp(false);
-      setIsChecking(false);
-      return;
-    }
-
-    // Check if we're on localhost
-    const isLocalhost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname === '');
-
-    // Check if dev mode is enabled via URL parameter (?dev=true)
-    const isDevMode = searchParams.get('dev') === 'true';
-
-    // Check if we're on production (babylon.market)
-    const isProduction =
-      typeof window !== 'undefined' &&
-      window.location.hostname === 'babylon.market';
-
-    // Show app if on localhost OR (on production with ?dev=true)
-    const showApp =
-      isLocalhost ||
-      (isProduction && isDevMode) ||
-      (!isProduction && !isLocalhost);
-    setShouldShowApp(showApp);
-    setIsChecking(false);
-
-    // Only proceed with normal home page logic if we should show the app
-    if (showApp) {
-      // Show login modal if not authenticated
-      if (!authenticated) {
-        showLoginModal({
-          title: 'Welcome to Babylon',
-          message:
-            'Log in to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
-        });
-      }
-
-      // Redirect to feed, preserving referral code if present
-      const ref = searchParams.get('ref');
-      const feedUrl = ref ? `/feed?ref=${ref}` : '/feed';
-      router.push(feedUrl);
-    }
-  }, [authenticated, router, showLoginModal, searchParams]);
-
-  // Show loading while checking
-  if (isChecking) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-48" />
-          <Skeleton className="h-4 w-64" />
-        </div>
-      </div>
-    );
-  }
-
-  // Show coming soon if not in dev mode
-  if (!shouldShowApp) {
+  if (isWaitlistHost) {
     return <ComingSoon />;
   }
 
-  // Show loading while redirecting to feed
-  return (
-    <div className="flex h-full items-center justify-center">
-      <div className="space-y-3">
-        <Skeleton className="h-12 w-48" />
-        <Skeleton className="h-4 w-64" />
-      </div>
-    </div>
-  );
-}
+  const nftGatingEnabled = isNftGatingEnabled();
 
-export default function HomePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <div className="space-y-3">
-            <Skeleton className="h-12 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-        </div>
-      }
-    >
-      <HomePageContent />
-    </Suspense>
-  );
+  if (nftGatingEnabled) {
+    const resolvedSearchParams = searchParams ? await searchParams : undefined;
+    const ref = resolvedSearchParams?.ref;
+    const referralCode = Array.isArray(ref) ? ref[0] : ref;
+    const params = new URLSearchParams();
+    if (referralCode) params.set('ref', referralCode);
+    params.set('gated', '1');
+
+    const qs = params.toString();
+    redirect(qs ? `/nft?${qs}` : '/nft');
+  }
+
+  return <HomePageClient />;
 }

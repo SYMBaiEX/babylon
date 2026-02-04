@@ -5,7 +5,16 @@
  * Uses sigmoid function to map unbounded ROI to bounded reputation score.
  */
 
-import type { Decimal } from '@babylon/db/types';
+import { clamp, clamp01 } from '../utils/math-utils';
+
+/**
+ * Interface for decimal-like values that can be converted to numbers.
+ * Used to accept both native numbers and Decimal objects from the database.
+ * Defined locally to avoid importing from @babylon/db in client-safe code.
+ */
+interface DecimalLike {
+  toNumber(): number;
+}
 
 /**
  * Normalize PNL to 0-1 scale using sigmoid function
@@ -24,8 +33,8 @@ import type { Decimal } from '@babylon/db/types';
  * @returns Normalized score from 0 to 1
  */
 export function normalizePnL(
-  pnl: number | Decimal,
-  totalInvested: number | Decimal
+  pnl: number | DecimalLike,
+  totalInvested: number | DecimalLike
 ): number {
   const pnlNum = typeof pnl === 'number' ? pnl : pnl.toNumber();
   const investedNum =
@@ -50,7 +59,7 @@ export function normalizePnL(
   const normalized = 1 / (1 + Math.exp(-roi));
 
   // Clamp to [0, 1] range (should already be in range, but safety check)
-  return Math.max(0, Math.min(1, normalized));
+  return clamp01(normalized);
 }
 
 /**
@@ -63,7 +72,7 @@ export function normalizePnL(
  */
 export function denormalizePnL(normalized: number): number {
   // Clamp input to valid range
-  const clamped = Math.max(0.001, Math.min(0.999, normalized));
+  const clamped = clamp(normalized, 0.001, 0.999);
 
   // Inverse sigmoid
   const roi = -Math.log(1 / clamped - 1);
@@ -184,6 +193,5 @@ export function calculateConfidenceScore(sampleSize: number): number {
   // Reaches ~90% confidence at 46 samples
   const confidence = 1 - Math.exp(-sampleSize / 20);
 
-  return Math.max(0, Math.min(1, confidence));
+  return clamp01(confidence);
 }
-

@@ -1,9 +1,6 @@
+import { formatCurrency as formatCurrencyShared } from '@babylon/shared';
 import type { User } from '@/stores/authStore';
-
-/**
- * Market category type for category PnL share card.
- */
-type MarketCategory = 'perps' | 'predictions';
+import type { MarketCategory } from '@/types/markets';
 
 /**
  * Category PnL data structure for category PnL share card.
@@ -53,24 +50,17 @@ interface CategoryPnLShareCardProps {
 }
 
 /**
- * Currency formatter for displaying monetary values.
- */
-const formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
-/**
  * Format currency value safely.
  *
- * Formats a number as currency, defaulting to 0 if invalid.
+ * Formats a number as Babylon points, defaulting to 0 if invalid.
+ * Uses shared formatCurrency utility for consistency across the codebase.
  *
  * @param value - Value to format
  * @returns Formatted currency string
  */
 function formatCurrency(value: number) {
-  return formatter.format(Number.isFinite(value) ? value : 0);
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return formatCurrencyShared(safeValue, { useThousandsSeparator: true });
 }
 
 /**

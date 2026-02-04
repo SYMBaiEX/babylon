@@ -50,10 +50,42 @@ const FORBIDDEN_PATTERNS = [
   /\btesla\s*inc/i,
   /\banthropic\s*ai/i,
   /\bnvidia\s*corp/i,
+
+  // Cryptocurrencies and blockchain (use parody names instead)
+  /\bethereum\b/i,
+  /\bbitcoin\b/i,
+  /\bsolana\b/i,
+  /\bcardano\b/i,
+  /\bpolkadot\b/i,
+  /\bavalanche\b/i,
+  /\bchainlink\b/i,
+  /\buniswap\b/i,
+  /\baave\b/i,
+  /\bcompound\b/i,
+  /\bpolygon\b/i,
+  /\barbitrum\b/i,
+  /\boptimism\b/i,
+  /\bbase\s*chain\b/i,
+  /\bcoinbase\b/i,
+  /\bbinance\b/i,
+  /\bkraken\b/i,
+  /\bgemini\b/i,
+  /\bftx\b/i,
+
+  // Social media platforms (use parody names)
+  /\btwitter\b/i,
+  /\bfacebook\b/i,
+  /\binstagram\b/i,
+  /\btiktok\b/i,
+  /\byoutube\b/i,
+  /\breddit\b/i,
+  /\bdiscord\b/i,
+  /\blinkedin\b/i,
 ];
 
 /**
  * Validates that text doesn't contain real names
+ * Uses pattern-based detection for variations and common misspellings
  */
 export function validateNoRealNames(text: string): string[] {
   const violations: string[] = [];
@@ -80,6 +112,12 @@ export function validateNoRealNames(text: string): string[] {
 
   return violations;
 }
+
+/**
+ * Alias for validateNoRealNames - kept for backward compatibility
+ * Both functions use pattern-based detection for variations and misspellings
+ */
+export const validateNoRealNamesStrict = validateNoRealNames;
 
 /**
  * Escape special regex characters
@@ -112,14 +150,6 @@ export function validateHashtags(
   }
 
   return violations;
-}
-
-/**
- * Legacy function for strict no-hashtag validation
- * @deprecated Use validateHashtags with maxAllowed=0
- */
-export function validateNoHashtags(text: string): string[] {
-  return validateHashtags(text, 0);
 }
 
 /**
@@ -173,7 +203,7 @@ export function validateFeedPost(
 
   // Critical validations (must pass)
   violations.push(...validateNoRealNames(text));
-  violations.push(...validateNoHashtags(text));
+  violations.push(...validateHashtags(text, 0));
   violations.push(...validateNoEmojis(text));
   violations.push(
     ...validateCharacterLimit(text, options.maxLength, options.postType)

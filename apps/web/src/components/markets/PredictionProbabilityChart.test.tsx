@@ -92,20 +92,14 @@ describe('PredictionProbabilityChart - Data Processing', () => {
   });
 
   describe('Color Assignment Logic', () => {
-    it('should assign green color when YES is favored', () => {
-      const probability = 60;
-      const isYesFavored = probability >= 50;
-      const lineColor = isYesFavored ? '#16a34a' : '#dc2626';
+    it('should keep YES/NO series colors distinct', () => {
+      // YES should remain green and NO should remain red, regardless of which side is favored.
+      const yesLineColor = '#22c55e';
+      const noLineColor = '#ef4444';
 
-      expect(lineColor).toBe('#16a34a');
-    });
-
-    it('should assign red color when NO is favored', () => {
-      const probability = 40;
-      const isYesFavored = probability >= 50;
-      const lineColor = isYesFavored ? '#16a34a' : '#dc2626';
-
-      expect(lineColor).toBe('#dc2626');
+      expect(yesLineColor).toBe('#22c55e');
+      expect(noLineColor).toBe('#ef4444');
+      expect(yesLineColor).not.toBe(noLineColor);
     });
   });
 

@@ -12,6 +12,7 @@
  * - Tracks agent actions for performance evaluation
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { logger } from '../utils/logger';
 import type {
   BenchmarkGameSnapshot,
@@ -38,7 +39,7 @@ export interface AgentAction {
   tick: number;
   timestamp: number;
   type: AgentActionType;
-  data: Record<string, unknown>;
+  data: Record<string, JsonValue>;
   /** How long agent took to respond in milliseconds */
   duration: number;
   correctness?: {
@@ -102,6 +103,9 @@ export interface SimulationResult {
 
   /** Trajectory data for RL training */
   trajectory: TrajectoryData;
+
+  /** PnL history for charting */
+  pnlHistory: Array<{ tick: number; pnl: number }>;
 }
 
 export interface SimulationMetrics {
@@ -157,6 +161,7 @@ export class SimulationEngine {
   private currentTick: number = 0;
   private actions: AgentAction[] = [];
   private startTime: number = 0;
+  private pnlHistory: Array<{ tick: number; pnl: number }> = [];
 
   /** Agent positions tracked for metrics calculation */
   private predictionPositions: Map<string, PredictionPosition> = new Map();
@@ -201,13 +206,11 @@ export class SimulationEngine {
         warnings: validation.warnings,
       });
     }
-
     if (validation.warnings.length > 0) {
       logger.warn('Metrics validation warnings', {
         warnings: validation.warnings,
       });
     }
-
     const trajectory = this.buildTrajectory();
 
     logger.info('Simulation completed', {
@@ -228,6 +231,7 @@ export class SimulationEngine {
       actions: this.actions,
       metrics,
       trajectory,
+      pnlHistory: this.pnlHistory,
     };
   }
 
@@ -237,6 +241,7 @@ export class SimulationEngine {
   initialize(): void {
     this.startTime = Date.now();
     this.currentTick = 0;
+    this.pnlHistory = [];
 
     logger.info('Simulation initialized', {
       benchmarkId: this.config.snapshot.id,
@@ -303,109 +308,116 @@ export class SimulationEngine {
    */
   async performAction(
     type: AgentActionType,
-    data: Record<string, unknown>
+    data: Record<string, JsonValue>
   ): Promise<{ success: boolean; result?: AgentActionResult; error?: string }> {
     const actionStart = Date.now();
 
     let result: AgentActionResult;
     let correctness: AgentAction['correctness'];
 
-    switch (type) {
-      case 'buy_prediction': {
-        result = this.handleBuyPrediction(data);
-        const { marketId, outcome } = data as {
-          marketId: string;
-          outcome: 'YES' | 'NO';
-        };
-
-        // Track correctness for prediction markets
-        const marketOutcome =
-          this.config.snapshot.groundTruth.marketOutcomes[marketId];
-        if (marketOutcome !== undefined) {
-          const predictedOutcome = outcome === 'YES';
-          const isCorrect = predictedOutcome === marketOutcome;
-
-          correctness = {
-            predictionCorrect: isCorrect,
-            actualOutcome: marketOutcome,
-            predictedOutcome,
+    try {
+      switch (type) {
+        case 'buy_prediction': {
+          result = this.handleBuyPrediction(data);
+          const { marketId, outcome } = data as {
+            marketId: string;
+            outcome: 'YES' | 'NO';
           };
-        }
-        break;
-      }
 
-      case 'open_perp': {
-        result = this.handleOpenPerp(data);
-        const { ticker, side } = data as {
-          ticker: string;
-          side: 'LONG' | 'SHORT';
-        };
-
-        // Track correctness for perp trades based on sentiment and price movement
-        const state = this.getGameState();
-        const market = state.perpetualMarkets.find(
-          (m: { ticker: string }) => m.ticker === ticker
-        );
-
-        if (market) {
-          // Calculate sentiment (simplified: based on price change)
-          const priceHistory =
-            this.config.snapshot.groundTruth.priceHistory[ticker];
-          const currentPrice = market.price;
-          const futurePrice =
-            priceHistory?.[
-              Math.min(this.currentTick + 10, priceHistory.length - 1)
-            ]?.price;
-
-          if (futurePrice !== undefined) {
-            const priceChange = (futurePrice - currentPrice) / currentPrice;
-            const sentimentAtTrade = priceChange > 0 ? 0.5 : -0.5; // Simplified sentiment
-
-            // Determine if trade was correct
-            // If sentiment is negative and we went short, that's correct
-            // If sentiment is positive and we went long, that's correct
-            const expectedDirection = sentimentAtTrade < 0 ? 'down' : 'up';
-            const tradeDirection = side === 'SHORT' ? 'down' : 'up';
-            const isCorrect = expectedDirection === tradeDirection;
+          // Track correctness for prediction markets
+          const marketOutcome =
+            this.config.snapshot.groundTruth.marketOutcomes[marketId];
+          if (marketOutcome !== undefined) {
+            const predictedOutcome = outcome === 'YES';
+            const isCorrect = predictedOutcome === marketOutcome;
 
             correctness = {
-              perpCorrect: isCorrect,
-              sentimentAtTrade,
-              priceChange,
-              expectedDirection,
+              predictionCorrect: isCorrect,
+              actualOutcome: marketOutcome,
+              predictedOutcome,
             };
           }
+          break;
         }
-        break;
+
+        case 'open_perp': {
+          result = this.handleOpenPerp(data);
+          const { ticker, side } = data as {
+            ticker: string;
+            side: 'LONG' | 'SHORT';
+          };
+
+          // Track correctness for perp trades based on sentiment and price movement
+          const state = this.getGameState();
+          const market = state.perpetualMarkets.find(
+            (m: { ticker: string }) => m.ticker === ticker
+          );
+
+          if (market) {
+            // Calculate sentiment (simplified: based on price change)
+            const priceHistory =
+              this.config.snapshot.groundTruth.priceHistory[ticker];
+            const currentPrice = market.price;
+            const futurePrice =
+              priceHistory?.[
+                Math.min(this.currentTick + 10, priceHistory.length - 1)
+              ]?.price;
+
+            if (futurePrice !== undefined) {
+              const priceChange = (futurePrice - currentPrice) / currentPrice;
+              const sentimentAtTrade = priceChange > 0 ? 0.5 : -0.5; // Simplified sentiment
+
+              // Determine if trade was correct
+              // If sentiment is negative and we went short, that's correct
+              // If sentiment is positive and we went long, that's correct
+              const expectedDirection = sentimentAtTrade < 0 ? 'down' : 'up';
+              const tradeDirection = side === 'SHORT' ? 'down' : 'up';
+              const isCorrect = expectedDirection === tradeDirection;
+
+              correctness = {
+                perpCorrect: isCorrect,
+                sentimentAtTrade,
+                priceChange,
+                expectedDirection,
+              };
+            }
+          }
+          break;
+        }
+
+        case 'close_perp':
+          result = this.handleClosePerp(data);
+          break;
+
+        case 'join_group':
+          result = this.handleJoinGroup(data);
+          break;
+
+        case 'create_post':
+          result = this.handleCreatePost(data);
+          break;
+
+        default:
+          return { success: false, error: `Unknown action type: ${type}` };
       }
 
-      case 'close_perp':
-        result = this.handleClosePerp(data);
-        break;
+      // Record action with correctness metadata
+      this.actions.push({
+        tick: this.currentTick,
+        timestamp: Date.now(),
+        type,
+        data,
+        duration: Date.now() - actionStart,
+        correctness,
+      });
 
-      case 'join_group':
-        result = this.handleJoinGroup(data);
-        break;
-
-      case 'create_post':
-        result = this.handleCreatePost(data);
-        break;
-
-      default:
-        return { success: false, error: `Unknown action type: ${type}` };
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
-
-    // Record action with correctness metadata
-    this.actions.push({
-      tick: this.currentTick,
-      timestamp: Date.now(),
-      type,
-      data,
-      duration: Date.now() - actionStart,
-      correctness,
-    });
-
-    return { success: true, result };
   }
 
   /**
@@ -415,14 +427,34 @@ export class SimulationEngine {
     // Apply any price-based updates for current tick
     this.applyTickUpdates();
 
+    // Record PnL history
+    const currentPnl = this.calculateCurrentTotalPnl();
+    this.pnlHistory.push({
+      tick: this.currentTick,
+      pnl: currentPnl,
+    });
+
     // Move to next tick
     this.currentTick++;
-
-    logger.debug(
-      `Advanced to tick ${this.currentTick}/${this.config.snapshot.ticks.length}`
-    );
   }
 
+  /**
+   * Calculate current PnL (realized + unrealized)
+   */
+  private calculateCurrentTotalPnl(): number {
+    let totalPnl = 0;
+
+    // Realized PnL from closed trades
+    for (const pos of this.perpPositions.values()) {
+      totalPnl += pos.realizedPnl || 0;
+      totalPnl += pos.unrealizedPnl || 0;
+    }
+
+    // Note: Prediction market PnL is only realized on resolution in this simple engine
+    // We could add mark-to-market valuation here if needed
+
+    return totalPnl;
+  }
   /**
    * Stop simulation early
    */
@@ -433,7 +465,7 @@ export class SimulationEngine {
   /**
    * Handle buying prediction market shares
    */
-  private handleBuyPrediction(data: Record<string, unknown>): {
+  private handleBuyPrediction(data: Record<string, JsonValue>): {
     positionId: string;
     shares: number;
   } {
@@ -473,7 +505,7 @@ export class SimulationEngine {
   /**
    * Handle opening perpetual position
    */
-  private handleOpenPerp(data: Record<string, unknown>): {
+  private handleOpenPerp(data: Record<string, JsonValue>): {
     positionId: string;
   } {
     const { ticker, side, size, leverage } = data as {
@@ -509,7 +541,7 @@ export class SimulationEngine {
   /**
    * Handle closing perpetual position
    */
-  private handleClosePerp(data: Record<string, unknown>): { pnl: number } {
+  private handleClosePerp(data: Record<string, JsonValue>): { pnl: number } {
     const { positionId } = data as { positionId: string };
 
     const position = this.perpPositions.get(positionId);
@@ -534,6 +566,7 @@ export class SimulationEngine {
         : -priceChange * position.size * position.leverage;
 
     position.realizedPnl = pnl;
+    position.unrealizedPnl = 0;
     position.closedAt = this.currentTick;
 
     return { pnl };
@@ -542,7 +575,7 @@ export class SimulationEngine {
   /**
    * Handle joining group chat
    */
-  private handleJoinGroup(_data: Record<string, unknown>): {
+  private handleJoinGroup(_data: Record<string, JsonValue>): {
     success: boolean;
   } {
     this.socialStats.groupsJoined++;
@@ -552,7 +585,9 @@ export class SimulationEngine {
   /**
    * Handle creating post
    */
-  private handleCreatePost(_data: Record<string, unknown>): { postId: string } {
+  private handleCreatePost(_data: Record<string, JsonValue>): {
+    postId: string;
+  } {
     this.socialStats.postsCreated++;
     return { postId: `post-${Date.now()}` };
   }

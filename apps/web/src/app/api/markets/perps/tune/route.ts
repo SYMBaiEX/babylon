@@ -118,11 +118,11 @@
  * ```
  */
 
+import { requireAdmin, withErrorHandling } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const TuningQuerySchema = z.object({
   ticker: z.string().optional(),
@@ -142,6 +142,8 @@ const TuningBodySchema = z.object({
 });
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const { searchParams } = new URL(request.url);
   const queryParse = TuningQuerySchema.safeParse({
     ticker: searchParams.get('ticker') || undefined,
@@ -196,6 +198,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   const json = await request.json();
   const parsed = TuningBodySchema.safeParse(json);
 

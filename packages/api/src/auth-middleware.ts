@@ -6,14 +6,21 @@
  * helper functions for authentication, optional authentication, and error responses.
  */
 
+import { db, eq, users } from '@babylon/db';
+import {
+  type AuthenticatedUser,
+  isNftGatingAllowlistedPath,
+} from '@babylon/shared';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db, eq, users } from '@babylon/db';
 import { verifyAgentSession } from './agent-auth';
-import { logger, extractErrorMessage } from '@babylon/shared';
-import type { AuthenticatedUser } from '@babylon/shared';
-import { AuthenticationError, isAuthenticationError } from './errors';
+import {
+  AuthenticationError,
+  AuthorizationError,
+  isAuthenticationError,
+} from './errors';
+import { hasNftAccessForAuthUser } from './services/nft-access-service';
 
 // Re-export types from shared for backwards compatibility
 export type { AuthenticatedUser } from '@babylon/shared';
@@ -27,7 +34,8 @@ let privyClient: PrivyClient | null = null;
 
 export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
-    const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    const privyAppId =
+      process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     const privyAppSecret = process.env.PRIVY_APP_SECRET;
 
     if (!privyAppId || !privyAppSecret) {
@@ -61,6 +69,13 @@ export function getPrivyClient(): PrivyClient {
 export async function authenticate(
   request: NextRequest
 ): Promise<AuthenticatedUser> {
+  const pathname = new URL(request.url).pathname;
+
+  const nftGatingFlag = process.env.NFT_GATING_ENABLED ?? '';
+  const nftGatingEnabled = ['true', '1', 'yes', 'on'].includes(
+    nftGatingFlag.toLowerCase()
+  );
+
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
 
@@ -74,7 +89,58 @@ export async function authenticate(
   }
 
   if (!token) {
-    throw new AuthenticationError('Missing or invalid authorization header or cookie');
+    throw new AuthenticationError(
+      'Missing or invalid authorization header or cookie'
+    );
+  }
+
+  // Local dev convenience: allow using a test user's Privy DID directly as the
+  // Bearer token (used by API integration tests). Disabled by default in prod.
+  const allowTestPrivyDidAuth =
+    process.env.ALLOW_TEST_PRIVY_DID_AUTH !== undefined
+      ? ['true', '1', 'yes', 'on'].includes(
+          process.env.ALLOW_TEST_PRIVY_DID_AUTH.toLowerCase()
+        )
+      : process.env.NODE_ENV === 'development' ||
+        process.env.NODE_ENV === 'test';
+
+  if (allowTestPrivyDidAuth && token.startsWith('did:privy:test')) {
+    // Fast-path: our test Privy DIDs are of the form `did:privy:test-${userId}`,
+    // where `userId` is the DB user id (snowflake). Avoid a DB read when possible.
+    if (token.startsWith('did:privy:test-')) {
+      const embeddedUserId = token.slice('did:privy:test-'.length);
+      const isSnowflakeId = /^\d{15,20}$/.test(embeddedUserId);
+      if (isSnowflakeId) {
+        return {
+          userId: embeddedUserId,
+          dbUserId: embeddedUserId,
+          privyId: token,
+          walletAddress: undefined,
+          email: undefined,
+          isAgent: false,
+        };
+      }
+    }
+
+    const dbUserResult = await db
+      .select({ id: users.id, walletAddress: users.walletAddress })
+      .from(users)
+      .where(eq(users.privyId, token))
+      .limit(1);
+    const dbUser = dbUserResult[0];
+
+    if (!dbUser) {
+      throw new AuthenticationError('Test user not found');
+    }
+
+    return {
+      userId: dbUser.id,
+      dbUserId: dbUser.id,
+      privyId: token,
+      walletAddress: dbUser.walletAddress ?? undefined,
+      email: undefined,
+      isAgent: false,
+    };
   }
 
   // Try agent session authentication first (faster)
@@ -88,60 +154,101 @@ export async function authenticate(
   }
 
   // Try Privy authentication
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
 
-    const result = await db
-      .select({
-        id: users.id,
-        walletAddress: users.walletAddress,
-      })
-      .from(users)
-      .where(eq(users.privyId, claims.userId))
-      .limit(1);
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
 
-    const dbUser = result[0];
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
+  const tokensToTry =
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
 
-    return {
-      userId: dbUser?.id ?? claims.userId,
-      dbUserId: dbUser?.id,
-      privyId: claims.userId,
-      walletAddress: dbUser?.walletAddress ?? undefined,
-      email: undefined,
-      isAgent: false,
-    };
-  } catch (error) {
-    // Log the specific error for debugging purposes
-    logger.warn(
-      'Privy authentication failed',
-      {
-        error: extractErrorMessage(
-          error instanceof Error
-            ? error
-            : typeof error === 'string'
-              ? error
-              : { message: String(error) }
-        ),
-      },
-      'auth-middleware'
-    );
+  let lastError: Error | undefined;
 
-    // Check for specific error types
-    const errorMessage = extractErrorMessage(
-      error instanceof Error
-        ? error
-        : typeof error === 'string'
-          ? error
-          : { message: String(error) }
-    );
-    if (errorMessage.includes('expired') || errorMessage.includes('exp')) {
-      throw new AuthenticationError('Authentication token has expired. Please refresh your session.');
+  for (const tokenToVerify of tokensToTry) {
+    try {
+      const claims = await privy.verifyAuthToken(tokenToVerify);
+
+      const dbUserResult = await db
+        .select({
+          id: users.id,
+          walletAddress: users.walletAddress,
+          isAdmin: users.isAdmin,
+        })
+        .from(users)
+        .where(eq(users.privyId, claims.userId))
+        .limit(1);
+      const dbUser = dbUserResult[0];
+
+      const authedUser: AuthenticatedUser = {
+        userId: dbUser?.id ?? claims.userId,
+        dbUserId: dbUser?.id,
+        privyId: claims.userId,
+        walletAddress: dbUser?.walletAddress ?? undefined,
+        email: undefined,
+        isAdmin: dbUser?.isAdmin ?? false,
+        isAgent: false,
+      };
+
+      if (
+        nftGatingEnabled &&
+        !authedUser.isAgent &&
+        !authedUser.isAdmin &&
+        !isNftGatingAllowlistedPath(pathname)
+      ) {
+        if (!authedUser.dbUserId) {
+          throw new AuthorizationError('NFT access required', 'nft', 'access', {
+            pathname,
+          });
+        }
+
+        const allowed = await hasNftAccessForAuthUser(authedUser);
+        if (!allowed) {
+          throw new AuthorizationError('NFT access required', 'nft', 'access', {
+            pathname,
+          });
+        }
+      }
+
+      return authedUser;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message.toLowerCase() : '';
+      const isExpiredTokenError =
+        errorMessage.includes('token expired') ||
+        errorMessage.includes('exp mismatch');
+
+      if (isExpiredTokenError) {
+        // If this isn't the last token to try, continue to the next one
+        if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+          continue;
+        }
+        throw new AuthenticationError(
+          'Authentication token has expired. Please refresh your session.'
+        );
+      }
+
+      lastError = error as Error;
+      // If this isn't the last token to try, continue to the next one
+      if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+        continue;
+      }
     }
-
-    // Privy token verification failed
-    throw new AuthenticationError('Invalid or expired authentication token');
   }
+
+  // If we get here, all tokens failed verification
+  throw lastError ?? new AuthenticationError('Token verification failed');
 }
 
 /**
@@ -153,7 +260,9 @@ export async function authenticateWithDbUser(
   const authUser = await authenticate(request);
 
   if (!authUser.dbUserId) {
-    throw new AuthenticationError('User profile not found. Please complete onboarding first.');
+    throw new AuthenticationError(
+      'User profile not found. Please complete onboarding first.'
+    );
   }
 
   return authUser as AuthenticatedUser & { dbUserId: string };
@@ -191,33 +300,57 @@ export async function optionalAuth(
   }
 
   // Try Privy authentication - return null on failure (optional auth)
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
 
-    const result = await db
-      .select({
-        id: users.id,
-        walletAddress: users.walletAddress,
-      })
-      .from(users)
-      .where(eq(users.privyId, claims.userId))
-      .limit(1);
+  // Get the Authorization header token as a potential fallback
+  const authHeaderToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
 
-    const dbUser = result[0];
+  // If we're using the cookie token and there's also an auth header token,
+  // we should try the cookie first but fall back to the header if it fails.
+  // This handles the case where the cookie is from a different Privy app
+  // (e.g., stale cookies from a different environment on localhost).
+  const tokensToTry =
+    cookieToken && authHeaderToken && cookieToken !== authHeaderToken
+      ? [token, authHeaderToken]
+      : [token];
 
-    return {
-      userId: dbUser?.id ?? claims.userId,
-      dbUserId: dbUser?.id,
-      privyId: claims.userId,
-      walletAddress: dbUser?.walletAddress ?? undefined,
-      email: undefined,
-      isAgent: false,
-    };
-  } catch {
-    // Token verification failed - return null for optional auth
-    return null;
+  for (const tokenToVerify of tokensToTry) {
+    try {
+      const claims = await privy.verifyAuthToken(tokenToVerify);
+
+      const dbUserResult = await db
+        .select({
+          id: users.id,
+          walletAddress: users.walletAddress,
+          isAdmin: users.isAdmin,
+        })
+        .from(users)
+        .where(eq(users.privyId, claims.userId))
+        .limit(1);
+      const dbUser = dbUserResult[0];
+
+      return {
+        userId: dbUser?.id ?? claims.userId,
+        dbUserId: dbUser?.id,
+        privyId: claims.userId,
+        walletAddress: dbUser?.walletAddress ?? undefined,
+        email: undefined,
+        isAdmin: dbUser?.isAdmin ?? false,
+        isAgent: false,
+      };
+    } catch {
+      // If this isn't the last token to try, continue to the next one
+      if (tokensToTry.indexOf(tokenToVerify) < tokensToTry.length - 1) {
+        continue;
+      }
+      // For optional auth, return null on final failure
+      return null;
+    }
   }
+
+  return null;
 }
 
 /**
@@ -254,7 +387,7 @@ export async function optionalAuthFromHeaders(
       isAgent: false,
     };
   } catch {
-    // Token verification failed - return null for optional auth
+    // For optional auth, return null on failure
     return null;
   }
 }

@@ -1,11 +1,16 @@
 /**
  * Agent P&L Service
  *
- * Handles P&L tracking, trade recording, and rollup to user accounts.
+ * Records trades and related agent activity logs.
+ *
+ * Trading P&L accounting (lifetimePnL, earned points) is handled by WalletService.recordPnL
+ * via the core market services. This service should not mutate lifetimePnL to avoid
+ * double-counting and inconsistencies across entry/exit fees and partial closes.
  *
  * @packageDocumentation
  */
 
+import { broadcastAgentActivity, type TradeActivityData } from '@babylon/api';
 import {
   agentLogs,
   agentTrades,
@@ -13,9 +18,11 @@ import {
   desc,
   eq,
   type JsonValue,
+  markets,
   users,
   withTransaction,
 } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
@@ -25,11 +32,11 @@ import { generateSnowflakeId } from '../shared/snowflake';
  */
 export class AgentPnLService {
   /**
-   * Records a trade for an agent and updates P&L
+   * Records a trade for an agent (for UI/performance tracking)
    *
    * @param params - Trade parameters
    * @param params.agentId - Agent ID
-   * @param params.userId - User ID
+   * @param params.userId - User ID (manager)
    * @param params.marketType - Market type (prediction or perp)
    * @param params.marketId - Market ID for prediction markets
    * @param params.ticker - Ticker for perpetual markets
@@ -55,7 +62,6 @@ export class AgentPnLService {
   }): Promise<void> {
     const {
       agentId,
-      userId,
       marketType,
       marketId,
       ticker,
@@ -67,10 +73,40 @@ export class AgentPnLService {
       reasoning,
     } = params;
 
+    // Generate trade ID before transaction so we can use it for broadcasting
+    const tradeId = uuidv4();
+
+    // Fetch agent name for broadcast (outside transaction for efficiency)
+    const agentResult = await db
+      .select({ displayName: users.displayName })
+      .from(users)
+      .where(eq(users.id, agentId))
+      .limit(1);
+
+    if (!agentResult[0]) {
+      logger.warn(
+        `Agent ${agentId} not found in database when recording trade - broadcast will use fallback name`,
+        undefined,
+        'AgentPnLService'
+      );
+    }
+    const agentName = agentResult[0]?.displayName ?? 'Agent';
+
+    // Fetch market question for prediction trades (for SSE broadcast enrichment)
+    let marketQuestion: string | undefined;
+    if (marketType === 'prediction' && marketId) {
+      const marketResult = await db
+        .select({ question: markets.question })
+        .from(markets)
+        .where(eq(markets.id, marketId))
+        .limit(1);
+      marketQuestion = marketResult[0]?.question;
+    }
+
     await withTransaction(async (tx) => {
       // Create trade record
       await tx.insert(agentTrades).values({
-        id: uuidv4(),
+        id: tradeId,
         agentUserId: agentId,
         marketType,
         marketId: marketId ?? null,
@@ -83,47 +119,6 @@ export class AgentPnLService {
         reasoning: reasoning ?? null,
       });
 
-      // Update agent P&L if provided
-      if (pnl !== undefined && pnl !== null) {
-        // Get current lifetimePnL
-        const agentResult = await tx
-          .select({ lifetimePnL: users.lifetimePnL })
-          .from(users)
-          .where(eq(users.id, agentId))
-          .limit(1);
-
-        const currentPnL = agentResult[0]?.lifetimePnL
-          ? Number.parseFloat(String(agentResult[0].lifetimePnL))
-          : 0;
-
-        await tx
-          .update(users)
-          .set({
-            lifetimePnL: String(currentPnL + pnl),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, agentId));
-
-        // Roll up to manager's totalAgentPnL
-        const managerResult = await tx
-          .select({ totalAgentPnL: users.totalAgentPnL })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
-
-        const currentManagerPnL = managerResult[0]?.totalAgentPnL
-          ? Number.parseFloat(String(managerResult[0].totalAgentPnL))
-          : 0;
-
-        await tx
-          .update(users)
-          .set({
-            totalAgentPnL: String(currentManagerPnL + pnl),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userId));
-      }
-
       // Log the trade
       await tx.insert(agentLogs).values({
         id: await generateSnowflakeId(),
@@ -131,12 +126,12 @@ export class AgentPnLService {
         type: 'trade',
         level: 'info',
         message: `Trade executed: ${action} ${side || ''} ${amount} @ ${price}`,
+        thinking: reasoning ?? null,
         metadata: {
           marketType,
           marketId,
           ticker,
           pnl,
-          reasoning,
         } as JsonValue,
       });
     });
@@ -146,6 +141,38 @@ export class AgentPnLService {
       undefined,
       'AgentPnLService'
     );
+
+    // Broadcast activity to SSE channel for real-time UI updates (only for user agents).
+    // NPCs (system-defined actors from static data files) don't need broadcasting
+    // since they aren't managed by users and won't have SSE subscriptions.
+    const isNpc = !!StaticDataRegistry.getActor(agentId);
+
+    if (!isNpc) {
+      // Fire-and-forget - if it fails, the trade is still recorded
+      const activityData: TradeActivityData = {
+        tradeId,
+        marketType,
+        marketId: marketId ?? null,
+        ticker: ticker ?? null,
+        marketQuestion,
+        action,
+        side: side ?? null,
+        amount,
+        price,
+        pnl: pnl ?? null,
+        reasoning: reasoning ?? null,
+      };
+
+      broadcastAgentActivity(agentId, agentName, 'trade', activityData).catch(
+        (error: Error) => {
+          logger.warn(
+            `Failed to broadcast agent activity: ${error.message}`,
+            { agentId, tradeId },
+            'AgentPnLService'
+          );
+        }
+      );
+    }
   }
 
   /**
@@ -160,44 +187,21 @@ export class AgentPnLService {
       .limit(limit);
   }
 
+  /**
+   * Get total agent P&L for a user (manager) by summing their agents' lifetimePnL
+   */
   async getUserAgentPnL(userId: string): Promise<number> {
-    const userResult = await db
-      .select({ totalAgentPnL: users.totalAgentPnL })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const user = userResult[0];
-    return user ? Number.parseFloat(String(user.totalAgentPnL)) : 0;
-  }
-
-  async syncUserAgentPnL(userId: string): Promise<void> {
-    // Filter by managedBy in application since Drizzle needs specific query
     const agentsResult = await db
-      .select({ lifetimePnL: users.lifetimePnL, managedBy: users.managedBy })
+      .select({ lifetimePnL: users.lifetimePnL })
       .from(users)
       .where(eq(users.managedBy, userId));
 
-    const totalPnL = agentsResult.reduce((sum, agent) => {
+    return agentsResult.reduce((sum, agent) => {
       return (
         sum +
         (agent.lifetimePnL ? Number.parseFloat(String(agent.lifetimePnL)) : 0)
       );
     }, 0);
-
-    await db
-      .update(users)
-      .set({
-        totalAgentPnL: String(totalPnL),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
-
-    logger.info(
-      `Synced agent P&L for user ${userId}: ${totalPnL}`,
-      undefined,
-      'AgentPnLService'
-    );
   }
 }
 

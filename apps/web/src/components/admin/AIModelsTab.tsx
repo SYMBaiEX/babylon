@@ -1,15 +1,10 @@
 'use client';
 
-import {
-  AlertCircle,
-  Bot,
-  Check,
-  RefreshCw,
-  Zap,
-} from 'lucide-react';
+import { cn } from '@babylon/shared';
+import { AlertCircle, Bot, Check, RefreshCw, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * AI model info structure.
@@ -57,8 +52,7 @@ export function AIModelsTab() {
   );
 
   const fetchData = useCallback(async () => {
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       setLoading(false);
@@ -89,8 +83,7 @@ export function AIModelsTab() {
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       toast.error('Not authenticated');
       setTesting(false);
@@ -237,10 +230,7 @@ export function AIModelsTab() {
         <h3 className="mb-4 font-semibold text-lg">Recommended Models</h3>
         <div className="grid grid-cols-1 gap-2">
           {data.recommendedModels.map((model) => (
-            <div
-              key={model.id}
-              className="rounded-lg border border-border p-4"
-            >
+            <div key={model.id} className="rounded-lg border border-border p-4">
               <div className="mb-1 font-medium">{model.name}</div>
               <div className="text-muted-foreground text-sm">
                 {model.description}
@@ -263,7 +253,8 @@ export function AIModelsTab() {
                 Groq Not Configured
               </p>
               <p className="mb-3 text-yellow-200/80">
-                To use Groq models (recommended), add your API key to the environment:
+                To use Groq models (recommended), add your API key to the
+                environment:
               </p>
               <code className="block rounded bg-black/30 p-3 font-mono text-xs text-yellow-100">
                 GROQ_API_KEY=your_api_key_here

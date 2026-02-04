@@ -1,42 +1,52 @@
 /**
  * Export rubrics to JSON for Python training to consume
- * 
- * Run with: bun run scripts/export-rubrics.ts
+ *
+ * IMPORTANT: TypeScript rubrics are the source of truth.
+ * Run this script whenever rubrics change to sync with Python:
+ *   bun run scripts/export-rubrics.ts
+ *
+ * The generated config/rubrics.json is read by Python's rubric_loader.py
  */
-import { RUBRICS, PRIORITY_METRICS, DEFAULT_RUBRIC, DEFAULT_PRIORITY_METRICS } from '../src/rubrics';
+
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  DEFAULT_PRIORITY_METRICS,
+  DEFAULT_RUBRIC,
+  getAvailableArchetypes,
+  PRIORITY_METRICS,
+  RUBRICS,
+} from '../src/rubrics';
 
 const outputPath = path.join(__dirname, '../config/rubrics.json');
 
-// Get unique archetypes (filter out aliases)
-const uniqueArchetypes = Object.keys(RUBRICS).filter(k => {
-  // Keep if it's not an alias (aliases don't have hyphens but point to same value as hyphenated version)
-  const normalized = k.replace(/-/g, '');
-  return k === normalized || RUBRICS[k] !== RUBRICS[normalized];
-});
+// Use the canonical list of archetypes (excludes aliases)
+const availableArchetypes = getAvailableArchetypes();
+
+// Filter RUBRICS to only include canonical entries (no aliases)
+const canonicalRubrics: Record<string, string> = {};
+for (const archetype of availableArchetypes) {
+  if (RUBRICS[archetype]) {
+    canonicalRubrics[archetype] = RUBRICS[archetype];
+  }
+}
+
+// Filter PRIORITY_METRICS to only include canonical entries
+const canonicalPriorityMetrics: Record<string, string[]> = {};
+for (const archetype of availableArchetypes) {
+  if (PRIORITY_METRICS[archetype]) {
+    canonicalPriorityMetrics[archetype] = PRIORITY_METRICS[archetype];
+  }
+}
 
 const exportData = {
-  rubrics: RUBRICS,
-  priorityMetrics: PRIORITY_METRICS,
+  rubrics: canonicalRubrics,
+  priorityMetrics: canonicalPriorityMetrics,
   defaults: {
     rubric: DEFAULT_RUBRIC,
     priorityMetrics: DEFAULT_PRIORITY_METRICS,
   },
-  availableArchetypes: [
-    'trader',
-    'social-butterfly', 
-    'scammer',
-    'degen',
-    'researcher',
-    'information-trader',
-    'goody-twoshoes',
-    'ass-kisser',
-    'perps-trader',
-    'super-predictor',
-    'infosec',
-    'liar',
-  ],
+  availableArchetypes,
 };
 
 // Ensure config directory exists
@@ -45,9 +55,10 @@ if (!fs.existsSync(configDir)) {
   fs.mkdirSync(configDir, { recursive: true });
 }
 
-fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2));
+fs.writeFileSync(outputPath, `${JSON.stringify(exportData, null, 2)}\n`);
 console.log(`✓ Exported rubrics to ${outputPath}`);
-console.log(`  - ${Object.keys(RUBRICS).length} rubric entries`);
-console.log(`  - ${exportData.availableArchetypes.length} unique archetypes`);
-
-
+console.log(`  - ${Object.keys(canonicalRubrics).length} rubric entries`);
+console.log(`  - ${availableArchetypes.length} available archetypes`);
+console.log(
+  '\nNote: TypeScript rubrics are the source of truth. Run this script after making rubric changes.'
+);

@@ -1,12 +1,12 @@
 'use client';
 
+import { getProfileUrl, POINTS } from '@babylon/shared';
 import { ArrowRight, Award, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { POINTS } from '@babylon/shared';
-import { getProfileUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Referred user structure for rewards widget.
@@ -107,8 +107,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
       setLoading(true);
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) {
         setLoading(false);
         rewardsWidgetFetchInFlight = false;

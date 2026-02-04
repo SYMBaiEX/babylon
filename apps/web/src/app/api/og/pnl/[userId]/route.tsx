@@ -40,10 +40,10 @@
  * ```
  */
 
+import { db } from '@babylon/db';
+import { calculatePortfolioBreakdown } from '@babylon/engine';
 import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
-import { db } from '@babylon/db';
-import { calculatePortfolioPnL } from '@babylon/engine';
 
 // Use Node.js runtime for full database support
 export const runtime = 'nodejs';
@@ -68,13 +68,13 @@ export async function GET(
         profileImageUrl: true,
       },
     }),
-    calculatePortfolioPnL(userId),
+    calculatePortfolioBreakdown(userId),
   ]);
 
   const displayName = user?.displayName || user?.username || 'Babylon User';
   const totalPnL = pnlData?.totalPnL || 0;
-  const accountEquity = pnlData?.accountEquity || 0;
-  const availableBalance = pnlData?.availableBalance || 0;
+  const totalAssets = pnlData?.totalAssets || 0;
+  const availableBalance = pnlData?.available || 0;
   const pnlSign = totalPnL >= 0 ? '+' : '';
   const pnlColor = totalPnL >= 0 ? '#10B981' : '#EF4444';
 
@@ -229,7 +229,7 @@ export async function GET(
                 display: 'flex',
               }}
             >
-              ${accountEquity.toFixed(2)}
+              ${totalAssets.toFixed(2)}
             </div>
           </div>
 

@@ -43,15 +43,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  BusinessLogicError,
+  PointsService,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
+import { logger, UserIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 // Babylon Farcaster FID (playbabylon)
 const BABYLON_FARCASTER_FID = process.env.FARCASTER_FID || '1521916'; // playbabylon FID
@@ -132,100 +135,86 @@ export const POST = withErrorHandling(
     let isFollowing = false;
     let verificationError: string | null = null;
 
-    try {
+    logger.info(
+      'Attempting to verify Farcaster follow',
+      { userId: canonicalUserId, userFid, babylonFid: BABYLON_FARCASTER_FID },
+      'POST /api/users/[userId]/verify-farcaster-follow'
+    );
+
+    // Use Neynar API to check relationship between user and Babylon
+    // Using viewer_fid to get viewer_context from Babylon's perspective
+    const neynarResponse = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${BABYLON_FARCASTER_FID}`,
+      {
+        headers: {
+          accept: 'application/json',
+          api_key: process.env.NEYNAR_API_KEY,
+        },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      }
+    );
+
+    if (neynarResponse.ok) {
+      const neynarData = await neynarResponse.json();
+
       logger.info(
-        'Attempting to verify Farcaster follow',
-        { userId: canonicalUserId, userFid, babylonFid: BABYLON_FARCASTER_FID },
+        'Neynar API response received',
+        { userId: canonicalUserId, hasUsers: !!neynarData.users },
         'POST /api/users/[userId]/verify-farcaster-follow'
       );
 
-      // Use Neynar API to check relationship between user and Babylon
-      // Using viewer_fid to get viewer_context from Babylon's perspective
-      const neynarResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${BABYLON_FARCASTER_FID}`,
-        {
-          headers: {
-            accept: 'application/json',
-            api_key: process.env.NEYNAR_API_KEY,
-          },
-          signal: AbortSignal.timeout(10000), // 10 second timeout
-        }
-      );
+      if (neynarData.users && neynarData.users.length > 0) {
+        const userData = neynarData.users[0];
 
-      if (neynarResponse.ok) {
-        const neynarData = await neynarResponse.json();
+        // Check viewer_context to see if user follows Babylon
+        // viewer_context is from Babylon's perspective (viewer_fid=BABYLON_FARCASTER_FID):
+        //   - followed_by: true = user follows Babylon ✅ (this is what we want!)
+        //   - following: true = Babylon follows user (not what we want)
+        const viewerContext = userData.viewer_context;
 
-        logger.info(
-          'Neynar API response received',
-          { userId: canonicalUserId, hasUsers: !!neynarData.users },
-          'POST /api/users/[userId]/verify-farcaster-follow'
-        );
-
-        if (neynarData.users && neynarData.users.length > 0) {
-          const userData = neynarData.users[0];
-
-          // Check viewer_context to see if user follows Babylon
-          // viewer_context is from Babylon's perspective (viewer_fid=BABYLON_FARCASTER_FID):
-          //   - followed_by: true = user follows Babylon ✅ (this is what we want!)
-          //   - following: true = Babylon follows user (not what we want)
-          const viewerContext = userData.viewer_context;
-
-          if (viewerContext && viewerContext.followed_by) {
-            isFollowing = true;
-            logger.info(
-              'User is following @playbabylon',
-              { userId: canonicalUserId, userFid },
-              'POST /api/users/[userId]/verify-farcaster-follow'
-            );
-          } else {
-            verificationError =
-              'You are not following @playbabylon on Farcaster. Please follow first.';
-            logger.warn(
-              'User is not following @playbabylon',
-              { userId: canonicalUserId, userFid, viewerContext },
-              'POST /api/users/[userId]/verify-farcaster-follow'
-            );
-          }
-        } else {
-          verificationError =
-            'User not found on Farcaster. Please re-link your account.';
-          logger.warn(
-            'User not found in Neynar response',
+        if (viewerContext && viewerContext.followed_by) {
+          isFollowing = true;
+          logger.info(
+            'User is following @playbabylon',
             { userId: canonicalUserId, userFid },
             'POST /api/users/[userId]/verify-farcaster-follow'
           );
+        } else {
+          verificationError =
+            'You are not following @playbabylon on Farcaster. Please follow first.';
+          logger.warn(
+            'User is not following @playbabylon',
+            { userId: canonicalUserId, userFid, viewerContext },
+            'POST /api/users/[userId]/verify-farcaster-follow'
+          );
         }
-      } else if (neynarResponse.status === 404) {
+      } else {
         verificationError =
-          'User not found on Farcaster. Please check your account.';
+          'User not found on Farcaster. Please re-link your account.';
         logger.warn(
-          'User not found (404) via Neynar',
+          'User not found in Neynar response',
           { userId: canonicalUserId, userFid },
           'POST /api/users/[userId]/verify-farcaster-follow'
         );
-      } else {
-        const errorText = await neynarResponse.text().catch(() => '');
-        verificationError = `Neynar API error (${neynarResponse.status}). Please try again later.`;
-        logger.error(
-          'Neynar API error',
-          {
-            userId: canonicalUserId,
-            userFid,
-            status: neynarResponse.status,
-            error: errorText,
-          },
-          'POST /api/users/[userId]/verify-farcaster-follow'
-        );
       }
-    } catch (error) {
+    } else if (neynarResponse.status === 404) {
       verificationError =
-        'Failed to verify with Neynar API. Please try again later.';
+        'User not found on Farcaster. Please check your account.';
+      logger.warn(
+        'User not found (404) via Neynar',
+        { userId: canonicalUserId, userFid },
+        'POST /api/users/[userId]/verify-farcaster-follow'
+      );
+    } else {
+      const errorText = await neynarResponse.text().catch(() => '');
+      verificationError = `Neynar API error (${neynarResponse.status}). Please try again later.`;
       logger.error(
-        'Neynar API verification exception',
+        'Neynar API error',
         {
           userId: canonicalUserId,
           userFid,
-          error: error instanceof Error ? error.message : String(error),
+          status: neynarResponse.status,
+          error: errorText,
         },
         'POST /api/users/[userId]/verify-farcaster-follow'
       );

@@ -2,7 +2,7 @@
 
 Complete documentation for Babylon social conspiracy game, built with Nextra.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/elizaos/babylon&project-name=babylon-docs&root-directory=docs)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/BabylonSocial/babylon&project-name=babylon-docs&root-directory=docs)
 
 ---
 
@@ -13,7 +13,7 @@ Complete documentation for Babylon social conspiracy game, built with Nextra.
 Click the button above or visit:
 
 ```
-https://vercel.com/new/clone?repository-url=https://github.com/elizaos/babylon&project-name=babylon-docs&root-directory=docs
+https://vercel.com/new/clone?repository-url=https://github.com/BabylonSocial/babylon&project-name=babylon-docs&root-directory=docs
 ```
 
 This will:
@@ -150,13 +150,13 @@ bun install
 bun run dev
 ```
 
-Visit `http://localhost:3001` to view the documentation.
+Visit `http://localhost:3002` to view the documentation.
 
 ### Available Scripts
 
 ```bash
 # Development
-bun run dev              # Start dev server (port 3001)
+bun run dev              # Start dev server (port 3002)
 bun run build            # Build for production
 bun run start            # Start production server
 
@@ -462,10 +462,10 @@ bun run build
 
 ### Dev Server Issues
 
-**Error**: "Port 3001 already in use"
+**Error**: "Port 3002 already in use"
 ```bash
 # Use different port
-bun run dev -- -p 3002
+bun run dev -- -p 3003
 ```
 
 **Error**: "Module not found" during dev
@@ -712,7 +712,7 @@ For internal docs, enable in Vercel:
 
 ### Development
 
-- **Local**: `http://localhost:3001`
+- **Local**: `http://localhost:3002`
 - **Use**: Build new features
 
 ---
@@ -771,7 +771,7 @@ Expected scores:
 
 ### Documentation Issues
 
-- **GitHub**: [github.com/elizaos/babylon/issues](https://github.com/elizaos/babylon/issues)
+- **GitHub**: [github.com/BabylonSocial/babylon/issues](https://github.com/BabylonSocial/babylon/issues)
 - **Discord**: [discord.gg/babylon](https://discord.gg/babylon)
 
 ### Nextra Issues

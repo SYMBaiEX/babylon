@@ -5,7 +5,17 @@
  * how often users can update their profiles.
  */
 
-import { and, asc, count, db, desc, eq, gte, profileUpdateLogs, sql } from '@babylon/db';
+import {
+  and,
+  asc,
+  count,
+  db,
+  desc,
+  eq,
+  gte,
+  profileUpdateLogs,
+  sql,
+} from '@babylon/db';
 import { generateSnowflakeId, logger } from '@babylon/shared';
 
 interface RateLimitConfig {
@@ -199,4 +209,3 @@ export async function getProfileUpdateHistory(
     .orderBy(desc(profileUpdateLogs.createdAt))
     .limit(limit);
 }
-

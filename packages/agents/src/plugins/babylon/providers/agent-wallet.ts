@@ -61,42 +61,41 @@ export const agentWalletProvider: Provider = {
       };
     }
 
-    try {
-      // Get balance and positions via A2A
-      const [balanceData, positionsData] = await Promise.all([
-        babylonRuntime.a2aClient.getBalance(),
-        babylonRuntime.a2aClient.getPositions(agentUserId),
-      ]);
+    // Get balance and positions via A2A
+    const [balanceData, positionsData] = await Promise.all([
+      babylonRuntime.a2aClient.getBalance(agentUserId),
+      babylonRuntime.a2aClient.getPositions(agentUserId),
+    ]);
 
-      // Validate response structures match expected types using type guards
-      if (
-        !balanceData ||
-        typeof balanceData !== 'object' ||
-        !isA2ABalanceResponse(balanceData)
-      ) {
-        throw new Error('Invalid balance data format from A2A client');
-      }
-      if (
-        !positionsData ||
-        typeof positionsData !== 'object' ||
-        !isA2APositionsResponse(positionsData)
-      ) {
-        throw new Error('Invalid positions data format from A2A client');
-      }
-      const balance = balanceData;
-      const positions = positionsData;
+    // Validate response structures match expected types using type guards
+    if (
+      !balanceData ||
+      typeof balanceData !== 'object' ||
+      !isA2ABalanceResponse(balanceData)
+    ) {
+      throw new Error('Invalid balance data format from A2A client');
+    }
+    if (
+      !positionsData ||
+      typeof positionsData !== 'object' ||
+      !isA2APositionsResponse(positionsData)
+    ) {
+      throw new Error('Invalid positions data format from A2A client');
+    }
+    const balance = balanceData;
+    const positions = positionsData;
 
-      const totalUnrealizedPnL =
-        (positions.marketPositions?.reduce(
-          (sum, p) => sum + (p.unrealizedPnL || 0),
-          0
-        ) || 0) +
-        (positions.perpPositions?.reduce(
-          (sum, p) => sum + (p.unrealizedPnL || 0),
-          0
-        ) || 0);
+    const totalUnrealizedPnL =
+      (positions.marketPositions?.reduce(
+        (sum, p) => sum + (p.unrealizedPnL || 0),
+        0
+      ) || 0) +
+      (positions.perpPositions?.reduce(
+        (sum, p) => sum + (p.unrealizedPnL || 0),
+        0
+      ) || 0);
 
-      let output = `🤖 Your Wallet & Investments:
+    let output = `🤖 Your Wallet & Investments:
 
 💰 BALANCES:
 • Virtual Balance: $${(balance.balance || 0).toFixed(2)}
@@ -105,28 +104,28 @@ export const agentWalletProvider: Provider = {
 
 `;
 
-      // Prediction Market Positions
-      if (positions.marketPositions && positions.marketPositions.length > 0) {
-        output += `📊 PREDICTION MARKET POSITIONS (${positions.marketPositions.length}):
+    // Prediction Market Positions
+    if (positions.marketPositions && positions.marketPositions.length > 0) {
+      output += `📊 PREDICTION MARKET POSITIONS (${positions.marketPositions.length}):
 ${positions.marketPositions
   .map((p) => {
-    return `• ${p.question.substring(0, 60)}...
-  Side: ${p.side.toUpperCase()} | Shares: ${p.shares.toFixed(2)} @ avg $${p.avgPrice.toFixed(2)}
-  Current: $${p.currentPrice.toFixed(2)} | Value: $${(p.shares * p.currentPrice).toFixed(2)}
+    return `• ${(p.question || 'Unknown Market').substring(0, 60)}...
+  Side: ${(p.side || 'UNKNOWN').toUpperCase()} | Shares: ${(p.shares || 0).toFixed(2)} @ avg $${(p.avgPrice || 0).toFixed(2)}
+  Current: $${(p.currentPrice || 0).toFixed(2)} | Value: $${((p.shares || 0) * (p.currentPrice || 0)).toFixed(2)}
   P&L: ${(p.unrealizedPnL || 0) >= 0 ? '+' : ''}$${(p.unrealizedPnL || 0).toFixed(2)}`;
   })
   .join('\n\n')}
 
 `;
-      } else {
-        output += `📊 PREDICTION MARKET POSITIONS: None
+    } else {
+      output += `📊 PREDICTION MARKET POSITIONS: None
 
 `;
-      }
+    }
 
-      // Perpetual Positions
-      if (positions.perpPositions && positions.perpPositions.length > 0) {
-        output += `🔮 PERPETUAL POSITIONS (${positions.perpPositions.length}):
+    // Perpetual Positions
+    if (positions.perpPositions && positions.perpPositions.length > 0) {
+      output += `🔮 PERPETUAL POSITIONS (${positions.perpPositions.length}):
 ${positions.perpPositions
   .map((p) => {
     const amount = p.amount || p.size || 0;
@@ -136,32 +135,24 @@ ${positions.perpPositions
   .join('\n\n')}
 
 `;
-      }
-
-      if (totalUnrealizedPnL !== 0) {
-        output += `Total Unrealized P&L: ${totalUnrealizedPnL >= 0 ? '+' : ''}$${totalUnrealizedPnL.toFixed(2)}`;
-      }
-
-      return {
-        text: output,
-        data: {
-          balances: {
-            virtualBalance: balance.balance || 0,
-            reputationPoints: balance.reputationPoints || 0,
-            lifetimePnL: balance.lifetimePnL || 0,
-          },
-          marketPositions: positions.marketPositions || [],
-          perpPositions: positions.perpPositions || [],
-          totalUnrealizedPnL,
-        },
-      };
-    } catch (error) {
-      logger.error(
-        'Failed to fetch agent wallet via A2A',
-        error,
-        'AgentWalletProvider'
-      );
-      throw error;
     }
+
+    if (totalUnrealizedPnL !== 0) {
+      output += `Total Unrealized P&L: ${totalUnrealizedPnL >= 0 ? '+' : ''}$${totalUnrealizedPnL.toFixed(2)}`;
+    }
+
+    return {
+      text: output,
+      data: {
+        balances: {
+          virtualBalance: balance.balance || 0,
+          reputationPoints: balance.reputationPoints || 0,
+          lifetimePnL: balance.lifetimePnL || 0,
+        },
+        marketPositions: positions.marketPositions || [],
+        perpPositions: positions.perpPositions || [],
+        totalUnrealizedPnL,
+      },
+    };
   },
 };

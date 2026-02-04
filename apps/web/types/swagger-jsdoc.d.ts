@@ -5,8 +5,9 @@ declare module 'swagger-jsdoc' {
     definition: Record<string, unknown>;
     apis: string[];
   };
-  type SwaggerJsdocFunction = (options: SwaggerJsdocOptions) => Record<string, unknown>;
+  type SwaggerJsdocFunction = (
+    options: SwaggerJsdocOptions
+  ) => Record<string, unknown>;
   const swaggerJsdoc: SwaggerJsdocFunction;
   export default swaggerJsdoc;
 }
-

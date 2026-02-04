@@ -16,15 +16,17 @@ export * from './autonomous';
 // Communication
 export * from './communication/CommunicationHub';
 export * from './communication/EventBus';
+// Errors
+export * from './errors';
 // External agent adapter
 export {
+  type AgentResponse,
   AuthMethod,
   ExternalAgentAdapter,
   type ExternalAgentConnection,
   type ExternalAgentMessage,
   getExternalAgentAdapter,
   type Protocol,
-  type AgentResponse,
 } from './external/ExternalAgentAdapter';
 // Identity and wallet management
 export * from './identity/AgentIdentityService';
@@ -40,27 +42,34 @@ export {
 export type { BabylonRuntime } from './plugins/babylon/types';
 // Plugin utilities
 export { groqPlugin } from './plugins/groq';
-// Plugin sub-exports for trajectory logging, autonomy, experience
-export * from './plugins/plugin-trajectory-logger/src';
+export * from './plugins/plugin-agent-core/src';
 export * from './plugins/plugin-autonomy/src';
 export * from './plugins/plugin-experience/src';
+// Plugin sub-exports for trajectory logging, autonomy, experience
+export * from './plugins/plugin-trajectory-logger/src';
 // Runtime
 export * from './runtime/AgentRuntimeManager';
 // Services
 export * from './services';
-// Core types
-export * from './types';
-export * from './types/goals';
-export * from './types/agent-template';
+// Shared utilities
+export {
+  getAgentConfig,
+  getAutonomousFeatures,
+  hasAnyAutonomousFeature,
+  isAutonomousCommentingEnabled,
+  isAutonomousDMsEnabled,
+  isAutonomousGroupChatsEnabled,
+  isAutonomousPostingEnabled,
+  isAutonomousTradingEnabled,
+} from './shared/agent-config';
 // Templates loader
 export * from './templates-loader';
-
 // Training utilities (RL model fetching, config)
 export * from './training';
-
+// Core types
+export * from './types';
+export * from './types/agent-template';
+export * from './types/goals';
 // Utils
 export * from './utils/createTestAgent';
 export * from './utils/prompt-builder';
-
-// Errors
-export * from './errors';

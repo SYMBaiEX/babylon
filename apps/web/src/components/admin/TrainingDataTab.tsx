@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   CheckCircle,
@@ -9,8 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Training data statistics structure for training data tab.
@@ -74,43 +74,28 @@ export function TrainingDataTab() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    try {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch('/api/admin/training-data', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch training data');
-
-      let result;
-      try {
-        result = await response.json();
-      } catch (parseError) {
-        logger.error(
-          'Failed to parse training data response',
-          { error: parseError },
-          'TrainingDataTab'
-        );
-        throw new Error('Failed to parse response');
-      }
-      setData(result.data);
+    const token = getAuthToken();
+    if (!token) {
       setLoading(false);
-    } catch (error) {
-      logger.error(
-        'Failed to load training data',
-        { error },
-        'TrainingDataTab'
-      );
-      toast.error('Failed to load training data');
-      setLoading(false);
+      toast.error('Not authenticated');
+      return;
     }
+
+    const response = await fetch('/api/admin/training-data', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      setLoading(false);
+      toast.error('Failed to load training data');
+      return;
+    }
+
+    const result = await response.json();
+    setData(result.data);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -358,17 +343,11 @@ export function TrainingDataTab() {
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
             <div className="text-sm">
               <p className="mb-2 font-medium text-yellow-200">
-                No Training Data Collected
+                No Training Data Collected Yet
               </p>
-              <p className="mb-3 text-yellow-200/80">
-                Enable trajectory recording to collect training data:
-              </p>
-              <code className="block rounded bg-black/30 p-3 font-mono text-xs text-yellow-100">
-                RECORD_AGENT_TRAJECTORIES=true
-              </code>
-              <p className="mt-3 text-yellow-200/80">
-                Then run agents through benchmarks or wait for game ticks to
-                collect data.
+              <p className="text-yellow-200/80">
+                Trajectory recording is always enabled. Run agents through
+                benchmarks or wait for game ticks to collect training data.
               </p>
             </div>
           </div>

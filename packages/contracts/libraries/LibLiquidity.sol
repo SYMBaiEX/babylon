@@ -171,7 +171,12 @@ library LibLiquidity {
         }
 
         // Pending = (shares * accRewardPerShare) / 1e18 - claimed
-        return (position.shares * accRewardPerShare) / 1e18 - position.rewardsClaimed;
+        // Guard against underflow (can happen if rewards were claimed before proper tracking)
+        uint256 totalEarned = (position.shares * accRewardPerShare) / 1e18;
+        if (totalEarned <= position.rewardsClaimed) {
+            return 0;
+        }
+        return totalEarned - position.rewardsClaimed;
     }
 
     /// @notice Calculate utilization rate
@@ -210,6 +215,9 @@ library LibLiquidity {
         uint256 k,
         uint256 tolerance
     ) internal pure returns (bool) {
+        // Prevent division by zero
+        if (k == 0) return reserveA * reserveB == 0;
+        
         uint256 currentK = reserveA * reserveB;
 
         // Allow small tolerance for rounding errors

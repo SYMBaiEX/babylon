@@ -4,5 +4,4 @@
  * Re-exports logger utilities for use within the agents package.
  */
 
-export { logger, Logger, type LogLevel } from '@babylon/shared';
-
+export { Logger, type LogLevel, logger } from '@babylon/shared';

@@ -3,14 +3,18 @@
  * when navigating between pages
  */
 
-import { create } from 'zustand';
 import type { A2AReputationResponse } from '@babylon/agents/client';
+import type { PortfolioBreakdownSnapshot } from '@babylon/engine/client';
 import type {
+  ArticleItem,
   PerpPositionFromAPI,
   PredictionPosition,
-  UserBalanceData,
   UserProfileStats,
 } from '@babylon/shared';
+import { create } from 'zustand';
+
+// Re-export ArticleItem for consumers that import from this file
+export type { ArticleItem } from '@babylon/shared';
 
 /**
  * Trending item structure for trending panel (supports grouped trends).
@@ -40,20 +44,6 @@ export interface BreakingNewsItem {
   relatedQuestion?: number;
   relatedActorId?: string;
   relatedOrganizationId?: string;
-}
-
-export interface ArticleItem {
-  id: string;
-  title: string;
-  summary: string;
-  authorOrgName: string;
-  byline?: string;
-  sentiment?: string;
-  category?: string;
-  publishedAt: string;
-  relatedQuestion?: number;
-  slant?: string;
-  biasScore?: number;
 }
 
 export interface MarketsWidgetData {
@@ -105,7 +95,7 @@ export interface BabylonStats {
 }
 
 interface ProfileWidgetData {
-  balance: UserBalanceData | null;
+  portfolio: PortfolioBreakdownSnapshot | null;
   predictions: PredictionPosition[];
   perps: PerpPositionFromAPI[];
   stats: UserProfileStats | null;

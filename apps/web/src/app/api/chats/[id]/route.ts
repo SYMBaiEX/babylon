@@ -51,10 +51,18 @@
  *         description: Chat not found
  */
 
-import type { NextRequest } from 'next/server';
 import {
-  actors,
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
+import {
   and,
+  asSystem,
+  asUser,
   chatParticipants,
   chats,
   desc,
@@ -64,12 +72,15 @@ import {
   messages,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { asSystem, asUser } from '@babylon/db';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { ChatQuerySchema } from '@babylon/shared';
+import { StaticDataRegistry } from '@babylon/engine';
+import {
+  ChatQuerySchema,
+  getChainName,
+  getCurrentChainId,
+  logger,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { CHAT_PAGE_SIZE } from '@/lib/constants';
 
 /**
  * GET /api/chats/[id]
@@ -97,7 +108,7 @@ export const GET = withErrorHandling(
     const validatedQuery = ChatQuerySchema.parse(query);
 
     // Parse pagination parameters
-    const limit = limitParam ? Number.parseInt(limitParam, 10) : 50;
+    const limit = limitParam ? Number.parseInt(limitParam, 10) : CHAT_PAGE_SIZE;
     const effectiveLimit = Math.min(Math.max(limit, 1), 100); // Between 1 and 100
 
     // Check for debug mode (localhost access to game chats)
@@ -160,6 +171,8 @@ export const GET = withErrorHandling(
           'read'
         );
       }
+
+      await requireNftChatAccess(authUser, chatId);
     }
 
     // Get chat with messages
@@ -225,30 +238,34 @@ export const GET = withErrorHandling(
       const participantUserIds = fullChat.participants.map((p) => p.userId);
       const senderIds = [...new Set(fullChat.messages.map((m) => m.senderId))];
 
+      // Combine participant IDs and sender IDs to include users who left but still have messages
+      const allUserIds = [
+        ...new Set([...participantUserIds, ...(senderIds as string[])]),
+      ].filter((id) => id !== 'system'); // Exclude system sender
+
       const usersList =
-        participantUserIds.length > 0
+        allUserIds.length > 0
           ? await db
               .select({
                 id: users.id,
                 displayName: users.displayName,
                 username: users.username,
                 profileImageUrl: users.profileImageUrl,
+                isAgent: users.isAgent,
+                managedBy: users.managedBy,
               })
               .from(users)
-              .where(inArray(users.id, participantUserIds))
+              .where(inArray(users.id, allUserIds))
           : [];
 
-      const actorsList =
-        senderIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                profileImageUrl: actors.profileImageUrl,
-              })
-              .from(actors)
-              .where(inArray(actors.id, senderIds as string[]))
-          : [];
+      const actorsList = (senderIds as string[])
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
       return { users: usersList, actors: actorsList };
     };
@@ -260,41 +277,51 @@ export const GET = withErrorHandling(
     const usersMap = new Map(usersList.map((u) => [u.id, u]));
     const actorsMap = new Map(actorsList.map((a) => [a.id, a]));
 
-    // Get unique sender IDs from messages (for debug mode)
+    // Get unique sender IDs from messages
     const senderIds = [...new Set(fullChat.messages.map((m) => m.senderId))];
+    const participantUserIds = new Set(
+      fullChat.participants.map((p) => p.userId)
+    );
 
-    // Build participants list from ChatParticipants or message senders (for debug mode)
-    const participantsInfo =
-      fullChat.participants.length > 0
-        ? fullChat.participants.map((p) => {
-            const user = usersMap.get(p.userId);
-            const actor = actorsMap.get(p.userId);
-            return {
-              id: p.userId,
-              displayName: user?.displayName || actor?.name || 'Unknown',
-              username: user?.username,
-              profileImageUrl: user?.profileImageUrl || actor?.profileImageUrl,
-            };
-          })
-        : // In debug mode with no participants, use actors from messages
-          (senderIds as string[]).map((senderId: string) => {
-            const actor = actorsMap.get(senderId);
-            const user = usersMap.get(senderId);
-            return {
-              id: senderId,
-              displayName: actor?.name || user?.displayName || 'Unknown',
-              username: user?.username,
-              profileImageUrl: actor?.profileImageUrl || user?.profileImageUrl,
-            };
-          });
+    // Build participants list including both active participants AND message senders
+    // This ensures users who left the chat still have their names displayed on old messages
+    const participantsInfo = [
+      // Active participants
+      ...fullChat.participants.map((p) => {
+        const user = usersMap.get(p.userId);
+        const actor = actorsMap.get(p.userId);
+        return {
+          id: p.userId,
+          displayName: user?.displayName || actor?.name || 'Unknown',
+          username: user?.username,
+          profileImageUrl: user?.profileImageUrl || actor?.profileImageUrl,
+        };
+      }),
+      // Message senders who are no longer participants (left the chat)
+      ...(senderIds as string[])
+        .filter((id) => id !== 'system' && !participantUserIds.has(id))
+        .map((senderId) => {
+          const user = usersMap.get(senderId);
+          const actor = actorsMap.get(senderId);
+          return {
+            id: senderId,
+            displayName: user?.displayName || actor?.name || 'Unknown',
+            username: user?.username,
+            profileImageUrl: user?.profileImageUrl || actor?.profileImageUrl,
+          };
+        }),
+    ];
 
     // For DMs, get the other participant's name and details
+    // Include isAgent and managedBy to detect if this is the user's own agent
     let displayName = chat.name;
     let otherUser: {
       id: string;
       displayName: string | null;
       username: string | null;
       profileImageUrl: string | null;
+      isAgent?: boolean;
+      managedBy?: string | null;
     } | null = null;
     if (!chat.isGroup && !chat.name && userId) {
       const otherParticipant = fullChat.participants.find(
@@ -310,6 +337,8 @@ export const GET = withErrorHandling(
             displayName: otherUserData.displayName,
             username: otherUserData.username,
             profileImageUrl: otherUserData.profileImageUrl,
+            isAgent: otherUserData.isAgent,
+            managedBy: otherUserData.managedBy,
           };
         }
       }
@@ -343,20 +372,47 @@ export const GET = withErrorHandling(
       'GET /api/chats/[id]'
     );
 
+    const chatResponse: {
+      id: string;
+      name: string | null;
+      isGroup: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      otherUser: typeof otherUser;
+      nftRequirement?: {
+        contractAddress: string;
+        tokenId: number | null;
+        chainId: number;
+        chainName: string;
+      };
+    } = {
+      id: chat.id,
+      name: displayName || chat.name,
+      isGroup: chat.isGroup,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      otherUser: otherUser,
+    };
+
+    if (chat.nftGated && chat.requiredNftContractAddress) {
+      const chainId = chat.requiredNftChainId ?? getCurrentChainId();
+      chatResponse.nftRequirement = {
+        contractAddress: chat.requiredNftContractAddress,
+        tokenId: chat.requiredNftTokenId,
+        chainId,
+        chainName: getChainName(chainId),
+      };
+    }
+
     return successResponse({
-      chat: {
-        id: chat.id,
-        name: displayName || chat.name,
-        isGroup: chat.isGroup,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        otherUser: otherUser,
-      },
+      chat: chatResponse,
       messages: messagesInOrder.map((msg) => ({
         id: msg.id,
         content: msg.content,
         senderId: msg.senderId,
+        type: msg.type,
         createdAt: msg.createdAt,
+        metadata: msg.metadata,
       })),
       participants: participantsInfo,
       pagination: {

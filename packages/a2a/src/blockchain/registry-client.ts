@@ -3,9 +3,9 @@
  * Blockchain integration for agent identity and reputation
  */
 
-import { ethers, type Contract } from 'ethers';
+import { type JsonValue, Logger } from '@babylon/shared';
+import { type Contract, ethers } from 'ethers';
 import { z } from 'zod';
-import { Logger, type JsonValue } from '@babylon/shared';
 import type { AgentProfile, AgentReputation } from '../types/a2a';
 import type {
   IdentityRegistryContract,

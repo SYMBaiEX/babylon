@@ -1,31 +1,13 @@
 'use client';
 
-import { AlertCircle, Newspaper, TrendingUp } from 'lucide-react';
+import { type ArticleItem, logger } from '@babylon/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 // ArticleDetailModal removed - articles now use /post/[id] page
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext';
 import { useSSEChannel } from '@/hooks/useSSE';
-import { logger } from '@babylon/shared';
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore';
-
-/**
- * Article item structure for latest news panel.
- */
-interface ArticleItem {
-  id: string;
-  title: string;
-  summary: string;
-  authorOrgName: string;
-  byline?: string;
-  sentiment?: string;
-  category?: string;
-  publishedAt: string;
-  relatedQuestion?: number;
-  slant?: string;
-  biasScore?: number;
-}
 
 /**
  * Latest news panel component for displaying recent articles.
@@ -57,77 +39,100 @@ export function LatestNewsPanel() {
    * Deduplicate articles about the same event
    * Uses improved heuristics: combines category, title similarity, and publish time proximity
    */
-  const deduplicateArticles = useCallback((articles: ArticleItem[]): ArticleItem[] => {
-    if (articles.length <= 1) return articles;
+  const deduplicateArticles = useCallback(
+    (articles: ArticleItem[]): ArticleItem[] => {
+      if (articles.length <= 1) return articles;
 
-    const uniqueArticles: ArticleItem[] = [];
-    const seenArticles: Array<{
-      article: ArticleItem;
-      titleWords: Set<string>;
-      timestamp: number;
-    }> = [];
+      const uniqueArticles: ArticleItem[] = [];
+      const seenArticles: Array<{
+        article: ArticleItem;
+        titleWords: Set<string>;
+        timestamp: number;
+      }> = [];
 
-    // Sort by published date (most recent first)
-    const sorted = [...articles].sort(
-      (a, b) =>
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    );
-
-    for (const article of sorted) {
-      // Extract significant words from title (3+ chars, excluding common words)
-      const commonWords = new Set([
-        'the',
-        'and',
-        'for',
-        'are',
-        'but',
-        'not',
-        'you',
-        'all',
-        'can',
-        'her',
-        'was',
-        'one',
-        'our',
-        'out',
-        'day',
-        'has',
-      ]);
-      const titleWords = new Set(
-        article.title
-          .toLowerCase()
-          .replace(/[^a-z0-9\s]/g, '')
-          .split(' ')
-          .filter((w) => w.length > 3 && !commonWords.has(w))
+      // Sort by published date (most recent first)
+      const sorted = [...articles].sort(
+        (a, b) =>
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       );
 
-      const timestamp = new Date(article.publishedAt).getTime();
+      for (const article of sorted) {
+        // Extract significant words from title (3+ chars, excluding common words)
+        const commonWords = new Set([
+          'the',
+          'and',
+          'for',
+          'are',
+          'but',
+          'not',
+          'you',
+          'all',
+          'can',
+          'her',
+          'was',
+          'one',
+          'our',
+          'out',
+          'day',
+          'has',
+        ]);
+        const titleWords = new Set(
+          article.title
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .split(' ')
+            .filter((w) => w.length > 3 && !commonWords.has(w))
+        );
 
-      // Check if this is a duplicate of an existing article
-      let isDuplicate = false;
-      for (const seen of seenArticles) {
-        // Rule 1: Same category + significant title overlap + published within 6 hours
-        const timeDiff = Math.abs(timestamp - seen.timestamp);
-        const isSameTimeWindow = timeDiff < 6 * 60 * 60 * 1000; // 6 hours
+        const timestamp = new Date(article.publishedAt).getTime();
 
-        if (isSameTimeWindow && article.category === seen.article.category) {
-          // Calculate word overlap
+        // Check if this is a duplicate of an existing article
+        let isDuplicate = false;
+        for (const seen of seenArticles) {
+          // Rule 1: Same category + significant title overlap + published within 6 hours
+          const timeDiff = Math.abs(timestamp - seen.timestamp);
+          const isSameTimeWindow = timeDiff < 6 * 60 * 60 * 1000; // 6 hours
+
+          if (isSameTimeWindow && article.category === seen.article.category) {
+            // Calculate word overlap
+            const intersection = new Set(
+              [...titleWords].filter((w) => seen.titleWords.has(w))
+            );
+            const union = new Set([...titleWords, ...seen.titleWords]);
+            const jaccardSimilarity = intersection.size / union.size;
+
+            // If 40%+ similar titles in same category and time window, it's likely the same event
+            if (jaccardSimilarity >= 0.4) {
+              isDuplicate = true;
+              logger.debug(
+                'Duplicate article detected',
+                {
+                  kept: seen.article.title,
+                  discarded: article.title,
+                  similarity: jaccardSimilarity,
+                  timeDiffMinutes: Math.round(timeDiff / 60000),
+                },
+                'LatestNewsPanel'
+              );
+              break;
+            }
+          }
+
+          // Rule 2: Very high title similarity (70%+) regardless of category = same event
           const intersection = new Set(
             [...titleWords].filter((w) => seen.titleWords.has(w))
           );
           const union = new Set([...titleWords, ...seen.titleWords]);
           const jaccardSimilarity = intersection.size / union.size;
 
-          // If 40%+ similar titles in same category and time window, it's likely the same event
-          if (jaccardSimilarity >= 0.4) {
+          if (jaccardSimilarity >= 0.7) {
             isDuplicate = true;
             logger.debug(
-              'Duplicate article detected',
+              'Duplicate article detected (high similarity)',
               {
                 kept: seen.article.title,
                 discarded: article.title,
                 similarity: jaccardSimilarity,
-                timeDiffMinutes: Math.round(timeDiff / 60000),
               },
               'LatestNewsPanel'
             );
@@ -135,46 +140,26 @@ export function LatestNewsPanel() {
           }
         }
 
-        // Rule 2: Very high title similarity (70%+) regardless of category = same event
-        const intersection = new Set(
-          [...titleWords].filter((w) => seen.titleWords.has(w))
-        );
-        const union = new Set([...titleWords, ...seen.titleWords]);
-        const jaccardSimilarity = intersection.size / union.size;
-
-        if (jaccardSimilarity >= 0.7) {
-          isDuplicate = true;
-          logger.debug(
-            'Duplicate article detected (high similarity)',
-            {
-              kept: seen.article.title,
-              discarded: article.title,
-              similarity: jaccardSimilarity,
-            },
-            'LatestNewsPanel'
-          );
-          break;
+        if (!isDuplicate) {
+          uniqueArticles.push(article);
+          seenArticles.push({ article, titleWords, timestamp });
         }
       }
 
-      if (!isDuplicate) {
-        uniqueArticles.push(article);
-        seenArticles.push({ article, titleWords, timestamp });
-      }
-    }
+      logger.debug(
+        'Deduplicated articles',
+        {
+          before: articles.length,
+          after: uniqueArticles.length,
+          removed: articles.length - uniqueArticles.length,
+        },
+        'LatestNewsPanel'
+      );
 
-    logger.debug(
-      'Deduplicated articles',
-      {
-        before: articles.length,
-        after: uniqueArticles.length,
-        removed: articles.length - uniqueArticles.length,
-      },
-      'LatestNewsPanel'
-    );
-
-    return uniqueArticles;
-  }, []);
+      return uniqueArticles;
+    },
+    []
+  );
 
   const fetchArticles = useCallback(
     async (skipCache = false) => {
@@ -298,23 +283,16 @@ export function LatestNewsPanel() {
     void fetchArticles(true);
   });
 
-  const getSentimentIcon = (sentiment?: string) => {
-    switch (sentiment) {
-      case 'positive':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
-      case 'negative':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Newspaper className="h-4 w-4 text-[#0066FF]" />;
-    }
-  };
-
   const getTimeAgo = (timestamp: string) => {
     const now = Date.now();
     const diff = now - new Date(timestamp).getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor(diff / (1000 * 60));
 
+    if (days > 0) {
+      return `${days}d ago`;
+    }
     if (hours > 0) {
       return `${hours}h ago`;
     }
@@ -330,45 +308,36 @@ export function LatestNewsPanel() {
   };
 
   return (
-    <>
-      <div className="flex flex-1 flex-col rounded-2xl bg-sidebar p-4">
-        <h2 className="mb-3 text-left font-bold text-foreground text-lg">
-          Latest News
-        </h2>
-        {loading ? (
-          <div className="flex-1 space-y-3 pl-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : articles.length === 0 ? (
-          <div className="flex-1 pl-3 text-muted-foreground text-sm">
-            No articles available yet.
-          </div>
-        ) : (
-          <div className="flex-1 space-y-2 pl-3">
-            {articles.map((article) => (
-              <div
-                key={article.id}
-                onClick={() => handleArticleClick(article.id)}
-                className="-ml-1.5 flex cursor-pointer items-start gap-3 rounded-lg p-1.5 transition-colors duration-200 hover:bg-muted/50"
-              >
-                <div className="mt-0.5 shrink-0">
-                  {getSentimentIcon(article.sentiment)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-foreground text-sm leading-snug">
-                    {article.title}
-                  </p>
-                  <p className="mt-0.5 text-muted-foreground text-xs">
-                    {article.authorOrgName} · {getTimeAgo(article.publishedAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
+    <div className="flex flex-1 flex-col">
+      <h2 className="mb-3 font-bold text-foreground text-lg">Latest News</h2>
+      {loading ? (
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : articles.length === 0 ? (
+        <div className="flex-1 text-muted-foreground text-sm">
+          No articles available yet.
+        </div>
+      ) : (
+        <div className="flex-1 space-y-2">
+          {articles.map((article) => (
+            <div
+              key={article.id}
+              onClick={() => handleArticleClick(article.id)}
+              className="-mx-2 cursor-pointer rounded-lg px-2 py-1.5 transition-colors duration-200 hover:bg-muted/50"
+            >
+              <p className="font-semibold text-foreground text-sm leading-snug">
+                {article.title}
+              </p>
+              <p className="mt-0.5 text-muted-foreground text-xs">
+                {article.authorOrgName} · {getTimeAgo(article.publishedAt)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

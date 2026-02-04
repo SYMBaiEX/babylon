@@ -1,21 +1,4 @@
-import {
-  type Account,
-  type Address,
-  createPublicClient,
-  createWalletClient,
-  decodeEventLog,
-  http,
-  type Log,
-  type WalletClient,
-} from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia, foundry } from 'viem/chains';
-import type {
-  JsonValue,
-  StringRecord,
-  AuthenticatedUser,
-  AgentCapabilities,
-} from '@babylon/shared';
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import {
   and,
   balanceTransactions,
@@ -24,21 +7,40 @@ import {
   eq,
   follows,
   referrals,
+  sql,
   users,
 } from '@babylon/db';
+import type {
+  AgentCapabilities,
+  AuthenticatedUser,
+  JsonValue,
+  StringRecord,
+} from '@babylon/shared';
 import {
-  extractErrorMessage,
-  POINTS,
   BusinessLogicError,
-  InternalServerError,
-  ValidationError,
-  logger,
   generateSnowflakeId,
   IDENTITY_REGISTRY_ABI,
+  InternalServerError,
   identityRegistryAbi,
+  logger,
+  POINTS,
   reputationSystemAbi,
+  ValidationError,
 } from '@babylon/shared';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
+import {
+  type Account,
+  type Address,
+  createPublicClient,
+  createWalletClient,
+  decodeEventLog,
+  encodeFunctionData,
+  http,
+  type Log,
+  type WalletClient,
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { baseSepolia, foundry } from 'viem/chains';
+import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
 
 /**
  * Agent0Client interface for dependency injection
@@ -65,15 +67,26 @@ type Agent0Client = {
  */
 type OnboardingServices = {
   getAgent0Client: () => Agent0Client;
-  syncAfterAgent0Registration: (userId: string, tokenId: number) => Promise<void>;
+  syncAfterAgent0Registration: (
+    userId: string,
+    tokenId: number
+  ) => Promise<void>;
   notifyNewAccount: (userId: string) => Promise<void>;
   pointsService: {
-    awardReferralSignup: (referrerId: string, referredUserId: string) => Promise<{
+    awardReferralSignup: (
+      referrerId: string,
+      referredUserId: string
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       error?: string;
     }>;
-    awardPoints: (userId: string, amount: number, reason: string, metadata?: StringRecord<JsonValue>) => Promise<{
+    awardPoints: (
+      userId: string,
+      amount: number,
+      reason: string,
+      metadata?: StringRecord<JsonValue>
+    ) => Promise<{
       success: boolean;
       pointsAwarded: number;
       newTotal: number;
@@ -115,6 +128,11 @@ export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
+  /**
+   * Privy user auth token (JWT) for server-side user wallet actions.
+   * Required when Babylon needs to submit a transaction from the user's embedded wallet.
+   */
+  userJwt?: string | null;
   walletAddress?: string | null;
   username?: string | null;
   displayName?: string | null;
@@ -137,6 +155,7 @@ export interface OnchainRegistrationResult {
 
 export async function processOnchainRegistration({
   user,
+  userJwt,
   walletAddress,
   username,
   displayName,
@@ -190,10 +209,11 @@ export async function processOnchainRegistration({
 
   let referrerId: string | null = null;
   if (referralCode) {
+    // Case-insensitive username lookup for referral
     const [referrer] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.username, referralCode))
+      .where(sql`lower(${users.username}) = lower(${referralCode})`)
       .limit(1);
 
     // Prevent self-referral by username
@@ -236,6 +256,7 @@ export async function processOnchainRegistration({
   let dbUser: {
     id: string;
     username: string | null;
+    privyWalletId: string | null;
     walletAddress: string | null;
     onChainRegistered: boolean;
     nftTokenId: number | null;
@@ -243,17 +264,19 @@ export async function processOnchainRegistration({
   } | null = null;
 
   if (user.isAgent) {
+    // Case-insensitive username lookup for agent
     const [existingUser] = await db
       .select({
         id: users.id,
         username: users.username,
+        privyWalletId: users.privyWalletId,
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
         referredBy: users.referredBy,
       })
       .from(users)
-      .where(eq(users.username, user.userId))
+      .where(sql`lower(${users.username}) = lower(${user.userId})`)
       .limit(1);
     dbUser = existingUser ?? null;
 
@@ -277,6 +300,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -289,6 +313,7 @@ export async function processOnchainRegistration({
       .select({
         id: users.id,
         username: users.username,
+        privyWalletId: users.privyWalletId,
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
@@ -320,6 +345,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -347,6 +373,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -365,10 +392,11 @@ export async function processOnchainRegistration({
   }
 
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+  const isLocalNetwork = chainId === 31337;
 
   // Create publicClient at function scope for use throughout registration flow
   const publicClient = createPublicClient({
-    chain: chainId === 31337 ? foundry : baseSepolia,
+    chain: isLocalNetwork ? foundry : baseSepolia,
     transport: http(getRpcUrl()),
   });
 
@@ -383,8 +411,11 @@ export async function processOnchainRegistration({
 
     // In local dev, contracts may not be deployed yet during startup
     // Check if contract exists before calling it
-    const contractCode = await publicClient.getCode({ address: IDENTITY_REGISTRY });
-    const contractExists = contractCode && contractCode !== '0x' && contractCode.length > 2;
+    const contractCode = await publicClient.getCode({
+      address: IDENTITY_REGISTRY,
+    });
+    const contractExists =
+      contractCode && contractCode !== '0x' && contractCode.length > 2;
 
     if (!contractExists) {
       // Contract not deployed yet - use database state
@@ -459,30 +490,24 @@ export async function processOnchainRegistration({
     };
   }
 
-  // Validate deployer private key format
+  // Deployer wallet is only required for:
+  // - agent registrations (server-owned)
+  // - localnet fallback (Privy cannot sign on local chains)
   const deployerConfigured =
     Boolean(DEPLOYER_PRIVATE_KEY) &&
     typeof DEPLOYER_PRIVATE_KEY === 'string' &&
     /^0x[0-9a-fA-F]{64}$/.test(DEPLOYER_PRIVATE_KEY);
 
   let deployerAccount: Account | null = null;
-  let walletClient: WalletClient | null = null;
+  let deployerWalletClient: WalletClient | null = null;
 
-  if (deployerConfigured) {
-    const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+  if (deployerConfigured && (user.isAgent || isLocalNetwork)) {
     deployerAccount = privateKeyToAccount(DEPLOYER_PRIVATE_KEY!);
-    walletClient = createWalletClient({
+    deployerWalletClient = createWalletClient({
       account: deployerAccount,
-      chain: chainId === 31337 ? foundry : baseSepolia,
+      chain: isLocalNetwork ? foundry : baseSepolia,
       transport: http(getRpcUrl()),
     });
-  }
-
-  if (!submittedTxHash && !deployerConfigured) {
-    throw new InternalServerError(
-      'Server wallet not configured for gas payments',
-      { missing: 'DEPLOYER_PRIVATE_KEY' }
-    );
   }
 
   const name = username || (user.isAgent ? user.userId : finalUsername);
@@ -551,86 +576,19 @@ export async function processOnchainRegistration({
         { txHash: submittedTxHash, receipt: receipt.status }
       );
     }
-  } else if (walletClient) {
-    try {
-      registrationTxHash = await walletClient.writeContract({
-        address: IDENTITY_REGISTRY,
-        abi: identityRegistryAbi,
-        functionName: 'registerAgent',
-        args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-      } as unknown as Parameters<typeof walletClient.writeContract>[0]);
-    } catch (registrationError) {
-      const message = extractErrorMessage(
-        registrationError as Error | { message?: string }
-      ).toLowerCase();
-      if (message.includes('already registered')) {
-        const onChainStatus = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: identityRegistryAbi,
-          functionName: 'isRegistered',
-          args: [registrationAddress],
-        });
-
-        if (onChainStatus) {
-          const tokenOnChain = Number(
-            await publicClient.readContract({
-              address: IDENTITY_REGISTRY,
-              abi: identityRegistryAbi,
-              functionName: 'getTokenId',
-              args: [registrationAddress],
-            })
-          );
-
-          await db
-            .update(users)
-            .set({
-              onChainRegistered: true,
-              nftTokenId: tokenOnChain,
-            })
-            .where(eq(users.id, dbUser.id));
-
-          const [hasWelcomeBonusRetry] = await db
-            .select({ id: balanceTransactions.id })
-            .from(balanceTransactions)
-            .where(
-              and(
-                eq(balanceTransactions.userId, dbUser.id),
-                eq(
-                  balanceTransactions.description,
-                  'Welcome bonus - initial signup'
-                )
-              )
-            )
-            .limit(1);
-
-          logger.info(
-            'Detected prior registration for wallet during server signer attempt',
-            { address: registrationAddress, tokenId: tokenOnChain },
-            'OnboardingOnchain'
-          );
-
-          return {
-            message: 'Already registered on-chain',
-            tokenId: tokenOnChain,
-            alreadyRegistered: true,
-            userId: dbUser.id,
-            pointsAwarded: hasWelcomeBonusRetry ? 1000 : 0,
-          };
-        }
-
-        logger.warn(
-          'Server signer rejected registration due to existing owner',
-          { signer: deployerAccount?.address, registrationAddress },
-          'OnboardingOnchain'
-        );
-        throw new BusinessLogicError(
-          'SERVER_SIGNER_UNSUPPORTED',
-          'SERVER_SIGNER_UNSUPPORTED'
-        );
-      }
-
-      throw registrationError;
+  } else if (user.isAgent || isLocalNetwork) {
+    if (!deployerWalletClient) {
+      throw new InternalServerError('Server wallet not configured', {
+        missing: 'DEPLOYER_PRIVATE_KEY',
+      });
     }
+
+    registrationTxHash = await deployerWalletClient.writeContract({
+      address: IDENTITY_REGISTRY,
+      abi: identityRegistryAbi,
+      functionName: 'registerAgent',
+      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+    } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
 
     logger.info(
       'Registration transaction sent',
@@ -660,13 +618,59 @@ export async function processOnchainRegistration({
       );
     }
   } else {
-    throw new InternalServerError(
-      'Unable to determine registration transaction result',
-      {
-        hasSubmittedTx: Boolean(submittedTxHash),
-        deployerConfigured,
-      }
+    // Non-agent: submit from the user's embedded wallet via Privy (server-side user wallet flow).
+    if (!userJwt) {
+      throw new InternalServerError(
+        'Missing Privy user token for transaction',
+        {
+          missing: 'userJwt',
+        }
+      );
+    }
+    if (!dbUser.privyWalletId) {
+      throw new InternalServerError('User embedded wallet id missing', {
+        missing: 'users.privyWalletId',
+      });
+    }
+
+    const data = encodeFunctionData({
+      abi: identityRegistryAbi,
+      functionName: 'registerAgent',
+      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+    });
+
+    const { hash } = await sendSponsoredEvmTransaction({
+      userJwt,
+      walletId: dbUser.privyWalletId,
+      to: IDENTITY_REGISTRY,
+      data,
+      valueWei: 0n,
+      caip2: `eip155:${chainId}`,
+      chainId,
+    });
+    registrationTxHash = hash;
+
+    logger.info(
+      'Registration transaction sent (Privy sponsored)',
+      { txHash: registrationTxHash },
+      'OnboardingOnchain'
     );
+
+    receipt = await publicClient.waitForTransactionReceipt({
+      hash: registrationTxHash,
+      confirmations: 2,
+    });
+
+    if (receipt.status !== 'success') {
+      throw new BusinessLogicError(
+        'Blockchain registration transaction failed',
+        'REGISTRATION_TX_FAILED',
+        {
+          txHash: registrationTxHash,
+          receipt: receipt.status,
+        }
+      );
+    }
   }
 
   const finalizedReceipt = receipt;
@@ -706,28 +710,18 @@ export async function processOnchainRegistration({
     if (log.topics.length === 0) {
       return false;
     }
-    try {
-      const decodedLog = decodeEventLog({
-        abi: identityRegistryAbi,
-        data: log.data,
-        topics: log.topics,
-        strict: false,
-      });
-      logger.info(
-        'Decoded log event',
-        { eventName: decodedLog.eventName },
-        'processOnchainRegistration'
-      );
-      return decodedLog.eventName === 'AgentRegistered';
-    } catch (decodeError) {
-      // Log signature not in ABI (e.g., ERC-721 Transfer event) - skip this log
-      logger.warn(
-        'Failed to decode log',
-        { topics: log.topics, error: String(decodeError) },
-        'processOnchainRegistration'
-      );
-      return false;
-    }
+    const decodedLog = decodeEventLog({
+      abi: identityRegistryAbi,
+      data: log.data,
+      topics: log.topics,
+      strict: false,
+    });
+    logger.info(
+      'Decoded log event',
+      { eventName: decodedLog.eventName },
+      'processOnchainRegistration'
+    );
+    return decodedLog.eventName === 'AgentRegistered';
   });
 
   if (!agentRegisteredLog) {
@@ -737,7 +731,9 @@ export async function processOnchainRegistration({
         txHash: registrationTxHash ?? submittedTxHash,
         totalLogs: finalizedReceipt.logs.length,
         contractLogs: contractLogs.length,
-        allLogAddresses: finalizedReceipt.logs.map((l: Log) => l.address.toLowerCase()),
+        allLogAddresses: finalizedReceipt.logs.map((l: Log) =>
+          l.address.toLowerCase()
+        ),
         expectedAddress: IDENTITY_REGISTRY.toLowerCase(),
       }
     );
@@ -752,18 +748,18 @@ export async function processOnchainRegistration({
   const args = decodedLog.args as { tokenId?: bigint } | undefined;
   tokenId = args?.tokenId ? Number(args.tokenId) : 0;
   logger.info('Registered with token ID', { tokenId }, 'OnboardingOnchain');
-  if (walletClient) {
+  if (deployerWalletClient) {
     logger.info(
       'Bootstrapping on-chain reputation via feedback...',
       undefined,
       'OnboardingOnchain'
     );
-    const bootstrapTx = await walletClient.writeContract({
+    const bootstrapTx = await deployerWalletClient.writeContract({
       address: REPUTATION_SYSTEM,
       abi: reputationSystemAbi,
       functionName: 'submitFeedback',
       args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
-    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
+    } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
     await publicClient.waitForTransactionReceipt({
       hash: bootstrapTx,
       confirmations: 1,
@@ -1202,16 +1198,7 @@ export async function confirmOnchainProfileUpdate({
 
   let metadata: StringRecord<JsonValue> | null = null;
   if (typeof rawMetadata === 'string' && rawMetadata.trim().length > 0) {
-    try {
-      metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
-    } catch (error) {
-      logger.warn(
-        'Failed to parse on-chain metadata JSON during profile update confirmation',
-        { error, userId, txHash },
-        'OnboardingOnchain'
-      );
-      metadata = null;
-    }
+    metadata = JSON.parse(rawMetadata) as StringRecord<JsonValue>;
   }
 
   return {
@@ -1225,6 +1212,7 @@ export async function confirmOnchainProfileUpdate({
 export async function getOnchainRegistrationStatus(
   user: AuthenticatedUser
 ): Promise<OnchainRegistrationStatus> {
+  // Case-insensitive username lookup for agents
   const [userRecord] = user.isAgent
     ? await db
         .select({
@@ -1234,7 +1222,7 @@ export async function getOnchainRegistrationStatus(
           registrationTxHash: users.registrationTxHash,
         })
         .from(users)
-        .where(eq(users.username, user.userId))
+        .where(sql`lower(${users.username}) = lower(${user.userId})`)
         .limit(1)
     : await db
         .select({
@@ -1314,4 +1302,3 @@ export async function getOnchainRegistrationStatus(
     dbRegistered: userRecord.onChainRegistered,
   };
 }
-

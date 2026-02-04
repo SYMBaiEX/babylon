@@ -1,17 +1,17 @@
 'use client';
 
 import { useCallback } from 'react';
+import { getAuthToken } from '@/lib/auth';
+import type { TradeSide } from '@/types/markets';
 
-/**
- * Side of a perpetual trade position.
- */
-type TradeSide = 'long' | 'short';
+// Re-export for backwards compatibility
+export type { TradeSide } from '@/types/markets';
 
 /**
  * Options for configuring the usePerpTrade hook.
  */
 interface UsePerpTradeOptions {
-  /** Optional function to get the access token. Falls back to window.__privyAccessToken */
+  /** Optional function to get the access token. Falls back to getAuthToken() */
   getAccessToken?: () => Promise<string | null> | string | null;
 }
 
@@ -73,15 +73,13 @@ async function resolveToken(
   resolver?: () => Promise<string | null> | string | null
 ): Promise<string | null> {
   if (!resolver) {
-    if (typeof window === 'undefined') return null;
-    return window.__privyAccessToken ?? null;
+    return getAuthToken();
   }
 
   const value = typeof resolver === 'function' ? resolver() : resolver;
   const token = await Promise.resolve(value);
   if (token) return token;
-  if (typeof window === 'undefined') return null;
-  return window.__privyAccessToken ?? null;
+  return getAuthToken();
 }
 
 function extractErrorMessage(
@@ -159,14 +157,7 @@ export function usePerpTrade(options: UsePerpTradeOptions = {}) {
         headers,
       });
 
-      let data: Record<string, unknown>;
-      try {
-        data = (await response.json()) as Record<string, unknown>;
-      } catch (error) {
-        throw new Error(
-          `Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
+      const data = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
         throw new Error(extractErrorMessage(data, response.status));

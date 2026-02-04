@@ -88,16 +88,22 @@
  * @see {@link /lib/reputation/erc8004-sync} ERC-8004 sync
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { distributePointsToReporters } from '@babylon/api';
 import { syncReputationToERC8004 } from '@babylon/agents';
 import { invalidateReputationCache } from '@babylon/agents/agent0/reputation/agent0-reputation-cache';
+import {
+  BusinessLogicError,
+  distributePointsToReporters,
+  getClientIp,
+  logAdminAction,
+  NotFoundError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const BanUserSchema = z.object({
   action: z.enum(['ban', 'unban']),
@@ -192,52 +198,22 @@ export const POST = withErrorHandling(
 
     // Sync with ERC-8004 reputation system via Agent0
     if (action === 'ban' && updatedUser.agent0TokenId) {
-      try {
-        await syncReputationToERC8004(userId, {
-          reputationScore: 0, // Banned users get 0 reputation
-          isBanned: true,
-          isScammer: isScammer ?? false,
-          isCSAM: isCSAM ?? false,
-        });
-      } catch (error) {
-        logger.error(
-          'Failed to sync ban to ERC-8004',
-          {
-            userId,
-            agent0TokenId: updatedUser.agent0TokenId,
-            error,
-          },
-          'POST /api/admin/users/[userId]/ban'
-        );
-        // Don't fail the ban if sync fails, just log it
-      }
+      await syncReputationToERC8004(userId, {
+        reputationScore: 0, // Banned users get 0 reputation
+        isBanned: true,
+        isScammer: isScammer ?? false,
+        isCSAM: isCSAM ?? false,
+      });
     }
 
     // Invalidate reputation cache
     if (action === 'ban') {
-      try {
-        await invalidateReputationCache(userId);
-      } catch (error) {
-        logger.error(
-          'Failed to invalidate reputation cache',
-          { userId, error },
-          'POST /api/admin/users/[userId]/ban'
-        );
-      }
+      await invalidateReputationCache(userId);
 
       // Distribute points to successful reporters if CSAM/scammer
       if ((isScammer ?? false) || (isCSAM ?? false)) {
-        try {
-          const reason = isCSAM ? 'csam' : 'scammer';
-          await distributePointsToReporters(userId, reason);
-        } catch (error) {
-          logger.error(
-            'Failed to distribute points to reporters',
-            { userId, error },
-            'POST /api/admin/users/[userId]/ban'
-          );
-          // Don't fail the ban if distribution fails
-        }
+        const reason = isCSAM ? 'csam' : 'scammer';
+        await distributePointsToReporters(userId, reason);
       }
     }
 
@@ -251,6 +227,33 @@ export const POST = withErrorHandling(
       },
       'POST /api/admin/users/[userId]/ban'
     );
+
+    // Audit log the ban/unban action (persist to database)
+    logAdminAction(action === 'ban' ? 'BAN' : 'UNBAN', {
+      adminId: adminUser.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'user',
+      resourceId: userId,
+      previousValue: {
+        isBanned: targetUser.isBanned,
+      },
+      newValue: {
+        isBanned: action === 'ban',
+        reason: reason ?? null,
+        isScammer: isScammer ?? false,
+        isCSAM: isCSAM ?? false,
+      },
+      metadata: {
+        targetUsername: targetUser.username,
+        action,
+      },
+    }).catch((err) => {
+      logger.error(
+        'Failed to persist audit log for ban action',
+        { err, userId, action },
+        'POST /api/admin/users/[userId]/ban'
+      );
+    });
 
     return successResponse({
       success: true,

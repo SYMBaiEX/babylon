@@ -69,47 +69,38 @@ Example: "Show me user_abc123's profile" or "What is @trader's reputation?"`,
       };
     }
 
-    try {
-      // Fetch profile data via A2A protocol
-      const profileData = await babylonRuntime.a2aClient.getUserProfile(userId);
+    // Fetch profile data via A2A protocol
+    const profileData = await babylonRuntime.a2aClient.getUserProfile(userId);
 
-      // Validate profileData structure matches A2AUserProfileResponse
-      if (
-        !profileData ||
-        typeof profileData !== 'object' ||
-        !('id' in profileData)
-      ) {
-        throw new Error('Invalid profile data format from A2A client');
-      }
-      const profile = profileData as {
-        id: string;
-        username: string | null;
-        displayName: string | null;
-        bio: string | null;
-        profileImageUrl: string | null;
-        reputationPoints: number;
-        virtualBalance: number;
-      };
+    // Validate profileData structure matches A2AUserProfileResponse
+    if (
+      !profileData ||
+      typeof profileData !== 'object' ||
+      !('id' in profileData)
+    ) {
+      throw new Error('Invalid profile data format from A2A client');
+    }
+    const profile = profileData as {
+      id: string;
+      username: string | null;
+      displayName: string | null;
+      bio: string | null;
+      profileImageUrl: string | null;
+      reputationPoints: number | null;
+      virtualBalance: number | null;
+    };
 
-      return {
-        text: `User Profile: ${profile.displayName || profile.username || profile.id}
+    return {
+      text: `User Profile: ${profile.displayName || profile.username || profile.id}
 
 👤 Username: ${profile.username || 'Not set'}
 📝 Display Name: ${profile.displayName || 'Not set'}
 ${profile.bio ? `📄 Bio: ${profile.bio}` : ''}
-⭐ Reputation Points: ${profile.reputationPoints || 0} pts
-💰 Balance: $${profile.virtualBalance || 0}
+⭐ Reputation Points: ${profile.reputationPoints ?? 0} pts
+💰 Balance: $${profile.virtualBalance ?? 0}
 ${profile.profileImageUrl ? `🖼️  Profile Image: ${profile.profileImageUrl}` : ''}
 
 User ID: ${profile.id}`,
-      };
-    } catch (error) {
-      logger.error(
-        'Error fetching user profile via A2A',
-        { error, agentId: runtime.agentId, userId },
-        'UserProfileProvider'
-      );
-      throw error;
-    }
+    };
   },
 };

@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  cn,
+  formatCurrency as formatCurrencyShared,
+  logger,
+} from '@babylon/shared';
+import {
   AlertCircle,
   ArrowUpDown,
   Clock,
@@ -9,19 +14,18 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream';
-import { cn } from '@babylon/shared';
 
 /**
  * Page size for pagination in trades feed.
  */
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 /**
  * Polling interval for fetching new trades (10 seconds).
  */
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 30000; // 30 seconds
 /**
  * Scroll threshold in pixels from top to consider "at top" for auto-polling.
  */
@@ -145,13 +149,16 @@ interface AssetTradesFeedProps {
   marketType: 'prediction' | 'perp';
   assetId: string; // marketId for predictions, ticker for perps
   containerRef?: React.RefObject<HTMLDivElement | null>;
+  density?: 'default' | 'compact';
 }
 
 export function AssetTradesFeed({
   marketType,
   assetId,
   containerRef,
+  density = 'default',
 }: AssetTradesFeedProps) {
+  const compact = density === 'compact';
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -176,44 +183,45 @@ export function AssetTradesFeed({
   // Fetch trades from API
   const fetchTrades = useCallback(
     async (requestOffset: number, append = false) => {
-      try {
-        setError(null);
-        const params = new URLSearchParams({
-          limit: PAGE_SIZE.toString(),
-          offset: requestOffset.toString(),
-        });
+      setError(null);
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
+      });
 
-        const response = await fetch(`${apiEndpoint}?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Failed to load trades: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const newTrades = data.trades || [];
-
-        if (append) {
-          setTrades((prev) => {
-            // Deduplicate trades by ID
-            const existingIds = new Set(prev.map((t) => t.id));
-            const uniqueNewTrades = newTrades.filter(
-              (t: Trade) => !existingIds.has(t.id)
-            );
-            return [...prev, ...uniqueNewTrades];
-          });
-          setLoadingMore(false);
-        } else {
-          setTrades(newTrades);
-          setLoading(false);
-        }
-
-        setHasMore(data.hasMore || false);
-        setOffset(requestOffset + newTrades.length);
-      } catch (err) {
-        console.error('Failed to fetch trades:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load trades');
+      const response = await fetch(`${apiEndpoint}?${params.toString()}`);
+      if (!response.ok) {
+        logger.error(
+          'Failed to fetch trades',
+          { status: response.status, endpoint: apiEndpoint },
+          'AssetTradesFeed'
+        );
+        setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);
+        return;
       }
+
+      const data = await response.json();
+      const newTrades = data.trades || [];
+
+      if (append) {
+        setTrades((prev) => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map((t) => t.id));
+          const uniqueNewTrades = newTrades.filter(
+            (t: Trade) => !existingIds.has(t.id)
+          );
+          return [...prev, ...uniqueNewTrades];
+        });
+        setLoadingMore(false);
+      } else {
+        setTrades(newTrades);
+        setLoading(false);
+      }
+
+      setHasMore(data.hasMore || false);
+      setOffset(requestOffset + newTrades.length);
     },
     [apiEndpoint]
   );
@@ -268,6 +276,15 @@ export function AssetTradesFeed({
 
   // Polling: refresh when at top
   useEffect(() => {
+    // For prediction markets, SSE already prompts refresh; polling just adds load/latency.
+    if (marketType === 'prediction') {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
     if (!shouldPoll || !isAtTop) {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -291,7 +308,7 @@ export function AssetTradesFeed({
         pollingIntervalRef.current = null;
       }
     };
-  }, [shouldPoll, isAtTop, refreshTrades]);
+  }, [marketType, shouldPoll, isAtTop, refreshTrades]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -335,14 +352,11 @@ export function AssetTradesFeed({
     },
   });
 
+  /** Wrapper around shared formatCurrency to handle string input */
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? Number.parseFloat(value) : value;
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
+    if (Number.isNaN(num)) return formatCurrencyShared(0);
+    return formatCurrencyShared(num, { useThousandsSeparator: true });
   };
 
   const formatTime = (timestamp: string) => {
@@ -364,11 +378,21 @@ export function AssetTradesFeed({
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="rounded-lg bg-muted/30 p-4">
-            <div className="flex items-start gap-3">
-              <Skeleton className="h-10 w-10 rounded-full" />
+          <div
+            key={i}
+            className={cn('rounded-lg bg-muted/30', compact ? 'p-3' : 'p-4')}
+          >
+            <div
+              className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}
+            >
+              <Skeleton
+                className={cn(
+                  compact ? 'h-8 w-8' : 'h-10 w-10',
+                  'rounded-full'
+                )}
+              />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-32" />
                 <Skeleton className="h-4 w-full" />
@@ -410,13 +434,20 @@ export function AssetTradesFeed({
   if (trades.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">No trades yet for this market</p>
+        <p
+          className={cn(
+            'text-muted-foreground',
+            compact ? 'text-xs' : 'text-sm'
+          )}
+        >
+          No trades yet for this market
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
       {needsRefresh && !isAtTop && (
         <button
           type="button"
@@ -435,6 +466,7 @@ export function AssetTradesFeed({
           trade={trade}
           formatCurrency={formatCurrency}
           formatTime={formatTime}
+          density={density}
         />
       ))}
 
@@ -462,10 +494,18 @@ interface TradeCardProps {
   trade: Trade;
   formatCurrency: (value: string | number) => string;
   formatTime: (timestamp: string) => string;
+  density: 'default' | 'compact';
 }
 
-function TradeCard({ trade, formatCurrency, formatTime }: TradeCardProps) {
+/** Memoized trade card to prevent unnecessary re-renders in large lists */
+const TradeCard = memo(function TradeCard({
+  trade,
+  formatCurrency,
+  formatTime,
+  density,
+}: TradeCardProps) {
   const user = trade.user;
+  const compact = density === 'compact';
   const profileUrl = user?.isActor
     ? `/profile/${user.id}`
     : user?.username
@@ -473,19 +513,31 @@ function TradeCard({ trade, formatCurrency, formatTime }: TradeCardProps) {
       : '#';
 
   return (
-    <div className="rounded-lg bg-muted/30 p-4 transition-colors hover:bg-muted/50">
-      <div className="flex items-start gap-3">
+    <div
+      className={cn(
+        'rounded-lg bg-muted/30 transition-colors hover:bg-muted/50',
+        compact ? 'p-3' : 'p-4'
+      )}
+    >
+      <div className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}>
         {/* User Avatar */}
         <Link href={user ? profileUrl : '#'} className="flex-shrink-0">
           {user?.profileImageUrl ? (
             <img
               src={user.profileImageUrl}
               alt={user.displayName || user.username || 'User'}
-              className="h-10 w-10 rounded-full"
+              className={cn(compact ? 'h-8 w-8' : 'h-10 w-10', 'rounded-full')}
             />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-              <UserIcon className="h-5 w-5 text-primary" />
+            <div
+              className={cn(
+                'flex items-center justify-center rounded-full bg-primary/20',
+                compact ? 'h-8 w-8' : 'h-10 w-10'
+              )}
+            >
+              <UserIcon
+                className={cn(compact ? 'h-4 w-4' : 'h-5 w-5', 'text-primary')}
+              />
             </div>
           )}
         </Link>
@@ -496,7 +548,10 @@ function TradeCard({ trade, formatCurrency, formatTime }: TradeCardProps) {
           <div className="mb-1 flex items-center gap-2">
             <Link
               href={user ? profileUrl : '#'}
-              className="truncate font-medium text-sm hover:underline"
+              className={cn(
+                'truncate font-medium hover:underline',
+                compact ? 'text-sm md:text-xs' : 'text-sm'
+              )}
             >
               {user?.displayName || user?.username || 'Unknown'}
             </Link>
@@ -516,37 +571,50 @@ function TradeCard({ trade, formatCurrency, formatTime }: TradeCardProps) {
             <PositionTradeContent
               trade={trade}
               formatCurrency={formatCurrency}
+              density={density}
             />
           )}
           {trade.type === 'perp' && (
-            <PerpTradeContent trade={trade} formatCurrency={formatCurrency} />
+            <PerpTradeContent
+              trade={trade}
+              formatCurrency={formatCurrency}
+              density={density}
+            />
           )}
           {trade.type === 'npc' && (
-            <NPCTradeContent trade={trade} formatCurrency={formatCurrency} />
+            <NPCTradeContent
+              trade={trade}
+              formatCurrency={formatCurrency}
+              density={density}
+            />
           )}
           {trade.type === 'balance' && (
             <BalanceTradeContent
               trade={trade}
               formatCurrency={formatCurrency}
+              density={density}
             />
           )}
         </div>
       </div>
     </div>
   );
-}
+});
 
 function PositionTradeContent({
   trade,
   formatCurrency,
+  density,
 }: {
   trade: PositionTrade;
   formatCurrency: (v: number) => string;
+  density: 'default' | 'compact';
 }) {
   const isYes = trade.side === 'YES';
+  const compact = density === 'compact';
 
   return (
-    <div className="text-sm">
+    <div className={cn(compact ? 'text-sm md:text-xs' : 'text-sm')}>
       <div className="mb-1 flex items-center gap-2">
         <span
           className={cn(
@@ -572,15 +640,18 @@ function PositionTradeContent({
 function PerpTradeContent({
   trade,
   formatCurrency,
+  density,
 }: {
   trade: PerpTrade;
   formatCurrency: (v: number) => string;
+  density: 'default' | 'compact';
 }) {
   const isLong = trade.side === 'long';
   const isProfitable = trade.unrealizedPnL >= 0;
+  const compact = density === 'compact';
 
   return (
-    <div className="text-sm">
+    <div className={cn(compact ? 'text-sm md:text-xs' : 'text-sm')}>
       <div className="mb-1 flex items-center gap-2">
         <span
           className={cn(
@@ -631,12 +702,15 @@ function PerpTradeContent({
 function NPCTradeContent({
   trade,
   formatCurrency,
+  density,
 }: {
   trade: NPCTrade;
   formatCurrency: (v: number) => string;
+  density: 'default' | 'compact';
 }) {
+  const compact = density === 'compact';
   return (
-    <div className="text-sm">
+    <div className={cn(compact ? 'text-sm md:text-xs' : 'text-sm')}>
       <div className="mb-1 flex items-center gap-2">
         <span className="font-medium">{trade.action}</span>
         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
@@ -674,10 +748,13 @@ function NPCTradeContent({
 function BalanceTradeContent({
   trade,
   formatCurrency,
+  density,
 }: {
   trade: BalanceTrade;
   formatCurrency: (v: number) => string;
+  density: 'default' | 'compact';
 }) {
+  const compact = density === 'compact';
   const getActionLabel = (type: string) => {
     switch (type) {
       case 'pred_buy':
@@ -696,7 +773,7 @@ function BalanceTradeContent({
   };
 
   return (
-    <div className="text-sm">
+    <div className={cn(compact ? 'text-sm md:text-xs' : 'text-sm')}>
       <div className="mb-1">
         <span className="font-medium">
           {getActionLabel(trade.transactionType)}

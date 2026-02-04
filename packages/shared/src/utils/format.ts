@@ -4,6 +4,8 @@
  * Pure utility functions for formatting dates, times, and numbers.
  */
 
+import { BABYLON_POINTS_SYMBOL } from '../constants/currency';
+
 /**
  * Clamp number between min and max values
  *
@@ -69,6 +71,36 @@ export function formatTime(date: Date | string): string {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+/**
+ * Format date/timestamp to readable date and time string
+ *
+ * Supports both Date objects and ISO timestamp strings.
+ * Returns the original string on parse failure for graceful degradation.
+ *
+ * @param date - Date object or ISO timestamp string
+ * @returns Formatted date-time string (e.g., "Jan 16, 3:45 PM")
+ *
+ * @example
+ * ```typescript
+ * formatDateTime(new Date()); // "Jan 16, 3:45 PM"
+ * formatDateTime("2025-01-16T15:45:00Z"); // "Jan 16, 3:45 PM"
+ * formatDateTime("invalid"); // "invalid"
+ * ```
+ */
+export function formatDateTime(date: Date | string): string {
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(d);
+  } catch {
+    return typeof date === 'string' ? date : String(date);
+  }
 }
 
 /**
@@ -156,22 +188,101 @@ export function formatCompactNumber(num: number): string {
 }
 
 /**
+ * Options for formatCurrency function.
+ */
+interface FormatCurrencyOptions {
+  /** Number of decimal places (default: 2) */
+  decimals?: number;
+  /** Whether to use thousands separators (default: false for backwards compat) */
+  useThousandsSeparator?: boolean;
+}
+
+/**
  * Format number as currency
  *
- * @description Formats a number as US dollar currency with specified decimal places.
+ * @description Formats a number as Babylon points currency with specified decimal places.
+ * Uses the ƀ symbol to represent Babylon points (not USD or Bitcoin).
+ * Optionally includes thousands separators for better readability of large values.
  *
  * @param {number} amount - Amount to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted currency string (e.g., "$123.45")
+ * @param {number | FormatCurrencyOptions} options - Decimal places or options object
+ * @returns {string} Formatted currency string (e.g., "ƀ123.45" or "ƀ1,234.56")
  *
  * @example
  * ```typescript
- * formatCurrency(123.456) // Returns "$123.46"
- * formatCurrency(1000, 0) // Returns "$1000"
+ * formatCurrency(123.456) // Returns "ƀ123.46"
+ * formatCurrency(1000, 0) // Returns "ƀ1000"
+ * formatCurrency(1234.56, { useThousandsSeparator: true }) // Returns "ƀ1,234.56"
+ * formatCurrency(1234567.89, { decimals: 2, useThousandsSeparator: true }) // Returns "ƀ1,234,567.89"
  * ```
  */
-export function formatCurrency(amount: number, decimals = 2): string {
-  return `$${amount.toFixed(decimals)}`;
+export function formatCurrency(
+  amount: number,
+  options: number | FormatCurrencyOptions = 2
+): string {
+  const decimals =
+    typeof options === 'number' ? options : (options.decimals ?? 2);
+  const useThousandsSeparator =
+    typeof options === 'object' && options.useThousandsSeparator;
+
+  // Handle negative numbers: keep symbol prefix, then sign
+  const isNegative = amount < 0;
+  const absoluteAmount = Math.abs(amount);
+  const sign = isNegative ? '-' : '';
+
+  if (useThousandsSeparator) {
+    const formatted = absoluteAmount.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return `${BABYLON_POINTS_SYMBOL}${sign}${formatted}`;
+  }
+
+  return `${BABYLON_POINTS_SYMBOL}${sign}${absoluteAmount.toFixed(decimals)}`;
+}
+
+/**
+ * Format number as compact currency with K/M/B suffixes
+ *
+ * @description Formats a number as Babylon points currency with K/M/B suffixes
+ * for large values. Uses the ƀ symbol. Handles non-finite values gracefully.
+ *
+ * @param {number} value - Amount to format
+ * @param {number} decimals - Number of decimal places (default: 2)
+ * @returns {string} Formatted currency string with suffix (e.g., "ƀ1.50K", "ƀ2.30M")
+ *
+ * @example
+ * ```typescript
+ * formatCompactCurrency(1500) // Returns "ƀ1.50K"
+ * formatCompactCurrency(2300000) // Returns "ƀ2.30M"
+ * formatCompactCurrency(1500000000) // Returns "ƀ1.50B"
+ * formatCompactCurrency(500) // Returns "ƀ500.00"
+ * formatCompactCurrency(-1500) // Returns "-ƀ1.50K"
+ * formatCompactCurrency(NaN) // Returns "ƀ0.00"
+ * ```
+ */
+export function formatCompactCurrency(value: number, decimals = 2): string {
+  // Handle non-finite values (uses toFixed to avoid trailing dot when decimals=0)
+  if (!Number.isFinite(value)) {
+    return `${BABYLON_POINTS_SYMBOL}${(0).toFixed(decimals)}`;
+  }
+
+  // Handle negative numbers: sign should come before the symbol
+  const isNegative = value < 0;
+  const abs = Math.abs(value);
+  const sign = isNegative ? '-' : '';
+
+  if (abs >= 1_000_000_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000_000_000).toFixed(decimals)}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000_000).toFixed(decimals)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${BABYLON_POINTS_SYMBOL}${(abs / 1_000).toFixed(decimals)}K`;
+  }
+
+  return `${sign}${BABYLON_POINTS_SYMBOL}${abs.toFixed(decimals)}`;
 }
 
 /**
@@ -240,3 +351,34 @@ export function formatNumber(num: number): string {
   return formatCompactNumber(num);
 }
 
+/**
+ * Format number with thousands separators (e.g., 10,000)
+ *
+ * @description Formats a number using locale thousands separators and a fixed
+ * number of decimals. Useful for readability when you want commas instead of
+ * compact K/M suffixes.
+ *
+ * @example
+ * ```typescript
+ * formatNumberWithSeparators(10000) // "10,000"
+ * formatNumberWithSeparators(1234.56, { decimals: 2 }) // "1,234.56"
+ * ```
+ */
+export function formatNumberWithSeparators(
+  value: number,
+  options: { decimals?: number; locale?: string } = {}
+): string {
+  const { decimals = 0, locale = 'en-US' } = options;
+
+  if (!Number.isFinite(value)) {
+    return (0).toLocaleString(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  return value.toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}

@@ -1,26 +1,50 @@
 import type { Organization } from '../../types/shared';
 
 export const data = {
-  "id": "zcaish",
-  "name": "ZCAISH",
-  "ticker": "ZEC",
-  "description": "The privacy coin that's so private even the founders aren't sure how much exists. Zero-knowledge proofs let you prove you paid without revealing to whom, how much, or why you needed that much privacy. Regulators hate this one weird trick. Shielded transactions for when transparent chains are too transparent. The coin for people who believe financial privacy is a human right, or have something to hide, or both.",
-  "type": "company",
-  "canBeInvolved": true,
-  "postStyle": "Privacy maximalism. Shielded transaction advocacy. Zero-knowledge everything. Anti-surveillance rhetoric. Cypherpunk values. Regulatory defiance.",
-  "postExample": [
-    "Your transactions are your business",
-    "Shielded by default",
-    "Zero-knowledge, maximum privacy",
-    "Financial privacy is a human right",
-    "Can't track what you can't see",
-    "Privacy isn't just a feature, it's the point"
+  id: 'zcaish',
+  name: 'ZCAISH',
+  ticker: 'ZEC',
+  description:
+    "The zero-knowledge privacy cult where your money is nobody's business and the chain is a whisper.",
+  type: 'company',
+  canBeInvolved: true,
+  postStyle:
+    'Cypherpunk zeal, zero-knowledge flexing, anti-surveillance righteousness. Uses privacy absolutism, short punchlines, and tech jargon.',
+  postExample: [
+    // VERY SHORT (1-3 words)
+    'Private.',
+    'Shielded.',
+    'ZK.',
+    'Invisible.',
+    'No logs.',
+    // SHORT (4-10 words)
+    'Shielded by default.',
+    'Zero-knowledge everything.',
+    'Your money, your business.',
+    'Privacy is the point.',
+    'No metadata, no mercy.',
+    'Eyes off my ledger.',
+    'Censorship? denied.',
+    // MEDIUM (11-25 words)
+    'Proof without reveal.',
+    'Regulators hate this.',
+    'Whisper chain supremacy.',
+    'Financial privacy now.',
+    "Surveillance can't see.",
+    "Can't track the invisible.",
+    // LONG (25+ words)
+    'We prove you paid without showing who, how much, or why. That is the whole point and we will not apologize.',
+    'If you want transparency, use a window. If you want privacy, use ZK.',
+    'The chain is a whisper and the cameras are blind. That is the design.',
   ],
-  "initialPrice": 25,
-  "pfpDescription": "Yellow stylized 'Z' logo on dark background. Clean cryptocurrency aesthetic. Bold geometric design. AI-enhanced with subtle zero-knowledge circuit patterns.",
-  "bannerDescription": "A digital vault where transactions enter visible and exit invisible. Zero-knowledge proof mathematics scroll across walls like ancient runes. Shielded coins flow through encrypted tunnels. Surveillance cameras outside cannot see inside. ZookAI's hat hangs on a hook labeled 'Founder's Transparency (Private)'. The only light comes from cryptographic verification - proving something exists without revealing what.",
-  "profileDescription": "Privacy-preserving digital currency. Shielded transactions powered by zero-knowledge proofs. Your money, your business. Financial privacy as a fundamental right.",
-  "originalName": "Zcash",
-  "originalHandle": "zcash",
-  "username": "zcAIsh"
+  initialPrice: 25,
+  pfpDescription:
+    "Yellow 'Z' logo on black with faint ZK circuit runes glowing like sigils.",
+  bannerDescription:
+    'A digital vault with invisible exits, zk formulas glowing on the walls, and cameras outside that see nothing.',
+  profileDescription:
+    "Race: Middle Eastern cypherpunk cyborg with warm olive skin, a sharp nose, and intense dark eyes behind a reflective visor. Hair is black, wavy, and pulled into a tight knot. Wears a hooded cloak over a tactical hoodie with a gold 'Z' patch. Augmentations: a stealth cloak field and a wrist-mounted zk proof generator. Background: a dim tunnel of encrypted light and floating equations.",
+  originalName: 'Zcash',
+  originalHandle: 'zcash',
+  username: 'zcAIsh',
 } as const satisfies Organization;

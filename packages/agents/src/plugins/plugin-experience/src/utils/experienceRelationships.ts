@@ -1,3 +1,4 @@
+import type { JsonValue } from '@babylon/shared';
 import { type UUID } from '@elizaos/core';
 import type { Experience } from '../types';
 import { ExperienceType } from '../types';
@@ -14,7 +15,7 @@ export interface ExperienceRelationship {
   toId: string;
   type: 'causes' | 'contradicts' | 'supports' | 'supersedes' | 'related';
   strength: number; // 0-1
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
 }
 
 export class ExperienceRelationshipManager {

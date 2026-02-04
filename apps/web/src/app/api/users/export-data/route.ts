@@ -58,8 +58,7 @@
  * @see GDPR Article 20 - Right to data portability
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import {
   agentPerformanceMetrics,
   balanceTransactions,
@@ -79,9 +78,9 @@ import {
   tradingFees,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);

@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  getReferralUrl,
+  logger,
+  POINTS,
+  signInWithFarcaster,
+} from '@babylon/shared';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Check,
@@ -23,10 +29,33 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { signInWithFarcaster } from '@babylon/shared';
-import { logger } from '@babylon/shared';
-import { getReferralUrl } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
+import type {
+  EligibilityApiResponse,
+  EligibilityResponse,
+  NftAccessResponse,
+} from '@/types/nft';
+
+// Blog URL from environment with fallback
+const blogUrl =
+  process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.babylon.market';
+
+function getAppBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+
+  if (typeof window === 'undefined') return 'https://play.babylon.market';
+
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname.endsWith('staging.babylon.market')) {
+    return 'https://play.staging.babylon.market';
+  }
+  if (hostname.endsWith('babylon.market')) {
+    return 'https://play.babylon.market';
+  }
+
+  return window.location.origin;
+}
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -111,6 +140,11 @@ export function ComingSoon() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [waitlistData, setWaitlistData] = useState<WaitlistData | null>(null);
+  const [nftAccess, setNftAccess] = useState<{ hasAccess: boolean } | null>(
+    null
+  );
+  const [nftEligibility, setNftEligibility] =
+    useState<EligibilityResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLinkSocialModal, setShowLinkSocialModal] = useState(false);
@@ -158,11 +192,13 @@ export function ComingSoon() {
   });
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
-  const [uploadedProfileImage, setUploadedProfileImage] = useState<string | null>(null);
+  const [uploadedProfileImage, setUploadedProfileImage] = useState<
+    string | null
+  >(null);
   const [uploadedBanner, setUploadedBanner] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const prevShowProfileModalRef = useRef(false);
-  
+
   // Username validation state
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
@@ -247,100 +283,63 @@ export function ComingSoon() {
       return;
     }
 
-    try {
-      // Use the proper SIWF protocol via relay.farcaster.xyz
-      const result = await signInWithFarcaster({
-        userId: dbUser.id,
-        onStatusUpdate: (status) => {
-          logger.debug('Farcaster auth status', { status }, 'ComingSoon');
-        },
-      });
+    // Use the proper SIWF protocol via relay.farcaster.xyz
+    const result = await signInWithFarcaster({
+      userId: dbUser.id,
+      onStatusUpdate: (status) => {
+        logger.debug('Farcaster auth status', { status }, 'ComingSoon');
+      },
+    });
 
-      // Send authentication data to backend for verification and linking
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch('/api/auth/farcaster/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+    // Send authentication data to backend for verification and linking
+    const token = getAuthToken();
+    const response = await fetch('/api/auth/farcaster/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: result.message,
+        signature: result.signature,
+        fid: result.fid,
+        username: result.username,
+        displayName: result.displayName,
+        pfpUrl: result.pfpUrl,
+        state: result.state,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok && data.success) {
-        // Refresh user profile to reflect the linked Farcaster account
-        await refresh();
+    if (response.ok && data.success) {
+      // Refresh user profile to reflect the linked Farcaster account
+      await refresh();
 
-        // Refresh waitlist position to update points
-        if (dbUser?.id) {
-          await fetchWaitlistPosition(dbUser.id);
-        }
+      // Refresh waitlist position to update points
+      if (dbUser?.id) {
+        await fetchWaitlistPosition(dbUser.id);
+      }
 
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
+      if (data.pointsAwarded > 0) {
+        toast.success(
+          `Farcaster linked! +${data.pointsAwarded} points awarded`
+        );
       } else {
-        // Show specific error message for 409 conflicts
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
+        toast.success('Farcaster account linked successfully!');
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Don't show error toast for user cancellation
-      if (errorMessage === 'Authentication cancelled') {
-        logger.info(
-          'Farcaster auth cancelled by user',
-          { userId: dbUser.id },
-          'ComingSoon'
+    } else {
+      // Show specific error message for 409 conflicts
+      const errorMessage = data.error || 'Failed to link Farcaster account';
+      if (response.status === 409) {
+        toast.error(
+          errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user'
         );
-        return;
+      } else {
+        toast.error(errorMessage);
       }
-
-      // Handle popup blocked
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        logger.warn(
-          'Farcaster popup blocked',
-          { userId: dbUser.id },
-          'ComingSoon'
-        );
-        return;
-      }
-
-      logger.error(
-        'Error during Farcaster authentication',
-        {
-          error: errorMessage,
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to connect Farcaster. Please try again.');
     }
   };
 
@@ -374,6 +373,7 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingFollow(true);
+
     try {
       const token = await getAccessToken();
       const response = await fetch(
@@ -411,16 +411,8 @@ export function ComingSoon() {
             'Could not verify follow. Please make sure you followed @playbabylon on Farcaster.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Farcaster follow',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to verify follow. Please try again.');
+    } catch {
+      toast.error('Network error. Please try again.');
     } finally {
       setIsVerifyingFollow(false);
     }
@@ -459,6 +451,7 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingTwitterFollow(true);
+
     try {
       const token = await getAccessToken();
       const response = await fetch(
@@ -493,16 +486,8 @@ export function ComingSoon() {
           data.message || 'Could not claim reward. Please try again.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error claiming Twitter follow reward',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to claim reward. Please try again.');
+    } catch {
+      toast.error('Network error. Please try again.');
     } finally {
       setIsVerifyingTwitterFollow(false);
     }
@@ -541,6 +526,7 @@ export function ComingSoon() {
     if (!dbUser?.id) return;
 
     setIsVerifyingDiscordJoin(true);
+
     try {
       const token = await getAccessToken();
       const response = await fetch(
@@ -578,16 +564,8 @@ export function ComingSoon() {
             'Could not verify membership. Please make sure you joined the Babylon Discord server.'
         );
       }
-    } catch (error) {
-      logger.error(
-        'Error verifying Discord join',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          userId: dbUser.id,
-        },
-        'ComingSoon'
-      );
-      toast.error('Failed to verify Discord membership. Please try again.');
+    } catch {
+      toast.error('Network error. Please try again.');
     } finally {
       setIsVerifyingDiscordJoin(false);
     }
@@ -634,18 +612,18 @@ export function ComingSoon() {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-    
+
     return undefined;
   }, [showProfileDropdown]);
 
-  const getPointsTypeForTab = useCallback((tab: 'leaderboard' | 'inviters') =>
-    tab === 'leaderboard' ? 'total' : 'invite', []);
+  const getPointsTypeForTab = useCallback(
+    (tab: 'leaderboard' | 'inviters') =>
+      tab === 'leaderboard' ? 'total' : 'invite',
+    []
+  );
 
-  const fetchWaitlistPosition = useCallback(async (
-    userId: string,
-    skipLeaderboard = false
-  ): Promise<boolean> => {
-    try {
+  const fetchWaitlistPosition = useCallback(
+    async (userId: string, skipLeaderboard = false): Promise<boolean> => {
       // Only fetch leaderboard if not skipped AND (never fetched OR stale > 5 minutes)
       const now = Date.now();
       const shouldFetchLeaderboard =
@@ -761,25 +739,12 @@ export function ComingSoon() {
       if (leaderboardResult && leaderboardResult.status === 'fulfilled') {
         const leaderboardResponse = leaderboardResult.value;
         if (leaderboardResponse.ok) {
-          try {
-            const leaderboardData = await leaderboardResponse.json();
-            setTopUsers(leaderboardData.leaderboard || []);
-            setLeaderboardTotalPages(leaderboardData.totalPages || 10);
-            setLeaderboardLastFetched(now);
-            // Reset to first page when leaderboard updates
-            setLeaderboardPage(1);
-          } catch (parseError) {
-            logger.warn(
-              'Failed to parse leaderboard response',
-              {
-                error:
-                  parseError instanceof Error
-                    ? parseError.message
-                    : String(parseError),
-              },
-              'ComingSoon'
-            );
-          }
+          const leaderboardData = await leaderboardResponse.json();
+          setTopUsers(leaderboardData.leaderboard || []);
+          setLeaderboardTotalPages(leaderboardData.totalPages || 10);
+          setLeaderboardLastFetched(now);
+          // Reset to first page when leaderboard updates
+          setLeaderboardPage(1);
         } else {
           logger.warn(
             'Failed to fetch leaderboard',
@@ -804,67 +769,64 @@ export function ComingSoon() {
       }
 
       return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching waitlist position',
-        {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-      return false;
-    }
-  }, [leaderboardLastFetched, leaderboardTab, getAccessToken, previousRank, getPointsTypeForTab]);
+    },
+    [
+      leaderboardLastFetched,
+      leaderboardTab,
+      getAccessToken,
+      previousRank,
+      getPointsTypeForTab,
+    ]
+  );
 
-  const awardWalletBonus = useCallback(async (userId: string, walletAddress: string) => {
-    try {
-      const response = await fetch('/api/waitlist/bonus/wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, walletAddress }),
-      });
+  const awardWalletBonus = useCallback(
+    async (userId: string, walletAddress: string) => {
+      try {
+        const response = await fetch('/api/waitlist/bonus/wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, walletAddress }),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(
-          'Failed to award wallet bonus',
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(
+            'Failed to award wallet bonus',
+            {
+              userId,
+              walletAddress,
+              status: response.status,
+              errorText,
+            },
+            'ComingSoon'
+          );
+          return;
+        }
+
+        const result = await response.json();
+        logger.info(
+          'Wallet bonus awarded',
           {
             userId,
-            walletAddress,
-            status: response.status,
-            errorText,
+            awarded: result.awarded,
+            bonusAmount: result.bonusAmount,
           },
           'ComingSoon'
         );
-        return;
+
+        // Refresh position to show updated points
+        await fetchWaitlistPosition(userId);
+      } catch {
+        // Network error - silently fail (non-critical)
+        logger.warn(
+          'Network error awarding wallet bonus',
+          { userId },
+          'ComingSoon'
+        );
       }
-
-      const result = await response.json();
-      logger.info(
-        'Wallet bonus awarded',
-        {
-          userId,
-          awarded: result.awarded,
-          bonusAmount: result.bonusAmount,
-        },
-        'ComingSoon'
-      );
-
-      // Refresh position to show updated points
-      await fetchWaitlistPosition(userId);
-    } catch (error) {
-      logger.error(
-        'Error awarding wallet bonus',
-        {
-          userId,
-          walletAddress,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-    }
-  }, [fetchWaitlistPosition]);
+    },
+    [fetchWaitlistPosition]
+  );
 
   // If user completes onboarding, mark as waitlisted and fetch position
   useEffect(() => {
@@ -882,24 +844,14 @@ export function ComingSoon() {
       if (existingPosition) {
         // Already setup, just refresh data
         // Check if user has been awarded points for Farcaster follow
-        try {
-          const token = await getAccessToken();
-          const response = await fetch(`/api/waitlist/position`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+        const token = await getAccessToken();
+        const response = await fetch(`/api/waitlist/position`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
-          if (response.ok) {
-            // Check points transactions to see if farcaster_follow was awarded
-            // For now, we'll fetch this status when needed
-          }
-        } catch (error) {
-          logger.error(
-            'Error checking Farcaster follow status',
-            {
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'ComingSoon'
-          );
+        if (response.ok) {
+          // Check points transactions to see if farcaster_follow was awarded
+          // For now, we'll fetch this status when needed
         }
         return;
       }
@@ -917,65 +869,54 @@ export function ComingSoon() {
         'ComingSoon'
       );
 
-      try {
-        // Get access token for authentication
-        const token = await getAccessToken();
-        const response = await fetch('/api/waitlist/mark', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            userId,
-            referralCode,
-          }),
-        });
+      // Get access token for authentication
+      const token = await getAccessToken();
+      const response = await fetch('/api/waitlist/mark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId,
+          referralCode,
+        }),
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error(
-            'Failed to mark as waitlisted',
-            {
-              userId,
-              status: response.status,
-              errorText,
-            },
-            'ComingSoon'
-          );
-          return;
-        }
-
-        const result = await response.json();
-        logger.info(
-          'User marked as waitlisted',
-          {
-            userId,
-            position: result.waitlistPosition,
-            inviteCode: result.inviteCode,
-            points: result.points,
-            referrerRewarded: result.referrerRewarded,
-          },
-          'ComingSoon'
-        );
-
-        // Fetch position data to get complete info
-        await fetchWaitlistPosition(userId);
-
-        // Award bonuses if available
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(userId, walletAddress);
-        }
-      } catch (error) {
+      if (!response.ok) {
+        const errorText = await response.text();
         logger.error(
-          'Error setting up waitlist',
+          'Failed to mark as waitlisted',
           {
             userId,
-            error: error instanceof Error ? error.message : String(error),
+            status: response.status,
+            errorText,
           },
           'ComingSoon'
         );
+        return;
+      }
+
+      const result = await response.json();
+      logger.info(
+        'User marked as waitlisted',
+        {
+          userId,
+          position: result.waitlistPosition,
+          inviteCode: result.inviteCode,
+          points: result.points,
+          referrerRewarded: result.referrerRewarded,
+        },
+        'ComingSoon'
+      );
+
+      // Fetch position data to get complete info
+      await fetchWaitlistPosition(userId);
+
+      // Award bonuses if available
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(userId, walletAddress);
       }
     };
 
@@ -999,21 +940,10 @@ export function ComingSoon() {
     if (!authenticated || !dbUser?.id) return;
 
     const checkAndAwardWalletBonus = async () => {
-      try {
-        // Check for wallet bonus
-        const walletAddress = privyUser?.wallet?.address;
-        if (walletAddress) {
-          await awardWalletBonus(dbUser.id, walletAddress);
-        }
-      } catch (error) {
-        logger.error(
-          'Error checking wallet bonus',
-          {
-            userId: dbUser.id,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ComingSoon'
-        );
+      // Check for wallet bonus
+      const walletAddress = privyUser?.wallet?.address;
+      if (walletAddress) {
+        await awardWalletBonus(dbUser.id, walletAddress);
       }
     };
 
@@ -1043,8 +973,8 @@ export function ComingSoon() {
     page: number,
     tab: 'leaderboard' | 'inviters' = leaderboardTab
   ) => {
-    const pointsType = getPointsTypeForTab(tab);
     try {
+      const pointsType = getPointsTypeForTab(tab);
       const response = await fetch(
         `/api/waitlist/leaderboard?page=${page}&limit=10&pointsType=${pointsType}`
       );
@@ -1062,15 +992,8 @@ export function ComingSoon() {
       setLeaderboardTotalPages(data.totalPages || 10);
       setLeaderboardLastFetched(Date.now());
       return true;
-    } catch (error) {
-      logger.error(
-        'Error fetching leaderboard page',
-        {
-          page,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
+    } catch {
+      // Network error - silently fail
       return false;
     }
   };
@@ -1091,20 +1014,19 @@ export function ComingSoon() {
     const trimmedUsername = profileForm.username?.trim();
     const trimmedDisplayName = profileForm.displayName?.trim();
     const trimmedBio = profileForm.bio?.trim();
-    
+
     // Use uploaded image or current form value
-    const profileImageUrl = uploadedProfileImage || profileForm.profileImageUrl?.trim() || 
+    const profileImageUrl =
+      uploadedProfileImage ||
+      profileForm.profileImageUrl?.trim() ||
       `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
-    const coverImageUrl = uploadedBanner || profileForm.coverImageUrl?.trim() ||
+    const coverImageUrl =
+      uploadedBanner ||
+      profileForm.coverImageUrl?.trim() ||
       `/assets/user-banners/banner-${bannerIndex}.jpg`;
 
-    if (
-      !trimmedUsername ||
-      !trimmedDisplayName
-    ) {
-      toast.error(
-        'Please fill in all required fields.'
-      );
+    if (!trimmedUsername || !trimmedDisplayName) {
+      toast.error('Please fill in all required fields.');
       return;
     }
 
@@ -1115,6 +1037,7 @@ export function ComingSoon() {
     }
 
     setIsSavingProfile(true);
+
     try {
       const token = await getAccessToken();
       const response = await fetch(
@@ -1137,26 +1060,29 @@ export function ComingSoon() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData?.error?.message || errorData?.message || 'Failed to update profile'
+        const errorMessage =
+          errorData?.error?.message ||
+          errorData?.message ||
+          'Failed to update profile';
+        logger.error(
+          'Failed to update profile',
+          {
+            userId: dbUser.id,
+            status: response.status,
+            error: errorMessage,
+          },
+          'ComingSoon'
         );
+        toast.error(errorMessage);
+        return;
       }
 
       await refresh();
       await fetchWaitlistPosition(dbUser.id);
       setShowProfileModal(false);
       toast.success('Profile updated successfully!');
-    } catch (error) {
-      logger.error(
-        'Error saving profile',
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'ComingSoon'
-      );
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to save profile'
-      );
+    } catch {
+      toast.error('Network error. Please try again.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -1191,16 +1117,16 @@ export function ComingSoon() {
   // Real-time username validation
   useEffect(() => {
     if (!showProfileModal) return;
-    
+
     const username = profileForm.username?.trim();
-    
+
     // Don't check if username is empty or too short
     if (!username || username.length < 3) {
       setUsernameStatus(null);
       setUsernameSuggestion(null);
       return;
     }
-    
+
     // Don't check if username hasn't changed from original
     if (username === dbUser?.username) {
       setUsernameStatus('available');
@@ -1212,27 +1138,20 @@ export function ComingSoon() {
 
     const checkUsername = async () => {
       setIsCheckingUsername(true);
-      
-      try {
-        const response = await fetch(
-          `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+
+      const response = await fetch(
+        `/api/onboarding/check-username?username=${encodeURIComponent(username)}`
+      );
+
+      if (!cancelled && response.ok) {
+        const result = await response.json();
+        setUsernameStatus(result.available ? 'available' : 'taken');
+        setUsernameSuggestion(
+          result.available ? null : result.suggestion || null
         );
-        
-        if (!cancelled && response.ok) {
-          const result = await response.json();
-          setUsernameStatus(result.available ? 'available' : 'taken');
-          setUsernameSuggestion(result.available ? null : (result.suggestion || null));
-        }
-      } catch (error) {
-        logger.warn(
-          'Username availability check error',
-          { error: error instanceof Error ? error.message : String(error) },
-          'ComingSoon'
-        );
-      } finally {
-        if (!cancelled) {
-          setIsCheckingUsername(false);
-        }
+      }
+      if (!cancelled) {
+        setIsCheckingUsername(false);
       }
     };
 
@@ -1275,7 +1194,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedProfileImage(reader.result as string);
-      setProfileForm(prev => ({ ...prev, profileImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, profileImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -1286,7 +1205,7 @@ export function ComingSoon() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setUploadedBanner(reader.result as string);
-      setProfileForm(prev => ({ ...prev, coverImageUrl: '' }));
+      setProfileForm((prev) => ({ ...prev, coverImageUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -1300,6 +1219,53 @@ export function ComingSoon() {
     router.push(currentUrl.pathname + currentUrl.search, { scroll: false });
     login();
   };
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const run = async () => {
+      if (!authenticated || !dbUser?.id) return;
+
+      try {
+        const token = await getAccessToken();
+        if (!token || controller.signal.aborted) return;
+
+        const [eligibilityRes, accessRes] = await Promise.all([
+          fetch('/api/nft/eligibility', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+          fetch('/api/nft/access', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!controller.signal.aborted && eligibilityRes.ok) {
+          const json = (await eligibilityRes.json()) as EligibilityApiResponse;
+          setNftEligibility(json.data);
+        }
+
+        if (!controller.signal.aborted && accessRes.ok) {
+          const json = (await accessRes.json()) as NftAccessResponse;
+          setNftAccess({ hasAccess: json.data.hasAccess });
+        }
+      } catch {
+        // best-effort only (do not block waitlist UI)
+      }
+    };
+
+    void run();
+
+    return () => {
+      controller.abort();
+    };
+  }, [authenticated, dbUser?.id, getAccessToken]);
+
+  const appBaseUrl = getAppBaseUrl();
+  const canClaimNft =
+    nftEligibility?.eligible === true && nftEligibility.hasMinted === false;
+  const hasNft = Boolean(nftAccess?.hasAccess) && !canClaimNft;
 
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
@@ -1911,7 +1877,7 @@ export function ComingSoon() {
                 Choose your path into the Social Arena for Humans and Agents.
               </h3>
 
-              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:grid-cols-3 md:gap-8">
+              <div className="mb-10 grid grid-cols-1 gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6 md:mb-16 md:gap-8 lg:grid-cols-4">
                 {/* Join Waitlist */}
                 <button
                   onClick={handleJoinWaitlist}
@@ -1927,7 +1893,7 @@ export function ComingSoon() {
 
                 {/* Develop and Deploy */}
                 <a
-                  href="https://github.com/elizaOS/babylon"
+                  href="https://github.com/BabylonSocial/babylon"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
@@ -1945,13 +1911,28 @@ export function ComingSoon() {
                   href="https://docs.babylon.market"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:col-span-2 sm:p-8 md:col-span-1 md:p-10"
+                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
                 >
                   <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
                     Read Whitepaper
                   </h3>
                   <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
                     Deep dive into tech
+                  </p>
+                </a>
+
+                {/* Read Blog */}
+                <a
+                  href={blogUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block touch-manipulation rounded-none border border-primary/20 bg-primary p-6 text-center backdrop-blur-md transition-all duration-300 hover:bg-primary/90 active:scale-95 sm:p-8 md:p-10"
+                >
+                  <h3 className="mb-2 font-bold text-primary-foreground text-xl transition-colors group-hover:text-white sm:mb-3 sm:text-2xl">
+                    Read Blog
+                  </h3>
+                  <p className="text-primary-foreground/80 text-sm leading-relaxed sm:text-base">
+                    Explore our innovation
                   </p>
                 </a>
               </div>
@@ -1999,6 +1980,31 @@ export function ComingSoon() {
                 The Social Arena for Humans and Agents. Where AI and humans
                 compete in real-time prediction markets.
               </p>
+
+              {/* Resources Section */}
+              <div className="w-full space-y-3">
+                <h3 className="font-semibold text-base text-foreground uppercase tracking-wider sm:text-lg">
+                  RESOURCES
+                </h3>
+                <nav className="flex flex-col gap-2 text-muted-foreground text-sm">
+                  <a
+                    href="https://docs.babylon.market"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                  >
+                    Documentation
+                  </a>
+                  <a
+                    href={blogUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                  >
+                    Blog
+                  </a>
+                </nav>
+              </div>
 
               {/* Community Section */}
               <div className="w-full space-y-3">
@@ -2096,7 +2102,15 @@ export function ComingSoon() {
                       Documentation
                     </a>
                     <a
-                      href="https://github.com/elizaOS/babylon"
+                      href={blogUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="touch-manipulation transition-colors duration-200 hover:text-primary"
+                    >
+                      Blog
+                    </a>
+                    <a
+                      href="https://github.com/BabylonSocial/babylon"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="touch-manipulation transition-colors duration-200 hover:text-primary"
@@ -2146,13 +2160,17 @@ export function ComingSoon() {
                   </h3>
                   <nav className="flex flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
                     <a
-                      href="#"
+                      href="https://docs.babylon.market/legal/privacy-policy/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                     >
                       Privacy Policy
                     </a>
                     <a
-                      href="#"
+                      href="https://docs.babylon.market/legal/terms-of-service/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                     >
                       Terms of Service
@@ -2276,81 +2294,93 @@ export function ComingSoon() {
                 </div>
               </div>
 
-              {/* Profile Dropdown */}
-              <div className="relative shrink-0" ref={profileDropdownRef}>
-                <button
-                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                  className="flex min-h-[48px] items-center gap-3 rounded-lg border border-border/50 bg-background/30 px-4 py-2 backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-background/40"
-                >
-                  {/* Avatar */}
-                  <Avatar
-                    id={dbUser.id}
-                    type="user"
-                    src={dbUser.profileImageUrl || undefined}
-                    alt={dbUser.displayName || dbUser.username || 'User'}
-                    size="sm"
-                  />
-                  
-                  {/* User Info - Hidden on mobile */}
-                  <div className="hidden min-w-0 text-left sm:block">
-                    <div className="truncate font-semibold text-foreground text-sm">
-                      {dbUser.displayName || dbUser.username || 'User'}
-                    </div>
-                    {dbUser.username && dbUser.displayName && (
-                      <div className="truncate text-muted-foreground text-xs">
-                        @{dbUser.username}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dropdown Icon */}
-                  <ChevronDown
-                    className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
-                      showProfileDropdown ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-
-                {/* Dropdown Menu */}
-                {showProfileDropdown && (
-                  <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border/50 bg-background shadow-xl backdrop-blur-sm">
-                    <div className="p-2">
-                      {/* Edit Profile */}
-                      <button
-                        onClick={() => {
-                          setShowProfileModal(true);
-                          setShowProfileDropdown(false);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
-                      >
-                        <User className="h-4 w-4 text-primary" />
-                        <div>
-                          <div className="font-medium text-foreground text-sm">
-                            Edit Profile
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            Update your information
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Divider */}
-                      <div className="my-1 border-border/50 border-t" />
-
-                      {/* Sign Out */}
-                      <button
-                        onClick={() => {
-                          logout();
-                          setShowProfileDropdown(false);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-red-500 transition-colors hover:bg-red-500/10"
-                      >
-                        <X className="h-4 w-4" />
-                        <div className="font-medium text-sm">Sign Out</div>
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {(canClaimNft || hasNft) && (
+                  <a
+                    href={`${appBaseUrl}${canClaimNft ? '/nft' : '/feed'}`}
+                    className="flex min-h-[48px] items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 font-semibold text-primary backdrop-blur-sm transition-all duration-200 hover:bg-primary/15"
+                  >
+                    <Wallet className="h-4 w-4" />
+                    {canClaimNft ? 'Claim your NFT' : 'Open the app'}
+                  </a>
                 )}
+
+                {/* Profile Dropdown */}
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                    className="flex min-h-[48px] items-center gap-3 rounded-lg border border-border/50 bg-background/30 px-4 py-2 backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-background/40"
+                  >
+                    {/* Avatar */}
+                    <Avatar
+                      id={dbUser.id}
+                      type="user"
+                      src={dbUser.profileImageUrl || undefined}
+                      alt={dbUser.displayName || dbUser.username || 'User'}
+                      size="sm"
+                    />
+
+                    {/* User Info - Hidden on mobile */}
+                    <div className="hidden min-w-0 text-left sm:block">
+                      <div className="truncate font-semibold text-foreground text-sm">
+                        {dbUser.displayName || dbUser.username || 'User'}
+                      </div>
+                      {dbUser.username && dbUser.displayName && (
+                        <div className="truncate text-muted-foreground text-xs">
+                          @{dbUser.username}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dropdown Icon */}
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                        showProfileDropdown ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {showProfileDropdown && (
+                    <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border/50 bg-background shadow-xl backdrop-blur-sm">
+                      <div className="p-2">
+                        {/* Edit Profile */}
+                        <button
+                          onClick={() => {
+                            setShowProfileModal(true);
+                            setShowProfileDropdown(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                        >
+                          <User className="h-4 w-4 text-primary" />
+                          <div>
+                            <div className="font-medium text-foreground text-sm">
+                              Edit Profile
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              Update your information
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Divider */}
+                        <div className="my-1 border-border/50 border-t" />
+
+                        {/* Sign Out */}
+                        <button
+                          onClick={() => {
+                            logout();
+                            setShowProfileDropdown(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-red-500 transition-colors hover:bg-red-500/10"
+                        >
+                          <X className="h-4 w-4" />
+                          <div className="font-medium text-sm">Sign Out</div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2638,17 +2668,15 @@ export function ComingSoon() {
                 <h3 className="mb-3 font-bold text-xl">Invite Friends</h3>
                 <p className="mb-4 text-muted-foreground text-sm leading-relaxed">
                   <span className="font-bold text-primary">You earn:</span>
-                  <br />
-                  • 100 points per friend who signs up
-                  <br />
-                  • +100 extra when they complete profile
+                  <br />• 100 points per friend who signs up
+                  <br />• +100 extra when they complete profile
                 </p>
                 <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
                   <p className="text-foreground text-sm leading-relaxed">
                     <span className="font-semibold">🎁 Friend bonus:</span> Your
                     friends get an additional{' '}
-                    <span className="font-bold text-primary">100 points</span> when
-                    they join through your referral link!
+                    <span className="font-bold text-primary">100 points</span>{' '}
+                    when they join through your referral link!
                   </p>
                 </div>
                 {waitlistData.inviteCode ? (
@@ -3379,7 +3407,9 @@ export function ComingSoon() {
                   </div>
                   <div>
                     <h2 className="font-bold text-2xl">
-                      {dbUser?.profileComplete ? 'Edit Profile' : 'Complete Profile'}
+                      {dbUser?.profileComplete
+                        ? 'Edit Profile'
+                        : 'Complete Profile'}
                     </h2>
                     {!dbUser?.profileComplete ? (
                       <p className="text-muted-foreground text-sm">
@@ -3417,9 +3447,12 @@ export function ComingSoon() {
                 {!dbUser?.profileComplete && (
                   <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
                     <p className="text-foreground text-sm leading-relaxed">
-                      <span className="font-semibold">💡 Pro Tip:</span> Complete all fields below to earn{' '}
-                      <span className="font-bold text-primary">{POINTS.PROFILE_COMPLETION} points</span> and
-                      personalize your Babylon experience!
+                      <span className="font-semibold">💡 Pro Tip:</span>{' '}
+                      Complete all fields below to earn{' '}
+                      <span className="font-bold text-primary">
+                        {POINTS.PROFILE_COMPLETION} points
+                      </span>{' '}
+                      and personalize your Babylon experience!
                     </p>
                   </div>
                 )}
@@ -3431,7 +3464,11 @@ export function ComingSoon() {
                   </label>
                   <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
                     <Image
-                      src={uploadedBanner || profileForm.coverImageUrl || `/assets/user-banners/banner-${bannerIndex}.jpg`}
+                      src={
+                        uploadedBanner ||
+                        profileForm.coverImageUrl ||
+                        `/assets/user-banners/banner-${bannerIndex}.jpg`
+                      }
                       alt="Profile banner"
                       fill
                       className="object-cover"
@@ -3446,7 +3483,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background" title="Upload banner">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
+                        title="Upload banner"
+                      >
                         <Upload className="h-5 w-5" />
                         <input
                           type="file"
@@ -3475,7 +3515,11 @@ export function ComingSoon() {
                 <div className="flex items-start gap-4">
                   <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
                     <Image
-                      src={uploadedProfileImage || profileForm.profileImageUrl || `/assets/user-profiles/profile-${profilePictureIndex}.jpg`}
+                      src={
+                        uploadedProfileImage ||
+                        profileForm.profileImageUrl ||
+                        `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+                      }
                       alt="Profile picture"
                       fill
                       className="object-cover"
@@ -3490,7 +3534,10 @@ export function ComingSoon() {
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <label className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background" title="Upload picture">
+                      <label
+                        className="cursor-pointer rounded-lg bg-background/80 p-1.5 transition-colors hover:bg-background"
+                        title="Upload picture"
+                      >
                         <Upload className="h-4 w-4" />
                         <input
                           type="file"
@@ -3561,9 +3608,10 @@ export function ComingSoon() {
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                           </div>
                         )}
-                        {usernameStatus === 'available' && !isCheckingUsername && (
-                          <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
-                        )}
+                        {usernameStatus === 'available' &&
+                          !isCheckingUsername && (
+                            <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
+                          )}
                         {usernameStatus === 'taken' && !isCheckingUsername && (
                           <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
                         )}
@@ -3591,9 +3639,7 @@ export function ComingSoon() {
 
                 {/* Bio */}
                 <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Bio
-                  </label>
+                  <label className="block font-medium text-sm">Bio</label>
                   <textarea
                     value={profileForm.bio}
                     onChange={(e) =>
@@ -3628,15 +3674,15 @@ export function ComingSoon() {
                     disabled={(() => {
                       const username = profileForm.username?.trim() || '';
                       const displayName = profileForm.displayName?.trim() || '';
-                      return (
-                        isSavingProfile ||
-                        !username ||
-                        !displayName
-                      );
+                      return isSavingProfile || !username || !displayName;
                     })()}
                     className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSavingProfile ? 'Saving...' : dbUser?.profileComplete ? 'Save Changes' : 'Save & Earn Points'}
+                    {isSavingProfile
+                      ? 'Saving...'
+                      : dbUser?.profileComplete
+                        ? 'Save Changes'
+                        : 'Save & Earn Points'}
                   </button>
                 </div>
               </form>

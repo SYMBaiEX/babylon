@@ -18,28 +18,14 @@
  * ```
  */
 
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { create } from 'zustand';
-import { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { logger } from '@babylon/shared';
+import type { PredictionMarket } from '@/types/markets';
+import { MARKETS_CONFIG } from '@/types/markets';
 
-/**
- * Prediction market data structure from API
- */
-export interface PredictionMarket {
-  id: number | string;
-  text: string;
-  status: 'active' | 'resolved' | 'cancelled';
-  createdDate?: string;
-  resolutionDate?: string;
-  resolvedOutcome?: boolean;
-  scenario: number;
-  yesShares?: number;
-  noShares?: number;
-  oracleCommitTxHash?: string | null;
-  oracleRevealTxHash?: string | null;
-  oraclePublishedAt?: string | null;
-}
+// Re-export for backwards compatibility
+export type { PredictionMarket } from '@/types/markets';
 
 interface PredictionMarketsState {
   // Data
@@ -58,8 +44,8 @@ interface PredictionMarketsState {
   subscribe: (intervalMs: number, userId?: string) => () => void;
 }
 
-// Cache TTL in milliseconds (10 seconds)
-const CACHE_TTL = 10000;
+// Use centralized cache TTL
+const CACHE_TTL = MARKETS_CONFIG.CACHE_TTL_MS;
 
 export const usePredictionMarketsStore = create<PredictionMarketsState>(
   (set, get) => ({
@@ -97,37 +83,25 @@ export const usePredictionMarketsStore = create<PredictionMarketsState>(
         }
         set({ error: null });
 
-        try {
-          const url = userId
-            ? `/api/markets/predictions?userId=${encodeURIComponent(userId)}`
-            : '/api/markets/predictions';
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(
-              `Failed to fetch prediction markets: ${response.status}`
-            );
-          }
-
-          const data = await response.json();
-          if (data.questions && Array.isArray(data.questions)) {
-            set({
-              markets: data.questions,
-              lastFetchedAt: Date.now(),
-              error: null,
-            });
-          }
-        } catch (err) {
-          const errorMessage =
-            err instanceof Error ? err.message : 'Failed to fetch markets';
-          logger.error(
-            'Failed to fetch prediction markets',
-            { error: err },
-            'predictionMarketsStore'
+        const url = userId
+          ? `/api/markets/predictions?userId=${encodeURIComponent(userId)}`
+          : '/api/markets/predictions';
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch prediction markets: ${response.status}`
           );
-          set({ error: errorMessage });
-        } finally {
-          set({ loading: false, fetchPromise: null });
         }
+
+        const data = await response.json();
+        if (data.questions && Array.isArray(data.questions)) {
+          set({
+            markets: data.questions,
+            lastFetchedAt: Date.now(),
+            error: null,
+          });
+        }
+        set({ loading: false, fetchPromise: null });
       })();
 
       set({ fetchPromise });

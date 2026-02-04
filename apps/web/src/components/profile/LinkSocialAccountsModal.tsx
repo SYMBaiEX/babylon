@@ -1,10 +1,10 @@
 'use client';
 
+import { cn, signInWithFarcaster } from '@babylon/shared';
 import { Check, ExternalLink, Shield, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { signInWithFarcaster } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
@@ -67,85 +67,65 @@ export function LinkSocialAccountsModal({
 
     setLinking('farcaster');
 
-    try {
-      // Use the proper SIWF protocol via relay.farcaster.xyz
-      const result = await signInWithFarcaster({
-        userId: user.id,
+    // Use the proper SIWF protocol via relay.farcaster.xyz
+    const result = await signInWithFarcaster({
+      userId: user.id,
+    });
+
+    // Send authentication data to backend for verification and linking
+    const token = getAuthToken();
+    const response = await fetch('/api/auth/farcaster/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: result.message,
+        signature: result.signature,
+        fid: result.fid,
+        username: result.username,
+        displayName: result.displayName,
+        pfpUrl: result.pfpUrl,
+        state: result.state,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      setUser({
+        ...user,
+        hasFarcaster: true,
+        farcasterUsername: result.username,
+        reputationPoints: data.newTotal || user.reputationPoints,
       });
 
-      // Send authentication data to backend for verification and linking
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
-      const response = await fetch('/api/auth/farcaster/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: result.message,
-          signature: result.signature,
-          fid: result.fid,
-          username: result.username,
-          displayName: result.displayName,
-          pfpUrl: result.pfpUrl,
-          state: result.state,
-        }),
-      });
+      // Dispatch event to notify other components (like UserMenu) to refresh
+      window.dispatchEvent(new CustomEvent('rewards-updated'));
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setUser({
-          ...user,
-          hasFarcaster: true,
-          farcasterUsername: result.username,
-          reputationPoints: data.newTotal || user.reputationPoints,
-        });
-
-        // Dispatch event to notify other components (like UserMenu) to refresh
-        window.dispatchEvent(new CustomEvent('rewards-updated'));
-
-        if (data.pointsAwarded > 0) {
-          toast.success(
-            `Farcaster linked! +${data.pointsAwarded} points awarded`
-          );
-        } else {
-          toast.success('Farcaster account linked successfully!');
-        }
-
-        onClose();
+      if (data.pointsAwarded > 0) {
+        toast.success(
+          `Farcaster linked! +${data.pointsAwarded} points awarded`
+        );
       } else {
-        const errorMessage = data.error || 'Failed to link Farcaster account';
-        if (response.status === 409) {
-          toast.error(
-            errorMessage.includes('already linked')
-              ? errorMessage
-              : 'This Farcaster account is already linked to another user'
-          );
-        } else {
-          toast.error(errorMessage);
-        }
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Don't show error for user cancellation
-      if (errorMessage === 'Authentication cancelled') {
-        return;
+        toast.success('Farcaster account linked successfully!');
       }
 
-      // Handle popup blocked
-      if (errorMessage.includes('popup')) {
-        toast.error('Please allow popups to connect Farcaster');
-        return;
+      onClose();
+    } else {
+      const errorMessage = data.error || 'Failed to link Farcaster account';
+      if (response.status === 409) {
+        toast.error(
+          errorMessage.includes('already linked')
+            ? errorMessage
+            : 'This Farcaster account is already linked to another user'
+        );
+      } else {
+        toast.error(errorMessage);
       }
-
-      toast.error('Failed to connect Farcaster. Please try again.');
-    } finally {
-      setLinking(null);
     }
+    setLinking(null);
   };
 
   return (
@@ -281,7 +261,7 @@ export function LinkSocialAccountsModal({
                   disabled={linking === 'farcaster'}
                   className={cn(
                     'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
-                    'bg-[#8A63D2] text-foreground hover:bg-[#7952c4]',
+                    'bg-[#8A63D2] text-white hover:bg-[#7952c4]',
                     'disabled:cursor-not-allowed disabled:opacity-50',
                     'flex items-center justify-center gap-2'
                   )}

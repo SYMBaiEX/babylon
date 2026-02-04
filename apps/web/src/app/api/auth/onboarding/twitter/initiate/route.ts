@@ -30,10 +30,10 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { authenticate } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const user = await authenticate(request);

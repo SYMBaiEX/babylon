@@ -2,8 +2,8 @@
  * Server-side portfolio P&L calculation
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
 import { db, markets, perpPositions, positions, users } from '@babylon/db';
+import { and, eq, isNull } from 'drizzle-orm';
 
 export interface PortfolioPnLSnapshot {
   lifetimePnL: number;
@@ -118,4 +118,3 @@ export async function calculatePortfolioPnL(
     accountEquity,
   };
 }
-

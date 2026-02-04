@@ -30,6 +30,7 @@ import { generateSnowflakeId } from '@babylon/shared';
 const testIds = {
   userIds: [] as string[],
   actorIds: [] as string[],
+  groupIds: [] as string[],
   chatIds: [] as string[],
   postIds: [] as string[],
   reactionIds: [] as string[],
@@ -70,17 +71,7 @@ async function createTestNPC(
 ): Promise<{ id: string; name: string }> {
   const id = await generateSnowflakeId();
 
-  await db.actor.create({
-    data: {
-      id,
-      name,
-      description: 'Test NPC for engagement testing',
-      domain: ['test'],
-      isTest: true,
-      updatedAt: new Date(),
-    },
-  });
-
+  // Create user with isActor: true (no separate actors table needed)
   await db.user.create({
     data: {
       id,
@@ -88,6 +79,14 @@ async function createTestNPC(
       displayName: name,
       isActor: true,
       isTest: true,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create actorState for dynamic data
+  await db.actorState.create({
+    data: {
+      id,
       updatedAt: new Date(),
     },
   });
@@ -213,16 +212,30 @@ async function recordUserInteraction(
 
 async function createGroupChat(
   name: string,
-  npcAdminId: string
-): Promise<string> {
-  const id = await generateSnowflakeId();
+  npcOwnerId: string
+): Promise<{ chatId: string; groupId: string }> {
+  const groupId = await generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
 
+  // Create Group first (unified schema)
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: npcOwnerId,
+      createdById: npcOwnerId,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create Chat with groupId link
   await db.chat.create({
     data: {
-      id,
+      id: chatId,
       name,
       isGroup: true,
-      npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
@@ -233,26 +246,27 @@ async function createGroupChat(
   await db.chatParticipant.create({
     data: {
       id: participantId,
-      chatId: id,
-      userId: npcAdminId,
+      chatId,
+      userId: npcOwnerId,
       isActive: true,
     },
   });
 
-  testIds.chatIds.push(id);
+  testIds.groupIds.push(groupId);
+  testIds.chatIds.push(chatId);
   testIds.participantIds.push(participantId);
-  return id;
+  return { chatId, groupId };
 }
 
 async function cleanupTestData(): Promise<void> {
   // Delete in reverse order of dependencies
   if (testIds.inviteIds.length > 0) {
-    await db.userGroupInvite.deleteMany({
+    await db.groupInvite.deleteMany({
       where: { id: { in: testIds.inviteIds } },
     });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -260,6 +274,12 @@ async function cleanupTestData(): Promise<void> {
     await db.chatParticipant.deleteMany({
       where: { id: { in: testIds.participantIds } },
     });
+  }
+  if (testIds.chatIds.length > 0) {
+    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
+  }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
   }
   if (testIds.interactionIds.length > 0) {
     await db.userInteraction.deleteMany({
@@ -280,14 +300,11 @@ async function cleanupTestData(): Promise<void> {
   if (testIds.postIds.length > 0) {
     await db.post.deleteMany({ where: { id: { in: testIds.postIds } } });
   }
-  if (testIds.chatIds.length > 0) {
-    await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
-  }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }
   if (testIds.actorIds.length > 0) {
-    await db.actor.deleteMany({ where: { id: { in: testIds.actorIds } } });
+    await db.actorState.deleteMany({ where: { id: { in: testIds.actorIds } } });
   }
 
   // Reset all tracking arrays
@@ -550,7 +567,10 @@ describe('Full Engagement → Invite Flow', () => {
     // Setup: Create NPCs and a group chat
     const npc1 = await createTestNPC('Alpha Leader');
     const npc2 = await createTestNPC('Group Member NPC');
-    const groupChatId = await createGroupChat(`${npc1.name}'s Circle`, npc1.id);
+    const { chatId: groupChatId } = await createGroupChat(
+      `${npc1.name}'s Circle`,
+      npc1.id
+    );
 
     // Add second NPC to group
     const participant2Id = await generateSnowflakeId();

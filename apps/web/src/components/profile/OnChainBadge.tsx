@@ -1,8 +1,8 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Shield, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
-import { cn } from '@babylon/shared';
 
 /**
  * On-chain badge component for displaying blockchain verification status.

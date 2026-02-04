@@ -1,8 +1,10 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   AlertCircle,
+  BookOpen,
   CheckCircle2,
   Copy,
   ExternalLink,
@@ -13,7 +15,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
 
 /**
  * Security tab component for managing account security settings.
@@ -42,28 +43,18 @@ export function SecurityTab() {
   const { user, logout } = useAuth();
 
   const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${label} copied to clipboard`);
-    } catch (error) {
-      logger.error('Failed to copy to clipboard', { error }, 'SecurityTab');
-      toast.error('Failed to copy to clipboard');
-    }
+    await navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success('Logged out successfully');
-      logger.info(
-        'User logged out from security settings',
-        undefined,
-        'SecurityTab'
-      );
-    } catch (error) {
-      logger.error('Failed to logout', { error }, 'SecurityTab');
-      toast.error('Failed to logout');
-    }
+    await logout();
+    toast.success('Logged out successfully');
+    logger.info(
+      'User logged out from security settings',
+      undefined,
+      'SecurityTab'
+    );
   };
 
   const getWalletTypeDisplay = (walletClientType: string) => {
@@ -151,103 +142,108 @@ export function SecurityTab() {
       </div>
 
       {/* Connected Wallets */}
-      <div className="space-y-4 rounded-lg border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h3 className="flex items-center gap-2 font-semibold">
-              <Wallet className="h-4 w-4" />
-              Connected Wallets
-            </h3>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Manage your blockchain wallets and authentication methods
-            </p>
-          </div>
-          {linkWallet && (
-            <button
-              onClick={linkWallet}
-              className="rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-[#0066FF]/90"
-            >
-              Link Wallet
-            </button>
-          )}
-        </div>
+      <div className="rounded-lg border border-border p-4">
+        <div className="flex items-start gap-3">
+          <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-[#0066FF]" />
+          <div className="flex-1 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="font-semibold">Connected Wallets</h3>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Manage your blockchain wallets and authentication methods
+                </p>
+              </div>
+              {linkWallet && (
+                <button
+                  onClick={linkWallet}
+                  className="rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-[#0066FF]/90"
+                >
+                  Link Wallet
+                </button>
+              )}
+            </div>
 
-        {wallets.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground">
-            <Wallet className="mx-auto mb-3 h-12 w-12 opacity-50" />
-            <p className="text-sm">No wallets connected</p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {wallets.map((wallet) => (
-              <div
-                key={wallet.address}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-muted p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-sm">
-                      {getWalletTypeDisplay(wallet.walletClientType)}
-                    </span>
-                    {isEmbeddedWallet(wallet.walletClientType) && (
-                      <span className="rounded bg-[#0066FF]/20 px-2 py-0.5 text-[#0066FF] text-xs">
-                        Embedded
-                      </span>
-                    )}
-                    {wallet.address === user?.walletAddress && (
-                      <span className="rounded bg-green-500/20 px-2 py-0.5 text-green-500 text-xs">
-                        Primary
-                      </span>
-                    )}
+            {wallets.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <Wallet className="mx-auto mb-3 h-12 w-12 opacity-50" />
+                <p className="text-sm">No wallets connected</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {wallets.map((wallet) => (
+                  <div
+                    key={wallet.address}
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-muted p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-sm">
+                          {getWalletTypeDisplay(wallet.walletClientType)}
+                        </span>
+                        {isEmbeddedWallet(wallet.walletClientType) && (
+                          <span className="rounded bg-[#0066FF]/20 px-2 py-0.5 text-[#0066FF] text-xs">
+                            Embedded
+                          </span>
+                        )}
+                        {wallet.address === user?.walletAddress && (
+                          <span className="rounded bg-green-500/20 px-2 py-0.5 text-green-500 text-xs">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <code className="text-muted-foreground text-xs">
+                          {wallet.address.slice(0, 6)}...
+                          {wallet.address.slice(-4)}
+                        </code>
+                        <button
+                          onClick={() =>
+                            copyToClipboard(wallet.address, 'Address')
+                          }
+                          className="rounded p-1 hover:bg-background"
+                          title="Copy full address"
+                        >
+                          <Copy className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isEmbeddedWallet(wallet.walletClientType) &&
+                        exportWallet && (
+                          <button
+                            onClick={exportWallet}
+                            className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 font-medium text-xs hover:bg-accent"
+                            title="Export wallet private key"
+                          >
+                            <Key className="h-3 w-3" />
+                            <span className="hidden sm:inline">Export</span>
+                          </button>
+                        )}
+                      {wallets.length > 1 && unlinkWallet && (
+                        <button
+                          onClick={() => unlinkWallet(wallet.address)}
+                          className="rounded px-3 py-1.5 font-medium text-red-500 text-xs hover:bg-red-500/10"
+                        >
+                          Unlink
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <code className="text-muted-foreground text-xs">
-                      {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-                    </code>
-                    <button
-                      onClick={() => copyToClipboard(wallet.address, 'Address')}
-                      className="rounded p-1 hover:bg-background"
-                      title="Copy full address"
-                    >
-                      <Copy className="h-3 w-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isEmbeddedWallet(wallet.walletClientType) &&
-                    exportWallet && (
-                      <button
-                        onClick={exportWallet}
-                        className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 font-medium text-xs hover:bg-accent"
-                        title="Export wallet private key"
-                      >
-                        <Key className="h-3 w-3" />
-                        <span className="hidden sm:inline">Export</span>
-                      </button>
-                    )}
-                  {wallets.length > 1 && unlinkWallet && (
-                    <button
-                      onClick={() => unlinkWallet(wallet.address)}
-                      className="rounded px-3 py-1.5 font-medium text-red-500 text-xs hover:bg-red-500/10"
-                    >
-                      Unlink
-                    </button>
-                  )}
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                <div className="text-muted-foreground text-sm">
+                  <strong className="text-foreground">Embedded wallets</strong>{' '}
+                  are created and managed by Privy, enabling gasless
+                  transactions. You can export your private key at any time.{' '}
+                  <strong className="text-foreground">External wallets</strong>{' '}
+                  require you to pay gas fees.
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-4 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-            <div className="text-muted-foreground text-sm">
-              <strong className="text-foreground">Embedded wallets</strong> are
-              created and managed by Privy, enabling gasless transactions. You
-              can export your private key at any time.{' '}
-              <strong className="text-foreground">External wallets</strong>{' '}
-              require you to pay gas fees.
             </div>
           </div>
         </div>
@@ -275,36 +271,41 @@ export function SecurityTab() {
 
       {/* Additional Resources */}
       <div className="space-y-3 rounded-lg border border-border p-4">
-        <h3 className="font-semibold">Security Resources</h3>
-        <div className="space-y-2">
-          <a
-            href="https://docs.privy.io/guide/security"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Privy Security Documentation
-          </a>
-          <a
-            href="https://docs.babylon.market/security"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Babylon Security Best Practices
-          </a>
+        <div className="flex items-start gap-3">
+          <BookOpen className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <div className="flex-1">
+            <h3 className="font-semibold">Security Resources</h3>
+            <div className="mt-1 space-y-2">
+              <a
+                href="https://docs.privy.io/guide/security"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Privy Security Documentation
+              </a>
+              <a
+                href="https://docs.babylon.market/security"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Babylon Security Best Practices
+              </a>
+            </div>
+            <p className="mt-3 text-muted-foreground text-xs">
+              For security concerns or to report vulnerabilities, contact{' '}
+              <a
+                href="mailto:security@elizas.com"
+                className="text-[#0066FF] hover:underline"
+              >
+                security@elizas.com
+              </a>
+            </p>
+          </div>
         </div>
-        <p className="mt-3 text-muted-foreground text-xs">
-          For security concerns or to report vulnerabilities, contact{' '}
-          <a
-            href="mailto:security@elizas.com"
-            className="text-[#0066FF] hover:underline"
-          >
-            security@elizas.com
-          </a>
-        </p>
       </div>
 
       {/* Privacy & Account Deletion Link */}

@@ -14,27 +14,11 @@ env:
   NODE_ENV: test
   CI: true
 
-# Maximum performance with Blacksmith runners:
-# Runners:
-# - Build: blacksmith-8vcpu-ubuntu-2404 (fastest compilation, type checking, linting)
-# - Unit/Integration: blacksmith-2vcpu-ubuntu-2404 (optimized for test execution)
-# - E2E & Synpress: blacksmith-8vcpu-ubuntu-2404 (Playwright benefits from high CPU)
-# - All jobs: 2x faster bare metal gaming CPUs with highest single-core performance
-# Cache (automatic optimizations):
-# - 4x faster cache downloads (colocated in same datacenter)
-# - Existing actions/cache@v4 automatically accelerated (node_modules, .next)
-# - Docker pull cache for postgres:16 service images (automatic)
-# - 25GB free cache storage per repo/week (2.5x GitHub's 10GB limit)
-# 
-# Artifact strategy:
-# - All jobs run in parallel - no artifact dependencies
-# - Each job builds its own environment to maximize speed
-
 jobs:
   # Build, typecheck, and lint job
   build-and-check:
     name: Build, Type Check & Lint
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
@@ -100,6 +84,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
+          set -euo pipefail
           # Use the setup script for consistent database initialization
           bash scripts/setup-test-db.sh 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
 
@@ -118,8 +103,9 @@ jobs:
           SKIP_ENV_VALIDATION: true
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
+          set -euo pipefail
           echo "🏗️ Building production..."
-          bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          bunx turbo build --filter=!babylon-docs 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
           echo "✅ Build complete"
       
       - name: Verify build artifacts exist

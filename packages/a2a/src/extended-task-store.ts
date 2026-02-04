@@ -40,7 +40,6 @@ export interface ListTasksResult {
   totalSize: number;
   pageSize: number;
   nextPageToken: string;
-  [key: string]: unknown;
 }
 
 /**
@@ -103,11 +102,19 @@ export class ExtendedTaskStore extends InMemoryTaskStore {
       return bTime - aTime;
     });
 
-    // Pagination
+    // Pagination with validated pageToken
     const pageSize = Math.min(params.pageSize || 10, 100); // Max 100 per page
-    const pageOffset = params.pageToken
-      ? Number.parseInt(params.pageToken, 10)
-      : 0;
+    let pageOffset = 0;
+
+    if (params.pageToken) {
+      const parsed = Number.parseInt(params.pageToken, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(
+          `Invalid pageToken: expected non-negative integer, got "${params.pageToken}"`
+        );
+      }
+      pageOffset = parsed;
+    }
 
     const startIdx = pageOffset;
     const endIdx = startIdx + pageSize;

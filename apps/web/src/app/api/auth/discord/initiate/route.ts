@@ -9,12 +9,11 @@
  * authorization page. Generates secure state parameter with CSRF protection.
  */
 
+import { authenticate } from '@babylon/api';
+import { db } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 
 export async function GET(request: NextRequest) {
   const authUser = await authenticate(request);

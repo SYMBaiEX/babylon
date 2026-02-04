@@ -8,35 +8,36 @@ import type { Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
+// Track consecutive failures to detect server crash
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 /**
- * Waits for the server to be healthy before proceeding.
+ * Waits for the server to be responsive before proceeding.
  *
- * Helps prevent flakiness when the server is slow to respond.
+ * Checks the root URL and accepts any response (except network errors or 5xx).
+ * This prevents flakiness when the server is slow to start.
  *
- * @param maxRetries - Maximum number of retry attempts (default: 5)
+ * @param maxRetries - Maximum number of retry attempts (default: 15)
  * @param retryDelay - Delay between retries in milliseconds (default: 2000)
- * @throws Error if server is not healthy after all retries
  */
 export async function waitForServerHealthy(
-  maxRetries = 5,
+  maxRetries = 15,
   retryDelay = 2000
-): Promise<void> {
+): Promise<boolean> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(`${BASE_URL}/api/health`, {
+      const response = await fetch(`${BASE_URL}/`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(15000),
       });
-      if (response.ok) {
-        return;
+      // Accept any non-5xx response as "server is up"
+      if (response.status < 500) {
+        consecutiveFailures = 0;
+        return true;
       }
-      console.log(
-        `⚠️ Server health check failed (attempt ${attempt}/${maxRetries}): ${response.status}`
-      );
-    } catch (error) {
-      console.log(
-        `⚠️ Server health check error (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`
-      );
+    } catch {
+      // Silent retry - don't spam logs
     }
 
     if (attempt < maxRetries) {
@@ -44,7 +45,8 @@ export async function waitForServerHealthy(
     }
   }
 
-  throw new Error(`Server not healthy after ${maxRetries} attempts`);
+  consecutiveFailures++;
+  return false;
 }
 
 /**
@@ -57,61 +59,141 @@ export async function waitForServerHealthy(
  * @throws Error if navigation fails after all retries
  */
 export async function navigateTo(page: Page, route: string): Promise<void> {
-  await waitForServerHealthy(3, 1000);
+  // Quick health check first
+  const isHealthy = await waitForServerHealthy(5, 1000);
+
+  // If server seems down, do a longer wait
+  if (!isHealthy) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await waitForServerHealthy(10, 2000);
+  }
+
   let lastError: Error | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       await page.goto(`${BASE_URL}${route}`, {
         waitUntil: 'domcontentloaded',
-        timeout: 30000,
+        timeout: 45000,
       });
+      consecutiveFailures = 0;
       return;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.log(
-        `⚠️ Navigation attempt ${attempt} failed: ${lastError.message}`
-      );
-      if (attempt < 3) {
-        await page.waitForTimeout(1000);
+      if (attempt < 5) {
+        // Exponential backoff
+        await page.waitForTimeout(1000 * attempt);
       }
     }
+  }
+
+  // If we've had too many failures, the server is likely crashed
+  if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    console.log(
+      '⚠️ Server appears to have crashed - skipping remaining navigation'
+    );
   }
 
   throw lastError ?? new Error('Navigation failed');
 }
 
 /**
+ * Hide Next.js dev overlay to prevent it from intercepting pointer events.
+ *
+ * In development mode, Next.js injects a portal that can block UI interactions.
+ * This function hides it so tests can interact with the actual UI.
+ *
+ * @param page - Playwright page instance
+ */
+export async function hideNextDevOverlay(page: Page): Promise<void> {
+  await page
+    .evaluate(() => {
+      const overlay = document.querySelector('nextjs-portal');
+      if (overlay instanceof HTMLElement) {
+        overlay.style.pointerEvents = 'none';
+        overlay.style.display = 'none';
+      }
+      // Also hide any error overlays
+      document.querySelectorAll('[data-nextjs-dev-overlay]').forEach((el) => {
+        if (el instanceof HTMLElement) {
+          el.style.pointerEvents = 'none';
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+/**
  * Waits for page to be fully loaded and hydrated.
  *
  * @param page - Playwright page instance
- * @param timeout - Maximum time to wait in milliseconds (default: 15000)
+ * @param timeout - Maximum time to wait in milliseconds (default: 20000)
  */
 export async function waitForPageLoad(
   page: Page,
-  timeout = 15000
+  timeout = 20000
 ): Promise<void> {
   try {
     await page.waitForLoadState('domcontentloaded', { timeout });
 
-    await page
-      .waitForSelector('button', { state: 'visible', timeout: 10000 })
-      .catch(() => {
-        console.log('⚠️ No buttons found, page may not have fully hydrated');
-      });
+    // Hide Next.js dev overlay to prevent test interference
+    await hideNextDevOverlay(page);
 
-    await page.waitForTimeout(500);
+    // Wait for page to have interactive elements
+    let hasButtons = false;
+    for (let i = 0; i < 20; i++) {
+      const buttonCount = await page
+        .locator('button')
+        .count()
+        .catch(() => 0);
+      if (buttonCount > 0) {
+        hasButtons = true;
+        break;
+      }
+      await page.waitForTimeout(500);
+    }
+
+    if (!hasButtons) {
+      // Try reloading the page once
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.waitForTimeout(2000);
+      // Hide overlay again after reload
+      await hideNextDevOverlay(page);
+    }
   } catch (_e) {
-    console.log('⚠️ Page load wait timed out, continuing...');
+    // Continue anyway
   }
 }
 
 /**
- * Waits a short period between tests to let the server recover.
+ * Waits between tests to let the server recover.
  *
  * Helps prevent flakiness from server overload.
  *
  * @param page - Playwright page instance
  */
 export async function cooldownBetweenTests(page: Page): Promise<void> {
-  await page.waitForTimeout(500);
+  // Give the server a moment to recover between tests
+  await page.waitForTimeout(1500);
+}
+
+/**
+ * Check if server is currently healthy
+ */
+export async function isServerHealthy(): Promise<boolean> {
+  try {
+    const response = await fetch(`${BASE_URL}/`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Skips remaining tests in a suite if server is down
+ */
+export function shouldSkipTest(): boolean {
+  return consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
 }

@@ -47,7 +47,7 @@
  *
  * @see {@link TradeExecutionService} - Executes validated decisions
  * @see {@link MarketContextService} - Builds NPC context
- * @see {@link GameEngine} - Calls generateBatchDecisions() each tick
+ * @see {@link executeGameTick} - Production tick calls generateBatchDecisions() each tick
  *
  * @example
  * ```typescript
@@ -66,38 +66,43 @@
  * ```
  */
 
-import {
-  actors,
-  and,
-  db,
-  desc,
-  eq,
-  gte,
-  inArray,
-  organizationMappings,
-  organizations,
-  posts,
-  questions,
-} from '@babylon/db';
-import type { BabylonLLMClient } from './llm/openai-client';
-import { loadActorById } from './actors-loader';
+import { and, db, desc, eq, gte, inArray, posts, questions } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { parseXML } from './llm/xml-parser';
-import type { MarketContextService } from './services/market-context-service';
+import { loadActorById } from './actors-loader';
+import { getTradingProbability } from './config/npc-activity';
+import {
+  formatSimulationEventMarketSignals,
+  formatSimulationPredictionMarkets,
+  formatSimulationRecentEvents,
+} from './config/simulation';
+import type { BabylonLLMClient } from './llm/openai-client';
 import {
   countTokensSync,
   getSafeContextLimit,
   truncateToTokenLimitSync,
-} from '@babylon/api';
+} from './llm/token-counter';
+import { parseXML } from './llm/xml-parser';
+import {
+  formatTradingStrategyBias,
+  getNpcTradingStrategy,
+  TRADING_STRATEGIES,
+} from './npc/trading-strategies';
 import {
   generateWorldContext,
   getShuffledExamplesText,
   npcMarketDecisions,
   renderPrompt,
 } from './prompts';
+import { EventMarketLinkerService } from './services/event-market-linker';
+import type { MarketContextService } from './services/market-context-service';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { isSimulationMode } from './storage-bridge';
 import type { JsonValue } from './types/common';
-import type { NPCMarketContext } from './types/market-context';
+import type { NPCMarketContext, NPCPosition } from './types/market-context';
 import type { TradingDecision } from './types/market-decisions';
+import { first, firstOrThrow } from './utils/array-utils';
+import { formatError } from './utils/error-utils';
+import { clamp01 } from './utils/math-utils';
 
 /**
  * Token management configuration
@@ -114,6 +119,8 @@ interface TokenConfig {
   maxContextTokens: number;
   maxOutputTokens: number;
   tokensPerNPC: number;
+  customApiUrl?: string;
+  customModelName?: string;
 }
 
 /**
@@ -157,6 +164,10 @@ export class MarketDecisionEngine {
   } | null = null;
   private recentEventsCache: { events: string; timestamp: number } | null =
     null;
+  private eventMarketSignalsCache: {
+    signals: string;
+    timestamp: number;
+  } | null = null;
   private readonly CACHE_TTL_MS = 60000; // 1 minute TTL for caches
 
   /**
@@ -201,16 +212,34 @@ export class MarketDecisionEngine {
     options: {
       model?: string;
       maxOutputTokens?: number;
+      useLocalModel?: boolean;
+      localModelUrl?: string;
     } = {}
   ) {
     // Use provider-appropriate model, or let LLM client use its default
     const provider = llm.getProvider();
     let model: string | undefined;
 
-    if (options.model) {
-      // User explicitly provided a model - use it
+    // 1. Check for Local Model / RL Training Override
+    if (options.useLocalModel) {
+      // Default to the adapter name if no specific model provided
+      model = options.model || 'babylon-adapter-v1';
+
+      logger.info(
+        'MarketDecisionEngine switched to LOCAL MODEL for RL Benchmarking',
+        {
+          model,
+          localModelUrl: options.localModelUrl || 'http://localhost:8000/v1',
+        },
+        'MarketDecisionEngine'
+      );
+    }
+    // 2. Check for explicit model override
+    else if (options.model) {
       model = options.model;
-    } else if (provider === 'groq') {
+    }
+    // 3. Provider-specific defaults
+    else if (provider === 'groq') {
       // Use qwen3-32b for Groq - fast and reliable
       model = 'qwen/qwen3-32b';
     } else {
@@ -271,6 +300,7 @@ export class MarketDecisionEngine {
         maxContextTokens: this.tokenConfig.maxContextTokens,
         maxOutputTokens,
         isOpenAIModel,
+        useLocalModel: options.useLocalModel,
       },
       'MarketDecisionEngine'
     );
@@ -315,11 +345,20 @@ export class MarketDecisionEngine {
    * console.log(`Holds: ${decisions.filter(d => d.action === 'hold').length}`);
    * ```
    */
-  async generateBatchDecisions(): Promise<TradingDecision[]> {
+  async generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+    recentEvents?: Array<{
+      type: string;
+      description: string;
+      timestamp: string;
+      sentiment?: number;
+      relatedTickers?: string[];
+    }>;
+  }): Promise<TradingDecision[]> {
     const startTime = Date.now();
 
-    // Get context for all NPCs
-    const contexts = await this.contextService.buildContextForAllNPCs();
+    // Get context for all NPCs (with optional overrides for causal simulation)
+    const contexts = await this.contextService.buildContextForAllNPCs(options);
 
     if (contexts.size === 0) {
       logger.warn(
@@ -337,7 +376,31 @@ export class MarketDecisionEngine {
     );
 
     // Convert contexts to array
-    const npcs = Array.from(contexts.values());
+    const allNpcs = Array.from(contexts.values());
+
+    // Filter NPCs by trading probability - only include NPCs that pass a random roll
+    // This reduces the number of NPCs that get trading decisions each tick
+    const tradingProbability = getTradingProbability();
+    const npcs = allNpcs.filter(() => Math.random() < tradingProbability);
+
+    logger.info(
+      `Filtered NPCs by trading probability`,
+      {
+        totalNpcs: allNpcs.length,
+        eligibleNpcs: npcs.length,
+        tradingProbability,
+      },
+      'MarketDecisionEngine'
+    );
+
+    if (npcs.length === 0) {
+      logger.info(
+        'No NPCs passed trading probability filter this tick',
+        { tradingProbability, totalNpcs: allNpcs.length },
+        'MarketDecisionEngine'
+      );
+      return [];
+    }
 
     // Calculate how many NPCs we can process per batch
     // For OpenAI models, be more conservative due to combined input+output limits
@@ -354,6 +417,14 @@ export class MarketDecisionEngine {
           this.tokenConfig.tokensPerNPC
       )
     );
+
+    // Cap batch size to avoid hitting output token limits
+    // Each NPC decision can generate ~800-1000 tokens of output
+    // Groq API has practical output limit of ~4000 tokens (not the documented 40k)
+    // So we need to limit to 4 NPCs per batch for Groq to stay under limit
+    const isGroqProvider = this.llm.getProvider() === 'groq';
+    const MAX_NPCS_FOR_OUTPUT = isGroqProvider ? 4 : 20;
+    maxNPCsPerBatch = Math.min(maxNPCsPerBatch, MAX_NPCS_FOR_OUTPUT);
 
     // Reduce batch size for OpenAI models to account for combined input+output limits
     if (isOpenAIModel) {
@@ -435,6 +506,152 @@ export class MarketDecisionEngine {
   }
 
   /**
+   * Calculate Portfolio Exposure %
+   * (Total Position Value) / (Cash + Total Position Value)
+   */
+  private calculateExposure(balance: number, positions: NPCPosition[]): number {
+    const totalPositionValue = positions.reduce(
+      (sum, p) => sum + p.size + p.unrealizedPnL,
+      0
+    );
+    const totalEquity = balance + totalPositionValue;
+
+    if (totalEquity <= 0) return 0; // Avoid division by zero/negative equity
+    return Math.min(100, Math.max(0, (totalPositionValue / totalEquity) * 100));
+  }
+
+  /**
+   * Map generic personality traits to a Trading Archetype
+   */
+  private mapPersonalityToArchetype(personality: string): string {
+    const p = personality.toLowerCase();
+    if (
+      p.includes('risk') ||
+      p.includes('aggressive') ||
+      p.includes('degen') ||
+      p.includes('speculator')
+    ) {
+      return 'DEGEN_TRADER';
+    }
+    if (
+      p.includes('cautious') ||
+      p.includes('conservative') ||
+      p.includes('manager')
+    ) {
+      return 'RISK_MANAGER';
+    }
+    if (p.includes('analytical') || p.includes('quant') || p.includes('math')) {
+      return 'QUANT_TRADER';
+    }
+    if (p.includes('insider') || p.includes('connected')) {
+      return 'INSIDER';
+    }
+    return 'SYSTEMATIC_TRADER'; // Default
+  }
+
+  /**
+   * Format Market Data as a structured ASCII Table
+   */
+  private formatMarketTable(contexts: NPCMarketContext[]): string {
+    // Assume all contexts see the same market, so take the first one
+    if (!contexts[0]) return 'No Market Data Available';
+
+    const perps = contexts[0].perpMarkets || [];
+    const predictions = contexts[0].predictionMarkets || [];
+
+    let table =
+      '| Ticker/ID | Type | Price | 24h Change | Volume/Liq |\n|---|---|---|---|---|\n';
+
+    // Add Perps
+    for (const p of perps) {
+      const sign = p.changePercent24h >= 0 ? '+' : '';
+      table += `| ${p.ticker} | PERP | $${p.currentPrice.toFixed(2)} | ${sign}${p.changePercent24h.toFixed(2)}% | Vol: $${(p.volume24h / 1000).toFixed(1)}k |\n`;
+    }
+
+    // Add Predictions
+    for (const p of predictions) {
+      // Assuming binary YES/NO prices sum to ~100
+      table += `| ${p.id} | PRED | Yes: ${p.yesPrice.toFixed(0)}¢ | No: ${p.noPrice.toFixed(0)}¢ | Vol: $${(p.totalVolume / 1000).toFixed(1)}k |\n`;
+    }
+
+    return table;
+  }
+
+  /**
+   * Format NPCs list into "Trader Dashboard" blocks
+   */
+  private formatNPCsList(contexts: NPCMarketContext[]): string {
+    return contexts
+      .map((ctx, i) => {
+        const archetype = this.mapPersonalityToArchetype(ctx.personality);
+        const strategyKey = getNpcTradingStrategy(ctx.npcId);
+        const strategy = TRADING_STRATEGIES[strategyKey];
+        const exposure = this.calculateExposure(
+          ctx.availableBalance,
+          ctx.currentPositions
+        );
+
+        // Calculate Total PnL for display
+        const totalPnL = ctx.currentPositions.reduce(
+          (sum, p) => sum + p.unrealizedPnL,
+          0
+        );
+        const pnlSign = totalPnL >= 0 ? '+' : '';
+
+        // Format Top Positions (Max 3)
+        const topPositions = ctx.currentPositions
+          .sort((a, b) => Math.abs(b.unrealizedPnL) - Math.abs(a.unrealizedPnL))
+          .slice(0, 3)
+          .map((p) => {
+            const symbol =
+              p.marketType === 'perp' ? p.ticker : `Q${p.marketId}`;
+            const posSign = p.unrealizedPnL >= 0 ? '+' : '';
+            return `${symbol} ${p.side} ($${p.size.toFixed(0)}, PnL: ${posSign}$${p.unrealizedPnL.toFixed(0)}) [ID:${p.id}]`;
+          })
+          .join(', ');
+
+        // RESTORED: Relationships (Network) - Compact format
+        const relationships =
+          ctx.relationships && ctx.relationships.length > 0
+            ? ctx.relationships
+                .filter((r) => Math.abs(r.sentiment) > 0.4) // Only show strong relationships
+                .slice(0, 4)
+                .map(
+                  (r) => `${r.sentiment > 0 ? 'Ally' : 'Rival'}:${r.actorName}`
+                )
+                .join(', ')
+            : 'None';
+
+        // Identity & Bias
+        const recentTopics = ctx.recentPosts
+          .slice(0, 3) // Last 3 posts
+          .map((p) => p.content.substring(0, 20) + '...')
+          .join(' | ');
+
+        // Format Private Intel (Group Chats)
+        // Only show the last 2 messages to keep context tight
+        const privateIntel =
+          ctx.groupChatMessages.length > 0
+            ? ctx.groupChatMessages
+                .slice(0, 2)
+                .map((m) => `"${m.fromName}: ${m.message}"`)
+                .join(' | ')
+            : 'None';
+
+        return `[${i + 1}] TRADER DASHBOARD
+ID: ${ctx.npcId} | Name: ${ctx.npcName}
+Archetype: ${archetype} | Strategy: ${strategy.label} (${strategyKey})
+Bias: ${formatTradingStrategyBias(strategy)} | Cash: $${ctx.availableBalance.toLocaleString()}
+Total PnL: ${pnlSign}$${totalPnL.toFixed(0)} | Exposure: ${exposure.toFixed(1)}%
+Network: ${relationships}
+Positions: ${topPositions || 'None'}
+Current Focus: ${recentTopics || 'Market General'}
+🔒 PRIVATE INTEL: ${privateIntel}`;
+      })
+      .join('\n----------------------------------------\n');
+  }
+
+  /**
    * Generate decisions for an array of contexts using LLM with token validation
    */
   private async generateDecisionsForContexts(
@@ -442,8 +659,11 @@ export class MarketDecisionEngine {
   ): Promise<TradingDecision[]> {
     if (contexts.length === 0) return [];
 
-    // Format NPCs data as string (existing prompts use pre-formatted strings)
+    // Format NPCs data as structured dashboard
     let npcsList = this.formatNPCsList(contexts);
+
+    // Format Market Data Table
+    const marketTable = this.formatMarketTable(contexts);
 
     // Get world context with caching (avoids redundant queries in same tick)
     const worldContext = await this.getCachedWorldContext();
@@ -454,10 +674,23 @@ export class MarketDecisionEngine {
     // Get recent events with caching
     const recentEventsText = await this.getCachedRecentEvents();
 
+    // Get event-market signals for trading context (BAB-5)
+    const eventMarketSignals = await this.getCachedEventMarketSignals();
+
     // Build valid IDs/tickers for the prompt
+    // Note: Removed redundant fields (validNpcIds, validTickers) as they are now in the dashboards
     const validNpcIds = contexts.map((ctx) => ctx.npcId).join(', ');
+
+    // Collect all tickers for validation/safety
+    const allTickers = new Set<string>();
+    contexts.forEach((ctx) => {
+      ctx.perpMarkets.forEach((m) => allTickers.add(m.ticker));
+    });
+
     const validTickers =
-      contexts[0]?.perpMarkets.map((m) => m.ticker).join(', ') || 'none';
+      allTickers.size > 0
+        ? Array.from(allTickers).join(', ')
+        : 'BTCAI, ETHAI, SOLAI, TSLA, META';
 
     // Get shuffled examples for entropy
     const examples = getShuffledExamplesText();
@@ -465,6 +698,7 @@ export class MarketDecisionEngine {
     // Build the full prompt
     let prompt = renderPrompt(npcMarketDecisions, {
       examples,
+      marketTable,
       npcCount: contexts.length.toString(),
       npcsList,
       validNpcIds,
@@ -472,6 +706,10 @@ export class MarketDecisionEngine {
       realityGrounding: worldContext.realityGrounding,
       activeQuestions: activeQuestionsText,
       recentEvents: recentEventsText,
+      // Add rich narrative context if available
+      richGameContext: worldContext.richGameContext || '',
+      // BAB-5: Event-market signals for informed trading decisions
+      eventMarketSignals,
     });
 
     // Count tokens and enforce limit
@@ -506,11 +744,15 @@ export class MarketDecisionEngine {
         examples,
         npcCount: contexts.length.toString(),
         npcsList: '',
+        marketTable,
         validNpcIds,
         validTickers,
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
+        richGameContext: worldContext.richGameContext || '',
+        // BAB-5: Event-market signals (required variable)
+        eventMarketSignals,
       });
       const prefixTokens = countTokensSync(promptPrefix);
       const bufferTokens = Math.floor(this.tokenConfig.maxContextTokens * 0.1); // 10% buffer
@@ -526,11 +768,15 @@ export class MarketDecisionEngine {
         examples,
         npcCount: contexts.length.toString(),
         npcsList,
+        marketTable,
         validNpcIds,
         validTickers,
         realityGrounding: worldContext.realityGrounding,
         activeQuestions: activeQuestionsText,
         recentEvents: recentEventsText,
+        richGameContext: worldContext.richGameContext || '',
+        // BAB-5: Event-market signals (required variable)
+        eventMarketSignals,
       });
 
       promptTokens = countTokensSync(prompt);
@@ -553,7 +799,7 @@ export class MarketDecisionEngine {
       | { decisions: TradingDecision[] | { decision: TradingDecision[] } }
       | { decision: TradingDecision[] }
       | null = null;
-    let maxOutputTokens = this.tokenConfig.maxOutputTokens;
+    const maxOutputTokens = this.tokenConfig.maxOutputTokens;
     let retryCount = 0;
     const maxRetries = 3; // Increased from 2 to 3 for better reliability
 
@@ -564,7 +810,7 @@ export class MarketDecisionEngine {
       model?: string;
       format: 'xml';
     } = {
-      temperature: 0.7,
+      temperature: 0.5, // Lower temperature for trading decisions
       maxTokens: maxOutputTokens,
       format: 'xml', // Use XML for robustness
     };
@@ -591,11 +837,12 @@ export class MarketDecisionEngine {
     }
 
     while (retryCount <= maxRetries) {
-      try {
-        // On retry after string response, make prompt stricter
-        const retryPrompt =
-          retryCount > 0
-            ? `⚠️⚠️⚠️ CRITICAL FORMAT REQUIREMENT - RETRY ATTEMPT ${retryCount + 1} ⚠️⚠️⚠️
+      // On retry after string response, make prompt stricter
+      const retryPrompt =
+        retryCount > 0
+          ? `⚠️⚠️⚠️ CRITICAL FORMAT REQUIREMENT - RETRY ATTEMPT ${
+              retryCount + 1
+            } ⚠️⚠️⚠️
 
 You MUST respond with ONLY valid XML. NO text, NO explanations, NO reasoning, NO markdown.
 Your response MUST start with <decisions> and end with </decisions>.
@@ -607,255 +854,108 @@ Your FIRST character MUST be '<' and your LAST character MUST be '>'.
 ✅ Return a LIST of <decision> elements inside <decisions>.
 
 ${prompt}`
-            : prompt;
+          : prompt;
 
-        // Reduce temperature on retry for more deterministic output
-        const temperature =
-          retryCount > 0 ? Math.max(0.3, 0.7 - retryCount * 0.1) : 0.7;
+      // Reduce temperature on retry for more deterministic output
+      const temperature =
+        retryCount > 0 ? Math.max(0.3, 0.5 - retryCount * 0.1) : 0.5;
 
-        // Configure LLM options for this attempt
-        const llmOptions = {
-          ...baseLlmOptions,
-          temperature,
-          maxTokens: maxOutputTokens,
-          promptType: 'npc-market-decisions',
-        };
+      // Configure LLM options for this attempt
+      const llmOptions = {
+        ...baseLlmOptions,
+        temperature,
+        maxTokens: maxOutputTokens,
+        promptType: 'npc-market-decisions',
+      };
 
-        rawResponse = await this.llm.generateJSON<
-          | TradingDecision[]
-          | { decisions: TradingDecision[] | { decision: TradingDecision[] } }
-          | { decision: TradingDecision[] }
-        >(retryPrompt, undefined, llmOptions);
+      rawResponse = await this.llm.generateJSON<
+        | TradingDecision[]
+        | { decisions: TradingDecision[] | { decision: TradingDecision[] } }
+        | { decision: TradingDecision[] }
+      >(retryPrompt, undefined, llmOptions);
 
-        // Validate response is not a string (which indicates LLM ignored format)
-        if (typeof rawResponse === 'string') {
-          logger.warn(
-            'LLM returned string instead of structured data, retrying with stricter prompt',
-            {
-              attempt: retryCount + 1,
-              preview: (rawResponse as string).substring(0, 200),
-            },
-            'MarketDecisionEngine'
-          );
-
-          if (retryCount < maxRetries) {
-            retryCount++;
-            continue; // Retry with stricter prompt
-          }
-
-          // Last retry - try to salvage by extracting XML/JSON from the string
-          logger.error(
-            'LLM consistently ignoring format instructions, attempting to extract data',
-            {
-              attempts: retryCount + 1,
-            },
-            'MarketDecisionEngine'
-          );
-
-          // Try to extract XML from the string response
-          const xmlResult = parseXML(rawResponse as string);
-          if (xmlResult.success && xmlResult.data) {
-            logger.info(
-              'Successfully extracted XML from string response',
-              {},
-              'MarketDecisionEngine'
-            );
-            rawResponse = xmlResult.data as typeof rawResponse;
-            // Continue to structure validation below
-          }
-        }
-
-        // Validate response structure matches expected format
-        let isValidStructure = false;
-        if (rawResponse && typeof rawResponse === 'object') {
-          if (Array.isArray(rawResponse)) {
-            isValidStructure = true;
-          } else if ('decisions' in rawResponse || 'decision' in rawResponse) {
-            isValidStructure = true;
-          }
-        }
-
-        if (!isValidStructure && typeof rawResponse !== 'string') {
-          // Check specifically for the columnar format to log it
-          const isColumnar =
-            rawResponse &&
-            typeof rawResponse === 'object' &&
-            'response' in rawResponse;
-
-          logger.warn(
-            `LLM returned invalid object structure${isColumnar ? ' (columnar format detected)' : ''}, retrying...`,
-            {
-              attempt: retryCount + 1,
-              keys: rawResponse ? Object.keys(rawResponse) : [],
-              isColumnar,
-            },
-            'MarketDecisionEngine'
-          );
-
-          if (retryCount < maxRetries) {
-            retryCount++;
-            continue;
-          }
-        }
-
-        break; // Success, exit retry loop
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const provider = this.llm.getProvider();
-        const modelUsed = this.tokenConfig.model || 'default (from LLM client)';
-
-        // Log detailed error information for monitoring and troubleshooting
-        logger.error(
-          'LLM API error during decision generation',
+      // Validate response is not a string (which indicates LLM ignored format)
+      if (typeof rawResponse === 'string') {
+        logger.warn(
+          'LLM returned string instead of structured data, retrying with stricter prompt',
           {
-            error: errorMessage,
-            provider,
-            modelUsed,
             attempt: retryCount + 1,
-            maxRetries,
-            promptTokens,
-            maxOutputTokens,
+            preview: (rawResponse as string).substring(0, 200),
           },
           'MarketDecisionEngine'
         );
 
-        // Check if this is a 404 error (model not found)
-        if (
-          errorMessage.includes('404') ||
-          errorMessage.includes('not found')
-        ) {
-          logger.error(
-            'Model not found error - possible provider/model mismatch',
+        if (retryCount < maxRetries) {
+          retryCount++;
+          continue; // Retry with stricter prompt
+        }
+
+        // Last retry - try to salvage by extracting XML/JSON from the string
+        logger.error(
+          'LLM consistently ignoring format instructions, attempting to extract data',
+          {
+            attempts: retryCount + 1,
+          },
+          'MarketDecisionEngine'
+        );
+
+        // Try to extract XML from the string response
+        const xmlResult = parseXML(rawResponse as string);
+        if (xmlResult.success && xmlResult.data) {
+          logger.info(
+            'Successfully extracted XML from string response',
             {
-              provider,
-              modelUsed,
-              suggestion:
-                'Check that the model exists for this provider, or let the LLM client use its default by not specifying a model',
+              hasThinkingContent: !!xmlResult.thinkingContent,
             },
             'MarketDecisionEngine'
           );
+          rawResponse = xmlResult.data as typeof rawResponse;
 
-          // If we're using an explicit model and it's causing 404, try without it
-          if (this.tokenConfig.model && retryCount === 0) {
-            logger.warn(
-              'Retrying without explicit model to use LLM client default',
-              {
-                previousModel: this.tokenConfig.model,
-                provider,
-              },
-              'MarketDecisionEngine'
-            );
-
-            // Remove model from options and retry once
-            const retryOptions = {
-              ...baseLlmOptions,
-              temperature: 0.7,
-              maxTokens: maxOutputTokens,
-              promptType: 'npc-market-decisions',
-            };
-            delete retryOptions.model;
-
-            try {
-              rawResponse = await this.llm.generateJSON<
-                | TradingDecision[]
-                | {
-                    decisions:
-                      | TradingDecision[]
-                      | { decision: TradingDecision[] };
-                  }
-                | { decision: TradingDecision[] }
-              >(prompt, undefined, retryOptions);
-              logger.info(
-                'Successfully retried without explicit model',
-                { provider },
-                'MarketDecisionEngine'
-              );
-              break; // Success, exit retry loop
-            } catch (retryError) {
-              logger.error(
-                'Retry without explicit model also failed',
-                {
-                  error:
-                    retryError instanceof Error
-                      ? retryError.message
-                      : String(retryError),
-                },
-                'MarketDecisionEngine'
-              );
-              // Fall through to normal error handling
-            }
+          // Store thinking content for fallback reasoning
+          if (xmlResult.thinkingContent) {
+            (rawResponse as Record<string, unknown>).__thinkingContent =
+              xmlResult.thinkingContent;
           }
-        }
-
-        // Check if this is the "reduce length" error from OpenAI
-        if (
-          errorMessage.includes('reduce the length') ||
-          errorMessage.includes('400')
-        ) {
-          if (retryCount < maxRetries) {
-            // Reduce output tokens by 50% and retry
-            maxOutputTokens = Math.max(2000, Math.floor(maxOutputTokens * 0.5));
-            retryCount++;
-
-            logger.warn(
-              'Token limit error, retrying with reduced output tokens',
-              {
-                attempt: retryCount,
-                newMaxOutputTokens: maxOutputTokens,
-                promptTokens,
-                originalMaxOutputTokens: this.tokenConfig.maxOutputTokens,
-              },
-              'MarketDecisionEngine'
-            );
-          } else {
-            // If we've exhausted retries, try processing in smaller batches
-            logger.error(
-              'Token limit error persists after retries, falling back to smaller batch',
-              {
-                error: errorMessage,
-                promptTokens,
-                maxOutputTokens,
-              },
-              'MarketDecisionEngine'
-            );
-
-            // Fallback: process NPCs individually if batch fails
-            if (contexts.length > 1) {
-              logger.info(
-                'Falling back to individual NPC processing',
-                {
-                  npcCount: contexts.length,
-                },
-                'MarketDecisionEngine'
-              );
-
-              const individualDecisions: TradingDecision[] = [];
-              for (const context of contexts) {
-                const singleDecisions = await this.generateDecisionsForContexts(
-                  [context]
-                );
-                individualDecisions.push(...singleDecisions);
-              }
-              return individualDecisions;
-            }
-
-            // If single NPC also fails, throw
-            logger.error(
-              'Failed to generate decisions even for single NPC',
-              {
-                error: errorMessage,
-              },
-              'MarketDecisionEngine'
-            );
-
-            throw error;
-          }
-        } else {
-          // Not a token limit error, rethrow
-          throw error;
+          // Continue to structure validation below
         }
       }
+
+      // Validate response structure matches expected format
+      let isValidStructure = false;
+      if (rawResponse && typeof rawResponse === 'object') {
+        if (Array.isArray(rawResponse)) {
+          isValidStructure = true;
+        } else if ('decisions' in rawResponse || 'decision' in rawResponse) {
+          isValidStructure = true;
+        }
+      }
+
+      if (!isValidStructure && typeof rawResponse !== 'string') {
+        // Check specifically for the columnar format to log it
+        const isColumnar =
+          rawResponse &&
+          typeof rawResponse === 'object' &&
+          'response' in rawResponse;
+
+        logger.warn(
+          `LLM returned invalid object structure${
+            isColumnar ? ' (columnar format detected)' : ''
+          }, retrying...`,
+          {
+            attempt: retryCount + 1,
+            keys: rawResponse ? Object.keys(rawResponse) : [],
+            isColumnar,
+          },
+          'MarketDecisionEngine'
+        );
+
+        if (retryCount < maxRetries) {
+          retryCount++;
+          continue;
+        }
+      }
+
+      break; // Success, exit retry loop
     }
 
     // TypeScript guard: ensure rawResponse was assigned
@@ -980,12 +1080,29 @@ ${prompt}`
       return [];
     }
 
+    // Populate empty reasoning fields with thinking content fallback
+    const thinkingFallback = (rawResponse as Record<string, unknown>)
+      ?.__thinkingContent as string | undefined;
+    let reasoningPopulatedCount = 0;
+
+    for (const decision of response) {
+      if (!decision.reasoning || decision.reasoning.trim() === '') {
+        if (thinkingFallback) {
+          // Use first 500 chars of thinking as reasoning (avoid bloat)
+          decision.reasoning = thinkingFallback.substring(0, 500).trim();
+          reasoningPopulatedCount++;
+        }
+      }
+    }
+
     logger.info(
       `Processed ${response.length} decisions for ${contexts.length} NPCs`,
       {
         responseLength: response.length,
         npcCount: contexts.length,
         sampleDecision: response.length > 0 ? response[0] : null,
+        reasoningPopulatedFromThinking: reasoningPopulatedCount,
+        hasThinkingFallback: !!thinkingFallback,
       },
       'MarketDecisionEngine'
     );
@@ -999,118 +1116,6 @@ ${prompt}`
     }
 
     return response;
-  }
-
-  /**
-   * Format NPCs data as a compact string for the prompt
-   * Uses token-efficient format: key=value pairs instead of verbose tables
-   */
-  private formatNPCsList(contexts: NPCMarketContext[]): string {
-    // Compact balance summary (one line per NPC)
-    let output = 'BALANCES (id|bal|max):\n';
-    contexts.forEach((ctx) => {
-      const max = Math.floor(ctx.availableBalance * 0.3);
-      output += `${ctx.npcId}|${ctx.availableBalance}|${max}\n`;
-    });
-    output += '\n';
-
-    // NPCs in compact format
-    output += contexts
-      .map((ctx, i) => {
-        const max = Math.floor(ctx.availableBalance * 0.3);
-        const lines: string[] = [];
-
-        // Core info on one line
-        lines.push(
-          `[${i + 1}] ID=${ctx.npcId} NAME="${ctx.npcName}" BAL=${ctx.availableBalance} MAX=${max} TIER=${ctx.tier} STYLE=${ctx.personality}`
-        );
-
-        // Relationships (compact: ally:Name(0.8), rival:Name(-0.7))
-        if (ctx.relationships && ctx.relationships.length > 0) {
-          const rels = ctx.relationships
-            .sort((a, b) => b.strength - a.strength)
-            .slice(0, 5)
-            .map((r) => {
-              const type =
-                r.sentiment > 0.5
-                  ? 'ally'
-                  : r.sentiment < -0.5
-                    ? 'rival'
-                    : 'neutral';
-              return `${type}:${r.actorName}(${r.sentiment.toFixed(1)})`;
-            });
-          lines.push(`RELS: ${rels.join(', ')}`);
-        }
-
-        // Posts (compact: @author:"truncated content")
-        if (ctx.recentPosts.length > 0) {
-          const posts = ctx.recentPosts.slice(0, 6).map((p) => {
-            const content =
-              p.content.length > 80
-                ? p.content.substring(0, 80) + '...'
-                : p.content;
-            return `@${p.authorName}:"${content}"`;
-          });
-          lines.push(`POSTS: ${posts.join(' | ')}`);
-        }
-
-        // Group chat (insider info, compact)
-        if (ctx.groupChatMessages.length > 0) {
-          const msgs = ctx.groupChatMessages.slice(0, 3).map((m) => {
-            const msg =
-              m.message.length > 60
-                ? m.message.substring(0, 60) + '...'
-                : m.message;
-            return `${m.fromName}:"${msg}"`;
-          });
-          lines.push(`INSIDER: ${msgs.join(' | ')}`);
-        }
-
-        // Events (compact)
-        if (ctx.recentEvents.length > 0) {
-          const events = ctx.recentEvents.slice(0, 4).map((e) => {
-            const desc =
-              e.description.length > 50
-                ? e.description.substring(0, 50) + '...'
-                : e.description;
-            return e.relatedQuestion ? `${desc}[Q${e.relatedQuestion}]` : desc;
-          });
-          lines.push(`EVENTS: ${events.join(' | ')}`);
-        }
-
-        // Perp markets (compact: TICK:100.00(+2.1%))
-        if (ctx.perpMarkets.length > 0) {
-          const perps = ctx.perpMarkets.slice(0, 5).map((m) => {
-            const sign = m.changePercent24h >= 0 ? '+' : '';
-            return `${m.ticker}:${m.currentPrice.toFixed(0)}(${sign}${m.changePercent24h.toFixed(1)}%)`;
-          });
-          lines.push(`PERPS: ${perps.join(', ')}`);
-        }
-
-        // Prediction markets (compact: Q123:"question" Y60/N40 5d)
-        if (ctx.predictionMarkets.length > 0) {
-          const preds = ctx.predictionMarkets.slice(0, 4).map((m) => {
-            const text =
-              m.text.length > 40 ? m.text.substring(0, 40) + '...' : m.text;
-            return `Q${m.id}:"${text}" Y${m.yesPrice.toFixed(0)}/N${m.noPrice.toFixed(0)} ${m.daysUntilResolution}d`;
-          });
-          lines.push(`PREDS: ${preds.join(' | ')}`);
-        }
-
-        // Positions (compact: id|type|ticker|side|pnl)
-        if (ctx.currentPositions.length > 0) {
-          const positions = ctx.currentPositions.map((p) => {
-            const symbol = p.ticker || `Q${p.marketId}`;
-            return `${p.id}|${p.marketType}|${symbol}|${p.side}|pnl=${p.unrealizedPnL.toFixed(0)}`;
-          });
-          lines.push(`POSITIONS: ${positions.join(', ')}`);
-        }
-
-        return lines.join('\n');
-      })
-      .join('\n\n');
-
-    return output;
   }
 
   /**
@@ -1142,11 +1147,12 @@ ${prompt}`
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalIdToActualIdMap = new Map<string, string>();
 
-    // Fetch actor data to get original names
-    const actorsList = await db
-      .select({ id: actors.id, name: actors.name })
-      .from(actors)
-      .where(inArray(actors.id, Array.from(contexts.keys())));
+    // Get actor data from static registry
+    const actorIds = Array.from(contexts.keys());
+    const actorsList = actorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({ id: a.id, name: a.name }));
 
     for (const actor of actorsList) {
       const variations: string[] = [];
@@ -1237,24 +1243,48 @@ ${prompt}`
     // ALL KEYS ARE LOWERCASE for case-insensitive matching
     const originalTickerToActualTickerMap = new Map<string, string>();
 
-    const orgs = await db
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        ticker: organizations.ticker,
-      })
-      .from(organizations)
-      .where(eq(organizations.type, 'company'));
+    // Manual overrides for common LLM hallucinations
+    originalTickerToActualTickerMap.set('ai', 'OPENAGI');
+    originalTickerToActualTickerMap.set('genai', 'OPENAGI');
+    originalTickerToActualTickerMap.set('crypto', 'BTCAI');
+    originalTickerToActualTickerMap.set('bitcoin', 'BTCAI');
+    originalTickerToActualTickerMap.set('btc', 'BTCAI');
+    originalTickerToActualTickerMap.set('ethereum', 'ETHAI');
+    originalTickerToActualTickerMap.set('eth', 'ETHAI');
 
-    // Get organization mappings from database (realName -> parodyName)
-    const orgMappings = await db
-      .select({
-        realName: organizationMappings.realName,
-        parodyName: organizationMappings.parodyName,
-        aliases: organizationMappings.aliases,
-      })
-      .from(organizationMappings)
-      .where(eq(organizationMappings.isActive, true));
+    // Common LLM letter-swap typos for AI-suffixed tickers
+    // LLMs often swap the last letters (e.g., TSALI instead of TSLAI)
+    originalTickerToActualTickerMap.set('tsali', 'TSLAI');
+    originalTickerToActualTickerMap.set('metia', 'METAI');
+    originalTickerToActualTickerMap.set('solai', 'SOLAI'); // correct, but ensure it's there
+    originalTickerToActualTickerMap.set('soali', 'SOLAI');
+    originalTickerToActualTickerMap.set('btaci', 'BTCAI');
+    originalTickerToActualTickerMap.set('ethia', 'ETHAI');
+    originalTickerToActualTickerMap.set('ehtai', 'ETHAI');
+    // Without AI suffix (LLM sometimes drops it)
+    originalTickerToActualTickerMap.set('tsla', 'TSLAI');
+    originalTickerToActualTickerMap.set('tesla', 'TSLAI');
+    originalTickerToActualTickerMap.set('teslai', 'TSLAI');
+    originalTickerToActualTickerMap.set('meta', 'METAI');
+    originalTickerToActualTickerMap.set('sol', 'SOLAI');
+    originalTickerToActualTickerMap.set('solana', 'SOLAI');
+    // NVIDIA variations - LLM uses company name "NVAIDAI" but ticker is "NVDAI"
+    originalTickerToActualTickerMap.set('nvaidai', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvidia', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvda', 'NVDAI');
+    originalTickerToActualTickerMap.set('nvdai', 'NVDAI');
+
+    // Get companies from static registry
+    const orgs = StaticDataRegistry.getAllOrganizations()
+      .filter((org) => org.type === 'company')
+      .map((org) => ({
+        id: org.id,
+        name: org.name,
+        ticker: org.ticker,
+      }));
+
+    // Get organization mappings from StaticDataRegistry (no DB call!)
+    const orgMappings = StaticDataRegistry.getAllOrganizationMappings();
 
     // Build map from parody names to real names (ALL LOWERCASE)
     const parodyToRealMap = new Map<string, string>();
@@ -1360,601 +1390,691 @@ ${prompt}`
     const valid: TradingDecision[] = [];
     const rejectionReasons: Record<string, number> = {};
 
+    // Check if running in test environment - skip fail-fast throws in tests
+    const isTestEnv =
+      process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+
+    // Strict validation mode: throw errors instead of logging (original behavior)
+    // Set STRICT_LLM_VALIDATION=true to enable fail-fast mode in development
+    const isStrictMode =
+      process.env.STRICT_LLM_VALIDATION === 'true' ||
+      process.env.STRICT_LLM_VALIDATION === '1';
+
     for (const decision of decisions) {
-      // Wrap decision processing in try-catch to handle parse failures gracefully
-      try {
-        // Skip decisions missing required fields early
-        if (!decision.npcId && !decision.npcName) {
-          rejectionReasons['missing_identifiers'] =
-            (rejectionReasons['missing_identifiers'] || 0) + 1;
-          logger.warn(
-            'Decision missing both npcId and npcName, skipping',
-            {
-              decision: JSON.stringify(decision),
-            },
-            'MarketDecisionEngine'
-          );
-          continue;
-        }
+      // Skip decisions missing required fields early
+      if (!decision.npcId && !decision.npcName) {
+        rejectionReasons['missing_identifiers'] =
+          (rejectionReasons['missing_identifiers'] || 0) + 1;
+        logger.warn(
+          'Decision missing both npcId and npcName, skipping',
+          {
+            decision: JSON.stringify(decision),
+          },
+          'MarketDecisionEngine'
+        );
+        continue;
+      }
 
-        // Normalize npcId: trim whitespace, remove newlines, lowercase
-        // LLM sometimes includes extra whitespace/newlines in XML parsing
-        // Also handle cases where LLM duplicates the ID (e.g., "nick-fuentais\n    nick-fuentais")
-        let rawNpcId = decision.npcId ? String(decision.npcId).trim() : '';
+      // Normalize npcId: trim whitespace, remove newlines, lowercase
+      // LLM sometimes includes extra whitespace/newlines in XML parsing
+      // Also handle cases where LLM duplicates the ID (e.g., "nick-fuentais\n    nick-fuentais")
+      let rawNpcId = decision.npcId ? String(decision.npcId).trim() : '';
 
-        // If the ID appears to be duplicated (contains the same ID twice), extract just the first one
-        // Split by whitespace/newlines and take the first non-empty token
-        if (rawNpcId) {
-          const tokens = rawNpcId.split(/\s+/).filter((t) => t.length > 0);
-          if (tokens.length > 1 && tokens[0] === tokens[1]) {
-            // Duplicate detected, use just the first one
-            rawNpcId = tokens[0]!;
-            logger.debug(
-              `Detected duplicate npcId, using first occurrence: "${decision.npcId}" -> "${rawNpcId}"`,
-              undefined,
-              'MarketDecisionEngine'
-            );
-          } else if (tokens.length > 0) {
-            // Use first token if multiple tokens exist
-            rawNpcId = tokens[0]!;
-          }
-        }
-
-        const normalizedNpcId = rawNpcId.toLowerCase();
-
-        // Also normalize the original decision.npcId for logging/updates
-        if (decision.npcId && String(decision.npcId).trim() !== rawNpcId) {
+      // If the ID appears to be duplicated (contains the same ID twice), extract just the first one
+      // Split by whitespace/newlines and take the first non-empty token
+      if (rawNpcId) {
+        const tokens = rawNpcId.split(/\s+/).filter((t) => t.length > 0);
+        if (tokens.length > 1 && tokens[0] === tokens[1]) {
+          // Duplicate detected, use just the first one
+          rawNpcId = first(tokens) ?? '';
           logger.debug(
-            `Normalized npcId: "${decision.npcId}" -> "${normalizedNpcId}"`,
+            `Detected duplicate npcId, using first occurrence: "${decision.npcId}" -> "${rawNpcId}"`,
             undefined,
             'MarketDecisionEngine'
           );
-          decision.npcId = normalizedNpcId; // Update to cleaned version
-        } else if (
-          decision.npcId &&
-          normalizedNpcId !== String(decision.npcId).toLowerCase()
-        ) {
-          decision.npcId = normalizedNpcId; // Update to lowercase version
+        } else if (tokens.length > 0) {
+          // Use first token if multiple tokens exist
+          rawNpcId = first(tokens) ?? '';
         }
+      }
 
-        // Normalize npcName similarly
-        if (decision.npcName) {
-          const normalizedName = String(decision.npcName)
-            .trim()
-            .replace(/\s+/g, ' ')
-            .replace(/\n/g, '');
-          if (normalizedName !== decision.npcName) {
-            decision.npcName = normalizedName;
+      const normalizedNpcId = rawNpcId.toLowerCase();
+
+      // Also normalize the original decision.npcId for logging/updates
+      if (decision.npcId && String(decision.npcId).trim() !== rawNpcId) {
+        logger.debug(
+          `Normalized npcId: "${decision.npcId}" -> "${normalizedNpcId}"`,
+          undefined,
+          'MarketDecisionEngine'
+        );
+        decision.npcId = normalizedNpcId; // Update to cleaned version
+      } else if (
+        decision.npcId &&
+        normalizedNpcId !== String(decision.npcId).toLowerCase()
+      ) {
+        decision.npcId = normalizedNpcId; // Update to lowercase version
+      }
+
+      // Normalize npcName similarly
+      if (decision.npcName) {
+        const normalizedName = String(decision.npcName)
+          .trim()
+          .replace(/\s+/g, ' ')
+          .replace(/\n/g, '');
+        if (normalizedName !== decision.npcName) {
+          decision.npcName = normalizedName;
+        }
+      }
+
+      // First try: use the ID as-is via lowercase map
+      let actualNpcId = contextsByLowercaseId.get(normalizedNpcId);
+      let context = actualNpcId ? contexts.get(actualNpcId) : undefined;
+
+      // Second try: map originalNpcId to actual ID (e.g., "elon-musk" -> "ailon-musk")
+      // All mapping keys are lowercase, so we can use normalized ID directly
+      if (!context && normalizedNpcId) {
+        actualNpcId = originalIdToActualIdMap.get(normalizedNpcId);
+        if (actualNpcId) {
+          context = contexts.get(actualNpcId);
+          if (context) {
+            logger.debug(
+              `Mapped originalId ${decision.npcId} (normalized: ${normalizedNpcId}) -> ${actualNpcId}`,
+              undefined,
+              'MarketDecisionEngine'
+            );
+            decision.npcId = actualNpcId; // Update to actual ID
           }
         }
+      }
 
-        // First try: use the ID as-is via lowercase map
-        let actualNpcId = contextsByLowercaseId.get(normalizedNpcId);
-        let context = actualNpcId ? contexts.get(actualNpcId) : undefined;
+      // Third try: find by name if ID doesn't match (try npcName before fuzzy matching)
+      // Handle case-insensitive matching and common name variations
+      if (!context && decision.npcName) {
+        const nameKey = decision.npcName.toLowerCase();
+        const slugifiedKey = nameKey
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+        const noSpacesKey = nameKey.replace(/\s+/g, '');
+        const underscoreKey = nameKey.replace(/\s+/g, '_');
 
-        // Second try: map originalNpcId to actual ID (e.g., "elon-musk" -> "ailon-musk")
-        // All mapping keys are lowercase, so we can use normalized ID directly
-        if (!context && normalizedNpcId) {
-          actualNpcId = originalIdToActualIdMap.get(normalizedNpcId);
-          if (actualNpcId) {
+        const foundId =
+          nameToIdMap.get(nameKey) ||
+          nameToIdMap.get(slugifiedKey) ||
+          nameToIdMap.get(noSpacesKey) ||
+          nameToIdMap.get(underscoreKey);
+
+        if (foundId) {
+          context = contexts.get(foundId);
+          if (context) {
+            // Update decision with correct ID
+            decision.npcId = foundId;
+            logger.debug(
+              `Fixed NPC ID mismatch via name fallback: ${decision.npcName} -> ${foundId}`,
+              {
+                originalId: decision.npcId,
+                correctedId: foundId,
+                nameKey,
+                slugifiedKey,
+              },
+              'MarketDecisionEngine'
+            );
+          }
+        }
+      }
+
+      // Fourth try: fuzzy match for common typos (e.g., "rachel-maiddow" -> "rachel-maiddow")
+      // Only try this if we still haven't found a match and the ID looks like it might be a typo
+      if (!context && normalizedNpcId && normalizedNpcId.length > 3) {
+        // Try common typo patterns: check if removing/adding one character helps
+        // This is a last resort and should be rare
+        for (const [variation, mappedId] of originalIdToActualIdMap.entries()) {
+          // Check if the normalized ID is very similar to a variation (Levenshtein distance <= 1)
+          if (this.isSimilarString(normalizedNpcId, variation, 1)) {
+            actualNpcId = mappedId;
             context = contexts.get(actualNpcId);
             if (context) {
               logger.debug(
-                `Mapped originalId ${decision.npcId} (normalized: ${normalizedNpcId}) -> ${actualNpcId}`,
+                `Fuzzy matched NPC ID: ${decision.npcId} (normalized: ${normalizedNpcId}) -> ${actualNpcId} via variation ${variation}`,
                 undefined,
                 'MarketDecisionEngine'
               );
-              decision.npcId = actualNpcId; // Update to actual ID
+              decision.npcId = actualNpcId;
+              break;
             }
           }
         }
+      }
 
-        // Third try: find by name if ID doesn't match (try npcName before fuzzy matching)
-        // Handle case-insensitive matching and common name variations
-        if (!context && decision.npcName) {
-          const nameKey = decision.npcName.toLowerCase();
-          const slugifiedKey = nameKey
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9-]/g, '');
-          const noSpacesKey = nameKey.replace(/\s+/g, '');
-          const underscoreKey = nameKey.replace(/\s+/g, '_');
+      if (!context) {
+        rejectionReasons['no_context'] =
+          (rejectionReasons['no_context'] || 0) + 1;
+        const errorMsg = `Decision for unknown NPC: ${
+          decision.npcId || 'missing'
+        } (name: ${decision.npcName || 'missing'})`;
+        logger.warn(
+          `${errorMsg}. Tried npcId, name fallback, and fuzzy matching - none worked. Skipping decision.`,
+          {
+            decision: JSON.stringify(decision),
+            triedNpcId: !!decision.npcId,
+            triedNpcName: !!decision.npcName,
+          },
+          'MarketDecisionEngine'
+        );
+        continue;
+      }
 
-          const foundId =
-            nameToIdMap.get(nameKey) ||
-            nameToIdMap.get(slugifiedKey) ||
-            nameToIdMap.get(noSpacesKey) ||
-            nameToIdMap.get(underscoreKey);
+      // Ensure npcName is set from context if missing
+      if (!decision.npcName) {
+        decision.npcName = context.npcName;
+      }
 
-          if (foundId) {
-            context = contexts.get(foundId);
-            if (context) {
-              // Update decision with correct ID
-              decision.npcId = foundId;
-              logger.debug(
-                `Fixed NPC ID mismatch via name fallback: ${decision.npcName} -> ${foundId}`,
-                {
-                  originalId: decision.npcId,
-                  correctedId: foundId,
-                  nameKey,
-                  slugifiedKey,
-                },
-                'MarketDecisionEngine'
-              );
-            }
-          }
-        }
+      // Always use context's canonical npcId (string from database)
+      // XML parser may convert numeric IDs to numbers, causing type errors downstream
+      decision.npcId = context.npcId;
 
-        // Fourth try: fuzzy match for common typos (e.g., "rachel-maiddow" -> "rachel-maiddow")
-        // Only try this if we still haven't found a match and the ID looks like it might be a typo
-        if (!context && normalizedNpcId && normalizedNpcId.length > 3) {
-          // Try common typo patterns: check if removing/adding one character helps
-          // This is a last resort and should be rare
-          for (const [
-            variation,
-            mappedId,
-          ] of originalIdToActualIdMap.entries()) {
-            // Check if the normalized ID is very similar to a variation (Levenshtein distance <= 1)
-            if (this.isSimilarString(normalizedNpcId, variation, 1)) {
-              actualNpcId = mappedId;
-              context = contexts.get(actualNpcId);
-              if (context) {
-                logger.debug(
-                  `Fuzzy matched NPC ID: ${decision.npcId} (normalized: ${normalizedNpcId}) -> ${actualNpcId} via variation ${variation}`,
-                  undefined,
-                  'MarketDecisionEngine'
-                );
-                decision.npcId = actualNpcId;
-                break;
-              }
-            }
-          }
-        }
+      // Validate hold action
+      if (decision.action === 'hold') {
+        logger.info(
+          `${decision.npcName} chose to HOLD`,
+          {},
+          'MarketDecisionEngine'
+        );
+        valid.push({
+          ...decision,
+          marketType: null,
+          amount: 0,
+          timestamp: new Date().toISOString(),
+        });
+        continue;
+      }
 
-        if (!context) {
-          rejectionReasons['no_context'] =
-            (rejectionReasons['no_context'] || 0) + 1;
-          const errorMsg = `Decision for unknown NPC: ${decision.npcId || 'missing'} (name: ${decision.npcName || 'missing'})`;
+      // Validate close_position action
+      if (decision.action === 'close_position') {
+        if (!decision.positionId) {
+          const errorMsg = `Close position decision missing positionId for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
           logger.warn(
-            `${errorMsg}. Tried npcId, name fallback, and fuzzy matching - none worked. Skipping decision.`,
+            `${errorMsg}, skipping decision`,
             {
               decision: JSON.stringify(decision),
-              triedNpcId: !!decision.npcId,
-              triedNpcName: !!decision.npcName,
             },
             'MarketDecisionEngine'
           );
           continue;
         }
 
-        // Ensure npcName is set from context if missing
-        if (!decision.npcName) {
-          decision.npcName = context.npcName;
+        // First try: exact match with position ID
+        let position = context.currentPositions.find(
+          (p) => p.id === decision.positionId
+        );
+
+        // Second try: LLM might have used descriptive string like "AIXAI_long" instead of UUID
+        // Map descriptive strings to actual position IDs
+        if (!position && decision.ticker && decision.marketType) {
+          const descriptiveId = String(decision.positionId).toLowerCase();
+          const tickerLower = String(decision.ticker).toLowerCase();
+          const sideLower =
+            decision.marketType === 'perp'
+              ? descriptiveId.includes('short')
+                ? 'short'
+                : 'long'
+              : undefined;
+
+          // Try to find position by ticker/marketId and side
+          position = context.currentPositions.find((p) => {
+            const matchesTicker =
+              p.ticker?.toLowerCase() === tickerLower ||
+              (p.marketId &&
+                String(p.marketId).toLowerCase() ===
+                  tickerLower.replace('q', ''));
+            const matchesSide =
+              !sideLower || p.side.toLowerCase() === sideLower;
+            return matchesTicker && matchesSide;
+          });
+
+          if (position) {
+            logger.debug(
+              `Mapped descriptive positionId ${decision.positionId} to actual ID ${position.id}`,
+              {
+                descriptiveId: decision.positionId,
+                actualId: position.id,
+                ticker: decision.ticker,
+                marketType: decision.marketType,
+              },
+              'MarketDecisionEngine'
+            );
+            decision.positionId = position.id; // Update to actual ID
+          }
         }
 
-        // Always use context's canonical npcId (string from database)
-        // XML parser may convert numeric IDs to numbers, causing type errors downstream
-        decision.npcId = context.npcId;
-
-        // Validate hold action
-        if (decision.action === 'hold') {
-          logger.info(
-            `${decision.npcName} chose to HOLD`,
-            {},
+        if (!position) {
+          const errorMsg = `Position ${decision.positionId} not found for ${decision.npcName}`;
+          logger.warn(
+            errorMsg,
+            {
+              availablePositions: context.currentPositions.map((p) => ({
+                id: p.id,
+                ticker: p.ticker,
+                marketId: p.marketId,
+                side: p.side,
+                marketType: p.marketType,
+              })),
+              decisionTicker: decision.ticker,
+              decisionMarketType: decision.marketType,
+            },
             'MarketDecisionEngine'
           );
-          valid.push({
-            ...decision,
-            marketType: null,
-            amount: 0,
-            timestamp: new Date().toISOString(),
-          });
-          continue;
-        }
 
-        // Validate close_position action
-        if (decision.action === 'close_position') {
-          if (!decision.positionId) {
-            const errorMsg = `Close position decision missing positionId for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
-
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
-
-          // First try: exact match with position ID
-          let position = context.currentPositions.find(
-            (p) => p.id === decision.positionId
+          logger.warn(
+            `${errorMsg}, skipping decision`,
+            {
+              decision: JSON.stringify(decision),
+            },
+            'MarketDecisionEngine'
           );
-
-          // Second try: LLM might have used descriptive string like "AIXAI_long" instead of UUID
-          // Map descriptive strings to actual position IDs
-          if (!position && decision.ticker && decision.marketType) {
-            const descriptiveId = String(decision.positionId).toLowerCase();
-            const tickerLower = String(decision.ticker).toLowerCase();
-            const sideLower =
-              decision.marketType === 'perp'
-                ? descriptiveId.includes('short')
-                  ? 'short'
-                  : 'long'
-                : undefined;
-
-            // Try to find position by ticker/marketId and side
-            position = context.currentPositions.find((p) => {
-              const matchesTicker =
-                p.ticker?.toLowerCase() === tickerLower ||
-                (p.marketId &&
-                  String(p.marketId).toLowerCase() ===
-                    tickerLower.replace('q', ''));
-              const matchesSide =
-                !sideLower || p.side.toLowerCase() === sideLower;
-              return matchesTicker && matchesSide;
-            });
-
-            if (position) {
-              logger.debug(
-                `Mapped descriptive positionId ${decision.positionId} to actual ID ${position.id}`,
-                {
-                  descriptiveId: decision.positionId,
-                  actualId: position.id,
-                  ticker: decision.ticker,
-                  marketType: decision.marketType,
-                },
-                'MarketDecisionEngine'
-              );
-              decision.positionId = position.id; // Update to actual ID
-            }
-          }
-
-          if (!position) {
-            const errorMsg = `Position ${decision.positionId} not found for ${decision.npcName}`;
-            logger.warn(
-              errorMsg,
-              {
-                availablePositions: context.currentPositions.map((p) => ({
-                  id: p.id,
-                  ticker: p.ticker,
-                  marketId: p.marketId,
-                  side: p.side,
-                  marketType: p.marketType,
-                })),
-                decisionTicker: decision.ticker,
-                decisionMarketType: decision.marketType,
-              },
-              'MarketDecisionEngine'
-            );
-
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
-
-          valid.push({
-            ...decision,
-            marketType: position.marketType,
-            amount: 0,
-            timestamp: new Date().toISOString(),
-          });
           continue;
         }
 
-        // Validate trading actions
-        if (decision.amount <= 0) {
-          const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
-          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+        valid.push({
+          ...decision,
+          marketType: position.marketType,
+          amount: 0,
+          timestamp: new Date().toISOString(),
+        });
+        continue;
+      }
 
-          // FAIL FAST in development
-          if (process.env.NODE_ENV !== 'production') {
+      // Check for valid action type before amount validation
+      const validActions = [
+        'open_long',
+        'open_short',
+        'buy_yes',
+        'buy_no',
+        'sell_yes',
+        'sell_no',
+        'close_position',
+        'hold',
+      ];
+      if (!validActions.includes(decision.action)) {
+        const errorMsg = `Invalid action '${decision.action}' for ${decision.npcName}`;
+        logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+        rejectionReasons['invalid_action'] =
+          (rejectionReasons['invalid_action'] || 0) + 1;
+        continue;
+      }
+
+      // Validate trading actions
+      // Sell actions must use amount === 0 (means "close entire position")
+      // Note: close_position and hold are already handled above with continue
+      const isSellAction = decision.action.startsWith('sell');
+
+      // Reject negative amounts always, reject zero for non-sell, reject positive for sell
+      if (
+        decision.amount < 0 ||
+        (decision.amount === 0 && !isSellAction) ||
+        (decision.amount > 0 && isSellAction)
+      ) {
+        const errorMsg = `Invalid amount ${decision.amount} for ${decision.npcName}`;
+        logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
+        // Log loudly in development, throw in strict mode
+        if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
+          if (isStrictMode) {
             throw new Error(
               `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
             );
           }
-          continue;
-        }
-
-        // Calculate max trade amount (30% of balance)
-        const maxTradeAmount = Math.floor(context.availableBalance * 0.3);
-
-        // Validate amount doesn't exceed balance or max trade amount
-        if (decision.amount > context.availableBalance) {
-          const errorMsg = `LLM suggested amount exceeds balance for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()} (balance)`;
-          logger.warn(
-            `${errorMsg} - REJECTING`,
-            {
-              npcId: decision.npcId,
-              npcName: decision.npcName,
-              suggestedAmount: decision.amount,
-              availableBalance: context.availableBalance,
-              maxTradeAmount,
-              action: decision.action,
-            },
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
             'MarketDecisionEngine'
           );
+        }
+        continue;
+      }
 
-          // FAIL FAST in development: LLM should respect balance constraints
-          if (process.env.NODE_ENV !== 'production') {
+      // Calculate max trade amount (30% of balance)
+      const maxTradeAmount = Math.floor(context.availableBalance * 0.3);
+
+      // Validate amount doesn't exceed balance or max trade amount
+      if (decision.amount > context.availableBalance) {
+        const errorMsg = `LLM suggested amount exceeds balance for ${
+          decision.npcName
+        }: $${decision.amount.toLocaleString()} > $${context.availableBalance.toLocaleString()} (balance)`;
+        logger.warn(
+          `${errorMsg} - REJECTING`,
+          {
+            npcId: decision.npcId,
+            npcName: decision.npcName,
+            suggestedAmount: decision.amount,
+            availableBalance: context.availableBalance,
+            maxTradeAmount,
+            action: decision.action,
+          },
+          'MarketDecisionEngine'
+        );
+
+        // Log loudly in development, throw in strict mode
+        if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
+          if (isStrictMode) {
             throw new Error(
               `[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()}. Decision: ${JSON.stringify(decision)}`
             );
           }
-          // REJECT the decision instead of scaling - this forces LLM to respect constraints
-          continue;
-        }
-
-        // Also warn if exceeding 30% max (but don't reject - some NPCs might want to use more)
-        if (decision.amount > maxTradeAmount) {
-          logger.warn(
-            `LLM suggested amount exceeds 30% max for ${decision.npcName}: $${decision.amount.toLocaleString()} > $${maxTradeAmount.toLocaleString()} (30% of $${context.availableBalance.toLocaleString()})`,
-            {
-              npcId: decision.npcId,
-              npcName: decision.npcName,
-              suggestedAmount: decision.amount,
-              maxTradeAmount,
-              availableBalance: context.availableBalance,
-              action: decision.action,
-            },
+          logger.error(
+            `[DEV] ${errorMsg}. Max trade amount: $${maxTradeAmount.toLocaleString()} - skipping decision`,
+            { decision: JSON.stringify(decision) },
             'MarketDecisionEngine'
           );
-          // Don't reject - 30% is a guideline, not a hard limit
         }
+        // REJECT the decision instead of scaling - this forces LLM to respect constraints
+        continue;
+      }
 
-        // Validate market type (only 'perp' or 'prediction' are valid)
-        if (!decision.marketType) {
-          rejectionReasons['missing_market_type'] =
-            (rejectionReasons['missing_market_type'] || 0) + 1;
-          const errorMsg = `Trading decision missing marketType for ${decision.npcName || decision.npcId || 'unknown'}`;
+      // Also warn if exceeding 30% max (but don't reject - some NPCs might want to use more)
+      if (decision.amount > maxTradeAmount) {
+        logger.warn(
+          `LLM suggested amount exceeds 30% max for ${
+            decision.npcName
+          }: $${decision.amount.toLocaleString()} > $${maxTradeAmount.toLocaleString()} (30% of $${context.availableBalance.toLocaleString()})`,
+          {
+            npcId: decision.npcId,
+            npcName: decision.npcName,
+            suggestedAmount: decision.amount,
+            maxTradeAmount,
+            availableBalance: context.availableBalance,
+            action: decision.action,
+          },
+          'MarketDecisionEngine'
+        );
+        // Don't reject - 30% is a guideline, not a hard limit
+      }
+
+      // Validate market type (only 'perp' or 'prediction' are valid)
+      if (!decision.marketType) {
+        rejectionReasons['missing_market_type'] =
+          (rejectionReasons['missing_market_type'] || 0) + 1;
+        const errorMsg = `Trading decision missing marketType for ${
+          decision.npcName || decision.npcId || 'unknown'
+        }`;
+        logger.warn(
+          errorMsg,
+          {
+            decision: JSON.stringify(decision),
+          },
+          'MarketDecisionEngine'
+        );
+
+        // Log loudly in development, throw in strict mode
+        if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
+          );
+        }
+        continue;
+      }
+
+      // Validate marketType is one of the allowed values (reject 'pool' and any other invalid values)
+      const marketTypeStr = String(decision.marketType);
+      if (marketTypeStr !== 'perp' && marketTypeStr !== 'prediction') {
+        rejectionReasons['invalid_market_type'] =
+          (rejectionReasons['invalid_market_type'] || 0) + 1;
+        const isPool = marketTypeStr === 'pool';
+        const errorMsg = `Invalid marketType '${marketTypeStr}' for ${
+          decision.npcName || decision.npcId || 'unknown'
+        } - ${
+          isPool ? 'pools market type was removed, ' : ''
+        }must be 'perp' or 'prediction'`;
+        logger.warn(
+          errorMsg,
+          {
+            decision: JSON.stringify(decision),
+          },
+          'MarketDecisionEngine'
+        );
+
+        // Log loudly in development, throw in strict mode
+        if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
+          if (isStrictMode) {
+            throw new Error(
+              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
+            );
+          }
+          logger.error(
+            `[DEV] ${errorMsg} - skipping decision`,
+            { decision: JSON.stringify(decision) },
+            'MarketDecisionEngine'
+          );
+        }
+        continue;
+      }
+
+      // Validate perp actions
+      if (decision.action === 'open_long' || decision.action === 'open_short') {
+        if (decision.marketType !== 'perp') {
+          const errorMsg = `Perp action with non-perp market type for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
           logger.warn(
-            errorMsg,
+            `${errorMsg}, skipping decision`,
             {
               decision: JSON.stringify(decision),
             },
             'MarketDecisionEngine'
           );
-
-          // FAIL FAST in development
-          if (process.env.NODE_ENV !== 'production') {
-            throw new Error(
-              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
-            );
-          }
           continue;
         }
 
-        // Validate marketType is one of the allowed values (reject 'pool' and any other invalid values)
-        const marketTypeStr = String(decision.marketType);
-        if (marketTypeStr !== 'perp' && marketTypeStr !== 'prediction') {
-          rejectionReasons['invalid_market_type'] =
-            (rejectionReasons['invalid_market_type'] || 0) + 1;
-          const isPool = marketTypeStr === 'pool';
-          const errorMsg = `Invalid marketType '${marketTypeStr}' for ${decision.npcName || decision.npcId || 'unknown'} - ${isPool ? 'pools market type was removed, ' : ''}must be 'perp' or 'prediction'`;
+        if (!decision.ticker) {
+          const errorMsg = `Perp decision missing ticker for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
           logger.warn(
-            errorMsg,
+            `${errorMsg}, skipping decision`,
             {
               decision: JSON.stringify(decision),
             },
             'MarketDecisionEngine'
           );
-
-          // FAIL FAST in development
-          if (process.env.NODE_ENV !== 'production') {
-            throw new Error(
-              `[DEV] ${errorMsg}. Decision: ${JSON.stringify(decision)}`
-            );
-          }
           continue;
         }
 
-        // Validate perp actions
-        if (
-          decision.action === 'open_long' ||
-          decision.action === 'open_short'
-        ) {
-          if (decision.marketType !== 'perp') {
-            const errorMsg = `Perp action with non-perp market type for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
-
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
-
-          if (!decision.ticker) {
-            const errorMsg = `Perp decision missing ticker for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
-
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
-
-          // Map original ticker to actual ticker (case-insensitive)
-          // e.g., "OPENAI", "OpenAI", "openai" all map to actual ticker "OPNAI"
-          const normalizedTicker = String(decision.ticker).toLowerCase();
-          const mappedTicker =
-            originalTickerToActualTickerMap.get(normalizedTicker);
-          if (mappedTicker) {
-            logger.debug(
-              `Mapped ticker ${decision.ticker} (normalized: ${normalizedTicker}) -> ${mappedTicker}`,
-              undefined,
-              'MarketDecisionEngine'
-            );
-            decision.ticker = mappedTicker;
-          }
-
-          // Verify ticker exists
-          const perpExists = context.perpMarkets.find(
-            (p) => p.ticker === decision.ticker
+        // Map original ticker to actual ticker (case-insensitive)
+        // e.g., "OPENAI", "OpenAI", "openai" all map to actual ticker "OPNAI"
+        // Strip leading/trailing underscores and whitespace that LLMs sometimes add
+        const sanitizedTicker = String(decision.ticker)
+          .trim()
+          .replace(/^_+|_+$/g, '');
+        const normalizedTicker = sanitizedTicker.toLowerCase();
+        const mappedTicker =
+          originalTickerToActualTickerMap.get(normalizedTicker);
+        if (mappedTicker) {
+          logger.debug(
+            `Mapped ticker ${decision.ticker} (normalized: ${normalizedTicker}) -> ${mappedTicker}`,
+            undefined,
+            'MarketDecisionEngine'
           );
-          if (!perpExists) {
-            const errorMsg = `Unknown perp ticker ${decision.ticker} for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+          decision.ticker = mappedTicker;
+        } else {
+          // No exact mapping found - use sanitized ticker directly
+          // NOTE: We intentionally do NOT use fuzzy matching here because:
+          // 1. Similar tickers (SOLAI/TSLAI) are only distance 2 apart
+          // 2. Fuzzy matching could cause trades on wrong assets
+          // 3. Explicit mappings above handle known LLM typos safely
+          decision.ticker = sanitizedTicker;
+        }
 
-            // FAIL FAST in development: ticker doesn't exist
-            if (process.env.NODE_ENV !== 'production') {
+        // Verify ticker exists
+        const perpExists = context.perpMarkets.find(
+          (p) => p.ticker === decision.ticker
+        );
+        if (!perpExists) {
+          const availableTickers = context.perpMarkets
+            .map((p) => p.ticker)
+            .join(', ');
+          const errorMsg = `Unknown perp ticker ${decision.ticker} for ${decision.npcName}. Available: [${availableTickers}]`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
+          // In simulation mode, log and skip (don't crash the whole simulation)
+          // But log loudly so we can add the mapping
+          if (isSimulationMode()) {
+            logger.warn(
+              `[SIMULATION] Skipping trade with invalid ticker. Add mapping for: '${decision.ticker.toLowerCase()}' -> correct ticker`,
+              { decision: JSON.stringify(decision) },
+              'MarketDecisionEngine'
+            );
+            continue;
+          }
+
+          // Log loudly in development, throw in strict mode
+          if (process.env.NODE_ENV !== 'production' && !isTestEnv) {
+            if (isStrictMode) {
               throw new Error(
                 `[DEV] ${errorMsg}. Ticker mapping failed. Decision: ${JSON.stringify(decision)}`
               );
             }
-            continue;
+            logger.error(
+              `[DEV] ${errorMsg}. Ticker mapping failed - skipping decision`,
+              { decision: JSON.stringify(decision) },
+              'MarketDecisionEngine'
+            );
+          }
+          continue;
+        }
+      }
+
+      // Validate prediction actions (buy and sell)
+      if (
+        decision.action === 'buy_yes' ||
+        decision.action === 'buy_no' ||
+        decision.action === 'sell_yes' ||
+        decision.action === 'sell_no'
+      ) {
+        if (decision.marketType !== 'prediction') {
+          const errorMsg = `Prediction action with non-prediction market type for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+
+          logger.warn(
+            `${errorMsg}, skipping decision`,
+            {
+              decision: JSON.stringify(decision),
+            },
+            'MarketDecisionEngine'
+          );
+          continue;
+        }
+
+        // LLM sometimes puts marketId in ticker field, extract it
+        if (!decision.marketId && decision.ticker) {
+          // Check if ticker looks like a marketId (e.g., "Q248821457163911168")
+          const tickerStr = String(decision.ticker).trim();
+          if (tickerStr.startsWith('Q') || /^\d+$/.test(tickerStr)) {
+            decision.marketId = tickerStr.startsWith('Q')
+              ? tickerStr.substring(1)
+              : tickerStr;
+            logger.debug(
+              `Extracted marketId ${decision.marketId} from ticker field`,
+              undefined,
+              'MarketDecisionEngine'
+            );
           }
         }
 
-        // Validate prediction actions
-        if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
-          if (decision.marketType !== 'prediction') {
-            const errorMsg = `Prediction action with non-prediction market type for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
+        if (!decision.marketId) {
+          const errorMsg = `Prediction decision missing marketId for ${decision.npcName}`;
+          logger.warn(errorMsg, {}, 'MarketDecisionEngine');
 
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
+          logger.warn(
+            `${errorMsg}, skipping decision`,
+            {
+              decision: JSON.stringify(decision),
+            },
+            'MarketDecisionEngine'
+          );
+          continue;
+        }
 
-          // LLM sometimes puts marketId in ticker field, extract it
-          if (!decision.marketId && decision.ticker) {
-            // Check if ticker looks like a marketId (e.g., "Q248821457163911168")
-            const tickerStr = String(decision.ticker).trim();
-            if (tickerStr.startsWith('Q') || /^\d+$/.test(tickerStr)) {
-              decision.marketId = tickerStr.startsWith('Q')
-                ? tickerStr.substring(1)
-                : tickerStr;
+        // Clean up marketId: handle multiple IDs, newlines, whitespace, and "Q" prefix
+        let marketIdStr = String(decision.marketId);
+
+        // First, handle newlines and split by whitespace to get individual IDs
+        const parts = marketIdStr
+          .split(/\s+/)
+          .filter((p) => p.trim().length > 0);
+
+        if (parts.length > 1) {
+          // Multiple IDs detected - take the first one
+          marketIdStr = first(parts) ?? '';
+          logger.debug(
+            `Extracted first marketId from multi-value: "${decision.marketId}" -> "${marketIdStr}"`,
+            undefined,
+            'MarketDecisionEngine'
+          );
+        } else if (parts.length === 1) {
+          marketIdStr = first(parts) ?? '';
+        }
+
+        // Remove "Q" prefix if present and clean up
+        marketIdStr = marketIdStr.trim();
+        if (marketIdStr.startsWith('Q')) {
+          decision.marketId = marketIdStr.substring(1).trim();
+          logger.debug(
+            `Removed Q prefix from marketId: "${marketIdStr}" -> "${decision.marketId}"`,
+            undefined,
+            'MarketDecisionEngine'
+          );
+        } else {
+          // Extract only numeric characters (in case LLM added extra text)
+          const numericMatch = marketIdStr.match(/^\d+/);
+          if (numericMatch) {
+            decision.marketId = first(numericMatch) ?? '';
+            if (decision.marketId !== marketIdStr) {
               logger.debug(
-                `Extracted marketId ${decision.marketId} from ticker field`,
+                `Extracted numeric marketId: "${marketIdStr}" -> "${decision.marketId}"`,
                 undefined,
                 'MarketDecisionEngine'
               );
             }
-          }
-
-          if (!decision.marketId) {
-            const errorMsg = `Prediction decision missing marketId for ${decision.npcName}`;
-            logger.warn(errorMsg, {}, 'MarketDecisionEngine');
-
-            logger.warn(
-              `${errorMsg}, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
-          }
-
-          // Clean up marketId: handle multiple IDs, newlines, whitespace, and "Q" prefix
-          let marketIdStr = String(decision.marketId);
-
-          // First, handle newlines and split by whitespace to get individual IDs
-          const parts = marketIdStr
-            .split(/\s+/)
-            .filter((p) => p.trim().length > 0);
-
-          if (parts.length > 1) {
-            // Multiple IDs detected - take the first one
-            marketIdStr = parts[0]!;
-            logger.debug(
-              `Extracted first marketId from multi-value: "${decision.marketId}" -> "${marketIdStr}"`,
-              undefined,
-              'MarketDecisionEngine'
-            );
-          } else if (parts.length === 1) {
-            marketIdStr = parts[0]!;
-          }
-
-          // Remove "Q" prefix if present and clean up
-          marketIdStr = marketIdStr.trim();
-          if (marketIdStr.startsWith('Q')) {
-            decision.marketId = marketIdStr.substring(1).trim();
-            logger.debug(
-              `Removed Q prefix from marketId: "${marketIdStr}" -> "${decision.marketId}"`,
-              undefined,
-              'MarketDecisionEngine'
-            );
           } else {
-            // Extract only numeric characters (in case LLM added extra text)
-            const numericMatch = marketIdStr.match(/^\d+/);
-            if (numericMatch) {
-              decision.marketId = numericMatch[0]!;
-              if (decision.marketId !== marketIdStr) {
-                logger.debug(
-                  `Extracted numeric marketId: "${marketIdStr}" -> "${decision.marketId}"`,
-                  undefined,
-                  'MarketDecisionEngine'
-                );
-              }
-            } else {
-              decision.marketId = marketIdStr;
-            }
-          }
-
-          // Verify market exists
-          const marketExists = context.predictionMarkets.find(
-            (p) => p.id === decision.marketId
-          );
-          if (!marketExists) {
-            const errorMsg = `Unknown prediction market ${decision.marketId} for ${decision.npcName}`;
-            logger.warn(
-              `${errorMsg}. Market ID mapping failed, skipping decision`,
-              {
-                decision: JSON.stringify(decision),
-              },
-              'MarketDecisionEngine'
-            );
-            continue;
+            decision.marketId = marketIdStr;
           }
         }
 
-        // Validate confidence
-        if (decision.confidence < 0 || decision.confidence > 1) {
-          decision.confidence = Math.max(0, Math.min(1, decision.confidence));
-        }
-
-        // Add timestamp
-        valid.push({
-          ...decision,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        // Handle any parse/validation errors gracefully - log warning and continue with next decision
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        rejectionReasons['parse_error'] =
-          (rejectionReasons['parse_error'] || 0) + 1;
-        logger.warn(
-          'Failed to process decision due to parse/validation error, skipping',
-          {
-            error: errorMessage,
-            decision: JSON.stringify(decision),
-            npcId: decision.npcId,
-            npcName: decision.npcName,
-          },
-          'MarketDecisionEngine'
+        // Verify market exists
+        const marketExists = context.predictionMarkets.find(
+          (p) => p.id === decision.marketId
         );
+        if (!marketExists) {
+          const errorMsg = `Unknown prediction market ${decision.marketId} for ${decision.npcName}`;
+          logger.warn(
+            `${errorMsg}. Market ID mapping failed, skipping decision`,
+            {
+              decision: JSON.stringify(decision),
+            },
+            'MarketDecisionEngine'
+          );
+          continue;
+        }
       }
+
+      // Validate confidence
+      if (decision.confidence < 0 || decision.confidence > 1) {
+        decision.confidence = clamp01(decision.confidence);
+      }
+
+      // Add timestamp
+      valid.push({
+        ...decision,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     logger.info(
@@ -1991,7 +2111,7 @@ ${prompt}`
       };
     }
 
-    return decisions[0]!;
+    return firstOrThrow(decisions, 'No decisions generated');
   }
 
   /**
@@ -2101,6 +2221,11 @@ ${prompt}`
    * Especially important for comparative questions like "Will X outperform Y?"
    */
   private async formatActiveQuestions(): Promise<string> {
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+    if (isSimulationMode()) {
+      return `Active Questions:\n${formatSimulationPredictionMarkets()}`;
+    }
+
     const questionsList = await db
       .select()
       .from(questions)
@@ -2130,15 +2255,18 @@ ${prompt}`
    * This provides high-level supplementary context for the batch.
    */
   private async formatRecentEvents(): Promise<string> {
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+    if (isSimulationMode()) {
+      return formatSimulationRecentEvents();
+    }
+
     // Get recent posts from the last 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // Get actor IDs first
-    const actorsForEvents = await db
-      .select({ id: actors.id, name: actors.name })
-      .from(actors);
-    const actorMap = new Map(actorsForEvents.map((a) => [a.id, a.name]));
-    const actorIds = actorsForEvents.map((a) => a.id);
+    // Get actors from static registry
+    const allActors = StaticDataRegistry.getAllActors();
+    const actorMap = new Map(allActors.map((a) => [a.id, a.name]));
+    const actorIds = allActors.map((a) => a.id);
 
     if (actorIds.length === 0) {
       return 'No actors available for narrative context.';
@@ -2176,6 +2304,87 @@ ${prompt}`
   }
 
   /**
+   * Get cached event-market signals or fetch if expired (BAB-5)
+   * Provides context about how recent events affect prediction markets
+   *
+   * IMPORTANT: This function MUST never return an empty string, as eventMarketSignals
+   * is a required variable in the npc-market-decisions prompt template.
+   */
+  private async getCachedEventMarketSignals(): Promise<string> {
+    const now = Date.now();
+    const FALLBACK_SIGNALS =
+      'EVENT-MARKET SIGNALS (recent events affecting markets):\n- None';
+
+    // Return cached if still valid (and non-empty)
+    if (
+      this.eventMarketSignalsCache &&
+      now - this.eventMarketSignalsCache.timestamp < this.CACHE_TTL_MS
+    ) {
+      const cached = this.eventMarketSignalsCache.signals;
+      // Ensure cached value is not empty
+      if (cached && cached.trim().length > 0) {
+        logger.debug(
+          'Using cached event-market signals',
+          { age: now - this.eventMarketSignalsCache.timestamp },
+          'MarketDecisionEngine'
+        );
+        return cached;
+      }
+      // Cache was empty, invalidate and refetch
+      logger.warn(
+        'Cached event-market signals was empty, refetching',
+        {},
+        'MarketDecisionEngine'
+      );
+    }
+
+    // Simulation mode bypass - uses centralized constants from config/simulation.ts
+    if (isSimulationMode()) {
+      const signals = formatSimulationEventMarketSignals();
+      // Ensure simulation signals are non-empty
+      const validSignals =
+        signals && signals.trim().length > 0 ? signals : FALLBACK_SIGNALS;
+      this.eventMarketSignalsCache = { signals: validSignals, timestamp: now };
+      return validSignals;
+    }
+
+    // Fetch fresh event-market summaries
+    let signals: string;
+    try {
+      const summaries =
+        await EventMarketLinkerService.getMarketEventSummaries(24);
+      signals = EventMarketLinkerService.formatForTradingContext(summaries);
+    } catch (error) {
+      logger.warn(
+        'Failed to fetch event-market signals, using fallback',
+        { error: formatError(error) },
+        'MarketDecisionEngine'
+      );
+      signals = FALLBACK_SIGNALS;
+    }
+
+    // Final safety check: ensure we never return empty string
+    if (!signals || signals.trim().length === 0) {
+      logger.warn(
+        'Event-market signals was empty after fetch, using fallback',
+        {},
+        'MarketDecisionEngine'
+      );
+      signals = FALLBACK_SIGNALS;
+    }
+
+    // Cache it
+    this.eventMarketSignalsCache = { signals, timestamp: now };
+    logger.debug(
+      'Cached event-market signals',
+      { signalsLength: signals.length },
+      'MarketDecisionEngine'
+    );
+
+    return signals;
+  }
+
+  /**
    * Clear all caches
    * Call this when you want to force fresh data on next query
    */
@@ -2183,6 +2392,7 @@ ${prompt}`
     this.worldContextCache = null;
     this.activeQuestionsCache = null;
     this.recentEventsCache = null;
+    this.eventMarketSignalsCache = null;
     logger.debug('Cleared all caches', {}, 'MarketDecisionEngine');
   }
 

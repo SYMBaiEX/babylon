@@ -38,10 +38,16 @@ export const balanceTransactions = pgTable(
       table.userId,
       table.createdAt
     ),
+    // Admin stats indexes for optimized date-range queries
+    index('BalanceTransaction_type_createdAt_idx').on(
+      table.type,
+      table.createdAt
+    ),
+    index('BalanceTransaction_userId_type_idx').on(table.userId, table.type),
   ]
 );
 
-// PointsTransaction
+// PointsTransaction - for reputation points (integer), NOT trading balance
 export const pointsTransactions = pgTable(
   'PointsTransaction',
   {
@@ -57,6 +63,8 @@ export const pointsTransactions = pgTable(
     paymentRequestId: text('paymentRequestId').unique(),
     paymentTxHash: text('paymentTxHash'),
     paymentVerified: boolean('paymentVerified').notNull().default(false),
+    // Payment provider: 'crypto' for on-chain payments, 'stripe' for card payments
+    paymentProvider: text('paymentProvider'),
   },
   (table) => [
     index('PointsTransaction_createdAt_idx').on(table.createdAt),
@@ -66,6 +74,7 @@ export const pointsTransactions = pgTable(
       table.userId,
       table.createdAt
     ),
+    index('PointsTransaction_paymentProvider_idx').on(table.paymentProvider),
   ]
 );
 
@@ -141,6 +150,7 @@ export const reports = pgTable(
     reporterId: text('reporterId').notNull(),
     reportedUserId: text('reportedUserId'),
     reportedPostId: text('reportedPostId'),
+    reportedCommentId: text('reportedCommentId'),
     reportType: text('reportType').notNull(),
     category: text('category').notNull(),
     reason: text('reason').notNull(),
@@ -157,6 +167,7 @@ export const reports = pgTable(
     index('Report_reporterId_idx').on(table.reporterId),
     index('Report_reportedUserId_idx').on(table.reportedUserId),
     index('Report_reportedPostId_idx').on(table.reportedPostId),
+    index('Report_reportedCommentId_idx').on(table.reportedCommentId),
     index('Report_status_idx').on(table.status),
     index('Report_priority_status_idx').on(table.priority, table.status),
     index('Report_category_idx').on(table.category),
@@ -167,6 +178,10 @@ export const reports = pgTable(
     ),
     index('Report_reportedPostId_status_idx').on(
       table.reportedPostId,
+      table.status
+    ),
+    index('Report_reportedCommentId_status_idx').on(
+      table.reportedCommentId,
       table.status
     ),
   ]
@@ -304,7 +319,3 @@ export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
 export type ModerationEscrow = typeof moderationEscrows.$inferSelect;
 export type NewModerationEscrow = typeof moderationEscrows.$inferInsert;
-
-
-
-

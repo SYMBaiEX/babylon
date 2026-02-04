@@ -1,34 +1,33 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Bell, Bot, Home, MessageCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Bottom navigation content component for mobile devices.
  *
- * Provides mobile navigation with Feed, Markets, Chats, Agents, and Notifications tabs.
+ * Provides mobile navigation with Feed, Terminal, Chats, Agents, and Notifications tabs.
  * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
- * is enabled on home page unless dev mode is enabled via URL parameter (?dev=true).
+ * is enabled on home page.
  *
  * @returns Bottom navigation element or null if hidden
  */
 function BottomNavContent() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { authenticated, user } = useAuth();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { totalUnread: unreadMessages } = useUnreadMessages();
 
-  // Hide bottom nav when WAITLIST_MODE is enabled in production OR ?comingsoon=true
-  const forceComingSoon = searchParams.get('comingsoon') === 'true';
-  const waitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const shouldHide = (waitlistMode && isProduction) || forceComingSoon;
+  // Hide bottom nav when WAITLIST_MODE is enabled on home page
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
+  const isHomePage = pathname === '/';
+  const shouldHide = isWaitlistMode && isHomePage;
 
   // Poll for unread notifications
   useEffect(() => {
@@ -38,8 +37,7 @@ function BottomNavContent() {
     }
 
     const fetchUnreadCount = async () => {
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         return;
@@ -81,7 +79,7 @@ function BottomNavContent() {
       active: pathname === '/feed' || pathname === '/',
     },
     {
-      name: 'Markets',
+      name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
       color: '#0066FF',
@@ -96,7 +94,7 @@ function BottomNavContent() {
     },
     {
       name: 'Agents',
-      href: '/agents',
+      href: '/agents/team',
       icon: Bot,
       color: '#0066FF',
       active: pathname === '/agents' || pathname.startsWith('/agents/'),
@@ -111,7 +109,11 @@ function BottomNavContent() {
   ];
 
   return (
-    <nav className="fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden">
+    <nav
+      id="app-bottom-nav"
+      data-bottom-nav
+      className="fixed right-0 bottom-0 bottom-nav-rounded left-0 z-50 border-border border-t bg-sidebar md:hidden"
+    >
       {/* Navigation Items */}
       <div className="safe-area-bottom flex h-14 items-center justify-between px-4">
         <div className="flex flex-1 items-center justify-around">
@@ -155,17 +157,14 @@ function BottomNavContent() {
 }
 
 /**
- * Bottom navigation component wrapper with Suspense boundary.
+ * Bottom navigation component for mobile devices.
  *
- * Wraps BottomNavContent in a Suspense boundary to handle async navigation
- * hooks gracefully. Provides mobile navigation for the application.
+ * Provides mobile navigation with Feed, Terminal, Chats, Agents, and Notifications tabs.
+ * Shows unread message and notification badges. Automatically hides when WAITLIST_MODE
+ * is enabled on home page.
  *
- * @returns Bottom navigation element wrapped in Suspense
+ * @returns Bottom navigation element or null if hidden
  */
 export function BottomNav() {
-  return (
-    <Suspense fallback={null}>
-      <BottomNavContent />
-    </Suspense>
-  );
+  return <BottomNavContent />;
 }

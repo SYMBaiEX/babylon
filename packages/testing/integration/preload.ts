@@ -28,41 +28,37 @@ import { db } from '@babylon/db';
  * Removes stale generation locks that may interfere with test execution.
  */
 async function cleanupStaleLocks(): Promise<void> {
-  try {
-    const expiredLocks = await db.generationLock.deleteMany({
-      where: {
-        expiresAt: { lt: new Date() },
-      },
-    });
+  const expiredLocks = await db.generationLock.deleteMany({
+    where: {
+      expiresAt: { lt: new Date() },
+    },
+  });
 
-    if (expiredLocks.count > 0) {
-      console.log(
-        `[Test Preload] Cleaned up ${expiredLocks.count} expired generation locks`
-      );
-    }
+  if (expiredLocks.count > 0) {
+    console.log(
+      `[Test Preload] Cleaned up ${expiredLocks.count} expired generation locks`
+    );
+  }
 
-    const testLocks = await db.generationLock.deleteMany({
-      where: {
-        OR: [
-          { id: { contains: 'test' } },
-          { lockedBy: { contains: 'test' } },
-          {
-            AND: [
-              { lockedBy: { startsWith: 'serverless-' } },
-              { lockedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } },
-            ],
-          },
-        ],
-      },
-    });
+  const testLocks = await db.generationLock.deleteMany({
+    where: {
+      OR: [
+        { id: { contains: 'test' } },
+        { lockedBy: { contains: 'test' } },
+        {
+          AND: [
+            { lockedBy: { startsWith: 'serverless-' } },
+            { lockedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } },
+          ],
+        },
+      ],
+    },
+  });
 
-    if (testLocks.count > 0) {
-      console.log(
-        `[Test Preload] Cleaned up ${testLocks.count} test-related locks`
-      );
-    }
-  } catch (error) {
-    console.warn('[Test Preload] Could not cleanup stale locks:', error);
+  if (testLocks.count > 0) {
+    console.log(
+      `[Test Preload] Cleaned up ${testLocks.count} test-related locks`
+    );
   }
 }
 
@@ -70,55 +66,50 @@ async function cleanupStaleLocks(): Promise<void> {
  * Removes test data that may interfere with other tests.
  */
 async function cleanupTestData(): Promise<void> {
-  try {
-    const testUsers = await db.user.deleteMany({
-      where: {
-        OR: [
-          { username: { startsWith: 'test-' } },
-          { username: { startsWith: 'lock-test-' } },
-          { username: { startsWith: 'endpoint-lock-' } },
-          { username: { contains: 'integration-test' } },
-        ],
-      },
-    });
+  const testUsers = await db.user.deleteMany({
+    where: {
+      OR: [
+        { username: { startsWith: 'test-' } },
+        { username: { startsWith: 'lock-test-' } },
+        { username: { startsWith: 'endpoint-lock-' } },
+        { username: { contains: 'integration-test' } },
+      ],
+    },
+  });
 
-    if (testUsers.count > 0) {
-      console.log(`[Test Preload] Cleaned up ${testUsers.count} test users`);
-    }
+  if (testUsers.count > 0) {
+    console.log(`[Test Preload] Cleaned up ${testUsers.count} test users`);
+  }
 
-    // Clean up test questions/markets created in previous runs
-    const oldTestQuestions = await db.question.deleteMany({
-      where: {
-        AND: [
-          { text: { startsWith: 'Integration test:' } },
-          { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } }, // older than 1 hour
-        ],
-      },
-    });
+  // Clean up test questions/markets created in previous runs
+  const oldTestQuestions = await db.question.deleteMany({
+    where: {
+      AND: [
+        { text: { startsWith: 'Integration test:' } },
+        { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } }, // older than 1 hour
+      ],
+    },
+  });
 
-    if (oldTestQuestions.count > 0) {
-      console.log(
-        `[Test Preload] Cleaned up ${oldTestQuestions.count} old test questions`
-      );
-    }
+  if (oldTestQuestions.count > 0) {
+    console.log(
+      `[Test Preload] Cleaned up ${oldTestQuestions.count} old test questions`
+    );
+  }
 
-    const oldTestMarkets = await db.market.deleteMany({
-      where: {
-        AND: [
-          { question: { startsWith: 'Integration test:' } },
-          { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } },
-        ],
-      },
-    });
+  const oldTestMarkets = await db.market.deleteMany({
+    where: {
+      AND: [
+        { question: { startsWith: 'Integration test:' } },
+        { createdAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } },
+      ],
+    },
+  });
 
-    if (oldTestMarkets.count > 0) {
-      console.log(
-        `[Test Preload] Cleaned up ${oldTestMarkets.count} old test markets`
-      );
-    }
-  } catch (error) {
-    // Non-fatal
-    console.warn('[Test Preload] Could not cleanup test data:', error);
+  if (oldTestMarkets.count > 0) {
+    console.log(
+      `[Test Preload] Cleaned up ${oldTestMarkets.count} old test markets`
+    );
   }
 }
 
@@ -139,33 +130,15 @@ async function initializeTestEnvironment(): Promise<void> {
   console.log('[Test Preload] Initializing integration test environment...');
 
   // Verify database connection
-  try {
-    await db.$queryRaw`SELECT 1`;
-    console.log('[Test Preload] ✅ Database connection verified');
-    dbAvailable = true;
+  await db.$queryRaw`SELECT 1`;
+  console.log('[Test Preload] ✅ Database connection verified');
+  dbAvailable = true;
 
-    // Clean up stale data from previous test runs
-    await cleanupStaleLocks();
-    await cleanupTestData();
+  // Clean up stale data from previous test runs
+  await cleanupStaleLocks();
+  await cleanupTestData();
 
-    console.log('[Test Preload] Integration test environment ready');
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('connect')) {
-      // Database connection is optional - tests that need it will skip themselves
-      console.warn(
-        '[Test Preload] ⚠️  Database not available - tests requiring DB will fail'
-      );
-      console.warn(
-        '[Test Preload] To run integration tests locally, start PostgreSQL:'
-      );
-      console.warn('   docker-compose up postgres -d');
-      dbAvailable = false;
-    } else {
-      // Re-throw non-connection errors
-      throw error;
-    }
-  }
+  console.log('[Test Preload] Integration test environment ready');
 }
 
 /**
@@ -174,16 +147,12 @@ async function initializeTestEnvironment(): Promise<void> {
 async function gracefulShutdown(): Promise<void> {
   console.log('[Test Preload] Shutting down test environment...');
 
-  try {
-    // Clean up any remaining test data
-    await cleanupStaleLocks();
+  // Clean up any remaining test data
+  await cleanupStaleLocks();
 
-    // Disconnect database
-    await db.$disconnect();
-    console.log('[Test Preload] Database disconnected');
-  } catch (error) {
-    console.warn('[Test Preload] Error during shutdown:', error);
-  }
+  // Disconnect database
+  await db.$disconnect();
+  console.log('[Test Preload] Database disconnected');
 }
 
 // Run initialization

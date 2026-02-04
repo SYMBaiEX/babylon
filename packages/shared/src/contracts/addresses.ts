@@ -9,9 +9,9 @@
 
 import type { Address } from 'viem';
 import {
-  PUBLIC_CONFIG,
-  areContractsDeployed as checkContractsDeployed,
   type CoreContractAddresses,
+  areContractsDeployed as checkContractsDeployed,
+  PUBLIC_CONFIG,
 } from '../config';
 
 // =============================================================================
@@ -35,28 +35,38 @@ export interface ERC8004ContractAddresses {
 
 /** Localnet (Hardhat) - Chain ID: 31337 */
 export const LOCAL_CONTRACTS: ERC8004ContractAddresses = {
-  identityRegistry: PUBLIC_CONFIG.networks.local.contracts.identityRegistry as Address,
-  reputationSystem: PUBLIC_CONFIG.networks.local.contracts.reputationSystem as Address,
+  identityRegistry: PUBLIC_CONFIG.networks.local.contracts
+    .identityRegistry as Address,
+  reputationSystem: PUBLIC_CONFIG.networks.local.contracts
+    .reputationSystem as Address,
   diamond: PUBLIC_CONFIG.networks.local.contracts.diamond as Address,
-  predictionMarketFacet: PUBLIC_CONFIG.networks.local.contracts.predictionMarketFacet as Address,
+  predictionMarketFacet: PUBLIC_CONFIG.networks.local.contracts
+    .predictionMarketFacet as Address,
   oracleFacet: PUBLIC_CONFIG.networks.local.contracts.oracleFacet as Address,
 };
 
 /** Base Sepolia (Staging) - Chain ID: 84532 */
 export const BASE_SEPOLIA_CONTRACTS: ERC8004ContractAddresses = {
-  identityRegistry: PUBLIC_CONFIG.networks.baseSepolia.contracts.identityRegistry as Address,
-  reputationSystem: PUBLIC_CONFIG.networks.baseSepolia.contracts.reputationSystem as Address,
+  identityRegistry: PUBLIC_CONFIG.networks.baseSepolia.contracts
+    .identityRegistry as Address,
+  reputationSystem: PUBLIC_CONFIG.networks.baseSepolia.contracts
+    .reputationSystem as Address,
   diamond: PUBLIC_CONFIG.networks.baseSepolia.contracts.diamond as Address,
-  predictionMarketFacet: PUBLIC_CONFIG.networks.baseSepolia.contracts.predictionMarketFacet as Address,
-  oracleFacet: PUBLIC_CONFIG.networks.baseSepolia.contracts.oracleFacet as Address,
+  predictionMarketFacet: PUBLIC_CONFIG.networks.baseSepolia.contracts
+    .predictionMarketFacet as Address,
+  oracleFacet: PUBLIC_CONFIG.networks.baseSepolia.contracts
+    .oracleFacet as Address,
 };
 
 /** Base Mainnet (Production) - Chain ID: 8453 */
 export const BASE_MAINNET_CONTRACTS: ERC8004ContractAddresses = {
-  identityRegistry: PUBLIC_CONFIG.networks.base.contracts.identityRegistry as Address,
-  reputationSystem: PUBLIC_CONFIG.networks.base.contracts.reputationSystem as Address,
+  identityRegistry: PUBLIC_CONFIG.networks.base.contracts
+    .identityRegistry as Address,
+  reputationSystem: PUBLIC_CONFIG.networks.base.contracts
+    .reputationSystem as Address,
   diamond: PUBLIC_CONFIG.networks.base.contracts.diamond as Address,
-  predictionMarketFacet: PUBLIC_CONFIG.networks.base.contracts.predictionMarketFacet as Address,
+  predictionMarketFacet: PUBLIC_CONFIG.networks.base.contracts
+    .predictionMarketFacet as Address,
   oracleFacet: PUBLIC_CONFIG.networks.base.contracts.oracleFacet as Address,
 };
 
@@ -67,7 +77,9 @@ export const BASE_MAINNET_CONTRACTS: ERC8004ContractAddresses = {
 /**
  * Get contract addresses for the specified chain ID
  */
-export function getERC8004ContractAddresses(chainId: number): ERC8004ContractAddresses {
+export function getERC8004ContractAddresses(
+  chainId: number
+): ERC8004ContractAddresses {
   switch (chainId) {
     case 31337:
       return LOCAL_CONTRACTS;

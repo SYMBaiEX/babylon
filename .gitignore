@@ -3,6 +3,13 @@
 # dependencies
 /node_modules
 
+# cursor
+.cursor/commands/
+.cursor/skills/
+
+# CLAUDE
+.claude/skills/
+
 # next.js
 /.next/
 /out/
@@ -16,11 +23,16 @@ dist/
 
 # misc
 .DS_Store
+.worktrees/
 *.pem
+.serena/
+.cursor/
+.vscode/
 
 # local env files
 .env*.local
 .env
+.staging-cookies.txt
 
 # Symlinked env files in apps
 apps/*/.env
@@ -37,11 +49,14 @@ apps/*/.env.local
 *.tsbuildinfo
 next-env.d.ts
 
+**/node_modules/**
+
 # Foundry
 /cache/
 packages/contracts/cache/
 out/
 broadcast/
+packages/contracts/dependencies
 
 # Python
 __pycache__/
@@ -50,53 +65,72 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 ENV/
 *.egg-info/
 dist/
 build/
 
-# Training data
-training_data/trajectories/
-training_data/datasets/
+# Training data and simulation output
+training-data-output/
+training_data/
 training_recording/
+training-data/
+simulation-output/
+trained_models/
+benchmark-results/
+benchmarks/
+
+# Generated output directories
+benchmark-output/
+research-output/
+
+# Data exports
+**/*.jsonl
+**/scored_trajectories.csv
+
+# Debug and storage
 /storage/
-
-# Test results
-test-results/
-playwright-report/
-.playwright/
-
-# Debug stuff
+apps/web/debug/
+packages/experimental/honest-demo-output/
+_docs/
 debug/
 
-# Generated actor images (stored in Vercel Blob instead)
-public/images/actors/
-public/images/actor-banners/
-public/images/organizations/
-public/images/org-banners/
+# Test output directory
+.output/
 
-# User uploads (stored in Vercel Blob in production)
-public/uploads/profiles/*
-public/uploads/covers/*
-public/uploads/posts/*
-!public/uploads/.gitkeep
-!public/uploads/*/.gitkeep
+# Dependency analysis artifacts
+circular-deps.*
 
-python/trained_models
-**/.turbo
-**/.next
-**/node_modules
+# Local metrics and audit files
+.metrics/
+**/MARKETS_FRONTEND_AUDIT.md
 
-# Soldeer (Solidity package manager)
-packages/contracts/dependencies/
-packages/training/python/trained_models
-_docs/
+# Local utility scripts (not tracked in version control)
+scripts/cleanup-excess-markets.ts
 
-# Serena
-.serena/
+# Continuous Claude cache (local only)
+.claude/cache/
+.claude/tsc-cache/
+/thoughts
 
-# Claude Code
-.claude/
-migration-data/
-# Vendor docs (generated)
-docs/vendors/
+# START Ruler Generated Files
+/.agent/rules/ruler.md
+/.agent/rules/ruler.md.bak
+/.codex/config.json
+/.codex/config.json.bak
+/.codex/config.toml
+/.codex/config.toml.bak
+/.cursor/mcp.json
+/.cursor/mcp.json.bak
+/.gemini/settings.json
+/.gemini/settings.json.bak
+/.mcp.json
+/.mcp.json.bak
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+/opencode.json
+/opencode.json.bak
+# END Ruler Generated Files

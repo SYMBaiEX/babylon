@@ -9,31 +9,62 @@
  * import { PredictionPricing } from '@babylon/engine/client';
  */
 
-// Fee Configuration (pure constants, no dependencies)
-export { FEE_CONFIG, type FeeType, type FeeTransactionType } from './config/fees';
-
 // Prediction Pricing (pure math, no server dependencies)
+// IMPORTANT: Use /client path to avoid pulling in PredictionDbAdapter which imports @babylon/db
 export {
   calculateExpectedPayout,
   PredictionPricing,
   type ShareCalculation,
   type ShareCalculationWithFees,
-} from './prediction-pricing';
-
+} from '@babylon/core/markets/prediction/pricing';
+// Fee Configuration (pure constants, no dependencies)
+export {
+  FEE_CONFIG,
+  type FeeTransactionType,
+  type FeeType,
+} from './config/fees';
 // Concentrated Liquidity (pure math)
 export {
-  calculateOptimalRange,
-  ConcentratedLiquidityPool,
-  createPoolFromMarket,
-  estimateFeeAPR,
   type AddPositionParams,
+  ConcentratedLiquidityPool,
   type ConcentratedPosition,
   type ConcentratedTradeResult,
+  calculateOptimalRange,
+  createPoolFromMarket,
+  estimateFeeAPR,
   type PoolConfig,
   type PoolState,
   type RemovePositionResult,
 } from './prediction-concentrated-liquidity';
-
+// Reputation calculations that are pure functions (no DB)
+// Import directly from the pnl-normalizer file to avoid pulling in server-side deps from the barrel export
+export {
+  calculateAverageROI,
+  calculateConfidenceScore,
+  calculateSharpeRatio,
+  calculateWinRate,
+  denormalizePnL,
+  getTrustLevel,
+  normalizePnL,
+} from './reputation/pnl-normalizer';
+// Common Types (types only)
+export type {
+  ApiResponse,
+  ErrorLike,
+  FilterParams,
+  JsonRpcParams,
+  JsonRpcResult,
+  JsonValue,
+  LLMResponse,
+  LogData,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  SortOrder,
+  SortParams,
+  StringRecord,
+  WebSocketData,
+} from './types/common';
 // Market Decision Types (types only, no runtime code)
 export type {
   ExecutedTrade,
@@ -43,15 +74,14 @@ export type {
   TradingDecision,
   TradingExecutionResult,
 } from './types/market-decisions';
-
 // Shared Game Types (re-exported from types, no server deps)
 export type {
   Actor,
   ActorConnection,
   ActorData,
   ActorRelationship,
-  ActorsDatabase,
   ActorState,
+  ActorsDatabase,
   ActorTier,
   DayTimeline,
   FeedEvent,
@@ -76,10 +106,8 @@ export type {
   Scenario,
   SelectedActor,
   StockPrice,
-  WorldContext,
   WorldEvent,
 } from './types/shared';
-
 export {
   ACTOR_TIERS,
   DAY_RANGES,
@@ -88,26 +116,6 @@ export {
   POST_TYPES,
   RELATIONSHIP_TYPES,
 } from './types/shared';
-
-// Common Types (types only)
-export type {
-  ApiResponse,
-  ErrorLike,
-  FilterParams,
-  JsonRpcParams,
-  JsonRpcResult,
-  JsonValue,
-  LLMResponse,
-  LogData,
-  PaginatedResponse,
-  PaginationParams,
-  QueryParams,
-  SortOrder,
-  SortParams,
-  StringRecord,
-  WebSocketData,
-} from './types/common';
-
 // Utils - Randomization (pure functions)
 export {
   pickRandom,
@@ -116,18 +124,6 @@ export {
   sampleRandom,
   shuffleArray,
 } from './utils/randomization';
-
-// Reputation calculations that are pure functions (no DB)
-// Import directly from the pnl-normalizer file to avoid pulling in server-side deps from the barrel export
-export {
-  normalizePnL,
-  denormalizePnL,
-  calculateWinRate,
-  calculateAverageROI,
-  calculateSharpeRatio,
-  getTrustLevel,
-  calculateConfidenceScore,
-} from './reputation/pnl-normalizer';
 
 // Portfolio PnL type (interface only, no runtime deps - defined here to avoid importing from server-only file)
 export interface PortfolioPnLSnapshot {
@@ -143,3 +139,14 @@ export interface PortfolioPnLSnapshot {
   accountEquity: number;
 }
 
+export interface PortfolioBreakdownSnapshot {
+  wallet: number;
+  agents: number;
+  positions: number;
+  available: number;
+  originalAmount: number;
+  totalAssets: number;
+  totalPnL: number;
+  agentCount: number;
+  totalPoints: number;
+}

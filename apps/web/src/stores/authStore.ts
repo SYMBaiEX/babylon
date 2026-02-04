@@ -30,6 +30,8 @@ export interface User {
   bannedAt?: string | null;
   bannedReason?: string | null;
   reputationPoints?: number;
+  totalPoints?: number;
+  virtualBalance?: number;
   referralCount?: number;
   referralCode?: string;
   onChainRegistered?: boolean;
@@ -63,6 +65,8 @@ export interface User {
     followers?: number;
     following?: number;
   };
+  // Game guide completion
+  gameGuideCompletedAt?: string | null;
 }
 
 interface Wallet {
@@ -113,7 +117,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'babylon-auth',
-      version: 1, // Increment this to invalidate old cached data
+      version: 2, // Increment this to invalidate old cached data
     }
   )
 );

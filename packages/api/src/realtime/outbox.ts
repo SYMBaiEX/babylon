@@ -1,8 +1,16 @@
-import { randomUUID } from 'crypto';
-import { and, db, eq, lt, or, realtimeOutboxes, sql } from '@babylon/db';
+import {
+  and,
+  db,
+  eq,
+  type JsonValue,
+  lt,
+  or,
+  realtimeOutboxes,
+  sql,
+} from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { randomUUID } from 'crypto';
 import { streamAdd } from '../redis';
-import type { JsonValue } from '../types';
 import type { RealtimeChannel, RealtimeEventEnvelope } from './index';
 import { toStreamKey } from './index';
 
@@ -15,30 +23,22 @@ const BATCH_SIZE = 100;
 export async function enqueueOutbox(
   event: RealtimeEventEnvelope
 ): Promise<void> {
-  try {
-    // RealtimeEventEnvelope is compatible with JsonValue - it's a plain object with JsonValue fields
-    const payload: JsonValue = {
-      channel: event.channel,
-      type: event.type,
-      version: event.version ?? 'v1',
-      data: event.data,
-      timestamp: event.timestamp,
-    };
-    await db.insert(realtimeOutboxes).values({
-      id: randomUUID(),
-      channel: event.channel,
-      type: event.type,
-      version: event.version ?? 'v1',
-      payload,
-      updatedAt: new Date(),
-    });
-  } catch (error) {
-    logger.error(
-      'Failed to enqueue realtime outbox event',
-      { error, channel: event.channel, type: event.type },
-      'RealtimeOutbox'
-    );
-  }
+  // RealtimeEventEnvelope is compatible with JsonValue - it's a plain object with JsonValue fields
+  const payload: JsonValue = {
+    channel: event.channel,
+    type: event.type,
+    version: event.version ?? 'v1',
+    data: event.data,
+    timestamp: event.timestamp,
+  };
+  await db.insert(realtimeOutboxes).values({
+    id: randomUUID(),
+    channel: event.channel,
+    type: event.type,
+    version: event.version ?? 'v1',
+    payload,
+    updatedAt: new Date(),
+  });
 }
 
 /**
@@ -98,46 +98,27 @@ export async function drainOutboxBatch(limit: number = BATCH_SIZE): Promise<{
           : Number(payload.timestamp),
     };
 
-    try {
-      // Convert envelope to Record<string, JsonValue> for streamAdd
-      const envelopeRecord: Record<string, JsonValue> = {
-        channel: envelope.channel,
-        type: envelope.type,
-        version: envelope.version ?? 'v1',
-        data: envelope.data,
-        timestamp: envelope.timestamp,
-      };
-      await streamAdd(toStreamKey(envelope.channel), envelopeRecord, {
-        maxlen: 10_000,
-      });
-      await db
-        .update(realtimeOutboxes)
-        .set({
-          status: 'sent',
-          attempts: sql`${realtimeOutboxes.attempts} + 1`,
-          lastError: null,
-        })
-        .where(eq(realtimeOutboxes.id, row.id));
-      sent++;
-    } catch (error) {
-      failed++;
-      const attempts = row.attempts + 1;
-      await db
-        .update(realtimeOutboxes)
-        .set({
-          attempts,
-          status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending',
-          lastError: `${error}`,
-        })
-        .where(eq(realtimeOutboxes.id, row.id));
-      logger.warn(
-        'Realtime outbox publish failed',
-        { id: row.id, attempts },
-        'RealtimeOutbox'
-      );
-    }
+    // Convert envelope to Record<string, JsonValue> for streamAdd
+    const envelopeRecord: Record<string, JsonValue> = {
+      channel: envelope.channel,
+      type: envelope.type,
+      version: envelope.version ?? 'v1',
+      data: envelope.data,
+      timestamp: envelope.timestamp,
+    };
+    await streamAdd(toStreamKey(envelope.channel), envelopeRecord, {
+      maxlen: 10_000,
+    });
+    await db
+      .update(realtimeOutboxes)
+      .set({
+        status: 'sent',
+        attempts: sql`${realtimeOutboxes.attempts} + 1`,
+        lastError: null,
+      })
+      .where(eq(realtimeOutboxes.id, row.id));
+    sent++;
   }
 
   return { processed: rows.length, sent, failed };
 }
-

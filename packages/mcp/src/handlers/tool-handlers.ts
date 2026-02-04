@@ -1,253 +1,656 @@
 /**
  * MCP Tool Handlers
  *
- * Handlers for executing MCP tools
+ * Handlers for executing MCP tools. These handlers use direct service layer
+ * calls instead of HTTP API endpoints for operations requiring authentication.
+ * This bypasses the need for Privy JWT tokens since MCP API key authentication
+ * provides the userId directly.
+ *
+ * PRODUCTION FEATURES:
+ * - Rate limiting: All trading/transfer operations check rate limits
+ * - Retry logic: Transient failures are retried with exponential backoff (idempotent ops only)
+ * - Error logging: Failures are logged with context for debugging
+ * - Metrics tracking: Operation success/failure counts are tracked
+ * - Idempotency: Transfer operations support idempotency keys (Redis-backed, distributed)
+ *
+ * ARCHITECTURE NOTES:
+ * - Direct service calls eliminate HTTP overhead for internal operations
+ * - Authorization is enforced at the handler level before service calls
+ * - Transactions use row-level locking to prevent race conditions
+ * - Idempotency cache uses Redis for distributed protection across instances,
+ *   with in-memory fallback when Redis is unavailable
+ *
+ * REFERRER FEES:
+ * MCP tool responses report `referrerPaid: 0` because:
+ * 1. MCP agents operate autonomously without a referral context
+ * 2. Referrer attribution requires user session context not available in MCP
+ * 3. The fee.amount reflects the total trading fee charged to the user
+ * If referrer tracking is needed for MCP operations in the future, it would
+ * require passing referrer context through the MCP API key or session.
  */
 
-import { db, eq, users } from '@babylon/db';
-import { logger, generateSnowflakeId, getAPIBaseUrl } from '@babylon/shared';
+import type { JsonRpcParams, JsonRpcRequest } from '@babylon/a2a';
+import {
+  handleAppealBanWithEscrow,
+  handleCreateEscrowPayment,
+  handleListEscrowPayments,
+  handleRefundEscrowPayment,
+  handleVerifyEscrowPayment,
+} from '@babylon/a2a';
+import {
+  checkRateLimitAsync,
+  getCache,
+  isRedisAvailable,
+  RATE_LIMIT_CONFIGS,
+  RateLimitError,
+  setCache,
+} from '@babylon/api';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import {
+  PredictionDbAdapter,
+  PredictionMarketService,
+} from '@babylon/core/markets/prediction';
+import {
+  and,
+  db,
+  eq,
+  groupMembers,
+  groups,
+  perpMarketSnapshots,
+  users,
+} from '@babylon/db';
+import {
+  FEE_CONFIG,
+  FeeService,
+  invalidateAfterPredictionTrade,
+  StaticDataRegistry,
+  WalletService,
+} from '@babylon/engine';
 import type { JsonValue, StringRecord } from '@babylon/shared';
-import type { AuthenticatedAgent } from '../types/mcp';
+import {
+  GROUP_CONFIG,
+  generateSnowflakeId,
+  getAPIBaseUrl,
+  logger,
+  retryIfRetryable,
+} from '@babylon/shared';
+
+/**
+ * Safe fetch helper that validates response status and returns typed JSON.
+ * Throws a descriptive error if the response is not OK.
+ * Returns null for 204 No Content or empty body responses.
+ */
+async function safeFetch<T>(
+  url: string | URL,
+  options?: RequestInit
+): Promise<T | null> {
+  const response = await fetch(url.toString(), options);
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(
+      `API request failed: ${response.status} ${response.statusText} - ${errorText.slice(0, 200)}`
+    );
+  }
+
+  // Handle 204 No Content early
+  if (response.status === 204) {
+    return null;
+  }
+
+  // Read body as text to handle empty responses reliably
+  // (content-length header may not always be present, e.g. chunked transfer)
+  const text = await response.text();
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return JSON.parse(trimmed) as T;
+}
+
+/**
+ * Safe fetch helper that throws if the response is null/empty.
+ * Use this for endpoints that must return JSON data.
+ */
+async function safeFetchRequired<T>(
+  url: string | URL,
+  options?: RequestInit
+): Promise<T> {
+  const result = await safeFetch<T>(url, options);
+  if (result === null) {
+    throw new Error('API returned empty response when data was expected');
+  }
+  return result;
+}
+
+// ============================================================================
+// Production Operation Helpers
+// ============================================================================
+
+/**
+ * Metrics counter for MCP operations.
+ * Tracks success/failure counts for monitoring.
+ */
+const mcpMetrics = {
+  operations: new Map<string, { success: number; failure: number }>(),
+
+  record(operation: string, success: boolean): void {
+    const stats = this.operations.get(operation) ?? { success: 0, failure: 0 };
+    if (success) {
+      stats.success++;
+    } else {
+      stats.failure++;
+    }
+    this.operations.set(operation, stats);
+  },
+
+  getStats(): Record<string, { success: number; failure: number }> {
+    return Object.fromEntries(this.operations);
+  },
+};
+
+/**
+ * Options for executeWithRetry function.
+ */
+interface ExecuteWithRetryOptions {
+  /** The agent ID for logging/metrics */
+  agentId: string;
+  /** The user ID for logging/metrics */
+  userId: string;
+  /**
+   * Whether the operation is idempotent and safe to retry.
+   * Only idempotent operations will be retried on transient failures.
+   * @default false
+   */
+  isIdempotent?: boolean;
+  /**
+   * Optional idempotency key. If provided, implies the operation is idempotent.
+   * Used for logging retry attempts.
+   */
+  idempotencyKey?: string;
+}
+
+/**
+ * Execute a critical operation with optional retry, error logging, and metrics.
+ * Only retries when the operation is explicitly marked as idempotent or has an idempotency key.
+ * Non-idempotent operations (trades, transfers) are executed once to avoid duplicates.
+ */
+async function executeWithRetry<T>(
+  operationName: string,
+  operation: () => Promise<T>,
+  options: ExecuteWithRetryOptions
+): Promise<T> {
+  const { agentId, userId, isIdempotent = false, idempotencyKey } = options;
+  const startTime = Date.now();
+
+  // Determine if we should retry: only if explicitly idempotent or has idempotency key
+  const shouldRetry = isIdempotent || !!idempotencyKey;
+
+  try {
+    let result: T;
+
+    if (shouldRetry) {
+      // Safe to retry - use retry logic
+      result = await retryIfRetryable(operation, {
+        maxAttempts: 3,
+        initialDelayMs: 100,
+        maxDelayMs: 2000,
+        onRetry: (attempt, error, delayMs) => {
+          logger.warn(
+            `${operationName} retry attempt ${attempt}`,
+            {
+              agentId,
+              idempotencyKey,
+              error: error.message,
+              delayMs,
+            },
+            'MCP'
+          );
+        },
+      });
+    } else {
+      // Not idempotent - execute once only to avoid duplicate side effects
+      result = await operation();
+    }
+
+    mcpMetrics.record(operationName, true);
+    logger.debug(
+      `${operationName} completed`,
+      {
+        agentId,
+        durationMs: Date.now() - startTime,
+        retried: shouldRetry,
+      },
+      'MCP'
+    );
+    return result;
+  } catch (error) {
+    mcpMetrics.record(operationName, false);
+    logger.error(
+      `${operationName} failed`,
+      {
+        agentId,
+        userId,
+        idempotencyKey,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startTime,
+      },
+      'MCP'
+    );
+    throw error;
+  }
+}
+
+/**
+ * Check rate limit for an MCP operation.
+ * Throws RateLimitError if limit exceeded.
+ */
+async function checkMcpRateLimit(
+  userId: string,
+  operation:
+    | 'buy_prediction'
+    | 'sell_prediction'
+    | 'open_position'
+    | 'close_position'
+    | 'transfer'
+    | 'post'
+): Promise<void> {
+  const configMap: Record<
+    string,
+    (typeof RATE_LIMIT_CONFIGS)[keyof typeof RATE_LIMIT_CONFIGS]
+  > = {
+    buy_prediction: RATE_LIMIT_CONFIGS.BUY_PREDICTION,
+    sell_prediction: RATE_LIMIT_CONFIGS.SELL_PREDICTION,
+    open_position: RATE_LIMIT_CONFIGS.OPEN_POSITION,
+    close_position: RATE_LIMIT_CONFIGS.CLOSE_POSITION,
+    transfer: RATE_LIMIT_CONFIGS.DEFAULT, // Use default for transfers
+    post: RATE_LIMIT_CONFIGS.CREATE_POST,
+  };
+  const config = configMap[operation];
+  if (!config) return;
+
+  const result = await checkRateLimitAsync(userId, config);
+  if (!result.allowed) {
+    throw new RateLimitError(
+      `Rate limit exceeded for ${operation}. Try again in ${result.retryAfter} seconds.`,
+      result.retryAfter
+    );
+  }
+}
+
+/**
+ * Generic interface for idempotency cache entries.
+ * @template T - The type of the cached result
+ */
+interface IdempotencyCacheEntry<T = unknown> {
+  result: T;
+  expiresAt: number;
+}
+
+/**
+ * Cache key prefix for MCP idempotency operations.
+ */
+const IDEMPOTENCY_CACHE_NAMESPACE = 'mcp:idempotency';
+
+/**
+ * In-memory fallback cache for when Redis is unavailable.
+ * Used to maintain idempotency protection even during Redis outages.
+ *
+ * Note: This fallback only provides single-instance protection and won't
+ * work across multiple server instances. For production horizontal scaling,
+ * ensure Redis is highly available.
+ */
+const idempotencyFallbackCache = new Map<string, IdempotencyCacheEntry>();
+
+/**
+ * Background cleanup interval for in-memory fallback cache (60 seconds).
+ * Only needed for the fallback cache; Redis handles TTL expiration automatically.
+ */
+const FALLBACK_CLEANUP_INTERVAL_MS = 60_000;
+
+/**
+ * Background periodic cleaner for in-memory fallback cache.
+ * Only cleans up when Redis is unavailable and fallback cache is in use.
+ */
+const fallbackCleanupInterval = setInterval(() => {
+  if (idempotencyFallbackCache.size === 0) return;
+
+  const now = Date.now();
+  for (const [key, entry] of idempotencyFallbackCache) {
+    if (entry.expiresAt < now) {
+      idempotencyFallbackCache.delete(key);
+    }
+  }
+}, FALLBACK_CLEANUP_INTERVAL_MS);
+
+// Ensure the interval doesn't prevent process from exiting
+if (typeof fallbackCleanupInterval.unref === 'function') {
+  fallbackCleanupInterval.unref();
+}
+
+/**
+ * Execute an operation with idempotency protection.
+ * If the same idempotencyKey is seen within TTL, returns cached result.
+ *
+ * Uses Redis for distributed idempotency across server instances.
+ * Falls back to in-memory cache when Redis is unavailable.
+ *
+ * @template T - The result type of the operation
+ * @param idempotencyKey - Optional key for idempotency check (should be scoped by user/operation)
+ * @param operation - The async operation to execute
+ * @param ttlMs - Time-to-live for cached results in milliseconds (default: 60000)
+ * @returns The result of the operation, either freshly computed or from cache
+ */
+async function executeWithIdempotency<T>(
+  idempotencyKey: string | undefined,
+  operation: () => Promise<T>,
+  ttlMs: number = 60_000 // 1 minute default
+): Promise<T> {
+  // If no idempotency key, just execute
+  if (!idempotencyKey) {
+    return operation();
+  }
+
+  const ttlSeconds = Math.ceil(ttlMs / 1000);
+
+  // Try Redis first for distributed idempotency
+  if (isRedisAvailable()) {
+    try {
+      // Check Redis cache
+      const cached = await getCache<IdempotencyCacheEntry<T>>(idempotencyKey, {
+        namespace: IDEMPOTENCY_CACHE_NAMESPACE,
+      });
+
+      if (cached && cached.expiresAt > Date.now()) {
+        logger.debug(
+          'Idempotency cache hit (Redis)',
+          { idempotencyKey },
+          'MCP'
+        );
+        return cached.result;
+      }
+
+      // Execute and cache in Redis
+      const result = await operation();
+      const entry: IdempotencyCacheEntry<T> = {
+        result,
+        expiresAt: Date.now() + ttlMs,
+      };
+
+      await setCache(idempotencyKey, entry, {
+        namespace: IDEMPOTENCY_CACHE_NAMESPACE,
+        ttl: ttlSeconds,
+      });
+
+      return result;
+    } catch (error) {
+      // Redis error - fall through to in-memory fallback
+      logger.warn(
+        'Redis idempotency cache error, using fallback',
+        {
+          idempotencyKey,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'MCP'
+      );
+    }
+  }
+
+  // In-memory fallback when Redis is unavailable
+  const cached = idempotencyFallbackCache.get(idempotencyKey) as
+    | IdempotencyCacheEntry<T>
+    | undefined;
+  if (cached && cached.expiresAt > Date.now()) {
+    logger.debug('Idempotency cache hit (fallback)', { idempotencyKey }, 'MCP');
+    return cached.result;
+  }
+
+  // Execute and cache in memory
+  const result = await operation();
+  const entry: IdempotencyCacheEntry<T> = {
+    result,
+    expiresAt: Date.now() + ttlMs,
+  };
+  idempotencyFallbackCache.set(idempotencyKey, entry as IdempotencyCacheEntry);
+
+  return result;
+}
+
 import type {
-  GetMarketsArgs,
-  GetMarketsResult,
-  PlaceBetArgs,
-  PlaceBetResult,
-  GetBalanceResult,
-  GetPositionsArgs,
-  GetPositionsResult,
-  ClosePositionArgs,
-  ClosePositionResult,
-  GetMarketDataArgs,
-  GetMarketDataResult,
-  QueryFeedArgs,
-  QueryFeedResult,
-  BuySharesArgs,
-  BuySharesResult,
-  SellSharesArgs,
-  SellSharesResult,
-  OpenPositionArgs,
-  OpenPositionResult,
-  GetMarketPricesArgs,
-  GetMarketPricesResult,
-  GetPerpetualsArgs,
-  GetPerpetualsResult,
-  GetTradesArgs,
-  GetTradesResult,
-  GetTradeHistoryArgs,
-  GetTradeHistoryResult,
-  CreatePostArgs,
-  CreatePostResult,
-  DeletePostArgs,
-  DeletePostResult,
-  LikePostArgs,
-  LikePostResult,
-  UnlikePostArgs,
-  UnlikePostResult,
-  SharePostArgs,
-  SharePostResult,
-  GetCommentsArgs,
-  GetCommentsResult,
-  CreateCommentArgs,
-  CreateCommentResult,
-  DeleteCommentArgs,
-  DeleteCommentResult,
-  LikeCommentArgs,
-  LikeCommentResult,
-  GetPostsByTagArgs,
-  GetPostsByTagResult,
-  GetUserProfileArgs,
-  GetUserProfileResult,
-  UpdateProfileArgs,
-  UpdateProfileResult,
-  FollowUserArgs,
-  FollowUserResult,
-  UnfollowUserArgs,
-  UnfollowUserResult,
-  GetFollowersArgs,
-  GetFollowersResult,
-  GetFollowingArgs,
-  GetFollowingResult,
-  SearchUsersArgs,
-  SearchUsersResult,
-  GetUserWalletArgs,
-  GetUserWalletResult,
-  GetUserStatsArgs,
-  GetUserStatsResult,
-  GetChatsArgs,
-  GetChatsResult,
-  GetChatMessagesArgs,
-  GetChatMessagesResult,
-  SendMessageArgs,
-  SendMessageResult,
-  CreateGroupArgs,
-  CreateGroupResult,
-  LeaveChatArgs,
-  LeaveChatResult,
-  GetUnreadCountArgs,
-  GetUnreadCountResult,
-  GetNotificationsArgs,
-  GetNotificationsResult,
-  MarkNotificationsReadArgs,
-  MarkNotificationsReadResult,
-  GetGroupInvitesArgs,
-  GetGroupInvitesResult,
   AcceptGroupInviteArgs,
   AcceptGroupInviteResult,
-  DeclineGroupInviteArgs,
-  DeclineGroupInviteResult,
-  GetLeaderboardArgs,
-  GetLeaderboardResult,
-  GetSystemStatsArgs,
-  GetSystemStatsResult,
-  GetReferralCodeArgs,
-  GetReferralCodeResult,
-  GetReferralsArgs,
-  GetReferralsResult,
-  GetReferralStatsArgs,
-  GetReferralStatsResult,
-  GetReputationArgs,
-  GetReputationResult,
-  GetReputationBreakdownArgs,
-  GetReputationBreakdownResult,
-  GetTrendingTagsArgs,
-  GetTrendingTagsResult,
-  GetOrganizationsArgs,
-  GetOrganizationsResult,
-  PaymentRequestArgs,
-  PaymentRequestResult,
-  PaymentReceiptArgs,
-  PaymentReceiptResult,
-  BlockUserArgs,
-  BlockUserResult,
-  UnblockUserArgs,
-  UnblockUserResult,
-  MuteUserArgs,
-  MuteUserResult,
-  UnmuteUserArgs,
-  UnmuteUserResult,
-  ReportUserArgs,
-  ReportUserResult,
-  ReportPostArgs,
-  ReportPostResult,
-  GetBlocksArgs,
-  GetBlocksResult,
-  GetMutesArgs,
-  GetMutesResult,
-  CheckBlockStatusArgs,
-  CheckBlockStatusResult,
-  CheckMuteStatusArgs,
-  CheckMuteStatusResult,
-  CreateEscrowPaymentArgs,
-  CreateEscrowPaymentResult,
-  VerifyEscrowPaymentArgs,
-  VerifyEscrowPaymentResult,
-  RefundEscrowPaymentArgs,
-  RefundEscrowPaymentResult,
-  ListEscrowPaymentsArgs,
-  ListEscrowPaymentsResult,
   AppealBanArgs,
   AppealBanResult,
   AppealBanWithEscrowArgs,
   AppealBanWithEscrowResult,
+  AuthenticatedAgent,
+  BlockUserArgs,
+  BlockUserResult,
+  BuySharesArgs,
+  BuySharesResult,
+  CheckBlockStatusArgs,
+  CheckBlockStatusResult,
+  CheckMuteStatusArgs,
+  CheckMuteStatusResult,
+  ClosePositionArgs,
+  ClosePositionResult,
+  CreateCommentArgs,
+  CreateCommentResult,
+  CreateEscrowPaymentArgs,
+  CreateEscrowPaymentResult,
+  CreateGroupArgs,
+  CreateGroupResult,
+  CreatePostArgs,
+  CreatePostResult,
+  DeclineGroupInviteArgs,
+  DeclineGroupInviteResult,
+  DeleteCommentArgs,
+  DeleteCommentResult,
+  DeletePostArgs,
+  DeletePostResult,
   FavoriteProfileArgs,
   FavoriteProfileResult,
-  UnfavoriteProfileArgs,
-  UnfavoriteProfileResult,
-  GetFavoritesArgs,
-  GetFavoritesResult,
+  FollowUserArgs,
+  FollowUserResult,
+  GetBalanceResult,
+  GetBlocksArgs,
+  GetBlocksResult,
+  GetChatMessagesArgs,
+  GetChatMessagesResult,
+  GetChatsArgs,
+  GetChatsResult,
+  GetCommentsArgs,
+  GetCommentsResult,
   GetFavoritePostsArgs,
   GetFavoritePostsResult,
+  GetFavoritesArgs,
+  GetFavoritesResult,
+  GetFollowersArgs,
+  GetFollowersResult,
+  GetFollowingArgs,
+  GetFollowingResult,
+  GetGroupInvitesArgs,
+  GetGroupInvitesResult,
+  GetLeaderboardArgs,
+  GetLeaderboardResult,
+  GetMarketDataArgs,
+  GetMarketDataResult,
+  GetMarketPricesArgs,
+  GetMarketPricesResult,
+  GetMarketsArgs,
+  GetMarketsResult,
+  GetMutesArgs,
+  GetMutesResult,
+  GetNotificationsArgs,
+  GetNotificationsResult,
+  GetOrganizationsArgs,
+  GetOrganizationsResult,
+  GetPerpetualsArgs,
+  GetPerpetualsResult,
+  GetPositionsArgs,
+  GetPositionsResult,
+  GetPostsByTagArgs,
+  GetPostsByTagResult,
+  GetReferralCodeArgs,
+  GetReferralCodeResult,
+  GetReferralStatsArgs,
+  GetReferralStatsResult,
+  GetReferralsArgs,
+  GetReferralsResult,
+  GetReputationArgs,
+  GetReputationBreakdownArgs,
+  GetReputationBreakdownResult,
+  GetReputationResult,
+  GetSystemStatsArgs,
+  GetSystemStatsResult,
+  GetTradeHistoryArgs,
+  GetTradeHistoryResult,
+  GetTradesArgs,
+  GetTradesResult,
+  GetTrendingTagsArgs,
+  GetTrendingTagsResult,
+  GetUnreadCountArgs,
+  GetUnreadCountResult,
+  GetUserProfileArgs,
+  GetUserProfileResult,
+  GetUserStatsArgs,
+  GetUserStatsResult,
+  GetUserWalletArgs,
+  GetUserWalletResult,
+  LeaveChatArgs,
+  LeaveChatResult,
+  LikeCommentArgs,
+  LikeCommentResult,
+  LikePostArgs,
+  LikePostResult,
+  ListEscrowPaymentsArgs,
+  ListEscrowPaymentsResult,
+  MarkNotificationsReadArgs,
+  MarkNotificationsReadResult,
+  MCPToolResult,
+  MuteUserArgs,
+  MuteUserResult,
+  OpenPositionArgs,
+  OpenPositionResult,
+  PaymentReceiptArgs,
+  PaymentReceiptResult,
+  PaymentRequestArgs,
+  PaymentRequestResult,
+  PlaceBetArgs,
+  PlaceBetResult,
+  QueryFeedArgs,
+  QueryFeedResult,
+  RefundEscrowPaymentArgs,
+  RefundEscrowPaymentResult,
+  ReportPostArgs,
+  ReportPostResult,
+  ReportUserArgs,
+  ReportUserResult,
+  SearchUsersArgs,
+  SearchUsersResult,
+  SellSharesArgs,
+  SellSharesResult,
+  SendMessageArgs,
+  SendMessageResult,
+  SharePostArgs,
+  SharePostResult,
   TransferPointsArgs,
   TransferPointsResult,
-  MCPToolResult,
+  UnblockUserArgs,
+  UnblockUserResult,
+  UnfavoriteProfileArgs,
+  UnfavoriteProfileResult,
+  UnfollowUserArgs,
+  UnfollowUserResult,
+  UnlikePostArgs,
+  UnlikePostResult,
+  UnmuteUserArgs,
+  UnmuteUserResult,
+  UpdateProfileArgs,
+  UpdateProfileResult,
+  VerifyEscrowPaymentArgs,
+  VerifyEscrowPaymentResult,
 } from '../types/mcp';
 import {
-  validateGetMarketsArgs,
-  validatePlaceBetArgs,
-  validateGetBalanceArgs,
-  validateGetPositionsArgs,
-  validateClosePositionArgs,
-  validateGetMarketDataArgs,
-  validateQueryFeedArgs,
-  validateBuySharesArgs,
-  validateSellSharesArgs,
-  validateOpenPositionArgs,
-  validateGetMarketPricesArgs,
-  validateGetPerpetualsArgs,
-  validateGetTradesArgs,
-  validateGetTradeHistoryArgs,
-  validateCreatePostArgs,
-  validateDeletePostArgs,
-  validateLikePostArgs,
-  validateUnlikePostArgs,
-  validateSharePostArgs,
-  validateGetCommentsArgs,
-  validateCreateCommentArgs,
-  validateDeleteCommentArgs,
-  validateLikeCommentArgs,
-  validateGetPostsByTagArgs,
-  validateGetUserProfileArgs,
-  validateUpdateProfileArgs,
-  validateFollowUserArgs,
-  validateUnfollowUserArgs,
-  validateGetFollowersArgs,
-  validateGetFollowingArgs,
-  validateSearchUsersArgs,
-  validateGetUserWalletArgs,
-  validateGetUserStatsArgs,
-  validateGetChatsArgs,
-  validateGetChatMessagesArgs,
-  validateSendMessageArgs,
-  validateCreateGroupArgs,
-  validateLeaveChatArgs,
-  validateGetUnreadCountArgs,
-  validateGetNotificationsArgs,
-  validateMarkNotificationsReadArgs,
-  validateGetGroupInvitesArgs,
   validateAcceptGroupInviteArgs,
-  validateDeclineGroupInviteArgs,
-  validateGetLeaderboardArgs,
-  validateGetSystemStatsArgs,
-  validateGetReferralCodeArgs,
-  validateGetReferralsArgs,
-  validateGetReferralStatsArgs,
-  validateGetReputationArgs,
-  validateGetReputationBreakdownArgs,
-  validateGetTrendingTagsArgs,
-  validateGetOrganizationsArgs,
-  validatePaymentRequestArgs,
-  validatePaymentReceiptArgs,
-  validateBlockUserArgs,
-  validateUnblockUserArgs,
-  validateMuteUserArgs,
-  validateUnmuteUserArgs,
-  validateReportUserArgs,
-  validateReportPostArgs,
-  validateGetBlocksArgs,
-  validateGetMutesArgs,
-  validateCheckBlockStatusArgs,
-  validateCheckMuteStatusArgs,
-  validateCreateEscrowPaymentArgs,
-  validateVerifyEscrowPaymentArgs,
-  validateRefundEscrowPaymentArgs,
-  validateListEscrowPaymentsArgs,
   validateAppealBanArgs,
   validateAppealBanWithEscrowArgs,
+  validateBlockUserArgs,
+  validateBuySharesArgs,
+  validateCheckBlockStatusArgs,
+  validateCheckMuteStatusArgs,
+  validateClosePositionArgs,
+  validateCreateCommentArgs,
+  validateCreateEscrowPaymentArgs,
+  validateCreateGroupArgs,
+  validateCreatePostArgs,
+  validateDeclineGroupInviteArgs,
+  validateDeleteCommentArgs,
+  validateDeletePostArgs,
   validateFavoriteProfileArgs,
-  validateUnfavoriteProfileArgs,
-  validateGetFavoritesArgs,
+  validateFollowUserArgs,
+  validateGetBalanceArgs,
+  validateGetBlocksArgs,
+  validateGetChatMessagesArgs,
+  validateGetChatsArgs,
+  validateGetCommentsArgs,
   validateGetFavoritePostsArgs,
+  validateGetFavoritesArgs,
+  validateGetFollowersArgs,
+  validateGetFollowingArgs,
+  validateGetGroupInvitesArgs,
+  validateGetLeaderboardArgs,
+  validateGetMarketDataArgs,
+  validateGetMarketPricesArgs,
+  validateGetMarketsArgs,
+  validateGetMutesArgs,
+  validateGetNotificationsArgs,
+  validateGetOrganizationsArgs,
+  validateGetPerpetualsArgs,
+  validateGetPositionsArgs,
+  validateGetPostsByTagArgs,
+  validateGetReferralCodeArgs,
+  validateGetReferralStatsArgs,
+  validateGetReferralsArgs,
+  validateGetReputationArgs,
+  validateGetReputationBreakdownArgs,
+  validateGetSystemStatsArgs,
+  validateGetTradeHistoryArgs,
+  validateGetTradesArgs,
+  validateGetTrendingTagsArgs,
+  validateGetUnreadCountArgs,
+  validateGetUserProfileArgs,
+  validateGetUserStatsArgs,
+  validateGetUserWalletArgs,
+  validateLeaveChatArgs,
+  validateLikeCommentArgs,
+  validateLikePostArgs,
+  validateListEscrowPaymentsArgs,
+  validateMarkNotificationsReadArgs,
+  validateMuteUserArgs,
+  validateOpenPositionArgs,
+  validatePaymentReceiptArgs,
+  validatePaymentRequestArgs,
+  validatePlaceBetArgs,
+  validateQueryFeedArgs,
+  validateRefundEscrowPaymentArgs,
+  validateReportPostArgs,
+  validateReportUserArgs,
+  validateSearchUsersArgs,
+  validateSellSharesArgs,
+  validateSendMessageArgs,
+  validateSharePostArgs,
   validateTransferPointsArgs,
+  validateUnblockUserArgs,
+  validateUnfavoriteProfileArgs,
+  validateUnfollowUserArgs,
+  validateUnlikePostArgs,
+  validateUnmuteUserArgs,
+  validateUpdateProfileArgs,
+  validateVerifyEscrowPaymentArgs,
 } from '../utils/tool-args-validation';
-import {
-  handleCreateEscrowPayment,
-  handleVerifyEscrowPayment,
-  handleRefundEscrowPayment,
-  handleListEscrowPayments,
-  handleAppealBanWithEscrow,
-} from '@babylon/a2a';
-import type { JsonRpcRequest, JsonRpcParams } from '@babylon/a2a';
 
 /**
  * Execute get_markets tool
@@ -292,34 +695,233 @@ export async function executeGetMarkets(
 }
 
 /**
+ * Build prediction market service for a given market
+ */
+function buildPredictionService(marketId: string) {
+  return new PredictionMarketService({
+    db: new PredictionDbAdapter(),
+    wallet: {
+      debit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      credit: ({ userId, amount, reason, description, relatedId }) =>
+        WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        ),
+      recordPnL: ({ userId, pnl, reason, relatedId }) =>
+        WalletService.recordPnL(userId, pnl, reason, relatedId).then(
+          () => undefined
+        ),
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    broadcast: {
+      emit: async () => {
+        // No-op for MCP - broadcasts handled separately
+      },
+    },
+    cache: { invalidate: () => invalidateAfterPredictionTrade(marketId) },
+    clock: { now: () => new Date() },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
+}
+
+/**
+ * Type-safe mapping from lowercase prediction side to uppercase MCP API side
+ */
+const PREDICTION_SIDE_MAP: Record<'yes' | 'no', 'YES' | 'NO'> = {
+  yes: 'YES',
+  no: 'NO',
+};
+
+/**
+ * Build perp market service
+ */
+function buildPerpService() {
+  return new PerpMarketService({
+    db: new PerpDbAdapter(),
+    wallet: {
+      debit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.debit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      credit: async ({ userId, amount, reason, description, relatedId }) => {
+        await WalletService.credit(
+          userId,
+          amount,
+          reason,
+          description ?? '',
+          relatedId
+        );
+      },
+      recordPnL: async ({ userId, pnl, reason, relatedId }) => {
+        await WalletService.recordPnL(userId, pnl, reason, relatedId);
+      },
+      getBalance: (userId: string) => WalletService.getBalance(userId),
+    },
+    fees: {
+      tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+      platformShare: FEE_CONFIG.PLATFORM_SHARE,
+      referrerShare: FEE_CONFIG.REFERRER_SHARE,
+      minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+    },
+    feeProcessor: {
+      processTradingFee: ({ userId, amount, type, relatedId, positionId }) =>
+        FeeService.processTradingFee(
+          userId,
+          type as (typeof FEE_CONFIG.FEE_TYPES)[keyof typeof FEE_CONFIG.FEE_TYPES],
+          amount,
+          positionId,
+          relatedId
+        ),
+    },
+  });
+}
+
+/**
+ * Validate and convert prediction side input to lowercase.
+ * Provides defensive runtime validation instead of just type assertions.
+ */
+function validatePredictionSide(side: string): 'yes' | 'no' {
+  const lower = side.toLowerCase();
+  if (lower !== 'yes' && lower !== 'no') {
+    throw new Error(
+      `Invalid prediction side: ${side}. Expected 'YES' or 'NO'.`
+    );
+  }
+  return lower;
+}
+
+/**
+ * Validate and convert perp side input to lowercase.
+ * Provides defensive runtime validation instead of just type assertions.
+ */
+function validatePerpSide(side: string): 'long' | 'short' {
+  const lower = side.toLowerCase();
+  if (lower !== 'long' && lower !== 'short') {
+    throw new Error(`Invalid perp side: ${side}. Expected 'LONG' or 'SHORT'.`);
+  }
+  return lower;
+}
+
+/**
+ * Type-safe mapping from lowercase perp side to uppercase MCP API side.
+ * Used by resolvePerpSide for known good values.
+ */
+const PERP_SIDE_MAP: Record<'long' | 'short', 'LONG' | 'SHORT'> = {
+  long: 'LONG',
+  short: 'SHORT',
+};
+
+/**
+ * Resolve perp side from service result to uppercase MCP API format.
+ * Throws on unexpected values to surface service layer contract violations.
+ */
+function resolvePerpSide(side: string | undefined): 'LONG' | 'SHORT' {
+  if (!side) {
+    throw new Error(
+      'Position side is undefined - service layer contract violation'
+    );
+  }
+  const lower = side.toLowerCase() as 'long' | 'short';
+  const mapped = PERP_SIDE_MAP[lower];
+  if (mapped) return mapped;
+  throw new Error(
+    `Unexpected perp side value: '${side}'. Expected 'long' or 'short'.`
+  );
+}
+
+/**
+ * Calculate settlement amounts for a closed position.
+ * Returns gross (before fees) and net (after fees) settlement values.
+ */
+function calculateSettlement(params: {
+  marginPaid: number | undefined;
+  realizedPnL: number | undefined;
+  feePaid: number;
+}): { grossSettlement: number; netSettlement: number } {
+  const { marginPaid, realizedPnL, feePaid } = params;
+  if (realizedPnL === undefined || marginPaid === undefined) {
+    return { grossSettlement: 0, netSettlement: 0 };
+  }
+  const grossSettlement = marginPaid + realizedPnL;
+  const netSettlement = Math.max(0, grossSettlement - feePaid);
+  return { grossSettlement, netSettlement };
+}
+
+/**
  * Execute place_bet tool
  */
 export async function executePlaceBet(
   agent: AuthenticatedAgent,
   args: PlaceBetArgs
 ): Promise<PlaceBetResult> {
-  logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP');
+  // Rate limit check
+  await checkMcpRateLimit(agent.userId, 'buy_prediction');
 
-  // Call the existing market API logic
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/${args.marketId}/bet`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  return executeWithRetry(
+    'place_bet',
+    async () => {
+      // Validate and convert uppercase side to lowercase for service
+      const side = validatePredictionSide(args.side);
+
+      const service = buildPredictionService(args.marketId);
+      const result = await service.buy({
         userId: agent.userId,
-        side: args.side,
+        marketId: args.marketId,
+        side,
         amount: args.amount,
-      }),
-    }
-  );
+      });
 
-  const result = (await response.json()) as PlaceBetResult;
-  return result;
+      const balance = await WalletService.getBalance(agent.userId);
+
+      return {
+        position: {
+          id: result.positionId,
+          marketId: args.marketId,
+          side: PREDICTION_SIDE_MAP[side],
+          shares: result.shares,
+          avgPrice: result.avgPrice,
+          totalCost: result.totalCost ?? 0,
+        },
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: balance.balance,
+      };
+    },
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
+  );
 }
 
 /**
@@ -404,26 +1006,46 @@ export async function executeClosePosition(
   agent: AuthenticatedAgent,
   args: ClosePositionArgs
 ): Promise<ClosePositionResult> {
-  logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP');
+  await checkMcpRateLimit(agent.userId, 'close_position');
 
-  // Call the existing close position API logic
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/positions/${args.positionId}/close`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  return executeWithRetry(
+    'close_position',
+    async () => {
+      const service = buildPerpService();
+      const result = await service.closePosition({
         userId: agent.userId,
-      }),
-    }
-  );
+        positionId: args.positionId,
+      });
 
-  const result = (await response.json()) as ClosePositionResult;
-  return result;
+      const { grossSettlement, netSettlement } = calculateSettlement({
+        marginPaid: result.marginPaid,
+        realizedPnL: result.realizedPnL,
+        feePaid: result.feePaid,
+      });
+
+      return {
+        position: {
+          positionId: args.positionId,
+          ticker: result.ticker,
+          side: resolvePerpSide(result.side),
+          size: result.size,
+          entryPrice: result.entryPrice ?? 0,
+          exitPrice: result.exitPrice ?? 0,
+        },
+        grossSettlement,
+        netSettlement,
+        marginReturned: result.marginPaid ?? 0,
+        pnl: result.realizedPnL ?? 0,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        wasLiquidated: false,
+        newBalance: result.balance ?? 0,
+      };
+    },
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
+  );
 }
 
 /**
@@ -507,21 +1129,42 @@ export async function executeBuyShares(
   agent: AuthenticatedAgent,
   args: BuySharesArgs
 ): Promise<BuySharesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/predictions/${args.marketId}/buy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  await checkMcpRateLimit(agent.userId, 'buy_prediction');
+
+  return executeWithRetry(
+    'buy_shares',
+    async () => {
+      const side = validatePredictionSide(args.outcome);
+
+      const service = buildPredictionService(args.marketId);
+      const result = await service.buy({
         userId: agent.userId,
-        outcome: args.outcome,
+        marketId: args.marketId,
+        side,
         amount: args.amount,
-      }),
-    }
+      });
+
+      const balance = await WalletService.getBalance(agent.userId);
+
+      return {
+        position: {
+          id: result.positionId,
+          marketId: args.marketId,
+          side: PREDICTION_SIDE_MAP[side],
+          shares: result.shares,
+          avgPrice: result.avgPrice,
+          totalCost: result.totalCost ?? 0,
+        },
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: balance.balance,
+      };
+    },
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
-  return (await response.json()) as BuySharesResult;
 }
 
 /**
@@ -531,26 +1174,49 @@ export async function executeSellShares(
   agent: AuthenticatedAgent,
   args: SellSharesArgs
 ): Promise<SellSharesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const position = await db.position.findUnique({
-    where: { id: args.positionId },
-  });
-  if (!position || position.userId !== agent.userId) {
-    throw new Error('Position not found or access denied');
-  }
-  const response = await fetch(
-    `${apiBaseUrl}/api/markets/predictions/${position.marketId}/sell`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  await checkMcpRateLimit(agent.userId, 'sell_prediction');
+
+  return executeWithRetry(
+    'sell_shares',
+    async () => {
+      const position = await db.position.findUnique({
+        where: { id: args.positionId },
+      });
+      if (!position || position.userId !== agent.userId) {
+        throw new Error('Position not found or access denied');
+      }
+      if (!position.marketId) {
+        throw new Error('Position has no associated market');
+      }
+
+      const service = buildPredictionService(position.marketId);
+      const result = await service.sell({
         userId: agent.userId,
+        marketId: position.marketId,
         shares: args.shares,
-      }),
-    }
+        positionId: args.positionId,
+      });
+
+      const balance = await WalletService.getBalance(agent.userId);
+
+      return {
+        sharesSold: args.shares,
+        grossProceeds: result.totalProceeds ?? result.netProceeds ?? 0,
+        netProceeds: result.netProceeds ?? 0,
+        pnl: result.pnl ?? 0,
+        market: result.market,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        remainingShares: result.remainingShares ?? 0,
+        positionClosed: result.positionClosed ?? false,
+        newBalance: balance.balance,
+        positionId: result.positionId,
+      };
+    },
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
   );
-  return (await response.json()) as SellSharesResult;
 }
 
 /**
@@ -560,20 +1226,42 @@ export async function executeOpenPosition(
   agent: AuthenticatedAgent,
   args: OpenPositionArgs
 ): Promise<OpenPositionResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/markets/perps/open`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: agent.userId,
-      ticker: args.ticker,
-      side: args.side,
-      amount: args.amount,
-      leverage: args.leverage,
-    }),
-  });
-  return (await response.json()) as OpenPositionResult;
+  await checkMcpRateLimit(agent.userId, 'open_position');
+
+  return executeWithRetry(
+    'open_position',
+    async () => {
+      // Convert side to lowercase for service layer
+      const side = validatePerpSide(args.side);
+
+      const service = buildPerpService();
+      const result = await service.openPosition({
+        userId: agent.userId,
+        ticker: args.ticker,
+        side,
+        size: args.amount,
+        leverage: args.leverage,
+      });
+
+      return {
+        position: {
+          positionId: result.positionId,
+          ticker: result.ticker,
+          side: resolvePerpSide(result.side),
+          size: result.size,
+          leverage: result.leverage,
+          entryPrice: result.entryPrice ?? 0,
+        },
+        marginPaid: result.marginPaid ?? 0,
+        fee: {
+          amount: result.feePaid,
+          referrerPaid: 0,
+        },
+        newBalance: result.balance ?? 0,
+      };
+    },
+    { agentId: agent.agentId, userId: agent.userId, isIdempotent: false }
+  );
 }
 
 /**
@@ -590,7 +1278,8 @@ export async function executeGetMarketPrices(
     throw new Error('Market not found');
   }
   const totalShares = Number(market.yesShares) + Number(market.noShares);
-  const yesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
+  const yesPrice =
+    totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
   const noPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
   return {
     marketId: market.id,
@@ -602,13 +1291,23 @@ export async function executeGetMarketPrices(
 
 /**
  * Execute get_perpetuals tool
+ *
+ * Returns all available perpetual markets with current prices and 24h metrics.
  */
 export async function executeGetPerpetuals(
   _agent: AuthenticatedAgent,
   _args: GetPerpetualsArgs
 ): Promise<GetPerpetualsResult> {
-  // Perpetuals not fully implemented yet
-  return { markets: [] };
+  const snapshots = await db.select().from(perpMarketSnapshots);
+
+  return {
+    markets: snapshots.map((snapshot) => ({
+      ticker: snapshot.ticker,
+      currentPrice: snapshot.currentPrice,
+      priceChange24h: snapshot.changePercent24h,
+      volume24h: snapshot.volume24h,
+    })),
+  };
 }
 
 /**
@@ -618,75 +1317,100 @@ export async function executeGetTrades(
   _agent: AuthenticatedAgent,
   args: GetTradesArgs
 ): Promise<GetTradesResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/trades`);
+  const apiBaseUrl = getAPIBaseUrl();
+  const url = new URL(`${apiBaseUrl}/trades`);
   if (args.marketId) url.searchParams.set('marketId', args.marketId);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  const data = await safeFetch<{
+    trades: Array<{
+      id: string;
+      marketId: string;
+      userId: string;
+      side: boolean;
+      shares: string;
+      price: string;
+      timestamp: Date | string;
+    }>;
+  }>(url);
+
+  // Handle null/empty response
+  if (!data) {
+    return { trades: [] };
+  }
+
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        userId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        userId: trade.userId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: data.trades.map((trade) => ({
+      id: trade.id,
+      marketId: trade.marketId,
+      userId: trade.userId,
+      side: trade.side ? 'YES' : 'NO',
+      shares: trade.shares,
+      price: trade.price,
+      timestamp:
+        trade.timestamp instanceof Date
+          ? trade.timestamp.toISOString()
+          : trade.timestamp,
+    })),
   };
 }
 
 /**
  * Execute get_trade_history tool
+ *
+ * NOTE: This returns the user's current positions rather than individual trade
+ * transactions. Each position represents an aggregated holding with the side
+ * (YES/NO), total shares, and average entry price. This is a semantic
+ * difference from a true "trade history" which would show each individual
+ * buy/sell transaction.
+ *
+ * This approach was chosen because:
+ * 1. Positions contain accurate side information (YES/NO boolean)
+ * 2. Balance transactions don't store the actual side of the trade
+ * 3. This provides useful trading context for MCP agents
+ *
+ * Security: Only allows fetching the authenticated user's own trade history.
  */
 export async function executeGetTradeHistory(
-  _agent: AuthenticatedAgent,
+  agent: AuthenticatedAgent,
   args: GetTradeHistoryArgs
 ): Promise<GetTradeHistoryResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/markets/predictions/${args.userId}/trades`);
-  if (args.limit) url.searchParams.set('limit', args.limit.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as { trades: unknown[] };
+  // Enforce self-only access: users can only fetch their own trade history
+  if (args.userId && args.userId !== agent.userId) {
+    throw new Error('Unauthorized: You can only access your own trade history');
+  }
+
+  // Use the authenticated agent's userId for the query
+  const userId = agent.userId;
+
+  logger.info(`Getting trade history for user: ${userId}`, {}, 'MCP');
+
+  // Query positions which contain the actual side (YES/NO), shares, and price
+  const positions = await db.position.findMany({
+    where: {
+      userId,
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: args.limit || 20,
+    select: {
+      id: true,
+      marketId: true,
+      side: true, // boolean: true = YES, false = NO
+      shares: true,
+      avgPrice: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
   return {
-    trades: data.trades.map((t: unknown) => {
-      const trade = t as {
-        id: string;
-        marketId: string;
-        side: boolean;
-        shares: string;
-        price: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: trade.id,
-        marketId: trade.marketId,
-        side: trade.side ? 'YES' : 'NO',
-        shares: trade.shares,
-        price: trade.price,
-        timestamp:
-          trade.timestamp instanceof Date
-            ? trade.timestamp.toISOString()
-            : trade.timestamp,
-      };
-    }),
+    trades: positions.map((pos) => ({
+      id: pos.id,
+      marketId: pos.marketId,
+      side: (pos.side ? 'YES' : 'NO') as 'YES' | 'NO',
+      shares: pos.shares.toString(),
+      price: pos.avgPrice.toString(),
+      timestamp: pos.updatedAt.toISOString(),
+    })),
   };
 }
 
@@ -1355,36 +2079,86 @@ export async function executeSendMessage(
 
 /**
  * Execute create_group tool
+ * Chat.groupId → Group.id relationship
  */
 export async function executeCreateGroup(
   agent: AuthenticatedAgent,
   args: CreateGroupArgs
 ): Promise<CreateGroupResult> {
   const chatId = await generateSnowflakeId();
+  const groupId = await generateSnowflakeId();
+
+  // Deduplicate memberIds and exclude the owner (agent.userId)
+  const uniqueMemberIds = [...new Set(args.memberIds)].filter(
+    (id) => id !== agent.userId
+  );
+
+  // Create Group
+  await db.group.create({
+    data: {
+      id: groupId,
+      name: args.name,
+      description: args.description,
+      type: 'agent', // Agent-created group
+      ownerId: agent.userId,
+      createdById: agent.userId,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create chat with groupId link (Chat.groupId → Group.id)
   const chat = await db.chat.create({
     data: {
       id: chatId,
       name: args.name,
       description: args.description,
       isGroup: true,
+      groupId, // Link Chat → Group
       createdBy: agent.userId,
       updatedAt: new Date(),
     },
   });
+
+  // Create chat participants
   const participantIds = await Promise.all([
     generateSnowflakeId(),
-    ...args.memberIds.map(() => generateSnowflakeId()),
+    ...uniqueMemberIds.map(() => generateSnowflakeId()),
   ]);
   await db.chatParticipant.createMany({
     data: [
       { id: participantIds[0]!, chatId, userId: agent.userId },
-      ...args.memberIds.map((memberId, idx) => ({
+      ...uniqueMemberIds.map((memberId, idx) => ({
         id: participantIds[idx + 1]!,
         chatId,
         userId: memberId,
       })),
     ],
   });
+
+  // Create GroupMember records
+  const memberRecordIds = await Promise.all([
+    generateSnowflakeId(),
+    ...uniqueMemberIds.map(() => generateSnowflakeId()),
+  ]);
+  await db.groupMember.createMany({
+    data: [
+      {
+        id: memberRecordIds[0]!,
+        groupId,
+        userId: agent.userId,
+        role: 'owner',
+        addedBy: agent.userId,
+      },
+      ...uniqueMemberIds.map((memberId, idx) => ({
+        id: memberRecordIds[idx + 1]!,
+        groupId,
+        userId: memberId,
+        role: 'member' as const,
+        addedBy: agent.userId,
+      })),
+    ],
+  });
+
   return {
     success: true,
     chatId: chat.id,
@@ -1394,12 +2168,13 @@ export async function executeCreateGroup(
 
 /**
  * Execute leave_chat tool
+ * Chat.groupId → Group.id relationship
  */
 export async function executeLeaveChat(
   agent: AuthenticatedAgent,
   args: LeaveChatArgs
 ): Promise<LeaveChatResult> {
-  // agent used for userId in updateMany where clause
+  // Mark chat participant as inactive
   await db.chatParticipant.updateMany({
     where: {
       chatId: args.chatId,
@@ -1407,6 +2182,28 @@ export async function executeLeaveChat(
     },
     data: { isActive: false },
   });
+
+  // Find the chat to get its groupId
+  const chat = await db.chat.findUnique({
+    where: { id: args.chatId },
+    select: { groupId: true },
+  });
+
+  // Also update GroupMember if there's an associated group
+  if (chat?.groupId) {
+    await db.groupMember.updateMany({
+      where: {
+        groupId: chat.groupId,
+        userId: agent.userId,
+      },
+      data: {
+        isActive: false,
+        kickedAt: new Date(),
+        kickReason: 'User left',
+      },
+    });
+  }
+
   return { success: true };
 }
 
@@ -1470,66 +2267,190 @@ export async function executeMarkNotificationsRead(
 
 /**
  * Execute get_group_invites tool
+ * Chat.groupId → Group.id relationship
  */
 export async function executeGetGroupInvites(
   agent: AuthenticatedAgent,
   _args: GetGroupInvitesArgs
 ): Promise<GetGroupInvitesResult> {
-  const invitesList = await db.chatInvite.findMany({
+  const invitesList = await db.groupInvite.findMany({
     where: {
       invitedUserId: agent.userId,
       status: 'pending',
     },
   });
-  const chatIds = invitesList.map((inv) => inv.chatId);
+
+  if (invitesList.length === 0) {
+    return { invites: [] };
+  }
+
+  const groupIds = invitesList.map((inv) => inv.groupId);
+  const groupsMap = new Map(
+    (
+      await db.group.findMany({
+        where: { id: { in: groupIds } },
+        select: { id: true, name: true },
+      })
+    ).map((g) => [g.id, g])
+  );
+
+  // Get chats for groups (Chat.groupId → Group.id)
   const chatsMap = new Map(
     (
       await db.chat.findMany({
-        where: { id: { in: chatIds } },
-        select: { id: true, name: true },
+        where: { groupId: { in: groupIds } },
+        select: { id: true, groupId: true },
       })
-    ).map((c) => [c.id, c])
+    ).map((c) => [c.groupId, c.id])
   );
+
   return {
-    invites: invitesList.map((invite) => ({
-      id: invite.id,
-      groupId: invite.chatId,
-      groupName: chatsMap.get(invite.chatId)?.name || null,
-      inviterId: invite.invitedBy,
-      timestamp: invite.invitedAt.toISOString(),
-    })),
+    invites: invitesList.map((invite) => {
+      const group = groupsMap.get(invite.groupId);
+      return {
+        id: invite.id,
+        groupId: chatsMap.get(invite.groupId) || invite.groupId, // Return chatId for backward compat
+        groupName: group?.name || null,
+        inviterId: invite.invitedBy,
+        timestamp: invite.invitedAt.toISOString(),
+      };
+    }),
   };
 }
 
 /**
  * Execute accept_group_invite tool
+ * Chat.groupId → Group.id relationship
+ * Wrapped in transaction for atomicity
  */
 export async function executeAcceptGroupInvite(
   agent: AuthenticatedAgent,
   args: AcceptGroupInviteArgs
 ): Promise<AcceptGroupInviteResult> {
-  const invite = await db.chatInvite.findUnique({
+  // Pre-transaction validation (read-only operations)
+  const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
   if (!invite || invite.invitedUserId !== agent.userId) {
     throw new Error('Invite not found or access denied');
   }
-  await db.chatInvite.update({
-    where: { id: args.inviteId },
-    data: { status: 'accepted' },
-  });
-  await db.chatParticipant.create({
-    data: {
-      id: await generateSnowflakeId(),
-      chatId: invite.chatId,
+
+  // Check invite status for idempotency
+  if (invite.status !== 'pending') {
+    throw new Error('This invite has already been processed');
+  }
+
+  // Check if agent is at the NPC group limit - use join to avoid N+1
+  const activeNpcGroups = await db
+    .select({ groupId: groupMembers.groupId })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .where(
+      and(
+        eq(groupMembers.userId, agent.userId),
+        eq(groupMembers.isActive, true),
+        eq(groups.type, 'npc')
+      )
+    );
+
+  const npcGroupCount = activeNpcGroups.length;
+
+  if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+    throw new Error(
+      `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`
+    );
+  }
+
+  // Check for existing membership (idempotency)
+  const existingMember = await db.groupMember.findFirst({
+    where: {
+      groupId: invite.groupId,
       userId: agent.userId,
-      invitedBy: invite.invitedBy,
     },
   });
-  return {
-    success: true,
-    chatId: invite.chatId,
-  };
+
+  if (existingMember?.isActive) {
+    throw new Error('You are already a member of this group');
+  }
+
+  // Find the chat for this group (Chat.groupId → Group.id)
+  const groupChat = await db.chat.findFirst({
+    where: { groupId: invite.groupId },
+    select: { id: true },
+  });
+
+  // Wrap state-changing operations in a transaction for atomicity
+  return await db.$transaction(async (tx) => {
+    // Update invite status
+    await tx.groupInvite.update({
+      where: { id: args.inviteId },
+      data: {
+        status: 'accepted',
+        respondedAt: new Date(),
+      },
+    });
+
+    // Add to chat participants (handle existing inactive participant)
+    if (groupChat) {
+      const existingParticipant = await tx.chatParticipant.findFirst({
+        where: {
+          chatId: groupChat.id,
+          userId: agent.userId,
+        },
+      });
+
+      if (existingParticipant) {
+        if (!existingParticipant.isActive) {
+          await tx.chatParticipant.update({
+            where: { id: existingParticipant.id },
+            data: {
+              isActive: true,
+              joinedAt: new Date(),
+            },
+          });
+        }
+      } else {
+        await tx.chatParticipant.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            userId: agent.userId,
+            invitedBy: invite.invitedBy,
+          },
+        });
+      }
+    }
+
+    // Add to GroupMember (handle existing inactive member)
+    if (existingMember) {
+      await tx.groupMember.update({
+        where: { id: existingMember.id },
+        data: {
+          isActive: true,
+          role: 'member',
+          joinedAt: new Date(),
+          addedBy: invite.invitedBy,
+          kickedAt: null,
+          kickReason: null,
+        },
+      });
+    } else {
+      await tx.groupMember.create({
+        data: {
+          id: await generateSnowflakeId(),
+          groupId: invite.groupId,
+          userId: agent.userId,
+          role: 'member',
+          addedBy: invite.invitedBy,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      chatId: groupChat?.id || invite.groupId,
+    };
+  });
 }
 
 /**
@@ -1539,16 +2460,21 @@ export async function executeDeclineGroupInvite(
   agent: AuthenticatedAgent,
   args: DeclineGroupInviteArgs
 ): Promise<DeclineGroupInviteResult> {
-  const invite = await db.chatInvite.findUnique({
+  const invite = await db.groupInvite.findUnique({
     where: { id: args.inviteId },
   });
   if (!invite || invite.invitedUserId !== agent.userId) {
     throw new Error('Invite not found or access denied');
   }
-  await db.chatInvite.update({
+
+  await db.groupInvite.update({
     where: { id: args.inviteId },
-    data: { status: 'declined' },
+    data: {
+      status: 'declined',
+      respondedAt: new Date(),
+    },
   });
+
   return { success: true };
 }
 
@@ -1563,25 +2489,14 @@ export async function executeGetLeaderboard(
   _agent: AuthenticatedAgent,
   args: GetLeaderboardArgs
 ): Promise<GetLeaderboardResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/leaderboard`);
+  const apiBaseUrl = getAPIBaseUrl();
+  const url = new URL(`${apiBaseUrl}/leaderboard`);
   if (args.page) url.searchParams.set('page', args.page.toString());
   if (args.pageSize) url.searchParams.set('pageSize', args.pageSize.toString());
   if (args.pointsType) url.searchParams.set('pointsType', args.pointsType);
-  if (args.minPoints) url.searchParams.set('minPoints', args.minPoints.toString());
-  const response = await fetch(url.toString());
-  const data = (await response.json()) as {
-    leaderboard: Array<{
-      rank: number;
-      userId: string;
-      username: string | null;
-      displayName: string | null;
-      points: number;
-    }>;
-    pagination: { page: number; pageSize: number; total: number };
-  };
-  return data;
+  if (args.minPoints)
+    url.searchParams.set('minPoints', args.minPoints.toString());
+  return safeFetchRequired<GetLeaderboardResult>(url);
 }
 
 /**
@@ -1703,11 +2618,10 @@ export async function executeGetReputation(
   args: GetReputationArgs
 ): Promise<GetReputationResult> {
   const userId = args.userId || agent.userId;
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/reputation/${userId}`);
-  const data = (await response.json()) as GetReputationResult;
-  return data;
+  const apiBaseUrl = getAPIBaseUrl();
+  return safeFetchRequired<GetReputationResult>(
+    `${apiBaseUrl}/reputation/${userId}`
+  );
 }
 
 /**
@@ -1717,13 +2631,10 @@ export async function executeGetReputationBreakdown(
   _agent: AuthenticatedAgent,
   args: GetReputationBreakdownArgs
 ): Promise<GetReputationBreakdownResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(
-    `${apiBaseUrl}/api/reputation/breakdown/${args.userId}`
+  const apiBaseUrl = getAPIBaseUrl();
+  return safeFetchRequired<GetReputationBreakdownResult>(
+    `${apiBaseUrl}/reputation/breakdown/${args.userId}`
   );
-  const data = (await response.json()) as GetReputationBreakdownResult;
-  return data;
 }
 
 // ============================================================================
@@ -1767,65 +2678,50 @@ export async function executeGetOrganizations(
   _agent: AuthenticatedAgent,
   args: GetOrganizationsArgs
 ): Promise<GetOrganizationsResult> {
-  const orgsList = await db.organization.findMany({
-    take: args.limit || 50,
-    orderBy: { createdAt: 'desc' },
-  });
+  // Get organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations().slice(
+    0,
+    args.limit || 50
+  );
   return {
-    organizations: orgsList.map((org) => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
+    organizations: orgsList.map((staticOrg) => ({
+      id: staticOrg.id,
+      name: staticOrg.name,
+      description: staticOrg.description,
     })),
   };
 }
 
 // ============================================================================
-// x402 Micropayments - Handlers
+// x402 Micropayments - Handlers (NOT IMPLEMENTED)
 // ============================================================================
 
 /**
  * Execute payment_request tool
+ *
+ * @throws {Error} Always throws - x402 micropayments feature is not yet implemented.
+ * Callers should handle this error gracefully. This tool will be functional once
+ * the x402 protocol integration is complete.
  */
 export async function executePaymentRequest(
-  agent: AuthenticatedAgent,
-  args: PaymentRequestArgs
+  _agent: AuthenticatedAgent,
+  _args: PaymentRequestArgs
 ): Promise<PaymentRequestResult> {
-  // agent used for userId in request body
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/payments/request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: args.from || agent.userId,
-      to: args.to,
-      amount: args.amount,
-      service: args.service,
-      metadata: args.metadata,
-    }),
-  });
-  return (await response.json()) as PaymentRequestResult;
+  throw new Error('x402 micropayments feature is not yet implemented');
 }
 
 /**
  * Execute payment_receipt tool
+ *
+ * @throws {Error} Always throws - x402 micropayments feature is not yet implemented.
+ * Callers should handle this error gracefully. This tool will be functional once
+ * the x402 protocol integration is complete.
  */
 export async function executePaymentReceipt(
   _agent: AuthenticatedAgent,
-  args: PaymentReceiptArgs
+  _args: PaymentReceiptArgs
 ): Promise<PaymentReceiptResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/payments/receipt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requestId: args.requestId,
-      txHash: args.txHash,
-    }),
-  });
-  return (await response.json()) as PaymentReceiptResult;
+  throw new Error('x402 micropayments feature is not yet implemented');
 }
 
 // ============================================================================
@@ -2098,6 +2994,9 @@ export async function executeCreateEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as CreateEscrowPaymentResult;
 }
 
@@ -2124,6 +3023,9 @@ export async function executeVerifyEscrowPayment(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as VerifyEscrowPaymentResult;
 }
 
@@ -2147,6 +3049,9 @@ export async function executeRefundEscrowPayment(
   const response = await handleRefundEscrowPayment(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as RefundEscrowPaymentResult;
 }
@@ -2174,6 +3079,9 @@ export async function executeListEscrowPayments(
   if (response.error) {
     throw new Error(response.error.message);
   }
+  if (!response.result) {
+    throw new Error('No result in response');
+  }
   return response.result as unknown as ListEscrowPaymentsResult;
 }
 
@@ -2188,17 +3096,59 @@ export async function executeAppealBan(
   agent: AuthenticatedAgent,
   args: AppealBanArgs
 ): Promise<AppealBanResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/moderation/appeal`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: agent.userId,
-      reason: args.reason,
-    }),
+  logger.info(`Agent ${agent.agentId} appealing ban:`, args, 'MCP');
+
+  const userId = agent.userId;
+
+  // Get user
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      isBanned: true,
+      appealCount: true,
+      appealStaked: true,
+      appealStatus: true,
+    },
   });
-  return (await response.json()) as AppealBanResult;
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (!user.isBanned) {
+    throw new Error('User is not banned');
+  }
+
+  // Check if already appealed
+  if (user.appealCount >= 1 && !user.appealStaked) {
+    throw new Error(
+      'You have already used your free appeal. You must stake $10 for a second review.'
+    );
+  }
+
+  if (user.appealStaked && user.appealStatus === 'human_review') {
+    throw new Error(
+      'Your appeal is already in human review. Please wait for a decision.'
+    );
+  }
+
+  // Update appeal status - submit for strict review (first appeal)
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      appealCount: user.appealCount + 1,
+      appealStatus: 'strict_review',
+      appealSubmittedAt: new Date(),
+    },
+  });
+
+  return {
+    success: true,
+    message:
+      'Appeal submitted for strict review. Please note: full AI evaluation is only available via the web interface.',
+    appealStatus: 'strict_review',
+  };
 }
 
 /**
@@ -2220,6 +3170,9 @@ export async function executeAppealBanWithEscrow(
   const response = await handleAppealBanWithEscrow(agent.agentId, request);
   if (response.error) {
     throw new Error(response.error.message);
+  }
+  if (!response.result) {
+    throw new Error('No result in response');
   }
   return response.result as unknown as AppealBanWithEscrowResult;
 }
@@ -2318,33 +3271,36 @@ export async function executeGetFavoritePosts(
   agent: AuthenticatedAgent,
   args: GetFavoritePostsArgs
 ): Promise<GetFavoritePostsResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const url = new URL(`${apiBaseUrl}/api/posts/feed/favorites`);
+  const apiBaseUrl = getAPIBaseUrl();
+  const url = new URL(`${apiBaseUrl}/posts/feed/favorites`);
   if (args.limit) url.searchParams.set('limit', args.limit.toString());
   if (args.offset) url.searchParams.set('offset', args.offset.toString());
-  const response = await fetch(url.toString(), {
+  const data = await safeFetch<{
+    posts: Array<{
+      id: string;
+      content: string;
+      authorId: string;
+      timestamp: Date | string;
+    }>;
+  }>(url, {
     headers: { 'X-User-Id': agent.userId },
   });
-  const data = (await response.json()) as { posts: unknown[] };
+
+  // Handle null/empty response
+  if (!data) {
+    return { posts: [] };
+  }
+
   return {
-    posts: data.posts.map((p: unknown) => {
-      const post = p as {
-        id: string;
-        content: string;
-        authorId: string;
-        timestamp: Date | string;
-      };
-      return {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        timestamp:
-          post.timestamp instanceof Date
-            ? post.timestamp.toISOString()
-            : post.timestamp,
-      };
-    }),
+    posts: data.posts.map((post) => ({
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      timestamp:
+        post.timestamp instanceof Date
+          ? post.timestamp.toISOString()
+          : post.timestamp,
+    })),
   };
 }
 
@@ -2354,25 +3310,148 @@ export async function executeGetFavoritePosts(
 
 /**
  * Execute transfer_points tool
+ *
+ * Production features:
+ * - Rate limiting to prevent abuse
+ * - Idempotency protection against duplicate requests
+ * - Retry with exponential backoff for transient failures
+ * - Error logging for debugging
+ * - Metrics tracking for monitoring
  */
 export async function executeTransferPoints(
   agent: AuthenticatedAgent,
-  args: TransferPointsArgs
+  args: TransferPointsArgs & { idempotencyKey?: string }
 ): Promise<TransferPointsResult> {
-  const apiBaseUrl =
-    getAPIBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/points/transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fromUserId: agent.userId,
-      recipientId: args.recipientId,
-      amount: args.amount,
-      message: args.message,
-    }),
+  // Rate limit check
+  await checkMcpRateLimit(agent.userId, 'transfer');
+
+  const senderId = agent.userId;
+  const { recipientId, amount, message, idempotencyKey } = args;
+
+  // Business logic: Prevent self-transfers (fast check before any DB queries)
+  if (senderId === recipientId) {
+    throw new Error('Cannot send points to yourself');
+  }
+
+  // Namespace the idempotency key by user and operation to prevent cross-user cache collisions
+  const scopedIdempotencyKey = idempotencyKey
+    ? `transfer:${senderId}:${idempotencyKey}`
+    : undefined;
+
+  // Execute with idempotency and retry protection
+  return executeWithIdempotency(scopedIdempotencyKey, async () => {
+    return executeWithRetry(
+      'transfer_points',
+      async () => {
+        // Generate transaction IDs before the transaction
+        const senderTxId = await generateSnowflakeId();
+        const recipientTxId = await generateSnowflakeId();
+
+        // Perform the entire transfer in a single transaction
+        await db.$transaction(async (tx) => {
+          // Fetch both sender and recipient inside transaction for consistency
+          const [sender, recipient] = await Promise.all([
+            tx.user.findUnique({
+              where: { id: senderId },
+              select: {
+                id: true,
+                reputationPoints: true,
+                displayName: true,
+                username: true,
+              },
+            }),
+            tx.user.findUnique({
+              where: { id: recipientId },
+              select: {
+                id: true,
+                reputationPoints: true,
+                displayName: true,
+                username: true,
+              },
+            }),
+          ]);
+
+          if (!sender) {
+            throw new Error('Sender not found');
+          }
+          if (!recipient) {
+            throw new Error('Recipient not found');
+          }
+
+          // Check balance inside transaction
+          if (sender.reputationPoints < amount) {
+            throw new Error(
+              `Insufficient points. You have ${sender.reputationPoints} points, but tried to send ${amount} points.`
+            );
+          }
+
+          const senderPointsBefore = sender.reputationPoints;
+          const recipientPointsBefore = recipient.reputationPoints;
+
+          // Deduct from sender using atomic decrement
+          const updatedSender = await tx.user.update({
+            where: { id: senderId },
+            data: {
+              reputationPoints: { decrement: amount },
+            },
+          });
+
+          // Add to recipient using atomic increment
+          const updatedRecipient = await tx.user.update({
+            where: { id: recipientId },
+            data: { reputationPoints: { increment: amount } },
+          });
+
+          // Create transaction record for sender (negative)
+          await tx.pointsTransaction.create({
+            data: {
+              id: senderTxId,
+              userId: senderId,
+              amount: -amount,
+              pointsBefore: senderPointsBefore,
+              pointsAfter: updatedSender.reputationPoints,
+              reason: 'transfer_sent',
+              metadata: JSON.stringify({
+                recipientId,
+                recipientName: recipient.displayName || recipient.username,
+                message,
+              }),
+            },
+          });
+
+          // Create transaction record for recipient (positive)
+          await tx.pointsTransaction.create({
+            data: {
+              id: recipientTxId,
+              userId: recipientId,
+              amount: amount,
+              pointsBefore: recipientPointsBefore,
+              pointsAfter: updatedRecipient.reputationPoints,
+              reason: 'transfer_received',
+              metadata: JSON.stringify({
+                senderId,
+                senderName: sender.displayName || sender.username,
+                message,
+              }),
+            },
+          });
+        });
+
+        return {
+          success: true,
+          transactionId: senderTxId,
+          amount,
+          recipientId,
+        };
+      },
+      {
+        agentId: agent.agentId,
+        userId: agent.userId,
+        // Safe to retry when protected by idempotency key
+        idempotencyKey: scopedIdempotencyKey,
+      }
+    );
   });
-  const result = (await response.json()) as TransferPointsResult;
-  return result;
 }
 
 // ============================================================================

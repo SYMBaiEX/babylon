@@ -12,76 +12,93 @@
 // =============================================================================
 
 export * from './ActorSocialActions';
+export * from './activity-pattern-service';
 export * from './alpha-group-invite-service';
+export * from './arc-context-service';
 export * from './capital-allocation-service';
+export * from './event-reaction-service';
 export * from './following-mechanics';
-export * from './initial-investment-service';
-export * from './InteractionTracker';
-export * from './lookahead-generation-service';
-export * from './message-quality-checker';
-export * from './npc-group-dynamics-service';
-export * from './npc-interaction-tracker';
-export * from './npc-persona-generator';
-export * from './RelationshipManager';
-export * from './reply-rate-limiter';
-
+export * from './game-onboarding-service';
 // Group Chat Service
 export {
   GroupChatService,
   type InviteChance,
   type SweepDecision,
 } from './group-chat-service';
+export * from './InteractionTracker';
+export * from './initial-investment-service';
+export * from './jsonb-validators';
+export * from './lookahead-generation-service';
+export * from './message-quality-checker';
+export * from './narrative-event-processor';
+export * from './npc-group-chat-onboarding-service';
+export * from './npc-group-dynamics-service';
+export * from './npc-interaction-tracker';
+export * from './npc-memory-service';
+export * from './npc-persona-generator';
+export * from './npc-positions-context-service';
+export * from './npc-running-bit-service';
+export * from './npc-social-engagement-service';
+export * from './npc-trade-rate-limiter';
+export * from './player-influence-service';
+export * from './posting-probability-service';
+export * from './reply-rate-limiter';
+export * from './tier-config';
+export * from './tiered-group-service';
+export * from './user-alpha-group-assignment-service';
 
 // =============================================================================
 // Market Services
 // =============================================================================
 
 export {
-  EventArcValidator,
   type EventArcValidationResult,
+  EventArcValidator,
 } from './event-arc-validator';
-export * from './liquidity-health-service';
+export * from './event-market-linker'; // BAB-5: Event-market connection
+// Event-market pipeline for narrative-driven market impacts
+export * from './event-market-pipeline';
+// Market correlation service for cross-market cascade effects
+export * from './market-correlation-service';
+export * from './market-metrics-service'; // BAB-5: Metrics-based question generation
+export * from './market-mover-agent';
+export * from './market-timeframes'; // Multi-timeframe market system
 export * from './onchain-market-service';
-export * from './perp-trade-service';
 export * from './price-update-service';
 export * from './signal-extraction-service';
-export * from './trajectory-market-engine';
-
-// Prediction Market Service
-export {
-  PredictionMarketService,
-  type PredictionTradeEvent,
-  type PredictionResolutionEvent,
-  type BroadcasterFn,
-  type PredictionPriceSnapshot,
-  type PredictionHistoryEventType,
-  type PredictionHistorySource,
-} from './prediction-market-service';
+export * from './sub-market-service'; // Sub-market spawning
+export * from './timeframe-arc-planner'; // Compressed arc planning for timeframe markets
+export * from './timeframe-arc-processor'; // Time-based arc state machine
 
 // =============================================================================
 // Content Generation
 // =============================================================================
 
+export * from './article-image-service';
+export * from './article-persistence';
+export * from './article-rate-limiter';
 export * from './event-generation-helpers';
+export * from './narrative-state-service';
+export * from './npc-anti-repetition-service';
+export * from './npc-character-config';
+export * from './parody-headline-generator';
 export * from './post-generation-helpers';
 export * from './question-arc-planner';
-export * from './parody-headline-generator';
-
+export * from './story-seed-service';
 // Tag Service
 export {
-  generateTagsFromPost,
-  generateTagsForPosts,
-  storeTagsForPost,
-  getTagsForPost,
-  getPostsByTag,
-  getTagStatistics,
-  storeTrendingTags,
-  getCurrentTrendingTags,
-  getRelatedTags,
   type GeneratedTag,
+  generateTagsForPosts,
+  generateTagsFromPost,
+  getCurrentTrendingTags,
+  getPostsByTag,
+  getRelatedTags,
+  getTagStatistics,
+  getTagsForPost,
+  storeTagsForPost,
+  storeTrendingTags,
 } from './tag-service';
-
-// Trending Services (kept separate due to different concerns)
+export * from './topic-diversity-service';
 export * from './trending-calculation-service';
 export * from './trending-grouping-service';
 
@@ -89,38 +106,69 @@ export * from './trending-grouping-service';
 // Core Services
 // =============================================================================
 
+export * from './agent-trade-notification';
 export * from './character-mapping-service';
+export * from './distributed-lock-service';
+export * from './dm-service';
 export * from './earned-points-service';
 export * from './fee-service';
+export {
+  bootstrapGameIfNeeded,
+  type GameBootstrapResult,
+  GameBootstrapService,
+} from './game-bootstrap-service';
+// Game Context Cache for shared cron data
+export {
+  type ActiveQuestion,
+  GameContextCache,
+  type GameState,
+  type RecentWorldEvent,
+} from './game-context-cache';
+export * from './group-chat-invite-notifier';
 export * from './market-context-service';
 export * from './market-impact-service';
+export * from './npc-wallet-adapter';
+export * from './realtime-broadcaster';
 export * from './rss-feed-service';
+export * from './static-data-registry';
 export * from './trade-cache-invalidation';
 export * from './trade-execution-service';
 export * from './wallet-service';
+export * from './world-facts-generator';
 
 // =============================================================================
 // Oracle & Portfolio Services
 // =============================================================================
 
+export { getOracleService, OracleService } from './oracle/oracle-service';
+export * from './oracle/types';
 export { CommitmentStore } from './oracle-commitment-store';
+export {
+  calculatePortfolioBreakdown,
+  type PortfolioBreakdownSnapshot,
+} from './portfolio-breakdown';
 export {
   calculatePortfolioPnL,
   type PortfolioPnLSnapshot,
 } from './portfolio-pnl';
-export { getOracleService, OracleService } from './oracle/oracle-service';
-export * from './oracle/types';
+export { TotalPointsService } from './total-points-service';
 
 // =============================================================================
 // Reputation Service (includes sync interface)
 // =============================================================================
 
 export {
-  ReputationService,
-  setReputationSyncService,
   getReputationSyncService,
-  syncReputationIfAvailable,
-  type ReputationSyncResult,
+  ReputationService,
   type ReputationSyncOptions,
+  type ReputationSyncResult,
   type ReputationSyncServiceInterface,
+  setReputationSyncService,
+  syncReputationIfAvailable,
 } from './reputation-service';
+
+// =============================================================================
+// Token Statistics Service
+// =============================================================================
+
+export { TokenStatsService, tokenStatsService } from './token-stats-service';

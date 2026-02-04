@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-
 import { logger } from '@babylon/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface PullToRefreshOptions {
   onRefresh: () => Promise<void> | void;

@@ -1,7 +1,7 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
 import { cn } from '@babylon/shared';
+import { Search, X } from 'lucide-react';
 
 /**
  * Props for the SearchBar component.

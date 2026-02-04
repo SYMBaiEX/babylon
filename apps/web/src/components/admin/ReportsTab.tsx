@@ -20,12 +20,12 @@
  */
 'use client';
 
+import { cn } from '@babylon/shared';
 import { AlertCircle, CheckCircle, Clock, Flag, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Report evaluation structure from AI.
@@ -119,35 +119,54 @@ export function ReportsTab() {
   );
   const [, startRefresh] = useTransition();
 
-  const fetchReports = useCallback(async (showRefreshing = false) => {
+  const fetchReports = useCallback(
+    (showRefreshing = false) => {
+      const fetchLogic = async () => {
+        try {
+          const params = new URLSearchParams({
+            limit: '100',
+          });
+          if (statusFilter !== 'all') params.set('status', statusFilter);
+          if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+
+          const response = await fetch(`/api/admin/reports?${params}`);
+          if (!response.ok) {
+            console.error('Failed to fetch reports:', response.status);
+            setLoading(false);
+            return;
+          }
+
+          const data = await response.json();
+          setReports(data.reports || []);
+          setLoading(false);
+        } catch (err) {
+          console.error('Error fetching reports:', err);
+          setLoading(false);
+        }
+      };
+
+      if (showRefreshing) {
+        startRefresh(fetchLogic);
+      } else {
+        void fetchLogic();
+      }
+    },
+    [statusFilter, priorityFilter]
+  );
+
+  const fetchStats = useCallback(() => {
     const fetchLogic = async () => {
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+      try {
+        const response = await fetch('/api/admin/reports/stats');
+        if (!response.ok) return;
 
-      const response = await fetch(`/api/admin/reports?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch reports');
-
-      const data = await response.json();
-      setReports(data.reports || []);
-      setLoading(false);
+        const data = await response.json();
+        setStats(data);
+      } catch (err) {
+        console.error('Error fetching report stats:', err);
+      }
     };
-
-    if (showRefreshing) {
-      startRefresh(fetchLogic);
-    } else {
-      await fetchLogic();
-    }
-  }, [statusFilter, priorityFilter]);
-
-  const fetchStats = useCallback(async () => {
-    const response = await fetch('/api/admin/reports/stats');
-    if (!response.ok) return;
-
-    const data = await response.json();
-    setStats(data);
+    void fetchLogic();
   }, []);
 
   useEffect(() => {
@@ -181,36 +200,32 @@ export function ReportsTab() {
 
   const handleEvaluate = async (reportId: string) => {
     setEvaluatingReportId(reportId);
-    try {
-      const response = await fetch(`/api/admin/reports/${reportId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'evaluate' }),
-      });
+    const response = await fetch(`/api/admin/reports/${reportId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'evaluate' }),
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to evaluate report');
-        return;
-      }
-
-      const data = await response.json();
-      toast.success('Report evaluated successfully');
-
-      // Refresh reports to show evaluation
-      await fetchReports(true);
-
-      // Show evaluation modal if we have the report selected
-      const report = reports.find((r) => r.id === reportId);
-      if (report && data.evaluation) {
-        setSelectedReport({ ...report, evaluation: data.evaluation });
-        setShowEvaluationModal(true);
-      }
-    } catch {
-      toast.error('Failed to evaluate report');
-    } finally {
+    if (!response.ok) {
+      const error = await response.json();
+      toast.error(error.message || 'Failed to evaluate report');
       setEvaluatingReportId(null);
+      return;
     }
+
+    const data = await response.json();
+    toast.success('Report evaluated successfully');
+
+    // Refresh reports to show evaluation
+    await fetchReports(true);
+
+    // Show evaluation modal if we have the report selected
+    const report = reports.find((r) => r.id === reportId);
+    if (report && data.evaluation) {
+      setSelectedReport({ ...report, evaluation: data.evaluation });
+      setShowEvaluationModal(true);
+    }
+    setEvaluatingReportId(null);
   };
 
   const formatDate = (date: string) => {
@@ -282,40 +297,54 @@ export function ReportsTab() {
     <div className="space-y-6">
       {/* Stats Overview */}
       {stats && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="mb-1 text-muted-foreground text-sm">Total</div>
-            <div className="font-bold text-2xl">{stats.totals.total}</div>
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Total
+            </div>
+            <div className="font-bold text-xl sm:text-2xl">
+              {stats.totals.total}
+            </div>
           </div>
-          <div className="rounded-lg border border-yellow-500/20 bg-card p-4">
-            <div className="mb-1 text-muted-foreground text-sm">Pending</div>
-            <div className="font-bold text-2xl text-yellow-500">
+          <div className="rounded-lg border border-yellow-500/20 bg-card p-3 sm:p-4">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Pending
+            </div>
+            <div className="font-bold text-xl text-yellow-500 sm:text-2xl">
               {stats.totals.pending}
             </div>
           </div>
-          <div className="rounded-lg border border-blue-500/20 bg-card p-4">
-            <div className="mb-1 text-muted-foreground text-sm">Reviewing</div>
-            <div className="font-bold text-2xl text-blue-500">
+          <div className="rounded-lg border border-blue-500/20 bg-card p-3 sm:p-4">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Reviewing
+            </div>
+            <div className="font-bold text-blue-500 text-xl sm:text-2xl">
               {stats.totals.reviewing}
             </div>
           </div>
-          <div className="rounded-lg border border-green-500/20 bg-card p-4">
-            <div className="mb-1 text-muted-foreground text-sm">Resolved</div>
-            <div className="font-bold text-2xl text-green-500">
+          <div className="rounded-lg border border-green-500/20 bg-card p-3 sm:p-4">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Resolved
+            </div>
+            <div className="font-bold text-green-500 text-xl sm:text-2xl">
               {stats.totals.resolved}
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="mb-1 text-muted-foreground text-sm">Dismissed</div>
-            <div className="font-bold text-2xl">{stats.totals.dismissed}</div>
+          <div className="col-span-2 rounded-lg border border-border bg-card p-3 sm:p-4 md:col-span-1">
+            <div className="mb-0.5 text-muted-foreground text-xs sm:mb-1 sm:text-sm">
+              Dismissed
+            </div>
+            <div className="font-bold text-xl sm:text-2xl">
+              {stats.totals.dismissed}
+            </div>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex gap-2">
-          <span className="self-center text-muted-foreground text-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <span className="mr-1 self-center text-muted-foreground text-xs sm:text-sm">
             Status:
           </span>
           {(
@@ -325,7 +354,7 @@ export function ReportsTab() {
               key={s}
               onClick={() => setStatusFilter(s)}
               className={cn(
-                'rounded px-3 py-1.5 font-medium text-sm transition-colors',
+                'rounded px-2 py-1 font-medium text-[10px] transition-colors sm:px-3 sm:py-1.5 sm:text-sm',
                 statusFilter === s
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -336,8 +365,8 @@ export function ReportsTab() {
           ))}
         </div>
 
-        <div className="flex gap-2">
-          <span className="self-center text-muted-foreground text-sm">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <span className="mr-1 self-center text-muted-foreground text-xs sm:text-sm">
             Priority:
           </span>
           {(['all', 'critical', 'high', 'normal', 'low'] as const).map((p) => (
@@ -345,7 +374,7 @@ export function ReportsTab() {
               key={p}
               onClick={() => setPriorityFilter(p)}
               className={cn(
-                'rounded px-3 py-1.5 font-medium text-sm transition-colors',
+                'rounded px-2 py-1 font-medium text-[10px] transition-colors sm:px-3 sm:py-1.5 sm:text-sm',
                 priorityFilter === p
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -625,30 +654,36 @@ function EvaluationModal({
         {/* Evidence Summary */}
         <div className="mb-4">
           <h3 className="mb-2 font-semibold text-sm">Evidence Collected</h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="text-muted-foreground text-xs">Chat Messages</div>
-              <div className="font-bold text-lg">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Chat Messages
+              </div>
+              <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.chatMessages}
               </div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="text-muted-foreground text-xs">Posts</div>
-              <div className="font-bold text-lg">
+            <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Posts
+              </div>
+              <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.posts}
               </div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="text-muted-foreground text-xs">
+            <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
                 Reports Received
               </div>
-              <div className="font-bold text-lg">
+              <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.reportsReceived}
               </div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="text-muted-foreground text-xs">Reports Sent</div>
-              <div className="font-bold text-lg">
+            <div className="rounded-lg bg-muted/50 p-2 sm:p-3">
+              <div className="text-[10px] text-muted-foreground sm:text-xs">
+                Reports Sent
+              </div>
+              <div className="font-bold text-base sm:text-lg">
                 {evaluation.evidenceSummary.reportsSent}
               </div>
             </div>

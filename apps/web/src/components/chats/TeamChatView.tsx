@@ -1,0 +1,331 @@
+'use client';
+
+import { cn, type MessageTag } from '@babylon/shared';
+import {
+  Brain,
+  MessageCircle,
+  PanelLeft,
+  PanelRight,
+  Radio,
+  Users,
+} from 'lucide-react';
+import React from 'react';
+import { Separator } from '@/components/shared/Separator';
+import { FeedbackMessages } from './FeedbackMessages';
+import type { MentionableAgent } from './MentionAutocomplete';
+import { MessageInput } from './MessageInput';
+import { MessageList } from './MessageList';
+import type { ChatDetails } from './types';
+
+/** Typing user info */
+interface TypingUserInfo {
+  userId: string;
+  displayName: string;
+}
+
+/** Thinking agent info - for complex queries */
+interface ThinkingAgentInfo {
+  agentId: string;
+  agentName: string;
+  thinkingLabel: string | null;
+}
+
+/** Typing indicator component - shows bouncing dots for users typing */
+function TypingIndicator({
+  typingUsers,
+  density,
+}: {
+  typingUsers: TypingUserInfo[];
+  density: 'default' | 'compact';
+}) {
+  const first = typingUsers[0];
+  const second = typingUsers[1];
+
+  if (!first) return null;
+
+  const text =
+    typingUsers.length === 1
+      ? `${first.displayName} is typing...`
+      : typingUsers.length === 2 && second
+        ? `${first.displayName} and ${second.displayName} are typing...`
+        : `${first.displayName} and ${typingUsers.length - 1} others are typing...`;
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 text-muted-foreground',
+        density === 'compact'
+          ? 'px-3 py-1.5 text-sm md:text-xs'
+          : 'px-4 py-2 text-sm'
+      )}
+    >
+      <span className="flex gap-1">
+        <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+          •
+        </span>
+        <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+          •
+        </span>
+        <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+          •
+        </span>
+      </span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+/**
+ * Thinking indicator component - shows pulsing brain icon for agents processing complex queries.
+ * Distinct from typing indicator to show that more substantial work is happening.
+ */
+function ThinkingIndicator({
+  thinkingAgents,
+  density,
+}: {
+  thinkingAgents: ThinkingAgentInfo[];
+  density: 'default' | 'compact';
+}) {
+  if (thinkingAgents.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        'space-y-1',
+        density === 'compact' ? 'px-3 py-1.5' : 'px-4 py-2'
+      )}
+    >
+      {thinkingAgents.map((agent) => (
+        <div
+          key={agent.agentId}
+          className={cn(
+            'flex items-center gap-2 text-blue-500',
+            density === 'compact' ? 'text-sm md:text-xs' : 'text-sm'
+          )}
+        >
+          <Brain className="h-4 w-4 animate-pulse" />
+          <span className="font-medium">{agent.agentName}</span>
+          <span className="text-muted-foreground">
+            {agent.thinkingLabel ?? 'Thinking...'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface TeamChatViewProps {
+  chatDetails: ChatDetails | null;
+  currentUserId: string | undefined;
+  authenticated: boolean;
+  sseConnected: boolean;
+  /** When embedding in another container that already has a header (e.g. terminal tabs). */
+  hideHeader?: boolean;
+  density?: 'default' | 'compact';
+  loading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  messageInput: string;
+  sending: boolean;
+  sendError: string | null;
+  topSentinelRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  onMessageChange: (value: string) => void;
+  onSendMessage: () => void;
+  /** Agents available for @mention */
+  agents: MentionableAgent[];
+  /** Users currently typing */
+  typingUsers?: TypingUserInfo[];
+  /** Agents currently thinking (processing complex queries) */
+  thinkingAgents?: ThinkingAgentInfo[];
+  /** Callback to open member list drawer (mobile only) */
+  onShowMembers?: () => void;
+  /** Callback when messages container is scrolled (for auto-scroll tracking) */
+  onScroll?: (container: HTMLDivElement) => void;
+  /** Left sidebar collapsed state */
+  leftSidebarCollapsed?: boolean;
+  /** Callback to toggle left sidebar */
+  onToggleLeftSidebar?: () => void;
+  /** Right sidebar open state */
+  rightSidebarOpen?: boolean;
+  /** Callback to toggle right sidebar */
+  onToggleRightSidebar?: () => void;
+  /** Callback when a message tag is clicked */
+  onTagClick?: (tag: MessageTag, messageId: string) => void;
+}
+
+/**
+ * Chat view component for Team Chat (Agents)
+ *
+ * Similar to ChatView but with typing/thinking indicators and custom header
+ */
+export function TeamChatView({
+  chatDetails,
+  currentUserId,
+  authenticated,
+  sseConnected,
+  hideHeader = false,
+  density = 'default',
+  loading,
+  isLoadingMore,
+  hasMore,
+  messageInput,
+  sending,
+  sendError,
+  topSentinelRef,
+  messagesEndRef,
+  onMessageChange,
+  onSendMessage,
+  agents,
+  typingUsers = [],
+  thinkingAgents = [],
+  onShowMembers,
+  onScroll,
+  leftSidebarCollapsed = false,
+  onToggleLeftSidebar,
+  rightSidebarOpen = false,
+  onToggleRightSidebar,
+  onTagClick,
+}: TeamChatViewProps) {
+  const compact = density === 'compact';
+  // Empty state when no chat selected
+  if (!chatDetails) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center">
+        <div className="max-w-md p-8 text-center text-muted-foreground">
+          <MessageCircle className="mx-auto mb-4 h-16 w-16 opacity-50" />
+          <h3 className="mb-2 font-bold text-foreground text-xl">Chat</h3>
+          <p className="text-sm">Loading your team chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Chat Header - Fixed */}
+      {!hideHeader && (
+        <div className="shrink-0">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              {/* Left sidebar toggle - desktop only */}
+              {onToggleLeftSidebar && (
+                <button
+                  onClick={onToggleLeftSidebar}
+                  className="hidden shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+                  aria-label={
+                    leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
+                  }
+                >
+                  <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              )}
+              <div className="min-w-0">
+                <h2 className="truncate font-semibold text-foreground text-lg">
+                  {chatDetails.chat.name || 'Agents'}
+                </h2>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              {/* Mobile members button */}
+              {onShowMembers && (
+                <button
+                  onClick={onShowMembers}
+                  className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
+                  aria-label="Show team members"
+                >
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </button>
+              )}
+              {/* Connection status */}
+              <div className="flex items-center gap-2">
+                <Radio
+                  className={
+                    sseConnected
+                      ? 'h-4 w-4 text-green-500'
+                      : 'h-4 w-4 text-muted-foreground'
+                  }
+                />
+                <span className="text-muted-foreground text-sm">
+                  {sseConnected ? 'Live' : 'Connecting...'}
+                </span>
+              </div>
+              {/* Right sidebar toggle */}
+              {onToggleRightSidebar && (
+                <button
+                  onClick={onToggleRightSidebar}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label={rightSidebarOpen ? 'Close panel' : 'Open panel'}
+                >
+                  <PanelRight className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Header Separator */}
+          <div className="px-4">
+            <Separator />
+          </div>
+        </div>
+      )}
+
+      {/* Messages - Scrollable */}
+      <div
+        data-chat-messages-container
+        className={cn(
+          'relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden',
+          compact ? 'space-y-2 px-3 py-2' : 'space-y-4 px-4 py-3'
+        )}
+        onScroll={(e) => onScroll?.(e.currentTarget)}
+      >
+        <MessageList
+          messages={chatDetails.messages || []}
+          participants={chatDetails.participants || []}
+          currentUserId={currentUserId}
+          loading={loading}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          authenticated={authenticated}
+          topSentinelRef={topSentinelRef}
+          messagesEndRef={messagesEndRef}
+          density={density}
+          onTagClick={onTagClick}
+        />
+      </div>
+
+      {/* Footer - Fixed */}
+      <div className="shrink-0">
+        {/* Thinking Indicator - shown when agents are processing complex queries */}
+        {thinkingAgents.length > 0 && (
+          <ThinkingIndicator
+            thinkingAgents={thinkingAgents}
+            density={density}
+          />
+        )}
+
+        {/* Typing Indicator - shown when users/agents are typing simple responses */}
+        {typingUsers.length > 0 && (
+          <TypingIndicator typingUsers={typingUsers} density={density} />
+        )}
+
+        {/* Feedback Messages */}
+        {authenticated && (
+          <FeedbackMessages error={sendError} warning={null} success={false} />
+        )}
+
+        {/* Message Input with @mention support */}
+        <MessageInput
+          value={messageInput}
+          onChange={onMessageChange}
+          onSend={onSendMessage}
+          sending={sending}
+          authenticated={authenticated}
+          density={density}
+          placeholder="Message your team — @ to mention agents"
+          mentionableMembers={agents}
+        />
+      </div>
+    </div>
+  );
+}

@@ -12,11 +12,14 @@
 
 import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
+import { formatError } from '../utils/error-utils';
 
 export interface XMLParseResult {
   success: boolean;
   data: JsonValue | null;
   error?: string;
+  /** Extracted content from <think>/<thinking> blocks, can be used as fallback reasoning */
+  thinkingContent?: string;
 }
 
 /**
@@ -69,8 +72,39 @@ export function extractXMLFromText(content: string): string {
 }
 
 /**
- * Remove LLM thinking/reasoning blocks (e.g., <think>...</think> from DeepSeek, Qwen)
+ * Extract thinking content from LLM response before stripping.
+ * Returns the concatenated content of all <think> and <thinking> blocks.
+ * This can be used as fallback reasoning for training data.
+ */
+export function extractThinkingContent(content: string): string {
+  const thinkMatches = content.match(/<think>([\s\S]*?)<\/think>/gi) || [];
+  const thinkingMatches =
+    content.match(/<thinking>([\s\S]*?)<\/thinking>/gi) || [];
+
+  const allMatches = [...thinkMatches, ...thinkingMatches];
+
+  if (allMatches.length === 0) {
+    return '';
+  }
+
+  // Extract inner content from each match
+  return allMatches
+    .map((match) => {
+      const innerMatch = match.match(
+        /<(?:think|thinking)>([\s\S]*?)<\/(?:think|thinking)>/i
+      );
+      return innerMatch?.[1]?.trim() || '';
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * Remove LLM thinking blocks (e.g., <think>...</think> from DeepSeek, Qwen)
  * These blocks contain internal reasoning that shouldn't be parsed as content.
+ *
+ * NOTE: We do NOT strip <reasoning> tags - those are valid fields inside <decision> elements
+ * that we need to preserve for training data.
  */
 export function stripThinkingBlocks(content: string): string {
   const originalLength = content.length;
@@ -82,13 +116,14 @@ export function stripThinkingBlocks(content: string): string {
   // Also handle <thinking>...</thinking> variant
   cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
 
-  // Handle <reasoning>...</reasoning> variant
-  cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+  // NOTE: We intentionally do NOT strip <reasoning> tags!
+  // <reasoning> is a valid field inside <decision> elements that we need to preserve.
+  // The previous code was incorrectly stripping reasoning from decisions.
 
   const strippedLength = originalLength - cleaned.length;
   if (strippedLength > 0) {
     logger.debug(
-      'Stripped LLM thinking/reasoning blocks',
+      'Stripped LLM thinking blocks',
       {
         originalLength,
         strippedChars: strippedLength,
@@ -197,7 +232,8 @@ function parseXMLContent(content: string): JsonValue {
     if (trimmed === 'false') return false;
     if (trimmed === 'null') return null;
     const num = Number(trimmed);
-    if (!isNaN(num) && trimmed === String(num)) return num;
+    // Check for finite numbers only (excludes NaN, Infinity, -Infinity)
+    if (Number.isFinite(num) && trimmed === String(num)) return num;
     return trimmed;
   }
 
@@ -243,7 +279,10 @@ function parseXMLContent(content: string): JsonValue {
  */
 export function parseXML(content: string): XMLParseResult {
   try {
-    // Clean markdown
+    // Extract thinking content BEFORE stripping (for fallback reasoning)
+    const thinkingContent = extractThinkingContent(content);
+
+    // Clean markdown (this will strip thinking blocks)
     let cleaned = cleanXMLMarkdown(content);
 
     // Extract XML from text
@@ -264,6 +303,7 @@ export function parseXML(content: string): XMLParseResult {
         return {
           success: true,
           data: jsonData,
+          thinkingContent: thinkingContent || undefined,
         };
       } catch (jsonError) {
         logger.error(
@@ -297,12 +337,13 @@ export function parseXML(content: string): XMLParseResult {
     return {
       success: true,
       data,
+      thinkingContent: thinkingContent || undefined,
     };
   } catch (error) {
     logger.error(
       'Failed to parse XML',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
         contentPreview: content.substring(0, 200),
       },
       'XMLParser'
@@ -311,7 +352,7 @@ export function parseXML(content: string): XMLParseResult {
     return {
       success: false,
       data: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: formatError(error),
     };
   }
 }
@@ -378,7 +419,7 @@ function parseContinuationXML(content: string): XMLParseResult {
           logger.warn(
             'Failed to parse XML fragment',
             {
-              error: error instanceof Error ? error.message : String(error),
+              error: formatError(error),
               fragment: doc.substring(0, 100),
             },
             'XMLParser'
@@ -415,7 +456,7 @@ function parseContinuationXML(content: string): XMLParseResult {
     return {
       success: false,
       data: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: formatError(error),
     };
   }
 }

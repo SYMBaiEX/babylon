@@ -7,15 +7,14 @@
  * @packageDocumentation
  */
 
-import type { JsonValue } from '../types/common';
 import type {
   AgentCapabilities,
-  UnifiedAgentRegistration,
-  AgentType,
+  AgentDiscoveryFilter,
+  AgentRegistration,
   AgentStatus,
   TrustLevel,
-  AgentDiscoveryFilter,
 } from '../types/agent-registry';
+import type { JsonValue } from '../types/common';
 
 /**
  * Agent Registry Service Interface
@@ -24,24 +23,26 @@ export interface IAgentRegistry {
   /**
    * Register a new agent
    */
-  register(params: {
-    agentId: string;
-    type: AgentType;
-    userId?: string | null;
+  registerUserAgent(params: {
+    userId: string;
     name: string;
     systemPrompt: string;
     capabilities: AgentCapabilities;
-  }): Promise<UnifiedAgentRegistration>;
+    trustLevel?: TrustLevel;
+  }): Promise<AgentRegistration>;
 
   /**
    * Get agent by ID
    */
-  getAgent(agentId: string): Promise<UnifiedAgentRegistration | null>;
+  getAgentById(agentId: string): Promise<AgentRegistration | null>;
 
   /**
    * Update agent status
    */
-  updateStatus(agentId: string, status: AgentStatus): Promise<void>;
+  updateAgentStatus(
+    agentId: string,
+    status: AgentStatus
+  ): Promise<AgentRegistration>;
 
   /**
    * Update agent trust level
@@ -51,12 +52,7 @@ export interface IAgentRegistry {
   /**
    * Discover agents matching filter
    */
-  discover(filter: AgentDiscoveryFilter): Promise<UnifiedAgentRegistration[]>;
-
-  /**
-   * Check if agent exists
-   */
-  exists(agentId: string): Promise<boolean>;
+  discoverAgents(filter: AgentDiscoveryFilter): Promise<AgentRegistration[]>;
 }
 
 /**
@@ -142,51 +138,6 @@ export interface ITrajectoryRecorder {
       metadata?: Record<string, JsonValue>;
     }
   ): Promise<void>;
-}
-
-/**
- * Perp Trade Service Interface
- */
-export interface IPerpTradeService {
-  /**
-   * Open a perpetual position
-   */
-  openPosition(params: {
-    userId: string;
-    ticker: string;
-    side: 'long' | 'short';
-    size: number;
-    leverage: number;
-  }): Promise<{
-    positionId: string;
-    entryPrice: number;
-  }>;
-
-  /**
-   * Close a perpetual position
-   */
-  closePosition(params: {
-    userId: string;
-    positionId: string;
-  }): Promise<{
-    pnl: number;
-    exitPrice: number;
-  }>;
-
-  /**
-   * Get open positions for user
-   */
-  getPositions(userId: string): Promise<
-    Array<{
-      id: string;
-      ticker: string;
-      side: 'long' | 'short';
-      size: number;
-      entryPrice: number;
-      currentPrice: number;
-      unrealizedPnL: number;
-    }>
-  >;
 }
 
 /**
@@ -302,7 +253,6 @@ export interface IServiceContainer {
   walletService?: IWalletService;
   characterMappingService?: ICharacterMappingService;
   trajectoryRecorder?: ITrajectoryRecorder;
-  perpTradeService?: IPerpTradeService;
   predictionPricing?: IPredictionPricing;
   agent0Client?: IAgent0Client;
   dbContext?: IDbContext;
@@ -310,22 +260,29 @@ export interface IServiceContainer {
 }
 
 /**
- * Global service container instance
+ * Global service container for cross-module dependency injection.
+ * Uses globalThis to ensure consistent state across dynamic and static imports.
  */
-let serviceContainer: IServiceContainer = {};
-
-/**
- * Set the service container
- */
-export function setServiceContainer(container: IServiceContainer): void {
-  serviceContainer = { ...serviceContainer, ...container };
+declare global {
+  // eslint-disable-next-line no-var
+  var __babylon_agents_services__: IServiceContainer | undefined;
 }
 
 /**
- * Get the service container
+ * Set the service container (merges with existing services)
+ */
+export function setServiceContainer(container: IServiceContainer): void {
+  globalThis.__babylon_agents_services__ = {
+    ...globalThis.__babylon_agents_services__,
+    ...container,
+  };
+}
+
+/**
+ * Get the full service container
  */
 export function getServiceContainer(): IServiceContainer {
-  return serviceContainer;
+  return globalThis.__babylon_agents_services__ ?? {};
 }
 
 /**
@@ -334,6 +291,5 @@ export function getServiceContainer(): IServiceContainer {
 export function getService<K extends keyof IServiceContainer>(
   key: K
 ): IServiceContainer[K] {
-  return serviceContainer[key];
+  return globalThis.__babylon_agents_services__?.[key];
 }
-

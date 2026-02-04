@@ -1,5 +1,6 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import {
   Calendar,
   FileText,
@@ -15,7 +16,6 @@ import {
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { logger } from '@babylon/shared';
 
 interface UserProfile {
   id: string;
@@ -28,6 +28,7 @@ interface UserProfile {
   virtualBalance: number;
   lifetimePnL: number;
   reputationPoints: number;
+  totalPoints: number;
   referralCount: number;
   invitePoints: number;
   createdAt: string;
@@ -67,30 +68,36 @@ export function PlayerStatsModal({
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await fetch(`/api/users/${userId}/profile`);
+      const response = await fetch(`/api/users/${userId}/profile`);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch profile');
-        }
-
-        const data = await response.json();
-
-        if (!data.user) {
-          throw new Error('User not found');
-        }
-
-        setProfile(data.user);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
+      if (!response.ok) {
+        const errorMessage = 'Failed to fetch profile';
+        setError(errorMessage);
         logger.error(
           'Failed to fetch user profile',
-          { userId, error: err },
+          { userId, status: response.status },
           'PlayerStatsModal'
         );
-      } finally {
         setLoading(false);
+        return;
       }
+
+      const data = await response.json();
+
+      if (!data.user) {
+        const errorMessage = 'User not found';
+        setError(errorMessage);
+        logger.error(
+          'User not found in profile response',
+          { userId },
+          'PlayerStatsModal'
+        );
+        setLoading(false);
+        return;
+      }
+
+      setProfile(data.user);
+      setLoading(false);
     };
 
     fetchProfile();
@@ -187,16 +194,16 @@ export function PlayerStatsModal({
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
-                {/* Reputation Points */}
-                <div className="rounded-lg border border-border bg-background/50 p-2.5 sm:p-3">
+                {/* Total Points (primary) */}
+                <div className="rounded-lg border border-[#0066FF]/30 bg-[#0066FF]/10 p-2.5 sm:p-3">
                   <div className="mb-1.5 flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
-                    <span className="truncate text-muted-foreground text-xs">
-                      Reputation
+                    <Trophy className="h-3.5 w-3.5 shrink-0 text-[#0066FF]" />
+                    <span className="truncate text-[#0066FF] text-xs">
+                      Total Points
                     </span>
                   </div>
-                  <p className="break-words font-bold text-lg sm:text-xl">
-                    {profile.reputationPoints.toLocaleString()}
+                  <p className="break-words font-bold text-[#0066FF] text-lg sm:text-xl">
+                    {(profile.totalPoints ?? 0).toLocaleString()}
                   </p>
                 </div>
 
@@ -269,6 +276,17 @@ export function PlayerStatsModal({
                     {profile.stats.positions}
                   </p>
                 </div>
+              </div>
+
+              {/* Reputation Badge */}
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background/50 px-3 py-2">
+                <Trophy className="h-4 w-4 shrink-0 text-yellow-500" />
+                <span className="text-muted-foreground text-sm">
+                  Reputation
+                </span>
+                <span className="ml-auto font-semibold text-foreground text-sm">
+                  {profile.reputationPoints.toLocaleString()}
+                </span>
               </div>
 
               {/* Activity Stats */}

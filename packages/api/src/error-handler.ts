@@ -2,14 +2,13 @@
  * Global error handler and middleware for API routes
  */
 
+import { DatabaseError } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { DatabaseError } from '@babylon/db';
-import { isAuthenticationError, BabylonError } from './errors';
-import { logger } from '@babylon/shared';
+import { ApiError, BabylonError, isAuthenticationError } from './errors';
 import type { JsonValue } from './types';
-
 
 /**
  * Options for error tracking and logging
@@ -18,7 +17,11 @@ export interface ErrorHandlerOptions {
   /**
    * Function to track errors with analytics (e.g., PostHog)
    */
-  trackError?: (userId: string | null, error: Error, context: Record<string, JsonValue>) => void | Promise<void>;
+  trackError?: (
+    userId: string | null,
+    error: Error,
+    context: Record<string, JsonValue>
+  ) => void | Promise<void>;
 
   /**
    * Function to capture errors in error tracking (e.g., Sentry)
@@ -100,7 +103,11 @@ export function errorHandler(
     if (!isTestToken) {
       logger.warn('Validation error', {
         error: error.message,
-        issues: error.issues,
+        issues: error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.map(String),
+        })),
         name: error.name,
         ...errorContext,
       });
@@ -116,6 +123,22 @@ export function errorHandler(
       },
       { status: 400 }
     );
+  }
+
+  // Handle legacy/simple API errors used by many routes
+  if (error instanceof ApiError) {
+    const errorData: Record<string, JsonValue> = { error: error.message };
+
+    if (process.env.NODE_ENV === 'development') {
+      if (error.code) {
+        errorData.code = error.code;
+      }
+      if (error.stack) {
+        errorData.stack = error.stack;
+      }
+    }
+
+    return NextResponse.json(errorData, { status: error.statusCode });
   }
 
   // Handle client errors (4xx) at lower log level - these are expected behavior
@@ -181,12 +204,12 @@ export function errorHandler(
         url: request.url,
         method: request.method,
         headers: (() => {
-      const headersObj: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headersObj[key] = value;
-      });
-      return headersObj;
-    })(),
+          const headersObj: Record<string, string> = {};
+          request.headers.forEach((value, key) => {
+            headersObj[key] = value;
+          });
+          return headersObj;
+        })(),
       },
     };
     if (userId) {
@@ -274,7 +297,9 @@ export function errorHandler(
  * Handle database-specific errors
  * Uses PostgreSQL error codes (23xxx series for integrity constraints)
  */
-function handleDatabaseError(error: DatabaseError & { code?: string }): NextResponse {
+function handleDatabaseError(
+  error: DatabaseError & { code?: string }
+): NextResponse {
   const errorCode = 'code' in error ? error.code : undefined;
   switch (errorCode) {
     case '23505': // PostgreSQL unique_violation
@@ -303,6 +328,30 @@ function handleDatabaseError(error: DatabaseError & { code?: string }): NextResp
       return NextResponse.json(
         { error: 'Check constraint violation' },
         { status: 400 }
+      );
+
+    case '42P01': // PostgreSQL undefined_table
+      // Table doesn't exist (migration not applied)
+      logger.warn(
+        `Database table missing: ${error.message}`,
+        { code: errorCode },
+        'DatabaseError'
+      );
+      return NextResponse.json(
+        { error: 'Database migration pending. Please try again later.' },
+        { status: 503 }
+      );
+
+    case '42703': // PostgreSQL undefined_column
+      // Column doesn't exist (migration not applied)
+      logger.warn(
+        `Database column missing: ${error.message}`,
+        { code: errorCode },
+        'DatabaseError'
+      );
+      return NextResponse.json(
+        { error: 'Database migration pending. Please try again later.' },
+        { status: 503 }
       );
 
     default: {
@@ -383,20 +432,22 @@ export function asyncHandler<TContext extends RouteContext = RouteContext>(
   teardown?: () => Promise<void>
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return async (req: NextRequest, context?: TContext) => {
-    if (setup) {
-      await setup();
-    }
-
-    if (!handler) {
-      throw new Error('Handler function is required');
-    }
-
     try {
-      return await handler(req, context);
-    } finally {
+      if (setup) {
+        await setup();
+      }
+
+      if (!handler) {
+        throw new Error('Handler function is required');
+      }
+
+      const result = await handler(req, context);
       if (teardown) {
         await teardown();
       }
+      return result;
+    } catch (error) {
+      return errorHandler(error, req);
     }
   };
 }

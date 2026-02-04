@@ -15,16 +15,21 @@
  * @packageDocumentation
  */
 
-import { type Actor, actors, asc, db, eq } from '@babylon/db';
-import { agentRuntimeManager } from '@babylon/agents';
-import { loadActorById } from '@babylon/engine';
-import { logger } from '@babylon/shared';
 import {
+  loadActorById,
+  type StaticActor,
+  StaticDataRegistry,
+} from '@babylon/engine';
+import type { ActorData, AgentCapabilities } from '@babylon/shared';
+import {
+  getCurrentChainId,
+  IDENTITY_REGISTRY_BASE_SEPOLIA,
+  logger,
   mapActorToOASFDomains,
   mapActorToOASFSkills,
+  REPUTATION_SYSTEM_BASE_SEPOLIA,
 } from '@babylon/shared';
-import type { ActorData } from '@babylon/shared';
-import type { AgentCapabilities } from '@babylon/shared';
+import { agentRuntimeManager } from '../runtime/AgentRuntimeManager';
 import { AgentStatus, AgentType } from '../types/agent-registry';
 import { agentRegistry } from './agent-registry.service';
 
@@ -48,11 +53,7 @@ export class NPCBootstrapService {
   private static instance: NPCBootstrapService;
 
   private constructor() {
-    logger.info(
-      'NPCBootstrapService initialized',
-      undefined,
-      'NPCBootstrapService'
-    );
+    // No initialization log - follows best practice of not logging routine lifecycle events
   }
 
   /**
@@ -74,10 +75,17 @@ export class NPCBootstrapService {
    * startup. Processes NPCs sequentially to avoid overwhelming the database. Returns
    * summary with total NPCs, registration counts, initialization counts, failures, and errors.
    *
+   * @remarks
+   * **Logging Best Practice**: Uses batch/aggregated logging pattern.
+   * - NO per-NPC logs at INFO level (anti-pattern: logging inside loops)
+   * - Single summary log after completion
+   * - Only ERROR level for individual failures (actionable events)
+   * - DEBUG level available for troubleshooting when needed
+   *
    * @returns {Promise<NPCBootstrapResult>} Bootstrap result summary
    */
   public async bootstrapAllNpcs(): Promise<NPCBootstrapResult> {
-    logger.info('Starting NPC bootstrap', undefined, 'NPCBootstrapService');
+    const startTime = Date.now();
 
     const result: NPCBootstrapResult = {
       totalNpcs: 0,
@@ -87,57 +95,58 @@ export class NPCBootstrapService {
       errors: [],
     };
 
-    try {
-      // Load all Actor records from database
-      const actorsList = await db
-        .select()
-        .from(actors)
-        .orderBy(asc(actors.name));
+    // Load all Actor records from static registry
+    const actorsList = StaticDataRegistry.getAllActors()
+      .slice()
+      .sort((a, b) => (a.name as string).localeCompare(b.name as string));
 
-      result.totalNpcs = actorsList.length;
-      logger.info(
-        `Found ${actorsList.length} NPCs to bootstrap`,
-        undefined,
-        'NPCBootstrapService'
-      );
+    result.totalNpcs = actorsList.length;
 
-      // Bootstrap each actor in sequence (to avoid overwhelming database)
-      for (const actor of actorsList) {
-        try {
-          const bootstrapResult = await this.bootstrapSingleNpc(actor);
-          if (bootstrapResult.registered) {
-            result.registered++;
-          }
-          if (bootstrapResult.initialized) {
-            result.initialized++;
-          }
-        } catch (error) {
-          result.failed++;
-          result.errors.push({
-            actorId: actor.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          logger.error(
-            `Failed to bootstrap NPC ${actor.id}`,
-            error instanceof Error ? error : new Error(String(error)),
-            'NPCBootstrapService'
-          );
+    // Bootstrap each actor in sequence (to avoid overwhelming database)
+    // IMPORTANT: Errors for individual NPCs should NOT stop the entire bootstrap
+    // NOTE: No per-NPC logging - aggregate results and log summary only
+    for (const actor of actorsList) {
+      try {
+        const bootstrapResult = await this.bootstrapSingleNpc(actor);
+        if (bootstrapResult.registered) {
+          result.registered++;
         }
+        if (bootstrapResult.initialized) {
+          result.initialized++;
+        }
+      } catch (error) {
+        result.failed++;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        result.errors.push({ actorId: actor.id, error: errorMessage });
+        // Only log errors for failures - these are actionable events
+        logger.error(
+          `NPC bootstrap failed: ${actor.name}`,
+          { actorId: actor.id, error: errorMessage },
+          'NPCBootstrapService'
+        );
+        // Continue to next NPC - don't let one failure stop the entire bootstrap
       }
-
-      logger.info(
-        `NPC bootstrap complete: ${result.initialized}/${result.totalNpcs} initialized, ${result.failed} failed`,
-        { result },
-        'NPCBootstrapService'
-      );
-    } catch (error) {
-      logger.error(
-        'NPC bootstrap failed',
-        error instanceof Error ? error : new Error(String(error)),
-        'NPCBootstrapService'
-      );
-      throw error;
     }
+
+    const durationMs = Date.now() - startTime;
+    // Guard against division by zero when no NPCs exist
+    const avgPerNpcMs =
+      result.totalNpcs > 0 ? Math.round(durationMs / result.totalNpcs) : 0;
+
+    // Single summary log with all relevant metrics (best practice: batch logging)
+    logger.info(
+      `NPC bootstrap complete`,
+      {
+        total: result.totalNpcs,
+        initialized: result.initialized,
+        registered: result.registered,
+        failed: result.failed,
+        durationMs,
+        avgPerNpcMs,
+      },
+      'NPCBootstrapService'
+    );
 
     return result;
   }
@@ -149,14 +158,15 @@ export class NPCBootstrapService {
    * Loads ActorData from JSON files, builds system prompt and capabilities, registers
    * in AgentRegistry, and creates runtime instance.
    *
-   * @param {Actor} actor - Actor database record
+   * @param {StaticActor} actor - Static actor data from registry
    * @returns {Promise<object>} Object indicating which operations succeeded
    * @private
    */
   private async bootstrapSingleNpc(
-    actor: Actor
+    actor: StaticActor
   ): Promise<{ registered: boolean; initialized: boolean }> {
-    logger.info(
+    // Use debug level for per-NPC logs to reduce startup noise
+    logger.debug(
       `Bootstrapping NPC: ${actor.name} (${actor.id})`,
       undefined,
       'NPCBootstrapService'
@@ -168,7 +178,7 @@ export class NPCBootstrapService {
     // Check if already registered
     const existing = await agentRegistry.getAgentById(actor.id);
     if (existing) {
-      logger.info(
+      logger.debug(
         `NPC ${actor.id} already registered, initializing runtime only`,
         undefined,
         'NPCBootstrapService'
@@ -195,7 +205,7 @@ export class NPCBootstrapService {
       });
 
       registered = true;
-      logger.info(
+      logger.debug(
         `NPC ${actor.id} registered successfully`,
         undefined,
         'NPCBootstrapService'
@@ -205,7 +215,7 @@ export class NPCBootstrapService {
     // Create runtime instance (this will cache it)
     const runtime = await agentRuntimeManager.getRuntime(actor.id);
     initialized = true;
-    logger.info(
+    logger.debug(
       `NPC ${actor.id} runtime created (agentId: ${runtime.agentId})`,
       undefined,
       'NPCBootstrapService'
@@ -305,14 +315,11 @@ export class NPCBootstrapService {
       platform: 'babylon',
       userType: 'npc',
 
-      // Game network configuration
+      // Game network configuration (from canonical config)
       gameNetwork: {
-        chainId: Number.parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '84532'), // Base Sepolia default
-        registryAddress:
-          process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA ||
-          '0x0000000000000000000000000000000000000000',
-        reputationAddress:
-          process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA,
+        chainId: getCurrentChainId(),
+        registryAddress: IDENTITY_REGISTRY_BASE_SEPOLIA,
+        reputationAddress: REPUTATION_SYSTEM_BASE_SEPOLIA,
       },
 
       // OASF Taxonomy Support (Agent0 SDK v0.31.0)
@@ -337,11 +344,8 @@ export class NPCBootstrapService {
    * @throws {Error} If actor not found
    */
   public async bootstrapNpc(actorId: string): Promise<void> {
-    const [actor] = await db
-      .select()
-      .from(actors)
-      .where(eq(actors.id, actorId))
-      .limit(1);
+    // Get actor from static registry
+    const actor = StaticDataRegistry.getActor(actorId);
 
     if (!actor) {
       throw new Error(`Actor ${actorId} not found`);
@@ -361,19 +365,12 @@ export class NPCBootstrapService {
    * @returns {Promise<void>}
    */
   public async removeNpc(actorId: string): Promise<void> {
-    logger.info(`Removing NPC ${actorId}`, undefined, 'NPCBootstrapService');
-
     // Clear runtime from cache
     await agentRuntimeManager.clearRuntime(actorId);
 
     // AgentRegistry entry is preserved for history
     // Status will be set to TERMINATED by clearRuntimeInstance
-
-    logger.info(
-      `NPC ${actorId} removed successfully`,
-      undefined,
-      'NPCBootstrapService'
-    );
+    logger.debug(`NPC ${actorId} removed`, undefined, 'NPCBootstrapService');
   }
 
   /**
@@ -386,19 +383,13 @@ export class NPCBootstrapService {
    * @returns {Promise<void>}
    */
   public async refreshNpc(actorId: string): Promise<void> {
-    logger.info(`Refreshing NPC ${actorId}`, undefined, 'NPCBootstrapService');
-
     // Clear existing runtime
     await agentRuntimeManager.clearRuntime(actorId);
 
     // Bootstrap again (will use latest ActorData)
     await this.bootstrapNpc(actorId);
 
-    logger.info(
-      `NPC ${actorId} refreshed successfully`,
-      undefined,
-      'NPCBootstrapService'
-    );
+    logger.debug(`NPC ${actorId} refreshed`, undefined, 'NPCBootstrapService');
   }
 
   /**
@@ -415,7 +406,7 @@ export class NPCBootstrapService {
     initialized: number;
     active: number;
   }> {
-    const actorsList = await db.select().from(actors);
+    const actorsList = StaticDataRegistry.getAllActors();
     const totalNpcs = actorsList.length;
 
     const registrations = await agentRegistry.discoverAgents({

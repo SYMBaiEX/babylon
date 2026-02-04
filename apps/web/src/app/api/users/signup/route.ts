@@ -86,26 +86,48 @@
  * @see {@link /lib/onboarding/types} Onboarding types
  */
 
+import type { JsonValue } from '@babylon/api';
+import {
+  authenticate,
+  ConflictError,
+  getHashedClientIp,
+  getOrCreateReferralCode,
+  getPrivyClient,
+  InternalServerError,
+  notifyNewAccount,
+  PointsService,
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  and,
+  db,
+  eq,
+  follows,
+  isRetryableError,
+  referrals,
+  sql,
+  toDatabaseErrorType,
+  users,
+  withRetry,
+  withTransaction,
+} from '@babylon/db';
+import { UserAlphaGroupAssignmentService } from '@babylon/engine';
+import type { OnboardingProfilePayload } from '@babylon/shared';
+import {
+  checkForAdminEmail,
+  generateSnowflakeId,
+  logger,
+  OnboardingProfileSchema,
+  POINTS,
+  type PrivyUserWithEmails,
+} from '@babylon/shared';
 import type { User as PrivyUser } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { and, db, eq, follows, referrals, users, withTransaction } from '@babylon/db';
-import { isRetryableError, withRetry } from '@babylon/db';
-import { toDatabaseErrorType } from '@babylon/db';
-import { authenticate, getPrivyClient } from '@babylon/api';
-import { POINTS } from '@babylon/shared';
-import { ConflictError, InternalServerError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import type { OnboardingProfilePayload } from '@babylon/shared';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { notifyNewAccount } from '@babylon/api';
-import { PointsService } from '@babylon/api';
-import { getOrCreateReferralCode } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { getHashedClientIp } from '@babylon/api';
-import { OnboardingProfileSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
 
 interface SignupRequestBody {
   username: string;
@@ -119,6 +141,10 @@ interface SignupRequestBody {
   tosAccepted?: boolean;
   privacyPolicyAccepted?: boolean;
 }
+
+type PrivyUserWithWallets = PrivyUser &
+  PrivyUserWithEmails &
+  PrivyUserWalletsLite;
 
 const SignupSchema = OnboardingProfileSchema.extend({
   identityToken: z
@@ -147,7 +173,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const canonicalUserId = authUser.dbUserId ?? authUser.userId;
   const privyId = authUser.privyId ?? authUser.userId;
-  const walletAddress = authUser.walletAddress?.toLowerCase() ?? null;
+  // Embedded-wallet-only: persist the embedded wallet (EOA) as the user's onchain identity.
+  let walletAddress = authUser.walletAddress?.toLowerCase() ?? null;
+  let privyWalletId: string | null = null;
 
   // Capture and hash IP address for self-referral detection
   const registrationIpHash = getHashedClientIp(request.headers);
@@ -155,22 +183,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fetch identity data from Privy if token provided
   let identityFarcasterUsername: string | undefined;
   let identityTwitterUsername: string | undefined;
+  let adminEmailResult: ReturnType<typeof checkForAdminEmail> = {
+    adminEmail: null,
+    allVerifiedEmails: [],
+  };
 
   if (identityToken) {
-    try {
-      const privyClient = getPrivyClient();
-      const identityUser: PrivyUser =
-        await privyClient.getUserFromIdToken(identityToken);
+    const privyClient = getPrivyClient();
+    const identityUser = (await privyClient.getUserFromIdToken(
+      identityToken
+    )) as PrivyUserWithWallets;
 
-      identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
-      identityTwitterUsername = identityUser.twitter?.username ?? undefined;
-    } catch (error) {
-      logger.warn(
-        'Failed to decode identity token during signup',
-        { error },
-        'POST /api/users/signup'
-      );
-    }
+    identityFarcasterUsername = identityUser.farcaster?.username ?? undefined;
+    identityTwitterUsername = identityUser.twitter?.username ?? undefined;
+    // SECURITY: Get verified emails from Privy, not from user input
+    // Check ALL linked emails to support users who linked admin email after initial signup
+    adminEmailResult = checkForAdminEmail(identityUser);
   } else {
     logger.info(
       'Signup received no identity token; proceeding with provided payload only',
@@ -183,15 +211,25 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const importedTwitter = parsedProfile.importedFrom === 'twitter';
   const importedFarcaster = parsedProfile.importedFrom === 'farcaster';
 
+  const privyClient = getPrivyClient();
+  const privyUser = (await privyClient.getUser(
+    privyId
+  )) as PrivyUserWithWallets;
+  const embedded = pickEmbeddedEvmWallet(privyUser);
+  privyWalletId = embedded?.walletId ?? null;
+  walletAddress = embedded?.address?.toLowerCase() ?? walletAddress ?? null;
+
   // Wrap transaction with retry logic for connection errors
   const result = await withRetry(
     async () => {
       return await withTransaction(async (tx) => {
-        // Check if username is already taken by another user
+        // Check if username is already taken by another user (case-insensitive)
         const [existingUsername] = await tx
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.username, parsedProfile.username))
+          .where(
+            sql`lower(${users.username}) = lower(${parsedProfile.username})`
+          )
           .limit(1);
 
         if (existingUsername && existingUsername.id !== canonicalUserId) {
@@ -228,11 +266,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         // Only resolve referral if not already set
         if (!existingUser?.referredBy && normalizedCode) {
-          // First, try to find referrer by username (legacy system)
+          // First, try to find referrer by username (legacy system, case-insensitive)
           const [referrerByUsername] = await tx
             .select({ id: users.id })
             .from(users)
-            .where(eq(users.username, normalizedCode))
+            .where(sql`lower(${users.username}) = lower(${normalizedCode})`)
             .limit(1);
 
           if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
@@ -271,6 +309,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           bio: parsedProfile.bio ?? '',
           profileImageUrl: parsedProfile.profileImageUrl ?? null,
           coverImageUrl: parsedProfile.coverImageUrl ?? null,
+          privyWalletId,
           walletAddress,
           profileComplete: true,
           profileSetupCompletedAt: new Date(), // Track when profile was completed
@@ -330,11 +369,30 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
         if (existingUserRecord) {
           // Update existing user
+          // Also check if user should be auto-promoted to admin (for existing users with new verified email)
+          // Check ALL linked emails, not just the primary one
+          const { adminEmail, allVerifiedEmails } = adminEmailResult;
+          const shouldPromoteToAdmin =
+            !existingUserRecord.isAdmin && adminEmail !== null;
+
+          if (shouldPromoteToAdmin) {
+            logger.info(
+              'Auto-promoting existing user to admin during signup based on verified email domain',
+              {
+                userId: canonicalUserId,
+                emailDomain: adminEmail?.split('@')[1] ?? null,
+                emailCount: allVerifiedEmails.length,
+              },
+              'POST /api/users/signup'
+            );
+          }
+
           const [updatedUser] = await tx
             .update(users)
             .set({
               ...baseUserData,
               referredBy: resolvedReferrerId ?? existingUserRecord.referredBy,
+              isAdmin: shouldPromoteToAdmin ? true : existingUserRecord.isAdmin,
               updatedAt: new Date(),
             })
             .where(eq(users.id, canonicalUserId))
@@ -345,6 +403,26 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           user = updatedUser;
         } else {
           // Create new user
+          // Check if user should be auto-promoted to admin based on email domain
+          // SECURITY: Use Privy-verified email, not user-supplied email from parsedProfile
+          // This prevents attackers from submitting fake admin emails in the request body
+          // Check ALL linked emails, not just the primary one
+          const { adminEmail: newUserAdminEmail, allVerifiedEmails } =
+            adminEmailResult;
+          const shouldBeAdmin = newUserAdminEmail !== null;
+
+          if (shouldBeAdmin) {
+            logger.info(
+              'Auto-promoting new signup user to admin based on verified email domain',
+              {
+                userId: canonicalUserId,
+                emailDomain: newUserAdminEmail?.split('@')[1] ?? null,
+                emailCount: allVerifiedEmails.length,
+              },
+              'POST /api/users/signup'
+            );
+          }
+
           const [newUser] = await tx
             .insert(users)
             .values({
@@ -352,6 +430,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
               privyId,
               ...baseUserData,
               referredBy: resolvedReferrerId,
+              isAdmin: shouldBeAdmin,
               updatedAt: new Date(),
             })
             .returning();
@@ -611,15 +690,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/users/signup'
   );
 
-  try {
-    await notifyNewAccount(result.user.id);
-  } catch (error) {
-    logger.warn(
-      'Failed to send welcome notification',
-      { userId: result.user.id, error },
-      'POST /api/users/signup'
-    );
-  }
+  await notifyNewAccount(result.user.id);
 
   // Track signup with PostHog
   await trackServerEvent(result.user.id, 'signup_completed', {
@@ -634,6 +705,71 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     pointsBreakdown: pointsAwarded,
     importedFrom: parsedProfile.importedFrom || null,
   });
+
+  // Assign default alpha groups (async, non-blocking)
+  // New users get access to NPC group chats from day one
+  // This runs after the main signup flow to avoid blocking the response
+  if (!isWaitlist) {
+    UserAlphaGroupAssignmentService.assignDefaultGroups(result.user.id)
+      .then((assignmentResult) => {
+        if (assignmentResult.groupsAssigned > 0) {
+          logger.info(
+            'Assigned default alpha groups to new user',
+            {
+              userId: result.user.id,
+              groupsAssigned: assignmentResult.groupsAssigned,
+              assignments: assignmentResult.assignments.map((a) => ({
+                npc: a.npcName,
+                tier: a.tier,
+              })),
+            },
+            'POST /api/users/signup'
+          );
+          // Track successful assignment for monitoring
+          trackServerEvent(result.user.id, 'alpha_group_assignment.success', {
+            groupsAssigned: assignmentResult.groupsAssigned,
+            assignments: assignmentResult.assignments.map((a) => a.npcName),
+          }).catch(() => {
+            /* ignore tracking errors */
+          });
+        }
+        if (assignmentResult.errors.length > 0) {
+          logger.warn(
+            'Some default group assignments had errors',
+            {
+              userId: result.user.id,
+              errors: assignmentResult.errors,
+            },
+            'POST /api/users/signup'
+          );
+          // Track partial failures for monitoring
+          trackServerEvent(
+            result.user.id,
+            'alpha_group_assignment.partial_failure',
+            {
+              groupsAssigned: assignmentResult.groupsAssigned,
+              errorCount: assignmentResult.errors.length,
+            }
+          ).catch(() => {
+            /* ignore tracking errors */
+          });
+        }
+      })
+      .catch((error) => {
+        // Log but don't fail signup - alpha group assignment is non-critical
+        logger.warn(
+          'Failed to assign default alpha groups',
+          { userId: result.user.id, error: String(error) },
+          'POST /api/users/signup'
+        );
+        // Track failures for monitoring and alerting
+        trackServerEvent(result.user.id, 'alpha_group_assignment.failure', {
+          error: String(error),
+        }).catch(() => {
+          /* ignore tracking errors */
+        });
+      });
+  }
 
   return successResponse({
     user: {

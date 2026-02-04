@@ -7,6 +7,5 @@
 // Load testing utilities
 export * from '../load-test';
 
-// Simulation utilities
-export * from '../simulation';
-
+// Perp market simulation is now in @babylon/core/markets/perps
+// Agent benchmarking types are in ./shared/types.ts

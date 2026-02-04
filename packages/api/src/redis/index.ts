@@ -5,14 +5,15 @@
  */
 
 export {
-  redis,
+  closeRedis,
+  ensureRedisReady,
   getRedis,
   getRedisClient,
   isRedisAvailable,
-  safePublish,
-  safePoll,
-  closeRedis,
   type RedisInstance,
+  redis,
+  safePoll,
+  safePublish,
 } from './client';
 
-export { streamAdd, streamRead, type StreamMessage } from './streams';
+export { type StreamMessage, streamAdd, streamRead } from './streams';

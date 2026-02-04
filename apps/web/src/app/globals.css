@@ -26,17 +26,20 @@
   --chart-3: #f7b928;
   --chart-4: #17bf63;
   --chart-5: #e0245e;
-  --sidebar: #fafafa;
+  --sidebar: #ffffff;
   --sidebar-foreground: #0f1419;
   --sidebar-primary: #0066FF;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e3ecf6;
+  --sidebar-accent: #eeeeee;
   --sidebar-accent-foreground: #0066FF;
   --sidebar-border: #e1e8ed;
   --sidebar-ring: #0066FF;
   --scrollbar-track: #e5e5e6;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
+  /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
+     customized for onboarding-specific styling without affecting the global theme. */
+  --onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
@@ -76,7 +79,7 @@
   --accent-foreground: #0066FF;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #2f3336;
+  --border: #393d41;
   --input: #22303c;
   --ring: #0066FF;
   --chart-1: #0066FF;
@@ -84,17 +87,20 @@
   --chart-3: #f7b928;
   --chart-4: #17bf63;
   --chart-5: #e0245e;
-  --sidebar: #0a0a0a;
+  --sidebar: #000000;
   --sidebar-foreground: #d9d9d9;
   --sidebar-primary: #0066FF;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1a1a1a;
+  --sidebar-accent: #2a2a2a;
   --sidebar-accent-foreground: #0066FF;
-  --sidebar-border: #2f3336;
+  --sidebar-border: #393d41;
   --sidebar-ring: #0066FF;
   --scrollbar-track: #000000;
   --scrollbar-thumb: #0066FF;
   --scrollbar-thumb-hover: #2952d9;
+  /* Reserved for onboarding theme overrides. Currently aliases --primary but can be
+     customized for onboarding-specific styling without affecting the global theme. */
+  --onboarding-primary: var(--primary);
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -113,6 +119,10 @@
   --shadow-lg: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 4px 6px -1px hsl(226 89% 58% / 0.00);
   --shadow-xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 8px 10px -1px hsl(226 89% 58% / 0.00);
   --shadow-2xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
+}
+
+.writing-vertical-lr {
+  writing-mode: vertical-lr;
 }
 
 /* @tailwind-css v4 theme block */
@@ -150,6 +160,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-onboarding-primary: var(--onboarding-primary);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -176,12 +187,14 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
   /* Prevent native pull-to-refresh and overscroll effects */
   overscroll-behavior-y: contain;
-  overflow-y: auto;
 }
 
 /* Prevent pull-to-refresh on the entire app */
 html {
   overscroll-behavior-y: contain;
+  /* Always show scrollbar and reserve space to prevent layout shift */
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 /* All buttons and links should have pointer cursor */
@@ -288,9 +301,22 @@ button:disabled {
   animation: slide-in 0.3s ease-out;
 }
 
-/* Safe area for mobile bottom navigation */
-.safe-area-bottom {
+/* Safe area utilities for notched phones */
+.safe-area-bottom,
+.pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Word breaking for long content (URLs, long words) */
@@ -336,4 +362,68 @@ button:disabled {
 
 .touch-none {
   touch-action: none;
+}
+
+/* Chat neumorphic styles */
+.chat-card {
+  box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
+}
+
+.chat-button {
+  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.1), inset -3px -3px 3px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.chat-button:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+.message-input {
+  box-shadow: none;
+}
+
+.message-bubble {
+  box-shadow: none;
+}
+
+.chat-tab {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.1), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.chat-tab-active {
+  box-shadow: inset 3px 3px 5px var(--primary-glow, rgba(0, 102, 255, 0.3)), inset -3px -3px 5px var(--primary-glow-secondary, rgba(0, 102, 255, 0.1));
+}
+
+/* Dark mode adjustments for chat styles */
+.dark .chat-card {
+  box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.3), inset -5px -5px 5px rgba(255, 255, 255, 0.02);
+}
+
+.dark .chat-button {
+  box-shadow: inset 3px 3px 3px rgba(0, 0, 0, 0.3), inset -3px -3px 3px rgba(255, 255, 255, 0.02);
+}
+
+.dark .message-input {
+  box-shadow: none;
+}
+
+.dark .message-bubble {
+  box-shadow: none;
+}
+
+.dark .chat-tab {
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.3), inset -3px -3px 5px rgba(255, 255, 255, 0.02);
+}
+
+/* Daily Login Modal - Confetti Animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
 }

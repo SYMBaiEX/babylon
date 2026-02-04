@@ -37,6 +37,18 @@
  *           enum: [asc, desc]
  *           default: desc
  *         description: Sort order
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum groups to return (default 50, max 200)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
  *     responses:
  *       200:
  *         description: Groups retrieved successfully
@@ -60,38 +72,58 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import {
-  actors,
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   asc,
+  asSystem,
   chatParticipants,
   chats,
   desc,
   eq,
+  groups,
   inArray,
   messages,
-  userGroups,
   users,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { asSystem } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
+import { StaticDataRegistry } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/admin/groups
  * Get all group chats with filtering and sorting
- * Admin only
+ * Admin only (localhost bypass handled by requireAdmin)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Require admin authentication (includes localhost bypass)
-  await requireAdmin(request);
+  // Require admin (automatically bypassed on localhost)
+  const admin = await requireAdmin(request);
+
+  // Audit log the admin access
+  logAdminView({
+    adminId: admin.userId,
+    ipAddress: getClientIp(request.headers) ?? undefined,
+    resourceType: 'groups',
+    metadata: { action: 'list_all_groups' },
+  });
 
   // Get query parameters
   const { searchParams } = new URL(request.url);
   const creatorFilter = searchParams.get('creator'); // Filter by creator name
   const sortBy = searchParams.get('sortBy') || 'createdAt'; // createdAt, memberCount, messageCount
   const sortOrder = searchParams.get('sortOrder') || 'desc';
+  const limit = Math.min(
+    Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50),
+    200
+  );
+  const offset = Math.max(
+    0,
+    parseInt(searchParams.get('offset') || '0', 10) || 0
+  );
 
   // Get all data using asSystem in a single call to avoid nested async issues
   const { chatsList, allUsers, allActors, allUserGroups } = await asSystem(
@@ -163,25 +195,25 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
               .where(inArray(users.id, allUserIds))
           : [];
 
-      const allActors =
-        allUserIds.length > 0
-          ? await database
-              .select({
-                id: actors.id,
-                name: actors.name,
-                profileImageUrl: actors.profileImageUrl,
-              })
-              .from(actors)
-              .where(inArray(actors.id, allUserIds))
-          : [];
+      const allActors = allUserIds
+        .map((id) => StaticDataRegistry.getActor(id))
+        .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profileImageUrl: a.profileImageUrl,
+        }));
 
-      // Get all user groups
+      // Get all groups - indexed by ID for lookup
       const allUserGroups = await database
         .select({
-          name: userGroups.name,
-          createdById: userGroups.createdById,
+          id: groups.id,
+          name: groups.name,
+          createdById: groups.createdById,
+          ownerId: groups.ownerId,
+          type: groups.type,
         })
-        .from(userGroups);
+        .from(groups);
 
       // Group participants and messages by chat
       const participantsByChat = new Map<string, typeof participantsList>();
@@ -221,9 +253,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Create maps for quick lookup
   const usersMap = new Map(allUsers.map((u) => [u.id, u]));
   const actorsMap = new Map(allActors.map((a) => [a.id, a]));
-  const userGroupsMap = new Map(
-    allUserGroups.filter((g) => g.name).map((g) => [g.name!, g])
-  );
+  const groupsById = new Map(allUserGroups.map((g) => [g.id, g]));
 
   // Enrich with creator and participant details
   const enrichedChats = chatsList.map((chat) => {
@@ -246,37 +276,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     let creatorName = 'Unknown';
     let creatorId: string | null = null;
 
-    if (hasNPCs && !hasUsers) {
-      groupType = 'npc-only';
-      // Find creator from chat name or first NPC
-      const creator =
-        actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-        actorsInChat[0];
-      if (creator) {
-        creatorName = creator.name;
-        creatorId = creator.id;
-      }
-    } else if (hasNPCs && hasUsers) {
-      groupType = 'npc-mixed';
-      // Alpha group - NPC created
-      const creator =
-        actorsInChat.find((a) => chat.name?.includes(a.name)) ||
-        actorsInChat[0];
-      if (creator) {
-        creatorName = creator.name;
-        creatorId = creator.id;
+    // First, try to get type from Group schema (authoritative)
+    const linkedGroup = chat.groupId ? groupsById.get(chat.groupId) : null;
+
+    if (linkedGroup) {
+      // Use authoritative type from Group table
+      groupType = linkedGroup.type; // 'user' | 'npc' | 'agent'
+      const ownerId = linkedGroup.ownerId || linkedGroup.createdById;
+
+      // Find the owner/creator
+      const ownerUser = ownerId ? usersMap.get(ownerId) : null;
+      const ownerActor = ownerId ? actorsMap.get(ownerId) : null;
+
+      if (ownerActor) {
+        creatorName = ownerActor.name;
+        creatorId = ownerActor.id;
+      } else if (ownerUser) {
+        creatorName = ownerUser.displayName || ownerUser.username || 'Unknown';
+        creatorId = ownerUser.id;
       }
     } else {
-      groupType = 'user';
-      // Check UserGroup table from map
-      const userGroup = chat.name ? userGroupsMap.get(chat.name) : null;
-
-      if (userGroup) {
-        const creator = usersInChat.find((u) => u.id === userGroup.createdById);
+      // Legacy chats without linked Group - infer type from participants
+      if (hasNPCs && !hasUsers) {
+        groupType = 'npc-only';
+        const creator = actorsInChat[0];
         if (creator) {
-          creatorName = creator.displayName || creator.username || 'Unknown';
+          creatorName = creator.name;
           creatorId = creator.id;
         }
+      } else if (hasNPCs && hasUsers) {
+        groupType = 'npc-mixed';
+        const creator = actorsInChat[0];
+        if (creator) {
+          creatorName = creator.name;
+          creatorId = creator.id;
+        }
+      } else {
+        groupType = 'user';
       }
     }
 
@@ -351,11 +387,18 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
+  // Apply pagination
+  const total = filteredChats.length;
+  const paginatedChats = filteredChats.slice(offset, offset + limit);
+
   return NextResponse.json({
     success: true,
     data: {
-      groups: filteredChats,
-      total: filteredChats.length,
+      groups: paginatedChats,
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total,
     },
   });
 });

@@ -57,12 +57,41 @@ export { worldImpactAssessment } from './game/world-impact';
 // Image prompts
 export { actorBanner, actorPortrait } from './image/actor-portrait';
 export {
+  articleCover,
+  getRandomTwist,
+  SURREAL_TWISTS,
+} from './image/article-cover';
+export {
   organizationBanner,
   organizationLogo,
 } from './image/organization-logo';
 export { userProfileBanner } from './image/user-profile-banner';
 export { userProfilePicture } from './image/user-profile-picture';
 export { getPromptParams, renderPrompt } from './loader';
+// Random context for entropy in prompts
+export {
+  formatRandomContext,
+  generateRandomMarketContext,
+  type RandomMarketContext,
+} from './random-context';
+// Reality grounding utilities
+export { getWorldEventExamples } from './reality-grounding';
+// Shared sections utilities
+export {
+  ANTI_REPETITION_RULES,
+  buildStandardPromptSections,
+  CHARACTER_ROSTER_HEADER,
+  characterVoiceGuidance,
+  EVENT_CONTINUITY_RULES,
+  FULL_CONTEXT_HEADER,
+  getTimeOfDayEnergy,
+  NARRATIVE_CONTINUITY_RULES,
+  NPC_POST_QUALITY_RULES,
+  PARODY_NAME_RULES,
+  PRIVATE_CONTENT_GUIDANCE,
+  QUESTION_CONTINUITY_RULES,
+  RICH_NARRATIVE_CONTEXT_HEADER,
+} from './shared-sections';
 // System prompts
 export { xmlAssistant } from './system/json-assistant';
 // Trading prompts
@@ -70,6 +99,19 @@ export {
   getShuffledExamplesText,
   npcMarketDecisions,
 } from './trading/npc-market-decisions';
+// Validation utilities
+export {
+  CHARACTER_LIMITS,
+  type ValidationResult,
+  validateArticle,
+  validateCharacterLimit,
+  validateFeedPost,
+  validateHashtags,
+  validateNoEmojis,
+  validateNoRealNames,
+  validateNoRealNamesStrict,
+  validatePostBatch,
+} from './validate-output';
 export { daySummary } from './world/day-summary';
 export { expertAnalysis } from './world/expert-analysis';
 export { newsReport } from './world/news-report';
@@ -92,31 +134,7 @@ export {
   getParodyActorNames,
   getRealityGrounding,
   validateGeneratedContent,
-  validateNoRealNames,
 } from './world-context';
-// Reality grounding utilities
-export { getWorldEventExamples } from './reality-grounding';
-// Shared sections utilities
-export { getTimeOfDayEnergy } from './shared-sections';
-// Random context for entropy in prompts
-export {
-  formatRandomContext,
-  generateRandomMarketContext,
-  type RandomMarketContext,
-} from './random-context';
-// Validation utilities
-export {
-  CHARACTER_LIMITS,
-  type ValidationResult,
-  validateCharacterLimit,
-  validateArticle,
-  validateFeedPost,
-  validateHashtags,
-  validateNoEmojis,
-  validateNoHashtags,
-  validateNoRealNames as validateNoRealNamesStrict,
-  validatePostBatch,
-} from './validate-output';
 
 /**
  * Usage examples:

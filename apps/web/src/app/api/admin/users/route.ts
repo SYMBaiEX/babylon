@@ -89,8 +89,7 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
-import type { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
   asc,
@@ -100,19 +99,19 @@ import {
   desc,
   eq,
   follows,
-  ilike,
-  or,
+  inArray,
   positions,
   reactions,
   reports,
   type SQL,
+  sql,
   userBlocks,
   userMutes,
   users,
 } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -167,14 +166,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (params.search) {
-    const searchCondition = or(
-      ilike(users.username, `%${params.search}%`),
-      ilike(users.displayName, `%${params.search}%`),
-      ilike(users.walletAddress, `%${params.search}%`)
-    );
-    if (searchCondition) {
-      conditions.push(searchCondition);
-    }
+    // Escape special LIKE/ILIKE characters to prevent pattern injection
+    // Using backslash as escape character, which is specified in raw SQL
+    const escapedSearch = params.search
+      .replace(/\\/g, '\\\\') // Escape backslashes first
+      .replace(/%/g, '\\%') // Escape percent
+      .replace(/_/g, '\\_'); // Escape underscore
+
+    // Use raw SQL with ESCAPE clause to properly handle escaped wildcards
+    const searchPattern = `%${escapedSearch}%`;
+    const searchCondition = sql`(
+      ${users.username} ILIKE ${searchPattern} ESCAPE '\\' OR
+      ${users.displayName} ILIKE ${searchPattern} ESCAPE '\\' OR
+      ${users.walletAddress} ILIKE ${searchPattern} ESCAPE '\\'
+    )`;
+    conditions.push(searchCondition);
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -233,7 +239,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     .where(whereClause);
   const total = totalResult?.count ?? 0;
 
-  // Get moderation counts per user (batched queries)
+  // Get user IDs for batched count queries (only for paginated results)
+  const userIds = usersResult.map((u) => u.id);
+
+  // Get moderation counts per user (batched queries - filtered to only fetched users)
   const [
     commentCounts,
     reactionCounts,
@@ -244,53 +253,65 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     blocksReceived,
     mutesReceived,
     reportsSent,
-  ] = await Promise.all([
-    // Comment counts
-    db
-      .select({ userId: comments.authorId, count: count() })
-      .from(comments)
-      .groupBy(comments.authorId),
-    // Reaction counts
-    db
-      .select({ userId: reactions.userId, count: count() })
-      .from(reactions)
-      .groupBy(reactions.userId),
-    // Position counts
-    db
-      .select({ userId: positions.userId, count: count() })
-      .from(positions)
-      .groupBy(positions.userId),
-    // Follower counts (users following this user)
-    db
-      .select({ userId: follows.followingId, count: count() })
-      .from(follows)
-      .groupBy(follows.followingId),
-    // Following counts (users this user follows)
-    db
-      .select({ userId: follows.followerId, count: count() })
-      .from(follows)
-      .groupBy(follows.followerId),
-    // Reports received
-    db
-      .select({ userId: reports.reportedUserId, count: count() })
-      .from(reports)
-      .groupBy(reports.reportedUserId),
-    // Blocks received
-    db
-      .select({ userId: userBlocks.blockedId, count: count() })
-      .from(userBlocks)
-      .groupBy(userBlocks.blockedId),
-    // Mutes received
-    db
-      .select({ userId: userMutes.mutedId, count: count() })
-      .from(userMutes)
-      .groupBy(userMutes.mutedId),
-    // Reports sent
-    db
-      .select({ userId: reports.reporterId, count: count() })
-      .from(reports)
-      .groupBy(reports.reporterId),
-  ]);
+  ] =
+    userIds.length > 0
+      ? await Promise.all([
+          // Comment counts
+          db
+            .select({ userId: comments.authorId, count: count() })
+            .from(comments)
+            .where(inArray(comments.authorId, userIds))
+            .groupBy(comments.authorId),
+          // Reaction counts
+          db
+            .select({ userId: reactions.userId, count: count() })
+            .from(reactions)
+            .where(inArray(reactions.userId, userIds))
+            .groupBy(reactions.userId),
+          // Position counts
+          db
+            .select({ userId: positions.userId, count: count() })
+            .from(positions)
+            .where(inArray(positions.userId, userIds))
+            .groupBy(positions.userId),
+          // Follower counts (users following this user)
+          db
+            .select({ userId: follows.followingId, count: count() })
+            .from(follows)
+            .where(inArray(follows.followingId, userIds))
+            .groupBy(follows.followingId),
+          // Following counts (users this user follows)
+          db
+            .select({ userId: follows.followerId, count: count() })
+            .from(follows)
+            .where(inArray(follows.followerId, userIds))
+            .groupBy(follows.followerId),
+          // Reports received
+          db
+            .select({ userId: reports.reportedUserId, count: count() })
+            .from(reports)
+            .where(inArray(reports.reportedUserId, userIds))
+            .groupBy(reports.reportedUserId),
+          // Blocks received
+          db
+            .select({ userId: userBlocks.blockedId, count: count() })
+            .from(userBlocks)
+            .where(inArray(userBlocks.blockedId, userIds))
+            .groupBy(userBlocks.blockedId),
+          // Mutes received
+          db
+            .select({ userId: userMutes.mutedId, count: count() })
+            .from(userMutes)
+            .where(inArray(userMutes.mutedId, userIds))
+            .groupBy(userMutes.mutedId),
+          // Reports sent
+          db
+            .select({ userId: reports.reporterId, count: count() })
+            .from(reports)
+            .where(inArray(reports.reporterId, userIds))
+            .groupBy(reports.reporterId),
+        ])
+      : [[], [], [], [], [], [], [], [], []];
 
   // Build lookup maps
   const commentCountMap = new Map(
@@ -367,6 +388,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   });
 
   // Sort based on query parameter (for moderation metrics, we sort after fetching)
+  //
+  // KNOWN LIMITATION: Moderation-based sorting (reports_received, blocks_received,
+  // mutes_received, report_ratio, block_ratio, bad_user_score) requires fetching
+  // all users within the filter and sorting in-memory, ignoring the LIMIT parameter.
+  // This is because moderation metrics are computed from aggregated counts across
+  // multiple tables (reports, blocks, mutes) and cannot be efficiently sorted in SQL
+  // without either:
+  // 1. Pre-computing scores in a denormalized column (adds maintenance overhead)
+  // 2. Using SQL window functions with CTEs (complex query, still full scan)
+  //
+  // For typical admin use cases with < 100k users, in-memory sorting is acceptable.
+  // If performance becomes an issue, consider:
+  // - Pre-computing badUserScore in a scheduled job
+  // - Adding materialized views for moderation metrics
+  // - Caching results with TTL for repeated queries
   if (params.sortBy === 'reports_received') {
     usersWithMetrics.sort((a, b) => {
       const diff =

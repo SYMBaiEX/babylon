@@ -51,15 +51,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  getOrCreateReferralCode,
+  NotFoundError,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, eq, users } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { getOrCreateReferralCode } from '@babylon/api';
-import { requireUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
+import { logger, UserIdParamSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/referral-code

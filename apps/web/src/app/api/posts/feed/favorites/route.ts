@@ -87,9 +87,10 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import {
   and,
+  asUser,
   comments,
   count,
   desc,
@@ -102,11 +103,8 @@ import {
   reactions,
   shares,
 } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PostFeedQuerySchema } from '@babylon/shared';
+import { logger, PostFeedQuerySchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/posts/feed/favorites

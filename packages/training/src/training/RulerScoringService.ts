@@ -23,6 +23,7 @@ import {
   not,
   trajectories,
 } from '@babylon/db';
+import type { JsonValue } from '@babylon/shared';
 import { asUUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -31,7 +32,8 @@ import {
   type TrajectoryForTraining,
   type TrajectoryStepForTraining,
 } from '../dependencies';
-import { logger } from '../utils/logger';
+import { getRubric, sanitizeArchetype } from '../rubrics';
+import { logger, splitIntoBatches } from '../utils';
 import type { TrajectoryStep as TrainingTrajectoryStep } from './types';
 
 // Use types from dependencies
@@ -120,10 +122,7 @@ export class RulerScoringService {
         continue;
       }
 
-      const batches = this.splitIntoBatches(
-        group.trajectories,
-        this.maxGroupSize
-      );
+      const batches = splitIntoBatches(group.trajectories, this.maxGroupSize);
 
       for (const batch of batches) {
         const scored = await this.scoreGroup(batch, group.scenarioId);
@@ -197,12 +196,14 @@ export class RulerScoringService {
       scenarioId: string | null;
       finalPnL: number | null;
       episodeLength: number | null;
+      archetype: string | null;
     }>,
     scenarioId: string
   ): Promise<number> {
     const richTrajectories: Array<{
       traj: RichTrajectory;
       messages: Array<{ role: string; content: string }>;
+      archetype: string;
     }> = [];
 
     for (const dbTraj of trajectoriesData) {
@@ -221,20 +222,7 @@ export class RulerScoringService {
         continue;
       }
 
-      let steps: TrainingTrajectoryStep[];
-      try {
-        steps = JSON.parse(dbTraj.stepsJson) as TrainingTrajectoryStep[];
-      } catch (error) {
-        logger.error(
-          'Failed to parse stepsJson',
-          {
-            trajectoryId: dbTraj.trajectoryId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'RulerScoring'
-        );
-        continue;
-      }
+      const steps = JSON.parse(dbTraj.stepsJson) as TrainingTrajectoryStep[];
 
       const stepTimestamp = Date.now();
       const richTraj: RichTrajectory = {
@@ -261,7 +249,7 @@ export class RulerScoringService {
               providerId: uuidv4(),
               providerName: p.providerName,
               timestamp: s.timestamp || stepTimestamp + idx,
-              query: p.data as Record<string, unknown>,
+              query: p.data as Record<string, JsonValue>,
               data: p.data,
               purpose: p.purpose,
             })),
@@ -317,7 +305,9 @@ export class RulerScoringService {
 
       const toARTMessages = getToTrainingMessages();
       const messages = toARTMessages(richTraj);
-      richTrajectories.push({ traj: richTraj, messages });
+      // Sanitize archetype to prevent prompt injection and handle null/empty values
+      const archetype = sanitizeArchetype(dbTraj.archetype);
+      richTrajectories.push({ traj: richTraj, messages, archetype });
     }
 
     if (richTrajectories.length < this.minGroupSize) {
@@ -419,6 +409,7 @@ export class RulerScoringService {
     richTrajectories: Array<{
       traj: RichTrajectory;
       messages: Array<{ role: string; content: string }>;
+      archetype: string;
     }>,
     commonPrefix: Array<{ role: string; content: string }>,
     scenarioId: string
@@ -435,6 +426,7 @@ export class RulerScoringService {
       const trajId = `trajectory-${i + 1}`;
 
       contextParts.push(`\n${trajId}:`);
+      contextParts.push(`  - Archetype: ${rt.archetype}`);
       contextParts.push(
         `  - Final P&L: $${rt.traj.metrics.finalPnL?.toFixed(2) || '0.00'}`
       );
@@ -495,12 +487,27 @@ export class RulerScoringService {
 
     const prompt = `${userContent}${contextParts.join('\n')}\n\nTrajectories:\n\n${trajectorySections.join('\n\n')}`;
 
-    const systemPrompt = `You are an expert evaluator of AI agent performance. All trajectories below were given the same goal/scenario. Your job is to compare them and assign scores from 0 to 1 based on how well each trajectory achieved its goal.
+    // Determine archetype-specific rubric
+    // If all trajectories share the same archetype, use that archetype's rubric
+    // Otherwise, fall back to the default rubric
+    const archetypes = [...new Set(richTrajectories.map((rt) => rt.archetype))];
+    const isSingleArchetype =
+      archetypes.length === 1 && archetypes[0] !== 'default';
+    const rubric = isSingleArchetype
+      ? getRubric(archetypes[0]!)
+      : DEFAULT_RUBRIC;
+    const archetypeContext = isSingleArchetype
+      ? `\n\nYou are evaluating ${archetypes[0]!.toUpperCase()} agents. Score them based on how well they embody that archetype's behavior and goals.`
+      : archetypes.length > 1
+        ? `\n\nNote: This group contains mixed archetypes (${archetypes.join(', ')}). Consider each agent's archetype when scoring.`
+        : '';
+
+    const systemPrompt = `You are an expert evaluator of AI agent performance. All trajectories below were given the same goal/scenario. Your job is to compare them and assign scores from 0 to 1 based on how well each trajectory achieved its goal.${archetypeContext}
 
 Grading standards:
-${DEFAULT_RUBRIC}
+${rubric}
 
-Important: Use the performance context provided (P&L, episode length, success rate) to inform your scoring, but also consider the quality of decision-making, efficiency, and goal achievement shown in the trajectory messages.`;
+Important: Use the performance context provided (P&L, episode length, success rate, archetype) to inform your scoring, but also consider the quality of decision-making, efficiency, and goal achievement shown in the trajectory messages.`;
 
     return JSON.stringify({
       system: systemPrompt,
@@ -514,19 +521,10 @@ Important: Use the performance context provided (P&L, episode length, success ra
    * Uses structured output format to ensure valid JSON response.
    */
   private async callJudge(promptJson: string): Promise<RulerResponse | null> {
-    let promptData: { system: string; user: string };
-    try {
-      promptData = JSON.parse(promptJson);
-    } catch (error) {
-      logger.error(
-        'Failed to parse judge prompt JSON',
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'RulerScoring'
-      );
-      return null;
-    }
+    const promptData = JSON.parse(promptJson) as {
+      system: string;
+      user: string;
+    };
 
     const structuredPrompt = `${promptData.user}
 
@@ -576,20 +574,7 @@ Return ONLY the JSON, no other text.`;
       return null;
     }
 
-    let parsed: RulerResponse;
-    try {
-      parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
-    } catch (error) {
-      logger.error(
-        'Failed to parse judge response JSON',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          jsonText: jsonText.substring(0, 500),
-        },
-        'RulerScoring'
-      );
-      return null;
-    }
+    const parsed = JSON.parse(jsonMatch[0]) as RulerResponse;
 
     if (!parsed.scores || !Array.isArray(parsed.scores)) {
       logger.error(
@@ -651,6 +636,7 @@ Return ONLY the JSON, no other text.`;
       scenarioId: string | null;
       finalPnL: number | null;
       episodeLength: number | null;
+      archetype: string | null;
     }>
   ): Array<{ scenarioId: string; trajectories: typeof trajectoriesData }> {
     const groups = new Map<string, typeof trajectoriesData>();
@@ -670,17 +656,6 @@ Return ONLY the JSON, no other text.`;
   }
 
   /**
-   * Split large groups into optimal-sized batches
-   */
-  private splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
-    const batches: T[][] = [];
-    for (let i = 0; i < items.length; i += batchSize) {
-      batches.push(items.slice(i, i + batchSize));
-    }
-    return batches;
-  }
-
-  /**
    * Get trajectories to score
    */
   private async getTrajectoriesToScore(trajectoryIds?: string[]) {
@@ -692,6 +667,7 @@ Return ONLY the JSON, no other text.`;
           scenarioId: trajectories.scenarioId,
           finalPnL: trajectories.finalPnL,
           episodeLength: trajectories.episodeLength,
+          archetype: trajectories.archetype,
         })
         .from(trajectories)
         .where(
@@ -710,6 +686,7 @@ Return ONLY the JSON, no other text.`;
         scenarioId: trajectories.scenarioId,
         finalPnL: trajectories.finalPnL,
         episodeLength: trajectories.episodeLength,
+        archetype: trajectories.archetype,
       })
       .from(trajectories)
       .where(

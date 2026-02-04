@@ -8,6 +8,7 @@
  */
 
 import { createGroq } from '@ai-sdk/groq';
+import { GROQ_MODELS } from '@babylon/shared';
 import type {
   IAgentRuntime,
   ModelTypeName,
@@ -26,15 +27,22 @@ import { logger } from '../shared/logger';
 import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 import type { TrajectoryLoggerService } from './plugin-trajectory-logger/src/TrajectoryLoggerService';
 
+function getStringSetting(
+  runtime: IAgentRuntime,
+  key: string
+): string | undefined {
+  const value = runtime.getSetting(key);
+  return typeof value === 'string' ? value : undefined;
+}
+
 /**
  * Gets Groq base URL from runtime settings
  * @internal
  */
-function getBaseURL(runtime: {
-  getSetting: (key: string) => string | undefined;
-}): string {
+function getBaseURL(runtime: IAgentRuntime): string {
   return (
-    runtime.getSetting('GROQ_BASE_URL') || 'https://api.groq.com/openai/v1'
+    getStringSetting(runtime, 'GROQ_BASE_URL') ||
+    'https://api.groq.com/openai/v1'
   );
 }
 
@@ -45,8 +53,8 @@ function getBaseURL(runtime: {
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
     model === ModelType.TEXT_SMALL
-      ? (process.env.SMALL_GROQ_MODEL ?? 'llama-3.1-8b-instant')
-      : (process.env.LARGE_GROQ_MODEL ?? 'qwen/qwen3-32b');
+      ? GROQ_MODELS.FREE.modelId
+      : GROQ_MODELS.PRO.modelId;
   return name as TiktokenModel;
 }
 
@@ -173,7 +181,11 @@ async function generateGroqObject(
     });
   }
 
-  return object;
+  if (typeof object === 'object' && object !== null && !Array.isArray(object)) {
+    return object as Record<string, unknown>;
+  }
+
+  return { value: object } satisfies Record<string, unknown>;
 }
 
 export const groqPlugin: Plugin = {
@@ -181,8 +193,8 @@ export const groqPlugin: Plugin = {
   description: 'Groq plugin for Babylon agents',
   config: {
     GROQ_API_KEY: process.env.GROQ_API_KEY,
-    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'llama-3.1-8b-instant',
-    LARGE_GROQ_MODEL: process.env.LARGE_GROQ_MODEL || 'qwen/qwen3-32b',
+    GROQ_SMALL_MODEL: GROQ_MODELS.FREE.modelId,
+    GROQ_LARGE_MODEL: GROQ_MODELS.PRO.modelId,
   },
   async init() {
     if (!process.env.GROQ_API_KEY) {
@@ -212,15 +224,12 @@ export const groqPlugin: Plugin = {
       const max_response_length = 8000;
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
-        fetch: runtime.fetch,
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
 
-      const model =
-        runtime.getSetting('GROQ_SMALL_MODEL') ??
-        runtime.getSetting('SMALL_MODEL') ??
-        'llama-3.1-8b-instant';
+      const model = GROQ_MODELS.FREE.modelId;
 
       interface RuntimeWithExtensions extends IAgentRuntime {
         trajectoryLogger?: TrajectoryLoggerService;
@@ -258,18 +267,15 @@ export const groqPlugin: Plugin = {
       }: GenerateTextParams
     ) => {
       const baseURL = getBaseURL(runtime);
-      const apiKey = runtime.getSetting('GROQ_API_KEY') || '';
+      const apiKey = getStringSetting(runtime, 'GROQ_API_KEY') ?? '';
 
       const groq = createGroq({
         apiKey,
-        fetch: runtime.fetch,
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
 
-      const model =
-        runtime.getSetting('GROQ_LARGE_MODEL') ??
-        runtime.getSetting('LARGE_MODEL') ??
-        'qwen/qwen3-32b';
+      const model = GROQ_MODELS.PRO.modelId;
 
       type RuntimeWithTrajectory = typeof runtime & {
         trajectoryLogger?: TrajectoryLoggerService;
@@ -310,13 +316,11 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
-      const model =
-        runtime.getSetting('GROQ_SMALL_MODEL') ??
-        runtime.getSetting('SMALL_MODEL') ??
-        'llama-3.1-8b-instant';
+      const model = GROQ_MODELS.FREE.modelId;
 
       return await generateGroqObject(groq, model, params);
     },
@@ -326,13 +330,11 @@ export const groqPlugin: Plugin = {
     ) => {
       const baseURL = getBaseURL(runtime);
       const groq = createGroq({
-        apiKey: runtime.getSetting('GROQ_API_KEY'),
+        apiKey: getStringSetting(runtime, 'GROQ_API_KEY') ?? '',
+        fetch: runtime.fetch ?? undefined,
         baseURL,
       });
-      const model =
-        runtime.getSetting('GROQ_LARGE_MODEL') ??
-        runtime.getSetting('LARGE_MODEL') ??
-        'qwen/qwen3-32b';
+      const model = GROQ_MODELS.PRO.modelId;
 
       return await generateGroqObject(groq, model, params);
     },

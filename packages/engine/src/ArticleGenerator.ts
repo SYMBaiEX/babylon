@@ -35,7 +35,7 @@
  * - Insider quotes from affiliated journalists
  *
  * @see {@link FeedGenerator} - Also generates short-form posts
- * @see {@link GameEngine} - Uses ArticleGenerator for mixed content
+ * @see {@link executeGameTick} - Production tick uses ArticleGenerator for mixed content
  *
  * @example
  * ```typescript
@@ -57,61 +57,23 @@
  * ```
  */
 
-import { generateSnowflakeId, logger } from '@babylon/shared';
-import { characterMappingService } from './services/character-mapping-service';
-import { shuffleArray } from './utils/randomization';
-import { biasedArticle, renderPrompt, validateArticle } from './prompts';
-import type { Actor, Organization, Question, WorldEvent } from './types/shared';
+import {
+  type Article,
+  generateSnowflakeId,
+  type JsonValue,
+  logger,
+} from '@babylon/shared';
 import type { BabylonLLMClient } from './llm/openai-client';
+import { biasedArticle, renderPrompt, validateArticle } from './prompts';
+import { characterMappingService } from './services/character-mapping-service';
+import type { Actor, Organization, Question, WorldEvent } from './types/shared';
+import { shuffleArray } from './utils/randomization';
+import { stripHashtagsAndEmojis } from './utils/shared-utils';
+
+// Re-export Article for consumers that import from this file
+export type { Article } from '@babylon/shared';
 
 type ArticleStage = 'breaking' | 'commentary' | 'resolution';
-
-/**
- * Long-form news article with metadata
- *
- * @interface Article
- *
- * @property id - Unique snowflake ID
- * @property title - Article headline
- * @property summary - 2-3 sentence summary for listings
- * @property content - Full article body (800-1500 words)
- * @property authorOrgId - Publishing organization ID
- * @property authorOrgName - Publishing organization name
- * @property byline - Optional journalist byline
- * @property bylineActorId - Optional journalist actor ID
- * @property biasScore - Bias direction (-1 critical, 0 neutral, +1 protective)
- * @property sentiment - Overall article sentiment
- * @property slant - Description of editorial angle
- * @property imageUrl - Optional hero image
- * @property relatedEventId - Event this article covers
- * @property relatedQuestion - Optional prediction market question ID
- * @property relatedActorIds - Actors mentioned in article
- * @property relatedOrgIds - Organizations mentioned in article
- * @property category - Article category (e.g., 'tech', 'scandal', 'finance')
- * @property tags - SEO/filtering tags
- * @property publishedAt - Publication timestamp
- */
-export interface Article {
-  id: string;
-  title: string;
-  summary: string;
-  content: string;
-  authorOrgId: string;
-  authorOrgName: string;
-  byline?: string;
-  bylineActorId?: string;
-  biasScore?: number;
-  sentiment?: 'positive' | 'negative' | 'neutral';
-  slant?: string;
-  imageUrl?: string;
-  relatedEventId?: string;
-  relatedQuestion?: number;
-  relatedActorIds: string[];
-  relatedOrgIds: string[];
-  category?: string;
-  tags: string[];
-  publishedAt: Date;
-}
 
 interface ArticleGenerationContext {
   event: WorldEvent;
@@ -121,6 +83,7 @@ interface ArticleGenerationContext {
   opposingActors: string[]; // Actors the org opposes
   insiderInfo?: string; // Insider information to include
   recentEvents: WorldEvent[]; // Context from recent events
+  worldContext?: string; // World facts context (game state, recent happenings)
 }
 
 /**
@@ -168,6 +131,7 @@ export class ArticleGenerator {
    * @param stage - Article stage (breaking/commentary/resolution)
    * @param actors - All game actors
    * @param recentEvents - Recent events for context
+   * @param worldContext - World facts context (game state, recent happenings)
    * @returns Article with stage-appropriate content
    *
    * @description
@@ -179,7 +143,8 @@ export class ArticleGenerator {
     organization: Organization,
     stage: ArticleStage,
     actors: Actor[],
-    recentEvents: WorldEvent[] = []
+    recentEvents: WorldEvent[] = [],
+    worldContext?: string
   ): Promise<Article> {
     // Strict validation - fail fast on bad inputs
     if (!question || !question.id || !question.text) {
@@ -205,7 +170,8 @@ export class ArticleGenerator {
       organization,
       stage,
       actors,
-      recentEvents
+      recentEvents,
+      worldContext
     );
 
     const article = await this.generateArticle(context);
@@ -238,7 +204,8 @@ export class ArticleGenerator {
     org: Organization,
     stage: ArticleStage,
     actors: Actor[],
-    recentEvents: WorldEvent[]
+    recentEvents: WorldEvent[],
+    worldContext?: string
   ): ArticleGenerationContext {
     // Find journalist from this org
     const journalist = actors.find((a) => a.affiliations?.includes(org.id));
@@ -272,6 +239,7 @@ export class ArticleGenerator {
       recentEvents: recentEvents
         .filter((e) => e.relatedQuestion === questionIdNumber)
         .slice(0, 3),
+      worldContext,
     };
   }
 
@@ -571,12 +539,12 @@ export class ArticleGenerator {
       // If slant is an object, try to extract the actual value or stringify it
       if (
         'response' in articleData.slant &&
-        typeof (articleData.slant as Record<string, unknown>).response ===
+        typeof (articleData.slant as Record<string, JsonValue>).response ===
           'object'
       ) {
         // If there's a nested response object, it's malformed - extract title or summary as fallback
-        const nestedResponse = (articleData.slant as Record<string, unknown>)
-          .response as Record<string, unknown>;
+        const nestedResponse = (articleData.slant as Record<string, JsonValue>)
+          .response as Record<string, JsonValue>;
         slantString =
           (nestedResponse.slant as string) ||
           (nestedResponse.title as string) ||
@@ -589,12 +557,18 @@ export class ArticleGenerator {
       slantString = undefined;
     }
 
+    // Strip hashtags and emojis (defense-in-depth, prompt also instructs no hashtags/emojis)
+    const cleanTitle = stripHashtagsAndEmojis(title);
+    const cleanSummary = stripHashtagsAndEmojis(summary);
+    const cleanContent = stripHashtagsAndEmojis(content);
+
     // Apply character mapping to prevent real name leakage
-    const titleTransformed = await characterMappingService.transformText(title);
+    const titleTransformed =
+      await characterMappingService.transformText(cleanTitle);
     const summaryTransformed =
-      await characterMappingService.transformText(summary);
+      await characterMappingService.transformText(cleanSummary);
     const contentTransformed =
-      await characterMappingService.transformText(content);
+      await characterMappingService.transformText(cleanContent);
 
     if (
       titleTransformed.replacementCount > 0 ||
@@ -668,6 +642,7 @@ export class ArticleGenerator {
       alignedActors,
       opposingActors,
       recentEvents,
+      worldContext,
     } = context;
 
     let biasInstructions = '';
@@ -702,10 +677,18 @@ BIAS INSTRUCTIONS:
 `;
     }
 
+    // Build world context section - includes game state and recent happenings
+    // Double newline provides visual separation in the prompt
+    const worldContextSection = worldContext
+      ? `WORLD CONTEXT:\n${worldContext}\n\n`
+      : '';
+
+    // Empty string when no events - worldContext already provides recent happenings,
+    // so omitting "No recent context" avoids redundant/confusing prompt text
     const recentContext =
       recentEvents.length > 0
-        ? `RECENT CONTEXT (for background):\n${recentEvents.map((e) => `- ${e.description}`).join('\n')}`
-        : 'No recent context available.';
+        ? `RECENT EVENTS:\n${recentEvents.map((e) => `- ${e.description}`).join('\n')}`
+        : '';
 
     const relatedQuestionContext = event.relatedQuestion
       ? `Related to Prediction Market Question #${event.relatedQuestion}`
@@ -718,6 +701,7 @@ BIAS INSTRUCTIONS:
       eventDescription: event.description,
       eventType: event.type,
       relatedQuestionContext,
+      worldContext: worldContextSection,
       recentContext,
       biasInstructions,
     });

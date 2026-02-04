@@ -20,31 +20,63 @@
  */
 
 import {
-  actors,
+  actorState,
   and,
   count,
   db,
   desc,
   eq,
+  games,
   gte,
   isNull,
   lt,
-  organizations,
+  max,
   posts,
   questions,
 } from '@babylon/db';
-import type { BabylonLLMClient } from '@babylon/engine';
 import { logger } from '@babylon/shared';
-import { generateEvents } from './event-generation-helpers';
+import {
+  CONTENT_PACING,
+  getTimeOfDayMultiplier,
+  shouldActorPost,
+} from '../config/content-pacing';
+import type { BabylonLLMClient } from '../llm/openai-client';
+import { getGameDayNumber, toSafeDayNumber } from '../utils/date-utils';
+import {
+  secureRandom,
+  secureShuffle,
+  urgencyWeight,
+  weightedPick,
+} from '../utils/entropy';
+import { worldFactsService } from '../world-facts-service';
+// generateEvents is now consolidated in game-tick and narrative-event-processor
+import {
+  getActorRivals,
+  shouldGenerateOrganicPost,
+  shouldPostAboutTopic,
+} from './npc-character-config';
 import {
   generateNPCPost,
-  generateOrgArticle,
+  generateOrganicPost,
   generateOrgPost,
+  generateRivalryPost,
+  loadSharedPostContext,
 } from './post-generation-helpers';
-import { worldFactsService } from '../world-facts-service';
+import { StaticDataRegistry } from './static-data-registry';
+import {
+  type DiverseTopicSuggestion,
+  getTopicDiversityService,
+} from './topic-diversity-service';
 
 const LOOKAHEAD_MINUTES = 15; // Generate 15 minutes ahead
 const GENERATION_BATCH_MINUTES = 5; // Generate in 5-minute batches
+const DIVERSITY_QUOTA = 0.2; // 20% of posts should cover diverse topics
+const ORGANIC_POST_RATIO = 0.15; // 15% of posts should be organic (no topic)
+const RIVALRY_POST_RATIO = 0.1; // 10% of posts should be rivalry-driven
+const ACTOR_POST_RATIO = 0.95; // 95% of posts should be from actors (NPCs)
+
+// NOTE: Articles are now event-driven only via article-tick (rate-limited to 2/hour).
+// Lookahead service only generates short posts, never articles.
 
 /**
  * Check how far ahead content is generated
@@ -94,6 +126,194 @@ export async function checkLookaheadStatus(): Promise<{
     latestTimestamp: latest,
     needsGeneration,
   };
+}
+
+/**
+ * Extract price levels from text (e.g., "$94,000", "94k", "$100k")
+ * @param text - Text to extract prices from
+ * @returns Array of normalized price strings (lowercase, no commas)
+ */
+export function extractPrices(text: string): string[] {
+  const priceMatches = text.match(/\$?[\d,]+(?:k|K|,\d{3})?/g);
+  if (!priceMatches) return [];
+  return priceMatches.map((p) => p.toLowerCase().replace(/,/g, ''));
+}
+
+/**
+ * Extract percentage changes from text (e.g., "+15%", "-20%", "3.5%")
+ * @param text - Text to extract percentages from
+ * @returns Array of percentage strings
+ */
+export function extractPercentages(text: string): string[] {
+  const percentMatches = text.match(/[+-]?\d+(?:\.\d+)?%/g);
+  return percentMatches ?? [];
+}
+
+/**
+ * Extract dates from text (e.g., "January 15", "Q1 2025", "2025")
+ * @param text - Text to extract dates from
+ * @returns Array of normalized date strings (lowercase)
+ */
+export function extractDates(text: string): string[] {
+  const dateMatches = text.match(
+    /(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|Q[1-4]\s+\d{4}|\b20\d{2}\b/gi
+  );
+  if (!dateMatches) return [];
+  return dateMatches.map((d) => d.toLowerCase());
+}
+
+/**
+ * Extract crypto/stock symbols from text (e.g., "BTC", "ETH", "SOL")
+ * @param text - Text to extract symbols from
+ * @returns Array of uppercase symbol strings
+ */
+export function extractSymbols(text: string): string[] {
+  const symbolMatches = text.match(
+    /\b(?:BTC|ETH|SOL|DOGE|XRP|ADA|DOT|LINK|AVAX|MATIC)\b/gi
+  );
+  if (!symbolMatches) return [];
+  return symbolMatches.map((s) => s.toUpperCase());
+}
+
+/**
+ * Extract entity names from text (companies, people, regulatory bodies, etc.)
+ * Uses game-stylized names (TeslAI, NVIDAI, etc.) to avoid copyright issues.
+ * Entity IDs match the canonical IDs in packages/engine/src/data/
+ * @param text - Text to extract entities from
+ * @returns Array of game entity IDs
+ */
+export function extractEntities(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const entities: string[] = [];
+
+  // Entity patterns - map matches to game entity IDs
+  // IDs must match canonical IDs in packages/engine/src/data/organizations and actors
+  const entityPatterns: Array<{ pattern: RegExp; entity: string }> = [
+    // AI Companies (organization IDs)
+    { pattern: /\bopenagi\b/i, entity: 'openagi' },
+    { pattern: /\baitropic\b/i, entity: 'aitropic' },
+    { pattern: /\bdeepmaind\b/i, entity: 'deepmaind' },
+    // Tech Companies (organization IDs)
+    { pattern: /\baipple\b/i, entity: 'aipple' },
+    { pattern: /\baiphabet\b/i, entity: 'aiphabet' },
+    { pattern: /\bmaicrosoft\b/i, entity: 'maicrosoft' },
+    { pattern: /\bnvidai\b/i, entity: 'nvidai' },
+    { pattern: /\bteslai\b/i, entity: 'teslai' },
+    { pattern: /\baimazon\b/i, entity: 'aimazon' },
+    { pattern: /\bmetai\b/i, entity: 'metai' },
+    { pattern: /\baix\b/i, entity: 'aix' },
+    { pattern: /\bspaicex\b/i, entity: 'spaicex' },
+    { pattern: /\bneurailink\b/i, entity: 'neurailink' },
+    // Media Organizations (organization IDs)
+    { pattern: /\bthe[- ]?vairge\b/i, entity: 'the-vairge' },
+    { pattern: /\btechcrainch\b/i, entity: 'techcrainch' },
+    { pattern: /\bwaired\b/i, entity: 'waired' },
+    { pattern: /\bbloombairg\b/i, entity: 'bloombairg' },
+    // Crypto (organization IDs)
+    { pattern: /\bcoinbaise\b/i, entity: 'coinbaise' },
+    {
+      pattern: /\bethereum[- ]?foundaition\b/i,
+      entity: 'ethereum-foundaition',
+    },
+    // Key People (actor IDs)
+    { pattern: /\bailon\s*musk\b/i, entity: 'ailon-musk' },
+    { pattern: /\bailon\b/i, entity: 'ailon-musk' },
+    { pattern: /\bjensen\s*huaing\b/i, entity: 'jensen-huaing' },
+    { pattern: /\bsam\s*ailtman\b/i, entity: 'sam-ailtman' },
+    { pattern: /\bsim\s*cook\b/i, entity: 'sim-cook' },
+    { pattern: /\bmark\s*zuckerborg\b/i, entity: 'mark-zuckerborg' },
+    { pattern: /\bsaitya\s*nadella\b/i, entity: 'saitya-nadella' },
+    { pattern: /\bjeff\s*baizos\b/i, entity: 'jeff-baizos' },
+    { pattern: /\bbaill\s*gaites\b/i, entity: 'baill-gaites' },
+    { pattern: /\bdairiio\s*amodei\b/i, entity: 'dairiio-amodei' },
+    { pattern: /\bcathai\s*wood\b/i, entity: 'cathai-wood' },
+    { pattern: /\bvitailik\b/i, entity: 'vitailik-buterin' },
+    { pattern: /\bmichael\s*sailor\b/i, entity: 'michael-sailor' },
+    // Government/Regulatory (no stylization needed for these)
+    { pattern: /\bfed\b|federal reserve/i, entity: 'federal-reserve' },
+    { pattern: /\bsec\b/, entity: 'sec' },
+    { pattern: /\bcongress\b/i, entity: 'congress' },
+    // Products/Models - game-stylized versions
+    { pattern: /\bfsd\b/i, entity: 'teslai-fsd' },
+    { pattern: /\bsmh[- ]?\d+(?:\.\d+)?/i, entity: 'openagi-model' }, // OpenAGI's SMH models
+    { pattern: /\bclaude[- ]?\d*/i, entity: 'aitropic-model' },
+  ];
+
+  for (const { pattern, entity } of entityPatterns) {
+    if (pattern.test(lowerText)) {
+      entities.push(entity);
+    }
+  }
+
+  return entities;
+}
+
+/**
+ * Extract action/event types from text (e.g., "crash", "surge", "launch")
+ * @param text - Text to extract actions from
+ * @returns Array of action identifiers
+ */
+export function extractActions(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const actions: string[] = [];
+
+  // Action patterns - identify event types
+  // NOTE: Use (?:...) non-capturing groups to ensure \b applies to all alternatives
+  const actionPatterns: Array<{ pattern: RegExp; action: string }> = [
+    {
+      pattern: /\b(?:breaks?|broke)\b.*\b(?:above|below|through)\b/,
+      action: 'breakout',
+    },
+    { pattern: /\b(?:crash|crashed|crashing)\b/, action: 'crash' },
+    { pattern: /\b(?:surge|surged|surging)\b/, action: 'surge' },
+    { pattern: /\b(?:announce|announced|announces)\b/, action: 'announcement' },
+    { pattern: /\b(?:launch|launched|launches)\b/, action: 'launch' },
+    { pattern: /\b(?:ban|banned|bans)\b/, action: 'ban' },
+    { pattern: /\b(?:approve|approved|approves)\b/, action: 'approval' },
+    { pattern: /\b(?:reject|rejected|rejects)\b/, action: 'rejection' },
+    { pattern: /\b(?:hack|hacked|breach)\b/, action: 'security-breach' },
+    { pattern: /\b(?:layoff|layoffs|laid off)\b/, action: 'layoffs' },
+    { pattern: /\b(?:acquisition|acquire|acquired)\b/, action: 'acquisition' },
+    { pattern: /\b(?:ipo|public offering)\b/, action: 'ipo' },
+    // Additional action patterns for common news events
+    { pattern: /\b(?:unveil|unveiled|unveils)\b/, action: 'unveil' },
+    { pattern: /\b(?:reveal|revealed|reveals)\b/, action: 'reveal' },
+    { pattern: /\b(?:hints?|hinted|hinting)\b/, action: 'hint' },
+    { pattern: /\b(?:claim|claimed|claims)\b/, action: 'claim' },
+    { pattern: /\b(?:partner|partnered|partnership)\b/, action: 'partnership' },
+    { pattern: /\b(?:release|released|releases)\b/, action: 'release' },
+  ];
+
+  for (const { pattern, action } of actionPatterns) {
+    if (pattern.test(lowerText)) {
+      actions.push(action);
+    }
+  }
+
+  return actions;
+}
+
+/**
+ * Extract event-specific keywords from a question or content
+ *
+ * Used for event-level deduplication to prevent multiple stories about
+ * the exact same event (e.g., "Bitcoin breaks $94k").
+ *
+ * @param text - Question text or content to extract keywords from
+ * @returns Array of normalized keywords that identify this specific event
+ */
+export function extractEventKeywords(text: string): string[] {
+  const keywords = [
+    ...extractPrices(text),
+    ...extractPercentages(text),
+    ...extractDates(text),
+    ...extractSymbols(text),
+    ...extractEntities(text),
+    ...extractActions(text),
+  ];
+
+  // Return unique, non-empty keywords (max 10)
+  return [...new Set(keywords.filter((k) => k.length > 0))].slice(0, 10);
 }
 
 /**
@@ -157,38 +377,32 @@ export async function generateAheadIfNeeded(
     Math.ceil(minutesNeeded / GENERATION_BATCH_MINUTES)
   );
 
-  // Start from latest timestamp or now
-  let currentTimestamp = status.latestTimestamp || new Date();
+  // Start from whichever is later: now or last content timestamp
   const now = new Date();
-
-  // If latest is in the past, start from now
-  if (currentTimestamp < now) {
-    currentTimestamp = now;
-  }
+  const baseTimestamp =
+    status.latestTimestamp && status.latestTimestamp > now
+      ? status.latestTimestamp
+      : now;
 
   let windowsGenerated = 0;
 
   for (let i = 0; i < windowsToGenerate; i++) {
-    // Calculate window boundaries
-    // If starting from latest timestamp, first window starts immediately after it
-    // Otherwise, start from current timestamp
-    const windowStart =
-      i === 0 && currentTimestamp > now
-        ? currentTimestamp
-        : new Date(
-            currentTimestamp.getTime() +
-              i * GENERATION_BATCH_MINUTES * 60 * 1000
-          );
+    // Calculate window boundaries consistently from baseTimestamp
+    // Each window is exactly GENERATION_BATCH_MINUTES long with no overlaps
+    const windowStart = new Date(
+      baseTimestamp.getTime() + i * GENERATION_BATCH_MINUTES * 60 * 1000
+    );
     const windowEnd = new Date(
       windowStart.getTime() + GENERATION_BATCH_MINUTES * 60 * 1000
     );
 
-    // Skip if window is in the past (shouldn't happen, but safety check)
-    if (windowStart < now) {
+    // Safety: skip if window end is somehow in the past
+    if (windowEnd < now) {
       logger.warn(
         'Skipping window in the past',
         {
           windowStart: windowStart.toISOString(),
+          windowEnd: windowEnd.toISOString(),
           now: now.toISOString(),
         },
         'LookaheadGeneration'
@@ -283,12 +497,28 @@ async function generateContentWindow(
     return;
   }
 
-  // Get active questions
+  // Get the continuous game to calculate current day for arc plan phase detection
+  const game = await db
+    .select({ startedAt: games.startedAt })
+    .from(games)
+    .where(eq(games.isContinuous, true))
+    .limit(1);
+
+  const gameStartedAt = game[0]?.startedAt ?? null;
+  const dayNumberForTimestamp = (t: Date): number | undefined => {
+    if (!gameStartedAt) return undefined;
+    return toSafeDayNumber(getGameDayNumber(gameStartedAt, t));
+  };
+
+  // Game-relative day for this window (0-indexed since game start)
+  const currentDay = dayNumberForTimestamp(windowStart);
+
+  // Get ALL active questions to ensure diversity across markets
+  // Previously limited to 3 which caused NPCs to converge on same topics
   const activeQuestions = await db
     .select()
     .from(questions)
-    .where(eq(questions.status, 'active'))
-    .limit(3);
+    .where(eq(questions.status, 'active'));
 
   if (activeQuestions.length === 0) {
     logger.warn(
@@ -299,52 +529,137 @@ async function generateContentWindow(
     return;
   }
 
-  // Generate 8 posts distributed across the window
-  const numPosts = 8;
+  // Apply content pacing to determine posts per window
+  // Base: targetPostsPerHour from config (default 12) / 60 minutes * 5 minutes = posts per window
+  // Adjusted by time-of-day multiplier for realistic posting patterns
+  const windowHour = windowStart.getHours();
+  const timeMultiplier = getTimeOfDayMultiplier(windowHour);
+
+  // Calculate base posts for this 5-minute window based on target hourly rate
+  const basePostsPerWindow = Math.ceil(
+    (CONTENT_PACING.targetPostsPerHour / 60) * GENERATION_BATCH_MINUTES
+  );
+
+  // Apply time-of-day multiplier and add some variance (±30%)
+  const variance = 0.7 + secureRandom() * 0.6; // 0.7 to 1.3
+  const numPosts = Math.max(
+    1,
+    Math.round(basePostsPerWindow * timeMultiplier * variance)
+  );
   const windowDuration = windowEnd.getTime() - windowStart.getTime();
 
-  // Generate events if needed (every 3rd window or so, based on probability)
-  const shouldGenerateEvents = Math.random() < 0.3;
-  if (shouldGenerateEvents && activeQuestions.length > 0) {
-    // Generate events at random times within the window
-    const randomOffset = Math.random() * windowDuration;
-    const eventTimestamp = new Date(windowStart.getTime() + randomOffset);
+  logger.debug(
+    `Content pacing: ${numPosts} posts for window`,
+    {
+      hour: windowHour,
+      timeMultiplier,
+      basePostsPerWindow,
+      variance: variance.toFixed(2),
+    },
+    'LookaheadGeneration'
+  );
 
-    try {
-      const eventsCreated = await generateEvents(
-        activeQuestions,
-        eventTimestamp
-      );
-      if (eventsCreated > 0) {
-        logger.info(
-          `Generated ${eventsCreated} events in lookahead window`,
-          {
-            timestamp: eventTimestamp.toISOString(),
-          },
-          'LookaheadGeneration'
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        'Failed to generate events in lookahead',
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'LookaheadGeneration'
-      );
-    }
-  }
+  // Event generation is now consolidated in game-tick and narrative-event-processor
+  // This prevents duplicate events and ties event generation to arc state
 
-  // Get actors, organizations, and world facts in parallel
-  const [actorsList, orgsList, worldFactsContext] = await Promise.all([
-    db.select().from(actors).orderBy(desc(actors.reputationPoints)).limit(15),
+  // Get actors, organizations, world facts, shared post context, AND diverse topic suggestions in parallel
+  // Loading shared context ONCE eliminates N+1 queries during parallel post generation
+  const diversityService = getTopicDiversityService();
+
+  // Calculate the start of today for daily post count
+  const todayStart = new Date(windowStart);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [
+    actorStates,
+    worldFactsContext,
+    sharedContext,
+    diverseTopics,
+    actorPostStats,
+  ] = await Promise.all([
     db
       .select()
-      .from(organizations)
-      .where(eq(organizations.type, 'media'))
-      .limit(5),
+      .from(actorState)
+      .orderBy(desc(actorState.reputationPoints))
+      .limit(15),
     worldFactsService.generatePromptContext(),
+    loadSharedPostContext(windowStart), // Load ONCE for all NPC posts
+    diversityService.suggestDiverseTopics(3), // Get diverse topic suggestions
+    // Query actor post stats: last post time and daily count for pacing
+    db
+      .select({
+        authorId: posts.authorId,
+        lastPostTime: max(posts.timestamp),
+        dailyCount: count(),
+      })
+      .from(posts)
+      .where(
+        and(
+          gte(posts.timestamp, todayStart),
+          lt(posts.timestamp, windowStart),
+          isNull(posts.deletedAt)
+        )
+      )
+      .groupBy(posts.authorId),
   ]);
+
+  // Build a map of actor post stats for quick lookup
+  const actorPostStatsMap = new Map(
+    actorPostStats.map((stat) => [
+      stat.authorId,
+      {
+        lastPostTime: stat.lastPostTime,
+        dailyCount: Number(stat.dailyCount),
+      },
+    ])
+  );
+
+  // Combine static actor data with dynamic state and pacing info
+  // windowHour is already defined above for time multiplier calculation
+  const allActors = actorStates
+    .map((state) => {
+      const staticActor = StaticDataRegistry.getActor(state.id);
+      if (!staticActor) return null;
+
+      const postStats = actorPostStatsMap.get(state.id);
+      const lastPostTime = postStats?.lastPostTime ?? null;
+      const dailyPostCount = postStats?.dailyCount ?? 0;
+
+      return {
+        ...staticActor,
+        tradingBalance: state.tradingBalance,
+        reputationPoints: state.reputationPoints,
+        hasPool: state.hasPool,
+        lastPostTime,
+        dailyPostCount,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+
+  // Filter actors based on pacing rules (daily limits and cooldowns)
+  const actorsList = allActors.filter((actor) =>
+    shouldActorPost(actor.lastPostTime, actor.dailyPostCount, windowHour)
+  );
+
+  // Log pacing statistics
+  const skippedActors = allActors.length - actorsList.length;
+  if (skippedActors > 0) {
+    logger.debug(
+      `Pacing: ${skippedActors}/${allActors.length} actors skipped due to limits`,
+      {
+        eligible: actorsList.length,
+        skipped: skippedActors,
+        hour: windowHour,
+        maxDaily: CONTENT_PACING.maxPostsPerActorPerDay,
+      },
+      'LookaheadGeneration'
+    );
+  }
+
+  // Get media organizations from static registry
+  const orgsList = StaticDataRegistry.getAllOrganizations()
+    .filter((org) => org.type === 'media')
+    .slice(0, 5);
 
   if (actorsList.length === 0 && orgsList.length === 0) {
     logger.warn(
@@ -357,111 +672,375 @@ async function generateContentWindow(
 
   let postsCreated = 0;
 
+  // Pre-shuffle actors and orgs for this window to avoid deterministic selection
+  const shuffledActors = secureShuffle(actorsList);
+  const shuffledOrgs = secureShuffle(orgsList);
+  const shuffledQuestions = secureShuffle([...activeQuestions]);
+  const shuffledDiverseTopics = secureShuffle([...diverseTopics]);
+
+  // Track which questions have been used in this window to ensure market diversity
+  // This prevents all NPCs from gravitating toward the same market
+  let nextRoundRobinIndex = 0;
+
+  // Calculate how many diverse topic posts to generate (enforce diversity quota)
+  const diversePostCount = Math.max(1, Math.floor(numPosts * DIVERSITY_QUOTA));
+  const diversePostIndices = new Set<number>();
+  for (let d = 0; d < diversePostCount && d < numPosts; d++) {
+    diversePostIndices.add(Math.floor(secureRandom() * numPosts));
+  }
+
+  // Calculate organic post indices (posts without specific topics)
+  const organicPostCount = Math.max(
+    1,
+    Math.floor(numPosts * ORGANIC_POST_RATIO)
+  );
+  const organicPostIndices = new Set<number>();
+  for (let o = 0; o < organicPostCount && o < numPosts; o++) {
+    // Avoid overlap with diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (diversePostIndices.has(idx) && attempts < maxAttempts) {
+      idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
+    }
+    // Only add if no collision exists
+    if (!diversePostIndices.has(idx)) {
+      organicPostIndices.add(idx);
+    }
+  }
+
+  // Calculate rivalry post indices (contrarian posts from rivals)
+  const rivalryPostCount = Math.max(
+    1,
+    Math.floor(numPosts * RIVALRY_POST_RATIO)
+  );
+  const rivalryPostIndices = new Set<number>();
+  const usedByOrganicAndDiverse = new Set([
+    ...diversePostIndices,
+    ...organicPostIndices,
+  ]);
+  for (let r = 0; r < rivalryPostCount && r < numPosts; r++) {
+    // Avoid overlap with organic and diverse posts
+    let idx = Math.floor(secureRandom() * numPosts);
+    let attempts = 0;
+    const maxAttempts = numPosts * 2;
+    while (usedByOrganicAndDiverse.has(idx) && attempts < maxAttempts) {
+      idx = Math.floor(secureRandom() * numPosts);
+      attempts++;
+    }
+    // Only add if no collision exists
+    if (!usedByOrganicAndDiverse.has(idx)) {
+      rivalryPostIndices.add(idx);
+    }
+  }
+
   // Generate posts in parallel for better performance
   const postPromises = Array.from({ length: numPosts }, async (_, i) => {
-    try {
-      // Distribute timestamps naturally across window
-      const randomOffset = Math.random() * windowDuration;
-      const postTimestamp = new Date(windowStart.getTime() + randomOffset);
+    // Distribute timestamps randomly across window
+    const offset = Math.floor(secureRandom() * windowDuration);
+    const postTimestamp = new Date(windowStart.getTime() + offset);
+    const postDayNumber = dayNumberForTimestamp(postTimestamp);
 
-      // Alternate between actors and organizations
-      const useActor = i % 2 === 0 && actorsList.length > 0;
-      const creator = useActor
-        ? actorsList[i % actorsList.length]
-        : orgsList[i % orgsList.length];
+    // Check if this should be an organic post (personality-driven, no topic)
+    const shouldBeOrganic = organicPostIndices.has(i);
 
-      if (!creator) {
-        return 0;
-      }
+    // Check if this should be a rivalry post (contrarian to a rival)
+    const shouldBeRivalry = !shouldBeOrganic && rivalryPostIndices.has(i);
 
-      const question = activeQuestions[i % activeQuestions.length];
-      if (!question || !question.text) {
-        return 0;
-      }
+    // Check if this post should cover a diverse topic (off-trend)
+    const shouldBeDiverse =
+      !shouldBeOrganic &&
+      !shouldBeRivalry &&
+      diversePostIndices.has(i) &&
+      shuffledDiverseTopics.length > 0;
+    const diverseTopic: DiverseTopicSuggestion | undefined = shouldBeDiverse
+      ? shuffledDiverseTopics[i % shuffledDiverseTopics.length]
+      : undefined;
 
-      // Generate post content using LLM
-      if (useActor) {
-        const actor = creator as (typeof actorsList)[number];
-        const success = await generateNPCPost(
+    // Weighted random choice between actor and org (95% actor, 5% org if both available)
+    // Articles are now event-driven only, so orgs just post (no articles in lookahead)
+    // Organic posts are ONLY for actors (orgs don't have "personalities")
+    const useActor =
+      shouldBeOrganic ||
+      (shuffledActors.length > 0 &&
+        (shuffledOrgs.length === 0 || secureRandom() < ACTOR_POST_RATIO));
+
+    // Pick from shuffled lists with wraparound
+    const creator = useActor
+      ? shuffledActors[i % shuffledActors.length]
+      : shuffledOrgs[i % shuffledOrgs.length];
+
+    if (!creator) {
+      return 0;
+    }
+
+    // For organic posts with actors, use the dedicated organic post generator
+    if (shouldBeOrganic && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+
+      // Check if this actor should generate organic content based on their config
+      if (!shouldGenerateOrganicPost(actor.id)) {
+        // Fall back to regular post generation if organic probability fails
+        // Continue to question-based post below
+      } else {
+        const success = await generateOrganicPost(
           llmClient,
           actor,
-          question,
           worldFactsContext,
-          postTimestamp
+          postTimestamp,
+          postDayNumber
         );
         if (success) {
           logger.debug(
-            'Created lookahead NPC post',
-            {
-              actor: actor.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
+            'Created lookahead organic NPC post',
+            { actor: actor.name, timestamp: postTimestamp.toISOString() },
             'LookaheadGeneration'
           );
+          return 1;
         }
-        return success ? 1 : 0;
+        // Fall through to regular question-based post if organic generation fails
+        logger.debug(
+          'Organic post generation failed, falling back to question-based post',
+          { actor: actor.name },
+          'LookaheadGeneration'
+        );
       }
-      const org = creator as (typeof orgsList)[number];
+    }
 
-      // 10% chance to generate a full article instead of a short post
-      const shouldCreateArticle = Math.random() < 0.1;
-      let success = false;
+    // For rivalry posts, generate a contrarian post if the actor has rivals
+    if (shouldBeRivalry && useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      const rivals = getActorRivals(actor.id);
 
-      if (shouldCreateArticle) {
-        success = await generateOrgArticle(
-          llmClient,
-          org,
-          question,
-          worldFactsContext,
-          postTimestamp
-        );
-        if (success) {
-          logger.debug(
-            'Created lookahead org article',
-            {
-              org: org.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
-            'LookaheadGeneration'
-          );
+      if (rivals.length > 0) {
+        // Pick a random rival
+        const rivalId = rivals[Math.floor(secureRandom() * rivals.length)];
+        const rivalActor = shuffledActors.find((a) => a.id === rivalId);
+
+        if (rivalActor && shuffledQuestions.length > 0) {
+          // Pick a question for the rivalry using round-robin for market diversity
+          const rivalryQuestion =
+            shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+          nextRoundRobinIndex++;
+          if (rivalryQuestion) {
+            // Determine rival's likely position (random for now, could be smarter)
+            const rivalPosition = secureRandom() < 0.5 ? 'YES' : 'NO';
+
+            const success = await generateRivalryPost(
+              llmClient,
+              actor,
+              rivalActor.name,
+              rivalPosition,
+              rivalryQuestion,
+              worldFactsContext,
+              postTimestamp,
+              postDayNumber
+            );
+
+            if (success) {
+              logger.debug(
+                'Created lookahead rivalry post',
+                {
+                  actor: actor.name,
+                  rival: rivalActor.name,
+                  timestamp: postTimestamp.toISOString(),
+                },
+                'LookaheadGeneration'
+              );
+              return 1;
+            }
+          }
         }
+      }
+      // If no rivals or generation failed, fall through to regular post
+    }
+
+    // Market diversity: alternate between round-robin (ensures all markets get coverage)
+    // and weighted selection (still favors urgent markets but with reduced bias)
+    // This prevents all NPCs from converging on a single "hot" market
+    let question: (typeof activeQuestions)[number] | undefined;
+    if (shuffledQuestions.length > 0) {
+      // 50% of posts use round-robin to guarantee market diversity
+      // 50% use weighted pick with REDUCED urgency multiplier (2 instead of 5)
+      const useRoundRobin = secureRandom() < 0.5;
+      if (useRoundRobin) {
+        // Round-robin through all active markets
+        question =
+          shuffledQuestions[nextRoundRobinIndex % shuffledQuestions.length];
+        nextRoundRobinIndex++;
+        logger.debug(
+          'Using round-robin market selection',
+          { questionId: question?.id, index: nextRoundRobinIndex },
+          'LookaheadGeneration'
+        );
       } else {
-        success = await generateOrgPost(
-          llmClient,
-          org,
-          question,
-          worldFactsContext,
-          postTimestamp
+        // Weighted selection with reduced urgency bias (2 instead of 5)
+        question = weightedPick(shuffledQuestions, urgencyWeight(2));
+      }
+    } else {
+      question = activeQuestions[0];
+    }
+
+    if (!question || !question.text) {
+      return 0;
+    }
+
+    // For actors, check if they should post about this topic based on their domain
+    if (useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      if (!shouldPostAboutTopic(actor.id, question.text)) {
+        // This actor doesn't care about this topic - try another question
+        const currentQuestionId = question.id;
+        const alternateQuestion = shuffledQuestions.find(
+          (q) =>
+            q.id !== currentQuestionId && shouldPostAboutTopic(actor.id, q.text)
         );
-        if (success) {
+        if (alternateQuestion) {
+          // Use the domain-relevant question instead
+          question = alternateQuestion;
           logger.debug(
-            'Created lookahead org post',
-            {
-              org: org.name,
-              timestamp: postTimestamp.toISOString(),
-              questionId: question.id,
-            },
+            'Switched to domain-relevant question for actor',
+            { actor: actor.name, questionId: alternateQuestion.id },
             'LookaheadGeneration'
           );
+        } else {
+          // No relevant topics for this actor - skip or still post with lower probability
+          if (secureRandom() > 0.3) {
+            // 70% chance to skip off-domain topics
+            return 0;
+          }
         }
       }
+    }
 
+    // Extract event keywords from the question for deduplication
+    // This prevents multiple posts about the exact same event (e.g., "Bitcoin breaks $94k")
+    const eventKeywords = extractEventKeywords(question.text);
+
+    // Check if this specific event has been covered too many times
+    // IMPORTANT: Track BEFORE generating (optimistic reservation) to prevent race conditions
+    // when multiple posts are generated in parallel via Promise.allSettled
+    if (eventKeywords.length > 0) {
+      if (diversityService.shouldSkipEvent(eventKeywords)) {
+        logger.debug(
+          'Skipping duplicate event coverage',
+          {
+            questionId: question.id,
+            eventKeywords: eventKeywords.slice(0, 5),
+          },
+          'LookaheadGeneration'
+        );
+        return 0;
+      }
+      // Reserve a slot for this event BEFORE generating to prevent parallel duplicates
+      diversityService.trackEventCoverage(eventKeywords);
+    }
+
+    // Check if the question topic is oversaturated (apply diversity penalty)
+    const topicPenalty = await diversityService.getTopicPenalty(question.text);
+    if (topicPenalty > 0.7 && !shouldBeDiverse) {
+      // High saturation - skip with 70% probability
+      if (secureRandom() < 0.7) {
+        logger.debug(
+          'Skipping oversaturated topic',
+          {
+            questionId: question.id,
+            penalty: topicPenalty.toFixed(2),
+          },
+          'LookaheadGeneration'
+        );
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
+        return 0;
+      }
+    }
+
+    // Enhance world facts context with diverse topic if applicable
+    const enhancedWorldFacts = diverseTopic
+      ? `${worldFactsContext}\n\nDIVERSE TOPIC FOCUS: ${diverseTopic.topic} (${diverseTopic.beat})`
+      : worldFactsContext;
+
+    // Generate post content using LLM
+    if (useActor) {
+      const actor = creator as (typeof actorsList)[number];
+      const success = await generateNPCPost(
+        llmClient,
+        actor,
+        question,
+        enhancedWorldFacts,
+        postTimestamp,
+        sharedContext, // Pass pre-loaded context to avoid N+1 queries
+        postDayNumber // Pass currentDay for arc plan phase detection, signal guidance, and dayNumber storage
+      );
+      if (success) {
+        logger.debug(
+          'Created lookahead NPC post',
+          {
+            actor: actor.name,
+            timestamp: postTimestamp.toISOString(),
+            questionId: question.id,
+            currentDay,
+            diverseTopic: diverseTopic?.topic,
+            eventKeywords: eventKeywords.slice(0, 3),
+          },
+          'LookaheadGeneration'
+        );
+      } else if (eventKeywords.length > 0) {
+        // Rollback event tracking on generation failure
+        diversityService.rollbackEventCoverage(eventKeywords);
+      }
       return success ? 1 : 0;
-    } catch (error) {
-      logger.warn(
-        'Failed to generate post in lookahead window',
+    }
+    const org = creator as (typeof orgsList)[number];
+
+    // Check if org is on-beat for diverse topic (if applicable)
+    if (diverseTopic) {
+      const isOnBeat = diversityService.isTopicOnBeat(
+        org.id,
+        diverseTopic.topic
+      );
+      if (!isOnBeat && secureRandom() < 0.5) {
+        // 50% chance to skip if org is off-beat for this diverse topic
+        // Rollback event tracking since we're not generating
+        if (eventKeywords.length > 0) {
+          diversityService.rollbackEventCoverage(eventKeywords);
+        }
+        return 0;
+      }
+    }
+
+    // Articles are event-driven only via article-tick (rate-limited to 2/hour).
+    // Orgs only create short posts in lookahead, never articles.
+    const success = await generateOrgPost(
+      llmClient,
+      org,
+      question,
+      enhancedWorldFacts,
+      postTimestamp,
+      postDayNumber
+    );
+    if (success) {
+      logger.debug(
+        'Created lookahead org post',
         {
-          error: error instanceof Error ? error.message : String(error),
-          windowStart: windowStart.toISOString(),
-          windowEnd: windowEnd.toISOString(),
-          postIndex: i,
+          org: org.name,
+          timestamp: postTimestamp.toISOString(),
+          questionId: question.id,
+          diverseTopic: diverseTopic?.topic,
         },
         'LookaheadGeneration'
       );
-      return 0;
     }
+
+    // Rollback event tracking on generation failure
+    if (!success && eventKeywords.length > 0) {
+      diversityService.rollbackEventCoverage(eventKeywords);
+    }
+
+    return success ? 1 : 0;
   });
 
   // Wait for all posts to complete

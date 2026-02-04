@@ -1,10 +1,9 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Delete button component for post deletion.
@@ -34,7 +33,7 @@ interface DeleteButtonProps {
 }
 
 const sizeClasses = {
-  sm: 'h-8 px-2 text-xs gap-1',
+  sm: 'text-xs gap-1',
   md: 'h-10 px-3 text-sm gap-1.5',
   lg: 'h-12 px-4 text-base gap-2',
 };

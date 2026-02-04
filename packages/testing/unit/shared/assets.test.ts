@@ -1,14 +1,14 @@
 /**
  * Tests for Asset URL utilities
  */
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
-  isAbsoluteUrl,
-  getStaticAssetUrl,
-  getFallbackProfileImageUrl,
-  getProfileImageUrl,
-  getOrganizationImageUrl,
   getBannerImageUrl,
+  getFallbackProfileImageUrl,
+  getOrganizationImageUrl,
+  getProfileImageUrl,
+  getStaticAssetUrl,
+  isAbsoluteUrl,
 } from '@babylon/shared/utils/assets';
 
 describe('Asset URL Utilities', () => {
@@ -64,15 +64,22 @@ describe('Asset URL Utilities', () => {
     });
 
     it('should prepend slash to path without slash', () => {
-      expect(getStaticAssetUrl('images/profile.jpg')).toBe('/images/profile.jpg');
+      expect(getStaticAssetUrl('images/profile.jpg')).toBe(
+        '/images/profile.jpg'
+      );
     });
 
     it('should keep slash for path with slash', () => {
-      expect(getStaticAssetUrl('/images/profile.jpg')).toBe('/images/profile.jpg');
+      expect(getStaticAssetUrl('/images/profile.jpg')).toBe(
+        '/images/profile.jpg'
+      );
     });
 
     it('should use provided CDN base URL', () => {
-      const result = getStaticAssetUrl('/images/profile.jpg', 'https://cdn.example.com');
+      const result = getStaticAssetUrl(
+        '/images/profile.jpg',
+        'https://cdn.example.com'
+      );
       expect(result).toBe('https://cdn.example.com/images/profile.jpg');
     });
 
@@ -84,7 +91,10 @@ describe('Asset URL Utilities', () => {
 
     it('should prefer provided CDN URL over environment variable', () => {
       process.env.NEXT_PUBLIC_STATIC_ASSETS_URL = 'https://env.cdn.com';
-      const result = getStaticAssetUrl('/images/profile.jpg', 'https://provided.cdn.com');
+      const result = getStaticAssetUrl(
+        '/images/profile.jpg',
+        'https://provided.cdn.com'
+      );
       expect(result).toBe('https://provided.cdn.com/images/profile.jpg');
     });
   });
@@ -114,19 +124,30 @@ describe('Asset URL Utilities', () => {
     });
 
     it('should use CDN URL when provided', () => {
-      const url = getFallbackProfileImageUrl('user123', 'https://cdn.example.com');
+      const url = getFallbackProfileImageUrl(
+        'user123',
+        'https://cdn.example.com'
+      );
       expect(url.startsWith('https://cdn.example.com')).toBe(true);
     });
   });
 
   describe('getProfileImageUrl', () => {
     it('should return profile image URL when provided', () => {
-      const result = getProfileImageUrl('https://cdn.example.com/image.jpg', 'user123');
+      const result = getProfileImageUrl(
+        'https://cdn.example.com/image.jpg',
+        'user123'
+      );
       expect(result).toBe('https://cdn.example.com/image.jpg');
     });
 
     it('should normalize relative profile image paths', () => {
-      const result = getProfileImageUrl('/uploads/profile.jpg', 'user123', true, 'https://cdn.example.com');
+      const result = getProfileImageUrl(
+        '/uploads/profile.jpg',
+        'user123',
+        true,
+        'https://cdn.example.com'
+      );
       expect(result).toBe('https://cdn.example.com/uploads/profile.jpg');
     });
 
@@ -146,19 +167,31 @@ describe('Asset URL Utilities', () => {
     });
 
     it('should use CDN for actor images when provided', () => {
-      const result = getProfileImageUrl(null, 'actor123', true, 'https://cdn.example.com');
+      const result = getProfileImageUrl(
+        null,
+        'actor123',
+        true,
+        'https://cdn.example.com'
+      );
       expect(result).toBe('https://cdn.example.com/images/actors/actor123.jpg');
     });
   });
 
   describe('getOrganizationImageUrl', () => {
     it('should return image URL when provided', () => {
-      const result = getOrganizationImageUrl('https://cdn.example.com/org.jpg', 'org123');
+      const result = getOrganizationImageUrl(
+        'https://cdn.example.com/org.jpg',
+        'org123'
+      );
       expect(result).toBe('https://cdn.example.com/org.jpg');
     });
 
     it('should normalize relative image paths', () => {
-      const result = getOrganizationImageUrl('/uploads/org.jpg', 'org123', 'https://cdn.example.com');
+      const result = getOrganizationImageUrl(
+        '/uploads/org.jpg',
+        'org123',
+        'https://cdn.example.com'
+      );
       expect(result).toBe('https://cdn.example.com/uploads/org.jpg');
     });
 
@@ -175,12 +208,20 @@ describe('Asset URL Utilities', () => {
 
   describe('getBannerImageUrl', () => {
     it('should return banner URL when provided', () => {
-      const result = getBannerImageUrl('https://cdn.example.com/banner.jpg', 'entity123');
+      const result = getBannerImageUrl(
+        'https://cdn.example.com/banner.jpg',
+        'entity123'
+      );
       expect(result).toBe('https://cdn.example.com/banner.jpg');
     });
 
     it('should normalize relative banner paths', () => {
-      const result = getBannerImageUrl('/uploads/banner.jpg', 'entity123', 'actor', 'https://cdn.example.com');
+      const result = getBannerImageUrl(
+        '/uploads/banner.jpg',
+        'entity123',
+        'actor',
+        'https://cdn.example.com'
+      );
       expect(result).toBe('https://cdn.example.com/uploads/banner.jpg');
     });
 
@@ -205,4 +246,3 @@ describe('Asset URL Utilities', () => {
     });
   });
 });
-

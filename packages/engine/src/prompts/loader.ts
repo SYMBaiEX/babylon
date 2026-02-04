@@ -7,6 +7,7 @@
  */
 
 import type { JsonValue } from '../types/common';
+import { toDateString } from '../utils/date-utils';
 import type { PromptDefinition } from './define-prompt';
 
 /**
@@ -52,6 +53,14 @@ export function renderPrompt(
   const {
     allowEmpty = false,
     optionalVars = [
+      // Trading vars (New - PR #2)
+      'marketTable',
+      'npcsList',
+      'validNpcIds',
+      'validTickers',
+      'previousTrades',
+
+      // Standard context vars
       'trendContext',
       'previousPostsContext',
       'worldActors',
@@ -72,6 +81,62 @@ export function renderPrompt(
       'relatedQuestionContext',
       'atmosphereContext',
       'emotionalContext',
+
+      // Character roster vars (optional until callers are updated)
+      'characterRoster',
+      'detailedCharacterProfiles',
+      'characterRelationships',
+      'organizationRoster',
+      'keyActorProfiles',
+      'expertProfile',
+      'expertRelationships',
+      'journalistProfile',
+      'participantProfiles',
+      'rumorTargetProfiles',
+      'originalAuthorProfile',
+      'involvedCharacterProfiles',
+      'affectedCharacterProfiles',
+
+      // Rich game context vars (optional)
+      'richGameContext',
+      'eventTimeline',
+      'resolvedQuestionsContext',
+      'activeQuestionsContext',
+      'ongoingNarrativesContext',
+      'feedActivityContext',
+      'worldFactsContext',
+      'phaseContext',
+      'phaseGuidance',
+      'daySummaries',
+      'previousDaySummaries',
+      'ongoingNarratives',
+      'previousGroupMessages',
+      'previousCoverage',
+      'previousRumors',
+      'participantHistory',
+      'expertPreviousStatements',
+      'relatedResolutions',
+      'threadHistory',
+      'previousRepliesContext',
+      'connectionContext',
+      'groupContext',
+      'relationshipContext',
+
+      // News post vars (optional - may be empty when no source)
+      'sourceContext',
+      'outcomeFrame',
+      'orgBehaviorContext',
+      'relatedStories',
+      'relatedQuestions',
+      'connectedActors',
+
+      // Article generation vars (optional - worldContext may not always be available)
+      'worldContext',
+      'previousArticles',
+      'connectedNarratives',
+      'editorialPosition',
+      'previousStances',
+      'recentContext',
     ],
   } = options;
 
@@ -81,7 +146,7 @@ export function renderPrompt(
   const now = new Date();
   const dateVariables: Record<string, string | number> = {
     currentDateTime: now.toLocaleString('en-US'),
-    currentDate: now.toISOString().split('T')[0] || '',
+    currentDate: toDateString(now),
     currentTime: now.toTimeString().split(' ')[0] || '',
     currentYear: now.getFullYear(),
     currentMonth: now.toLocaleString('en-US', { month: 'long' }),

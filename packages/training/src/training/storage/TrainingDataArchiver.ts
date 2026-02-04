@@ -5,6 +5,7 @@
  * for long-term storage and reproducibility.
  */
 
+import type { JsonValue } from '@babylon/shared';
 import { del, list, put } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
@@ -111,8 +112,8 @@ export class TrainingDataArchiver {
   async getWindowData(windowId: string): Promise<{
     trajectories: string;
     groups?: string;
-    rulerScores?: Record<string, unknown>;
-    metadata: Record<string, unknown>;
+    rulerScores?: Record<string, JsonValue>;
+    metadata: Record<string, JsonValue>;
   } | null> {
     const prefix = `${this.blobPrefix}${windowId}/`;
     const { blobs } = await list({ prefix });
@@ -124,8 +125,8 @@ export class TrainingDataArchiver {
     interface WindowDataResult {
       trajectories?: string;
       groups?: string;
-      rulerScores?: Record<string, unknown>;
-      metadata?: Record<string, unknown>;
+      rulerScores?: Record<string, JsonValue>;
+      metadata?: Record<string, JsonValue>;
     }
     const result: WindowDataResult = {};
 
@@ -138,9 +139,12 @@ export class TrainingDataArchiver {
       } else if (filename === 'groups.jsonl') {
         result.groups = await response.text();
       } else if (filename === 'ruler_scores.json') {
-        result.rulerScores = (await response.json()) as Record<string, unknown>;
+        result.rulerScores = (await response.json()) as Record<
+          string,
+          JsonValue
+        >;
       } else if (filename === 'metadata.json') {
-        result.metadata = (await response.json()) as Record<string, unknown>;
+        result.metadata = (await response.json()) as Record<string, JsonValue>;
       }
     }
 

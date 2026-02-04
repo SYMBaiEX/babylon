@@ -1,31 +1,24 @@
 'use client';
 
-import { CheckCircle, XCircle } from 'lucide-react';
+import type { UserPredictionPosition } from '@babylon/shared';
+import { cn, formatCurrency, logger } from '@babylon/shared';
+import { usePrivy } from '@privy-io/react-auth';
+import { Bot, CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@babylon/shared';
+import type {
+  ApiErrorResponse,
+  SellSharesSuccessResponse,
+} from '@/types/markets';
 import {
   type SellPredictionDetails,
   TradeConfirmationDialog,
 } from './TradeConfirmationDialog';
 
 /**
- * Prediction position structure for positions list.
+ * Alias for UserPredictionPosition for local usage.
  */
-interface PredictionPosition {
-  id: string;
-  marketId: string;
-  question: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved: boolean;
-  resolution?: boolean | null;
-}
+type PredictionPosition = UserPredictionPosition;
 
 /**
  * Prediction positions list component for displaying and managing prediction positions.
@@ -56,12 +49,16 @@ interface PredictionPosition {
 interface PredictionPositionsListProps {
   positions: PredictionPosition[];
   onPositionSold?: () => void;
+  density?: 'default' | 'compact';
 }
 
 export function PredictionPositionsList({
   positions,
   onPositionSold,
+  density = 'default',
 }: PredictionPositionsListProps) {
+  const { getAccessToken } = usePrivy();
+  const compact = density === 'compact';
   const [sellingId, setSellingId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingSell, setPendingSell] = useState<{
@@ -93,58 +90,88 @@ export function PredictionPositionsList({
     setSellingId(position.id);
     setConfirmDialogOpen(false);
 
-    const response = await fetch(
-      `/api/markets/predictions/${position.marketId}/sell`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          shares: position.shares,
-          positionId: position.id,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      // Handle error response - extract message from error object
-      const errorMessage =
-        typeof data.error === 'object'
-          ? data.error.message || 'Failed to sell shares'
-          : data.error || data.message || 'Failed to sell shares';
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in.');
       setSellingId(null);
       setPendingSell(null);
-      toast.error(errorMessage);
       return;
     }
 
-    const pnl = data.pnl || 0;
-    toast.success('Shares sold!', {
-      description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-    });
+    try {
+      const response = await fetch(
+        `/api/markets/predictions/${position.marketId}/sell`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            shares: position.shares,
+            positionId: position.id,
+          }),
+        }
+      );
 
-    if (onPositionSold) onPositionSold();
-    setSellingId(null);
-    setPendingSell(null);
+      if (!response.ok) {
+        const errorData: ApiErrorResponse = await response.json();
+        const errorMessage =
+          typeof errorData.error === 'object'
+            ? (errorData.error.message ?? 'Failed to sell shares')
+            : (errorData.error ?? errorData.message ?? 'Failed to sell shares');
+        toast.error(errorMessage);
+        return;
+      }
+
+      const data: SellSharesSuccessResponse = await response.json();
+      const pnl = data.pnl;
+      const pnlSign = pnl >= 0 ? '+' : '-';
+      toast.success('Shares sold!', {
+        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnlSign}${formatCurrency(
+          Math.abs(pnl),
+          { useThousandsSeparator: true }
+        )} PnL`,
+      });
+
+      onPositionSold?.();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to sell shares';
+      logger.error(
+        'Failed to sell prediction shares',
+        { marketId: position.marketId, positionId: position.id, error: err },
+        'PredictionPositionsList'
+      );
+      toast.error(message);
+    } finally {
+      setSellingId(null);
+      setPendingSell(null);
+    }
   };
 
-  const formatPrice = (price: number) => `$${price.toFixed(3)}`;
+  /** Use shared formatCurrency with 3 decimals for prediction prices */
+  const formatPrice = (price: number) =>
+    formatCurrency(price, { decimals: 3, useThousandsSeparator: true });
 
   if (positions.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground">
+      <div
+        className={cn(
+          'text-center text-muted-foreground',
+          compact ? 'py-6' : 'py-8'
+        )}
+      >
         <p>No prediction positions</p>
-        <p className="mt-1 text-sm">Buy YES or NO shares to start betting</p>
+        <p className={cn(compact ? 'mt-1 text-xs' : 'mt-1 text-sm')}>
+          Buy YES or NO shares to start betting
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
       {positions.map((position) => {
         const currentValue =
           position.currentValue ?? position.shares * position.currentPrice;
@@ -157,28 +184,45 @@ export function PredictionPositionsList({
         const isSelling = sellingId === position.id;
 
         return (
-          <div key={position.id} className="rounded bg-muted/40 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span
-                className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
-                  position.side === 'YES'
-                    ? 'bg-green-600/20 text-green-600'
-                    : 'bg-red-600/20 text-red-600'
+          <div
+            key={position.id}
+            className={cn('rounded bg-muted/40', compact ? 'p-3' : 'p-4')}
+          >
+            <div
+              className={cn(
+                'flex items-center justify-between',
+                compact ? 'mb-2' : 'mb-3'
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    'flex items-center gap-1 rounded px-2 py-1 font-bold text-xs',
+                    position.side === 'YES'
+                      ? 'bg-green-600/20 text-green-600'
+                      : 'bg-red-600/20 text-red-600'
+                  )}
+                >
+                  {position.side === 'YES' ? (
+                    <CheckCircle size={12} />
+                  ) : (
+                    <XCircle size={12} />
+                  )}
+                  {position.side}
+                </span>
+                {/* Agent position badge */}
+                {position.isAgentPosition && (
+                  <span className="flex items-center gap-1 rounded bg-purple-600/20 px-2 py-1 font-medium text-purple-500 text-xs">
+                    <Bot size={12} />
+                    {position.agentName || 'Agent'}
+                  </span>
                 )}
-              >
-                {position.side === 'YES' ? (
-                  <CheckCircle size={12} />
-                ) : (
-                  <XCircle size={12} />
-                )}
-                {position.side}
-              </span>
+              </div>
 
               <div className="text-right">
                 <div
                   className={cn(
-                    'font-bold text-lg',
+                    compact ? 'font-bold text-base' : 'font-bold text-lg',
                     unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'
                   )}
                 >
@@ -197,11 +241,23 @@ export function PredictionPositionsList({
               </div>
             </div>
 
-            <p className="mb-3 font-medium text-foreground text-sm">
+            <p
+              className={cn(
+                'font-medium text-foreground',
+                compact
+                  ? 'mb-2 text-sm leading-snug md:text-xs'
+                  : 'mb-3 text-sm'
+              )}
+            >
               {position.question}
             </p>
 
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+            <div
+              className={cn(
+                'grid grid-cols-2 text-xs',
+                compact ? 'mb-2 gap-1.5' : 'mb-3 gap-2'
+              )}
+            >
               <div>
                 <div className="text-muted-foreground">Shares</div>
                 <div className="font-medium text-foreground">
@@ -238,13 +294,25 @@ export function PredictionPositionsList({
                     pnlPercent
                   )
                 }
-                disabled={isSelling}
-                className="w-full cursor-pointer rounded bg-muted py-2 font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSelling || position.shares < 0.01}
+                className={cn(
+                  'w-full cursor-pointer rounded bg-muted font-medium text-foreground transition-all hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+                  compact ? 'py-1.5 text-sm md:text-xs' : 'py-2 text-sm'
+                )}
               >
-                {isSelling ? 'Selling...' : 'Sell Shares'}
+                {isSelling
+                  ? 'Selling...'
+                  : position.shares < 0.01
+                    ? 'Position Too Small'
+                    : 'Sell Shares'}
               </button>
             ) : (
-              <div className="py-2 text-center font-medium text-sm">
+              <div
+                className={cn(
+                  'py-2 text-center font-medium',
+                  compact ? 'text-sm md:text-xs' : 'text-sm'
+                )}
+              >
                 <span className="text-muted-foreground">Resolved: </span>
                 <span
                   className={

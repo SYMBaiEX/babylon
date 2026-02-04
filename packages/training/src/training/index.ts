@@ -10,40 +10,58 @@ export type { BenchmarkResults, ComparisonResults } from './BenchmarkService';
 export { BenchmarkService, benchmarkService } from './BenchmarkService';
 
 export { ConfigValidator } from './ConfigValidator';
-export { initializeTrainingSystem } from './init';
+export { logRLConfigOnStartup } from './logRLConfig';
 export { MarketOutcomesTracker } from './MarketOutcomesTracker';
 export type { DeploymentOptions, DeploymentResult } from './ModelDeployer';
 export { ModelDeployer, modelDeployer } from './ModelDeployer';
+export type { ModelArtifact } from './ModelFetcher';
+// Model fetching
+export { getLatestRLModel } from './ModelFetcher';
 export {
   ModelSelectionService,
   modelSelectionService,
 } from './ModelSelectionService';
 export { ModelUsageVerifier } from './ModelUsageVerifier';
+// Multi-model orchestration for efficient archetype model management
+export type {
+  ModelInferenceRequest,
+  ModelInferenceResult,
+  OrchestratorConfig,
+} from './MultiModelOrchestrator';
+export {
+  createMultiModelOrchestrator,
+  MultiModelOrchestrator,
+} from './MultiModelOrchestrator';
 export {
   RewardBackpropagationService,
   rewardBackpropagationService,
 } from './RewardBackpropagationService';
-export {
-  isRLModelAvailable,
-  logRLModelConfig,
-  getRLModelConfig,
-  getModelTierForVram,
-  getModelForTier,
-  getAvailableModelTiers,
-  isTierAvailable,
-  // Archetype model management
-  registerArchetypeModel,
-  getModelForArchetype,
-  getAllArchetypeModels,
-  hasArchetypeModel,
-  clearArchetypeModels,
-  MODEL_TIERS,
-} from './RLModelConfig';
 export type {
+  ArchetypeModelConfig,
   ModelTier,
   ModelTierConfig,
+  MultiModelConfig,
+  QuantizationMode,
   RLModelConfig,
-  ArchetypeModelConfig,
+} from './RLModelConfig';
+export {
+  clearArchetypeModels,
+  getAllArchetypeModels,
+  getAvailableModelTiers,
+  getModelForArchetype,
+  getModelForTier,
+  getModelTierForVram,
+  getMultiModelConfig,
+  getQuantizedModelName,
+  getRLModelConfig,
+  getVramRequirement,
+  hasArchetypeModel,
+  isRLModelAvailable,
+  isTierAvailable,
+  logRLModelConfig,
+  MODEL_TIERS,
+  // Archetype model management
+  registerArchetypeModel,
 } from './RLModelConfig';
 export type { MarketOutcomes, RulerScore } from './RulerScoringService';
 export {
@@ -51,20 +69,9 @@ export {
   rulerScoringService,
 } from './RulerScoringService';
 // Storage services
-export {
-  ModelStorageService,
-  modelStorage,
-} from './storage/ModelStorageService';
-export {
-  TrainingDataArchiver,
-  trainingDataArchiver,
-} from './storage/TrainingDataArchiver';
+export * from './storage';
 export { TrainingMonitor, trainingMonitor } from './TrainingMonitor';
 export { TrajectoryRecorder, trajectoryRecorder } from './TrajectoryRecorder';
-
-// Model fetching
-export { getLatestRLModel } from './ModelFetcher';
-export type { ModelArtifact } from './ModelFetcher';
 
 // Types
 export * from './types';

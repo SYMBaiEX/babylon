@@ -32,7 +32,7 @@
  * - Shorter timespans for urgent developments (announcements, scandals)
  * - Resolution event generated to prove outcome definitively
  *
- * @see {@link GameEngine} - Uses QuestionManager to generate daily questions
+ * @see {@link executeGameTick} - Production tick uses QuestionManager to generate questions and resolution proofs
  * @see {@link FeedGenerator} - Creates posts and discussions about active questions
  *
  * @example
@@ -59,31 +59,29 @@
  */
 
 import {
-  actors,
+  PredictionDbAdapter as CorePredictionDbAdapter,
+  PredictionMarketService as CorePredictionMarketService,
+} from '@babylon/core/markets/prediction';
+import {
   and,
-  Decimal,
   db,
   desc,
   eq,
   gte,
-  inArray,
-  markets,
-  organizations,
   questions,
   tags,
   trendingTags,
   worldEvents,
 } from '@babylon/db';
+import {
+  generateSnowflakeId,
+  logger,
+  RESOLUTION_CONFIDENCE_CONFIG,
+} from '@babylon/shared';
 import { type Article, ArticleGenerator } from './ArticleGenerator';
+import type { BabylonLLMClient } from './llm/openai-client';
+import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
-import { logger } from '@babylon/shared';
-import { PredictionPricing } from './prediction-pricing';
-import { MarketContextService } from './services/market-context-service';
-import { TradeExecutionService } from './services/trade-execution-service';
-import { ensureMarketOnChain } from './services/onchain-market-service';
-import { worldFactsService } from './world-facts-service';
-import { generateSnowflakeId } from '@babylon/shared';
-import { shuffleArray } from './utils/randomization';
 import {
   generateWorldContext,
   questionGeneration,
@@ -91,6 +89,13 @@ import {
   renderPrompt,
   worldImpactAssessment,
 } from './prompts';
+import { MarketContextService } from './services/market-context-service';
+import { MarketMetricsService } from './services/market-metrics-service';
+import { saveArcPlan } from './services/narrative-state-service';
+import { ensureMarketOnChain } from './services/onchain-market-service';
+import { QuestionArcPlanner } from './services/question-arc-planner';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { TradeExecutionService } from './services/trade-execution-service';
 import type {
   DayTimeline,
   Organization,
@@ -99,8 +104,35 @@ import type {
   SelectedActor,
   WorldEvent,
 } from './types/shared';
-import type { BabylonLLMClient } from './llm/openai-client';
-import { BabylonLLMClient as BabylonLLMClientValue } from './llm/openai-client';
+import { firstOrThrow } from './utils/array-utils';
+import { toDateString } from './utils/date-utils';
+import { formatError } from './utils/error-utils';
+import { clamp } from './utils/math-utils';
+import { shuffleArray } from './utils/randomization';
+import { worldFactsService } from './world-facts-service';
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Determines if an actor is eligible for question generation.
+ * Actors are eligible if they have a main/supporting role OR are S/A tier.
+ * This handles cases where actors may not have a role defined but do have a tier.
+ *
+ * Exported for reuse in other modules (e.g., markets-tick).
+ */
+export function isEligibleActor(actor: {
+  role?: string | null;
+  tier?: string | null;
+}): boolean {
+  return (
+    actor.role === 'main' ||
+    actor.role === 'supporting' ||
+    actor.tier === 'S_TIER' ||
+    actor.tier === 'A_TIER'
+  );
+}
 
 /**
  * Parameters for question generation
@@ -123,6 +155,25 @@ export interface QuestionCreationParams {
   activeQuestions: Question[];
   recentEvents: DayTimeline[];
   nextQuestionId: number;
+}
+
+/**
+ * Resolution with proof and confidence assessment
+ *
+ * Returned by generateResolutionWithProof containing the resolution description,
+ * optional proof article, and confidence metrics for manual review flagging.
+ */
+export interface ResolutionWithProof {
+  /** Natural language description of why/how the question resolved */
+  description: string;
+  /** Optional proof article with URL */
+  proof?: { type: 'article'; article: Article; url: string };
+  /** Confidence score (0-1) based on speculative signal detection */
+  confidence: number;
+  /** Whether this resolution requires manual admin review */
+  requiresManualReview: boolean;
+  /** Detected speculative signals that reduced confidence */
+  confidenceSignals: string[];
 }
 
 /**
@@ -316,8 +367,7 @@ export class QuestionManager {
       .map((q, index) => {
         const resolutionDate = new Date(currentDateObj);
         resolutionDate.setDate(
-          resolutionDate.getDate() +
-            Math.max(1, Math.min(7, q.daysUntilResolution || 3))
+          resolutionDate.getDate() + clamp(q.daysUntilResolution || 3, 1, 7)
         );
 
         return {
@@ -327,7 +377,7 @@ export class QuestionManager {
           outcome: q.expectedOutcome,
           rank: 1,
           createdDate: currentDate,
-          resolutionDate: resolutionDate.toISOString().split('T')[0]!,
+          resolutionDate: toDateString(resolutionDate),
           status: 'active',
         };
       });
@@ -358,9 +408,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       .join('\n');
 
     // Shuffle actors and organizations to add variety to prompts
-    const shuffledActors = shuffleArray(
-      actors.filter((a) => a.role === 'main' || a.role === 'supporting')
-    );
+    const shuffledActors = shuffleArray(actors.filter(isEligibleActor));
     const actorsList = shuffledActors
       .slice(0, 20)
       .map((a) => `- ${a.name}: ${a.description}`)
@@ -382,21 +430,13 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
 
     // Load example questions from TypeScript export
     let exampleQuestions = '';
-    try {
-      const { getQuestionExamples } = await import('./data/question-examples');
-      const examples = getQuestionExamples();
-      const shuffled = shuffleArray(examples);
-      exampleQuestions = shuffled
-        .slice(0, 10)
-        .map((q) => `✅ "${q}"`)
-        .join('\n');
-    } catch (error) {
-      logger.warn(
-        'Failed to load question examples',
-        { error },
-        'QuestionManager'
-      );
-    }
+    const { getQuestionExamples } = await import('./data/question-examples');
+    const examples = getQuestionExamples();
+    const shuffled = shuffleArray(examples);
+    exampleQuestions = shuffled
+      .slice(0, 10)
+      .map((q) => `✅ "${q}"`)
+      .join('\n');
 
     return renderPrompt(questionGeneration, {
       scenariosList,
@@ -543,28 +583,35 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       visibility: 'public',
     };
 
+    // Get world facts context for article generation with graceful fallback
+    let worldFactsContext = '';
     try {
-      const article = await articleGenerator.generateArticleForQuestion(
-        question,
-        org,
-        'resolution',
-        actors,
-        [event]
-      );
-
-      return {
-        type: 'article',
-        article,
-        url: `/article/${article.id}`,
-      };
+      worldFactsContext = await worldFactsService.generatePromptContext();
     } catch (error) {
-      logger.error(
-        'Failed to generate proof article',
-        { error },
+      logger.warn(
+        'Failed to fetch world facts context for proof content - proceeding without',
+        {
+          questionId: question.id,
+          error: formatError(error),
+        },
         'QuestionManager'
       );
-      return null;
     }
+
+    const article = await articleGenerator.generateArticleForQuestion(
+      question,
+      org,
+      'resolution',
+      actors,
+      [event],
+      worldFactsContext // World facts context for current game state
+    );
+
+    return {
+      type: 'article',
+      article,
+      url: `/article/${article.id}`,
+    };
   }
 
   /**
@@ -575,10 +622,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     actors: SelectedActor[],
     organizations: Organization[],
     recentEvents: DayTimeline[]
-  ): Promise<{
-    description: string;
-    proof?: { type: 'article'; article: Article; url: string };
-  }> {
+  ): Promise<ResolutionWithProof> {
     const description = await this.generateResolutionEvent(
       question,
       actors,
@@ -594,7 +638,85 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       organizations
     );
 
-    return { description, proof: proof || undefined };
+    const evidenceText = [
+      description,
+      proof?.type === 'article' ? proof.article.title : null,
+      proof?.type === 'article' ? proof.article.summary : null,
+    ]
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      .join('\n');
+
+    // Guard: empty evidence should always trigger manual review
+    if (!evidenceText.trim()) {
+      return {
+        description,
+        proof: proof || undefined,
+        confidence: RESOLUTION_CONFIDENCE_CONFIG.MIN_CONFIDENCE,
+        requiresManualReview: true,
+        confidenceSignals: ['no_evidence'],
+      };
+    }
+
+    const assessment = this.assessResolutionConfidence(evidenceText);
+
+    return {
+      description,
+      proof: proof || undefined,
+      confidence: assessment.confidence,
+      requiresManualReview: assessment.requiresManualReview,
+      confidenceSignals: assessment.signals,
+    };
+  }
+
+  private assessResolutionConfidence(text: string): {
+    confidence: number;
+    requiresManualReview: boolean;
+    signals: string[];
+  } {
+    const signals: string[] = [];
+
+    // Speculative signals with weights (higher = more speculative)
+    // Patterns are designed to minimize false positives from common phrases
+    const speculativeSignals: Array<[RegExp, string, number]> = [
+      // High-weight: strong speculation indicators
+      [/\brumou?r(s|ed)?\b/i, 'rumor', 0.25],
+      [/\bunconfirmed\b/i, 'unconfirmed', 0.25],
+      [/\balleged(ly)?\b/i, 'alleged', 0.2],
+      [/\bsources?\s+(say|claim|suggest)\b/i, 'sources_say', 0.2],
+      // Medium-weight: conditional language (stricter patterns to avoid false positives)
+      [/\b(might|could)\s+(be|have|become|lead|cause)\b/i, 'conditional', 0.15],
+      [/\bexpected\s+to\b/i, 'expected_to', 0.15],
+      // More specific: "likely to be/happen" vs "the likely winner" (definitive)
+      [/\blikely\s+to\s+(be|happen|occur|result)\b/i, 'likely', 0.12],
+      // Low-weight: common but still speculative
+      [/\breportedly\b/i, 'reportedly', 0.1],
+      [/\bpossibly\b/i, 'possibly', 0.1],
+      // More specific: "apparently uncertain" vs "apparently successful" (confirming)
+      [
+        /\bapparently\s+(not|uncertain|unclear|unconfirmed)\b/i,
+        'apparently',
+        0.08,
+      ],
+    ];
+
+    let totalWeight = 0;
+    for (const [regex, label, weight] of speculativeSignals) {
+      if (regex.test(text)) {
+        signals.push(label);
+        totalWeight += weight;
+      }
+    }
+
+    // Graduated confidence: start at base, subtract accumulated weight, floor at min
+    const { BASE_CONFIDENCE, MIN_CONFIDENCE, MANUAL_REVIEW_THRESHOLD } =
+      RESOLUTION_CONFIDENCE_CONFIG;
+    const confidence = Math.max(MIN_CONFIDENCE, BASE_CONFIDENCE - totalWeight);
+
+    return {
+      confidence,
+      requiresManualReview: confidence < MANUAL_REVIEW_THRESHOLD,
+      signals,
+    };
   }
 
   /**
@@ -698,55 +820,45 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
     question: Question,
     resolutionEvent: string
   ): Promise<void> {
-    try {
-      const worldContext = await generateWorldContext({
-        includeWorldFacts: true,
-        realityGroundingLevel: 'concise',
-      });
+    const worldContext = await generateWorldContext({
+      includeWorldFacts: true,
+      realityGroundingLevel: 'concise',
+    });
 
-      const prompt = renderPrompt(worldImpactAssessment, {
-        worldFacts: worldContext.worldFacts,
-        questionText: question.text,
-        outcome: question.outcome ? 'YES' : 'NO',
-        outcomeText: question.outcome
-          ? 'True/Happened'
-          : 'False/Did not happen',
-        resolutionEvent,
-      });
+    const prompt = renderPrompt(worldImpactAssessment, {
+      worldFacts: worldContext.worldFacts,
+      questionText: question.text,
+      outcome: question.outcome ? 'YES' : 'NO',
+      outcomeText: question.outcome ? 'True/Happened' : 'False/Did not happen',
+      resolutionEvent,
+    });
 
-      const response = await this.llm.generateJSON<
-        | {
+    const response = await this.llm.generateJSON<
+      | {
+          changesWorld: boolean;
+          newFact: string | null;
+        }
+      | {
+          response: {
             changesWorld: boolean;
             newFact: string | null;
-          }
-        | {
-            response: {
-              changesWorld: boolean;
-              newFact: string | null;
-            };
-          }
-      >(prompt, undefined, { promptType: 'question_assess_world_impact' });
+          };
+        }
+    >(prompt, undefined, { promptType: 'question_assess_world_impact' });
 
-      // Handle potential wrapped response
-      let result: { changesWorld: boolean; newFact: string | null };
-      if ('response' in response) {
-        result = response.response;
-      } else {
-        result = response;
-      }
+    // Handle potential wrapped response
+    let result: { changesWorld: boolean; newFact: string | null };
+    if ('response' in response) {
+      result = response.response;
+    } else {
+      result = response;
+    }
 
-      if (result.changesWorld && result.newFact) {
-        await worldFactsService.addDynamicFact(result.newFact);
-        logger.info(
-          `Added new world fact: ${result.newFact}`,
-          { questionId: question.id },
-          'QuestionManager'
-        );
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to assess world impact',
-        { error },
+    if (result.changesWorld && result.newFact) {
+      await worldFactsService.addDynamicFact(result.newFact);
+      logger.info(
+        `Added new world fact: ${result.newFact}`,
+        { questionId: question.id },
         'QuestionManager'
       );
     }
@@ -883,6 +995,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       actorsList,
       organizationsList,
       trendingTagsList,
+      marketMetrics,
     ] = await Promise.all([
       worldFactsService.generatePromptContext(),
       generateWorldContext({
@@ -934,31 +1047,33 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         )
         .orderBy(desc(questions.updatedAt))
         .limit(10),
-      // Get actors (main and supporting roles)
-      db
-        .select({
-          id: actors.id,
-          name: actors.name,
-          description: actors.description,
-          domain: actors.domain,
-          role: actors.role,
-          personality: actors.personality,
-          affiliations: actors.affiliations,
-        })
-        .from(actors)
-        .where(inArray(actors.role, ['main', 'supporting']))
-        .limit(30),
-      // Get organizations (companies)
-      db
-        .select({
-          id: organizations.id,
-          name: organizations.name,
-          description: organizations.description,
-          type: organizations.type,
-        })
-        .from(organizations)
-        .where(eq(organizations.type, 'company'))
-        .limit(20),
+      // Get actors (main and supporting roles, with tier fallback) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllActors()
+          .filter(isEligibleActor)
+          .slice(0, 30)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            domain: a.domain,
+            role: a.role,
+            personality: a.personality,
+            affiliations: a.affiliations,
+          }))
+      ),
+      // Get organizations (companies) from static registry
+      Promise.resolve(
+        StaticDataRegistry.getAllOrganizations()
+          .filter((o) => o.type === 'company')
+          .slice(0, 20)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+            type: o.type,
+          }))
+      ),
       // Get trending topics for context (with manual join for tags)
       db
         .select({
@@ -973,25 +1088,19 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
         .leftJoin(tags, eq(trendingTags.tagId, tags.id))
         .orderBy(desc(trendingTags.score))
         .limit(10),
+      // Get market metrics for metrics-based question generation (BAB-5)
+      MarketMetricsService.gatherMetrics(24),
     ]);
 
     // Load example questions from TypeScript export
     let exampleQuestions = '';
-    try {
-      const { getQuestionExamples } = await import('./data/question-examples');
-      const examples = getQuestionExamples();
-      const shuffled = shuffleArray(examples);
-      exampleQuestions = shuffled
-        .slice(0, 10)
-        .map((q) => `✅ "${q}"`)
-        .join('\n');
-    } catch (error) {
-      logger.warn(
-        'Failed to load question examples',
-        { error },
-        'QuestionManager'
-      );
-    }
+    const { getQuestionExamples } = await import('./data/question-examples');
+    const examples = getQuestionExamples();
+    const shuffled = shuffleArray(examples);
+    exampleQuestions = shuffled
+      .slice(0, 10)
+      .map((q) => `✅ "${q}"`)
+      .join('\n');
 
     // Format context strings - compact format
     const recentEventsContext =
@@ -1045,6 +1154,9 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
             .join(', ')}`
         : '';
 
+    // Market metrics context (BAB-5: metrics-based question generation)
+    const marketMetricsContext = marketMetrics.promptContext;
+
     // Build compact prompt
     const contextParts = [
       worldFactsContext,
@@ -1055,6 +1167,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       actorsContext,
       orgsContext,
       trendingContext,
+      marketMetricsContext, // BAB-5: metrics-based question generation
       worldContext.currentMarkets
         ? `MARKETS: ${worldContext.currentMarkets}`
         : '',
@@ -1077,6 +1190,18 @@ RULES:
 - NO resignations/acquisitions/relationship-breaking
 - Resolution: 1-7 days (1-2d=fast, 3-5d=medium, 6-7d=slow)
 - Don't duplicate active questions
+
+TOPIC DIVERSITY (CRITICAL):
+- Each question MUST be about a DIFFERENT topic/person/company
+- Spread across: tech, crypto, politics, entertainment, business
+- Use DIFFERENT actors for each question (not all about same person)
+- Mix question types: product launches, price targets, announcements, partnerships
+- NO two questions about the same actor or company in this batch
+
+OUTCOME BALANCE:
+- Aim for 40-60% yes/no split in expectedOutcome
+- Not all questions should resolve the same way
+- Include some questions likely to resolve NO
 
 BAD: "Will X be happy?" (vague), "Will X secretly..." (unverifiable)
 
@@ -1104,296 +1229,697 @@ XML: <response><questions><question><text>...</text><resolutionCriteria>...</res
         }
       | null = null;
 
-    try {
-      if (Date.now() > deadlineMs) {
-        logger.warn(
-          'Question generation aborted due to tick budget limit',
-          { questionsCreated },
-          'QuestionManager'
-        );
-        return questionsCreated;
-      }
+    if (Date.now() > deadlineMs) {
+      logger.warn(
+        'Question generation aborted due to tick budget limit',
+        { questionsCreated },
+        'QuestionManager'
+      );
+      return questionsCreated;
+    }
 
-      response = await this.llm.generateJSON<
-        | {
+    response = await this.llm.generateJSON<
+      | {
+          questions: Array<{
+            text: string;
+            resolutionCriteria: string;
+            daysUntilResolution: number;
+            expectedOutcome: string;
+          }>;
+        }
+      | {
+          response: {
             questions: Array<{
               text: string;
               resolutionCriteria: string;
               daysUntilResolution: number;
               expectedOutcome: string;
             }>;
-          }
-        | {
-            response: {
-              questions: Array<{
-                text: string;
-                resolutionCriteria: string;
-                daysUntilResolution: number;
-                expectedOutcome: string;
-              }>;
-            };
-          }
-      >(
-        prompt,
-        {
-          properties: {
-            questions: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  text: { type: 'string' },
-                  resolutionCriteria: { type: 'string' },
-                  daysUntilResolution: { type: 'number' },
-                  expectedOutcome: { type: 'string' },
-                },
+          };
+        }
+    >(
+      prompt,
+      {
+        properties: {
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                text: { type: 'string' },
+                resolutionCriteria: { type: 'string' },
+                daysUntilResolution: { type: 'number' },
+                expectedOutcome: { type: 'string' },
               },
             },
           },
-          required: ['questions'],
         },
-        {
-          temperature: 0.9,
-          maxTokens: 8000,
-          format: 'xml',
-          promptType: 'question_generate_real_world',
-        }
-      );
-
-      // Handle XML structure
-      const questionsData =
-        response && 'response' in response && response.response
-          ? (
-              response.response as {
-                questions: Array<{
-                  text: string;
-                  resolutionCriteria: string;
-                  daysUntilResolution: number;
-                  expectedOutcome: string;
-                }>;
-              }
-            ).questions
-          : (
-              response as {
-                questions: Array<{
-                  text: string;
-                  resolutionCriteria: string;
-                  daysUntilResolution: number;
-                  expectedOutcome: string;
-                }>;
-              }
-            ).questions;
-
-      if (
-        !questionsData ||
-        !Array.isArray(questionsData) ||
-        questionsData.length === 0
-      ) {
-        logger.warn(
-          'No questions generated from LLM response',
-          { response },
-          'QuestionManager'
-        );
-        return questionsCreated;
+        required: ['questions'],
+      },
+      {
+        temperature: 0.9,
+        maxTokens: 8000,
+        format: 'xml',
+        promptType: 'question_generate_real_world',
       }
+    );
 
-      // Get next question number
-      const [lastQuestion] = await db
-        .select({ questionNumber: questions.questionNumber })
-        .from(questions)
-        .orderBy(desc(questions.questionNumber))
-        .limit(1);
-      let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
+    // Handle XML structure - may be {questions: [...]} or {questions: {question: [...]}}
+    type QuestionData = {
+      text: string;
+      resolutionCriteria: string;
+      daysUntilResolution: number;
+      expectedOutcome: string;
+    };
+    type QuestionsResponse = {
+      questions: QuestionData[] | { question: QuestionData[] };
+    };
 
-      // Using default scenario ID until dynamic scenario selection is implemented
-      const scenarioId = 1;
-      const now = new Date();
+    const rawQuestions =
+      response && 'response' in response && response.response
+        ? (response.response as QuestionsResponse).questions
+        : (response as QuestionsResponse).questions;
 
-      // Create each question
-      for (const questionData of questionsData.slice(0, count)) {
-        if (Date.now() > deadlineMs) {
-          logger.warn(
-            'Question generation aborted due to tick budget limit',
-            { questionsCreated },
-            'QuestionManager'
-          );
-          break;
-        }
+    // Handle nested XML format {questions: {question: [...]}}
+    const questionsData: QuestionData[] = Array.isArray(rawQuestions)
+      ? rawQuestions
+      : rawQuestions &&
+          'question' in rawQuestions &&
+          Array.isArray(rawQuestions.question)
+        ? rawQuestions.question
+        : [];
 
-        if (!questionData.text || !questionData.resolutionCriteria) {
-          logger.warn(
-            'Invalid question data, skipping',
-            { questionData },
-            'QuestionManager'
-          );
-          continue;
-        }
-
-        // Convert "yes"/"no" to boolean
-        const expectedOutcomeStr = String(questionData.expectedOutcome || '')
-          .toLowerCase()
-          .trim();
-        const expectedOutcome =
-          expectedOutcomeStr === 'yes' || expectedOutcomeStr === 'true';
-
-        // Clamp daysUntilResolution to 1-7 range and ensure it's a valid integer
-        const rawDays = questionData.daysUntilResolution;
-        const daysUntilResolution = Math.max(
-          1,
-          Math.min(7, Math.round(rawDays || 3))
-        );
-
-        // Calculate resolution date from current date + daysUntilResolution
-        const resolutionDate = new Date();
-        resolutionDate.setDate(resolutionDate.getDate() + daysUntilResolution);
-        resolutionDate.setHours(23, 59, 59, 999); // Set to end of day for consistency
-
-        logger.info(
-          `Creating question with ${daysUntilResolution} day resolution period`,
-          {
-            questionText: questionData.text,
-            daysUntilResolution,
-            resolutionDate: resolutionDate.toISOString(),
-            rawDaysFromLLM: rawDays,
-            expectedOutcome: expectedOutcomeStr,
-            outcomeBoolean: expectedOutcome,
-          },
-          'QuestionManager'
-        );
-
-        const questionResults = await db
-          .insert(questions)
-          .values({
-            id: await generateSnowflakeId(),
-            questionNumber: nextQuestionNumber++,
-            text: questionData.text,
-            scenarioId,
-            outcome: expectedOutcome,
-            rank: 1,
-            resolutionDate,
-            status: 'active',
-            updatedAt: now,
-          })
-          .returning();
-        const question = questionResults[0]!;
-
-        // Initialize market with sufficient liquidity for trading
-        const initialLiquidity = 20000;
-        const { yesShares, noShares } =
-          PredictionPricing.initializeMarket(initialLiquidity);
-
-        const marketResults = await db
-          .insert(markets)
-          .values({
-            id: question.id,
-            question: questionData.text,
-            description: questionData.resolutionCriteria,
-            yesShares: new Decimal(yesShares).toString(),
-            noShares: new Decimal(noShares).toString(),
-            liquidity: new Decimal(initialLiquidity).toString(),
-            endDate: resolutionDate, // Same resolutionDate as question (1-7 days from now)
-            gameId: 'continuous',
-            updatedAt: now,
-          })
-          .returning();
-        const market = marketResults[0]!;
-
-        logger.debug(
-          'Question and market created with matching resolution dates',
-          {
-            questionId: question.id,
-            questionNumber: question.questionNumber,
-            resolutionDate: resolutionDate.toISOString(),
-            daysUntilResolution,
-            marketEndDate: market.endDate.toISOString(),
-          },
-          'QuestionManager'
-        );
-
-        // Create market on-chain if it doesn't have onChainMarketId
-        if (!market.onChainMarketId) {
-          await ensureMarketOnChain(market.id).catch((error: Error) => {
-            logger.warn(
-              'Failed to create market on-chain (non-blocking)',
-              { error, marketId: market.id },
-              'QuestionManager'
-            );
-          });
-        }
-
-        // Trigger NPC betting on this new question
-        try {
-          const contextService = new MarketContextService();
-
-          // Create LLM client for market decisions
-          const marketDecisionLLM = BabylonLLMClientValue.forGameTick();
-
-          const modelName =
-            process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-          const isKimiModel = modelName.toLowerCase().includes('kimi');
-          const defaultMaxOutput = isKimiModel ? 16000 : 32000;
-          const maxOutputTokens = Number.parseInt(
-            process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
-              defaultMaxOutput.toString(),
-            10
-          );
-
-          const decisionEngine = new MarketDecisionEngine(
-            marketDecisionLLM,
-            contextService,
-            {
-              model: modelName,
-              maxOutputTokens,
-            }
-          );
-
-          // Generate decisions for NPCs - they will see the new question in context
-          const decisions = await decisionEngine.generateBatchDecisions();
-
-          // Filter to decisions for this new question
-          const questionDecisions = decisions.filter(
-            (d) => d.marketType === 'prediction' && d.marketId === question.id
-          );
-
-          if (questionDecisions.length > 0) {
-            const executionService = new TradeExecutionService();
-            const executionResult =
-              await executionService.executeDecisionBatch(questionDecisions);
-
-            logger.info(
-              `NPC betting on new question Q${question.questionNumber}`,
-              {
-                questionId: question.id,
-                questionText: question.text,
-                decisionsGenerated: questionDecisions.length,
-                successfulTrades: executionResult.successfulTrades,
-                failedTrades: executionResult.failedTrades,
-              },
-              'QuestionManager'
-            );
-          }
-        } catch (error) {
-          logger.warn(
-            'Failed to trigger NPC betting on new question (non-blocking)',
-            {
-              error: error instanceof Error ? error.message : String(error),
-              questionId: question.id,
-            },
-            'QuestionManager'
-          );
-          // Continue even if NPC betting fails
-        }
-
-        questionsCreated++;
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to generate new questions via LLM',
-        { error: error instanceof Error ? error.message : String(error) },
+    if (questionsData.length === 0) {
+      logger.warn(
+        'No questions generated from LLM response',
+        { response },
         'QuestionManager'
       );
+      return questionsCreated;
+    }
+
+    // Get next question number
+    const [lastQuestion] = await db
+      .select({ questionNumber: questions.questionNumber })
+      .from(questions)
+      .orderBy(desc(questions.questionNumber))
+      .limit(1);
+    let nextQuestionNumber = (lastQuestion?.questionNumber ?? 0) + 1;
+
+    // Using default scenario ID until dynamic scenario selection is implemented
+    const scenarioId = 1;
+    const now = new Date();
+    const initialLiquidity = 20000;
+
+    const marketService = new CorePredictionMarketService({
+      db: new CorePredictionDbAdapter(),
+      // Not used for market creation, but required by the service deps type
+      wallet: {
+        debit: async () => {},
+        credit: async () => {},
+        recordPnL: async () => {},
+        getBalance: async () => ({ balance: 0 }),
+      },
+      fees: {
+        tradingFeeRate: 0,
+        platformShare: 0,
+        referrerShare: 0,
+        minFeeAmount: 0,
+      },
+    });
+
+    // Create each question
+    for (const questionData of questionsData.slice(0, count)) {
+      if (Date.now() > deadlineMs) {
+        logger.warn(
+          'Question generation aborted due to tick budget limit',
+          { questionsCreated },
+          'QuestionManager'
+        );
+        break;
+      }
+
+      if (!questionData.text || !questionData.resolutionCriteria) {
+        logger.warn(
+          'Invalid question data, skipping',
+          { questionData },
+          'QuestionManager'
+        );
+        continue;
+      }
+
+      // Sanitize question text to remove any template variables that leaked through
+      const sanitizedText = questionData.text
+        .replace(/\{resolutionDate\}/gi, '')
+        .replace(/\{resolution_date\}/gi, '')
+        .replace(/\{date\}/gi, '')
+        .replace(/\{[a-zA-Z_]+\}/g, '') // Remove any other template variables
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/by\s*\?$/i, '?') // Clean up "by ?" at end
+        .trim();
+
+      // Update the question text with sanitized version
+      questionData.text = sanitizedText;
+
+      // Convert "yes"/"no" to boolean
+      const expectedOutcomeStr = String(questionData.expectedOutcome || '')
+        .toLowerCase()
+        .trim();
+      const expectedOutcome =
+        expectedOutcomeStr === 'yes' || expectedOutcomeStr === 'true';
+
+      // Clamp daysUntilResolution to 1-7 range and ensure it's a valid integer
+      const rawDays = questionData.daysUntilResolution;
+      const daysUntilResolution = Math.max(
+        1,
+        Math.min(7, Math.round(rawDays || 3))
+      );
+
+      // Calculate resolution date from current date + daysUntilResolution
+      const resolutionDate = new Date();
+      resolutionDate.setDate(resolutionDate.getDate() + daysUntilResolution);
+      resolutionDate.setHours(23, 59, 59, 999); // Set to end of day for consistency
+
+      logger.info(
+        `Creating question with ${daysUntilResolution} day resolution period`,
+        {
+          questionText: questionData.text,
+          daysUntilResolution,
+          resolutionDate: resolutionDate.toISOString(),
+          rawDaysFromLLM: rawDays,
+          expectedOutcome: expectedOutcomeStr,
+          outcomeBoolean: expectedOutcome,
+        },
+        'QuestionManager'
+      );
+
+      const questionResults = await db
+        .insert(questions)
+        .values({
+          id: await generateSnowflakeId(),
+          questionNumber: nextQuestionNumber++,
+          text: questionData.text,
+          scenarioId,
+          outcome: expectedOutcome,
+          rank: 1,
+          resolutionDate,
+          status: 'active',
+          updatedAt: now,
+        })
+        .returning();
+      const question = firstOrThrow(
+        questionResults,
+        'Question insert returned empty'
+      );
+
+      // Ensure market exists via core service (keeps creation logic portable)
+      const market = await marketService.ensureMarketExists({
+        marketId: question.id,
+        initialLiquidity,
+        description: questionData.resolutionCriteria,
+      });
+
+      logger.debug(
+        'Question and market created with matching resolution dates',
+        {
+          questionId: question.id,
+          questionNumber: question.questionNumber,
+          resolutionDate: resolutionDate.toISOString(),
+          daysUntilResolution,
+          marketEndDate: market.endDate.toISOString(),
+        },
+        'QuestionManager'
+      );
+
+      // Create and persist arc plan for this question
+      const allActors = StaticDataRegistry.getAllActors()
+        .filter(isEligibleActor)
+        .slice(0, 30)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          tier: a.tier ?? undefined, // Convert null to undefined for type compatibility
+          role: a.role,
+          personality: a.personality,
+          domain: a.domain,
+          affiliations: a.affiliations,
+        }));
+
+      const allOrgs: Organization[] = StaticDataRegistry.getAllOrganizations()
+        .filter((o) => o.type === 'company')
+        .slice(0, 20)
+        .map((o) => ({
+          id: o.id,
+          name: o.name,
+          description: o.description,
+          type: o.type as Organization['type'],
+          canBeInvolved: o.canBeInvolved ?? true, // Default to true for backward compatibility
+        }));
+
+      const arcPlanner = new QuestionArcPlanner();
+      const arcPlan = arcPlanner.planQuestionArc(
+        {
+          id: question.questionNumber,
+          text: question.text,
+          scenario: scenarioId,
+          outcome: expectedOutcome,
+          rank: 1,
+          status: 'active',
+        },
+        allActors,
+        allOrgs
+      );
+
+      // Save arc plan to database for use in subsequent ticks
+      await saveArcPlan(question.id, arcPlan);
+
+      // Create market on-chain if it doesn't have onChainMarketId
+      if (!market.onChainMarketId) {
+        await ensureMarketOnChain(market.id).catch((error: Error) => {
+          logger.warn(
+            'Failed to create market on-chain (non-blocking)',
+            { error, marketId: market.id },
+            'QuestionManager'
+          );
+        });
+      }
+
+      // Trigger NPC betting on this new question
+      const contextService = new MarketContextService();
+
+      // Create LLM client for market decisions
+      const marketDecisionLLM = BabylonLLMClientValue.forGameTick();
+
+      const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
+      const isKimiModel = modelName.toLowerCase().includes('kimi');
+      const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+      const maxOutputTokens = Number.parseInt(
+        process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS ||
+          defaultMaxOutput.toString(),
+        10
+      );
+
+      const decisionEngine = new MarketDecisionEngine(
+        marketDecisionLLM,
+        contextService,
+        {
+          model: modelName,
+          maxOutputTokens,
+        }
+      );
+
+      // Generate decisions for NPCs - they will see the new question in context
+      const decisions = await decisionEngine.generateBatchDecisions();
+
+      // Filter to decisions for this new question
+      const questionDecisions = decisions.filter(
+        (d) => d.marketType === 'prediction' && d.marketId === question.id
+      );
+
+      if (questionDecisions.length > 0) {
+        const executionService = new TradeExecutionService();
+        const executionResult =
+          await executionService.executeDecisionBatch(questionDecisions);
+
+        logger.info(
+          `NPC betting on new question Q${question.questionNumber}`,
+          {
+            questionId: question.id,
+            questionText: question.text,
+            decisionsGenerated: questionDecisions.length,
+            successfulTrades: executionResult.successfulTrades,
+            failedTrades: executionResult.failedTrades,
+          },
+          'QuestionManager'
+        );
+      }
+
+      questionsCreated++;
     }
 
     return questionsCreated;
+  }
+
+  /**
+   * Generate a single question for a specific timeframe with full narrative context.
+   *
+   * @param timeframe - The market timeframe key (15m, 30m, 1h, 6h, 12h, 1d, 2d, 3d)
+   * @param durationMs - Duration in milliseconds for this market
+   * @returns Question details or null if generation fails
+   *
+   * @description
+   * Generates a single question appropriate for the specified timeframe.
+   * Uses full game context (world events, trending topics, active questions)
+   * to create narrative-connected, non-repetitive questions.
+   *
+   * Timeframe categories:
+   * - Short (15m, 30m, 1h): Immediate, observable events
+   * - Medium (6h, 12h, 1d): Daily developments and announcements
+   * - Long (2d, 3d): Multi-day narrative arcs
+   */
+  async generateTimeframeQuestion(
+    timeframe: string,
+    durationMs: number
+  ): Promise<{
+    text: string;
+    resolutionCriteria: string;
+    expectedOutcome: boolean;
+    affiliatedActorIds: string[];
+    affiliatedOrgIds: string[];
+  } | null> {
+    const category = this.getTimeframeCategory(timeframe);
+    const durationLabel = this.getDurationLabel(durationMs);
+
+    logger.info(
+      `Generating ${timeframe} question (${category} category)`,
+      { timeframe, durationMs, durationLabel },
+      'QuestionManager'
+    );
+
+    // Gather comprehensive context (same as continuous game generation)
+    const [
+      worldFactsContext,
+      recentEvents,
+      activeQuestions,
+      actorsList,
+      organizationsList,
+      trendingTagsList,
+    ] = await Promise.all([
+      worldFactsService.generatePromptContext(),
+      // Get recent events - more recent for shorter timeframes
+      db
+        .select()
+        .from(worldEvents)
+        .where(
+          and(
+            gte(
+              worldEvents.timestamp,
+              new Date(Date.now() - this.getLookbackMs(category))
+            ),
+            eq(worldEvents.visibility, 'public')
+          )
+        )
+        .orderBy(desc(worldEvents.timestamp))
+        .limit(category === 'short' ? 10 : 20),
+      // Get active questions to avoid duplication
+      db
+        .select()
+        .from(questions)
+        .where(eq(questions.status, 'active'))
+        .orderBy(desc(questions.createdAt))
+        .limit(20),
+      // Get actors (with tier fallback since many actors don't have role defined)
+      Promise.resolve(
+        StaticDataRegistry.getAllActors()
+          .filter(isEligibleActor)
+          .slice(0, 20)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            domain: a.domain,
+          }))
+      ),
+      // Get organizations
+      Promise.resolve(
+        StaticDataRegistry.getAllOrganizations()
+          .filter((o) => o.type === 'company')
+          .slice(0, 15)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+          }))
+      ),
+      // Get trending topics
+      db
+        .select({
+          tagName: tags.name,
+          tagDisplayName: tags.displayName,
+        })
+        .from(trendingTags)
+        .leftJoin(tags, eq(trendingTags.tagId, tags.id))
+        .orderBy(desc(trendingTags.score))
+        .limit(8),
+    ]);
+
+    // Build context strings
+    const eventsContext =
+      recentEvents.length > 0
+        ? `RECENT EVENTS:\n${recentEvents
+            .slice(0, 8)
+            .map((e) => `- ${e.description}`)
+            .join('\n')}`
+        : '';
+
+    const activeQContext =
+      activeQuestions.length > 0
+        ? `AVOID DUPLICATING:\n${activeQuestions
+            .slice(0, 10)
+            .map((q) => `- "${q.text}"`)
+            .join('\n')}`
+        : '';
+
+    const actorsContext = `ACTORS: ${actorsList.map((a) => a.name).join(', ')}`;
+    const orgsContext = `COMPANIES: ${organizationsList.map((o) => o.name).join(', ')}`;
+    const trendingContext =
+      trendingTagsList.length > 0
+        ? `TRENDING: ${trendingTagsList.map((t) => t.tagDisplayName || t.tagName).join(', ')}`
+        : '';
+
+    // Timeframe-specific guidance
+    const categoryGuidance = this.getCategoryGuidance(
+      category,
+      durationLabel,
+      actorsList,
+      organizationsList
+    );
+
+    const prompt = `Generate ONE prediction market question for a ${durationLabel} timeframe.
+
+${worldFactsContext}
+
+${eventsContext}
+
+${activeQContext}
+
+${actorsContext}
+${orgsContext}
+${trendingContext}
+
+${categoryGuidance}
+
+CRITICAL RULES:
+- Must be binary (YES/NO answer only)
+- Must be VERIFIABLE within ${durationLabel}
+- Must use ONLY parody names (AIlon Musk, Sam AIltman, Mark Zuckerborg, Sim Cook, etc.)
+- Must be SPECIFIC and ENGAGING
+- Must be DIFFERENT from active questions listed above
+- Keep under 100 characters
+- If possible, BUILD ON a recent event to create narrative continuity
+
+DIVERSITY REQUIREMENT:
+- Make this question UNIQUE - not similar to existing active markets
+- Draw inspiration from trending topics or recent events when possible
+- Vary the subject (different actor/company than recent questions)
+
+XML: <response><question><text>Your question here</text><resolutionCriteria>How to verify</resolutionCriteria><expectedOutcome>yes or no</expectedOutcome><primaryActor>Actor name if relevant</primaryActor><primaryOrg>Company name if relevant</primaryOrg></question></response>`;
+
+    try {
+      type QuestionResponse = {
+        question?: {
+          text: string;
+          resolutionCriteria: string;
+          expectedOutcome: string;
+          primaryActor?: string;
+          primaryOrg?: string;
+        };
+        response?: {
+          question?: {
+            text: string;
+            resolutionCriteria: string;
+            expectedOutcome: string;
+            primaryActor?: string;
+            primaryOrg?: string;
+          };
+        };
+      };
+
+      const response = await this.llm.generateJSON<QuestionResponse>(
+        prompt,
+        {
+          properties: {
+            question: {
+              type: 'object',
+              properties: {
+                text: { type: 'string' },
+                resolutionCriteria: { type: 'string' },
+                expectedOutcome: { type: 'string' },
+                primaryActor: { type: 'string' },
+                primaryOrg: { type: 'string' },
+              },
+            },
+          },
+          required: ['question'],
+        },
+        {
+          temperature: 0.85,
+          maxTokens: 500,
+          format: 'xml',
+          promptType: 'generate_timeframe_question',
+        }
+      );
+
+      // Handle XML structure variations
+      const questionData =
+        response?.question || response?.response?.question || null;
+
+      if (!questionData?.text) {
+        logger.warn(
+          'Failed to generate timeframe question - empty response',
+          { timeframe, response },
+          'QuestionManager'
+        );
+        return null;
+      }
+
+      // Sanitize question text
+      const sanitizedText = questionData.text
+        .replace(/\{[a-zA-Z_]+\}/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Parse expected outcome
+      const outcomeStr = String(questionData.expectedOutcome || '')
+        .toLowerCase()
+        .trim();
+      const expectedOutcome = outcomeStr === 'yes' || outcomeStr === 'true';
+
+      // Find affiliated actor/org IDs
+      const affiliatedActorIds: string[] = [];
+      const affiliatedOrgIds: string[] = [];
+
+      if (questionData.primaryActor) {
+        const actor = actorsList.find(
+          (a) =>
+            a.name.toLowerCase() === questionData.primaryActor?.toLowerCase()
+        );
+        if (actor) affiliatedActorIds.push(actor.id);
+      }
+
+      if (questionData.primaryOrg) {
+        const org = organizationsList.find(
+          (o) => o.name.toLowerCase() === questionData.primaryOrg?.toLowerCase()
+        );
+        if (org) affiliatedOrgIds.push(org.id);
+      }
+
+      logger.info(
+        `Generated ${timeframe} question`,
+        { text: sanitizedText, expectedOutcome },
+        'QuestionManager'
+      );
+
+      return {
+        text: sanitizedText,
+        resolutionCriteria:
+          questionData.resolutionCriteria || 'Verifiable via public sources',
+        expectedOutcome,
+        affiliatedActorIds,
+        affiliatedOrgIds,
+      };
+    } catch (error) {
+      logger.error(
+        'Failed to generate timeframe question',
+        {
+          error: formatError(error),
+          timeframe,
+        },
+        'QuestionManager'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get timeframe category from timeframe key
+   */
+  private getTimeframeCategory(timeframe: string): 'short' | 'medium' | 'long' {
+    if (['15m', '30m', '1h'].includes(timeframe)) return 'short';
+    if (['6h', '12h', '1d'].includes(timeframe)) return 'medium';
+    return 'long'; // 2d, 3d
+  }
+
+  /**
+   * Get human-readable duration label with proper pluralization
+   */
+  private getDurationLabel(durationMs: number): string {
+    const minutes = Math.round(durationMs / 60000);
+    if (minutes < 60) {
+      return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+    }
+    const hours = Math.floor(durationMs / (60 * 60 * 1000));
+    if (hours < 24) {
+      return hours === 1 ? '1 hour' : `${hours} hours`;
+    }
+    const days = Math.round(durationMs / (24 * 60 * 60 * 1000));
+    return days === 1 ? '1 day' : `${days} days`;
+  }
+
+  /**
+   * Get lookback period for context based on category
+   */
+  private getLookbackMs(category: 'short' | 'medium' | 'long'): number {
+    switch (category) {
+      case 'short':
+        return 2 * 60 * 60 * 1000; // 2 hours
+      case 'medium':
+        return 24 * 60 * 60 * 1000; // 1 day
+      case 'long':
+        return 7 * 24 * 60 * 60 * 1000; // 7 days
+    }
+  }
+
+  /**
+   * Get category-specific prompt guidance
+   */
+  private getCategoryGuidance(
+    category: 'short' | 'medium' | 'long',
+    durationLabel: string,
+    actors: Array<{ id: string; name: string }>,
+    orgs: Array<{ id: string; name: string }>
+  ): string {
+    const actorExample = actors[0]?.name || 'AIlon Musk';
+    const orgExample = orgs[0]?.name || 'Aipple';
+
+    switch (category) {
+      case 'short':
+        return `SHORT-TERM QUESTION (${durationLabel}):
+Generate questions about IMMEDIATE, OBSERVABLE events:
+- Social media activity: "Will ${actorExample} post within ${durationLabel}?"
+- Price movements: "Will ${orgExample} stock move 2%+ in ${durationLabel}?"
+- Breaking news: "Will there be breaking news in the next ${durationLabel}?"
+- Trading volume: "Will trading volume spike in the next ${durationLabel}?"
+- Live events: Outcomes of ongoing events`;
+
+      case 'medium':
+        return `MEDIUM-TERM QUESTION (${durationLabel}):
+Generate questions about DAILY developments:
+- Announcements: "Will ${orgExample} announce something today?"
+- Daily performance: "Will ${orgExample} close higher than it opened?"
+- Actor statements: "Will ${actorExample} make a statement today?"
+- Market trends: "Will crypto markets end the day green?"
+- Scheduled events: Outcomes of planned meetings or releases`;
+
+      case 'long':
+        return `LONG-TERM QUESTION (${durationLabel}):
+Generate questions about MULTI-DAY narratives:
+- Investigations: "Will the investigation conclude within ${durationLabel}?"
+- Major deals: "Will the merger be announced within ${durationLabel}?"
+- Product launches: "Will ${orgExample} launch their product within ${durationLabel}?"
+- Regulatory actions: "Will regulators take action within ${durationLabel}?"
+- Leadership: "Will ${actorExample} make a major decision within ${durationLabel}?"`;
+    }
   }
 }

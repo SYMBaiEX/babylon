@@ -14,9 +14,9 @@ describe('Agent Card Generator', () => {
       displayName: 'Test Trader Bot',
       bio: 'An autonomous trading agent specializing in prediction markets',
       profileImageUrl: 'https://example.com/avatar.png',
-      agentSystem: 'Advanced market analysis and trading system',
-      agentPersonality: 'Analytical and risk-aware',
-      agentTradingStrategy: 'Mean reversion with momentum confirmation',
+      systemPrompt: 'Advanced market analysis and trading system',
+      personality: 'Analytical and risk-aware',
+      tradingStrategy: 'Mean reversion with momentum confirmation',
     };
 
     it('should generate a valid agent card', () => {
@@ -80,7 +80,7 @@ describe('Agent Card Generator', () => {
       const agentWithNoDesc = {
         ...mockAgent,
         bio: null,
-        agentSystem: null,
+        systemPrompt: null,
       };
       const card = generateAgentCardSync(agentWithNoDesc);
 
@@ -91,7 +91,7 @@ describe('Agent Card Generator', () => {
       const card = generateAgentCardSync(mockAgent);
 
       expect(card.provider?.organization).toBe('Babylon');
-      expect(card.provider?.url).toBe('https://babylon.game');
+      expect(card.provider?.url).toBe('https://babylon.market');
     });
 
     it('should prefer JSONRPC transport', () => {

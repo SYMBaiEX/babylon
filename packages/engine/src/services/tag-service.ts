@@ -1,13 +1,12 @@
 /**
  * Tag Service
  *
- * Unified service for tag generation and storage:
+ * Service for tag generation and storage:
  * - Generates organic tags from post content using LLM
  * - Stores and retrieves tags in the database
  * - Manages tag statistics and trending calculations
  */
 
-import OpenAI from 'openai';
 import {
   and,
   asc,
@@ -23,8 +22,9 @@ import {
   trendingTags,
   withTransaction,
 } from '@babylon/db';
-import { isPromptLoggingEnabled, logPrompt } from '@babylon/engine';
 import { generateSnowflakeId, logger } from '@babylon/shared';
+import OpenAI from 'openai';
+import { isPromptLoggingEnabled, logPrompt } from '../utils/prompt-logger';
 
 // =============================================================================
 // Types
@@ -37,6 +37,45 @@ export interface GeneratedTag {
   name: string; // lowercase, normalized (e.g., "nfc-north")
   displayName: string; // original display format (e.g., "NFC North")
   category?: string; // auto-detected category (e.g., "Sports", "Politics", "Tech")
+}
+
+/**
+ * Tag details shared between PostTagWithTag and TrendingTagWithTag
+ */
+export interface TagDetails {
+  id: string;
+  name: string;
+  displayName: string;
+  category: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Post tag with tag details
+ */
+export interface PostTagWithTag {
+  id: string;
+  postId: string;
+  tagId: string;
+  createdAt: Date;
+  tag: TagDetails;
+}
+
+/**
+ * Trending tag with tag details
+ */
+export interface TrendingTagWithTag {
+  id: string;
+  tagId: string;
+  rank: number;
+  score: number;
+  postCount: number;
+  windowStart: Date;
+  windowEnd: Date;
+  calculatedAt: Date;
+  relatedContext: string | null;
+  tag: TagDetails;
 }
 
 // =============================================================================
@@ -63,19 +102,10 @@ async function getOpenAIClient(): Promise<OpenAIClient | null> {
 
   if (!openaiImportAttempted) {
     openaiImportAttempted = true;
-    try {
-      openaiClient = new OpenAI({
-        apiKey,
-        baseURL,
-      });
-    } catch (error) {
-      logger.warn(
-        'OpenAI SDK not available, tag generation disabled',
-        { error },
-        'TagService'
-      );
-      openaiClient = null;
-    }
+    openaiClient = new OpenAI({
+      apiKey,
+      baseURL,
+    });
   }
 
   return openaiClient;
@@ -188,7 +218,11 @@ If no good tags, return: <response><tags></tags></response>`;
   }
 
   if (!contentText) {
-    logger.warn('No content in tag generation response', { content }, 'TagService');
+    logger.warn(
+      'No content in tag generation response',
+      { content },
+      'TagService'
+    );
     return [];
   }
 
@@ -199,62 +233,49 @@ If no good tags, return: <response><tags></tags></response>`;
 
   const parsedTags: Array<{ displayName: string; category?: string }> = [];
 
-  try {
-    const tagMatches = xmlContent.matchAll(/<tag>([\s\S]*?)<\/tag>/g);
+  const tagMatches = xmlContent.matchAll(/<tag>([\s\S]*?)<\/tag>/g);
 
-    for (const tagMatch of tagMatches) {
-      const tagContent = tagMatch[1];
-      if (!tagContent) continue;
+  for (const tagMatch of tagMatches) {
+    const tagContent = tagMatch[1];
+    if (!tagContent) continue;
 
-      const displayNameMatch = tagContent.match(
-        /<displayName>(.*?)<\/displayName>/
-      );
-      const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
+    const displayNameMatch = tagContent.match(
+      /<displayName>(.*?)<\/displayName>/
+    );
+    const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
 
-      if (displayNameMatch && displayNameMatch[1]) {
-        const displayName = displayNameMatch[1].trim();
-        const genericTags = [
-          'ai',
-          'tech',
-          'news',
-          'breaking',
-          'market',
-          'update',
-          'latest',
-        ];
-        if (genericTags.includes(displayName.toLowerCase())) {
-          logger.debug('Skipping generic tag', { displayName }, 'TagService');
-          continue;
-        }
-
-        parsedTags.push({
-          displayName,
-          category: categoryMatch?.[1]?.trim(),
-        });
+    if (displayNameMatch && displayNameMatch[1]) {
+      const displayName = displayNameMatch[1].trim();
+      const genericTags = [
+        'ai',
+        'tech',
+        'news',
+        'breaking',
+        'market',
+        'update',
+        'latest',
+      ];
+      if (genericTags.includes(displayName.toLowerCase())) {
+        logger.debug('Skipping generic tag', { displayName }, 'TagService');
+        continue;
       }
-    }
 
-    if (parsedTags.length === 0) {
-      logger.debug(
-        'No specific tags extracted from post',
-        {
-          xmlPreview: xmlContent.substring(0, 200),
-          contentPreview: content.substring(0, 100),
-        },
-        'TagService'
-      );
+      parsedTags.push({
+        displayName,
+        category: categoryMatch?.[1]?.trim(),
+      });
     }
-  } catch (error) {
-    logger.error(
-      'Failed to parse tag generation XML',
+  }
+
+  if (parsedTags.length === 0) {
+    logger.debug(
+      'No specific tags extracted from post',
       {
-        error,
-        xmlContent: xmlContent.substring(0, 200),
+        xmlPreview: xmlContent.substring(0, 200),
         contentPreview: content.substring(0, 100),
       },
       'TagService'
     );
-    return [];
   }
 
   const generatedTags: GeneratedTag[] = parsedTags
@@ -425,7 +446,7 @@ export async function storeTagsForPost(
  * Get tags for a post
  */
 export async function getTagsForPost(postId: string) {
-  return await db.query.postTags.findMany({
+  return db.query.postTags.findMany({
     where: eq(postTags.postId, postId),
     with: {
       tag: true,
@@ -498,15 +519,22 @@ export async function getTagStatistics(
 > {
   const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000);
 
-  const postTagsList = await db.query.postTags.findMany({
+  // Query postTags within time window, then filter out deleted posts
+  const allPostTags = await db.query.postTags.findMany({
     where: (pt, { and: andOp, gte: whereGte, lte: whereLte }) =>
       andOp(
         whereGte(pt.createdAt, windowStart),
         whereLte(pt.createdAt, windowEnd)
       ),
-    with: { tag: true },
+    with: {
+      tag: true,
+      post: true,
+    },
     orderBy: asc(postTags.createdAt),
   });
+
+  // Filter out postTags where the post is deleted
+  const postTagsList = allPostTags.filter((pt) => !pt.post.deletedAt);
 
   const tagStats = new Map<
     string,
@@ -610,7 +638,9 @@ export async function storeTrendingTags(
 /**
  * Get current trending tags (most recent calculation)
  */
-export async function getCurrentTrendingTags(limit = 10) {
+export async function getCurrentTrendingTags(
+  limit = 10
+): Promise<TrendingTagWithTag[]> {
   const [latestCalculation] = await db
     .select({ calculatedAt: trendingTags.calculatedAt })
     .from(trendingTags)
@@ -623,12 +653,12 @@ export async function getCurrentTrendingTags(limit = 10) {
 
   const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000);
 
-  return await db.query.trendingTags.findMany({
+  return (await db.query.trendingTags.findMany({
     where: gte(trendingTags.calculatedAt, cutoffTime),
     with: { tag: true },
     orderBy: asc(trendingTags.rank),
     limit,
-  });
+  })) as TrendingTagWithTag[];
 }
 
 /**
@@ -680,5 +710,3 @@ export async function getRelatedTags(
     .map((id) => tagMap.get(id))
     .filter((name): name is string => name !== undefined);
 }
-
-

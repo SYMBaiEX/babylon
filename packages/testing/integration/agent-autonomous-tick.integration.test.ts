@@ -11,9 +11,8 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { db } from '@babylon/db';
-import { createTestAgent } from '@babylon/agents';
-import { asSystem } from '@babylon/db';
+import { createTestAgent, getAgentConfig } from '@babylon/agents';
+import { asSystem, db, eq, users } from '@babylon/db';
 import { generateSnowflakeId } from '@babylon/shared';
 
 const BASE_URL =
@@ -42,9 +41,13 @@ describe('Agent Autonomous Tick Integration', () => {
       serverAvailable = false;
     }
 
+    // Server must be available for these tests to run
     if (!serverAvailable) {
-      console.log('⏭️  Skipping agent tick test - server not available');
-      return;
+      throw new Error(
+        'AGENT TICK TESTS REQUIRE RUNNING SERVER. ' +
+          'Start the server with `bun run dev` before running these tests. ' +
+          'These tests validate actual server functionality and MUST NOT be skipped.'
+      );
     }
 
     // Check if cron endpoint is functional (may return 500 if misconfigured)
@@ -121,7 +124,6 @@ describe('Agent Autonomous Tick Integration', () => {
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
-      agentPointsBalance: 100,
       virtualBalance: 10000,
     });
     console.log('Test agent created:', agentResult.agentId);
@@ -130,12 +132,7 @@ describe('Agent Autonomous Tick Integration', () => {
 
     // Get initial state
     console.log('Getting initial state...');
-    const agent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: {
-        agentLastTickAt: true,
-      },
-    });
+    const config = await getAgentConfig(testAgentId);
     console.log('Initial state got.');
 
     // Verify agent can be found via AgentRegistry locally
@@ -144,9 +141,7 @@ describe('Agent Autonomous Tick Integration', () => {
       const { agentRegistry } = await import(
         '@babylon/agents/services/agent-registry.service'
       );
-      const { AgentType, AgentStatus } = await import(
-        '@babylon/agents'
-      );
+      const { AgentType, AgentStatus } = await import('@babylon/agents');
       const found = await agentRegistry.discoverAgents({
         types: [AgentType.USER_CONTROLLED],
         statuses: [AgentStatus.ACTIVE],
@@ -161,7 +156,7 @@ describe('Agent Autonomous Tick Integration', () => {
       console.log('Local AgentRegistry discovery failed:', e);
     }
 
-    initialLastTickAt = agent?.agentLastTickAt || null;
+    initialLastTickAt = config?.lastTickAt || null;
   });
 
   afterAll(async () => {
@@ -195,12 +190,9 @@ describe('Agent Autonomous Tick Integration', () => {
   });
 
   test('should call agent tick endpoint successfully', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -220,12 +212,9 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should find and process agents', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -257,33 +246,29 @@ describe('Agent Autonomous Tick Integration', () => {
   }, 30000);
 
   test('should update agentLastTickAt after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
-      select: {
-        isAgent: true,
-        agentPointsBalance: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        agentLastTickAt: true,
-      },
+      select: { isAgent: true },
     });
+    const configBefore = await getAgentConfig(testAgentId);
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(agentBefore?.agentPointsBalance).toBeGreaterThanOrEqual(1);
+    // Balance check uses virtualBalance from user record
+    const userBefore = await db.user.findUnique({
+      where: { id: testAgentId },
+      select: { virtualBalance: true },
+    });
+    expect(Number(userBefore?.virtualBalance ?? 0)).toBeGreaterThanOrEqual(1);
     expect(
-      agentBefore?.autonomousTrading ||
-        agentBefore?.autonomousPosting ||
-        agentBefore?.autonomousCommenting
+      configBefore?.autonomousTrading ||
+        configBefore?.autonomousPosting ||
+        configBefore?.autonomousCommenting
     ).toBe(true);
 
     // Wait a moment to ensure timestamp difference
@@ -312,13 +297,7 @@ describe('Agent Autonomous Tick Integration', () => {
       // Check if agent still exists and meets criteria
       const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
-        select: {
-          isAgent: true,
-          agentPointsBalance: true,
-          autonomousTrading: true,
-          autonomousPosting: true,
-          autonomousCommenting: true,
-        },
+        select: { isAgent: true },
       });
       console.log('⚠️  Agent check:', JSON.stringify(agentCheck, null, 2));
       // Skip this test if agent wasn't processed (might be a timing issue)
@@ -363,47 +342,34 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait a moment for database update to complete
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Check agentLastTickAt was updated
-    const agent = await db.user.findUnique({
-      where: { id: testAgentId },
-      select: {
-        agentLastTickAt: true,
-      },
-    });
+    // Check lastTickAt was updated in config
+    const agentConfig = await getAgentConfig(testAgentId);
 
-    expect(agent).toBeTruthy();
-    expect(agent?.agentLastTickAt).toBeTruthy();
+    expect(agentConfig).toBeTruthy();
+    expect(agentConfig?.lastTickAt).toBeTruthy();
 
-    if (initialLastTickAt && agent?.agentLastTickAt) {
-      expect(new Date(agent.agentLastTickAt).getTime()).toBeGreaterThan(
+    if (initialLastTickAt && agentConfig?.lastTickAt) {
+      expect(new Date(agentConfig.lastTickAt).getTime()).toBeGreaterThan(
         initialLastTickAt.getTime()
       );
     }
   }, 30000);
 
   test('should create agent logs after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
     // Verify agent exists and meets criteria before tick
     const agentBefore = await db.user.findUnique({
       where: { id: testAgentId },
-      select: {
-        isAgent: true,
-        agentPointsBalance: true,
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-      },
+      select: { isAgent: true, virtualBalance: true },
     });
 
     expect(agentBefore).toBeTruthy();
     expect(agentBefore?.isAgent).toBe(true);
-    expect(agentBefore?.agentPointsBalance).toBeGreaterThanOrEqual(1);
+    // Balance check uses virtualBalance from user record
+    expect(Number(agentBefore?.virtualBalance ?? 0)).toBeGreaterThanOrEqual(1);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -428,13 +394,7 @@ describe('Agent Autonomous Tick Integration', () => {
       // Check if agent still exists and meets criteria
       const agentCheck = await db.user.findUnique({
         where: { id: testAgentId },
-        select: {
-          isAgent: true,
-          agentPointsBalance: true,
-          autonomousTrading: true,
-          autonomousPosting: true,
-          autonomousCommenting: true,
-        },
+        select: { isAgent: true },
       });
       console.log('⚠️  Agent check:', JSON.stringify(agentCheck, null, 2));
       // Skip this test if agent wasn't processed (might be a timing issue)
@@ -497,25 +457,22 @@ describe('Agent Autonomous Tick Integration', () => {
     expect(logs[0]?.metadata).toHaveProperty('actions');
   }, 30000);
 
-  test('should deduct points after tick', async () => {
-    if (!serverAvailable || !cronEndpointAvailable) {
-      console.log(
-        '⏭️  Skipping - server not available or cron endpoint not functional'
-      );
-      return;
-    }
+  test('should deduct balance after tick', async () => {
+    // Server and cron endpoint must be available - fail fast if not
+    expect(serverAvailable).toBe(true);
+    expect(cronEndpointAvailable).toBe(true);
 
-    // Ensure agent has points
-    await db.user.update({
-      where: { id: testAgentId },
-      data: { agentPointsBalance: 100 },
-    });
+    // Ensure agent has balance (uses virtualBalance from user record)
+    await db
+      .update(users)
+      .set({ virtualBalance: '100', updatedAt: new Date() })
+      .where(eq(users.id, testAgentId));
 
-    const beforeAgent = await db.user.findUnique({
+    const beforeUser = await db.user.findUnique({
       where: { id: testAgentId },
-      select: { agentPointsBalance: true },
+      select: { virtualBalance: true },
     });
-    const beforeBalance = beforeAgent?.agentPointsBalance || 0;
+    const beforeBalance = Number(beforeUser?.virtualBalance ?? 0);
 
     const cronSecret = process.env.CRON_SECRET || 'development';
     const response = await fetch(`${BASE_URL}/api/cron/agent-tick`, {
@@ -533,7 +490,7 @@ describe('Agent Autonomous Tick Integration', () => {
 
     // If no agents were processed, skip
     if (result.processed === 0) {
-      console.log('⚠️  No agents processed, skipping points deduction test');
+      console.log('⚠️  No agents processed, skipping balance deduction test');
       return;
     }
 
@@ -567,14 +524,14 @@ describe('Agent Autonomous Tick Integration', () => {
     // Wait for database update
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const afterAgent = await db.user.findUnique({
+    const afterUser = await db.user.findUnique({
       where: { id: testAgentId },
-      select: { agentPointsBalance: true },
+      select: { virtualBalance: true },
     });
-    const afterBalance = afterAgent?.agentPointsBalance || 0;
+    const afterBalance = Number(afterUser?.virtualBalance ?? 0);
 
-    // Points should be deducted (1 point per tick) - even if processing had errors
-    // Points are deducted before executeAutonomousTick, so they should always be deducted
+    // Balance should be deducted (1 point per tick) - even if processing had errors
+    // Balance is deducted before executeAutonomousTick, so it should always be deducted
     expect(afterBalance).toBeLessThan(beforeBalance);
     expect(beforeBalance - afterBalance).toBe(1);
   }, 30000);

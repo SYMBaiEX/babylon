@@ -13,13 +13,18 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '@babylon/db';
-import { GroupChatService, NPCGroupDynamicsService } from '@babylon/engine';
+import {
+  autoJoinEmptyUsersToNpcGroupChats,
+  GroupChatService,
+  NPCGroupDynamicsService,
+} from '@babylon/engine';
 import { generateSnowflakeId } from '@babylon/shared';
 
 // Test data cleanup tracking
 const testIds: {
   userIds: string[];
   actorIds: string[];
+  groupIds: string[];
   chatIds: string[];
   participantIds: string[];
   membershipIds: string[];
@@ -27,6 +32,7 @@ const testIds: {
 } = {
   userIds: [],
   actorIds: [],
+  groupIds: [],
   chatIds: [],
   participantIds: [],
   membershipIds: [],
@@ -71,18 +77,7 @@ async function createTestActor(options: {
   const id = await generateSnowflakeId();
   const name = options.name || `Test NPC ${id.slice(-6)}`;
 
-  await db.actor.create({
-    data: {
-      id,
-      name,
-      description: 'Test NPC for group chat testing',
-      domain: ['test'],
-      isTest: true,
-      updatedAt: new Date(),
-    },
-  });
-
-  // Also create a User entry for the actor (NPCs have isActor: true)
+  // Create user with isActor: true (no separate actors table needed)
   await db.user.create({
     data: {
       id,
@@ -94,32 +89,55 @@ async function createTestActor(options: {
     },
   });
 
+  // Create actorState for dynamic data
+  await db.actorState.create({
+    data: {
+      id,
+      updatedAt: new Date(),
+    },
+  });
+
   testIds.actorIds.push(id);
   testIds.userIds.push(id);
   return { id, name };
 }
 
-// Helper to create test group chat
+// Helper to create test group chat (unified schema: Group + Chat)
 async function createTestGroupChat(options: {
   name?: string;
   npcAdminId: string;
-}): Promise<{ id: string; name: string }> {
-  const id = await generateSnowflakeId();
-  const name = options.name || `Test Group ${id.slice(-6)}`;
+}): Promise<{ id: string; groupId: string; name: string }> {
+  const groupId = await generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
+  const name = options.name || `Test Group ${chatId.slice(-6)}`;
 
+  // Create Group first (unified schema)
+  await db.group.create({
+    data: {
+      id: groupId,
+      name,
+      type: 'npc',
+      ownerId: options.npcAdminId,
+      createdById: options.npcAdminId,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create Chat with groupId link
   await db.chat.create({
     data: {
-      id,
+      id: chatId,
       name,
       isGroup: true,
-      npcAdminId: options.npcAdminId,
+      groupId,
       gameId: 'realtime',
       updatedAt: new Date(),
     },
   });
 
-  testIds.chatIds.push(id);
-  return { id, name };
+  testIds.groupIds.push(groupId);
+  testIds.chatIds.push(chatId);
+  return { id: chatId, groupId, name };
 }
 
 // Helper to add participant to chat
@@ -144,21 +162,24 @@ async function addChatParticipant(options: {
   return id;
 }
 
-// Helper to create group membership (for NPC-managed groups)
+// Helper to create group membership (unified schema: GroupMember)
 async function createGroupMembership(options: {
-  chatId: string;
+  groupId: string;
   userId: string;
-  npcAdminId: string;
+  addedBy?: string;
+  role?: 'owner' | 'admin' | 'member';
 }): Promise<string> {
   const id = await generateSnowflakeId();
 
-  await db.groupChatMembership.create({
+  await db.groupMember.create({
     data: {
       id,
-      chatId: options.chatId,
+      groupId: options.groupId,
       userId: options.userId,
-      npcAdminId: options.npcAdminId,
+      role: options.role || 'member',
+      addedBy: options.addedBy,
       isActive: true,
+      joinedAt: new Date(),
     },
   });
 
@@ -196,7 +217,7 @@ async function cleanupTestData(): Promise<void> {
     await db.message.deleteMany({ where: { id: { in: testIds.messageIds } } });
   }
   if (testIds.membershipIds.length > 0) {
-    await db.groupChatMembership.deleteMany({
+    await db.groupMember.deleteMany({
       where: { id: { in: testIds.membershipIds } },
     });
   }
@@ -208,11 +229,14 @@ async function cleanupTestData(): Promise<void> {
   if (testIds.chatIds.length > 0) {
     await db.chat.deleteMany({ where: { id: { in: testIds.chatIds } } });
   }
+  if (testIds.groupIds.length > 0) {
+    await db.group.deleteMany({ where: { id: { in: testIds.groupIds } } });
+  }
   if (testIds.userIds.length > 0) {
     await db.user.deleteMany({ where: { id: { in: testIds.userIds } } });
   }
   if (testIds.actorIds.length > 0) {
-    await db.actor.deleteMany({ where: { id: { in: testIds.actorIds } } });
+    await db.actorState.deleteMany({ where: { id: { in: testIds.actorIds } } });
   }
 
   // Reset tracking
@@ -232,6 +256,63 @@ describe('Group Chat Dynamics Integration Tests', () => {
 
   afterEach(async () => {
     await cleanupTestData();
+  });
+
+  describe('NPC group chat onboarding (dev demo)', () => {
+    test('auto-joins users with zero group chats into an NPC group chat', async () => {
+      const npc = await createTestActor({ name: 'Onboarding NPC' });
+      const user = await createTestUser({
+        isAgent: false,
+        displayName: 'Brand New User',
+      });
+
+      // Create an NPC group chat with the NPC as owner + participant
+      const chat = await createTestGroupChat({
+        name: "Onboarding NPC's Circle",
+        npcAdminId: npc.id,
+      });
+      await addChatParticipant({ chatId: chat.id, userId: npc.id });
+      await createGroupMembership({
+        groupId: chat.groupId,
+        userId: npc.id,
+        role: 'owner',
+        addedBy: npc.id,
+      });
+
+      const usersJoined = await autoJoinEmptyUsersToNpcGroupChats({
+        enabled: true,
+        batchSize: 10,
+        defaultMaxMembers: 12,
+        userIdAllowlist: [user.id],
+        chatIdAllowlist: [chat.id],
+      });
+
+      expect(usersJoined).toBe(1);
+
+      const membership = await db.groupMember.findFirst({
+        where: {
+          groupId: chat.groupId,
+          userId: user.id,
+          isActive: true,
+        },
+      });
+      expect(membership).not.toBeNull();
+      if (membership) {
+        testIds.membershipIds.push(membership.id);
+      }
+
+      const participant = await db.chatParticipant.findFirst({
+        where: {
+          chatId: chat.id,
+          userId: user.id,
+          isActive: true,
+        },
+      });
+      expect(participant).not.toBeNull();
+      if (participant) {
+        testIds.participantIds.push(participant.id);
+      }
+    });
   });
 
   describe('User and Agent Parity', () => {
@@ -397,9 +478,9 @@ describe('Group Chat Dynamics Integration Tests', () => {
 
       // Create membership
       await createGroupMembership({
-        chatId: chat.id,
+        groupId: chat.groupId,
         userId: user.id,
-        npcAdminId: npc.id,
+        addedBy: npc.id,
       });
 
       // Add some messages from NPC (but none from user)
@@ -655,7 +736,7 @@ describe('Group Chat Information Access', () => {
     // Simulate kick by marking participant as inactive
     await db.chatParticipant.update({
       where: { id: participantId },
-      data: { isActive: false, kickedAt: new Date(), kickReason: 'Test kick' },
+      data: { isActive: false },
     });
 
     // New message after kick

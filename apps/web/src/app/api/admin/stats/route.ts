@@ -60,15 +60,31 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  applyRateLimit,
+  RATE_LIMIT_CONFIGS,
+  rateLimitError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Require admin authentication
-  await requireAdmin(request);
+  const admin = await requireAdmin(request);
+
+  // Apply rate limiting to prevent abuse of expensive stats queries
+  const rateLimitResult = applyRateLimit(
+    admin.userId,
+    RATE_LIMIT_CONFIGS.ADMIN_STATS
+  );
+  if (!rateLimitResult.allowed) {
+    return rateLimitError(rateLimitResult.retryAfter);
+  }
 
   logger.info('Admin stats requested', {}, 'GET /api/admin/stats');
 
@@ -125,7 +141,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   ] = await Promise.all([
     // User counts
     db.user.count(),
-    db.actor.count(), // Count from Actor table, not User.isActor
+    StaticDataRegistry.getAllActors().length,
     db.user.count({ where: { isActor: false } }),
     db.user.count({ where: { isBanned: true } }),
     db.user.count({ where: { isAdmin: true } }),

@@ -9,6 +9,7 @@
  * - Their personality and tier
  */
 
+import { shuffleArray } from '../../utils/randomization';
 import { definePrompt } from '../define-prompt';
 
 /**
@@ -111,20 +112,35 @@ const TRADING_EXAMPLES: TradingExample[] = [
     amount: 2500,
     confidence: 0.6,
   },
+  {
+    title: 'NPC sells YES position (takes profit on prediction)',
+    npcId: 'npc-g',
+    npcName: 'NPC_G',
+    reasoning:
+      'YES price has risen significantly, locking in profits before resolution',
+    action: 'sell_yes',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '111222333',
+    positionId: 'null',
+    amount: 0,
+    confidence: 0.75,
+  },
+  {
+    title: 'NPC sells NO position (cuts loss on prediction)',
+    npcId: 'npc-h',
+    npcName: 'NPC_H',
+    reasoning:
+      'New evidence suggests event will occur, cutting losses on NO position',
+    action: 'sell_no',
+    marketType: 'prediction',
+    ticker: 'null',
+    marketId: '444555666',
+    positionId: 'null',
+    amount: 0,
+    confidence: 0.65,
+  },
 ];
-
-/**
- * Fisher-Yates shuffle algorithm for randomizing array order.
- * Creates a new array to avoid mutating the original.
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] as [T, T];
-  }
-  return shuffled;
-}
 
 /**
  * Formats a single trading example into XML format for the prompt.
@@ -171,7 +187,7 @@ export function getShuffledExamplesText(): string {
  * Simulates trading decisions for multiple NPCs based on their information
  * access (feed posts, group chats), personality, tier, and current market
  * conditions. Considers active questions, events, and narratives when
- * determining positions.
+ * determining positions. Includes full narrative context for informed trading.
  *
  * Returns XML with trading decisions for each NPC including market type,
  * ticker, side, size, and reasoning.
@@ -189,13 +205,37 @@ export function getShuffledExamplesText(): string {
  */
 export const npcMarketDecisions = definePrompt({
   id: 'npc-market-decisions',
-  version: '4.0.0',
+  version: '6.1.0',
   category: 'trading',
-  description: 'Generate context-aware trading decisions for NPCs',
+  description: 'Generate trading decisions with full character context',
   temperature: 0.8,
-  maxTokens: 8000,
+  maxTokens: 25000,
 
   template: `{{realityGrounding}}
+
+=== ALL TRADERS IN WORLD ===
+{{characterRoster}}
+
+=== DETAILED NPC PROFILES (For personality-based trading) ===
+{{detailedCharacterProfiles}}
+
+=== NPC RELATIONSHIPS (Allies trade together, rivals opposite) ===
+{{relationshipContext}}
+
+=== COMPLETE NARRATIVE CONTEXT ===
+{{richGameContext}}
+
+=== RESOLVED QUESTIONS (Established outcomes) ===
+{{resolvedQuestionsContext}}
+
+=== PREVIOUS TRADING ACTIVITY ===
+{{previousTrades}}
+
+=== ONGOING NARRATIVES ===
+{{ongoingNarrativesContext}}
+
+=== MARKET SNAPSHOT (Perps + Predictions) ===
+{{marketTable}}
 
 EXAMPLES:
 {{examples}}
@@ -206,7 +246,8 @@ RULES:
 - Use EXACT ticker from list (valid: {{validTickers}})
 - amount <= MAX shown in BALANCES table (or REJECTED)
 - Perp actions (open_long/open_short): marketType=perp, ticker required
-- Prediction actions (buy_yes/buy_no): marketType=prediction, marketId required
+- Prediction BUY actions (buy_yes/buy_no): marketType=prediction, marketId required
+- Prediction SELL actions (sell_yes/sell_no): marketType=prediction, marketId required, amount=0 (closes entire position)
 - close_position: positionId required (exact UUID), amount=0
 - hold: all fields null, amount=0
 
@@ -214,8 +255,34 @@ DECISION FACTORS:
 - Posts/insider info/events inform trades
 - Rivals(sentiment<-0.5)=trade opposite, Allies(>0.5)=trade same
 - Aggressive=larger trades, Conservative=smaller/hold
+- RESOLVED QUESTIONS inform ongoing market dynamics
+- ONGOING NARRATIVES suggest future movements
 
-FIELDS: npcId, npcName, action, marketType(perp|prediction|null), ticker, marketId, positionId, amount, confidence(0-1), reasoning
+CONTRARIAN BEHAVIOR (CRITICAL - avoid herding):
+- At least 20-30% of traders should take contrarian (NO) positions
+- Some personalities are naturally skeptical (NassAIm Taleb, Peter ThAIl)
+- When YES price is high (>0.7), contrarians should bet NO for value
+- When NO price is low (<0.3), contrarians see opportunity
+- Skeptics, bears, and pessimists often trade against the crowd
+
+INDIVIDUAL STRATEGY BIAS (CRITICAL - avoid copy trading):
+- Each TRADER DASHBOARD includes a "Strategy" and "Bias" line (Follow trend / Contrarian / Random).
+- Apply the bias when choosing direction and sizing. Even allies should not blindly copy each other.
+- "Follow trend" aligns with market momentum/signals. "Contrarian" fades crowded/extreme prices. "Random" increases entropy (often hold/smaller size).
+
+MARKET TYPE BALANCE (IMPORTANT):
+- Use BOTH perpetuals (perp) AND prediction markets
+- Perps are for directional bets on company/asset prices
+- Predictions are for binary event outcomes
+- Aim for ~40% perp trades and ~60% prediction trades
+- Aggressive traders prefer perps (leverage), conservative prefer predictions
+
+NARRATIVE-INFORMED TRADING:
+- If a question just resolved, NPCs may reposition based on outcome
+- Ongoing storylines suggest which assets might move
+- Previous trades show NPC positions (don't double down unrealistically)
+
+FIELDS: npcId, npcName, action, marketType(perp|prediction|null), ticker, marketId, positionId, amount, confidence(0-1), reasoning, narrativeConnection
 
 QUESTIONS:
 {{activeQuestions}}
@@ -223,8 +290,10 @@ QUESTIONS:
 EVENTS:
 {{recentEvents}}
 
+{{eventMarketSignals}}
+
 TRADERS:
 {{npcsList}}
 
-Generate {{npcCount}} decisions as XML:`,
+Generate {{npcCount}} decisions as XML (each decision must include narrativeConnection explaining why):`,
 });

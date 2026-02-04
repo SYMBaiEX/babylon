@@ -12,6 +12,7 @@ export type JsonValue =
   | number
   | boolean
   | null
+  | undefined
   | JsonValue[]
   | { [key: string]: JsonValue };
 
@@ -133,4 +134,3 @@ export interface QueryParams extends PaginationParams {
   sort?: SortParams;
   filters?: FilterParams;
 }
-

@@ -74,11 +74,11 @@
  * ```
  */
 
+import { requireAdmin } from '@babylon/api';
+import { and, db, desc, eq, lt, moderationEscrows, sql } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
 
 const ListEscrowQuerySchema = z.object({
   recipientId: z.string().optional(),
@@ -89,146 +89,155 @@ const ListEscrowQuerySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  try {
-    await requireAdmin(req);
+  await requireAdmin(req);
 
-    const { searchParams } = new URL(req.url);
-    const validation = ListEscrowQuerySchema.safeParse({
-      recipientId: searchParams.get('recipientId'),
-      adminId: searchParams.get('adminId'),
-      status: searchParams.get('status'),
-      limit: searchParams.get('limit'),
-      offset: searchParams.get('offset'),
-    });
+  const { searchParams } = new URL(req.url);
+  const validation = ListEscrowQuerySchema.safeParse({
+    recipientId: searchParams.get('recipientId'),
+    adminId: searchParams.get('adminId'),
+    status: searchParams.get('status'),
+    limit: searchParams.get('limit'),
+    offset: searchParams.get('offset'),
+  });
 
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          error:
-            validation.error.issues[0]?.message || 'Invalid query parameters',
-        },
-        { status: 400 }
-      );
-    }
-
-    const { recipientId, adminId, status, limit, offset } = validation.data;
-
-    // Auto-expire old pending escrows before querying
-    const now = new Date();
-    await db.moderationEscrow.updateMany({
-      where: {
-        status: 'pending',
-        expiresAt: {
-          lt: now,
-        },
-      },
-      data: {
-        status: 'expired',
-      },
-    });
-
-    const where: {
-      recipientId?: string;
-      adminId?: string;
-      status?: string;
-    } = {};
-
-    if (recipientId) where.recipientId = recipientId;
-    if (adminId) where.adminId = adminId;
-    if (status) where.status = status;
-
-    const [escrows, total] = await Promise.all([
-      db.moderationEscrow.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset,
-        include: {
-          recipient: {
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-              profileImageUrl: true,
-            },
-          },
-          admin: {
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-            },
-          },
-          refundedByUser: {
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-            },
-          },
-        },
-      }),
-      db.moderationEscrow.count({ where }),
-    ]);
-
-    type EscrowWithRelations = (typeof escrows)[0] & {
-      recipient?: {
-        id: string;
-        username: string | null;
-        displayName: string | null;
-        profileImageUrl: string | null;
-      } | null;
-      admin?: {
-        id: string;
-        username: string | null;
-        displayName: string | null;
-      } | null;
-      refundedByUser?: {
-        id: string;
-        username: string | null;
-        displayName: string | null;
-      } | null;
-    };
-
-    return NextResponse.json({
-      success: true,
-      escrows: escrows.map((escrow) => {
-        const escrowWithRelations = escrow as EscrowWithRelations;
-        return {
-          id: escrow.id,
-          recipientId: escrow.recipientId,
-          recipient: escrowWithRelations.recipient,
-          adminId: escrow.adminId,
-          admin: escrowWithRelations.admin,
-          amountUSD: escrow.amountUSD,
-          amountWei: escrow.amountWei,
-          status: escrow.status,
-          reason: escrow.reason,
-          paymentRequestId: escrow.paymentRequestId,
-          paymentTxHash: escrow.paymentTxHash,
-          refundTxHash: escrow.refundTxHash,
-          refundedBy: escrow.refundedBy,
-          refundedByUser: escrowWithRelations.refundedByUser,
-          refundedAt: escrow.refundedAt?.toISOString(),
-          createdAt: escrow.createdAt.toISOString(),
-          expiresAt: escrow.expiresAt.toISOString(),
-        };
-      }),
-      pagination: {
-        total,
-        limit,
-        offset,
-      },
-    });
-  } catch (error) {
+  if (!validation.success) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to list escrow payments',
+          validation.error.issues[0]?.message || 'Invalid query parameters',
       },
-      { status: 500 }
+      { status: 400 }
     );
   }
+
+  const { recipientId, adminId, status, limit, offset } = validation.data;
+
+  // Auto-expire old pending escrows before querying
+  // NOTE: This is a side-effect in a read endpoint for convenience.
+  // It ensures expired escrows are marked correctly when admins view the list.
+  // The update is idempotent (only affects pending escrows past their expiresAt)
+  // and uses a single atomic UPDATE, so concurrent requests are safe.
+  // For high-traffic production, consider moving this to a cron job instead.
+  const now = new Date();
+  await db
+    .update(moderationEscrows)
+    .set({ status: 'expired' })
+    .where(
+      and(
+        eq(moderationEscrows.status, 'pending'),
+        lt(moderationEscrows.expiresAt, now)
+      )
+    );
+
+  // Build where conditions for SQL query
+  const whereConditions: ReturnType<typeof eq>[] = [];
+  if (recipientId)
+    whereConditions.push(eq(moderationEscrows.recipientId, recipientId));
+  if (adminId) whereConditions.push(eq(moderationEscrows.adminId, adminId));
+  if (status) whereConditions.push(eq(moderationEscrows.status, status));
+  const whereClause =
+    whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+  // Use aliases for the multiple user joins
+  const recipientAlias = sql`"recipient"`;
+  const adminAlias = sql`"admin"`;
+  const refunderAlias = sql`"refunder"`;
+
+  // Query with multiple LEFT JOINs to get user data
+  const escrowsQuery = await db
+    .select({
+      id: moderationEscrows.id,
+      recipientId: moderationEscrows.recipientId,
+      adminId: moderationEscrows.adminId,
+      amountUSD: moderationEscrows.amountUSD,
+      amountWei: moderationEscrows.amountWei,
+      status: moderationEscrows.status,
+      reason: moderationEscrows.reason,
+      paymentRequestId: moderationEscrows.paymentRequestId,
+      paymentTxHash: moderationEscrows.paymentTxHash,
+      refundTxHash: moderationEscrows.refundTxHash,
+      refundedBy: moderationEscrows.refundedBy,
+      refundedAt: moderationEscrows.refundedAt,
+      createdAt: moderationEscrows.createdAt,
+      expiresAt: moderationEscrows.expiresAt,
+      // Recipient user data
+      recipientUsername: sql<string | null>`${recipientAlias}."username"`,
+      recipientDisplayName: sql<string | null>`${recipientAlias}."displayName"`,
+      recipientProfileImageUrl: sql<
+        string | null
+      >`${recipientAlias}."profileImageUrl"`,
+      // Admin user data
+      adminUsername: sql<string | null>`${adminAlias}."username"`,
+      adminDisplayName: sql<string | null>`${adminAlias}."displayName"`,
+      // Refunder user data
+      refunderUsername: sql<string | null>`${refunderAlias}."username"`,
+      refunderDisplayName: sql<string | null>`${refunderAlias}."displayName"`,
+    })
+    .from(moderationEscrows)
+    .leftJoin(
+      sql`"User" AS ${recipientAlias}`,
+      sql`${moderationEscrows.recipientId} = ${recipientAlias}."id"`
+    )
+    .leftJoin(
+      sql`"User" AS ${adminAlias}`,
+      sql`${moderationEscrows.adminId} = ${adminAlias}."id"`
+    )
+    .leftJoin(
+      sql`"User" AS ${refunderAlias}`,
+      sql`${moderationEscrows.refundedBy} = ${refunderAlias}."id"`
+    )
+    .where(whereClause)
+    .orderBy(desc(moderationEscrows.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Get total count for pagination
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(moderationEscrows)
+    .where(whereClause);
+  const total = countResult?.count ?? 0;
+
+  return NextResponse.json({
+    success: true,
+    escrows: escrowsQuery.map((escrow) => ({
+      id: escrow.id,
+      recipientId: escrow.recipientId,
+      recipient: {
+        id: escrow.recipientId,
+        username: escrow.recipientUsername,
+        displayName: escrow.recipientDisplayName,
+        profileImageUrl: escrow.recipientProfileImageUrl,
+      },
+      adminId: escrow.adminId,
+      admin: {
+        id: escrow.adminId,
+        username: escrow.adminUsername,
+        displayName: escrow.adminDisplayName,
+      },
+      amountUSD: escrow.amountUSD,
+      amountWei: escrow.amountWei,
+      status: escrow.status,
+      reason: escrow.reason,
+      paymentRequestId: escrow.paymentRequestId,
+      paymentTxHash: escrow.paymentTxHash,
+      refundTxHash: escrow.refundTxHash,
+      refundedBy: escrow.refundedBy,
+      refundedByUser: escrow.refundedBy
+        ? {
+            id: escrow.refundedBy,
+            username: escrow.refunderUsername,
+            displayName: escrow.refunderDisplayName,
+          }
+        : null,
+      refundedAt: escrow.refundedAt?.toISOString(),
+      createdAt: escrow.createdAt.toISOString(),
+      expiresAt: escrow.expiresAt.toISOString(),
+    })),
+    pagination: {
+      total,
+      limit,
+      offset,
+    },
+  });
 }

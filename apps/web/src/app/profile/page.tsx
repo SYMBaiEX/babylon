@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   AlertCircle,
   ArrowLeft,
@@ -17,8 +18,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
 import { PostCard } from '@/components/posts/PostCard';
+import { FollowListModal } from '@/components/profile/FollowListModal';
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
+import {
+  type ProfileReply,
+  ProfileReplyCard,
+} from '@/components/profile/ProfileReplyCard';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
 import { TradingProfile } from '@/components/profile/TradingProfile';
 import { Avatar } from '@/components/shared/Avatar';
@@ -27,9 +33,7 @@ import {
   FeedSkeleton,
   ProfileHeaderSkeleton,
 } from '@/components/shared/Skeleton';
-import { TaggedText } from '@/components/shared/TaggedText';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
 
 interface ProfileFormData {
@@ -56,7 +60,7 @@ interface EditModalState {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated, getAccessToken } = useAuth();
+  const { ready, authenticated, getAccessToken, login } = useAuth();
   const { user, setUser } = useAuthStore();
   const router = useRouter();
 
@@ -90,6 +94,10 @@ export default function ProfilePage() {
   });
   const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts');
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false);
+  const [followListModal, setFollowListModal] = useState<{
+    isOpen: boolean;
+    type: 'followers' | 'following';
+  }>({ isOpen: false, type: 'followers' });
   const [posts, setPosts] = useState<
     Array<{
       id: string;
@@ -129,23 +137,7 @@ export default function ProfilePage() {
       } | null;
     }>
   >([]);
-  const [replies, setReplies] = useState<
-    Array<{
-      id: string;
-      content: string;
-      createdAt: string;
-      likeCount: number;
-      replyCount: number;
-      postId: string;
-      post: {
-        author?: {
-          displayName?: string | null;
-          username?: string | null;
-        } | null;
-        content: string;
-      };
-    }>
-  >([]);
+  const [replies, setReplies] = useState<ProfileReply[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
   // Social visibility toggles
@@ -212,31 +204,42 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user?.id) return;
 
+    const controller = new AbortController();
+
     const loadContent = async () => {
       setLoadingPosts(true);
-      const token = await getAccessToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
-        { headers }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const items = data?.data?.items ?? data?.items ?? [];
-        if (tab === 'posts') {
-          setPosts(items);
-        } else {
-          setReplies(items);
+      try {
+        const token = await getAccessToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
+
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`,
+          { headers, signal: controller.signal }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const items = data?.data?.items ?? data?.items ?? [];
+          if (tab === 'posts') {
+            setPosts(items);
+          } else {
+            setReplies(items);
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to fetch content:', error);
+        }
+      } finally {
+        setLoadingPosts(false);
       }
-      setLoadingPosts(false);
     };
 
     loadContent();
+
+    return () => controller.abort();
   }, [user?.id, tab, getAccessToken]);
 
   // Listen for profile updates (when user follows/unfollows someone)
@@ -271,9 +274,7 @@ export default function ProfilePage() {
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return posts;
     const query = searchQuery.toLowerCase();
-    return posts.filter((post) =>
-      post.content?.toLowerCase().includes(query)
-    );
+    return posts.filter((post) => post.content?.toLowerCase().includes(query));
   }, [posts, searchQuery]);
 
   const filteredReplies = useMemo(() => {
@@ -283,6 +284,14 @@ export default function ProfilePage() {
       reply.content?.toLowerCase().includes(query)
     );
   }, [replies, searchQuery]);
+
+  // Auth required — redirect to feed and show login
+  useEffect(() => {
+    if (!ready || (authenticated && user)) return;
+    router.push('/feed');
+    const timer = setTimeout(() => login(), 500);
+    return () => clearTimeout(timer);
+  }, [ready, authenticated, user, router, login]);
 
   const openEditModal = () => {
     setEditModal({
@@ -720,20 +729,30 @@ export default function ProfilePage() {
 
         {/* Stats */}
         <div className="flex gap-4 text-[15px]">
-          <Link href="#" className="hover:underline">
+          <button
+            onClick={() =>
+              setFollowListModal({ isOpen: true, type: 'following' })
+            }
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {optimisticFollowingCount !== null
                 ? optimisticFollowingCount
                 : user?.stats?.following || 0}
             </span>
             <span className="ml-1 text-muted-foreground">Following</span>
-          </Link>
-          <Link href="#" className="hover:underline">
+          </button>
+          <button
+            onClick={() =>
+              setFollowListModal({ isOpen: true, type: 'followers' })
+            }
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {user?.stats?.followers || 0}
             </span>
             <span className="ml-1 text-muted-foreground">Followers</span>
-          </Link>
+          </button>
         </div>
       </div>
     </div>
@@ -818,7 +837,9 @@ export default function ProfilePage() {
           <div className="py-12 text-center">
             <User className="mx-auto mb-3 h-12 w-12 text-muted-foreground opacity-50" />
             <p className="text-muted-foreground">
-              {searchQuery ? 'No posts found matching your search' : 'Your posts will appear here'}
+              {searchQuery
+                ? 'No posts found matching your search'
+                : 'Your posts will appear here'}
             </p>
           </div>
         );
@@ -871,7 +892,13 @@ export default function ProfilePage() {
             return postData.type === 'article' ? (
               <ArticleCard key={item.id} post={postData} />
             ) : (
-              <PostCard key={item.id} post={postData} showInteractions />
+              <PostCard
+                key={item.id}
+                post={postData}
+                showInteractions
+                showCommentInputBar={false}
+                onCommentClick={() => router.push(`/post/${item.id}`)}
+              />
             );
           })}
         </div>
@@ -884,49 +911,25 @@ export default function ProfilePage() {
         <div className="py-12 text-center">
           <User className="mx-auto mb-3 h-12 w-12 text-muted-foreground opacity-50" />
           <p className="text-muted-foreground">
-            {searchQuery ? 'No replies found matching your search' : 'Your replies will appear here'}
+            {searchQuery
+              ? 'No replies found matching your search'
+              : 'Your replies will appear here'}
           </p>
         </div>
       );
     }
 
     return (
-      <div className="divide-y divide-border">
+      <div>
         {filteredReplies.map((reply) => (
-          <div key={reply.id} className="px-4 py-4">
-            <div className="mb-2 whitespace-pre-wrap break-words text-foreground">
-              <TaggedText
-                text={reply.content}
-                onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`);
-                }}
-              />
-            </div>
-            <div className="mb-2 text-muted-foreground text-sm">
-              Replying to{' '}
-              <a
-                href={`/post/${reply.postId}`}
-                className="text-primary hover:underline"
-              >
-                {reply.post.author?.displayName ||
-                  reply.post.author?.username ||
-                  'a post'}
-              </a>
-            </div>
-            <div className="mb-2 truncate text-muted-foreground text-xs">
-              <TaggedText
-                text={reply.post.content.substring(0, 100) + '...'}
-                onTagClick={(tag) => {
-                  router.push(`/feed?search=${encodeURIComponent(tag)}`);
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
-              <span>❤️ {reply.likeCount || 0}</span>
-              <span>💬 {reply.replyCount || 0}</span>
-            </div>
-          </div>
+          <ProfileReplyCard
+            key={reply.id}
+            reply={reply}
+            authorId={user?.id || ''}
+            authorName={formData.displayName || formData.username || ''}
+            authorUsername={formData.username || null}
+            authorProfileImageUrl={formData.profileImageUrl || null}
+          />
         ))}
       </div>
     );
@@ -946,43 +949,18 @@ export default function ProfilePage() {
     );
   }
 
-  // Not authenticated
   if (!authenticated || !user) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="sticky top-0 z-10 bg-background">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="font-bold text-xl">Profile</h1>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <User className="h-12 w-12 text-muted-foreground opacity-50" />
-          <p className="text-muted-foreground">Please log in to view your profile.</p>
-          <Link
-            href="/feed"
-            className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"
-          >
-            Back to Feed
-          </Link>
-        </div>
-      </PageContainer>
-    );
+    return null;
   }
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Desktop: Content + Widget layout */}
-      <div className="hidden flex-1 overflow-hidden xl:flex">
+      {/* Main layout - responsive with optional sidebar on xl screens */}
+      <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-border lg:border-r lg:border-l">
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <div className="flex items-center gap-4 px-4 py-3">
               <Link
                 href="/feed"
@@ -1012,36 +990,6 @@ export default function ProfilePage() {
         {/* Widget Sidebar */}
         <div className="hidden w-96 flex-shrink-0 flex-col overflow-y-auto bg-sidebar p-4 xl:flex">
           <ProfileWidget userId={user.id} />
-        </div>
-      </div>
-
-      {/* Mobile/Tablet: Full width content */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="flex-1">
-              <h1 className="font-bold text-xl">
-                {formData.displayName || formData.username || 'Profile'}
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {posts.length} posts
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 overflow-y-auto">
-          {renderProfileHeader()}
-          {renderTabs()}
-          <div className="px-4">{renderContent()}</div>
         </div>
       </div>
 
@@ -1292,6 +1240,18 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Follow List Modal */}
+      {user && (
+        <FollowListModal
+          isOpen={followListModal.isOpen}
+          onClose={() =>
+            setFollowListModal({ ...followListModal, isOpen: false })
+          }
+          userId={user.id}
+          type={followListModal.type}
+        />
       )}
     </PageContainer>
   );

@@ -1,10 +1,9 @@
 'use client';
 
+import { cn, logger } from '@babylon/shared';
 import { FileText, Filter } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 
 /**
  * Log structure for agent logs.
@@ -59,36 +58,31 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      let url = `/api/agents/${agentId}/logs?limit=100`;
-      if (typeFilter !== 'all') url += `&type=${typeFilter}`;
-      if (levelFilter !== 'all') url += `&level=${levelFilter}`;
-
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as { success: boolean; logs: Log[] };
-        if (data.success && data.logs) {
-          setLogs(data.logs);
-        }
-      } else {
-        logger.error('Failed to fetch logs', undefined, 'AgentLogs');
-      }
-    } catch (error) {
-      logger.error('Error fetching logs', { error }, 'AgentLogs');
-    } finally {
+    const token = await getAccessToken();
+    if (!token) {
       setLoading(false);
+      return;
     }
+
+    let url = `/api/agents/${agentId}/logs?limit=100`;
+    if (typeFilter !== 'all') url += `&type=${typeFilter}`;
+    if (levelFilter !== 'all') url += `&level=${levelFilter}`;
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as { success: boolean; logs: Log[] };
+      if (data.success && data.logs) {
+        setLogs(data.logs);
+      }
+    } else {
+      logger.error('Failed to fetch logs', undefined, 'AgentLogs');
+    }
+    setLoading(false);
   }, [agentId, typeFilter, levelFilter, getAccessToken]);
 
   useEffect(() => {
@@ -131,6 +125,10 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
         return 'bg-blue-500/10 border-blue-500/20';
       case 'tick':
         return 'bg-purple-500/10 border-purple-500/20';
+      case 'post':
+        return 'bg-orange-500/10 border-orange-500/20';
+      case 'comment':
+        return 'bg-cyan-500/10 border-cyan-500/20';
       default:
         return 'bg-muted/30 border-border/50';
     }
@@ -151,6 +149,8 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
             <option value="chat">Chat</option>
             <option value="tick">Tick</option>
             <option value="trade">Trade</option>
+            <option value="post">Post</option>
+            <option value="comment">Comment</option>
             <option value="error">Error</option>
             <option value="system">System</option>
           </select>
@@ -256,11 +256,11 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
                           </div>
                         )}
                         {log.metadata && (
-                          <div>
+                          <div className="min-w-0">
                             <div className="mb-1 font-medium text-muted-foreground">
                               Metadata:
                             </div>
-                            <pre className="overflow-x-auto rounded bg-black/30 p-2">
+                            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2">
                               {JSON.stringify(log.metadata, null, 2)}
                             </pre>
                           </div>

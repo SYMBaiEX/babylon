@@ -14,6 +14,7 @@
 
 import {
   balanceTransactions,
+  type DrizzleClient,
   db,
   desc,
   eq,
@@ -21,8 +22,13 @@ import {
   users,
   withTransaction,
 } from '@babylon/db';
-import { generateSnowflakeId, NotFoundError } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  InsufficientFundsError,
+  logger,
+} from '@babylon/shared';
 import { EarnedPointsService } from './earned-points-service';
+import { TotalPointsService } from './total-points-service';
 
 /**
  * User balance information
@@ -79,7 +85,8 @@ export class WalletService {
   /**
    * Optional cache invalidation callback
    */
-  private static cacheInvalidationCallback: CacheInvalidationCallback | null = null;
+  private static cacheInvalidationCallback: CacheInvalidationCallback | null =
+    null;
 
   /**
    * Set the cache invalidation callback
@@ -88,7 +95,9 @@ export class WalletService {
    *
    * @param {CacheInvalidationCallback} callback - Cache invalidation function
    */
-  static setCacheInvalidationCallback(callback: CacheInvalidationCallback): void {
+  static setCacheInvalidationCallback(
+    callback: CacheInvalidationCallback
+  ): void {
     WalletService.cacheInvalidationCallback = callback;
   }
 
@@ -117,7 +126,7 @@ export class WalletService {
    * @private
    */
   private static async applyBalanceChange(
-    tx: Transaction,
+    tx: Transaction | DrizzleClient,
     userId: string,
     delta: number,
     type: string,
@@ -134,11 +143,31 @@ export class WalletService {
 
     const [user] = result;
     if (!user) {
-      throw new NotFoundError('User', userId);
+      // Fail-fast: NPCs should have User records after bootstrap (ensureNpcUsers).
+      // A missing user here indicates a bug in bootstrap or an invalid userId.
+      throw new Error(
+        `User not found for wallet operation: ${userId}. NPCs should have User records after bootstrap.`
+      );
     }
 
-    const currentBalance = Number(user.virtualBalance);
+    const currentBalance = Number(user.virtualBalance ?? 0);
     const newBalance = currentBalance + delta;
+
+    // Reject non-finite values to prevent balance corruption
+    if (
+      !Number.isFinite(delta) ||
+      !Number.isFinite(currentBalance) ||
+      !Number.isFinite(newBalance)
+    ) {
+      throw new Error(
+        `Invalid wallet mutation for ${userId}: delta=${delta}, balance=${currentBalance}, result=${newBalance}`
+      );
+    }
+
+    // Prevent negative balance on debits
+    if (delta < 0 && newBalance < 0) {
+      throw new InsufficientFundsError(Math.abs(delta), currentBalance, 'USD');
+    }
 
     await tx
       .update(users)
@@ -190,10 +219,10 @@ export class WalletService {
     }
 
     return {
-      balance: Number(user.virtualBalance),
-      totalDeposited: Number(user.totalDeposited),
-      totalWithdrawn: Number(user.totalWithdrawn),
-      lifetimePnL: Number(user.lifetimePnL),
+      balance: Number(user.virtualBalance ?? 0),
+      totalDeposited: Number(user.totalDeposited ?? 0),
+      totalWithdrawn: Number(user.totalWithdrawn ?? 0),
+      lifetimePnL: Number(user.lifetimePnL ?? 0),
     };
   }
 
@@ -230,7 +259,7 @@ export class WalletService {
       return false;
     }
 
-    return Number(user.virtualBalance) >= requiredAmount;
+    return Number(user.virtualBalance ?? 0) >= requiredAmount;
   }
 
   /**
@@ -259,7 +288,7 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<void> {
     const delta = -amount;
 
@@ -286,6 +315,15 @@ export class WalletService {
     }
 
     await WalletService.invalidateCache(userId);
+
+    // Fire-and-forget: recompute totalPoints after balance change
+    TotalPointsService.markDirty(userId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId, error: e instanceof Error ? e.message : String(e) },
+        'WalletService'
+      )
+    );
   }
 
   /**
@@ -297,7 +335,7 @@ export class WalletService {
     type: string,
     description: string,
     relatedId?: string,
-    tx?: Transaction
+    tx?: Transaction | DrizzleClient
   ): Promise<void> {
     if (tx) {
       await WalletService.applyBalanceChange(
@@ -322,6 +360,15 @@ export class WalletService {
     }
 
     await WalletService.invalidateCache(userId);
+
+    // Fire-and-forget: recompute totalPoints after balance change
+    TotalPointsService.markDirty(userId).catch((e) =>
+      logger.warn(
+        'Failed to mark user dirty',
+        { userId, error: e instanceof Error ? e.message : String(e) },
+        'WalletService'
+      )
+    );
   }
 
   /**
@@ -349,11 +396,28 @@ export class WalletService {
 
       const [user] = result;
       if (!user) {
-        throw new Error(`User not found: ${userId}`);
+        // Fail-fast: NPCs should have User records after bootstrap (ensureNpcUsers).
+        // A missing user here indicates a bug in bootstrap or an invalid userId.
+        throw new Error(
+          `User not found for PnL recording: ${userId}. NPCs should have User records after bootstrap.`
+        );
+      }
+
+      // Reject non-finite PnL to prevent lifetime stats corruption
+      if (!Number.isFinite(pnl)) {
+        throw new Error(
+          `Invalid PnL for ${userId}: pnl=${pnl}, tradeType=${tradeType}`
+        );
       }
 
       const previousLifetimePnL = Number(user.lifetimePnL);
       const newLifetimePnL = previousLifetimePnL + pnl;
+
+      if (!Number.isFinite(newLifetimePnL)) {
+        throw new Error(
+          `Invalid lifetimePnL for ${userId}: prev=${previousLifetimePnL}, delta=${pnl}`
+        );
+      }
 
       // Update lifetimePnL first within the transaction
       await tx
@@ -421,7 +485,7 @@ export class WalletService {
       throw new Error(`User not found: ${userId}`);
     }
 
-    if (Number(user.virtualBalance) === 0) {
+    if (Number(user.virtualBalance ?? 0) === 0) {
       await withTransaction(async (tx) => {
         await tx
           .update(users)
@@ -444,4 +508,3 @@ export class WalletService {
     }
   }
 }
-

@@ -38,47 +38,40 @@ export * from './perps-types';
 // Client-Safe Utilities (excludes token-counter which uses tiktoken)
 // =============================================================================
 
-// UI utilities (cn function for Tailwind)
-export * from './utils/ui';
-
-// Logger (works in browser)
-export * from './utils/logger';
-
-// Formatting utilities (pure functions)
-export * from './utils/format';
-
-// Retry utilities (pure functions)
-export * from './utils/retry';
-
-// JSON parser (pure functions)
-export * from './utils/json-parser';
-
-// Decimal converter (pure functions)
-export * from './utils/decimal-converter';
-
-// Singleton utility (pure function)
-export * from './utils/singleton';
-
-// Snowflake ID generator (pure functions)
-export * from './utils/snowflake';
-
-// Profile utilities (pure functions)
-export * from './utils/profile';
-
 // Assets utilities (URL helpers)
 export * from './utils/assets';
-
-// Name replacement utilities (pure functions)
-export * from './utils/name-replacement';
-
+// Chain utilities (chain name mapping)
+export * from './utils/chain-utils';
 // Content analysis (pure functions, no external deps)
 export * from './utils/content-analysis';
-
 // Content safety (pure functions, no external deps)
 export * from './utils/content-safety';
-
+// Decimal converter (pure functions)
+export * from './utils/decimal-converter';
+// Formatting utilities (pure functions)
+export * from './utils/format';
+// JSON parser (pure functions)
+export * from './utils/json-parser';
+// Logger (works in browser)
+export * from './utils/logger';
+// Name replacement utilities (pure functions)
+export * from './utils/name-replacement';
 // OASF skill mapper (pure functions)
 export * from './utils/oasf-skill-mapper';
+// Post utilities (pure functions)
+export * from './utils/post-utils';
+// Profile utilities (pure functions)
+export * from './utils/profile';
+// Retry utilities (pure functions)
+export * from './utils/retry';
+// Singleton utility (pure function)
+export * from './utils/singleton';
+// Snowflake ID generator (pure functions)
+export * from './utils/snowflake';
+// UI utilities (cn function for Tailwind)
+export * from './utils/ui';
+// UUID generation (cross-browser compatible UUID v4)
+export * from './utils/uuid';
 
 // =============================================================================
 // Error Classes (client-safe)
@@ -127,6 +120,12 @@ export * from './share';
 // =============================================================================
 
 export * from './config';
+
+// =============================================================================
+// NFT utilities (client-safe)
+// =============================================================================
+
+export * from './nft';
 
 // =============================================================================
 // NOT EXPORTED (Server-only modules - import from @babylon/api):

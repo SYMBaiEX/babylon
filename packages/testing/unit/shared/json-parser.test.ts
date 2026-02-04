@@ -4,10 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  parseJsonString,
-  parseJsonWithFallback,
-} from '@babylon/shared';
+import { parseJsonString, parseJsonWithFallback } from '@babylon/shared';
 
 describe('JSON Parser', () => {
   describe('parseJsonString', () => {
@@ -74,7 +71,10 @@ describe('JSON Parser', () => {
 
   describe('parseJsonWithFallback', () => {
     it('should return parsed data for valid JSON', () => {
-      const result = parseJsonWithFallback<Record<string, string>>('{"key": "value"}', { default: 'fallback' });
+      const result = parseJsonWithFallback<Record<string, string>>(
+        '{"key": "value"}',
+        { default: 'fallback' }
+      );
       expect(result).toEqual({ key: 'value' });
     });
 
@@ -103,4 +103,3 @@ describe('JSON Parser', () => {
     });
   });
 });
-

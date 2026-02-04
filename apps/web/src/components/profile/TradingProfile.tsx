@@ -1,11 +1,13 @@
 'use client';
 
+import type { PortfolioBreakdownSnapshot } from '@babylon/engine/client';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
   BarChart3,
   Clock,
-  DollarSign,
+  Coins,
   Target,
   TrendingDown,
   TrendingUp,
@@ -16,7 +18,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { TradesFeed } from '@/components/trades/TradesFeed';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@babylon/shared';
 
 /**
  * Trading profile component for displaying comprehensive trading statistics and positions.
@@ -53,7 +54,7 @@ interface UserStats {
   rank: number;
   totalPlayers: number;
   balance: number;
-  reputationPoints: number;
+  totalPoints: number;
   lifetimePnL: number;
 }
 
@@ -68,6 +69,7 @@ interface PortfolioPnL {
   perpPositions: number;
   predictionPositions: number;
   roi: number;
+  breakdown: PortfolioBreakdownSnapshot | null;
 }
 
 /**
@@ -172,15 +174,15 @@ export function TradingProfile({
     setLoading(true);
     setError(null);
 
-    try {
-      const token = await getAccessToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+    const token = await getAccessToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-      // Fetch all data in parallel
-      const [profileRes, leaderboardRes, positionsRes] = await Promise.all([
+    // Fetch all data in parallel
+    const [profileRes, leaderboardRes, positionsRes, breakdownRes] =
+      await Promise.all([
         fetch(`/api/users/${encodeURIComponent(userId)}/profile`, {
           headers,
           signal: abortController.signal,
@@ -196,109 +198,124 @@ export function TradingProfile({
             signal: abortController.signal,
           }
         ),
+        isOwner
+          ? fetch(
+              `/api/users/${encodeURIComponent(userId)}/portfolio-breakdown`,
+              {
+                headers,
+                signal: abortController.signal,
+              }
+            )
+          : Promise.resolve(null),
       ]);
 
-      // Check if aborted
-      if (abortController.signal.aborted) {
-        return;
-      }
+    // Check if aborted
+    if (abortController.signal.aborted) {
+      return;
+    }
 
-      // Check responses
-      if (!profileRes.ok) {
-        throw new Error(
-          `Failed to load profile: ${profileRes.status} ${profileRes.statusText}`
-        );
-      }
-      if (!leaderboardRes.ok) {
-        throw new Error(`Failed to load leaderboard: ${leaderboardRes.status}`);
-      }
-      if (!positionsRes.ok) {
-        throw new Error(`Failed to load positions: ${positionsRes.status}`);
-      }
+    // Check responses
+    if (!profileRes.ok) {
+      setError(
+        `Failed to load profile: ${profileRes.status} ${profileRes.statusText}`
+      );
+      setLoading(false);
+      return;
+    }
+    if (!leaderboardRes.ok) {
+      setError(`Failed to load leaderboard: ${leaderboardRes.status}`);
+      setLoading(false);
+      return;
+    }
+    if (!positionsRes.ok) {
+      setError(`Failed to load positions: ${positionsRes.status}`);
+      setLoading(false);
+      return;
+    }
+    if (isOwner && breakdownRes && !breakdownRes.ok) {
+      setError(
+        `Failed to load portfolio breakdown: ${breakdownRes.status} ${breakdownRes.statusText}`
+      );
+      setLoading(false);
+      return;
+    }
 
-      const [profileData, leaderboardData, positionsData] = await Promise.all([
+    const [profileData, leaderboardData, positionsData, breakdownData] =
+      await Promise.all([
         profileRes.json(),
         leaderboardRes.json(),
         positionsRes.json() as Promise<ApiPositionsResponse>,
+        isOwner && breakdownRes
+          ? (breakdownRes.json() as Promise<PortfolioBreakdownSnapshot>)
+          : Promise.resolve(null),
       ]);
 
-      // Check if aborted after async operations
-      if (abortController.signal.aborted) {
-        return;
-      }
+    // Check if aborted after async operations
+    if (abortController.signal.aborted) {
+      return;
+    }
 
-      // Validate profile data
-      const userProfile = profileData.user;
-      if (!userProfile) {
-        throw new Error('User profile not found');
-      }
+    // Validate profile data
+    const userProfile = profileData.user;
+    if (!userProfile) {
+      setError('User profile not found');
+      setLoading(false);
+      return;
+    }
 
-      // Find user rank
-      const totalPlayers = leaderboardData.pagination?.totalCount || 0;
-      const userInLeaderboard = leaderboardData.leaderboard?.find(
-        (u: { id: string }) => u.id === userId
+    // Find user rank
+    const totalPlayers = leaderboardData.pagination?.totalCount || 0;
+    const userInLeaderboard = leaderboardData.leaderboard?.find(
+      (u: { id: string }) => u.id === userId
+    );
+    const rank = userInLeaderboard?.rank || 0;
+
+    // Set stats
+    setStats({
+      rank,
+      totalPlayers,
+      balance: toNumber(userProfile.virtualBalance),
+      totalPoints: toNumber(userProfile.totalPoints),
+      lifetimePnL: toNumber(userProfile.lifetimePnL),
+    });
+
+    // Validate and set positions
+    const perpPos = positionsData.perpetuals?.positions || [];
+    const predPos = positionsData.predictions?.positions || [];
+
+    setPerpPositions(perpPos);
+    setPredictionPositions(predPos);
+
+    // Calculate portfolio P&L for owner (canonical Total P/L)
+    if (isOwner) {
+      const breakdown = breakdownData;
+      const totalPnL = breakdown ? toNumber(breakdown.totalPnL) : 0;
+      const originalAmount = breakdown ? toNumber(breakdown.originalAmount) : 0;
+
+      const perpPnL = perpPos.reduce(
+        (sum, p) => sum + toNumber(p.unrealizedPnL),
+        0
       );
-      const rank = userInLeaderboard?.rank || 0;
+      const predictionPnL = predPos.reduce(
+        (sum, p) => sum + toNumber(p.unrealizedPnL),
+        0
+      );
+      const roi = originalAmount > 0 ? (totalPnL / originalAmount) * 100 : 0;
 
-      // Set stats
-      setStats({
-        rank,
-        totalPlayers,
-        balance: toNumber(userProfile.virtualBalance),
-        reputationPoints: toNumber(userProfile.reputationPoints),
-        lifetimePnL: toNumber(userProfile.lifetimePnL),
+      setPortfolioPnL({
+        totalPnL,
+        perpPnL,
+        predictionPnL,
+        totalPositions: perpPos.length + predPos.length,
+        perpPositions: perpPos.length,
+        predictionPositions: predPos.length,
+        roi,
+        breakdown,
       });
+    }
 
-      // Validate and set positions
-      const perpPos = positionsData.perpetuals?.positions || [];
-      const predPos = positionsData.predictions?.positions || [];
-
-      setPerpPositions(perpPos);
-      setPredictionPositions(predPos);
-
-      // Calculate portfolio P&L for owner
-      if (isOwner) {
-        const perpPnL = perpPos.reduce(
-          (sum, p) => sum + toNumber(p.unrealizedPnL),
-          0
-        );
-        const predictionPnL = predPos.reduce(
-          (sum, p) => sum + toNumber(p.unrealizedPnL),
-          0
-        );
-        const totalUnrealizedPnL = perpPnL + predictionPnL;
-
-        const lifetimePnL = toNumber(userProfile.lifetimePnL);
-        const totalPnL = lifetimePnL + totalUnrealizedPnL;
-
-        // ROI calculation - use actual balance as initial investment proxy
-        const balance = toNumber(userProfile.virtualBalance);
-        const initialInvestment = balance > 0 ? balance - totalPnL : 1000; // Fallback to 1000
-        const roi =
-          initialInvestment > 0 ? (totalPnL / initialInvestment) * 100 : 0;
-
-        setPortfolioPnL({
-          totalPnL,
-          perpPnL,
-          predictionPnL,
-          totalPositions: perpPos.length + predPos.length,
-          perpPositions: perpPos.length,
-          predictionPositions: predPos.length,
-          roi,
-        });
-      }
-    } catch (err) {
-      // Only set error if not aborted
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      setError(
-        err instanceof Error ? err.message : 'Failed to load trading data'
-      );
-    } finally {
-      if (!abortController.signal.aborted) {
-        setLoading(false);
-      }
+    if (!abortController.signal.aborted) {
+      setLoading(false);
     }
   }, [userId, isOwner, getAccessToken]);
 
@@ -313,15 +330,13 @@ export function TradingProfile({
     };
   }, [fetchTradingData]);
 
-  const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '$0.00';
-    const abs = Math.abs(value);
-    if (abs >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (abs >= 1000) return `$${(value / 1000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
-  };
+  /** Use shared formatCompactCurrency for K/M/B suffix formatting */
+  const formatCurrency = formatCompactCurrency;
 
-  const calculateCurrentPrice = (market: PredictionPosition['Market']) => {
+  const calculateCurrentPrice = (
+    market: PredictionPosition['Market'] | null | undefined
+  ) => {
+    if (!market) return 0.5; // Default to 50/50 if market data unavailable
     const yesShares = toNumber(market.yesShares);
     const noShares = toNumber(market.noShares);
     const totalShares = yesShares + noShares;
@@ -365,7 +380,7 @@ export function TradingProfile({
       <div className="grid grid-cols-2 gap-4 p-4 lg:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-500" />
+            <Coins className="h-4 w-4 text-green-500" />
             <span className="font-medium text-muted-foreground text-xs">
               Balance
             </span>
@@ -401,13 +416,27 @@ export function TradingProfile({
           <div className="mb-2 flex items-center gap-2">
             <Trophy className="h-4 w-4 text-yellow-500" />
             <span className="font-medium text-muted-foreground text-xs">
-              Points
+              Total Points
             </span>
           </div>
           <p className="font-bold text-2xl">
-            {(stats?.reputationPoints || 0).toLocaleString()}
+            {(stats?.totalPoints || 0).toLocaleString()}
           </p>
         </div>
+
+        {isOwner && portfolioPnL?.breakdown && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-primary" />
+              <span className="font-medium text-muted-foreground text-xs">
+                My Agents
+              </span>
+            </div>
+            <p className="font-bold text-2xl">
+              {portfolioPnL.breakdown.agentCount}
+            </p>
+          </div>
+        )}
 
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
@@ -465,14 +494,45 @@ export function TradingProfile({
                 </p>
               </div>
 
-              <div>
-                <p className="mb-1 text-muted-foreground text-sm">
-                  Open Positions
-                </p>
-                <p className="font-bold text-xl">
-                  {portfolioPnL.totalPositions}
-                </p>
-              </div>
+              {portfolioPnL.breakdown && (
+                <div>
+                  <p className="mb-1 text-muted-foreground text-sm">
+                    Available
+                  </p>
+                  <p className="font-bold text-xl">
+                    {formatCurrency(portfolioPnL.breakdown.available)}
+                  </p>
+                </div>
+              )}
+
+              {portfolioPnL.breakdown && (
+                <div>
+                  <p className="mb-1 text-muted-foreground text-sm">
+                    In Positions
+                  </p>
+                  <p className="font-semibold text-lg">
+                    {formatCurrency(portfolioPnL.breakdown.positions)}
+                  </p>
+                </div>
+              )}
+
+              {portfolioPnL.breakdown && (
+                <div>
+                  <p className="mb-1 text-muted-foreground text-sm">Agents</p>
+                  <p className="font-semibold text-lg">
+                    {formatCurrency(portfolioPnL.breakdown.agents)}
+                  </p>
+                </div>
+              )}
+
+              {portfolioPnL.breakdown && (
+                <div>
+                  <p className="mb-1 text-muted-foreground text-sm">Wallet</p>
+                  <p className="font-semibold text-lg">
+                    {formatCurrency(portfolioPnL.breakdown.wallet)}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <p className="mb-1 text-muted-foreground text-sm">Perps P&L</p>

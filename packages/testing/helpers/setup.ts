@@ -9,21 +9,18 @@ import { db } from '@babylon/db';
 
 /**
  * Check if database is available and properly configured
+ * Throws if database is not available (fail-fast)
  */
 export async function ensureDatabaseReady(): Promise<boolean> {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
-    return false;
+    throw new Error('DATABASE_URL not set');
   }
 
-  try {
-    // Simple connection test using db.$queryRaw
-    await db.$queryRaw`SELECT 1`;
-    return true;
-  } catch (_error) {
-    return false;
-  }
+  // Simple connection test using db.$queryRaw
+  await db.$queryRaw`SELECT 1`;
+  return true;
 }
 
 /**
@@ -42,27 +39,18 @@ export async function setupTestEnvironment(options?: {
 
   // Ensure DATABASE_URL is available
   if (!process.env.DATABASE_URL) {
-    console.warn('⚠️  DATABASE_URL not set - database-dependent tests will be skipped');
-    return;
-  }
-
-  // Check database readiness
-  const dbReady = await ensureDatabaseReady();
-  if (!dbReady) {
-    // For non-critical tests, just warn instead of throwing
     console.warn(
-      '⚠️  Database not available - database-dependent tests will be skipped'
+      '⚠️  DATABASE_URL not set - database-dependent tests will be skipped'
     );
     return;
   }
 
-  try {
-    // Ensure database client is connected
-    await db.$connect();
-    console.log('✅ Test environment ready');
-  } catch (error) {
-    console.warn('⚠️  Could not connect to database:', error);
-  }
+  // Check database readiness - will throw if not available (fail-fast)
+  await ensureDatabaseReady();
+
+  // Ensure database client is connected
+  await db.$connect();
+  console.log('✅ Test environment ready');
 }
 
 /**
@@ -70,11 +58,7 @@ export async function setupTestEnvironment(options?: {
  * Call this in afterAll() hooks
  */
 export async function cleanupTestEnvironment() {
-  try {
-    await db.$disconnect();
-  } catch (_error) {
-    // Ignore disconnection errors in tests
-  }
+  await db.$disconnect();
 }
 
 /**
@@ -92,23 +76,18 @@ export function shouldSkipDatabaseTests(): boolean {
  * Call this in beforeAll() or beforeEach() if your tests use locks
  */
 export async function cleanupStaleLocks(): Promise<number> {
-  try {
-    // Delete expired locks
-    const result = await db.generationLock.deleteMany({
-      where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          // Also clean up any locks from previous test runs
-          { id: { contains: 'test' } },
-          { lockedBy: { contains: 'test' } },
-        ],
-      },
-    });
-    return result.count;
-  } catch (error) {
-    console.warn('Could not cleanup stale locks:', error);
-    return 0;
-  }
+  // Delete expired locks
+  const result = await db.generationLock.deleteMany({
+    where: {
+      OR: [
+        { expiresAt: { lt: new Date() } },
+        // Also clean up any locks from previous test runs
+        { id: { contains: 'test' } },
+        { lockedBy: { contains: 'test' } },
+      ],
+    },
+  });
+  return result.count;
 }
 
 /**
@@ -140,29 +119,24 @@ export async function createIsolatedTestContext(name: string): Promise<{
   const testPrefix = generateTestId(name);
 
   const cleanup = async () => {
-    try {
-      // Clean up any records created with this test prefix
-      await db.generationLock.deleteMany({
-        where: {
-          OR: [
-            { id: { contains: testPrefix } },
-            { lockedBy: { contains: testPrefix } },
-          ],
-        },
-      });
+    // Clean up any records created with this test prefix
+    await db.generationLock.deleteMany({
+      where: {
+        OR: [
+          { id: { contains: testPrefix } },
+          { lockedBy: { contains: testPrefix } },
+        ],
+      },
+    });
 
-      await db.user.deleteMany({
-        where: {
-          OR: [
-            { username: { contains: testPrefix } },
-            { id: { contains: testPrefix } },
-          ],
-        },
-      });
-    } catch (error) {
-      // Non-fatal - log and continue
-      console.warn(`[${name}] Cleanup warning:`, error);
-    }
+    await db.user.deleteMany({
+      where: {
+        OR: [
+          { username: { contains: testPrefix } },
+          { id: { contains: testPrefix } },
+        ],
+      },
+    });
   };
 
   return { testPrefix, cleanup };

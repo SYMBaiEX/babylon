@@ -1,0 +1,120 @@
+# Babylon CODEOWNERS
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# Notes:
+# - Patterns use gitignore-style matching.
+# - If multiple patterns match a file, the LAST match wins.
+
+# ----------------------------
+# Agents (runtime / A2A / MCP)
+# ----------------------------
+/packages/agents/ @wtfsayo
+/packages/a2a/ @wtfsayo
+/packages/mcp/ @wtfsayo
+/packages/examples/babylon-typescript-agent/ @wtfsayo
+/packages/examples/babylon-langgraph-agent/ @wtfsayo
+/packages/examples/harness/ @wtfsayo
+
+/apps/web/src/app/agents/ @wtfsayo
+/apps/web/src/app/api/agents/ @wtfsayo
+/apps/web/src/app/api/a2a/ @wtfsayo
+/apps/web/src/app/api/agent-templates/ @wtfsayo
+/apps/web/src/app/mcp/ @wtfsayo
+/apps/web/src/components/agents/ @wtfsayo
+/apps/web/public/agent-templates/ @wtfsayo
+/apps/web/src/app/api/cron/agent-tick/ @wtfsayo
+
+# --------------------------
+# Markets + trading + Privy
+# --------------------------
+/packages/core/markets/ @slkzgm
+/packages/contracts/src/prediction-markets/ @slkzgm
+
+/apps/web/src/app/markets/ @slkzgm
+/apps/web/src/app/betting/ @slkzgm
+/apps/web/src/components/markets/ @slkzgm
+/apps/web/src/components/trades/ @slkzgm
+/apps/web/src/app/api/markets/ @slkzgm
+/apps/web/src/app/api/trades/ @slkzgm
+/apps/web/src/app/api/questions/ @slkzgm
+/apps/web/src/app/api/cron/perp-funding/ @slkzgm
+
+# Privy (auth/wallet plumbing)
+/packages/shared/src/auth/privy-config.ts @slkzgm
+/packages/shared/src/auth/wallet-utils.ts @slkzgm
+/packages/api/src/fetch.ts @slkzgm
+/packages/api/src/global.d.ts @slkzgm
+
+/apps/web/src/hooks/useAuth.ts @slkzgm
+/apps/web/src/hooks/useSmartWallet.ts @slkzgm
+/apps/web/src/utils/api-fetch.ts @slkzgm
+/apps/web/src/global.d.ts @slkzgm
+/apps/web/src/app/api/users/me/ @slkzgm
+
+# Auth flows (Twitter, shared auth wiring, etc.) — overridden below for Discord/Farcaster.
+/apps/web/src/app/api/auth/ @slkzgm
+
+# ----------------
+# Game engine core
+# ----------------
+/packages/engine/ @SYMBaiEX
+/apps/web/src/app/game/ @SYMBaiEX
+/apps/web/src/app/api/game/ @SYMBaiEX
+/apps/web/src/app/api/npc/ @SYMBaiEX
+/apps/web/src/components/npc/ @SYMBaiEX
+/apps/web/src/app/api/cron/game-tick/ @SYMBaiEX
+/apps/web/src/app/api/cron/world-facts/ @SYMBaiEX
+
+# -------------
+# RL / training
+# -------------
+/packages/training/ @revlentless
+/apps/web/src/app/admin/rl-training/ @revlentless
+/apps/web/src/app/api/training/ @revlentless
+/apps/web/src/app/api/_training/ @revlentless
+/apps/web/src/app/api/huggingface/ @revlentless
+/apps/web/src/app/api/admin/training/ @revlentless
+/apps/web/src/app/api/admin/training-data/ @revlentless
+/apps/web/src/app/api/admin/ai-models/ @revlentless
+/apps/web/src/app/api/cron/training/ @revlentless
+/apps/web/src/app/api/cron/training-check/ @revlentless
+/apps/web/src/app/api/cron/_training/ @revlentless
+/apps/web/src/app/api/cron/weekly-dataset-upload/ @revlentless
+
+# -----------------------------
+# Discord bot / automations
+# -----------------------------
+/apps/web/src/app/api/auth/discord/ @odilitime
+/apps/web/src/app/api/users/\[userId\]/verify-discord-join/ @odilitime
+
+# -------
+# Chats
+# -------
+/apps/web/src/app/chats/ @tcm390
+/apps/web/src/app/api/chats/ @tcm390
+/apps/web/src/components/chat/ @tcm390
+/apps/web/src/components/chats/ @tcm390
+/apps/web/src/app/api/realtime/token/ @tcm390
+
+/packages/db/src/schema/messaging.ts @tcm390
+/packages/api/src/realtime/ @tcm390
+/packages/api/src/sse/ @tcm390
+/packages/testing/synpress/07-chats.synpress.spec.ts @tcm390
+/packages/testing/synpress/helpers/test-data.ts @tcm390
+
+# -----------------------------------
+# Farcaster mini app / integration
+# -----------------------------------
+/apps/web/public/farcaster.json @xR0am
+/apps/web/next.config.ts @xR0am
+/apps/web/src/components/providers/FarcasterMiniAppProvider.tsx @xR0am
+/apps/web/src/app/api/frame/ @xR0am
+/apps/web/src/app/api/embed/post/ @xR0am
+/apps/web/src/app/api/auth/farcaster/ @xR0am
+/apps/web/src/app/api/auth/onboarding/farcaster/ @xR0am
+/apps/web/src/app/api/users/\[userId\]/verify-farcaster-follow/ @xR0am
+/apps/web/src/hooks/useSocialVerification.ts @xR0am @odilitime
+/apps/web/src/stores/authStore.ts @xR0am
+
+/packages/shared/src/auth/farcaster-auth-client.ts @xR0am
+/packages/shared/src/auth/farcaster-onboarding.ts @xR0am

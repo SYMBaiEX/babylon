@@ -18,11 +18,7 @@
 
 import { actors } from './data/actors';
 import { organizations } from './data/organizations';
-import type {
-  ActorData,
-  ActorsDatabase,
-  Organization,
-} from './types/shared';
+import type { ActorData, ActorsDatabase, Organization } from './types/shared';
 
 /**
  * Options for selective data loading
@@ -88,10 +84,18 @@ function initializeCache(): void {
 /**
  * Loads all actors data from TypeScript imports
  *
- * **Features:**
- * - Caching: Data is cached in memory after first load
- * - Selective: Can choose to load only actors, orgs, or relationships
- * - Fast: Direct imports, no file I/O
+ * @deprecated Use StaticDataRegistry.getAllActors() and StaticDataRegistry.getAllOrganizations() instead.
+ * This function maintains a separate cache from StaticDataRegistry, causing memory duplication.
+ *
+ * **Migration:**
+ * ```typescript
+ * // Before:
+ * const { actors, organizations } = loadActorsData();
+ *
+ * // After:
+ * const actors = StaticDataRegistry.getAllActors();
+ * const organizations = StaticDataRegistry.getAllOrganizations();
+ * ```
  *
  * @param options Optional configuration for selective loading
  * @returns ActorsDatabase with requested data

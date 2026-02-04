@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
 import "../prediction-markets/PredictionOracle.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -28,16 +28,16 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * 
  * Example:
  *   // 1. Game server commits at question creation
- *   oracle.commitGame(sessionId, "Will X happen?", commitment);
+ *   oracle.commitBabylonGame(questionId, questionNumber, question, commitment, category);
  *   
- *   // 2. Users trade on Predimarket or custom contracts
+ *   // 2. Users trade on Diamond PredictionMarketFacet or custom contracts
  *   
  *   // 3. Game server reveals after resolution
- *   oracle.revealGame(sessionId, outcome, salt, teeQuote);
+ *   oracle.revealBabylonGame(sessionId, outcome, salt, teeQuote, winners, totalPayout);
  *   
- *   // 4. External contracts can now read outcome
- *   predimarket.resolveMarket(sessionId);
- *   bettingContract.claimWinnings(sessionId);
+ *   // 4. External contracts read outcome via IPredictionOracle
+ *   (bool outcome, bool finalized) = oracle.getOutcome(sessionId);
+ *   diamond.resolveMarket(marketId); // Uses GameOracleFacet to read oracle
  */
 contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
     
@@ -216,7 +216,7 @@ contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
      * @param questionIds Array of question IDs
      * @param questionNumbers Array of question numbers
      * @param questions Array of question texts
-     * @param commitments Array of commitments
+     * @param gameCommitments Array of commitments
      * @param categories Array of categories
      * @return sessionIds Array of generated session IDs
      */
@@ -224,14 +224,14 @@ contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
         string[] calldata questionIds,
         uint256[] calldata questionNumbers,
         string[] calldata questions,
-        bytes32[] calldata commitments,
+        bytes32[] calldata gameCommitments,
         string[] calldata categories
     ) external onlyGameServer whenNotPaused returns (bytes32[] memory sessionIds) {
         uint256 length = questionIds.length;
         require(
             length == questionNumbers.length &&
             length == questions.length &&
-            length == commitments.length &&
+            length == gameCommitments.length &&
             length == categories.length,
             "Array length mismatch"
         );
@@ -269,7 +269,7 @@ contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
             totalGamesCommitted++;
             
             // Store in parent contract's games mapping
-            bytes32 _commitment = commitments[i];
+            bytes32 _commitment = gameCommitments[i];
             games[_sessionId] = GameOutcome({
                 sessionId: _sessionId,
                 question: questions[i],
@@ -482,6 +482,24 @@ contract BabylonGameOracle is PredictionOracle, Ownable, Pausable {
      */
     function getWinners(bytes32 sessionId) external view override returns (address[] memory) {
         return _babylonWinners[sessionId];
+    }
+    
+    /**
+     * @notice Check if address is a winner
+     * @param sessionId Session ID
+     * @param player Address to check
+     * @return True if the address won
+     * @dev Overrides base class to use _babylonWinners storage
+     */
+    function isWinner(bytes32 sessionId, address player) external view override returns (bool) {
+        GameOutcome storage game = games[sessionId];
+        if (!game.finalized) return false;
+        
+        address[] storage winners = _babylonWinners[sessionId];
+        for (uint i = 0; i < winners.length; i++) {
+            if (winners[i] == player) return true;
+        }
+        return false;
     }
     
     /**

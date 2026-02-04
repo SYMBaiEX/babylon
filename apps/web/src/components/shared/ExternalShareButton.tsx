@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * External share button component with tracking and points rewards.
  *
@@ -15,10 +17,11 @@
  * ```
  */
 
+import { trackExternalShare } from '@babylon/shared';
 import { Check, Link as LinkIcon, Share2, Twitter } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { trackExternalShare } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { ShareVerificationModal } from './ShareVerificationModal';
 
 // Farcaster icon component
@@ -41,6 +44,8 @@ interface ExternalShareButtonProps {
   url?: string;
   text?: string;
   className?: string;
+  /** Render share buttons inline (side by side) instead of a dropdown */
+  inline?: boolean;
 }
 
 /**
@@ -55,6 +60,7 @@ export function ExternalShareButton({
   url,
   text,
   className = '',
+  inline = false,
 }: ExternalShareButtonProps) {
   const { authenticated, user } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
@@ -77,33 +83,28 @@ export function ExternalShareButton({
     const checkExistingShares = async () => {
       if (!authenticated || !user) return;
 
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
       if (!token) return;
 
-      try {
-        const response = await fetch(
-          `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const shares = data.shares || [];
-
-          // Track which platforms have already earned points
-          const earned = new Set<string>();
-          shares.forEach((share: { platform: string }) => {
-            earned.add(share.platform);
-          });
-          setEarnedPlatforms(earned);
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      } catch (error) {
-        console.error('Failed to check existing shares:', error);
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const shares = data.shares || [];
+
+        // Track which platforms have already earned points
+        const earned = new Set<string>();
+        shares.forEach((share: { platform: string }) => {
+          earned.add(share.platform);
+        });
+        setEarnedPlatforms(earned);
       }
     };
 
@@ -209,6 +210,41 @@ export function ExternalShareButton({
     setTimeout(() => setShared(false), 2000);
     setShowMenu(false);
   };
+
+  if (inline) {
+    return (
+      <div className={`flex flex-col gap-2 sm:flex-row ${className}`}>
+        <button
+          onClick={handleShareToTwitter}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted/50"
+        >
+          <Twitter className="h-4 w-4 text-blue-400" />
+          <span className="font-medium text-sm">Share to X</span>
+        </button>
+        <button
+          onClick={handleShareToFarcaster}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted/50"
+        >
+          <FarcasterIcon className="h-4 w-4 text-purple-400" />
+          <span className="font-medium text-sm">Share to Farcaster</span>
+        </button>
+
+        {/* Verification Modal */}
+        {showVerification && pendingVerification && user && (
+          <ShareVerificationModal
+            isOpen={showVerification}
+            onClose={() => {
+              setShowVerification(false);
+              setPendingVerification(null);
+            }}
+            shareId={pendingVerification.shareId}
+            platform={pendingVerification.platform}
+            userId={user.id}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative">

@@ -66,48 +66,44 @@ export function TradesFeed({ userId, containerRef }: TradesFeedProps) {
   // Fetch trades from API
   const fetchTrades = useCallback(
     async (requestOffset: number, append = false) => {
-      try {
-        setError(null);
-        const params = new URLSearchParams({
-          limit: PAGE_SIZE.toString(),
-          offset: requestOffset.toString(),
-        });
+      setError(null);
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: requestOffset.toString(),
+      });
 
-        if (userId) {
-          params.append('userId', userId);
-        }
+      if (userId) {
+        params.append('userId', userId);
+      }
 
-        const response = await fetch(`/api/trades?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Failed to load trades: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const newTrades = data.trades || [];
-
-        if (append) {
-          setTrades((prev) => {
-            // Deduplicate trades by ID
-            const existingIds = new Set(prev.map((t) => t.id));
-            const uniqueNewTrades = newTrades.filter(
-              (t: Trade) => !existingIds.has(t.id)
-            );
-            return [...prev, ...uniqueNewTrades];
-          });
-          setLoadingMore(false);
-        } else {
-          setTrades(newTrades);
-          setLoading(false);
-        }
-
-        setHasMore(data.hasMore || false);
-        setOffset(requestOffset + newTrades.length);
-      } catch (err) {
-        console.error('Failed to fetch trades:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load trades');
+      const response = await fetch(`/api/trades?${params.toString()}`);
+      if (!response.ok) {
+        setError(`Failed to load trades: ${response.status}`);
         setLoading(false);
         setLoadingMore(false);
+        return;
       }
+
+      const data = await response.json();
+      const newTrades = data.trades || [];
+
+      if (append) {
+        setTrades((prev) => {
+          // Deduplicate trades by ID
+          const existingIds = new Set(prev.map((t) => t.id));
+          const uniqueNewTrades = newTrades.filter(
+            (t: Trade) => !existingIds.has(t.id)
+          );
+          return [...prev, ...uniqueNewTrades];
+        });
+        setLoadingMore(false);
+      } else {
+        setTrades(newTrades);
+        setLoading(false);
+      }
+
+      setHasMore(data.hasMore || false);
+      setOffset(requestOffset + newTrades.length);
     },
     [userId]
   );
@@ -243,8 +239,8 @@ export function TradesFeed({ userId, containerRef }: TradesFeedProps) {
 
   if (trades.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Activity className="mb-4 h-16 w-16 text-muted-foreground opacity-50" />
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Activity className="mb-4 h-12 w-12 text-muted-foreground opacity-50" />
         <h3 className="mb-2 font-semibold text-foreground text-lg">
           No trades yet
         </h3>

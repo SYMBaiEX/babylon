@@ -33,4 +33,3 @@ export const AgentCapabilitiesSchema = z.object({
   mcpEndpoint: z.string().optional(),
 });
 export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
-

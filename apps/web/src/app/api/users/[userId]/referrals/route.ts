@@ -58,7 +58,14 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  AuthorizationError,
+  authenticate,
+  NotFoundError,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   and,
   count,
@@ -73,15 +80,12 @@ import {
   tradingFees,
   users,
 } from '@babylon/db';
-import { authenticate, successResponse } from '@babylon/api';
-import { AuthorizationError, NotFoundError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
 import {
+  logger,
   ReferralQuerySchema,
   UserIdParamSchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/users/[userId]/referrals
@@ -137,6 +141,7 @@ export const GET = withErrorHandling(
         referralCode: users.referralCode,
         referralCount: users.referralCount,
         reputationPoints: users.reputationPoints,
+        totalPoints: users.totalPoints,
         totalFeesEarned: users.totalFeesEarned,
         pointsAwardedForProfile: users.pointsAwardedForProfile,
         pointsAwardedForFarcaster: users.pointsAwardedForFarcaster,
@@ -340,6 +345,7 @@ export const GET = withErrorHandling(
         profileImageUrl: user.profileImageUrl,
         referralCode: referralCode,
         reputationPoints: user.reputationPoints,
+        totalPoints: Number(user.totalPoints ?? 0),
         totalFeesEarned: user.totalFeesEarned,
         pointsAwardedForProfile: user.pointsAwardedForProfile,
         pointsAwardedForFarcaster: user.pointsAwardedForFarcaster,

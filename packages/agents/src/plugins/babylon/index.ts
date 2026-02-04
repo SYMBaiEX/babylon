@@ -59,8 +59,8 @@ import {
 
 // Export integration services
 export * from './integration';
-export * from './services';
 export { initializeAgentA2AClient } from './integration-a2a-sdk';
+export * from './services';
 // Export types for external use
 export type { BabylonRuntime } from './types';
 
@@ -238,7 +238,7 @@ export async function initializeBabylonPlugin(
 
   const a2aClient = await initializeAgentA2AClient(runtime.agentId);
 
-  logger.info('✅ A2A client ready');
+  logger.debug('A2A client ready');
 
   // Inject into runtime
   runtime.a2aClient = a2aClient;
@@ -246,7 +246,7 @@ export async function initializeBabylonPlugin(
   // Register plugin
   if (runtime.registerPlugin) {
     runtime.registerPlugin(babylonPlugin);
-    logger.info('✅ Babylon plugin registered with A2A client');
+    logger.debug('Babylon plugin registered with A2A client');
   }
 
   return { a2aClient, plugin: babylonPlugin };

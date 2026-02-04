@@ -1,18 +1,39 @@
-import { actors, db, desc } from '@babylon/db';
+import { PerpDbAdapter, PerpMarketService } from '@babylon/core/markets/perps';
+import type { WalletPort } from '@babylon/core/markets/shared';
 import { logger } from '@babylon/shared';
-import { TradeExecutionService } from './services/trade-execution-service';
-import type { Actor, ActorTier, FeedPost } from './types/shared';
+import { FEE_CONFIG } from './config/fees';
+import { getSimulationPrice, getSimulationTickers } from './config/simulation';
 import type { FeedGenerator } from './FeedGenerator';
 import type { GameWorld, WorldEvent } from './GameWorld';
-import type { MarketDecisionEngine } from './MarketDecisionEngine';
-import type { NewsArticlePacingEngine } from './NewsArticlePacingEngine';
-import type { PerpetualsEngine } from './PerpetualsEngine';
+// NewsArticlePacingEngine removed - was reserved but never integrated
 import type { RelationshipEvolutionEngine } from './RelationshipEvolutionEngine';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { TradeExecutionService } from './services/trade-execution-service';
+import { WalletService } from './services/wallet-service';
+import { isSimulationMode } from './storage-bridge';
+import type { TrendingTopicsEngine } from './TrendingTopicsEngine';
+import type { TradingDecision } from './types/market-decisions';
+import type { Actor, ActorTier, FeedPost } from './types/shared';
+import { formatError } from './utils/error-utils';
 
 /**
- * Result of a single game tick execution
+ * Interface for market decision engines used by GameLoop.
+ * Both MarketDecisionEngine and TrajectoryMarketEngine implement this.
  */
-export interface TickResult {
+export interface MarketDecisionEnginePort {
+  generateBatchDecisions(options?: {
+    priceOverrides?: Map<string, number>;
+  }): Promise<TradingDecision[]>;
+}
+
+/**
+ * Result of a single simulation tick execution.
+ * Used by GameLoop for offline/training game generation.
+ *
+ * Note: This is distinct from GameTick's TickResult (for injectable architecture)
+ * and game-tick.ts's GameTickResult (for production cron).
+ */
+export interface SimulationTickResult {
   /** World events generated during this tick */
   events: WorldEvent[];
   /** Feed posts generated during this tick */
@@ -30,26 +51,29 @@ export interface TickResult {
  * - Market maintenance (funding rates, price updates)
  * - NPC trading decisions and execution
  * - World event generation
- * - Feed post generation
+ * - Feed post generation (with trending topic context)
  * - Relationship evolution
  *
  * Used by both live game ticks (cron jobs) and game simulation (full game generation).
  */
 export class GameLoop {
+  private trendingTopics?: TrendingTopicsEngine;
+  private recentPosts: FeedPost[] = [];
+  private tickCount = 0;
+
   constructor(
     private world: GameWorld,
     private feed: FeedGenerator,
-    private marketDecisions: MarketDecisionEngine,
-    private perps: PerpetualsEngine,
-    private relationships: RelationshipEvolutionEngine,
-    /**
-     * News article pacing engine for article generation.
-     * Currently reserved for future integration.
-     */
-    private readonly _articles: NewsArticlePacingEngine
-  ) {
-    // Suppress unused variable warning until article generation is integrated
-    void this._articles;
+    private marketDecisions: MarketDecisionEnginePort,
+    private relationships: RelationshipEvolutionEngine
+  ) {}
+
+  /**
+   * Set the trending topics engine for trend-aware feed generation
+   */
+  setTrendingTopics(engine: TrendingTopicsEngine): void {
+    this.trendingTopics = engine;
+    this.feed.setTrendingTopics(engine);
   }
 
   /**
@@ -60,13 +84,20 @@ export class GameLoop {
    * @param day - Current day number (1-30)
    * @param hour - Current hour (0-23)
    * @param marketOnly - If true, only runs market logic (for fast-forwarding)
+   * @param options - Optional causal simulation overrides
+   * @param options.priceOverrides - Map of ticker -> price
+   * @param options.causalContext - Causal event context for hidden fact-driven events
    */
   async tick(
     gameId: string,
     day: number,
     hour: number,
-    marketOnly = false
-  ): Promise<TickResult> {
+    marketOnly = false,
+    options?: {
+      priceOverrides?: Map<string, number>;
+      causalContext?: import('./GameWorld').CausalEventContext;
+    }
+  ): Promise<SimulationTickResult> {
     logger.info(
       `Processing Tick: Day ${day}, Hour ${hour}`,
       { gameId, marketOnly },
@@ -74,17 +105,16 @@ export class GameLoop {
     );
 
     // 1. Market Maintenance (Financial Layer)
-    // Funding rates run every 8 hours
-    let marketUpdated = false;
-    if (hour % 8 === 0) {
-      this.perps.processFunding();
-      marketUpdated = true;
-    }
+    // Funding is now handled outside GameLoop via core services/jobs
+    const marketUpdated = false;
 
     // 2. Market Decisions (Financial Layer)
     // Generate trading activity based on current state
     // This drives price action which then feeds into narrative
-    const decisions = await this.marketDecisions.generateBatchDecisions();
+    // Pass priceOverrides for causal simulation mode
+    const decisions = await this.marketDecisions.generateBatchDecisions({
+      priceOverrides: options?.priceOverrides,
+    });
     let tradeCount = 0;
 
     if (decisions.length > 0) {
@@ -105,7 +135,7 @@ export class GameLoop {
         );
       } catch (e) {
         logger.warn(
-          `Trade execution batch failed: ${e instanceof Error ? e.message : String(e)}`,
+          `Trade execution batch failed: ${formatError(e)}`,
           undefined,
           'GameLoop'
         );
@@ -115,7 +145,79 @@ export class GameLoop {
     // 3. World Events (Narrative Layer)
     // Pass market state to world so narrative reacts to crashes/pumps
     // This implements the "Soros Loop" (Market -> Narrative)
-    const marketState = this.perps.getMarkets();
+    const walletAdapter: WalletPort = {
+      debit: (params) =>
+        WalletService.debit(
+          params.userId,
+          params.amount,
+          params.reason,
+          params.description ?? '',
+          params.relatedId
+        ),
+      credit: (params) =>
+        WalletService.credit(
+          params.userId,
+          params.amount,
+          params.reason,
+          params.description ?? '',
+          params.relatedId
+        ),
+      recordPnL: async (params) => {
+        await WalletService.recordPnL(
+          params.userId,
+          params.pnl,
+          params.reason,
+          params.relatedId
+        );
+      },
+      getBalance: (userId) => WalletService.getBalance(userId),
+    };
+
+    const perpService = new PerpMarketService({
+      db: new PerpDbAdapter(),
+      wallet: walletAdapter,
+      fees: {
+        tradingFeeRate: FEE_CONFIG.TRADING_FEE_RATE,
+        platformShare: FEE_CONFIG.PLATFORM_SHARE,
+        referrerShare: FEE_CONFIG.REFERRER_SHARE,
+        minFeeAmount: FEE_CONFIG.MIN_FEE_AMOUNT,
+      },
+    });
+
+    let marketState;
+    // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+    if (isSimulationMode()) {
+      const priceOverrides = options?.priceOverrides;
+      const tickers = getSimulationTickers(priceOverrides);
+
+      marketState = tickers.map((ticker: string) => {
+        const price = getSimulationPrice(ticker, priceOverrides);
+        return {
+          ticker,
+          organizationId: ticker.toLowerCase(),
+          name: ticker,
+          currentPrice: price,
+          change24h: 0,
+          changePercent24h: 0,
+          high24h: price * 1.01,
+          low24h: price * 0.99,
+          volume24h: 1000000,
+          openInterest: 500000,
+          fundingRate: {
+            ticker,
+            rate: 0.001,
+            nextFundingTime: new Date().toISOString(),
+            predictedRate: 0.001,
+          },
+          maxLeverage: 20,
+          minOrderSize: 10,
+          markPrice: price,
+          indexPrice: price,
+        };
+      });
+    } else {
+      marketState = await perpService.getMarketsSnapshot();
+    }
 
     // Calculate significant moves for narrative context
     const significantMoves = marketState
@@ -124,13 +226,16 @@ export class GameLoop {
 
     let worldEvents: WorldEvent[] = [];
     try {
-      worldEvents = await this.world.generateTickEvents(day, hour, {
-        markets: marketState,
-        significantMoves,
-      });
+      // Pass causalContext for hidden fact-driven events (causal simulation mode)
+      worldEvents = await this.world.generateTickEvents(
+        day,
+        hour,
+        { markets: marketState, significantMoves },
+        options?.causalContext
+      );
     } catch (e) {
       logger.warn(
-        `Failed to generate world events: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to generate world events: ${formatError(e)}`,
         { day, hour },
         'GameLoop'
       );
@@ -139,18 +244,25 @@ export class GameLoop {
     // 4. Feed Reaction (Social Layer)
     // Skip if marketOnly is true (for fast simulations)
     let posts: FeedPost[] = [];
-    if (!marketOnly) {
-      // Fetch actors from database for feed generation
-      // Use a subset of top actors for efficiency in simulation
-      const actorsResult = await db
-        .select()
-        .from(actors)
-        .orderBy(desc(actors.reputationPoints))
-        .limit(15);
+    this.tickCount++;
 
-      if (actorsResult.length > 0) {
-        // Convert database actors to Actor type expected by FeedGenerator
-        const actorList: Actor[] = actorsResult.map((actor) => ({
+    if (!marketOnly) {
+      // Update trending topics before feed generation (engine handles interval internally)
+      if (this.trendingTopics && this.recentPosts.length > 0) {
+        await this.trendingTopics.updateTrends(
+          this.recentPosts,
+          this.tickCount
+        );
+        this.feed.updateTrendContext();
+      }
+
+      // Fetch actors from static registry for feed generation
+      // Use a subset of top actors for efficiency in simulation
+      const staticActors = StaticDataRegistry.getAllActors().slice(0, 15);
+
+      if (staticActors.length > 0) {
+        // Convert static actors to Actor type expected by FeedGenerator
+        const actorList: Actor[] = staticActors.map((actor) => ({
           id: actor.id,
           name: actor.name,
           description: actor.description || undefined,
@@ -177,15 +289,10 @@ export class GameLoop {
           initialMood: actor.initialMood || undefined,
         }));
 
-        try {
-          posts = await this.feed.generateDayFeed(day, worldEvents, actorList);
-        } catch (e) {
-          logger.warn(
-            `Failed to generate feed posts: ${e instanceof Error ? e.message : String(e)}`,
-            { day, actorCount: actorsResult.length },
-            'GameLoop'
-          );
-        }
+        posts = await this.feed.generateDayFeed(day, worldEvents, actorList);
+
+        // Accumulate posts for trending analysis (keep last 200)
+        this.recentPosts = [...this.recentPosts, ...posts].slice(-200);
       } else {
         logger.warn('No actors found for feed generation', {}, 'GameLoop');
       }
@@ -198,17 +305,15 @@ export class GameLoop {
         await this.relationships.analyzeAndUpdateRelationships();
       } catch (e) {
         logger.warn(
-          `Failed to analyze relationships: ${e instanceof Error ? e.message : String(e)}`,
+          `Failed to analyze relationships: ${formatError(e)}`,
           undefined,
           'GameLoop'
         );
       }
     }
 
-    // 6. Record Snapshot
-    if (hour === 23) {
-      this.perps.recordDailySnapshot();
-    }
+    // 6. Record Snapshot - now handled via PerpMarketService in the game tick cron
+    // Daily snapshots are stored in PerpMarketSnapshot table via PerpDbAdapter
 
     return { events: worldEvents, posts, tradeCount, marketUpdated };
   }
@@ -226,10 +331,10 @@ export class GameLoop {
   async simulateFullGame(
     gameId: string,
     durationDays = 30
-  ): Promise<TickResult[]> {
+  ): Promise<SimulationTickResult[]> {
     logger.info(`Starting Simulation for ${gameId}...`, undefined, 'GameLoop');
 
-    const history: TickResult[] = [];
+    const history: SimulationTickResult[] = [];
 
     // Run the loop 30 * 24 times
     for (let day = 1; day <= durationDays; day++) {

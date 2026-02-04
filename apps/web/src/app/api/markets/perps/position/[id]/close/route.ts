@@ -1,87 +1,17 @@
-/**
- * Perpetual Futures Close Position API
- *
- * @route POST /api/markets/perps/position/[id]/close - Close perpetual position
- * @access Authenticated
- *
- * @description
- * Closes an existing perpetual futures position. Calculates final P&L, fees,
- * and updates user balance. Supports partial closes. Tracks trade events.
- *
- * @openapi
- * /api/markets/perps/position/{id}/close:
- *   post:
- *     tags:
- *       - Markets
- *     summary: Close perpetual position
- *     description: Closes an existing perpetual futures position with P&L calculation
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Position ID
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               size:
- *                 type: number
- *                 description: Partial close size (optional, closes full position if omitted)
- *     responses:
- *       200:
- *         description: Position closed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 position:
- *                   type: object
- *                 realizedPnL:
- *                   type: number
- *                 fee:
- *                   type: object
- *                 newBalance:
- *                   type: number
- *       400:
- *         description: Invalid position or insufficient size
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Position not found
- *
- * @example
- * ```typescript
- * // Close full position
- * await fetch(`/api/markets/perps/position/${positionId}/close`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- *
- * // Partial close
- * await fetch(`/api/markets/perps/position/${positionId}/close`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` },
- *   body: JSON.stringify({ size: 50 })
- * });
- * ```
- *
- * @see {@link /lib/services/perp-trade-service} Perp trade service
- */
-
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
+import { handlePlayerTrade } from '@babylon/engine';
+import {
+  ClosePerpPositionSchema,
+  fireAndForgetWithRetry,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { authenticate } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
 import { trackServerEvent } from '@/lib/posthog/server';
-import { PerpTradeService } from '@babylon/engine';
-import { ClosePerpPositionSchema } from '@babylon/shared';
+import {
+  applyUserTradePriceImpact,
+  createPerpMarketService,
+} from '../../../_adapters';
 
 const IdParamSchema = z.object({
   id: z.string(),
@@ -89,7 +19,9 @@ const IdParamSchema = z.object({
 
 /**
  * POST /api/markets/perps/position/[id]/close
- * Close an existing perpetual futures position
+ * Close an existing perpetual futures position.
+ *
+ * Uses PerpMarketService with SSE broadcast enabled for real-time UI updates.
  */
 export const POST = withErrorHandling(
   async (
@@ -110,55 +42,93 @@ export const POST = withErrorHandling(
       ClosePerpPositionSchema.parse(body);
     }
 
-    const result = await PerpTradeService.closePosition(user, positionId);
-
-    const holdTimeMs =
-      new Date().getTime() - new Date(result.position.openedAt).getTime();
-    const holdTimeMinutes = Math.round(holdTimeMs / 60000);
-
-    trackServerEvent(user.userId, 'trade_closed', {
-      type: 'perp',
-      ticker: result.position.ticker,
-      side: result.position.side,
-      size: result.position.size,
-      leverage: result.position.leverage,
-      entryPrice: result.position.entryPrice,
-      exitPrice: result.position.currentPrice,
-      realizedPnL: result.realizedPnL,
-      pnlPercent:
-        result.marginReturned > 0
-          ? (result.realizedPnL / result.marginReturned) * 100
-          : 0,
-      holdTimeMinutes,
-      feeCharged: result.fee.feeCharged,
-      wasLiquidated: result.wasLiquidated,
-      positionId,
-    }).catch((error) => {
-      console.warn('Failed to track trade_closed event', { error });
+    // Create service with fee processor and broadcast for real-time updates
+    const service = createPerpMarketService({
+      withFeeProcessor: true,
+      withBroadcast: true,
     });
 
+    const result = await service.closePosition({
+      userId: user.userId,
+      positionId,
+    });
+
+    // Apply price impact from the trade
+    // Wait for it to complete to ensure price is updated before response
+    try {
+      await applyUserTradePriceImpact(result.ticker);
+    } catch (error) {
+      // Log but don't fail the trade - price impact is enhancement
+      logger.error(
+        'Price impact failed',
+        {
+          ticker: result.ticker,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'PerpClose'
+      );
+    }
+
+    // Track analytics event (fire and forget)
+    trackServerEvent(user.userId, 'trade_closed', {
+      type: 'perp',
+      ticker: result.ticker,
+      side: result.side,
+      size: result.size,
+      leverage: result.leverage,
+      entryPrice: result.entryPrice ?? 0,
+      exitPrice: result.exitPrice ?? 0,
+      realizedPnL: result.realizedPnL ?? 0,
+      pnlPercent:
+        result.marginPaid && result.marginPaid > 0
+          ? ((result.realizedPnL ?? 0) / result.marginPaid) * 100
+          : 0,
+      feeCharged: result.feePaid,
+      wasLiquidated: false,
+      positionId,
+    }).catch((error) => {
+      logger.warn(
+        'Failed to track trade_closed event',
+        { error: error instanceof Error ? error.message : String(error) },
+        'PerpClose'
+      );
+    });
+
+    // Handle player influence - closing positions also affects NPC memory
+    // The opposite side represents the closing action
+    const closingSide = result.side === 'long' ? 'short' : 'long';
+    fireAndForgetWithRetry(
+      () =>
+        handlePlayerTrade(user.userId, result.ticker, closingSide, result.size),
+      {
+        logContext: 'PerpClose',
+        metadata: {
+          userId: user.userId,
+          ticker: result.ticker,
+          side: closingSide,
+          size: result.size,
+        },
+      }
+    );
+
     return successResponse({
-      position: {
-        id: result.position.id,
-        ticker: result.position.ticker,
-        side: result.position.side,
-        entryPrice: result.position.entryPrice,
-        exitPrice: result.position.currentPrice,
-        size: result.position.size,
-        leverage: result.position.leverage,
-        realizedPnL: result.realizedPnL,
-        fundingPaid: result.position.fundingPaid,
-      },
-      grossSettlement: result.grossSettlement,
-      netSettlement: result.netSettlement,
-      marginReturned: result.marginReturned,
+      position: result,
+      grossSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? result.marginPaid + result.realizedPnL
+          : undefined,
+      netSettlement:
+        result.realizedPnL !== undefined && result.marginPaid !== undefined
+          ? Math.max(0, result.marginPaid + result.realizedPnL - result.feePaid)
+          : undefined,
+      marginReturned: result.marginPaid,
       pnl: result.realizedPnL,
       fee: {
-        amount: result.fee.feeCharged,
-        referrerPaid: result.fee.referrerPaid,
+        amount: result.feePaid,
+        referrerPaid: 0,
       },
-      wasLiquidated: result.wasLiquidated,
-      newBalance: result.newBalance,
+      wasLiquidated: false,
+      newBalance: result.balance,
     });
   }
 );

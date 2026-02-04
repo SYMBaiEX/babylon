@@ -97,12 +97,12 @@ class TestableCharacterMappingService extends CharacterMappingService {
     type TestableService = {
       characterMappingsCache: typeof mockCharacterMappings;
       organizationMappingsCache: typeof mockOrganizationMappings;
-      lastCacheUpdate: number;
+      initialized: boolean;
     };
     const self = this as unknown as TestableService;
     self.characterMappingsCache = characters;
     self.organizationMappingsCache = organizations;
-    self.lastCacheUpdate = Date.now();
+    self.initialized = true;
   }
 }
 

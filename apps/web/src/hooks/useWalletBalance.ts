@@ -1,5 +1,6 @@
 'use client';
 
+import type { UserBalanceDataAPI } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -81,45 +82,51 @@ export function useWalletBalance(
     setLoading(true);
     setError(null);
 
+    let response: Response;
     try {
-      const response = await fetch(
+      response = await fetch(
         `/api/users/${encodeURIComponent(userId)}/balance`,
-        { signal: controller.signal }
+        {
+          signal: controller.signal,
+        }
       );
-
+    } catch (fetchError) {
       if (controller.signal.aborted) return;
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch wallet balance');
-      }
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        throw new Error(
-          `Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-
-      if (controller.signal.aborted) return;
-
-      setState({
-        balance: Number(data.balance) || 0,
-        lifetimePnL: Number(data.lifetimePnL) || 0,
-      });
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
+      setLoading(false);
       setError(
-        err instanceof Error ? err : new Error('Failed to fetch wallet balance')
+        fetchError instanceof Error
+          ? fetchError
+          : new Error('Failed to fetch wallet balance')
       );
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      return;
     }
+
+    if (controller.signal.aborted) return;
+
+    if (!response.ok) {
+      setLoading(false);
+      setError(new Error('Failed to fetch wallet balance'));
+      return;
+    }
+
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      setLoading(false);
+      setError(new Error('Failed to parse wallet balance response'));
+      return;
+    }
+
+    if (controller.signal.aborted) return;
+
+    const record = data as UserBalanceDataAPI;
+    setState({
+      balance: Number(record.balance) || 0,
+      lifetimePnL: Number(record.lifetimePnL) || 0,
+    });
+
+    setLoading(false);
   }, [userId, enabled]);
 
   useEffect(() => {

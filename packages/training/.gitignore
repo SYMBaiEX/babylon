@@ -1,0 +1,34 @@
+# Training Package Ignores
+# (Patterns specific to this package - general patterns in root .gitignore)
+
+# Data exports (keep .gitkeep files)
+data/*.csv
+data/**/*.parquet
+data/**/scored_*.json
+!data/**/.gitkeep
+
+# Benchmark scenario data files (large, generated - exclude from git)
+data/benchmarks/scenarios/*.json
+
+# Keep the README for benchmark scenarios
+!data/benchmarks/scenarios/README.md
+
+# E2E test output
+training-data/e2e-test-results.json
+
+# Python logs
+python/logs/
+
+# Python test caches (pytest)
+python/.pytest_cache/
+python/**/.pytest_cache/
+deploy/**/.pytest_cache/
+
+# Training logs
+logs/
+
+# HuggingFace dataset exports
+hf_datasets/
+
+# tmp
+deploy/phala/

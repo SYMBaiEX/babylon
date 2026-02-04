@@ -6,6 +6,12 @@ import { LatestNewsPanel } from '@/components/feed/LatestNewsPanel';
 import { MarketsPanel } from '@/components/feed/MarketsPanel';
 import { TrendingPanel } from '@/components/feed/TrendingPanel';
 
+interface WidgetSidebarProps {
+  showLatestNews?: boolean;
+  showTrending?: boolean;
+  showMarkets?: boolean;
+}
+
 /**
  * Widget sidebar component for desktop layouts.
  *
@@ -16,14 +22,18 @@ import { TrendingPanel } from '@/components/feed/TrendingPanel';
  *
  * Features:
  * - Entity search autocomplete
- * - Latest news panel
- * - Trending panel
- * - Markets panel
+ * - Latest news panel (optional)
+ * - Trending panel (optional)
+ * - Markets panel (optional)
  * - Smart sticky scrolling on XL+ screens
  *
  * @returns Widget sidebar element (hidden on screens < XL)
  */
-export function WidgetSidebar() {
+export function WidgetSidebar({
+  showLatestNews = true,
+  showTrending = true,
+  showMarkets = true,
+}: WidgetSidebarProps = {}) {
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -57,31 +67,37 @@ export function WidgetSidebar() {
       // Check if sidebar fits in viewport
       const fitsInViewport = sidebarHeight <= viewportHeight;
 
+      // Check if NFT promo banner is visible (not dismissed)
+      const bannerDismissed = localStorage.getItem('nft-banner-dismissed');
+      const bannerOffset = bannerDismissed ? 0 : 40;
+
       if (fitsInViewport) {
-        // Sidebar fits - simple sticky to top
+        // Sidebar fits - simple sticky to top (below banner)
         inner.style.position = 'fixed';
-        inner.style.top = '0px';
+        inner.style.top = `${bannerOffset}px`;
         inner.style.transform = '';
       } else {
         // Sidebar is taller than viewport
+        const effectiveViewportHeight = viewportHeight - bannerOffset;
+
         if (direction === 'down') {
           // Scrolling down - sidebar bottom should stick to viewport bottom
-          const maxTranslate = sidebarHeight - viewportHeight;
+          const maxTranslate = sidebarHeight - effectiveViewportHeight;
 
           // Calculate how much we should translate
           // As we scroll down, increase translateY until maxTranslate
           translateY = Math.min(scrollTop, maxTranslate);
 
           inner.style.position = 'fixed';
-          inner.style.top = '0px';
+          inner.style.top = `${bannerOffset}px`;
           inner.style.transform = `translateY(-${translateY}px)`;
         } else {
           // Scrolling up - keep current translation until we scroll back up enough
-          const maxTranslate = sidebarHeight - viewportHeight;
+          const maxTranslate = sidebarHeight - effectiveViewportHeight;
           translateY = Math.min(scrollTop, maxTranslate);
 
           inner.style.position = 'fixed';
-          inner.style.top = '0px';
+          inner.style.top = `${bannerOffset}px`;
           inner.style.transform = `translateY(-${translateY}px)`;
         }
       }
@@ -122,11 +138,8 @@ export function WidgetSidebar() {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="hidden w-96 flex-shrink-0 flex-col xl:flex"
-    >
-      <div ref={innerRef} className="mr-28 flex flex-col gap-6 px-4 py-6">
+    <div ref={containerRef} className="hidden w-96 flex-none flex-col xl:flex">
+      <div ref={innerRef} className="flex w-96 flex-col gap-8 px-4 py-6">
         <div className="flex-shrink-0">
           <EntitySearchAutocomplete
             value={searchQuery}
@@ -136,17 +149,23 @@ export function WidgetSidebar() {
           />
         </div>
 
-        <div className="flex-shrink-0">
-          <LatestNewsPanel />
-        </div>
+        {showLatestNews && (
+          <div className="flex-shrink-0">
+            <LatestNewsPanel />
+          </div>
+        )}
 
-        <div className="flex-shrink-0">
-          <TrendingPanel />
-        </div>
+        {showTrending && (
+          <div className="flex-shrink-0">
+            <TrendingPanel />
+          </div>
+        )}
 
-        <div className="flex-shrink-0">
-          <MarketsPanel />
-        </div>
+        {showMarkets && (
+          <div className="flex-shrink-0">
+            <MarketsPanel />
+          </div>
+        )}
       </div>
     </div>
   );

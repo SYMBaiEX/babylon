@@ -14,27 +14,34 @@
  */
 
 import {
-  actors,
   agentTrades,
   db,
   desc,
   eq,
+  getDbInstance,
   markets,
   npcTrades,
-  organizations,
   questions,
   users,
 } from '@babylon/db';
 import { loadActorsData } from '../actors-loader';
-import { worldFactsService } from '../world-facts-service';
-import { shuffleArray } from '../utils/randomization';
+import {
+  formatSimulationActiveMarkets,
+  formatSimulationPredictionMarkets,
+  SIMULATION_RECENT_EVENTS,
+} from '../config/simulation';
+import { StaticDataRegistry } from '../services/static-data-registry';
+import { isSimulationMode } from '../storage-bridge';
 import type { ActorData } from '../types/shared';
+import { shuffleArray } from '../utils/randomization';
+import { worldFactsService } from '../world-facts-service';
 import {
   getCurrentDateContext,
   getFullRealityGrounding,
   getMinimalRealityGrounding,
   getRealityGrounding,
 } from './reality-grounding';
+import { validateNoRealNames } from './validate-output';
 
 /**
  * Options for configuring world context generation.
@@ -84,6 +91,9 @@ export interface WorldContext {
 
   // Dynamic world facts
   worldFacts: string;
+
+  // Rich game context (optional, used in causal simulation)
+  richGameContext?: string;
 }
 
 /**
@@ -126,6 +136,11 @@ export function generateWorldActors(maxActors?: number): string {
  * @returns Formatted string describing active markets and their prices/probabilities
  */
 export async function generateCurrentMarkets(): Promise<string> {
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+  if (isSimulationMode()) {
+    return formatSimulationActiveMarkets();
+  }
+
   // Get active prediction markets
   const predictionMarkets = await db
     .select()
@@ -135,12 +150,21 @@ export async function generateCurrentMarkets(): Promise<string> {
     .limit(5);
 
   // Get top perpetual markets (companies with recent activity)
-  const companies = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.type, 'company'))
-    .orderBy(desc(organizations.currentPrice))
-    .limit(5);
+  const orgStates = await getDbInstance().getOrganizationsByPrice();
+  const companies = orgStates
+    .slice(0, 5)
+    .map((state) => {
+      const staticOrg = StaticDataRegistry.getOrganization(state.id);
+      return staticOrg
+        ? {
+            ...staticOrg,
+            currentPrice: state.currentPrice ?? staticOrg.initialPrice,
+          }
+        : null;
+    })
+    .filter(
+      (c): c is NonNullable<typeof c> => c !== null && c.type === 'company'
+    );
 
   const parts: string[] = [];
 
@@ -192,6 +216,11 @@ export async function generateCurrentMarkets(): Promise<string> {
  * @returns Formatted string listing active predictions and their resolution dates
  */
 export async function generateActivePredictions(): Promise<string> {
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+  if (isSimulationMode()) {
+    return `Active Questions: ${formatSimulationPredictionMarkets().replace(/\n/g, ' | ').replace(/- /g, '')}`;
+  }
+
   // Get active questions from the Question table
   const activeQuestions = await db
     .select()
@@ -230,8 +259,22 @@ export async function generateActivePredictions(): Promise<string> {
  * @returns Formatted string listing recent trading activity
  */
 export async function generateRecentTrades(): Promise<string> {
-  // Get recent NPC trades with actor names
-  const npcTradeResults = await db
+  // Simulation Mode Bypass - uses centralized constants from config/simulation.ts
+  if (isSimulationMode()) {
+    // Create mock trades from our simulation event authors
+    const mockTrades = SIMULATION_RECENT_EVENTS.map((e, i) => {
+      const actions = [
+        'bought YES on BitcAIn $150k',
+        'sold NO on Fed rates',
+        'bought LONG on NVIDAI',
+      ];
+      return `${e.author} ${actions[i % actions.length]}`;
+    });
+    return `Recent Trades: ${mockTrades.join(' | ')}`;
+  }
+
+  // Get recent NPC trades with actor names from static registry
+  const rawNpcTrades = await db
     .select({
       action: npcTrades.action,
       side: npcTrades.side,
@@ -240,12 +283,17 @@ export async function generateRecentTrades(): Promise<string> {
       marketType: npcTrades.marketType,
       ticker: npcTrades.ticker,
       executedAt: npcTrades.executedAt,
-      actorName: actors.name,
+      npcActorId: npcTrades.npcActorId,
     })
     .from(npcTrades)
-    .leftJoin(actors, eq(npcTrades.npcActorId, actors.id))
     .orderBy(desc(npcTrades.executedAt))
     .limit(15);
+
+  // Map actor IDs to names from static registry
+  const npcTradeResults = rawNpcTrades.map((trade) => ({
+    ...trade,
+    actorName: StaticDataRegistry.getActor(trade.npcActorId)?.name ?? 'Unknown',
+  }));
 
   // Get recent agent trades with user names
   const agentTradeResults = await db
@@ -432,30 +480,7 @@ export function getForbiddenRealNames(): string[] {
   return actors.map((actor) => actor.realName);
 }
 
-/**
- * Validate that generated content doesn't use real names.
- *
- * Checks if the text contains any forbidden real names. Returns
- * an array of validation errors if any are found.
- *
- * @param text - The generated content to check
- * @returns Array of validation error messages (empty if valid)
- */
-export function validateNoRealNames(text: string): string[] {
-  const forbiddenNames = getForbiddenRealNames();
-  const violations: string[] = [];
-
-  // Check if text contains any forbidden real names
-  forbiddenNames.forEach((realName) => {
-    if (text.includes(realName)) {
-      violations.push(
-        `FORBIDDEN: Found real name "${realName}" - must use parody names only`
-      );
-    }
-  });
-
-  return violations;
-}
+// validateNoRealNames is imported from validate-output.ts (single source of truth)
 
 /**
  * Complete validation of generated content.

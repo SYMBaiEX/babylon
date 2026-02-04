@@ -3,9 +3,9 @@
  * Shareable P&L page with OG meta tags
  */
 
+import { db } from '@babylon/db';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@babylon/db';
 
 // Use Node.js runtime for database access
 export const runtime = 'nodejs';

@@ -192,4 +192,3 @@ export async function cleanOldDebugLogs(maxAgeDays = 7): Promise<number> {
     return 0;
   }
 }
-

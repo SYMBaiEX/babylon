@@ -1,57 +1,47 @@
+import { WALLET_ERROR_MESSAGES } from '@babylon/shared';
+import { useSendTransaction } from '@privy-io/react-auth';
 import { useCallback } from 'react';
-
 import type { Address } from 'viem';
-import { CHAIN } from '@babylon/shared';
-import { useSmartWallet } from '@/hooks/useSmartWallet';
+import { useAuth } from '@/hooks/useAuth';
 
-/**
- * Input for sending a points payment transaction.
- */
 interface PointsPaymentInput {
-  /** The recipient address */
   to: Address;
-  /** The amount to send in wei (can be bigint, string, or number) */
   amountWei: bigint | string | number;
 }
 
 /**
- * Hook for sending points payment transactions via smart wallet.
+ * Hook for sending points payment transactions.
  *
- * Enables users to purchase points by sending ETH to the points contract.
- * Transactions are executed through the smart wallet, enabling gasless
- * transactions when using an embedded wallet.
- *
- * @returns An object containing the `sendPointsPayment` function for executing
- * point purchase transactions.
- *
- * @example
- * ```tsx
- * const { sendPointsPayment } = useBuyPointsTx();
- *
- * const handlePurchase = async () => {
- *   const txHash = await sendPointsPayment({
- *     to: POINTS_CONTRACT_ADDRESS,
- *     amountWei: parseEther('0.1')
- *   });
- *   console.log('Transaction sent:', txHash);
- * };
- * ```
+ * Uses Privy's client-side sponsored transaction flow with embedded wallets.
+ * Gas is sponsored by Privy (sponsor: true), but the wallet must hold the transferred ETH value.
  */
 export function useBuyPointsTx() {
-  const { sendSmartWalletTransaction } = useSmartWallet();
+  const { embeddedWalletReady, embeddedWalletAddress } = useAuth();
+  const { sendTransaction } = useSendTransaction();
 
   const sendPointsPayment = useCallback(
     async ({ to, amountWei }: PointsPaymentInput) => {
+      if (!embeddedWalletReady || !embeddedWalletAddress) {
+        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+      }
+
       const normalizedValue =
         typeof amountWei === 'bigint' ? amountWei : BigInt(amountWei);
 
-      return await sendSmartWalletTransaction({
-        to,
-        value: normalizedValue,
-        chain: CHAIN,
-      });
+      // Use Privy's client-side sendTransaction with gas sponsorship
+      const result = await sendTransaction(
+        {
+          to,
+          value: normalizedValue,
+        },
+        {
+          sponsor: true, // Privy covers gas fees
+        }
+      );
+
+      return result.hash;
     },
-    [sendSmartWalletTransaction]
+    [embeddedWalletReady, embeddedWalletAddress, sendTransaction]
   );
 
   return { sendPointsPayment };

@@ -5,88 +5,81 @@
  * @access Admin
  *
  * @description
- * Resumes all autonomous agents that have sufficient points. Re-enables all
+ * Resumes all autonomous agents that have sufficient balance. Re-enables all
  * autonomous behaviors (trading, posting, commenting, DMs, group chats).
  * Admin only.
- *
- * @openapi
- * /api/admin/agents/resume-all:
- *   post:
- *     tags:
- *       - Admin
- *     summary: Resume all agents
- *     description: Resumes all agents with sufficient points (admin only)
- *     security:
- *       - PrivyAuth: []
- *     responses:
- *       200:
- *         description: Agents resumed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 count:
- *                   type: integer
- *                   description: Number of agents resumed
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Admin access required
- *
- * @example
- * ```typescript
- * await fetch('/api/admin/agents/resume-all', {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${adminToken}` }
- * });
- * ```
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  db,
+  eq,
+  gte,
+  inArray,
+  sql,
+  userAgentConfigs,
+  users,
+} from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
 
-export async function POST(_req: NextRequest) {
-  try {
-    // Resume all agents with sufficient points
-    const result = await db.user.updateMany({
-      where: {
-        isAgent: true,
-        agentPointsBalance: { gte: 1 }, // Only resume agents with points
-      },
-      data: {
-        autonomousTrading: true,
-        autonomousPosting: true,
-        autonomousCommenting: true,
-        agentStatus: 'running',
-      },
-    });
+export const POST = withErrorHandling(async (req: NextRequest) => {
+  const admin = await requireAdmin(req);
 
-    logger.info(
-      `Resumed ${result.count} autonomous agents`,
-      undefined,
-      'AdminAgentsAPI'
-    );
+  // Audit log the admin action
+  logAdminModify({
+    adminId: admin.userId,
+    ipAddress: getClientIp(req.headers) ?? undefined,
+    resourceType: 'agents',
+    metadata: { action: 'resume_all' },
+  });
 
+  // Find agents with sufficient virtualBalance (>= 1)
+  const eligibleAgents = await db
+    .select({ userId: userAgentConfigs.userId })
+    .from(userAgentConfigs)
+    .innerJoin(users, eq(userAgentConfigs.userId, users.id))
+    .where(gte(sql`CAST(${users.virtualBalance} AS NUMERIC)`, 1));
+
+  const eligibleUserIds = eligibleAgents.map((a) => a.userId);
+
+  if (eligibleUserIds.length === 0) {
     return NextResponse.json({
       success: true,
-      message: `Resumed ${result.count} agents`,
-      data: {
-        resumed: result.count,
-      },
+      message: 'No agents with sufficient balance found',
+      data: { resumed: 0 },
     });
-  } catch (error) {
-    logger.error('Failed to resume all agents', { error }, 'AdminAgentsAPI');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to resume all agents',
-      },
-      { status: 500 }
-    );
   }
-}
+
+  // Resume all eligible agents
+  await db
+    .update(userAgentConfigs)
+    .set({
+      autonomousTrading: true,
+      autonomousPosting: true,
+      autonomousCommenting: true,
+      status: 'running',
+      updatedAt: new Date(),
+    })
+    .where(inArray(userAgentConfigs.userId, eligibleUserIds));
+
+  logger.info(
+    `Resumed ${eligibleUserIds.length} autonomous agents with balance >= 1`,
+    undefined,
+    'AdminAgentsAPI'
+  );
+
+  return NextResponse.json({
+    success: true,
+    message: `Resumed ${eligibleUserIds.length} agents with sufficient balance`,
+    data: {
+      resumed: eligibleUserIds.length,
+    },
+  });
+});

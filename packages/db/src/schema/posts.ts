@@ -29,11 +29,14 @@ export const posts = pgTable(
     fullContent: text('fullContent'),
     sentiment: text('sentiment'),
     slant: text('slant'),
+    imageUrl: text('imageUrl'),
     type: text('type').notNull().default('post'),
     deletedAt: timestamp('deletedAt', { mode: 'date' }),
     commentOnPostId: text('commentOnPostId'),
     parentCommentId: text('parentCommentId'),
     originalPostId: text('originalPostId'),
+    /** Related question number for training data filtering */
+    relatedQuestion: integer('relatedQuestion'),
   },
   (table) => [
     index('Post_authorId_timestamp_idx').on(table.authorId, table.timestamp),
@@ -54,6 +57,7 @@ export const posts = pgTable(
       table.timestamp
     ),
     index('Post_type_timestamp_idx').on(table.type, table.timestamp),
+    index('Post_relatedQuestion_idx').on(table.relatedQuestion),
   ]
 );
 
@@ -337,7 +341,3 @@ export type PostTag = typeof postTags.$inferSelect;
 export type NewPostTag = typeof postTags.$inferInsert;
 export type TrendingTag = typeof trendingTags.$inferSelect;
 export type NewTrendingTag = typeof trendingTags.$inferInsert;
-
-
-
-

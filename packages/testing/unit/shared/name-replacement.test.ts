@@ -1,27 +1,27 @@
 /**
  * Tests for Name Replacement utilities
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
-  generateNameVariations,
   containsNameVariation,
-  replaceNameVariations,
   extractNameParts,
+  generateNameVariations,
+  replaceNameVariations,
 } from '@babylon/shared/utils/name-replacement';
 
 describe('Name Replacement Utilities', () => {
   describe('generateNameVariations', () => {
     it('should generate individual name variations', () => {
       const variations = generateNameVariations('John', 'Doe');
-      
+
       // Lowercase
       expect(variations).toContain('john');
       expect(variations).toContain('doe');
-      
+
       // Original case
       expect(variations).toContain('John');
       expect(variations).toContain('Doe');
-      
+
       // Uppercase
       expect(variations).toContain('JOHN');
       expect(variations).toContain('DOE');
@@ -29,38 +29,38 @@ describe('Name Replacement Utilities', () => {
 
     it('should generate combined name variations', () => {
       const variations = generateNameVariations('John', 'Doe');
-      
+
       // All lowercase
       expect(variations).toContain('johndoe');
-      
+
       // Title case
       expect(variations).toContain('JohnDoe');
-      
+
       // All uppercase
       expect(variations).toContain('JOHNDOE');
-      
+
       // Camel case
       expect(variations).toContain('johnDoe');
     });
 
     it('should generate separator variations', () => {
       const variations = generateNameVariations('John', 'Doe');
-      
+
       // Underscore
       expect(variations).toContain('John_Doe');
       expect(variations).toContain('john_doe');
       expect(variations).toContain('JOHN_DOE');
-      
+
       // Hyphen
       expect(variations).toContain('John-Doe');
       expect(variations).toContain('john-doe');
       expect(variations).toContain('JOHN-DOE');
-      
+
       // Space
       expect(variations).toContain('John Doe');
       expect(variations).toContain('john doe');
       expect(variations).toContain('JOHN DOE');
-      
+
       // Comma
       expect(variations).toContain('John, Doe');
       expect(variations).toContain('john, doe');
@@ -69,13 +69,15 @@ describe('Name Replacement Utilities', () => {
 
     it('should filter out empty variations', () => {
       const variations = generateNameVariations('', 'Doe');
-      expect(variations.every(v => v.length > 0)).toBe(true);
+      expect(variations.every((v) => v.length > 0)).toBe(true);
     });
   });
 
   describe('containsNameVariation', () => {
     it('should detect first name in text', () => {
-      expect(containsNameVariation('Hello John, how are you?', 'John', 'Doe')).toBe(true);
+      expect(
+        containsNameVariation('Hello John, how are you?', 'John', 'Doe')
+      ).toBe(true);
     });
 
     it('should detect last name in text', () => {
@@ -83,22 +85,32 @@ describe('Name Replacement Utilities', () => {
     });
 
     it('should detect full name in text', () => {
-      expect(containsNameVariation('Meeting with John Doe today', 'John', 'Doe')).toBe(true);
+      expect(
+        containsNameVariation('Meeting with John Doe today', 'John', 'Doe')
+      ).toBe(true);
     });
 
     it('should detect case-insensitive matches', () => {
       expect(containsNameVariation('JOHN is here', 'John', 'Doe')).toBe(true);
-      expect(containsNameVariation('john said hello', 'John', 'Doe')).toBe(true);
+      expect(containsNameVariation('john said hello', 'John', 'Doe')).toBe(
+        true
+      );
     });
 
     it('should detect combined variations', () => {
-      expect(containsNameVariation('Username: johndoe', 'John', 'Doe')).toBe(true);
-      expect(containsNameVariation('Email: JohnDoe@example.com', 'John', 'Doe')).toBe(true);
+      expect(containsNameVariation('Username: johndoe', 'John', 'Doe')).toBe(
+        true
+      );
+      expect(
+        containsNameVariation('Email: JohnDoe@example.com', 'John', 'Doe')
+      ).toBe(true);
     });
 
     it('should return false when no name variation found', () => {
       expect(containsNameVariation('Hello world', 'John', 'Doe')).toBe(false);
-      expect(containsNameVariation('The Johnsons visited', 'John', 'Doe')).toBe(false);
+      expect(containsNameVariation('The Johnsons visited', 'John', 'Doe')).toBe(
+        false
+      );
     });
 
     it('should use word boundaries', () => {
@@ -109,34 +121,70 @@ describe('Name Replacement Utilities', () => {
 
   describe('replaceNameVariations', () => {
     it('should replace full name with space', () => {
-      const result = replaceNameVariations('John Doe is here', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'John Doe is here',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       expect(result).toBe('Jane Smith is here');
     });
 
     it('should replace full name variations', () => {
       // The function replaces longest variations first - JOHNDOE gets matched first
-      const result = replaceNameVariations('User: JohnDoe', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'User: JohnDoe',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       // Returns lowercase because JOHNDOE (from uppercase variations) matches first and replaces with janesmith
       expect(result.toLowerCase()).toBe('user: janesmith');
     });
 
     it('should replace underscore variations', () => {
-      const result = replaceNameVariations('username: John_Doe', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'username: John_Doe',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       expect(result).toBe('username: Jane_Smith');
     });
 
     it('should replace hyphenated names', () => {
-      const result = replaceNameVariations('Contact: John-Doe', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'Contact: John-Doe',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       expect(result).toBe('Contact: Jane-Smith');
     });
 
     it('should not replace partial matches', () => {
-      const result = replaceNameVariations('johnny cash', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'johnny cash',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       expect(result).toBe('johnny cash');
     });
 
     it('should handle camelCase names', () => {
-      const result = replaceNameVariations('var johnDoe = true', 'John', 'Doe', 'Jane', 'Smith');
+      const result = replaceNameVariations(
+        'var johnDoe = true',
+        'John',
+        'Doe',
+        'Jane',
+        'Smith'
+      );
       // The replacement algorithm matches case-insensitively but replaces with sorted variation
       expect(result.toLowerCase()).toBe('var janesmith = true');
     });
@@ -150,7 +198,7 @@ describe('Name Replacement Utilities', () => {
         originalFirstName: 'John',
         originalLastName: 'Doe',
       };
-      
+
       const result = extractNameParts(actor);
       expect(result).toEqual({
         firstName: 'Jane',
@@ -167,7 +215,7 @@ describe('Name Replacement Utilities', () => {
         originalFirstName: 'John',
         originalLastName: '',
       };
-      
+
       const result = extractNameParts(actor);
       expect(result).toEqual({
         firstName: 'Jane',
@@ -183,7 +231,7 @@ describe('Name Replacement Utilities', () => {
         originalFirstName: 'John',
         originalLastName: 'Doe',
       };
-      
+
       expect(extractNameParts(actor)).toBeNull();
     });
 
@@ -193,7 +241,7 @@ describe('Name Replacement Utilities', () => {
         originalFirstName: 'John',
         originalLastName: 'Doe',
       };
-      
+
       expect(extractNameParts(actor)).toBeNull();
     });
 
@@ -203,7 +251,7 @@ describe('Name Replacement Utilities', () => {
         lastName: 'Smith',
         originalLastName: 'Doe',
       };
-      
+
       expect(extractNameParts(actor)).toBeNull();
     });
 
@@ -213,9 +261,8 @@ describe('Name Replacement Utilities', () => {
         lastName: 'Smith',
         originalFirstName: 'John',
       };
-      
+
       expect(extractNameParts(actor)).toBeNull();
     });
   });
 });
-

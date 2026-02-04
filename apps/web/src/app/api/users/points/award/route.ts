@@ -68,21 +68,34 @@
  * @see {@link /lib/services/points-service} Points service
  */
 
+import {
+  authenticate,
+  BusinessLogicError,
+  requireAdmin,
+  requireUserByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  balanceTransactions,
+  Decimal,
+  db,
+  desc,
+  eq,
+  sql,
+  users,
+} from '@babylon/db';
+import {
+  AwardPointsSchema,
+  generateSnowflakeId,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { balanceTransactions, Decimal, db, desc, eq, sql, users } from '@babylon/db';
-import { successResponse } from '@babylon/api';
-import { BusinessLogicError } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
-import { AwardPointsSchema, UserIdParamSchema } from '@babylon/shared';
 
-/**
- * POST /api/users/points/award
- * Award points to a user
- */
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
+
   // Parse and validate request body
   const body = await request.json();
   const {
@@ -163,11 +176,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-/**
- * GET /api/users/points/award?userId={userId}
- * Get points award history for a user
- */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get('userId');
 
@@ -179,6 +190,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const { userId } = UserIdParamSchema.parse({ userId: userIdParam });
   const targetUser = await requireUserByIdentifier(userId);
   const canonicalUserId = targetUser.id;
+
+  if (authUser.userId !== canonicalUserId) {
+    throw new BusinessLogicError(
+      'You can only view your own points history',
+      'UNAUTHORIZED_ACCESS'
+    );
+  }
 
   // Fetch deposit transactions (points awards)
   const transactions = await db

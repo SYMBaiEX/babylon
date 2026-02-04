@@ -6,17 +6,53 @@
  * SECURITY NOTE:
  * - Salts are encrypted before storage
  * - In production, use KMS or secure key vault
- * - This implementation uses simple encryption for demonstration
+ * - ORACLE_ENCRYPTION_KEY must be set in environment (no default)
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { asc, db, eq, oracleCommitments } from '@babylon/db';
 import { logger } from '@babylon/shared';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { first } from '../utils/array-utils';
 import type { StoredCommitment } from './oracle/types';
 
-const ENCRYPTION_KEY =
-  process.env.ORACLE_ENCRYPTION_KEY || 'default-key-change-in-production-32';
 const ALGORITHM = 'aes-256-cbc';
+
+/**
+ * Get the encryption key from environment.
+ * Throws on first use if not configured or invalid - fail fast for security.
+ *
+ * Accepts either:
+ * - A 64-character hex string (produces 32 bytes via hex decoding)
+ * - A 32-character UTF-8 passphrase (produces 32 bytes directly)
+ *
+ * @throws Error if key is missing or does not produce exactly 32 bytes
+ */
+function getEncryptionKey(): Buffer {
+  const key = process.env.ORACLE_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      'ORACLE_ENCRYPTION_KEY environment variable is required. ' +
+        'Provide either a 64-character hex string or a 32-character UTF-8 passphrase.'
+    );
+  }
+
+  // Check if key is a 64-character hex string
+  if (/^[a-fA-F0-9]{64}$/.test(key)) {
+    // Regex already guarantees 64 hex chars = 32 bytes, no need for redundant check
+    return Buffer.from(key, 'hex');
+  }
+
+  // Treat as UTF-8 passphrase - must be exactly 32 bytes
+  const buffer = Buffer.from(key, 'utf8');
+  if (buffer.length !== 32) {
+    throw new Error(
+      `ORACLE_ENCRYPTION_KEY must be either a 64-character hex string or exactly 32 UTF-8 bytes. ` +
+        `Received ${buffer.length} bytes. Do not use padding or truncation for security.`
+    );
+  }
+
+  return buffer;
+}
 
 export class CommitmentStore {
   /**
@@ -31,11 +67,7 @@ export class CommitmentStore {
    */
   private static encryptSalt(salt: string): string {
     const iv = randomBytes(16);
-    const cipher = createCipheriv(
-      ALGORITHM,
-      Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)),
-      iv
-    );
+    const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
     let encrypted = cipher.update(salt, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -48,14 +80,15 @@ export class CommitmentStore {
    */
   private static decryptSalt(encryptedSalt: string): string {
     const parts = encryptedSalt.split(':');
-    const iv = Buffer.from(parts[0]!, 'hex');
-    const encrypted = parts[1]!;
+    const ivHex = first(parts);
+    const encrypted = parts[1];
 
-    const decipher = createDecipheriv(
-      ALGORITHM,
-      Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)),
-      iv
-    );
+    if (!ivHex || !encrypted) {
+      throw new Error('Invalid encrypted salt format');
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -96,7 +129,13 @@ export class CommitmentStore {
           questionId: oracleCommitments.questionId,
         });
 
-      result = updated[0]!;
+      const updatedRecord = first(updated);
+      if (!updatedRecord) {
+        throw new Error(
+          `Failed to update commitment for question ${commitment.questionId}`
+        );
+      }
+      result = updatedRecord;
     } else {
       // Create new
       const created = await db
@@ -114,7 +153,13 @@ export class CommitmentStore {
           questionId: oracleCommitments.questionId,
         });
 
-      result = created[0]!;
+      const createdRecord = first(created);
+      if (!createdRecord) {
+        throw new Error(
+          `Failed to create commitment for question ${commitment.questionId}`
+        );
+      }
+      result = createdRecord;
     }
 
     logger.info(
@@ -223,4 +268,3 @@ export class CommitmentStore {
     }));
   }
 }
-

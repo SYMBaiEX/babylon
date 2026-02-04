@@ -15,20 +15,17 @@
  * - Continuous reputation tracking
  */
 
-import { getAgent0Client } from '../Agent0Client';
+import { and, db, desc, eq, gte, isNotNull } from '@babylon/db';
 import {
-  and,
-  db,
-  desc,
-  eq,
-  gte,
-  isNotNull,
-} from '@babylon/db';
-import { agentPerformanceMetrics, gameConfigs, users } from '@babylon/db/schema';
+  agentPerformanceMetrics,
+  gameConfigs,
+  users,
+} from '@babylon/db/schema';
+import { recalculateReputation } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '../../shared/snowflake';
+import { getAgent0Client } from '../Agent0Client';
 import { getCachedAgent0ReputationScore } from './agent0-reputation-cache';
-import { recalculateReputation } from '@babylon/engine';
 
 interface ReputationSyncResult {
   userId: string;
@@ -115,248 +112,194 @@ export async function syncUserReputationToERC8004(
     AgentPerformanceMetrics: metricsResult[0] ?? null,
   };
 
-  try {
-    // Recalculate reputation if forced or if metrics are stale
-    let reputationScore: number;
-    if (forceRecalculate) {
-      const metrics = await recalculateReputation(userId);
-      reputationScore = metrics?.reputationScore ?? 50;
-    } else {
-      reputationScore = await getCachedAgent0ReputationScore(userId);
-    }
+  // Recalculate reputation if forced or if metrics are stale
+  let reputationScore: number;
+  if (forceRecalculate) {
+    const metrics = await recalculateReputation(userId);
+    reputationScore = metrics?.reputationScore ?? 50;
+  } else {
+    reputationScore = await getCachedAgent0ReputationScore(userId);
+  }
 
-    // Convert to ERC-8004 feedback score (0-100)
-    const feedbackScore = Math.round(
-      Math.max(0, Math.min(100, reputationScore))
-    );
+  // Convert to ERC-8004 feedback score (0-100)
+  const feedbackScore = Math.round(Math.max(0, Math.min(100, reputationScore)));
 
-    // Determine tags based on user status
-    const tags: string[] = [];
-    if (userWithMetrics.isBanned) {
-      tags.push('banned');
-    }
-    if (userWithMetrics.isScammer) {
-      tags.push('scammer');
-    }
-    if (userWithMetrics.isCSAM) {
-      tags.push('csam');
-    }
-    if (
-      !userWithMetrics.isBanned &&
-      !userWithMetrics.isScammer &&
-      !userWithMetrics.isCSAM
-    ) {
-      tags.push('active');
-    }
+  // Determine tags based on user status
+  const tags: string[] = [];
+  if (userWithMetrics.isBanned) {
+    tags.push('banned');
+  }
+  if (userWithMetrics.isScammer) {
+    tags.push('scammer');
+  }
+  if (userWithMetrics.isCSAM) {
+    tags.push('csam');
+  }
+  if (
+    !userWithMetrics.isBanned &&
+    !userWithMetrics.isScammer &&
+    !userWithMetrics.isCSAM
+  ) {
+    tags.push('active');
+  }
 
-    // Check if we should sync (avoid spamming on-chain)
-    const lastSync = await getLastReputationSync(userId);
-    const shouldSync = shouldSyncReputation(
-      userWithMetrics,
-      lastSync,
-      forceRecalculate
-    );
+  // Check if we should sync (avoid spamming on-chain)
+  const lastSync = await getLastReputationSync(userId);
+  const shouldSync = shouldSyncReputation(
+    userWithMetrics,
+    lastSync,
+    forceRecalculate
+  );
 
-    if (!shouldSync) {
-      return {
-        userId,
-        agent0TokenId: userWithMetrics.agent0TokenId,
+  if (!shouldSync) {
+    return {
+      userId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
+      reputationScore,
+      synced: false,
+      error: 'Sync not needed (too recent)',
+    };
+  }
+
+  logger.info(
+    'Syncing reputation to ERC-8004',
+    {
+      userId,
+      agent0TokenId: userWithMetrics.agent0TokenId,
+      reputationScore,
+      feedbackScore,
+      tags,
+    },
+    'ERC8004ReputationSync'
+  );
+
+  // Update local metrics with latest reputation (upsert pattern)
+  const existingMetrics = await db
+    .select()
+    .from(agentPerformanceMetrics)
+    .where(eq(agentPerformanceMetrics.userId, userId))
+    .limit(1);
+
+  if (existingMetrics[0]) {
+    await db
+      .update(agentPerformanceMetrics)
+      .set({
         reputationScore,
-        synced: false,
-        error: 'Sync not needed (too recent)',
-      };
-    }
+        updatedAt: new Date(),
+      })
+      .where(eq(agentPerformanceMetrics.userId, userId));
+  } else {
+    await db.insert(agentPerformanceMetrics).values({
+      id: await generateSnowflakeId(),
+      userId,
+      reputationScore,
+      updatedAt: new Date(),
+    });
+  }
 
-    logger.info(
-      'Syncing reputation to ERC-8004',
+  // Record sync timestamp
+  await recordReputationSync(userId, feedbackScore, tags);
+
+  // Attempt to submit feedback to ERC-8004 via Agent0 SDK
+  // This requires:
+  // 1. Agent0 SDK configured with system wallet (AGENT0_FEEDBACK_PRIVATE_KEY or BABYLON_AGENT0_PRIVATE_KEY)
+  // 2. Agent to have pre-authorized system address during registration
+  // 3. Network connectivity and gas for transaction
+  let onChainSubmitted = false;
+  let onChainError: string | undefined;
+
+  // Check if Agent0 SDK is configured for feedback submission
+  // Use default test key for localnet (first Hardhat account)
+  const feedbackPrivateKey =
+    process.env.AGENT0_FEEDBACK_PRIVATE_KEY ||
+    process.env.BABYLON_AGENT0_PRIVATE_KEY ||
+    (process.env.AGENT0_NETWORK === 'localnet'
+      ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+      : undefined);
+
+  if (!feedbackPrivateKey) {
+    logger.debug(
+      'Agent0 feedback private key not configured, skipping on-chain submission',
       {
         userId,
-        agent0TokenId: userWithMetrics.agent0TokenId,
-        reputationScore,
-        feedbackScore,
-        tags,
+        agent0TokenId: user.agent0TokenId,
       },
       'ERC8004ReputationSync'
     );
-
-    // Update local metrics with latest reputation (upsert pattern)
-    const existingMetrics = await db
-      .select()
-      .from(agentPerformanceMetrics)
-      .where(eq(agentPerformanceMetrics.userId, userId))
+    onChainError = 'Feedback private key not configured';
+  } else {
+    // Get agent's wallet address for system feedback
+    // For system-level reputation, we use the agent's own wallet address
+    // The agent should pre-authorize this during registration
+    const agentUserResult = await db
+      .select({ walletAddress: users.walletAddress })
+      .from(users)
+      .where(eq(users.id, userId))
       .limit(1);
 
-    if (existingMetrics[0]) {
-      await db
-        .update(agentPerformanceMetrics)
-        .set({
-          reputationScore,
-          updatedAt: new Date(),
-        })
-        .where(eq(agentPerformanceMetrics.userId, userId));
+    const agentUser = agentUserResult[0];
+
+    if (!agentUser?.walletAddress) {
+      logger.debug(
+        'Agent has no wallet address, skipping on-chain submission',
+        {
+          userId,
+          agent0TokenId: user.agent0TokenId,
+        },
+        'ERC8004ReputationSync'
+      );
+      onChainError = 'Agent has no wallet address';
     } else {
-      await db.insert(agentPerformanceMetrics).values({
-        id: await generateSnowflakeId(),
-        userId,
-        reputationScore,
-        updatedAt: new Date(),
-      });
-    }
+      const agent0Client = getAgent0Client();
 
-    // Record sync timestamp
-    await recordReputationSync(userId, feedbackScore, tags);
-
-    // Attempt to submit feedback to ERC-8004 via Agent0 SDK
-    // This requires:
-    // 1. Agent0 SDK configured with system wallet (AGENT0_FEEDBACK_PRIVATE_KEY or BABYLON_AGENT0_PRIVATE_KEY)
-    // 2. Agent to have pre-authorized system address during registration
-    // 3. Network connectivity and gas for transaction
-    let onChainSubmitted = false;
-    let onChainError: string | undefined;
-
-    try {
-      // Check if Agent0 SDK is configured for feedback submission
-      // Use default test key for localnet (first Hardhat account)
-      const feedbackPrivateKey =
-        process.env.AGENT0_FEEDBACK_PRIVATE_KEY ||
-        process.env.BABYLON_AGENT0_PRIVATE_KEY ||
-        (process.env.AGENT0_NETWORK === 'localnet'
-          ? '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-          : undefined);
-
-      if (!feedbackPrivateKey) {
+      // Verify client is available and not in read-only mode
+      const isAvailable = await agent0Client.ensureAvailable();
+      if (!isAvailable) {
+        onChainError = 'Agent0Client not available or in read-only mode';
         logger.debug(
-          'Agent0 feedback private key not configured, skipping on-chain submission',
+          'Agent0Client not available for feedback submission',
           {
             userId,
             agent0TokenId: user.agent0TokenId,
           },
           'ERC8004ReputationSync'
         );
-        onChainError = 'Feedback private key not configured';
       } else {
-        // Get agent's wallet address for system feedback
-        // For system-level reputation, we use the agent's own wallet address
-        // The agent should pre-authorize this during registration
-        const agentUserResult = await db
-          .select({ walletAddress: users.walletAddress })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
+        // Submit feedback via Agent0 SDK
+        // Convert 0-100 score to -5 to +5 scale (ERC-8004 uses -5 to +5)
+        const rating = Math.round((feedbackScore / 100) * 10 - 5);
 
-        const agentUser = agentUserResult[0];
+        await agent0Client.submitFeedback({
+          targetAgentId: userWithMetrics.agent0TokenId!,
+          rating,
+          comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
+          transactionId: `reputation-sync-${userId}-${Date.now()}`,
+        });
 
-        if (!agentUser?.walletAddress) {
-          logger.debug(
-            'Agent has no wallet address, skipping on-chain submission',
-            {
-              userId,
-              agent0TokenId: user.agent0TokenId,
-            },
-            'ERC8004ReputationSync'
-          );
-          onChainError = 'Agent has no wallet address';
-        } else {
-          try {
-            const agent0Client = getAgent0Client();
-
-            // Verify client is available and not in read-only mode
-            const isAvailable = await agent0Client.ensureAvailable();
-            if (!isAvailable) {
-              onChainError = 'Agent0Client not available or in read-only mode';
-              logger.debug(
-                'Agent0Client not available for feedback submission',
-                {
-                  userId,
-                  agent0TokenId: user.agent0TokenId,
-                },
-                'ERC8004ReputationSync'
-              );
-            } else {
-              // Submit feedback via Agent0 SDK
-              // Convert 0-100 score to -5 to +5 scale (ERC-8004 uses -5 to +5)
-              const rating = Math.round((feedbackScore / 100) * 10 - 5);
-
-              await agent0Client.submitFeedback({
-                targetAgentId: userWithMetrics.agent0TokenId!,
-                rating,
-                comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
-                transactionId: `reputation-sync-${userId}-${Date.now()}`,
-              });
-
-              onChainSubmitted = true;
-              logger.info(
-                'Reputation synced to ERC-8004 on-chain',
-                {
-                  userId,
-                  agent0TokenId: userWithMetrics.agent0TokenId,
-                  feedbackScore,
-                  rating,
-                  tags,
-                },
-                'ERC8004ReputationSync'
-              );
-            }
-          } catch (submitError) {
-            // If submission fails, log but don't fail the sync
-            // This includes cases where getAgent0Client() throws or submitFeedback fails
-            onChainError =
-              submitError instanceof Error
-                ? submitError.message
-                : 'Unknown submission error';
-            logger.warn(
-              'Agent0 feedback submission failed',
-              {
-                userId,
-                agent0TokenId: userWithMetrics.agent0TokenId,
-                error: onChainError,
-              },
-              'ERC8004ReputationSync'
-            );
-          }
-        }
+        onChainSubmitted = true;
+        logger.info(
+          'Reputation synced to ERC-8004 on-chain',
+          {
+            userId,
+            agent0TokenId: userWithMetrics.agent0TokenId,
+            feedbackScore,
+            rating,
+            tags,
+          },
+          'ERC8004ReputationSync'
+        );
       }
-    } catch (error) {
-      // Log error but don't fail the sync - local metrics are still updated
-      onChainError = error instanceof Error ? error.message : 'Unknown error';
-      logger.warn(
-        'Failed to submit reputation to ERC-8004 on-chain (non-blocking)',
-        {
-          userId,
-          agent0TokenId: userWithMetrics.agent0TokenId,
-          error: onChainError,
-        },
-        'ERC8004ReputationSync'
-      );
     }
-
-    return {
-      userId,
-      agent0TokenId: userWithMetrics.agent0TokenId,
-      reputationScore,
-      synced: true,
-      onChainSubmitted,
-      onChainError,
-    };
-  } catch (error) {
-    logger.error(
-      'Failed to sync user reputation',
-      {
-        userId,
-        agent0TokenId: userWithMetrics.agent0TokenId,
-        error,
-      },
-      'ERC8004ReputationSync'
-    );
-
-    return {
-      userId,
-      agent0TokenId: userWithMetrics.agent0TokenId,
-      reputationScore: 0,
-      synced: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
   }
+
+  return {
+    userId,
+    agent0TokenId: userWithMetrics.agent0TokenId,
+    reputationScore,
+    synced: true,
+    onChainSubmitted,
+    onChainError,
+  };
 }
 
 /**
@@ -603,5 +546,3 @@ export async function syncAllReputationsToERC8004(): Promise<BatchSyncResult> {
     results: allResults,
   };
 }
-
-

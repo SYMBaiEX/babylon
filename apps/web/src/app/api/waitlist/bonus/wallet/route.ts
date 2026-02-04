@@ -61,20 +61,26 @@
  * @see {@link /lib/services/waitlist-service} Waitlist service
  */
 
+import {
+  authenticate,
+  successResponse,
+  WaitlistService,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { WaitlistService } from '@babylon/api';
 
 const WalletBonusSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
   walletAddress: z.string().min(1, 'Wallet address is required'),
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+  const userId = authUser.userId;
+
   const body = await request.json();
-  const { userId, walletAddress } = WalletBonusSchema.parse(body);
+  const { walletAddress } = WalletBonusSchema.parse(body);
 
   logger.info(
     'Wallet bonus request',

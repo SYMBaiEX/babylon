@@ -5,4 +5,3 @@
  */
 
 export * from './track-external-share';
-

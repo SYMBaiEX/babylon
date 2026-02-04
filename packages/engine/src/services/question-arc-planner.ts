@@ -42,8 +42,8 @@
  */
 
 import { logger } from '@babylon/shared';
-import { shuffleArray } from '../utils/randomization';
 import type { Actor, Organization, Question } from '../types';
+import type { RngFunction } from './narrative-state-service';
 
 /**
  * Phase-specific event distribution targets
@@ -71,6 +71,27 @@ export interface PhaseTargets {
 }
 
 /**
+ * Scheduled event for deterministic narrative firing.
+ * Pre-planned during arc creation and consumed by the event processor.
+ */
+export interface ScheduledEvent {
+  /** Base day for the event (0-indexed from question creation) */
+  baseDay: number;
+  /** Hours of jitter from base day (can be negative or positive) */
+  jitterHours: number;
+  /** Event type determines narrative impact */
+  eventType: 'leak' | 'rumor' | 'scandal' | 'confirmation' | 'red_herring';
+  /** Brief description for LLM prompt context */
+  description: string;
+  /** Signal direction this event should suggest */
+  signalDirection: 'YES' | 'NO' | 'NEUTRAL';
+  /** Whether this event has been fired */
+  fired: boolean;
+  /** Timestamp when fired (ISO string) */
+  firedAt?: string;
+}
+
+/**
  * Planned event distribution for a question
  *
  * @interface QuestionArcPlan
@@ -87,7 +108,8 @@ export interface PhaseTargets {
  * @property phases - Event distribution targets for each phase
  * @property insiders - Actor IDs who know the truth from start
  * @property deceivers - Actor IDs who will spread misinformation
- * @property plannedRedHerrings - Intentional misdirection events
+ * @property plannedRedHerrings - Intentional misdirection events (legacy)
+ * @property eventSchedule - Deterministic schedule of all narrative events
  */
 export interface QuestionArcPlan {
   questionId: number | string;
@@ -110,12 +132,15 @@ export interface QuestionArcPlan {
   insiders: string[];
   deceivers: string[];
 
-  // Misdirection events
+  // Misdirection events (legacy - consumed into eventSchedule)
   plannedRedHerrings: Array<{
     day: number;
     description: string;
     apparentDirection: 'YES' | 'NO';
   }>;
+
+  // Deterministic event schedule (replaces probability-based firing)
+  eventSchedule: ScheduledEvent[];
 }
 
 /**
@@ -150,6 +175,7 @@ export class QuestionArcPlanner {
    * @param question - Question to plan arc for
    * @param actors - Available actors (for insider/deceiver assignment)
    * @param organizations - Available organizations (for context)
+   * @param rng - Optional random number generator for reproducibility (defaults to Math.random)
    * @returns Complete arc plan with event distribution targets
    *
    * @description
@@ -175,19 +201,64 @@ export class QuestionArcPlanner {
   planQuestionArc(
     question: Question,
     actors: Actor[],
-    organizations: Organization[]
+    organizations: Organization[],
+    rng: RngFunction = Math.random
   ): QuestionArcPlan {
-    // Determine key narrative days
-    const uncertaintyPeakDay = 8 + Math.floor(Math.random() * 5); // Day 8-12
-    const clarityOnsetDay = 17 + Math.floor(Math.random() * 5); // Day 17-21
-    const verificationDay = 27 + Math.floor(Math.random() * 2); // Day 27-28
+    // Determine key narrative days using provided RNG for reproducibility
+    const uncertaintyPeakDay = 8 + Math.floor(rng() * 5); // Day 8-12
+    const clarityOnsetDay = 17 + Math.floor(rng() * 5); // Day 17-21
+    const verificationDay = 27 + Math.floor(rng() * 2); // Day 27-28
 
     // Assign NPC roles
-    const insiders = this.selectInsiders(question, actors, organizations);
-    const deceivers = this.selectDeceivers(actors);
+    const insiders = this.selectInsiders(question, actors, organizations, rng);
+    const deceivers = this.selectDeceivers(actors, rng);
 
     // Plan red herrings (intentional misdirection around uncertainty peak)
-    const redHerrings = this.planRedHerrings(question, uncertaintyPeakDay);
+    const redHerrings = this.planRedHerrings(question, uncertaintyPeakDay, rng);
+
+    // Define phase configurations
+    const phases = {
+      early: {
+        daysRange: [1, 10] as [number, number],
+        targetEventsTotal: 7,
+        targetCorrectSignals: 3, // 43% correct
+        targetWrongSignals: 4, // 57% wrong ← Misdirection dominant
+        targetAmbiguous: 0,
+        targetClueStrength: [0.2, 0.5] as [number, number],
+      },
+      middle: {
+        daysRange: [11, 20] as [number, number],
+        targetEventsTotal: 11,
+        targetCorrectSignals: 6, // 55% correct
+        targetWrongSignals: 4, // 36% wrong
+        targetAmbiguous: 1, // 9% unclear
+        targetClueStrength: [0.4, 0.7] as [number, number],
+      },
+      late: {
+        daysRange: [21, 26] as [number, number],
+        targetEventsTotal: 9,
+        targetCorrectSignals: 7, // 78% correct
+        targetWrongSignals: 1, // 11% wrong ← Last doubts
+        targetAmbiguous: 1, // 11% unclear
+        targetClueStrength: [0.6, 0.9] as [number, number],
+      },
+      climax: {
+        daysRange: [27, 29] as [number, number],
+        targetEventsTotal: 3,
+        targetCorrectSignals: 3, // 100% correct
+        targetWrongSignals: 0, // No more misdirection
+        targetAmbiguous: 0,
+        targetClueStrength: [0.85, 1.0] as [number, number],
+      },
+    };
+
+    // Generate deterministic event schedule
+    const eventSchedule = this.generateEventSchedule(
+      question,
+      phases,
+      redHerrings,
+      rng
+    );
 
     // Calculate event distribution targets
     const plan: QuestionArcPlan = {
@@ -196,43 +267,11 @@ export class QuestionArcPlanner {
       uncertaintyPeakDay,
       clarityOnsetDay,
       verificationDay,
-      phases: {
-        early: {
-          daysRange: [1, 10],
-          targetEventsTotal: 7,
-          targetCorrectSignals: 3, // 43% correct
-          targetWrongSignals: 4, // 57% wrong ← Misdirection dominant
-          targetAmbiguous: 0,
-          targetClueStrength: [0.2, 0.5], // Weak to medium clues
-        },
-        middle: {
-          daysRange: [11, 20],
-          targetEventsTotal: 11,
-          targetCorrectSignals: 6, // 55% correct
-          targetWrongSignals: 4, // 36% wrong
-          targetAmbiguous: 1, // 9% unclear
-          targetClueStrength: [0.4, 0.7], // Medium to strong clues
-        },
-        late: {
-          daysRange: [21, 26],
-          targetEventsTotal: 9,
-          targetCorrectSignals: 7, // 78% correct
-          targetWrongSignals: 1, // 11% wrong ← Last doubts
-          targetAmbiguous: 1, // 11% unclear
-          targetClueStrength: [0.6, 0.9], // Strong clues
-        },
-        climax: {
-          daysRange: [27, 29],
-          targetEventsTotal: 3,
-          targetCorrectSignals: 3, // 100% correct
-          targetWrongSignals: 0, // No more misdirection
-          targetAmbiguous: 0,
-          targetClueStrength: [0.85, 1.0], // Very strong clues
-        },
-      },
+      phases,
       insiders,
       deceivers,
       plannedRedHerrings: redHerrings,
+      eventSchedule,
     };
 
     logger.info(
@@ -263,7 +302,8 @@ export class QuestionArcPlanner {
   private selectInsiders(
     question: Question,
     actors: Actor[],
-    organizations: Organization[]
+    organizations: Organization[],
+    rng: RngFunction = Math.random
   ): string[] {
     // Extract organization names/IDs mentioned in question
     const questionLower = question.text.toLowerCase();
@@ -282,13 +322,14 @@ export class QuestionArcPlanner {
         (a.tier === 'S_TIER' || a.tier === 'A_TIER' || a.tier === 'B_TIER')
     );
 
-    // Select 2-3 insiders randomly
+    // Select 2-3 insiders using provided RNG for reproducibility
     const numInsiders = Math.min(
-      2 + Math.floor(Math.random() * 2), // 2-3
+      2 + Math.floor(rng() * 2), // 2-3
       potentialInsiders.length
     );
 
-    const shuffled = shuffleArray(potentialInsiders);
+    // Shuffle using the RNG for reproducibility
+    const shuffled = this.shuffleWithRng(potentialInsiders, rng);
     return shuffled.slice(0, numInsiders).map((a) => a.id);
   }
 
@@ -299,7 +340,10 @@ export class QuestionArcPlanner {
    * Identifies NPCs who will intentionally mislead or spread conspiracy theories.
    * Typically 1-2 deceivers per question.
    */
-  private selectDeceivers(actors: Actor[]): string[] {
+  private selectDeceivers(
+    actors: Actor[],
+    rng: RngFunction = Math.random
+  ): string[] {
     const potentialDeceivers = actors.filter(
       (a) =>
         a.personality?.includes('contrarian') ||
@@ -308,13 +352,14 @@ export class QuestionArcPlanner {
         a.description?.toLowerCase().includes('conspiracy')
     );
 
-    // Select 1-2 deceivers
+    // Select 1-2 deceivers using provided RNG for reproducibility
     const numDeceivers = Math.min(
-      1 + Math.floor(Math.random() * 2), // 1-2
+      1 + Math.floor(rng() * 2), // 1-2
       potentialDeceivers.length
     );
 
-    const shuffled = shuffleArray(potentialDeceivers);
+    // Shuffle using the RNG for reproducibility
+    const shuffled = this.shuffleWithRng(potentialDeceivers, rng);
     return shuffled.slice(0, numDeceivers).map((a) => a.id);
   }
 
@@ -332,7 +377,8 @@ export class QuestionArcPlanner {
    */
   private planRedHerrings(
     question: Question,
-    uncertaintyPeakDay: number
+    uncertaintyPeakDay: number,
+    rng: RngFunction = Math.random
   ): Array<{
     day: number;
     description: string;
@@ -345,8 +391,8 @@ export class QuestionArcPlanner {
     }> = [];
     const oppositeOutcome: 'YES' | 'NO' = question.outcome ? 'NO' : 'YES';
 
-    // Create 2-3 red herrings around uncertainty peak
-    const numRedHerrings = 2 + Math.floor(Math.random() * 2); // 2-3
+    // Create 2-3 red herrings around uncertainty peak using provided RNG
+    const numRedHerrings = 2 + Math.floor(rng() * 2); // 2-3
 
     for (let i = 0; i < numRedHerrings; i++) {
       const day = uncertaintyPeakDay - 2 + i; // Spread around peak
@@ -359,6 +405,130 @@ export class QuestionArcPlanner {
     }
 
     return redHerrings;
+  }
+
+  /**
+   * Shuffle array using provided RNG for reproducibility
+   *
+   * @description
+   * Fisher-Yates shuffle using the provided random number generator.
+   * This enables deterministic shuffling when using SeededRandom.
+   */
+  private shuffleWithRng<T>(array: readonly T[], rng: RngFunction): T[] {
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [result[i], result[j]] = [result[j]!, result[i]!];
+    }
+    return result;
+  }
+
+  /**
+   * Generate deterministic event schedule from phase targets and red herrings
+   *
+   * @description
+   * Creates a pre-planned schedule of narrative events that will fire
+   * at specific times (with jitter). Replaces probability-based event firing.
+   *
+   * Events are scheduled across all phases with appropriate signal directions
+   * and include red herrings from the misdirection plan.
+   */
+  private generateEventSchedule(
+    question: Question,
+    phases: QuestionArcPlan['phases'],
+    redHerrings: QuestionArcPlan['plannedRedHerrings'],
+    rng: RngFunction
+  ): ScheduledEvent[] {
+    const schedule: ScheduledEvent[] = [];
+    const correctDirection: 'YES' | 'NO' = question.outcome ? 'YES' : 'NO';
+    const wrongDirection: 'YES' | 'NO' = question.outcome ? 'NO' : 'YES';
+
+    // Event types by phase (earlier phases have more rumors, later have more confirmations)
+    const phaseEventTypes: Record<
+      string,
+      Array<'leak' | 'rumor' | 'scandal' | 'confirmation'>
+    > = {
+      early: ['rumor', 'rumor', 'leak'],
+      middle: ['rumor', 'leak', 'scandal', 'leak'],
+      late: ['leak', 'confirmation', 'scandal'],
+      climax: ['confirmation', 'confirmation'],
+    };
+
+    // Generate events for each phase
+    for (const [phaseName, phaseConfig] of Object.entries(phases)) {
+      const [startDay, endDay] = phaseConfig.daysRange;
+      const daySpan = endDay - startDay + 1;
+
+      // Generate correct signal events
+      for (let i = 0; i < phaseConfig.targetCorrectSignals; i++) {
+        const eventTypes = phaseEventTypes[phaseName] ?? (['rumor'] as const);
+        const eventType = eventTypes[i % eventTypes.length]!;
+        const baseDay = startDay + Math.floor(rng() * daySpan);
+        const jitterHours = Math.floor(rng() * 16) - 8; // ±8 hours
+
+        schedule.push({
+          baseDay,
+          jitterHours,
+          eventType,
+          description: `${phaseName} phase ${eventType} pointing to ${correctDirection}`,
+          signalDirection: correctDirection,
+          fired: false,
+        });
+      }
+
+      // Generate wrong signal events (misdirection)
+      for (let i = 0; i < phaseConfig.targetWrongSignals; i++) {
+        const baseDay = startDay + Math.floor(rng() * daySpan);
+        const jitterHours = Math.floor(rng() * 16) - 8;
+
+        schedule.push({
+          baseDay,
+          jitterHours,
+          eventType: 'rumor', // Misdirection is usually rumors
+          description: `${phaseName} phase misdirection pointing to ${wrongDirection}`,
+          signalDirection: wrongDirection,
+          fired: false,
+        });
+      }
+
+      // Generate ambiguous events
+      for (let i = 0; i < phaseConfig.targetAmbiguous; i++) {
+        const baseDay = startDay + Math.floor(rng() * daySpan);
+        const jitterHours = Math.floor(rng() * 16) - 8;
+
+        schedule.push({
+          baseDay,
+          jitterHours,
+          eventType: 'rumor',
+          description: `${phaseName} phase ambiguous signal`,
+          signalDirection: 'NEUTRAL',
+          fired: false,
+        });
+      }
+    }
+
+    // Add red herrings to schedule
+    for (const redHerring of redHerrings) {
+      const jitterHours = Math.floor(rng() * 8) - 4; // ±4 hours for red herrings
+
+      schedule.push({
+        baseDay: redHerring.day,
+        jitterHours,
+        eventType: 'red_herring',
+        description: redHerring.description,
+        signalDirection: redHerring.apparentDirection,
+        fired: false,
+      });
+    }
+
+    // Sort by effective firing time (baseDay + jitterHours/24)
+    schedule.sort((a, b) => {
+      const aTime = a.baseDay + a.jitterHours / 24;
+      const bTime = b.baseDay + b.jitterHours / 24;
+      return aTime - bTime;
+    });
+
+    return schedule;
   }
 
   /**
@@ -406,4 +576,3 @@ export class QuestionArcPlanner {
     return phaseData.targetCorrectSignals / totalSignals;
   }
 }
-

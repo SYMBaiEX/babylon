@@ -5,26 +5,22 @@
  * Similar to A2A's JsonRpcTransportHandler
  */
 
+import type { JsonValue, StringRecord } from '@babylon/shared';
+import { authenticateAgent } from '../auth/agent-auth';
+import { getAvailableTools, getInitializeResult } from '../server/mcp-server';
 import type {
+  InitializeParams,
+  JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,
-  JsonRpcError,
-  InitializeParams,
-  ToolsListResult,
+  JsonRpcResult,
+  MCPAuthContext,
   ToolCallParams,
   ToolCallResult,
-  MCPAuthContext,
+  ToolsListResult,
 } from '../types/mcp';
 import { MCPMethod } from '../types/mcp';
-import {
-  getInitializeResult,
-  getAvailableTools,
-} from '../server/mcp-server';
 import { executeTool } from './tool-handlers';
-import { authenticateAgent } from '../auth/agent-auth';
-import { logger } from '@babylon/shared';
-import type { StringRecord } from '@babylon/shared';
-import type { JsonValue } from '@babylon/shared';
 
 /**
  * MCP Request Handler
@@ -45,31 +41,22 @@ export class MCPRequestHandler {
       this.authContext = authContext;
     }
 
-    try {
-      // Route to appropriate handler based on method
-      switch (request.method) {
-        case MCPMethod.INITIALIZE:
-          return await this.handleInitialize(request);
-        case MCPMethod.PING:
-          return await this.handlePing(request);
-        case MCPMethod.TOOLS_LIST:
-          return await this.handleToolsList(request);
-        case MCPMethod.TOOLS_CALL:
-          return await this.handleToolsCall(request);
-        default:
-          return this.createErrorResponse(
-            request.id,
-            -32601,
-            `Method not found: ${request.method}`
-          );
-      }
-    } catch (error) {
-      logger.error('MCP request handler error', error, 'MCP');
-      return this.createErrorResponse(
-        request.id,
-        -32603,
-        (error as Error).message || 'Internal error'
-      );
+    // Route to appropriate handler based on method
+    switch (request.method) {
+      case MCPMethod.INITIALIZE:
+        return await this.handleInitialize(request);
+      case MCPMethod.PING:
+        return await this.handlePing(request);
+      case MCPMethod.TOOLS_LIST:
+        return await this.handleToolsList(request);
+      case MCPMethod.TOOLS_CALL:
+        return await this.handleToolsCall(request);
+      default:
+        return this.createErrorResponse(
+          request.id,
+          -32601,
+          `Method not found: ${request.method}`
+        );
     }
   }
 
@@ -104,16 +91,14 @@ export class MCPRequestHandler {
     return {
       jsonrpc: '2.0',
       id: request.id,
-      result: result as unknown as JsonValue,
+      result: result as unknown as JsonRpcResult,
     };
   }
 
   /**
    * Handle ping request
    */
-  private async handlePing(
-    request: JsonRpcRequest
-  ): Promise<JsonRpcResponse> {
+  private async handlePing(request: JsonRpcRequest): Promise<JsonRpcResponse> {
     return {
       jsonrpc: '2.0',
       id: request.id,
@@ -135,7 +120,7 @@ export class MCPRequestHandler {
     return {
       jsonrpc: '2.0',
       id: request.id,
-      result: result as unknown as JsonValue,
+      result: result as unknown as JsonRpcResult,
     };
   }
 
@@ -177,7 +162,8 @@ export class MCPRequestHandler {
       );
     }
 
-    // Execute tool
+    // Execute tool with proper error handling per MCP spec
+    // Tool execution errors should return isError: true, not protocol errors
     try {
       const toolResult = await executeTool(
         params.name,
@@ -186,7 +172,9 @@ export class MCPRequestHandler {
       );
 
       // Convert tool result to MCP content format
-      const content = this.convertToolResultToContent(toolResult);
+      const content = this.convertToolResultToContent(
+        toolResult as unknown as JsonValue
+      );
 
       const result: ToolCallResult = {
         content,
@@ -196,17 +184,19 @@ export class MCPRequestHandler {
       return {
         jsonrpc: '2.0',
         id: request.id,
-        result: result as unknown as JsonValue,
+        result: result as unknown as JsonRpcResult,
       };
     } catch (error) {
-      logger.error(`Tool execution error: ${params.name}`, error, 'MCP');
+      // Per MCP spec: Tool execution errors should be reported in tool results
+      // with isError: true, not as JSON-RPC protocol errors
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
 
-      // Return error as tool result
       const result: ToolCallResult = {
         content: [
           {
             type: 'text',
-            text: `Error: ${(error as Error).message}`,
+            text: `Tool execution failed: ${errorMessage}`,
           },
         ],
         isError: true,
@@ -215,7 +205,7 @@ export class MCPRequestHandler {
       return {
         jsonrpc: '2.0',
         id: request.id,
-        result: result as unknown as JsonValue,
+        result: result as unknown as JsonRpcResult,
       };
     }
   }
@@ -225,7 +215,7 @@ export class MCPRequestHandler {
    * Formats results as readable text content
    */
   private convertToolResultToContent(
-    toolResult: unknown
+    toolResult: JsonValue
   ): Array<{ type: 'text'; text: string }> {
     // Handle different result types
     if (typeof toolResult === 'string') {
@@ -279,4 +269,3 @@ export class MCPRequestHandler {
     };
   }
 }
-

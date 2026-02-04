@@ -9,7 +9,18 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { getDbInstance } from '@babylon/db';
+import { db, desc, eq, games, getDbInstance, markets } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import { StaticDataRegistry } from './services/static-data-registry';
+import { getGameDayNumber } from './utils/date-utils';
+
+/**
+ * Active market summary for NPC context (lightweight)
+ */
+export interface ActiveMarketSummary {
+  id: string;
+  question: string;
+}
 
 /**
  * Game Service Class
@@ -28,7 +39,25 @@ class GameService {
   }
 
   async getCompanies() {
-    return await getDbInstance().getCompanies();
+    // Get static organization data from registry
+    const staticOrgs = StaticDataRegistry.getAllOrganizations();
+    // Get dynamic price data from database
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map(orgStates.map((s) => [s.id, s.currentPrice]));
+
+    // Combine static and dynamic data, filter to companies
+    return staticOrgs
+      .filter((org) => org.type === 'company')
+      .map((org) => ({
+        id: org.id,
+        name: org.name,
+        description: org.description,
+        type: org.type,
+        canBeInvolved: org.canBeInvolved,
+        initialPrice: org.initialPrice,
+        currentPrice: priceMap.get(org.id) ?? org.initialPrice,
+      }))
+      .sort((a, b) => (b.currentPrice ?? 0) - (a.currentPrice ?? 0));
   }
 
   async getActiveQuestions() {
@@ -60,7 +89,7 @@ class GameService {
     return {
       isRunning: false,
       initialized: false,
-      currentDay: gameState?.currentDay || 0,
+      currentDay: gameState?.currentDay ?? 1,
       currentDate: gameState?.currentDate?.toISOString(),
       speed: 60000,
       lastTickAt: gameState?.lastTickAt?.toISOString(),
@@ -91,6 +120,57 @@ class GameService {
       })),
       total: posts.length,
     };
+  }
+
+  /**
+   * Get the current game day from the active continuous game.
+   * Returns 1 if no game is running (Day 1 is the default).
+   * Uses startedAt as single source of truth for day calculation.
+   */
+  async getCurrentGameDay(): Promise<number> {
+    const [game] = await db
+      .select({
+        currentDay: games.currentDay,
+        startedAt: games.startedAt,
+      })
+      .from(games)
+      .where(eq(games.isContinuous, true))
+      .orderBy(desc(games.startedAt))
+      .limit(1);
+
+    if (!game) {
+      logger.warn('No continuous game found', {}, 'GameService');
+      return 1;
+    }
+
+    if (!game.startedAt) {
+      logger.warn(
+        'Game startedAt is null - using stored currentDay',
+        { currentDay: game.currentDay },
+        'GameService'
+      );
+      return game.currentDay ?? 1;
+    }
+
+    // Calculate fresh from epoch (single source of truth)
+    return getGameDayNumber(game.startedAt, new Date());
+  }
+
+  /**
+   * Get active (unresolved) prediction markets with minimal fields.
+   * Used by NPC context providers to avoid direct DB access.
+   */
+  async getActiveMarketSummaries(limit = 5): Promise<ActiveMarketSummary[]> {
+    const activeMarkets = await db
+      .select({
+        id: markets.id,
+        question: markets.question,
+      })
+      .from(markets)
+      .where(eq(markets.resolved, false))
+      .limit(limit);
+
+    return activeMarkets;
   }
 }
 

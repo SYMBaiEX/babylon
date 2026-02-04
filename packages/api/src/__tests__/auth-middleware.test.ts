@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 // Type for mock request
 interface MockNextRequest {
+  url: string;
   headers: {
     get: (name: string) => string | null;
   };
@@ -15,6 +16,24 @@ const mockVerifyAgentSession = mock();
 const mockVerifyAuthToken = mock();
 const mockSelect = mock();
 
+const usersTable = {
+  id: 'id',
+  privyId: 'privyId',
+  walletAddress: 'walletAddress',
+  isAdmin: 'isAdmin',
+};
+
+const nftSnapshotTable = {
+  id: 'id',
+  userId: 'userId',
+  hasMinted: 'hasMinted',
+};
+
+const nftOwnershipTable = {
+  tokenId: 'tokenId',
+  userId: 'userId',
+};
+
 // Mock the local agent-auth module
 mock.module('../agent-auth', () => ({
   verifyAgentSession: mockVerifyAgentSession,
@@ -26,11 +45,9 @@ mock.module('@babylon/db', () => ({
     select: mockSelect,
   },
   eq: (field: unknown, value: unknown) => ({ field, value }),
-  users: {
-    id: 'id',
-    privyId: 'privyId',
-    walletAddress: 'walletAddress',
-  },
+  users: usersTable,
+  nftSnapshot: nftSnapshotTable,
+  nftOwnership: nftOwnershipTable,
 }));
 
 // Mock @privy-io/server-auth - PrivyClient is a class that gets instantiated
@@ -43,8 +60,14 @@ mock.module('@privy-io/server-auth', () => ({
 // Import after mocks are set up
 import { authenticate } from '../auth-middleware';
 
-const createRequest = (token: string): NextRequest =>
+let usersRows: Array<{ id: string; walletAddress: string; isAdmin?: boolean }> =
+  [];
+let snapshotRows: Array<{ id?: string; hasMinted: boolean }> = [];
+let ownershipRows: Array<{ tokenId: number }> = [];
+
+const createRequest = (token: string, pathname: string): NextRequest =>
   ({
+    url: `https://example.com${pathname}`,
     headers: {
       get: (name: string) =>
         name.toLowerCase() === 'authorization' ? `Bearer ${token}` : null,
@@ -61,21 +84,32 @@ describe('authenticate middleware', () => {
     mockSelect.mockReset();
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-app';
     process.env.PRIVY_APP_SECRET = 'test-secret';
+    process.env.NFT_GATING_ENABLED = 'false';
+    usersRows = [];
+    snapshotRows = [];
+    ownershipRows = [];
 
     // Default mock chain for db.select().from().where().limit()
-    mockSelect.mockReturnValue({
-      from: () => ({
+    mockSelect.mockImplementation(() => ({
+      from: (table: unknown) => ({
         where: () => ({
-          limit: () => Promise.resolve([]),
+          limit: () => {
+            if (table === usersTable) return Promise.resolve(usersRows);
+            if (table === nftSnapshotTable)
+              return Promise.resolve(snapshotRows);
+            if (table === nftOwnershipTable)
+              return Promise.resolve(ownershipRows);
+            return Promise.resolve([]);
+          },
         }),
       }),
-    });
+    }));
   });
 
   it('returns agent user when session token is valid', async () => {
     mockVerifyAgentSession.mockReturnValueOnce({ agentId: 'agent-123' });
 
-    const request = createRequest('agent-session-token');
+    const request = createRequest('agent-session-token', '/api/posts');
     const result = await authenticate(request);
 
     expect(result).toEqual({
@@ -90,16 +124,9 @@ describe('authenticate middleware', () => {
     mockVerifyAgentSession.mockReturnValueOnce(null);
     mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
 
-    // Mock empty db result
-    mockSelect.mockReturnValue({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve([]),
-        }),
-      }),
-    });
+    usersRows = [];
 
-    const request = createRequest('privy-token');
+    const request = createRequest('privy-token', '/api/users/me');
     const result = await authenticate(request);
 
     expect(result).toMatchObject({
@@ -115,21 +142,9 @@ describe('authenticate middleware', () => {
     mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
 
     // Mock db user found
-    mockSelect.mockReturnValue({
-      from: () => ({
-        where: () => ({
-          limit: () =>
-            Promise.resolve([
-              {
-                id: 'db-user-id',
-                walletAddress: '0xabc',
-              },
-            ]),
-        }),
-      }),
-    });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
 
-    const request = createRequest('privy-token');
+    const request = createRequest('privy-token', '/api/users/me');
     const result = await authenticate(request);
 
     expect(result).toMatchObject({
@@ -137,6 +152,7 @@ describe('authenticate middleware', () => {
       dbUserId: 'db-user-id',
       privyId: 'privy-user',
       walletAddress: '0xabc',
+      isAdmin: false,
     });
   });
 
@@ -146,15 +162,108 @@ describe('authenticate middleware', () => {
       new Error('token expired: exp mismatch')
     );
 
-    const request = createRequest('expired-token');
+    const request = createRequest('expired-token', '/api/users/me');
 
     try {
       await authenticate(request);
       expect.unreachable('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe('Authentication token has expired. Please refresh your session.');
+      expect((error as Error).message).toBe(
+        'Authentication token has expired. Please refresh your session.'
+      );
       expect((error as { code: string }).code).toBe('AUTH_FAILED');
     }
+  });
+
+  it('enforces NFT gating when enabled for non-allowlisted API paths', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [];
+    ownershipRows = [];
+
+    const request = createRequest('privy-token', '/api/posts');
+
+    try {
+      await authenticate(request);
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('NFT access required');
+      expect((error as { code: string }).code).toBe('FORBIDDEN');
+    }
+  });
+
+  it('does not enforce NFT gating for allowlisted paths', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [{ hasMinted: false }];
+
+    const request = createRequest('privy-token', '/api/users/me');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+    });
+  });
+
+  it('bypasses NFT gating for admins', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: true }];
+    snapshotRows = [{ hasMinted: false }];
+
+    const request = createRequest('privy-token', '/api/posts');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      isAdmin: true,
+    });
+  });
+
+  it('allows access for minted users when NFT gating is enabled', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [{ hasMinted: true }];
+
+    const request = createRequest('privy-token', '/api/posts');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+      isAdmin: false,
+    });
+  });
+
+  it('allows access for claimable users when NFT gating is enabled', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [{ hasMinted: false }];
+
+    const request = createRequest('privy-token', '/api/posts');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+      isAdmin: false,
+    });
   });
 });

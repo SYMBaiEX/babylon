@@ -79,4 +79,3 @@ export const RESEARCHER_PRIORITY_METRICS = [
   'trading.winRate',
   'trading.totalPnL',
 ];
-

@@ -34,30 +34,45 @@ describe('Relationship Context Efficiency', () => {
       },
     });
 
-    await db.actor.upsert({
+    // Create test users with isActor: true + actorState for dynamic data
+    await db.user.upsert({
       where: { id: 'efficiency-test-1' },
       update: {},
       create: {
         id: 'efficiency-test-1',
-        name: 'Test Actor',
-        domain: [],
-        affiliations: [],
-        postStyle: 'test',
-        postExample: [],
+        username: 'test-actor',
+        displayName: 'Test Actor',
+        isActor: true,
+        isTest: true,
+        updatedAt: new Date(),
+      },
+    });
+    await db.actorState.upsert({
+      where: { id: 'efficiency-test-1' },
+      update: {},
+      create: {
+        id: 'efficiency-test-1',
         updatedAt: new Date(),
       },
     });
 
-    await db.actor.upsert({
+    await db.user.upsert({
       where: { id: 'efficiency-test-2' },
       update: {},
       create: {
         id: 'efficiency-test-2',
-        name: 'AIlon Musk',
-        domain: [],
-        affiliations: [],
-        postStyle: 'test',
-        postExample: [],
+        username: 'ailon-musk',
+        displayName: 'AIlon Musk',
+        isActor: true,
+        isTest: true,
+        updatedAt: new Date(),
+      },
+    });
+    await db.actorState.upsert({
+      where: { id: 'efficiency-test-2' },
+      update: {},
+      create: {
+        id: 'efficiency-test-2',
         updatedAt: new Date(),
       },
     });
@@ -71,10 +86,14 @@ describe('Relationship Context Efficiency', () => {
           { actor2Id: 'efficiency-test-1' },
           { actor1Id: 'efficiency-test-2' },
           { actor2Id: 'efficiency-test-2' },
+          { actor2Id: 'ailon-musk', actor1Id: 'efficiency-test-1' },
         ],
       },
     });
-    await db.actor.deleteMany({
+    await db.actorState.deleteMany({
+      where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
+    });
+    await db.user.deleteMany({
       where: { id: { in: ['efficiency-test-1', 'efficiency-test-2'] } },
     });
     await db.$disconnect();
@@ -109,11 +128,12 @@ describe('Relationship Context Efficiency', () => {
     // Create a relationship for testing
     const engine = new RelationshipEvolutionEngine();
 
+    // Use actual static actor ID so StaticDataRegistry can resolve the name
     await db.actorRelationship.create({
       data: {
         id: 'test-rel-1',
         actor1Id: 'efficiency-test-1',
-        actor2Id: 'efficiency-test-2',
+        actor2Id: 'ailon-musk', // Real static actor ID
         relationshipType: 'allies',
         strength: 0.8,
         sentiment: 0.7,

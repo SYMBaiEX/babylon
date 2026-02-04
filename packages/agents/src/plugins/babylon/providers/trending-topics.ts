@@ -41,59 +41,50 @@ export const trendingTopicsProvider: Provider = {
       };
     }
 
-    try {
-      // Get trending tags via A2A
-      const trendingResult = await babylonRuntime.a2aClient.getTrendingTags(20);
-      const tags =
+    // Get trending tags via A2A
+    const trendingResult = await babylonRuntime.a2aClient.getTrendingTags(20);
+    const tags =
+      (
+        trendingResult as {
+          tags?: Array<{
+            id: string;
+            name: string;
+            displayName?: string;
+            category?: string;
+            postCount?: number;
+            score?: number;
+          }>;
+        }
+      )?.tags || [];
+
+    if (tags.length === 0) {
+      return { text: 'No trending topics available.' };
+    }
+
+    const topicsText = tags
+      .map(
         (
-          trendingResult as {
-            tags?: Array<{
-              id: string;
-              name: string;
-              displayName?: string;
-              category?: string;
-              postCount?: number;
-              score?: number;
-            }>;
-          }
-        )?.tags || [];
-
-      if (tags.length === 0) {
-        return { text: 'No trending topics available.' };
-      }
-
-      const topicsText = tags
-        .map(
-          (
-            t,
-            i
-          ) => `${i + 1}. #${t.name}${t.displayName ? ` (${t.displayName})` : ''}
+          t,
+          i
+        ) => `${i + 1}. #${t.name}${t.displayName ? ` (${t.displayName})` : ''}
    ${t.category ? `Category: ${t.category}` : ''}${t.postCount !== undefined ? ` | ${t.postCount} posts` : ''}${t.score !== undefined ? ` | Score: ${t.score.toFixed(1)}` : ''}`
-        )
-        .join('\n\n');
+      )
+      .join('\n\n');
 
-      return {
-        text: `🔥 Trending Topics:
+    return {
+      text: `🔥 Trending Topics:
 
 ${topicsText}`,
-        data: {
-          topics: tags.map((t) => ({
-            id: t.id,
-            name: t.name,
-            displayName: t.displayName,
-            category: t.category,
-            postCount: t.postCount,
-            score: t.score,
-          })),
-        },
-      };
-    } catch (error) {
-      logger.error(
-        'Failed to fetch trending topics via A2A',
-        error,
-        'TrendingTopicsProvider'
-      );
-      throw error;
-    }
+      data: {
+        topics: tags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          displayName: t.displayName,
+          category: t.category,
+          postCount: t.postCount,
+          score: t.score,
+        })),
+      },
+    };
   },
 };

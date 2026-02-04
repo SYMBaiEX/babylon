@@ -6,7 +6,6 @@
  * and leaderboard rankings for waitlist participants.
  */
 
-import { nanoid } from 'nanoid';
 import {
   and,
   asc,
@@ -22,11 +21,11 @@ import {
   referrals,
   users,
 } from '@babylon/db';
-import { NotFoundError } from '@babylon/api';
-import { logger } from '@babylon/shared';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { nanoid } from 'nanoid';
+import { NotFoundError } from '../errors';
 import { PointsService } from './points-service';
 import { getOrCreateReferralCode } from './referral-service';
-import { generateSnowflakeId } from '@babylon/shared';
 
 export interface WaitlistMarkResult {
   success: boolean;
@@ -94,11 +93,10 @@ export class WaitlistService {
     const user = userResult[0];
 
     if (!user) {
-      throw new NotFoundError(
-        'User',
-        undefined,
-        { userId, message: 'User must complete onboarding before joining waitlist' }
-      );
+      throw new NotFoundError('User', undefined, {
+        userId,
+        message: 'User must complete onboarding before joining waitlist',
+      });
     }
 
     // If user already marked as waitlisted, still check for referral code validation

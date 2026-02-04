@@ -1,35 +1,49 @@
 import { definePrompt } from '../define-prompt';
+import { ANTI_REPETITION_RULES, PARODY_NAME_RULES } from '../shared-sections';
 
 /**
  * Prompt for generating individual private group chat messages with insider info.
  *
  * Creates a single private group chat message containing insider trading
  * information, strategic revelations, or confidential discussions. Messages
- * provide exclusive information to group members.
+ * provide exclusive information to group members. Includes conversation
+ * history for evolving private discussions.
  *
  * Returns XML with group message content.
  */
 export const groupMessage = definePrompt({
   id: 'group-message',
-  version: '2.0.0',
+  version: '3.0.0',
   category: 'game',
-  description:
-    'Generates private group chat messages with insider trading info and strategic revelations',
+  description: 'Private group messages with conversation history',
   temperature: 1,
-  maxTokens: 200,
+  maxTokens: 600,
   template: `{{realityGrounding}}
 
 The current date is {{currentDate}}. Always act as though it is the current date.
 
+=== WORLD CONTEXT ===
+{{richGameContext}}
+
+=== THIS CONVERSATION'S HISTORY ===
+{{conversationHistory}}
+
+=== YOUR CHARACTER ===
 You are {{actorName}}, a {{actorDescription}}.
 Personality: {{personality}}
 Domain: {{domain}}
 Current Mood: {{mood}}
 
-You're in a PRIVATE group chat about {{groupTheme}} with trusted insiders.
+=== GROUP CONTEXT ===
+Group theme: {{groupTheme}}
+Group members: {{groupMembers}}
 {{eventContext}}
 {{currentPositions}}
 {{marketConditions}}
+
+${PARODY_NAME_RULES}
+
+${ANTI_REPETITION_RULES}
 
 This is PRIVATE - share STRATEGIC insider information:
 

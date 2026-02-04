@@ -4,7 +4,7 @@ Complete dataset publishing system for Babylon game data and agent trajectories.
 
 ## Overview
 
-**Dataset**: [elizaos/babylon-game-data](https://huggingface.co/datasets/elizaos/babylon-game-data)
+**Dataset**: [BabylonSocial/babylon-game-data](https://huggingface.co/datasets/BabylonSocial/babylon-game-data)
 
 **Updated**: Daily at 2 AM UTC via GitHub Actions
 
@@ -22,7 +22,7 @@ Complete dataset publishing system for Babylon game data and agent trajectories.
 from datasets import load_dataset
 
 # Load complete dataset
-dataset = load_dataset("elizaos/babylon-game-data")
+dataset = load_dataset("BabylonSocial/babylon-game-data")
 
 # Access trajectories
 trajectories = dataset['train']
@@ -32,7 +32,7 @@ trajectories = dataset['train']
 
 ```bash
 # Download dataset
-huggingface-cli download elizaos/babylon-game-data
+huggingface-cli download BabylonSocial/babylon-game-data
 
 # Run faster-than-real-time simulation
 npx tsx scripts/run-offline-simulation.ts --month=2025-11 --agent=my-agent
@@ -43,7 +43,7 @@ npx tsx scripts/run-offline-simulation.ts --month=2025-11 --agent=my-agent
 ## Dataset Structure
 
 ```
-elizaos/babylon-game-data/
+BabylonSocial/babylon-game-data/
 ├── README.md              - Dataset documentation
 ├── index.json             - Metadata
 ├── summary.json           - Statistics
@@ -149,7 +149,7 @@ Download the dataset and run simulations locally (no API calls needed):
 
 ```bash
 # Download
-huggingface-cli download elizaos/babylon-game-data
+huggingface-cli download BabylonSocial/babylon-game-data
 
 # Run simulation (100-1000x faster than real-time)
 npm run hf:offline -- --month=2025-11 --agent=my-agent
@@ -225,7 +225,7 @@ python src/training/babylon_trainer.py
 
 # Option 2: Train from HuggingFace (for reproducibility)
 from datasets import load_dataset
-dataset = load_dataset("elizaos/babylon-game-data")
+dataset = load_dataset("BabylonSocial/babylon-game-data")
 trajectories = dataset['train']
 # Use for training
 ```
@@ -251,7 +251,7 @@ Gameplay → TrajectoryRecorder → Database
                                     ↓
                     Upload to HuggingFace
                                     ↓
-              elizaos/babylon-game-data (PUBLIC)
+              BabylonSocial/babylon-game-data (PUBLIC)
                                     ↓
                     Download & Use Offline
 ```
@@ -292,15 +292,15 @@ Check:
 
 ## Resources
 
-- **Live Dataset**: [elizaos/babylon-game-data](https://huggingface.co/datasets/elizaos/babylon-game-data)
+- **Live Dataset**: [BabylonSocial/babylon-game-data](https://huggingface.co/datasets/BabylonSocial/babylon-game-data)
 - **GitHub Workflow**: `.github/workflows/daily-dataset-upload.yml`
 - **Python Training**: [Python RL Training](/agents/python-training)
 - **Trajectory Logging**: [Trajectory Logging](/agents/trajectory-logging)
 
 ## Next Steps
 
-1. **View Dataset**: Visit [elizaos/babylon-game-data](https://huggingface.co/datasets/elizaos/babylon-game-data)
-2. **Download**: `huggingface-cli download elizaos/babylon-game-data`
+1. **View Dataset**: Visit [BabylonSocial/babylon-game-data](https://huggingface.co/datasets/BabylonSocial/babylon-game-data)
+2. **Download**: `huggingface-cli download BabylonSocial/babylon-game-data`
 3. **Use Offline**: `npm run hf:offline -- --month=2025-11`
 4. **Train**: Use dataset for RL training
 

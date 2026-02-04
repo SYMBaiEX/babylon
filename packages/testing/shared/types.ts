@@ -5,8 +5,8 @@
  * and eliminate use of 'any' types.
  */
 
-import type { Page, Route } from '@playwright/test';
 import type { Database, JsonValue } from '@babylon/db';
+import type { Page, Route } from '@playwright/test';
 
 /**
  * Experience record from queryExperiences

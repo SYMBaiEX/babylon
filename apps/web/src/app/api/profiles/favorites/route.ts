@@ -51,12 +51,10 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate, successResponse } from '@babylon/api';
+import { authenticate, successResponse, withErrorHandling } from '@babylon/api';
 import { asUser } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PaginationSchema } from '@babylon/shared';
+import { logger, PaginationSchema } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/profiles/favorites

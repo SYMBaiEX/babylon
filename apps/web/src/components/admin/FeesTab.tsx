@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatCompactCurrency,
+} from '@babylon/shared';
 import { Award, DollarSign, RefreshCw, TrendingUp, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import {
@@ -14,7 +19,6 @@ import {
 import { z } from 'zod';
 import { Avatar } from '@/components/shared/Avatar';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * Fee statistics schema for validation.
@@ -112,14 +116,11 @@ export function FeesTab() {
     startRefresh(async () => {
       const response = await fetch('/api/admin/fees');
       if (!response.ok) {
-        throw new Error('Failed to fetch fee statistics');
+        throw new Error(`Failed to fetch fee statistics: ${response.status}`);
       }
       const data = await response.json();
-      const validation = FeeStatsSchema.safeParse(data);
-      if (!validation.success) {
-        throw new Error('Invalid data structure for fee statistics');
-      }
-      setStats(validation.data);
+      const validated = FeeStatsSchema.parse(data);
+      setStats(validated);
       setError(null);
       setLoading(false);
     });
@@ -129,11 +130,8 @@ export function FeesTab() {
     fetchStats();
   }, [fetchStats]);
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-    if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
-  };
+  /** Use shared formatCompactCurrency for currency formatting */
+  const formatCurrency = formatCompactCurrency;
 
   const formatNumber = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
@@ -287,7 +285,7 @@ export function FeesTab() {
             <YAxis
               stroke="#888"
               fontSize={12}
-              tickFormatter={(value) => `$${value}`}
+              tickFormatter={(value) => `${BABYLON_POINTS_SYMBOL}${value}`}
             />
             <Tooltip
               contentStyle={{
@@ -296,7 +294,7 @@ export function FeesTab() {
               }}
               labelFormatter={(date) => new Date(date).toLocaleDateString()}
               formatter={(value: number | string) => [
-                `$${Number(value).toFixed(2)}`,
+                `${BABYLON_POINTS_SYMBOL}${Number(value).toFixed(2)}`,
                 'Fees',
               ]}
             />

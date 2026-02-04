@@ -1,10 +1,10 @@
 'use client';
 
+import { logger } from '@babylon/shared';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { usePrivy } from '@privy-io/react-auth';
 import { useLoginToMiniApp } from '@privy-io/react-auth/farcaster';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { logger } from '@babylon/shared';
 
 /**
  * Consolidated Farcaster Mini App Provider.
@@ -101,6 +101,7 @@ export function FarcasterMiniAppProvider({
     null
   );
   const hasCalledReady = useRef(false);
+  const hasAttemptedLogin = useRef(false);
 
   const { ready, authenticated, user, createWallet } = usePrivy();
   const { initLoginToMiniApp, loginToMiniApp } = useLoginToMiniApp();
@@ -110,73 +111,49 @@ export function FarcasterMiniAppProvider({
     if (typeof window === 'undefined') return;
 
     const initializeMiniApp = async () => {
-      try {
-        const context = await sdk.context;
+      const context = await sdk.context;
 
-        if (context) {
-          setIsMiniApp(true);
-          setMiniAppContext(context as MiniAppContext);
+      if (context) {
+        setIsMiniApp(true);
+        setMiniAppContext(context as MiniAppContext);
 
-          if (context.user) {
-            setFid(context.user.fid);
-            setUsername(context.user.username);
-          }
-
-          logger.info(
-            'Detected Farcaster Mini App context',
-            {
-              fid: context.user?.fid,
-              username: context.user?.username,
-            },
-            'FarcasterMiniApp'
-          );
-
-          // Call ready() to hide splash screen and show content
-          // Only call once
-          if (!hasCalledReady.current) {
-            hasCalledReady.current = true;
-
-            // Small delay to ensure DOM is ready
-            setTimeout(async () => {
-              try {
-                await sdk.actions.ready();
-                logger.info(
-                  'Farcaster Mini App ready() called successfully',
-                  {},
-                  'FarcasterMiniApp'
-                );
-              } catch (readyError) {
-                logger.error(
-                  'Failed to call sdk.actions.ready()',
-                  {
-                    error:
-                      readyError instanceof Error
-                        ? readyError.message
-                        : String(readyError),
-                  },
-                  'FarcasterMiniApp'
-                );
-              }
-            }, 100);
-          }
-        } else {
-          logger.debug(
-            'Not in Farcaster Mini App context',
-            {},
-            'FarcasterMiniApp'
-          );
+        if (context.user) {
+          setFid(context.user.fid);
+          setUsername(context.user.username);
         }
-      } catch (error) {
-        logger.debug(
-          'Not in Farcaster Mini App context',
+
+        logger.info(
+          'Detected Farcaster Mini App context',
           {
-            error: error instanceof Error ? error.message : String(error),
+            fid: context.user?.fid,
+            username: context.user?.username,
           },
           'FarcasterMiniApp'
         );
-      } finally {
-        setIsLoading(false);
+
+        // Call ready() to hide splash screen and show content
+        // Only call once
+        if (!hasCalledReady.current) {
+          hasCalledReady.current = true;
+
+          // Small delay to ensure DOM is ready
+          setTimeout(async () => {
+            await sdk.actions.ready();
+            logger.info(
+              'Farcaster Mini App ready() called successfully',
+              {},
+              'FarcasterMiniApp'
+            );
+          }, 100);
+        }
+      } else {
+        logger.debug(
+          'Not in Farcaster Mini App context',
+          {},
+          'FarcasterMiniApp'
+        );
       }
+      setIsLoading(false);
     };
 
     initializeMiniApp();
@@ -202,6 +179,12 @@ export function FarcasterMiniAppProvider({
     if (!ready || !isMiniApp || authenticated || isLoading) {
       return;
     }
+
+    // Prevent multiple login attempts - only attempt once
+    if (hasAttemptedLogin.current) {
+      return;
+    }
+    hasAttemptedLogin.current = true;
 
     const attemptMiniAppLogin = async () => {
       logger.info(
@@ -256,6 +239,8 @@ export function FarcasterMiniAppProvider({
     };
 
     attemptMiniAppLogin().catch((error: Error) => {
+      // Allow retry on error
+      hasAttemptedLogin.current = false;
       logger.error(
         'Farcaster Mini App auto-login failed',
         {
@@ -351,25 +336,13 @@ export function FarcasterMiniAppProvider({
       return;
     }
 
-    try {
-      // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
-      await sdk.actions.openUrl(
-        `https://farcaster.xyz/~/compose?text=${encodeURIComponent(options.text || '')}${
-          options.url ? `&embeds[]=${encodeURIComponent(options.url)}` : ''
-        }`
-      );
-      logger.info('Mini App share opened', options, 'FarcasterMiniApp');
-    } catch (error) {
-      logger.error(
-        'Failed to open Mini App share',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          options,
-        },
-        'FarcasterMiniApp'
-      );
-      throw error;
-    }
+    // Farcaster compose URL - uses official protocol endpoint (farcaster.xyz)
+    await sdk.actions.openUrl(
+      `https://farcaster.xyz/~/compose?text=${encodeURIComponent(options.text || '')}${
+        options.url ? `&embeds[]=${encodeURIComponent(options.url)}` : ''
+      }`
+    );
+    logger.info('Mini App share opened', options, 'FarcasterMiniApp');
   };
 
   const value: FarcasterMiniAppContextType = {

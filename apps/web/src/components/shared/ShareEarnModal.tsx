@@ -16,11 +16,11 @@
  * ```
  */
 
+import { logger, POINTS } from '@babylon/shared';
 import { Check, Lock, Twitter, X as XIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { POINTS } from '@babylon/shared';
-import { logger } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 import { ShareVerificationModal } from './ShareVerificationModal';
 
 // Farcaster icon component
@@ -114,59 +114,49 @@ export function ShareEarnModal({
   const checkExistingShares = useCallback(async () => {
     if (!user) return;
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) return;
 
     setCheckingExistingShares(true);
 
-    try {
-      // Check for existing verified and earned shares for this content type
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+    // Check for existing verified and earned shares for this content type
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/share?contentType=${contentType}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const shares = data.shares || [];
+
+      // Update state for each platform that has been verified and earned
+      const twitterShare = shares.find(
+        (s: { platform: string }) => s.platform === 'twitter'
+      );
+      const farcasterShare = shares.find(
+        (s: { platform: string }) => s.platform === 'farcaster'
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        const shares = data.shares || [];
+      setShareStatus((prev) => ({
+        twitter: twitterShare
+          ? { shared: true, earned: true, loading: false }
+          : prev.twitter,
+        farcaster: farcasterShare
+          ? { shared: true, earned: true, loading: false }
+          : prev.farcaster,
+      }));
 
-        // Update state for each platform that has been verified and earned
-        const twitterShare = shares.find(
-          (s: { platform: string }) => s.platform === 'twitter'
-        );
-        const farcasterShare = shares.find(
-          (s: { platform: string }) => s.platform === 'farcaster'
-        );
-
-        setShareStatus((prev) => ({
-          twitter: twitterShare
-            ? { shared: true, earned: true, loading: false }
-            : prev.twitter,
-          farcaster: farcasterShare
-            ? { shared: true, earned: true, loading: false }
-            : prev.farcaster,
-        }));
-
-        logger.info(
-          `Found ${shares.length} existing verified shares for ${contentType}`,
-          { contentType, twitter: !!twitterShare, farcaster: !!farcasterShare },
-          'ShareEarnModal'
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        'Failed to check existing shares',
-        { error },
+      logger.info(
+        `Found ${shares.length} existing verified shares for ${contentType}`,
+        { contentType, twitter: !!twitterShare, farcaster: !!farcasterShare },
         'ShareEarnModal'
       );
-    } finally {
-      setCheckingExistingShares(false);
     }
+    setCheckingExistingShares(false);
   }, [user, contentType]);
 
   // Check configuration and existing shares on mount
@@ -191,8 +181,7 @@ export function ShareEarnModal({
       return { success: false };
     }
 
-    const token =
-      typeof window !== 'undefined' ? window.__privyAccessToken : null;
+    const token = getAuthToken();
     if (!token) {
       logger.warn('No access token available', undefined, 'ShareEarnModal');
       return { success: false };

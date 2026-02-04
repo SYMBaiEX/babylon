@@ -6,11 +6,14 @@
  * @packageDocumentation
  */
 
-import { and, db, desc, eq, gte, messages, users } from '@babylon/db';
+import { and, db, desc, eq, groups, gte, messages } from '@babylon/db';
+import { shuffleArray } from '@babylon/engine';
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import { generateSnowflakeId } from '../shared/snowflake';
 import { callGroqDirect } from '../llm/direct-groq';
+import { getAgentConfig } from '../shared/agent-config';
+import { logger } from '../shared/logger';
+import { getAgentContext } from './agent-context';
+import { executeDirectMessage } from './DirectExecutors';
 
 /**
  * Service for autonomous group chat participation
@@ -28,14 +31,11 @@ export class AutonomousGroupChatService {
     agentUserId: string,
     _runtime: IAgentRuntime
   ): Promise<number> {
-    const [agent] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, agentUserId))
-      .limit(1);
-    if (!agent?.isAgent) {
-      throw new Error('Agent not found');
-    }
+    // Resolve agent context (NPC vs USER_CONTROLLED)
+    const { displayName: agentDisplayName } =
+      await getAgentContext(agentUserId);
+
+    const config = await getAgentConfig(agentUserId);
 
     // Get agent's group chats
     const groupChatsRaw = await db.query.chatParticipants.findMany({
@@ -44,13 +44,37 @@ export class AutonomousGroupChatService {
       with: {
         chat: true,
       },
+      limit: 20,
     });
 
     let messagesCreated = 0;
 
-    for (const chatParticipant of groupChatsRaw) {
+    // Filter out team chats (Agents) - agents shouldn't auto-respond there
+    // Team chats use group.type = 'team'
+    const groupIds = groupChatsRaw
+      .map((c) => c.chat?.groupId)
+      .filter((gid): gid is string => !!gid);
+
+    let teamGroupIds = new Set<string>();
+    if (groupIds.length > 0) {
+      const teamGroups = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(eq(groups.type, 'team'));
+      teamGroupIds = new Set(teamGroups.map((g) => g.id));
+    }
+
+    // Shuffle to prevent starvation (deterministic order would always favor same chats)
+    const shuffledChats = shuffleArray(groupChatsRaw);
+
+    for (const chatParticipant of shuffledChats) {
       const chat = chatParticipant.chat;
       if (!chat || !chat.isGroup) continue; // Skip DMs
+
+      // Skip team chats (Agents) - user explicitly triggers agent responses there
+      if (chat.groupId && teamGroupIds.has(chat.groupId)) {
+        continue;
+      }
 
       // Get recent messages in this group
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -65,29 +89,28 @@ export class AutonomousGroupChatService {
 
       if (recentMessages.length === 0) continue;
 
-      // Check if agent was mentioned or should respond
+      // Check if agent was mentioned (exclude agent's own messages)
       const agentMentioned = recentMessages.some(
         (m: { content: string; senderId: string }) =>
-          m.content
-            .toLowerCase()
-            .includes(agent.username?.toLowerCase() || 'agent') ||
-          m.content
-            .toLowerCase()
-            .includes(agent.displayName?.toLowerCase() || 'agent')
+          m.senderId !== agentUserId &&
+          m.content.toLowerCase().includes(agentDisplayName.toLowerCase())
       );
 
-      // Don't spam - only respond if mentioned or if it's been a while
+      // Don't spam - only respond if mentioned OR significant conversation activity
       const agentLastMessage = recentMessages.find(
         (m: { content: string; senderId: string }) => m.senderId === agentUserId
       );
-      if (!agentMentioned && agentLastMessage) {
+      const hasRecentConversation = recentMessages.length >= 3;
+      const shouldRespond =
+        agentMentioned || (!agentLastMessage && hasRecentConversation);
+      if (!shouldRespond) {
         continue;
       }
 
       // Generate contextual response
-      const prompt = `${agent.agentSystem}
+      const prompt = `${config?.systemPrompt ?? 'You are an AI agent on Babylon.'}
 
-You are ${agent.displayName} in a group chat.
+You are ${agentDisplayName} in a group chat.
 
 Recent conversation:
 ${recentMessages
@@ -103,12 +126,16 @@ Be authentic to your personality and expertise.
 Keep it under 200 characters.
 Only respond if you have something valuable to add.
 
+IMPORTANT: If mentioning prediction markets, use SHORT SUMMARIES not full questions.
+❌ BAD: "the 'Will TeslAI achieve full self-driving readiness by Q1 2025?' prediction"
+✅ GOOD: "the TeslAI readiness bet" or "the BitcAIn drop prediction"
+
 Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
       // Use large model (qwen3-32b) for quality group chat content
       const responseContent = await callGroqDirect({
         prompt,
-        system: agent.agentSystem || undefined,
+        system: config?.systemPrompt ?? undefined,
         modelSize: 'large', // Important social content
         runtime: _runtime, // Pass runtime to access W&B trained models AND trajectory context
         temperature: 0.8,
@@ -119,22 +146,33 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`;
 
       const cleanContent = responseContent.trim().replace(/^["']|["']$/g, '');
 
-      if (!cleanContent || cleanContent.length < 5 || cleanContent === 'SKIP') {
+      if (
+        !cleanContent ||
+        cleanContent.length < 5 ||
+        cleanContent.toUpperCase() === 'SKIP'
+      ) {
         continue;
       }
 
       // Create group message
-      await db.insert(messages).values({
-        id: await generateSnowflakeId(),
+      const result = await executeDirectMessage({
+        agentUserId,
         chatId: chat.id,
-        senderId: agentUserId,
         content: cleanContent,
-        createdAt: new Date(),
       });
+
+      if (!result.success) {
+        logger.warn(
+          `Failed to create group chat message: ${result.error}`,
+          undefined,
+          'AutonomousGroupChat'
+        );
+        continue;
+      }
 
       messagesCreated++;
       logger.info(
-        `Agent ${agent.displayName} participated in group chat ${chat.id}`,
+        `Agent ${agentDisplayName} participated in group chat ${chat.id}`,
         undefined,
         'AutonomousGroupChat'
       );

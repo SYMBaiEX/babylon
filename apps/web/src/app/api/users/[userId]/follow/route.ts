@@ -84,42 +84,42 @@
  *                   description: Whether user is following the target
  */
 
-import type { NextRequest } from 'next/server';
 import {
-  actors,
+  authenticate,
+  BusinessLogicError,
+  cachedDb,
+  checkRateLimitAndDuplicates,
+  findUserByIdentifier,
+  InternalServerError,
+  NotFoundError,
+  notifyFollow,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
   db,
   eq,
-  followStatuses,
   follows,
   userActorFollows,
   users,
   withTransaction,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
-  BusinessLogicError,
-  InternalServerError,
-  NotFoundError,
-} from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
+  generateSnowflakeId,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
-import {
-  checkRateLimitAndDuplicates,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import { notifyFollow } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * POST /api/users/[userId]/follow
  *
  * Creates a follow relationship between the authenticated user and target user or actor.
- * Supports both regular users (via Follow model) and actors/NPCs (via UserActorFollow and FollowStatus models).
+ * Supports both regular users (via Follow model) and actors/NPCs (via UserActorFollow model).
  * Sends follow notifications, invalidates caches, and tracks analytics events.
  *
  * @param request - Next.js request object
@@ -161,23 +161,9 @@ export const POST = withErrorHandling(
     }
 
     // Check if target exists (could be a user or actor)
-    // If targetUser has isActor flag, we still need to check for Actor record
-    let targetActor: { id: string } | null = null;
-    if (targetUser?.isActor) {
-      const [actor] = await db
-        .select({ id: actors.id })
-        .from(actors)
-        .where(eq(actors.id, targetId))
-        .limit(1);
-      targetActor = actor ?? null;
-    } else if (!targetUser) {
-      const [actor] = await db
-        .select({ id: actors.id })
-        .from(actors)
-        .where(eq(actors.id, targetId))
-        .limit(1);
-      targetActor = actor ?? null;
-    }
+    // Use static registry to check for actor
+    const targetActorStatic = StaticDataRegistry.getActor(targetId);
+    const targetActor = targetActorStatic ? { id: targetActorStatic.id } : null;
 
     // If neither user nor actor found, return error
     // Also error if targetUser has isActor flag but no Actor record exists
@@ -192,35 +178,43 @@ export const POST = withErrorHandling(
     // Also check if targetActor exists (could be actor ID that doesn't match a user)
     if (targetUser && !targetUser.isActor) {
       // Target is a regular user - use Follow model
-      // Check if already following
-      const [existingFollow] = await db
-        .select({ id: follows.id })
-        .from(follows)
-        .where(
-          and(
-            eq(follows.followerId, user.userId),
-            eq(follows.followingId, targetId)
+      // Check if already following and create follow inside transaction
+      const newFollow = await withTransaction(async (tx) => {
+        const [existingFollow] = await tx
+          .select({ id: follows.id })
+          .from(follows)
+          .where(
+            and(
+              eq(follows.followerId, user.userId),
+              eq(follows.followingId, targetId)
+            )
           )
-        )
-        .limit(1);
+          .limit(1)
+          .for('update');
 
-      if (existingFollow) {
-        throw new BusinessLogicError(
-          'Already following this user',
-          'ALREADY_FOLLOWING'
-        );
-      }
+        if (existingFollow) {
+          throw new BusinessLogicError(
+            'Already following this user',
+            'ALREADY_FOLLOWING'
+          );
+        }
 
-      // Create follow relationship and get target user details
-      const followId = await generateSnowflakeId();
-      const [newFollow] = await db
-        .insert(follows)
-        .values({
-          id: followId,
-          followerId: user.userId,
-          followingId: targetId,
-        })
-        .returning();
+        const followId = await generateSnowflakeId();
+        const [createdFollow] = await tx
+          .insert(follows)
+          .values({
+            id: followId,
+            followerId: user.userId,
+            followingId: targetId,
+          })
+          .returning();
+
+        if (!createdFollow) {
+          throw new InternalServerError('Failed to create follow record');
+        }
+
+        return createdFollow;
+      });
 
       // Get target user details
       const [targetUserDetails] = await db
@@ -256,7 +250,9 @@ export const POST = withErrorHandling(
       trackServerEvent(user.userId, 'user_followed', {
         targetUserId: targetId,
         targetType: 'user',
-        ...(targetUserDetails?.username && { targetUsername: targetUserDetails.username }),
+        ...(targetUserDetails?.username && {
+          targetUsername: targetUserDetails.username,
+        }),
       }).catch((error) => {
         logger.warn('Failed to track user_followed event', { error });
       });
@@ -275,30 +271,16 @@ export const POST = withErrorHandling(
       );
     }
     // Target is an actor (NPC) or user with isActor=true - use UserActorFollow model
-    const [[existingUserActorFollow], [legacyFollowStatus]] = await Promise.all(
-      [
-        db
-          .select({ id: userActorFollows.id })
-          .from(userActorFollows)
-          .where(
-            and(
-              eq(userActorFollows.userId, user.userId),
-              eq(userActorFollows.actorId, targetId)
-            )
-          )
-          .limit(1),
-        db
-          .select()
-          .from(followStatuses)
-          .where(
-            and(
-              eq(followStatuses.userId, user.userId),
-              eq(followStatuses.npcId, targetId)
-            )
-          )
-          .limit(1),
-      ]
-    );
+    const [existingUserActorFollow] = await db
+      .select({ id: userActorFollows.id })
+      .from(userActorFollows)
+      .where(
+        and(
+          eq(userActorFollows.userId, user.userId),
+          eq(userActorFollows.actorId, targetId)
+        )
+      )
+      .limit(1);
 
     if (existingUserActorFollow) {
       throw new BusinessLogicError(
@@ -309,48 +291,14 @@ export const POST = withErrorHandling(
 
     const followId = await generateSnowflakeId();
 
-    // Get actor details
-    const [actorDetails] = await db
-      .select({
-        id: actors.id,
-        name: actors.name,
-        description: actors.description,
-        tier: actors.tier,
-        profileImageUrl: actors.profileImageUrl,
-      })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    const actorDetails = StaticDataRegistry.getActor(targetId);
 
-    if (
-      legacyFollowStatus &&
-      legacyFollowStatus.isActive &&
-      legacyFollowStatus.followReason === 'user_followed'
-    ) {
-      // Use transaction to create follow and deactivate legacy
-      await withTransaction(async (tx) => {
-        await tx.insert(userActorFollows).values({
-          id: followId,
-          userId: user.userId,
-          actorId: targetId,
-        });
-
-        await tx
-          .update(followStatuses)
-          .set({
-            isActive: false,
-            unfollowedAt: new Date(),
-          })
-          .where(eq(followStatuses.id, legacyFollowStatus.id));
-      });
-    } else {
-      // Just create the follow
-      await db.insert(userActorFollows).values({
-        id: followId,
-        userId: user.userId,
-        actorId: targetId,
-      });
-    }
+    // Create the follow
+    await db.insert(userActorFollows).values({
+      id: followId,
+      userId: user.userId,
+      actorId: targetId,
+    });
 
     // Fetch the created follow for the response
     const [createdFollow] = await db
@@ -479,58 +427,25 @@ export const DELETE = withErrorHandling(
         message: 'Unfollowed successfully',
       });
     }
-    // Target is an actor (NPC) - use UserActorFollow model (with legacy support)
-    const [[existingUserActorFollow], [legacyFollowStatus]] = await Promise.all(
-      [
-        db
-          .select({ id: userActorFollows.id })
-          .from(userActorFollows)
-          .where(
-            and(
-              eq(userActorFollows.userId, user.userId),
-              eq(userActorFollows.actorId, targetId)
-            )
-          )
-          .limit(1),
-        db
-          .select()
-          .from(followStatuses)
-          .where(
-            and(
-              eq(followStatuses.userId, user.userId),
-              eq(followStatuses.npcId, targetId)
-            )
-          )
-          .limit(1),
-      ]
-    );
+    // Target is an actor (NPC) - use UserActorFollow model
+    const [existingUserActorFollow] = await db
+      .select({ id: userActorFollows.id })
+      .from(userActorFollows)
+      .where(
+        and(
+          eq(userActorFollows.userId, user.userId),
+          eq(userActorFollows.actorId, targetId)
+        )
+      )
+      .limit(1);
 
-    const hasLegacyFollow =
-      legacyFollowStatus &&
-      legacyFollowStatus.isActive &&
-      legacyFollowStatus.followReason === 'user_followed';
-
-    if (!existingUserActorFollow && !hasLegacyFollow) {
+    if (!existingUserActorFollow) {
       throw new NotFoundError('Follow status', `${user.userId}-${targetId}`);
     }
 
-    await withTransaction(async (tx) => {
-      if (existingUserActorFollow) {
-        await tx
-          .delete(userActorFollows)
-          .where(eq(userActorFollows.id, existingUserActorFollow.id));
-      }
-
-      if (hasLegacyFollow && legacyFollowStatus) {
-        await tx
-          .update(followStatuses)
-          .set({
-            isActive: false,
-            unfollowedAt: new Date(),
-          })
-          .where(eq(followStatuses.id, legacyFollowStatus.id));
-      }
-    });
+    await db
+      .delete(userActorFollows)
+      .where(eq(userActorFollows.id, existingUserActorFollow.id));
 
     // Invalidate cache for the user to update following count
     await cachedDb.invalidateUserCache(user.userId).catch((error) => {
@@ -608,44 +523,22 @@ export const GET = withErrorHandling(
         isFollowing: !!follow,
       });
     }
-    // Target might be an actor (NPC) - check FollowStatus model
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    // Target might be an actor (NPC) - check static registry
+    const targetActorData = StaticDataRegistry.getActor(targetId);
 
-    if (targetActor) {
-      const [[userActorFollow], [legacyFollowStatus]] = await Promise.all([
-        db
-          .select({ id: userActorFollows.id })
-          .from(userActorFollows)
-          .where(
-            and(
-              eq(userActorFollows.userId, authUser.userId),
-              eq(userActorFollows.actorId, targetId)
-            )
+    if (targetActorData) {
+      const [userActorFollow] = await db
+        .select({ id: userActorFollows.id })
+        .from(userActorFollows)
+        .where(
+          and(
+            eq(userActorFollows.userId, authUser.userId),
+            eq(userActorFollows.actorId, targetId)
           )
-          .limit(1),
-        db
-          .select()
-          .from(followStatuses)
-          .where(
-            and(
-              eq(followStatuses.userId, authUser.userId),
-              eq(followStatuses.npcId, targetId)
-            )
-          )
-          .limit(1),
-      ]);
+        )
+        .limit(1);
 
-      const isFollowing =
-        !!userActorFollow ||
-        !!(
-          legacyFollowStatus &&
-          legacyFollowStatus.isActive &&
-          legacyFollowStatus.followReason === 'user_followed'
-        );
+      const isFollowing = !!userActorFollow;
       logger.info(
         'Actor follow status checked',
         { userId: authUser.userId, npcId: targetId, isFollowing },

@@ -5,109 +5,77 @@
  * and common API patterns.
  */
 
-// Types
-export type { JsonValue, ErrorLike, StringRecord } from './types';
-
+// Re-export auth types from shared
+export type { AuthenticatedUser } from '@babylon/shared';
 // Logger
-export { logger, Logger, type LogData, type LogLevel } from '@babylon/shared';
-
-// Errors
 export {
-  ApiError,
-  BabylonError,
-  AuthenticationError as AuthError,
-  AuthorizationError,
-  BadRequestError,
-  BusinessLogicError,
-  ConflictError,
-  ForbiddenError,
-  InternalServerError,
-  NotFoundError,
-  RateLimitError,
-  ServiceUnavailableError,
-  UnauthorizedError,
-  ValidationError,
-  isAuthenticationError as isAuthError,
-  isAuthorizationError,
-} from './errors';
-
+  extractErrorMessage,
+  type LogData,
+  Logger,
+  type LogLevel,
+  logger,
+} from '@babylon/shared';
+// Admin Audit Logging
+export {
+  type AdminAuditContext,
+  logAdminAction,
+  logAdminDelete,
+  logAdminModify,
+  logAdminView,
+} from './admin-audit';
+// Admin Middleware
+export {
+  type AuthenticatedAdminUser,
+  getAdminRole,
+  getAllAdmins,
+  isUserAdmin,
+  requireAdmin,
+  requirePermission,
+  requireSuperAdmin,
+} from './admin-middleware';
 // Agent Authentication
 export {
   type AgentSession,
+  cleanupExpiredSessions,
+  createAgentSession,
+  getSessionDuration,
   type SessionStore,
   setSessionStore,
-  cleanupExpiredSessions,
   verifyAgentCredentials,
-  createAgentSession,
   verifyAgentSession,
-  getSessionDuration,
 } from './agent-auth';
-
+// SIWE Authentication
+export {
+  consumeNonce,
+  createSiweMessage,
+  generateNonce,
+  getAppUrl,
+  getExpectedDomain,
+  type NonceResponse,
+  type SiweVerifyFailure,
+  type SiweVerifyResult,
+  type SiweVerifySuccess,
+  verifySiweMessage,
+} from './auth';
 // Auth Middleware
 export {
   type AuthenticationError,
+  authErrorResponse,
   authenticate,
   authenticateUser,
   authenticateWithDbUser,
+  getPrivyClient,
+  isAuthenticationError,
   optionalAuth,
   optionalAuthFromHeaders,
-  isAuthenticationError,
-  getPrivyClient,
-  authErrorResponse,
 } from './auth-middleware';
-
-// Re-export auth types from shared
-export type { AuthenticatedUser } from '@babylon/shared';
-export { extractErrorMessage } from '@babylon/shared';
-
-// Admin Middleware
-export { requireAdmin, isUserAdmin } from './admin-middleware';
-
-// Error Handler (Next.js specific)
-export {
-  asyncHandler,
-  errorHandler,
-  errorResponse,
-  successResponse,
-  withErrorHandling,
-  type ErrorHandlerOptions,
-  type RouteContext,
-} from './error-handler';
-
-// Fetch utilities
-export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
-
-// User management utilities
-export {
-  ensureUserForAuth,
-  getCanonicalUserId,
-  findUserByIdentifier,
-  findUserByIdentifierWithSelect,
-  requireUserByIdentifier,
-  type CanonicalUser,
-  type EnsureUserOptions,
-} from './users';
-
-// Redis
-export {
-  redis,
-  getRedis,
-  getRedisClient,
-  isRedisAvailable,
-  safePublish,
-  safePoll,
-  closeRedis,
-  streamAdd,
-  streamRead,
-  type RedisInstance,
-  type StreamMessage,
-} from './redis';
-
 // Cache
 export {
   CACHE_KEYS,
-  DEFAULT_TTLS,
+  type CacheOptions,
+  cachedDb,
   clearAllCache,
+  DEFAULT_TTLS,
   getCache,
   getCacheOrFetch,
   getCacheStats,
@@ -115,96 +83,218 @@ export {
   invalidateCachePattern,
   setCache,
   warmCache,
-  type CacheOptions,
-  cachedDb,
 } from './cache';
-
+// Cron Authentication
+export {
+  cronUnauthorizedResponse,
+  requireCronAuth,
+  verifyCronAuth,
+} from './cron-auth';
+// Development credentials (for local testing)
+export {
+  type DevCredentials,
+  getDevAdminUser,
+  getDevCredentials,
+  isValidAgentSecret,
+  isValidCronSecret,
+  isValidDevAdminToken,
+  logDevCredentials,
+} from './dev-credentials';
+// Error Handler (Next.js specific)
+export {
+  asyncHandler,
+  type ErrorHandlerOptions,
+  errorHandler,
+  errorResponse,
+  type RouteContext,
+  successResponse,
+  withErrorHandling,
+} from './error-handler';
+// Errors
+export {
+  ApiError,
+  AuthenticationError as AuthError,
+  AuthorizationError,
+  BabylonError,
+  BadRequestError,
+  BusinessLogicError,
+  ConflictError,
+  ForbiddenError,
+  InternalServerError,
+  isAuthenticationError as isAuthError,
+  isAuthorizationError,
+  NotFoundError,
+  RateLimitError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+  ValidationError,
+} from './errors';
+// Fetch utilities
+export { type ApiFetchOptions, apiFetch, getPrivyAccessToken } from './fetch';
+// Linear Integration
+export {
+  type CreateIssueInput,
+  createLinearIssue,
+  type FeedbackType,
+  type FeedbackUser,
+  formatFeedbackForLinear,
+  getLinearConfig,
+  type LinearConfig,
+  type LinearFeedbackData,
+  type LinearIssue,
+  syncFeedbackToLinear,
+} from './linear';
+// Monitoring
+export { cronMetrics, recordCronExecution } from './monitoring/cron-metrics';
+export * from './monitoring/monitored-cache';
+export * from './monitoring/monitored-storage';
+// Performance monitoring (moved from @babylon/shared)
+export { performanceMonitor } from './monitoring/performance-monitor';
+// Profile utilities
+export {
+  type BackendSignedUpdateParams,
+  type BackendSignedUpdateResult,
+  checkProfileUpdateRateLimit,
+  getProfileUpdateHistory,
+  isBackendSigningEnabled,
+  logProfileUpdate,
+  type ProfileMetadata,
+  updateProfileBackendSigned,
+  verifyBackendSignedUpdate,
+} from './profile';
+// Query Parameter Utilities
+export {
+  createEnumValidator,
+  MAX_DATE_RANGE_DAYS,
+  parseDateParam,
+  validateDateRange,
+  validateEnum,
+} from './query-params';
 // Rate Limiting
 export {
-  checkDuplicate,
-  cleanupDuplicates,
-  clearAllDuplicates,
-  clearDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
   addRateLimitHeaders,
   applyDuplicateDetection,
   applyRateLimit,
-  checkRateLimitAndDuplicates,
-  duplicateContentError,
-  rateLimitError,
+  checkDuplicate,
   checkRateLimit,
-  cleanupRateLimits,
+  checkRateLimitAndDuplicates,
+  checkRateLimitAsync,
+  cleanupDuplicates,
+  cleanupMemoryRateLimits,
+  clearAllDuplicates,
   clearAllRateLimits,
+  clearDuplicates,
+  DUPLICATE_DETECTION_CONFIGS,
+  duplicateContentError,
+  getDuplicateStats,
   getRateLimitStatus,
   RATE_LIMIT_CONFIGS,
+  rateLimitError,
   resetRateLimit,
 } from './rate-limiting';
-
 // Realtime
 export {
+  generateConnectionId,
+  issueRealtimeToken,
+  publishEvent,
   type RealtimeChannel,
   type RealtimeEventEnvelope,
   type RealtimeTokenPayload,
   signRealtimeToken,
-  verifyRealtimeToken,
-  publishEvent,
   toStreamKey,
-  issueRealtimeToken,
-  generateConnectionId,
+  verifyRealtimeToken,
 } from './realtime';
 export { connections } from './realtime/connection-registry';
 export { drainOutboxBatch, enqueueOutbox } from './realtime/outbox';
-
-// Profile utilities
+// Redis
 export {
-  checkProfileUpdateRateLimit,
-  getProfileUpdateHistory,
-  logProfileUpdate,
-  isBackendSigningEnabled,
-  updateProfileBackendSigned,
-  verifyBackendSignedUpdate,
-  type BackendSignedUpdateParams,
-  type BackendSignedUpdateResult,
-  type ProfileMetadata,
-} from './profile';
-
-// SSE Event Broadcasting
-export {
-  broadcastToChannel,
-  broadcastChatMessage,
-} from './sse/event-broadcaster';
-
+  closeRedis,
+  ensureRedisReady,
+  getRedis,
+  getRedisClient,
+  isRedisAvailable,
+  type RedisInstance,
+  redis,
+  type StreamMessage,
+  safePoll,
+  safePublish,
+  streamAdd,
+  streamRead,
+} from './redis';
 // Services
 export * from './services';
-
+export {
+  type AuthedPrivyUserContext,
+  getAuthedUserContextFromPrivyToken,
+} from './services/privy/authed-user';
+export { sendSponsoredEvmTransaction } from './services/privy/evm-send-transaction';
+// Privy (embedded wallet server-side helpers)
+export {
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
+} from './services/privy/user-wallets';
+// SSE Event Broadcasting
+export {
+  type AgentActivityEvent,
+  broadcastAgentActivity,
+  broadcastChatMessage,
+  broadcastChatTitleUpdate,
+  broadcastThinkingIndicator,
+  broadcastToChannel,
+  broadcastTypingIndicator,
+  type CommentActivityData,
+  type MessageActivityData,
+  type PostActivityData,
+  type TradeActivityData,
+} from './sse/event-broadcaster';
+// Storage utilities (moved from @babylon/shared)
+export {
+  getStorageClient,
+  type UploadOptions,
+  type UploadResult,
+} from './storage/s3-client';
 // Swagger
 export * from './swagger';
-
+// Types
+export type { ErrorLike, JsonValue, StringRecord } from './types';
+// User management utilities
+export {
+  type CanonicalUser,
+  type EnsureUserOptions,
+  ensureUserForAuth,
+  findTargetByIdentifier,
+  findUserByIdentifier,
+  findUserByIdentifierWithSelect,
+  getCanonicalUserId,
+  requireTargetByIdentifier,
+  requireUserByIdentifier,
+  type TargetLookupResult,
+} from './users';
 // Server-side utilities (require Node.js crypto)
 export {
-  generateApiKey,
-  generateTestApiKey,
-  hashApiKey,
-  verifyApiKey,
-  getClientIp,
-  getHashedClientIp,
-  hashIpAddress,
+  budgetTokens,
+  // Cached user API key validation
+  clearApiKeyCache,
   // Token counter utilities (moved from @babylon/shared)
   countTokens,
   countTokensSync,
-  truncateToTokenLimit,
-  truncateToTokenLimitSync,
-  MODEL_TOKEN_LIMITS,
+  // Deployment environment detection
+  type DeploymentEnvironment,
+  generateApiKey,
+  generateTestApiKey,
+  getApiKeyCacheStats,
+  getClientIp,
+  getDeploymentEnvironment,
+  getHashedClientIp,
   getModelTokenLimit,
   getSafeContextLimit,
-  budgetTokens,
+  hashApiKey,
+  hashIpAddress,
+  invalidateCachedKey,
+  invalidateCachedKeysForUser,
+  MODEL_TOKEN_LIMITS,
+  truncateToTokenLimit,
+  truncateToTokenLimitSync,
+  validateUserApiKey,
+  verifyApiKey,
 } from './utils';
-
-// Storage utilities (moved from @babylon/shared)
-export { getStorageClient, type UploadOptions, type UploadResult } from './storage/s3-client';
-
-// Performance monitoring (moved from @babylon/shared)
-export { performanceMonitor } from './monitoring/performance-monitor';
-export * from './monitoring/monitored-storage';
-export * from './monitoring/monitored-cache';

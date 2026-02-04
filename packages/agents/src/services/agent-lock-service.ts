@@ -8,7 +8,7 @@
  * Features:
  * - Per-agent locking (independent locks for each agent)
  * - Database-based locking (works across multiple servers)
- * - Automatic stale lock recovery (15 minutes expiry)
+ * - Automatic stale lock recovery (10 minutes expiry)
  * - Simple acquire/release pattern
  * - No external dependencies (uses Drizzle)
  * - Serverless-safe (uses timestamp + random bytes instead of process.pid)
@@ -29,10 +29,22 @@
  * @packageDocumentation
  */
 
-import { randomBytes } from 'crypto';
 import { DistributedLockService } from '@babylon/api';
+import { randomBytes } from 'crypto';
 
-const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+/**
+ * Lock duration for agent tick operations.
+ *
+ * @remarks
+ * - Default: 10 minutes (600,000ms)
+ * - Configurable via AGENT_LOCK_DURATION_MS environment variable
+ * - If an agent tick fails mid-execution without releasing the lock,
+ *   the lock automatically expires after this duration
+ * - This prevents stuck agents from blocking subsequent ticks indefinitely
+ * - Set below function timeout (13.3 minutes) to ensure proper recovery
+ */
+const LOCK_DURATION_MS =
+  Number(process.env.AGENT_LOCK_DURATION_MS) || 10 * 60 * 1000; // 10 minutes
 
 function getAgentLockId(agentId: string): string {
   return `agent-tick-${agentId}`;
@@ -66,4 +78,3 @@ export async function checkAgentLock(agentId: string) {
   const lockId = getAgentLockId(agentId);
   return DistributedLockService.checkLock(lockId);
 }
-

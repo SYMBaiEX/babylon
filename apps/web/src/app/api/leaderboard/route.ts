@@ -2,12 +2,13 @@
  * Points Leaderboard API
  *
  * @description
- * Returns platform-wide leaderboard ranking users by reputation points,
- * earned points, or referral points. Provides paginated results with
- * comprehensive user statistics and rankings.
+ * Returns platform-wide leaderboard ranking users by total points,
+ * reputation, earned points, or referral points. Provides paginated results
+ * with comprehensive user statistics and rankings.
  *
  * **Leaderboard Types:**
- * - **all:** Total reputation points (default)
+ * - **total:** Portfolio value: wallet + positions (default)
+ * - **all:** Total reputation points
  * - **earned:** Points earned through activity
  * - **referral:** Points earned from referrals
  *
@@ -30,7 +31,7 @@
  *     tags:
  *       - Leaderboard
  *     summary: Get points leaderboard
- *     description: Returns paginated leaderboard ranking users by reputation points
+ *     description: Returns paginated leaderboard ranking users by total points (default), reputation, earned, or referral points
  *     parameters:
  *       - in: query
  *         name: page
@@ -58,8 +59,8 @@
  *         name: pointsType
  *         schema:
  *           type: string
- *           enum: [all, earned, referral]
- *           default: all
+ *           enum: [total, all, earned, referral]
+ *           default: total
  *         description: Points category to rank by
  *     responses:
  *       200:
@@ -121,11 +122,35 @@
  * @see {@link /src/app/leaderboard/page.tsx} Leaderboard UI
  */
 
+import {
+  getCache,
+  PointsService,
+  setCache,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { LeaderboardQuerySchema, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { PointsService } from '@babylon/api';
-import { LeaderboardQuerySchema } from '@babylon/shared';
+
+const CACHE_KEY_NAMESPACE = 'leaderboard';
+// Cache for 2 minutes - balances freshness with performance
+const CACHE_TTL_MS = Number(process.env.LEADERBOARD_CACHE_MS) || 120_000;
+const CACHE_TTL_SECONDS = Math.floor(CACHE_TTL_MS / 1000);
+const STALE_SECONDS = CACHE_TTL_SECONDS * 3;
+
+interface LeaderboardResponse {
+  leaderboard: Awaited<
+    ReturnType<typeof PointsService.getLeaderboard>
+  >['users'];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  minPoints: number;
+  pointsCategory: string;
+}
 
 /**
  * GET /api/leaderboard
@@ -149,7 +174,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const { page, pageSize, minPoints, pointsType } = validationResult.data;
 
-  const pointsCategory = (pointsType ?? 'all') as 'all' | 'earned' | 'referral';
+  const pointsCategory = (pointsType ?? 'total') as
+    | 'all'
+    | 'earned'
+    | 'referral'
+    | 'total';
+
+  // Cache key includes all query parameters
+  const cacheKey = `${pointsCategory}-${page}-${pageSize}-${minPoints}`;
+
+  // Check cache first
+  if (CACHE_TTL_MS > 0) {
+    const cached = await getCache<LeaderboardResponse>(cacheKey, {
+      namespace: CACHE_KEY_NAMESPACE,
+    });
+    if (cached) {
+      return successResponse(cached, 200, {
+        'x-cache': 'leaderboard-hit',
+        'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+        Vary: 'Accept-Encoding',
+      });
+    }
+  }
 
   const leaderboard = await PointsService.getLeaderboard(
     page,
@@ -170,7 +216,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/leaderboard'
   );
 
-  return successResponse({
+  const responseBody: LeaderboardResponse = {
     leaderboard: leaderboard.users,
     pagination: {
       page: leaderboard.page,
@@ -180,5 +226,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
     minPoints: pointsCategory === 'all' ? minPoints : 0,
     pointsCategory: leaderboard.pointsCategory,
+  };
+
+  // Store in cache
+  if (CACHE_TTL_MS > 0) {
+    await setCache(cacheKey, responseBody, {
+      namespace: CACHE_KEY_NAMESPACE,
+      ttl: CACHE_TTL_SECONDS,
+    });
+  }
+
+  return successResponse(responseBody, 200, {
+    'x-cache': 'leaderboard-miss',
+    'Cache-Control': `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${STALE_SECONDS}`,
+    Vary: 'Accept-Encoding',
   });
 });

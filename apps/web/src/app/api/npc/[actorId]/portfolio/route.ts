@@ -50,10 +50,10 @@
  * ```
  */
 
-import { NextResponse } from 'next/server';
+import { requireUserByIdentifier } from '@babylon/api';
 import { db } from '@babylon/db';
 import { NPCInvestmentManager } from '@babylon/engine';
-import { requireUserByIdentifier } from '@babylon/api';
+import { NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{
@@ -73,11 +73,18 @@ export async function GET(_request: Request, { params }: RouteParams) {
     },
   });
 
-  const metrics = await NPCInvestmentManager.getPortfolioMetrics(pool!.id);
+  if (!pool) {
+    return NextResponse.json(
+      { error: 'No active pool found for actor' },
+      { status: 404 }
+    );
+  }
+
+  const metrics = await NPCInvestmentManager.getPortfolioMetrics(pool.id);
 
   const positions = await db.poolPosition.findMany({
     where: {
-      poolId: pool!.id,
+      poolId: pool.id,
       closedAt: null,
     },
     select: {
@@ -116,7 +123,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     success: true,
     actorId: actor.id,
     actorName: actor.displayName!,
-    poolId: pool!.id,
+    poolId: pool.id,
     portfolio: {
       totalValue: metrics.totalValue,
       availableBalance: metrics.availableBalance,

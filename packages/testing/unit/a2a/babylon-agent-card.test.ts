@@ -31,7 +31,7 @@ describe('Babylon Agent Card', () => {
   describe('Provider Information', () => {
     it('should have Babylon as provider', () => {
       expect(babylonAgentCard.provider?.organization).toBe('Babylon');
-      expect(babylonAgentCard.provider?.url).toBe('https://babylon.game');
+      expect(babylonAgentCard.provider?.url).toBe('https://babylon.market');
     });
   });
 
@@ -171,4 +171,3 @@ describe('Babylon Agent Card', () => {
     });
   });
 });
-

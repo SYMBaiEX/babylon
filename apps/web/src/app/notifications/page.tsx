@@ -1,6 +1,8 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import { Bell } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -11,7 +13,17 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator';
 import { useAuth } from '@/hooks/useAuth';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { cn } from '@babylon/shared';
+
+const WidgetSidebar = dynamic(
+  () =>
+    import('@/components/shared/WidgetSidebar').then((m) => ({
+      default: m.WidgetSidebar,
+    })),
+  {
+    ssr: false,
+    loading: () => <div className="hidden w-96 flex-none xl:block" />,
+  }
+);
 
 interface Notification {
   id: string;
@@ -43,12 +55,19 @@ interface GroupInvite {
 }
 
 export default function NotificationsPage() {
-  const { authenticated, user, getAccessToken } = useAuth();
+  const { authenticated, user, getAccessToken, login } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [groupInvites, setGroupInvites] = useState<GroupInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (authenticated) return;
+    router.push('/feed');
+    const timer = setTimeout(() => login(), 500);
+    return () => clearTimeout(timer);
+  }, [authenticated, router, login]);
 
   const fetchNotifications = useCallback(
     async (showLoading = true, silent = false) => {
@@ -341,190 +360,169 @@ export default function NotificationsPage() {
   };
 
   if (!authenticated) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="sticky top-0 z-10 border-border border-b bg-background">
-          <div className="px-4 py-3">
-            <h1 className="font-bold text-xl">Notifications</h1>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">
-            Please sign in to view notifications
-          </p>
-          <Link
-            href="/feed"
-            className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"
-          >
-            Go to Feed
-          </Link>
-        </div>
-      </PageContainer>
-    );
+    return null;
   }
 
   return (
-    <PageContainer noPadding className="flex flex-col">
-      {/* Header */}
-      <div className="sticky top-0 z-10 border-border border-b bg-background/95 backdrop-blur-sm">
-        <div className="px-4 py-3">
-          <h1 className="font-bold text-xl">Notifications</h1>
-          {unreadCount > 0 && (
-            <p className="text-muted-foreground text-sm">
-              {unreadCount} unread
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div ref={containerRef} className="relative flex-1 overflow-y-auto">
-        {/* Pull to refresh indicator */}
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          isRefreshing={isRefreshing}
-        />
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="text-muted-foreground">
-              Loading notifications...
+    <PageContainer noPadding className="flex w-full flex-col">
+      <div ref={containerRef} className="relative flex flex-1">
+        {/* Notifications area */}
+        <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
+          {/* Header */}
+          <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
+            <div className="w-full px-4 py-3 lg:mx-auto lg:max-w-[700px] lg:px-6">
+              <h1 className="font-bold text-xl">Notifications</h1>
+              {unreadCount > 0 && (
+                <p className="text-muted-foreground text-sm">
+                  {unreadCount} unread
+                </p>
+              )}
             </div>
           </div>
-        ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Bell className="mb-4 h-16 w-16 text-muted-foreground opacity-50" />
-            <h2 className="mb-2 font-semibold text-xl">No notifications yet</h2>
-            <p className="px-4 text-center text-muted-foreground">
-              When you get comments, reactions, follows, or mentions,
-              they&apos;ll show up here.
-            </p>
-          </div>
-        ) : (
-          <div className="mx-auto max-w-feed space-y-4">
-            {/* Group Invites Section */}
-            {groupInvites.length > 0 && (
-              <div className="space-y-3 px-4">
-                <h3 className="font-semibold text-muted-foreground text-sm">
-                  Pending Group Invites
-                </h3>
-                {groupInvites.map((invite) => (
-                  <GroupInviteCard
-                    key={invite.inviteId}
-                    inviteId={invite.inviteId}
-                    groupId={invite.groupId}
-                    groupName={invite.groupName}
-                    groupDescription={invite.groupDescription}
-                    memberCount={invite.memberCount}
-                    invitedAt={invite.invitedAt}
-                    onAccepted={(_groupId, chatId) => {
-                      // Refresh invites list
-                      fetchNotifications(false, true);
-                      toast.success('Joined group!');
-                      // Navigate to chat if available
-                      if (chatId) {
-                        router.push(`/chats?chat=${chatId}`);
-                      }
-                    }}
-                    onDeclined={() => {
-                      // Refresh invites list
-                      fetchNotifications(false, true);
-                      toast.success('Invite declined');
-                    }}
-                  />
-                ))}
-              </div>
-            )}
 
-            {/* Regular Notifications */}
-            {notifications.map((notification) => (
-              <Link
-                key={notification.id}
-                href={getNotificationLink(notification)}
-                onClick={() => markAsRead(notification.id, notification.read)}
-                data-notification-id={notification.id}
-                className={cn(
-                  'block border-border border-b px-4 py-4',
-                  'transition-colors hover:bg-muted/30',
-                  !notification.read && 'bg-primary/5'
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Unread Indicator - moved to left */}
-                  {!notification.read && (
-                    <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                  )}
-
-                  {/* Actor Avatar */}
-                  {notification.actor ? (
-                    <Avatar
-                      id={notification.actor.id}
-                      name={notification.actor.displayName}
-                      size="md"
-                      className="shrink-0"
-                    />
-                  ) : (
-                    <div
-                      className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
-                        notification.type === 'system'
-                          ? 'bg-primary/10'
-                          : 'bg-muted'
-                      )}
-                    >
-                      {notification.type === 'system' ? (
-                        <span className="text-xl">
-                          {getNotificationIcon(notification.type)}
-                        </span>
-                      ) : (
-                        <Bell className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Content */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        {notification.type === 'system' ? (
-                          <p className="text-foreground leading-relaxed">
-                            {notification.message}
-                          </p>
-                        ) : (
-                          <p className="text-foreground leading-relaxed">
-                            {notification.type !== 'system' ? (
-                              <>
-                                <span className="font-semibold">
-                                  {notification.actor?.displayName || 'Someone'}
-                                </span>{' '}
-                                <span className="text-muted-foreground">
-                                  {getNotificationIcon(notification.type)}{' '}
-                                  {notification.message
-                                    .replace(
-                                      notification.actor?.displayName || '',
-                                      ''
-                                    )
-                                    .replace(/^:\s*/, '')}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground">
-                                {getNotificationIcon(notification.type)}{' '}
-                                {notification.message}
-                              </span>
-                            )}
-                          </p>
-                        )}
-                        <time className="mt-1 block text-muted-foreground text-sm">
-                          {formatTimeAgo(notification.createdAt)}
-                        </time>
-                      </div>
-                    </div>
+          {/* Content */}
+          <div className="flex-1 bg-background">
+            <div className="w-full lg:mx-auto lg:max-w-[700px]">
+              <PullToRefreshIndicator
+                pullDistance={pullDistance}
+                isRefreshing={isRefreshing}
+              />
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="text-muted-foreground">
+                    Loading notifications...
                   </div>
                 </div>
-              </Link>
-            ))}
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Bell className="mb-4 h-12 w-12 text-muted-foreground opacity-50" />
+                  <h2 className="mb-2 font-semibold text-xl">
+                    No notifications yet
+                  </h2>
+                  <p className="px-4 text-center text-muted-foreground">
+                    When you get comments, reactions, follows, or mentions,
+                    they&apos;ll show up here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {/* Group Invites Section */}
+                  {groupInvites.length > 0 && (
+                    <div className="space-y-3 px-4 py-4 lg:px-6">
+                      <h3 className="font-semibold text-muted-foreground text-sm">
+                        Pending Group Invites
+                      </h3>
+                      {groupInvites.map((invite) => (
+                        <GroupInviteCard
+                          key={invite.inviteId}
+                          inviteId={invite.inviteId}
+                          groupId={invite.groupId}
+                          groupName={invite.groupName}
+                          groupDescription={invite.groupDescription}
+                          memberCount={invite.memberCount}
+                          invitedAt={invite.invitedAt}
+                          onAccepted={(_groupId, chatId) => {
+                            fetchNotifications(false, true);
+                            toast.success('Joined group!');
+                            if (chatId) {
+                              router.push(`/chats?chat=${chatId}`);
+                            }
+                          }}
+                          onDeclined={() => {
+                            fetchNotifications(false, true);
+                            toast.success('Invite declined');
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Regular Notifications */}
+                  {notifications.map((notification) => (
+                    <Link
+                      key={notification.id}
+                      href={getNotificationLink(notification)}
+                      onClick={() =>
+                        markAsRead(notification.id, notification.read)
+                      }
+                      data-notification-id={notification.id}
+                      className={cn(
+                        'block border-border border-b px-4 py-4 lg:px-6',
+                        'transition-colors hover:bg-muted/30',
+                        !notification.read && 'bg-primary/5'
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Unread Indicator */}
+                        {!notification.read && (
+                          <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        )}
+
+                        {/* Actor Avatar */}
+                        {notification.actor ? (
+                          <Avatar
+                            id={notification.actor.id}
+                            name={notification.actor.displayName}
+                            size="md"
+                            className="shrink-0"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                            {notification.type === 'system' ? (
+                              <span className="text-xl">
+                                {getNotificationIcon(notification.type)}
+                              </span>
+                            ) : (
+                              <Bell className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              {notification.type === 'system' ? (
+                                <p className="text-foreground leading-relaxed">
+                                  {notification.message}{' '}
+                                  <time className="text-muted-foreground/70 text-xs">
+                                    {formatTimeAgo(notification.createdAt)}
+                                  </time>
+                                </p>
+                              ) : (
+                                <p className="text-foreground leading-relaxed">
+                                  <span className="font-semibold">
+                                    {notification.actor?.displayName ||
+                                      'Someone'}
+                                  </span>{' '}
+                                  <span className="text-muted-foreground">
+                                    {getNotificationIcon(notification.type)}{' '}
+                                    {notification.message
+                                      .replace(
+                                        notification.actor?.displayName || '',
+                                        ''
+                                      )
+                                      .replace(/^:\s*/, '')}
+                                  </span>{' '}
+                                  <time className="text-muted-foreground/70 text-xs">
+                                    {formatTimeAgo(notification.createdAt)}
+                                  </time>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Widget sidebar - lazy loaded, desktop only */}
+        <WidgetSidebar />
       </div>
     </PageContainer>
   );

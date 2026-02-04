@@ -89,31 +89,43 @@
  *
  */
 
-import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
-import { trackServerEvent } from '@/lib/posthog/server';
 import {
+  AuthorizationError,
+  authenticate,
+  BusinessLogicError,
+  broadcastChatMessage,
   checkRateLimitAndDuplicates,
   DUPLICATE_DETECTION_CONFIGS,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import {
-  GroupChatService,
-  type SweepDecision,
-  MessageQualityChecker,
-} from '@babylon/engine';
-import {
+  NFTVerificationService,
   notifyDMMessage,
   notifyGroupChatMessage,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
 } from '@babylon/api';
-import { generateSnowflakeId } from '@babylon/shared';
-import { broadcastChatMessage } from '@babylon/api';
-import { ChatMessageCreateSchema } from '@babylon/shared';
+import { requireNftChatAccess } from '@babylon/api/services/nft-chat-gating-service';
+import {
+  and,
+  asUser,
+  chatParticipants,
+  db,
+  eq,
+  groupMembers,
+  hasBlocked,
+  users,
+} from '@babylon/db';
+import {
+  GroupChatService,
+  MessageQualityChecker,
+  type SweepDecision,
+} from '@babylon/engine';
+import {
+  ChatMessageCreateSchema,
+  generateSnowflakeId,
+  logger,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/chats/[id]/message
@@ -320,6 +332,78 @@ export const POST = withErrorHandling(
             'write'
           );
         }
+
+        await requireNftChatAccess(user, chatId);
+
+        // Verify NFT ownership for NFT-gated chats (cached)
+        if (chat.nftGated && chat.requiredNftContractAddress) {
+          const [userData] = await db
+            .select({ walletAddress: users.walletAddress })
+            .from(users)
+            .where(eq(users.id, user.userId))
+            .limit(1);
+
+          const verification = await NFTVerificationService.verifyChatAccess(
+            userData?.walletAddress ?? null,
+            chat.requiredNftContractAddress,
+            chat.requiredNftTokenId ?? null,
+            chat.requiredNftChainId ?? undefined
+          );
+
+          if (!verification.canAccess) {
+            // Remove user from chat since they no longer have NFT access
+            // Wrap in transaction for consistency
+            await db.transaction(async (tx) => {
+              if (chat.groupId) {
+                await tx
+                  .update(groupMembers)
+                  .set({
+                    isActive: false,
+                    kickedAt: new Date(),
+                    kickReason: 'Lost NFT access',
+                  })
+                  .where(
+                    and(
+                      eq(groupMembers.groupId, chat.groupId),
+                      eq(groupMembers.userId, user.userId),
+                      eq(groupMembers.isActive, true)
+                    )
+                  );
+              }
+
+              await tx
+                .delete(chatParticipants)
+                .where(
+                  and(
+                    eq(chatParticipants.chatId, chatId),
+                    eq(chatParticipants.userId, user.userId)
+                  )
+                );
+            });
+
+            // Invalidate NFT cache for this user/contract combination
+            if (userData?.walletAddress && chat.requiredNftContractAddress) {
+              await NFTVerificationService.invalidateOwnershipCache(
+                userData.walletAddress,
+                chat.requiredNftContractAddress,
+                chat.requiredNftChainId ?? undefined
+              ).catch((error) => {
+                logger.warn(
+                  'Failed to invalidate NFT cache after removal',
+                  { error, chatId, userId: user.userId },
+                  'POST /api/chats/[id]/message'
+                );
+              });
+            }
+
+            throw new AuthorizationError(
+              verification.reason ||
+                'You must own the required NFT to send messages in this chat. You have been removed from this chat.',
+              'chat',
+              'write'
+            );
+          }
+        }
       }
     }
 
@@ -386,14 +470,18 @@ export const POST = withErrorHandling(
           );
 
           // 9. Get updated membership stats
-          const mem = await db.groupChatMembership.findFirst({
-            where: {
-              AND: [
-                { userId: { equals: user.userId } },
-                { chatId: { equals: chatId } },
-              ],
-            },
+          const chatForGroup = await db.chat.findUnique({
+            where: { id: chatId },
+            select: { groupId: true },
           });
+          const mem = chatForGroup?.groupId
+            ? await db.groupMember.findFirst({
+                where: {
+                  groupId: chatForGroup.groupId,
+                  userId: user.userId,
+                },
+              })
+            : null;
           return { message: msg, membership: mem };
         }
 
@@ -410,6 +498,7 @@ export const POST = withErrorHandling(
       content: message.content,
       chatId: message.chatId,
       senderId: message.senderId,
+      type: message.type ?? 'user',
       createdAt: message.createdAt.toISOString(),
       isGameChat,
       isDMChat,

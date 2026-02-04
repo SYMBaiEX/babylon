@@ -8,7 +8,7 @@
  *   a2a      - Run A2A protocol stress tests
  */
 
-import { parseArgs, wantsHelp, getOption } from '../lib/args.js';
+import { getOption, parseArgs, wantsHelp } from '../lib/args.js';
 import { logger } from '../lib/logger.js';
 
 function printHelp(): void {
@@ -53,7 +53,9 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log(`Base URL: ${baseUrl}\n`);
 
   // Import dynamically to avoid loading testing infrastructure if not needed
-  const { LoadTestSimulator, TEST_SCENARIOS } = await import('@babylon/testing');
+  const { LoadTestSimulator, TEST_SCENARIOS } = await import(
+    '@babylon/testing'
+  );
 
   const scenarioKey = scenario.toUpperCase() as keyof typeof TEST_SCENARIOS;
   const config = TEST_SCENARIOS[scenarioKey];
@@ -63,14 +65,8 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log(`Ramp-up: ${config.rampUpSeconds || 0}s\n`);
 
   // Check server
-  try {
-    const response = await fetch(`${baseUrl}/api/stats`);
-    console.log(`✅ Server responding (status: ${response.status})\n`);
-  } catch {
-    logger.fail('Could not connect to server');
-    console.log(`Make sure the server is running at ${baseUrl}`);
-    process.exit(1);
-  }
+  const response = await fetch(`${baseUrl}/api/stats`);
+  console.log(`✅ Server responding (status: ${response.status})\n`);
 
   // Enable query monitoring
   process.env.ENABLE_QUERY_MONITORING = 'true';
@@ -91,15 +87,21 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   console.log('═══════════════════════════════════════\n');
 
   console.log(`Total Requests:      ${result.totalRequests.toLocaleString()}`);
-  console.log(`Successful:          ${result.successfulRequests.toLocaleString()} (${(result.throughput.successRate * 100).toFixed(2)}%)`);
+  console.log(
+    `Successful:          ${result.successfulRequests.toLocaleString()} (${(result.throughput.successRate * 100).toFixed(2)}%)`
+  );
   console.log(`Failed:              ${result.failedRequests.toLocaleString()}`);
   console.log(`Duration:            ${(result.durationMs / 1000).toFixed(2)}s`);
-  console.log(`Throughput:          ${result.throughput.requestsPerSecond.toFixed(2)} req/s`);
+  console.log(
+    `Throughput:          ${result.throughput.requestsPerSecond.toFixed(2)} req/s`
+  );
 
   console.log('\nResponse Times:');
   console.log(`  Min:               ${result.responseTime.min.toFixed(2)}ms`);
   console.log(`  Mean:              ${result.responseTime.mean.toFixed(2)}ms`);
-  console.log(`  Median:            ${result.responseTime.median.toFixed(2)}ms`);
+  console.log(
+    `  Median:            ${result.responseTime.median.toFixed(2)}ms`
+  );
   console.log(`  95th Percentile:   ${result.responseTime.p95.toFixed(2)}ms`);
   console.log(`  99th Percentile:   ${result.responseTime.p99.toFixed(2)}ms`);
   console.log(`  Max:               ${result.responseTime.max.toFixed(2)}ms`);
@@ -123,11 +125,19 @@ async function runLoadTest(args: ReturnType<typeof parseArgs>): Promise<void> {
   }
 }
 
-async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<void> {
+async function runA2AStressTest(
+  args: ReturnType<typeof parseArgs>
+): Promise<void> {
   const scenario = getOption(args, 'scenario') || 'normal';
   const baseUrl = getOption(args, 'url') || 'http://localhost:3000';
 
-  const validScenarios = ['light', 'normal', 'heavy', 'rate-limit', 'coalition'];
+  const validScenarios = [
+    'light',
+    'normal',
+    'heavy',
+    'rate-limit',
+    'coalition',
+  ];
   if (!validScenarios.includes(scenario)) {
     logger.fail(`Invalid scenario: ${scenario}`);
     console.log(`Valid scenarios: ${validScenarios.join(', ')}`);
@@ -139,9 +149,13 @@ async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<voi
   console.log(`Base URL: ${baseUrl}\n`);
 
   // Import dynamically
-  const { LoadTestSimulator, A2A_TEST_SCENARIOS } = await import('@babylon/testing');
+  const { LoadTestSimulator, A2A_TEST_SCENARIOS } = await import(
+    '@babylon/testing'
+  );
 
-  const scenarioKey = scenario.toUpperCase().replace('-', '_') as keyof typeof A2A_TEST_SCENARIOS;
+  const scenarioKey = scenario
+    .toUpperCase()
+    .replace('-', '_') as keyof typeof A2A_TEST_SCENARIOS;
   const config = A2A_TEST_SCENARIOS[scenarioKey];
 
   console.log(`Concurrent Agents: ${config.concurrentUsers}`);
@@ -149,20 +163,14 @@ async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<voi
   console.log(`Max RPS: ${config.maxRps || 'unlimited'}\n`);
 
   // Check A2A endpoint
-  try {
-    const response = await fetch(`${baseUrl}/api/a2a`);
-    const data = await response.json();
-    
-    if (data.service !== 'Babylon A2A Protocol') {
-      logger.fail('A2A endpoint not responding correctly');
-      process.exit(1);
-    }
-    console.log(`✅ A2A endpoint active (version: ${data.version})\n`);
-  } catch {
-    logger.fail('Could not connect to A2A endpoint');
-    console.log(`Make sure the server is running at ${baseUrl}`);
+  const response = await fetch(`${baseUrl}/api/a2a`);
+  const data = await response.json();
+
+  if (data.service !== 'Babylon A2A Protocol') {
+    logger.fail('A2A endpoint not responding correctly');
     process.exit(1);
   }
+  console.log(`✅ A2A endpoint active (version: ${data.version})\n`);
 
   // Run test
   const simulator = new LoadTestSimulator(baseUrl);
@@ -180,9 +188,13 @@ async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<voi
   console.log('═══════════════════════════════════════\n');
 
   console.log(`Total Requests:      ${result.totalRequests.toLocaleString()}`);
-  console.log(`Successful:          ${result.successfulRequests.toLocaleString()} (${(result.throughput.successRate * 100).toFixed(2)}%)`);
+  console.log(
+    `Successful:          ${result.successfulRequests.toLocaleString()} (${(result.throughput.successRate * 100).toFixed(2)}%)`
+  );
   console.log(`Failed:              ${result.failedRequests.toLocaleString()}`);
-  console.log(`Throughput:          ${result.throughput.requestsPerSecond.toFixed(2)} req/s`);
+  console.log(
+    `Throughput:          ${result.throughput.requestsPerSecond.toFixed(2)} req/s`
+  );
 
   console.log('\nResponse Times:');
   console.log(`  Mean:              ${result.responseTime.mean.toFixed(2)}ms`);
@@ -192,9 +204,13 @@ async function runA2AStressTest(args: ReturnType<typeof parseArgs>): Promise<voi
   // Rate limiting analysis
   type LoadTestError = { endpoint: string; error: string; count: number };
   const rateLimitErrors = result.errors.filter(
-    (e: LoadTestError) => e.error.includes('429') || e.error.toLowerCase().includes('rate limit')
+    (e: LoadTestError) =>
+      e.error.includes('429') || e.error.toLowerCase().includes('rate limit')
   );
-  const totalRateLimitErrors = rateLimitErrors.reduce((sum: number, e: LoadTestError) => sum + e.count, 0);
+  const totalRateLimitErrors = rateLimitErrors.reduce(
+    (sum: number, e: LoadTestError) => sum + e.count,
+    0
+  );
 
   console.log('\nRate Limiting:');
   console.log(`  Rate Limit Errors: ${totalRateLimitErrors.toLocaleString()}`);
@@ -221,28 +237,20 @@ export async function runTestCommand(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  try {
-    switch (parsed.command) {
-      case 'load':
-        await runLoadTest(parsed);
-        break;
+  switch (parsed.command) {
+    case 'load':
+      await runLoadTest(parsed);
+      break;
 
-      case 'a2a':
-        await runA2AStressTest(parsed);
-        break;
+    case 'a2a':
+      await runA2AStressTest(parsed);
+      break;
 
-      default:
-        if (parsed.command) {
-          logger.fail(`Unknown command: ${parsed.command}`);
-        }
-        printHelp();
-        process.exit(parsed.command ? 1 : 0);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.fail(error.message);
-    }
-    process.exit(1);
+    default:
+      if (parsed.command) {
+        logger.fail(`Unknown command: ${parsed.command}`);
+      }
+      printHelp();
+      process.exit(parsed.command ? 1 : 0);
   }
 }
-

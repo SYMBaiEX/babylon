@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 /**
  * Tailwind CSS configuration for Babylon Documentation
@@ -137,13 +137,13 @@ const config: Config = {
 
       // Typography sizing for readability
       fontSize: {
-        'xxs': ['0.625rem', { lineHeight: '0.875rem' }],
+        xxs: ['0.625rem', { lineHeight: '0.875rem' }],
       },
 
       // Max widths for content containment
       maxWidth: {
-        'prose': '75ch',
-        'content': '90rem',
+        prose: '75ch',
+        content: '90rem',
       },
 
       // Animations for smooth interactions
@@ -199,7 +199,7 @@ const config: Config = {
 
       // Box shadows for depth
       boxShadow: {
-        'soft': '0 2px 8px -2px rgba(0, 0, 0, 0.1)',
+        soft: '0 2px 8px -2px rgba(0, 0, 0, 0.1)',
         'soft-lg': '0 4px 16px -4px rgba(0, 0, 0, 0.15)',
         'inner-soft': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)',
       },
@@ -214,6 +214,6 @@ const config: Config = {
   plugins: [
     // Animation utilities are configured in postcss.config.mjs for Tailwind v4
   ],
-}
+};
 
-export default config
+export default config;

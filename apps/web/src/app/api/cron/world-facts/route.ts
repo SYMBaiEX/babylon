@@ -5,9 +5,14 @@
  * @access Cron (CRON_SECRET required)
  *
  * @description
- * Scheduled cron job that fetches RSS feeds, generates parody headlines, and
- * cleans up old headlines. Runs periodically (e.g., every 6 hours). Max execution
- * time: 300s.
+ * Scheduled cron job that:
+ * 1. Fetches RSS feeds from external news sources
+ * 2. Generates parody headlines from real news
+ * 3. Cleans up old headlines
+ * 4. Generates new world facts from game activity (events, markets, questions, actors)
+ *
+ * Runs twice daily (6 AM and 6 PM UTC) to keep the world context fresh and prevent
+ * content repetition across the game. Max execution time: 300s.
  *
  * @openapi
  * /api/cron/world-facts:
@@ -47,111 +52,100 @@
  * @see {@link /lib/services/parody-headline-generator} Parody headline generator
  */
 
-import type { NextRequest } from 'next/server';
-import { AuthorizationError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
+import {
+  requireCronAuth,
+  successResponse,
+  verifyCronAuth,
+  withErrorHandling,
+} from '@babylon/api';
+import type { ParodyHeadline } from '@babylon/db';
+import {
+  createParodyHeadlineGenerator,
+  rssFeedService,
+  worldFactsGenerator,
+} from '@babylon/engine';
 import { logger } from '@babylon/shared';
-import { createParodyHeadlineGenerator } from '@babylon/engine';
-import { rssFeedService } from '@babylon/engine';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Vercel function configuration
 export const maxDuration = 300; // 5 minutes max
 
-// Verify this is a legitimate cron request
-function verifyCronRequest(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // In development, allow without secret for easy testing
-  if (process.env.NODE_ENV === 'development') {
-    if (!cronSecret) {
-      logger.info(
-        'Development mode - allowing cron without CRON_SECRET',
-        undefined,
-        'Cron'
-      );
-      return true;
-    }
-    // If secret is set in dev, check it (but also allow 'development' keyword)
-    if (
-      authHeader === 'Bearer development' ||
-      authHeader === `Bearer ${cronSecret}`
-    ) {
-      return true;
-    }
-  }
-
-  // If CRON_SECRET is not configured, allow but warn (fail-open for missing config)
-  if (!cronSecret) {
-    logger.warn(
-      '⚠️  CRON_SECRET not configured! Cron endpoint is accessible without authentication. ' +
-        'Set CRON_SECRET environment variable in production for security.',
-      {
-        environment: process.env.NODE_ENV,
-        hasAuthHeader: !!authHeader,
-      },
-      'Cron'
-    );
-    return true; // Allow execution but warn
-  }
-
-  // If CRON_SECRET is set, verify it matches (fail-closed for wrong credentials)
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    logger.error(
-      'CRON authentication failed - invalid secret provided',
-      { hasAuthHeader: !!authHeader },
-      'Cron'
-    );
-    return false;
-  }
-
-  return true;
-}
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Verify this is a legitimate cron request
-  if (!verifyCronRequest(request)) {
-    logger.warn('Unauthorized cron request attempt', undefined, 'Cron');
-    throw new AuthorizationError(
-      'Unauthorized cron request',
-      'cron',
-      'execute'
-    );
-  }
+  // Security: Verify cron authorization (fail-closed in production)
+  requireCronAuth(request, { jobName: 'WorldFactsCron' });
 
   const startTime = Date.now();
   logger.info('🌍 World facts update started', undefined, 'Cron');
 
   // Step 1: Fetch all RSS feeds
-  logger.info('Fetching RSS feeds...', undefined, 'Cron');
-  const feedResult = await rssFeedService.fetchAllFeeds();
-  logger.info(
-    `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
-    feedResult,
-    'Cron'
-  );
+  let feedResult = { fetched: 0, stored: 0, errors: 0 };
+  try {
+    logger.info('Fetching RSS feeds...', undefined, 'Cron');
+    feedResult = await rssFeedService.fetchAllFeeds();
+    logger.info(
+      `RSS feeds fetched: ${feedResult.fetched} sources, ${feedResult.stored} new headlines, ${feedResult.errors} errors`,
+      feedResult,
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error fetching RSS feeds', { error }, 'Cron');
+  }
 
   // Step 2: Transform untransformed headlines into parodies
-  logger.info('Generating parody headlines...', undefined, 'Cron');
-  const untransformedHeadlines =
-    await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
+  let parodies: ParodyHeadline[] = [];
+  try {
+    logger.info('Generating parody headlines...', undefined, 'Cron');
+    const untransformedHeadlines =
+      await rssFeedService.getUntransformedHeadlines(20); // Process 20 at a time
 
-  const generator = createParodyHeadlineGenerator();
-  const parodies = await generator.processHeadlines(untransformedHeadlines);
-  logger.info(
-    `Generated ${parodies.length} parody headlines`,
-    { count: parodies.length },
-    'Cron'
-  );
+    const generator = createParodyHeadlineGenerator();
+    parodies = await generator.processHeadlines(untransformedHeadlines);
+    logger.info(
+      `Generated ${parodies.length} parody headlines`,
+      { count: parodies.length },
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error generating parody headlines', { error }, 'Cron');
+  }
 
   // Step 3: Clean up old headlines (older than 7 days)
-  logger.info('Cleaning up old headlines...', undefined, 'Cron');
-  const cleaned = await rssFeedService.cleanupOldHeadlines();
+  let cleaned = 0;
+  try {
+    logger.info('Cleaning up old headlines...', undefined, 'Cron');
+    cleaned = await rssFeedService.cleanupOldHeadlines();
+    logger.info(
+      `Cleaned up ${cleaned} old headlines`,
+      { count: cleaned },
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error cleaning up old headlines', { error }, 'Cron');
+  }
+
+  // Step 4: Generate new world facts from game activity
+  // This creates fresh context based on events, markets, questions, and actor activity
   logger.info(
-    `Cleaned up ${cleaned} old headlines`,
-    { count: cleaned },
+    'Generating new world facts from game activity...',
+    undefined,
     'Cron'
   );
+  let factsResult = {
+    generated: 0,
+    archived: 0,
+    sources: { events: 0, markets: 0, questions: 0, actors: 0 },
+  };
+  try {
+    factsResult = await worldFactsGenerator.generateNewWorldFacts();
+    logger.info(
+      `Generated ${factsResult.generated} new world facts, archived ${factsResult.archived}`,
+      factsResult,
+      'Cron'
+    );
+  } catch (error) {
+    logger.error('Error generating world facts', { error }, 'Cron');
+  }
 
   const duration = Date.now() - startTime;
   logger.info(
@@ -162,6 +156,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
     },
     'Cron'
   );
@@ -174,47 +170,33 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       newHeadlines: feedResult.stored,
       parodiesGenerated: parodies.length,
       headlinesCleaned: cleaned,
+      worldFactsGenerated: factsResult.generated,
+      worldFactsArchived: factsResult.archived,
+      worldFactsSources: factsResult.sources,
     },
   });
 });
 
 // GET endpoint for Vercel Cron (some cron services use GET)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Allow Vercel Cron requests (identified by user-agent or special headers)
-  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
-  const isVercelCron = userAgent.includes('vercel-cron');
-  const hasVercelHeader = request.headers.has('x-vercel-id');
-
-  // Also allow in development or with admin token for manual testing
-  const isDev = process.env.NODE_ENV === 'development';
-  const adminToken = request.headers.get('x-admin-token');
-  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
-  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
-
-  // Allow if it's Vercel Cron, has Vercel headers, dev mode, or admin
-  if (!isVercelCron && !hasVercelHeader && !isDev && !isAdmin) {
-    logger.warn(
-      'Unauthorized GET request to cron endpoint',
+  // Security: Verify cron authorization (allows Vercel Cron user-agent)
+  if (
+    !verifyCronAuth(request, {
+      jobName: 'WorldFactsCron',
+      allowVercelCronUserAgent: true,
+    })
+  ) {
+    logger.warn('Unauthorized GET request to cron endpoint', undefined, 'Cron');
+    return NextResponse.json(
       {
-        userAgent,
-        hasVercelHeader,
-        isDev,
-        hasAdminSecret,
+        error:
+          'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
       },
-      'Cron'
-    );
-    throw new AuthorizationError(
-      'Use POST for cron execution. This endpoint is triggered by Vercel Cron',
-      'cron',
-      'execute'
+      { status: 401 }
     );
   }
 
-  logger.info(
-    'GET request forwarded to POST handler',
-    { userAgent, isVercelCron, hasVercelHeader },
-    'Cron'
-  );
+  logger.info('GET request forwarded to POST handler', undefined, 'Cron');
 
   // Forward to POST handler
   return POST(request);

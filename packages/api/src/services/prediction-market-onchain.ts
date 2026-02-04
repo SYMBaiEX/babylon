@@ -6,6 +6,8 @@
  * pattern for buying and selling shares in prediction markets.
  */
 
+import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
+import { CHAIN, logger } from '@babylon/shared';
 import {
   type Address,
   createPublicClient,
@@ -14,8 +16,6 @@ import {
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { CHAIN, logger } from '@babylon/shared';
-import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import { BadRequestError } from '../errors';
 
 // Get contract addresses for current network
@@ -289,5 +289,3 @@ export function getOnChainPredictionMarketService(): OnChainPredictionMarketServ
   }
   return instance;
 }
-
-

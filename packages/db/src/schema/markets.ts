@@ -5,11 +5,23 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
 import { users } from './users';
+
+/**
+ * Funding rate for perpetual markets
+ * Note: Dates stored as ISO strings for JSONB compatibility
+ */
+export interface FundingRate {
+  ticker: string;
+  rate: number; // APR as decimal (e.g., 0.01 = 1%)
+  nextFundingTime: string; // ISO timestamp
+  predictedRate: number; // Next period's estimated rate
+}
 
 // Market - Prediction markets
 export const markets = pgTable(
@@ -36,6 +48,8 @@ export const markets = pgTable(
     onChainResolutionTxHash: text('onChainResolutionTxHash'),
     onChainResolved: boolean('onChainResolved').notNull().default(false),
     oracleAddress: text('oracleAddress'),
+    resolutionProofUrl: text('resolutionProofUrl'),
+    resolutionDescription: text('resolutionDescription'),
   },
   (table) => [
     index('Market_createdAt_idx').on(table.createdAt),
@@ -74,6 +88,13 @@ export const questions = pgTable(
     oracleSessionId: text('oracleSessionId').unique(),
     resolutionProofUrl: text('resolutionProofUrl'),
     resolutionDescription: text('resolutionDescription'),
+    resolutionConfidence: doublePrecision('resolutionConfidence'),
+    requiresManualReview: boolean('requiresManualReview')
+      .notNull()
+      .default(false),
+    resolutionReviewStatus: text('resolutionReviewStatus'),
+    resolutionReviewedAt: timestamp('resolutionReviewedAt', { mode: 'date' }),
+    resolutionReviewedBy: text('resolutionReviewedBy'),
   },
   (table) => [
     index('Question_createdDate_idx').on(table.createdDate),
@@ -82,6 +103,11 @@ export const questions = pgTable(
     index('Question_status_resolutionDate_idx').on(
       table.status,
       table.resolutionDate
+    ),
+    index('Question_requiresManualReview_status_idx').on(
+      table.status,
+      table.requiresManualReview,
+      table.resolutionReviewStatus
     ),
   ]
 );
@@ -192,6 +218,37 @@ export const stockPrices = pgTable(
   ]
 );
 
+// Perp market snapshot (offchain synthetic markets)
+export const perpMarketSnapshots = pgTable(
+  'PerpMarketSnapshot',
+  {
+    ticker: text('ticker').primaryKey(),
+    organizationId: text('organizationId').notNull(),
+    name: text('name'),
+    currentPrice: doublePrecision('currentPrice').notNull(),
+    /** Price from 24h ago for accurate change calculation */
+    price24hAgo: doublePrecision('price24hAgo'),
+    /** Timestamp when price24hAgo was last rotated */
+    price24hAgoUpdatedAt: timestamp('price24hAgoUpdatedAt', { mode: 'date' }),
+    /** Timestamp when 24h metrics (high/low/volume) were last reset */
+    metrics24hResetAt: timestamp('metrics24hResetAt', { mode: 'date' }),
+    change24h: doublePrecision('change24h').notNull().default(0),
+    changePercent24h: doublePrecision('changePercent24h').notNull().default(0),
+    high24h: doublePrecision('high24h').notNull(),
+    low24h: doublePrecision('low24h').notNull(),
+    volume24h: doublePrecision('volume24h').notNull().default(0),
+    openInterest: doublePrecision('openInterest').notNull().default(0),
+    fundingRate: jsonb('fundingRate').$type<FundingRate>().notNull(),
+    maxLeverage: integer('maxLeverage').notNull().default(100),
+    minOrderSize: integer('minOrderSize').notNull().default(10),
+    markPrice: doublePrecision('markPrice'),
+    indexPrice: doublePrecision('indexPrice'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [index('PerpMarketSnapshot_orgId_idx').on(table.organizationId)]
+);
+
 // PerpPosition
 export const perpPositions = pgTable(
   'PerpPosition',
@@ -288,7 +345,5 @@ export type StockPrice = typeof stockPrices.$inferSelect;
 export type NewStockPrice = typeof stockPrices.$inferInsert;
 export type PerpPosition = typeof perpPositions.$inferSelect;
 export type NewPerpPosition = typeof perpPositions.$inferInsert;
-
-
-
-
+export type PerpMarketSnapshot = typeof perpMarketSnapshots.$inferSelect;
+export type NewPerpMarketSnapshot = typeof perpMarketSnapshots.$inferInsert;

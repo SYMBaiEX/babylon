@@ -1,7 +1,7 @@
 /**
  * Agent Registry Type Definitions for @babylon/agents
  *
- * Unified agent types for ERC-8004, Agent0, and A2A Protocol
+ * Agent types for ERC-8004, Agent0, and A2A Protocol
  */
 
 // Import and re-export AgentCapabilities from shared
@@ -20,6 +20,9 @@ export enum AgentType {
 
   /** External agents from ElizaOS, MCP, Agent0, etc. */
   EXTERNAL = 'EXTERNAL',
+
+  /** Global user coordinator for team chat (shared runtime) */
+  USER_COORDINATOR = 'USER_COORDINATOR',
 }
 
 /**
@@ -149,9 +152,9 @@ export interface Agent0Registration {
 }
 
 /**
- * Unified agent registration record
+ * Agent registration record
  */
-export interface UnifiedAgentRegistration {
+export interface AgentRegistration {
   /** Unique agent identifier */
   agentId: string;
 
@@ -232,13 +235,13 @@ export interface AgentDiscoveryFilter {
  */
 export interface RuntimeCreationOptions {
   /** Agent registry entry */
-  registration: UnifiedAgentRegistration;
+  registration: AgentRegistration;
 
   /** Override model selection */
   modelOverride?: string;
 
   /** Additional plugins beyond defaults */
-  additionalPlugins?: unknown[];
+  additionalPlugins?: Array<import('@elizaos/core').Plugin>;
 
   /** Skip automatic enhancement */
   skipEnhancement?: boolean;
@@ -274,5 +277,7 @@ export interface ExternalAgentConnectionParams {
 
   /** Agent Card metadata */
   agentCard?: AgentCard;
-}
 
+  /** User ID of the person registering the agent */
+  registeredByUserId?: string;
+}

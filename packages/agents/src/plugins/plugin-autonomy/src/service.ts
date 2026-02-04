@@ -8,6 +8,7 @@ import {
   type UUID,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
+import type { JsonValue } from '../../../types/common';
 import { AutonomousServiceType } from './types';
 
 /**
@@ -254,7 +255,8 @@ export class AutonomyService extends Service {
           m.entityId === agentEntity.id &&
           m.content?.text &&
           m.content?.metadata &&
-          (m.content.metadata as Record<string, unknown>)?.isAutonomous === true
+          (m.content.metadata as Record<string, JsonValue>)?.isAutonomous ===
+            true
       )
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 
@@ -313,8 +315,9 @@ export class AutonomyService extends Service {
     // 5. Store memories appropriately
     await this.runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
       runtime: this.runtime,
+      source: 'plugin-autonomy',
       message: autonomousMessage,
-      callback: async (content: Content) => {
+      callback: async (content: Content): Promise<Memory[]> => {
         console.log(
           '[Autonomy] Response generated:',
           `${content.text?.substring(0, 100)}...`
@@ -360,6 +363,8 @@ export class AutonomyService extends Service {
             responseMemory.id || asUUID(uuidv4())
           );
         }
+
+        return [];
       },
       onComplete: async () => {
         console.log('[Autonomy] ✅ Autonomous message processing completed');

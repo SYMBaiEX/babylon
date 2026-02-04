@@ -1,9 +1,18 @@
 'use client';
 
-import { Edit, Globe, Newspaper, RefreshCw, Save, X, Zap } from 'lucide-react';
+import { cn } from '@babylon/shared';
+import {
+  Edit,
+  Globe,
+  Newspaper,
+  RefreshCw,
+  Save,
+  Sparkles,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { cn } from '@babylon/shared';
 
 /**
  * World fact structure for world facts section.
@@ -175,7 +184,7 @@ export function WorldFactsSection() {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <button
             onClick={() => handleAction('fetch_rss')}
             disabled={actionLoading}
@@ -192,6 +201,15 @@ export function WorldFactsSection() {
           >
             <Zap className="h-5 w-5" />
             Generate Parodies
+          </button>
+
+          <button
+            onClick={() => handleAction('generate_world_facts')}
+            disabled={actionLoading}
+            className="flex items-center justify-center gap-2 rounded-lg bg-cyan-500/20 px-4 py-3 text-cyan-500 transition-colors hover:bg-cyan-500/30 disabled:opacity-50"
+          >
+            <Sparkles className="h-5 w-5" />
+            Generate World Facts
           </button>
 
           <button

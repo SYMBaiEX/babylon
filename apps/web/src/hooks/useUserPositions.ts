@@ -1,13 +1,12 @@
 'use client';
 
+import type { PerpPosition, UserPredictionPosition } from '@babylon/shared';
+import { logger } from '@babylon/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { PerpPosition } from '@babylon/shared';
-
 /**
- * Represents a user's position in a prediction market.
+ * Helper to safely convert API values to numbers.
  */
-
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -19,20 +18,8 @@ function toNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
-export interface UserPredictionPosition {
-  id: string;
-  marketId: string;
-  question: string;
-  side: 'YES' | 'NO';
-  shares: number;
-  avgPrice: number;
-  currentPrice: number;
-  currentValue: number;
-  costBasis: number;
-  unrealizedPnL: number;
-  resolved: boolean;
-  resolution: boolean | null;
-}
+// Re-export for convenience
+export type { UserPredictionPosition } from '@babylon/shared';
 
 interface PerpStats {
   totalPositions: number;
@@ -159,75 +146,102 @@ export function useUserPositions(
     setLoading(true);
     setError(null);
 
-    const response = await fetch(
-      `/api/markets/positions/${encodeURIComponent(userId)}`,
-      { signal: controller.signal }
-    );
+    try {
+      const response = await fetch(
+        `/api/markets/positions/${encodeURIComponent(userId)}`,
+        { signal: controller.signal }
+      );
 
-    // Check if request was aborted before parsing
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    const data = await response.json();
-
-    // Check if request was aborted after parsing
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    const perpetuals = data?.perpetuals ?? {};
-    const predictions = data?.predictions ?? {};
-
-    const normalizedPerps = (perpetuals.positions ?? []).map(
-      (pos: ApiPerpPositionPayload) => ({
-        id: pos.id,
-        userId: pos.userId,
-        ticker: pos.ticker,
-        organizationId: pos.organizationId,
-        side: pos.side,
-        entryPrice: toNumber(pos.entryPrice),
-        currentPrice: toNumber(pos.currentPrice),
-        size: toNumber(pos.size),
-        leverage: toNumber(pos.leverage),
-        liquidationPrice: toNumber(pos.liquidationPrice),
-        unrealizedPnL: toNumber(pos.unrealizedPnL),
-        unrealizedPnLPercent: toNumber(pos.unrealizedPnLPercent),
-        fundingPaid: toNumber(pos.fundingPaid),
-        openedAt: pos.openedAt,
-        lastUpdated: pos.lastUpdated ?? pos.openedAt,
-      })
-    ) as PerpPosition[];
-
-    const normalizedPredictions = (predictions.positions ?? []).map(
-      (pos: ApiPredictionPositionPayload) => {
-        const shares = toNumber(pos.shares);
-        const avgPrice = toNumber(pos.avgPrice);
-        return {
-          id: pos.id,
-          marketId: pos.marketId,
-          question: pos.question,
-          side: pos.side,
-          shares,
-          avgPrice,
-          currentPrice: toNumber(pos.currentPrice),
-          currentValue: toNumber(pos.currentValue ?? 0),
-          costBasis: toNumber(pos.costBasis ?? shares * avgPrice),
-          unrealizedPnL: toNumber(pos.unrealizedPnL ?? 0),
-          resolved: Boolean(pos.resolved),
-          resolution: pos.resolution ?? null,
-        };
+      // Check if request was aborted before parsing
+      if (controller.signal.aborted) {
+        return;
       }
-    ) as UserPredictionPosition[];
 
-    setState({
-      perpPositions: normalizedPerps,
-      predictionPositions: normalizedPredictions,
-      perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
-    });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          typeof errorData.error === 'string'
+            ? errorData.error
+            : `Failed to fetch positions: ${response.status}`;
+        throw new Error(errorMessage);
+      }
 
-    if (!controller.signal.aborted) {
-      setLoading(false);
+      const data = await response.json();
+
+      // Check if request was aborted after parsing
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const perpetuals = data?.perpetuals ?? {};
+      const predictions = data?.predictions ?? {};
+
+      const normalizedPerps = (perpetuals.positions ?? []).map(
+        (pos: ApiPerpPositionPayload) => ({
+          id: pos.id,
+          userId: pos.userId,
+          ticker: pos.ticker,
+          organizationId: pos.organizationId,
+          side: pos.side,
+          entryPrice: toNumber(pos.entryPrice),
+          currentPrice: toNumber(pos.currentPrice),
+          size: toNumber(pos.size),
+          leverage: toNumber(pos.leverage),
+          liquidationPrice: toNumber(pos.liquidationPrice),
+          unrealizedPnL: toNumber(pos.unrealizedPnL),
+          unrealizedPnLPercent: toNumber(pos.unrealizedPnLPercent),
+          fundingPaid: toNumber(pos.fundingPaid),
+          openedAt: pos.openedAt,
+          lastUpdated: pos.lastUpdated ?? pos.openedAt,
+        })
+      ) as PerpPosition[];
+
+      const normalizedPredictions = (predictions.positions ?? []).map(
+        (pos: ApiPredictionPositionPayload) => {
+          const shares = toNumber(pos.shares);
+          const avgPrice = toNumber(pos.avgPrice);
+          return {
+            id: pos.id,
+            marketId: pos.marketId,
+            question: pos.question,
+            side: pos.side,
+            shares,
+            avgPrice,
+            currentPrice: toNumber(pos.currentPrice),
+            currentValue: toNumber(pos.currentValue ?? 0),
+            costBasis: toNumber(pos.costBasis ?? shares * avgPrice),
+            unrealizedPnL: toNumber(pos.unrealizedPnL ?? 0),
+            resolved: Boolean(pos.resolved),
+            resolution: pos.resolution ?? null,
+          };
+        }
+      ) as UserPredictionPosition[];
+
+      setState({
+        perpPositions: normalizedPerps,
+        predictionPositions: normalizedPredictions,
+        perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
+      });
+      setError(null);
+    } catch (err) {
+      // Ignore abort errors - these are expected during cleanup
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+
+      const error =
+        err instanceof Error ? err : new Error('Failed to fetch positions');
+      logger.error(
+        'Failed to fetch user positions',
+        { userId, error },
+        'useUserPositions'
+      );
+      setError(error);
+      setState(createDefaultState());
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [userId, enabled]);
 

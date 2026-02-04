@@ -4,8 +4,8 @@
  * Types for A2A server configuration and dependencies
  */
 
-import type { JsonValue } from '@babylon/shared';
 import type {
+  JsonValue,
   PaymentVerificationParams,
   PaymentVerificationResult,
 } from '@babylon/shared';
@@ -154,5 +154,3 @@ export interface A2AClientConfig {
   reconnectInterval?: number;
   heartbeatInterval?: number;
 }
-
-

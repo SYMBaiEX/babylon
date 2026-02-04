@@ -86,55 +86,54 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { callGroqDirect } from '@babylon/agents';
-import { logger } from '@babylon/shared';
 import {
+  authenticateUser,
   checkRateLimitAndDuplicates,
   RATE_LIMIT_CONFIGS,
 } from '@babylon/api';
-import { authenticateUser } from '@babylon/api';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
-  try {
-    const user = await authenticateUser(req);
+  const user = await authenticateUser(req);
 
-    // Apply rate limiting - 5 generations per minute
-    const rateLimitError = checkRateLimitAndDuplicates(
-      user.userId,
-      null, // No duplicate detection for agent generation
-      RATE_LIMIT_CONFIGS.GENERATE_AGENT_PROFILE
-    );
+  // Apply rate limiting - 5 generations per minute
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null, // No duplicate detection for agent generation
+    RATE_LIMIT_CONFIGS.GENERATE_AGENT_PROFILE
+  );
 
-    if (rateLimitError) {
-      logger.warn(
-        'Agent profile generation rate limit exceeded',
-        { userId: user.userId },
-        'GenerateProfile'
-      );
-      return rateLimitError;
-    }
-
-    const body = await req.json();
-    const { archetype, userProfile, existingProfile } = body;
-
-    logger.info(
-      'Generating agent profile',
-      {
-        hasArchetype: !!archetype,
-        hasExistingProfile: !!existingProfile,
-      },
+  if (rateLimitError) {
+    logger.warn(
+      'Agent profile generation rate limit exceeded',
+      { userId: user.userId },
       'GenerateProfile'
     );
+    return rateLimitError;
+  }
 
-    let prompt: string;
+  const body = await req.json();
+  const { archetype, userProfile, existingProfile } = body;
 
-    if (existingProfile) {
-      // Regenerating based on existing profile
-      prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
+  logger.info(
+    'Generating agent profile',
+    {
+      hasArchetype: !!archetype,
+      hasExistingProfile: !!existingProfile,
+    },
+    'GenerateProfile'
+  );
+
+  let prompt: string;
+
+  if (existingProfile) {
+    // Regenerating based on existing profile
+    prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
 
 Regenerate a fresh, creative agent profile while keeping the same general theme and style as this existing profile:
 
@@ -148,9 +147,9 @@ Regenerate a fresh, creative agent profile while keeping the same general theme 
 ${userProfile?.name ? `The user creating this agent is: ${userProfile.name} (@${userProfile.username || 'user'})${userProfile.bio ? `\nUser bio: ${userProfile.bio}` : ''}` : ''}
 
 Generate a JSON response with the following fields:`;
-    } else if (archetype) {
-      // Initial generation with archetype
-      prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
+  } else if (archetype) {
+    // Initial generation with archetype
+    prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
 
 Create a complete agent profile based on this archetype:
 **${archetype.name}** ${archetype.emoji}
@@ -159,18 +158,18 @@ ${archetype.description}
 ${userProfile?.name ? `The user creating this agent is: ${userProfile.name} (@${userProfile.username || 'user'})${userProfile.bio ? `\nUser bio: ${userProfile.bio}` : ''}` : ''}
 
 Generate a JSON response with the following fields:`;
-    } else {
-      // No archetype or existing profile
-      prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
+  } else {
+    // No archetype or existing profile
+    prompt = `You are an expert at creating AI agent personas for a prediction markets and trading platform.
 
 Create a unique agent profile for an AI trading agent.
 
 ${userProfile?.name ? `The user creating this agent is: ${userProfile.name} (@${userProfile.username || 'user'})${userProfile.bio ? `\nUser bio: ${userProfile.bio}` : ''}` : ''}
 
 Generate a JSON response with the following fields:`;
-    }
+  }
 
-    prompt += `
+  prompt += `
 {
   "name": "Creative agent name (2-4 words, no emojis)",
   "description": "One sentence description (max 150 chars)",
@@ -191,85 +190,65 @@ The agent should have a distinct personality that shines through in every field.
 
 Respond ONLY with valid JSON, no markdown formatting.`;
 
-    const response = await callGroqDirect({
-      prompt,
-      modelSize: 'large',
-      temperature: 0.9,
-      maxTokens: 2000,
-      actionType: 'generate_agent_profile',
-    });
+  const response = await callGroqDirect({
+    prompt,
+    modelSize: 'large',
+    temperature: 0.9,
+    maxTokens: 2000,
+    actionType: 'generate_agent_profile',
+  });
 
-    // Parse the AI response
-    let generated;
-    try {
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch =
-        response.match(/```json\s*([\s\S]*?)\s*```/) ||
-        response.match(/```\s*([\s\S]*?)\s*```/);
-      const cleanedResponse = jsonMatch ? jsonMatch[1] : response;
-      if (!cleanedResponse) {
-        throw new Error('Failed to extract JSON from response');
-      }
-      generated = JSON.parse(cleanedResponse.trim());
-    } catch (parseError) {
-      logger.error(
-        'Failed to parse AI response',
-        { error: parseError, response },
-        'GenerateProfile'
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to generate valid profile',
-        },
-        { status: 500 }
-      );
-    }
-
-    // Validate the generated profile
-    if (
-      !generated.name ||
-      !generated.system ||
-      !generated.bio ||
-      !Array.isArray(generated.bio)
-    ) {
-      logger.error(
-        'Invalid generated profile structure',
-        { generated },
-        'GenerateProfile'
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Generated profile missing required fields',
-        },
-        { status: 500 }
-      );
-    }
-
-    logger.info(
-      `Successfully generated profile for ${archetype.name}`,
-      undefined,
-      'GenerateProfile'
-    );
-
-    return NextResponse.json({
-      success: true,
-      ...generated,
-    });
-  } catch (error) {
+  // Parse the AI response
+  // Extract JSON from markdown code blocks if present
+  const jsonMatch =
+    response.match(/```json\s*([\s\S]*?)\s*```/) ||
+    response.match(/```\s*([\s\S]*?)\s*```/);
+  const cleanedResponse = jsonMatch ? jsonMatch[1] : response;
+  if (!cleanedResponse) {
     logger.error(
-      'Error generating agent profile',
-      { error },
+      'Failed to extract JSON from response',
+      { response },
       'GenerateProfile'
     );
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'Failed to generate profile',
+        error: 'Failed to generate valid profile',
       },
       { status: 500 }
     );
   }
+  const generated = JSON.parse(cleanedResponse.trim());
+
+  // Validate the generated profile
+  if (
+    !generated.name ||
+    !generated.system ||
+    !generated.bio ||
+    !Array.isArray(generated.bio)
+  ) {
+    logger.error(
+      'Invalid generated profile structure',
+      { generated },
+      'GenerateProfile'
+    );
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Generated profile missing required fields',
+      },
+      { status: 500 }
+    );
+  }
+
+  logger.info(
+    `Successfully generated profile for ${archetype.name}`,
+    undefined,
+    'GenerateProfile'
+  );
+
+  return NextResponse.json({
+    success: true,
+    ...generated,
+  });
 }

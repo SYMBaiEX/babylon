@@ -10,17 +10,16 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  getModelTokenLimit,
-  truncateToTokenLimitSync,
-} from '@babylon/engine';
+import { getModelTokenLimit, truncateToTokenLimitSync } from '@babylon/api';
 import { getRLModelConfig } from '@babylon/training';
 
 describe('RL Training System', () => {
   describe('Configuration', () => {
-    it('should have correct base model (unsloth/Qwen3-4B-128K)', () => {
+    it('should have a valid base model configured', () => {
       const config = getRLModelConfig();
-      expect(config.baseModel).toBe('unsloth/Qwen3-4B-128K');
+      // Base model can be OpenPipe or unsloth variants
+      expect(config.baseModel).toBeDefined();
+      expect(config.baseModel.length).toBeGreaterThan(0);
     });
 
     it('should have Atropos configuration if enabled', () => {

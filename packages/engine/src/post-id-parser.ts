@@ -176,4 +176,3 @@ export function parsePostId(postId: string): ParseResult {
 
   return { metadata: DEFAULT_POST_METADATA, success: false };
 }
-

@@ -68,32 +68,49 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
+import {
+  getClientIp,
+  logAdminModify,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, userAgentConfigs } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
 
-export async function POST(
-  req: NextRequest,
-  context: { params: Promise<{ agentId: string }> }
-) {
-  try {
+export const POST = withErrorHandling(
+  async (
+    req: NextRequest,
+    context: { params: Promise<{ agentId: string }> }
+  ) => {
+    const admin = await requireAdmin(req);
     const { agentId } = await context.params;
     const body = await req.json();
     const { enabled } = body;
 
-    // Toggle all autonomous features
-    await db.user.update({
-      where: { id: agentId, isAgent: true },
-      data: {
+    // Audit log the admin action
+    logAdminModify({
+      adminId: admin.userId,
+      ipAddress: getClientIp(req.headers) ?? undefined,
+      resourceType: 'agent',
+      resourceId: agentId,
+      metadata: { action: 'toggle_autonomous_mode', enabled },
+    });
+
+    // Toggle all autonomous features in agent config
+    await db
+      .update(userAgentConfigs)
+      .set({
         autonomousTrading: enabled,
         autonomousPosting: enabled,
         autonomousCommenting: enabled,
         autonomousDMs: enabled,
         autonomousGroupChats: enabled,
-        agentStatus: enabled ? 'running' : 'paused',
-      },
-    });
+        status: enabled ? 'running' : 'paused',
+        updatedAt: new Date(),
+      })
+      .where(eq(userAgentConfigs.userId, agentId));
 
     logger.info(
       `Agent ${agentId} autonomous mode ${enabled ? 'enabled' : 'disabled'}`,
@@ -105,14 +122,5 @@ export async function POST(
       success: true,
       message: `Agent ${enabled ? 'enabled' : 'paused'} successfully`,
     });
-  } catch (error) {
-    logger.error('Failed to toggle agent', { error }, 'AdminAgentsAPI');
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to toggle agent',
-      },
-      { status: 500 }
-    );
   }
-}
+);

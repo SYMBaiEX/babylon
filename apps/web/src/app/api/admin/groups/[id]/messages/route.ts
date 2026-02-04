@@ -48,6 +48,8 @@
  *         description: Unauthorized
  *       403:
  *         description: Admin access required
+ *       400:
+ *         description: Chat is not a group (DM messages not accessible via this endpoint)
  *       404:
  *         description: Group not found
  *
@@ -59,11 +61,16 @@
  * ```
  */
 
+import {
+  getClientIp,
+  logAdminView,
+  requireAdmin,
+  withErrorHandling,
+} from '@babylon/api';
+import { db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
 
 /**
  * GET /api/admin/groups/[id]/messages
@@ -75,22 +82,17 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
   ) => {
-    const user = await authenticate(request);
-
-    // Check admin permissions
-    const dbUser = await db.user.findUnique({
-      where: { id: user.userId },
-      select: { isAdmin: true },
-    });
-
-    if (!dbUser?.isAdmin) {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
-      );
-    }
-
+    const admin = await requireAdmin(request);
     const { id: chatId } = await context.params;
+
+    // Audit log the admin access
+    logAdminView({
+      adminId: admin.userId,
+      ipAddress: getClientIp(request.headers) ?? undefined,
+      resourceType: 'group_messages',
+      resourceId: chatId,
+      metadata: { action: 'view_group_messages' },
+    });
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -112,6 +114,14 @@ export const GET = withErrorHandling(
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
+    // Ensure this is a group chat, not a DM
+    if (!chat.isGroup) {
+      return NextResponse.json(
+        { error: 'This endpoint is only for group chats' },
+        { status: 400 }
+      );
+    }
+
     // Get total message count
     const totalMessages = await db.message.count({
       where: { chatId },
@@ -127,28 +137,20 @@ export const GET = withErrorHandling(
       take: limit,
     });
 
-    // Get sender details
     const senderIds = [...new Set(messages.map((m) => m.senderId))];
-    const [users, actors] = await Promise.all([
-      db.user.findMany({
-        where: { id: { in: senderIds } },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          isActor: true,
-          profileImageUrl: true,
-        },
-      }),
-      db.actor.findMany({
-        where: { id: { in: senderIds } },
-        select: {
-          id: true,
-          name: true,
-          profileImageUrl: true,
-        },
-      }),
-    ]);
+    const users = await db.user.findMany({
+      where: { id: { in: senderIds } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        isActor: true,
+        profileImageUrl: true,
+      },
+    });
+    const actors = senderIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     const enrichedMessages = messages.map((m) => {
       const user = users.find((u) => u.id === m.senderId);

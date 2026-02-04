@@ -1,7 +1,7 @@
 /**
  * Agent LLM Provider
  *
- * Unified LLM interface for autonomous agents supporting multiple inference backends:
+ * LLM interface for autonomous agents supporting multiple inference backends:
  * - HuggingFace: Cloud inference endpoints for trained models
  * - Phala: Trusted execution environment for secure inference
  * - Ollama: Local inference for development and fine-tuned models
@@ -25,9 +25,9 @@
  */
 
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '../shared/logger';
-import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
 import { getTrajectoryContext } from '../plugins/plugin-trajectory-logger/src/action-interceptor';
+import type { TrajectoryLoggerService } from '../plugins/plugin-trajectory-logger/src/TrajectoryLoggerService';
+import { logger } from '../shared/logger';
 import { callGroqDirect } from './direct-groq';
 import { callOllama } from './ollama-provider';
 
@@ -134,7 +134,7 @@ async function callHuggingFace(params: AgentLLMParams): Promise<string> {
   const response = await fetch(requestUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: requestBody,
@@ -146,7 +146,7 @@ async function callHuggingFace(params: AgentLLMParams): Promise<string> {
     throw new Error(`HuggingFace API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json() as
+  const data = (await response.json()) as
     | Array<{ generated_text: string }>
     | { generated_text: string }
     | { choices?: Array<{ message?: { content: string } }> };
@@ -191,7 +191,9 @@ async function callPhala(params: AgentLLMParams): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: params.archetype ? `babylon-${params.archetype}` : 'babylon-default',
+      model: params.archetype
+        ? `babylon-${params.archetype}`
+        : 'babylon-default',
       messages: [
         ...(params.system ? [{ role: 'system', content: params.system }] : []),
         { role: 'user', content: params.prompt },
@@ -207,13 +209,14 @@ async function callPhala(params: AgentLLMParams): Promise<string> {
     throw new Error(`Phala API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     choices?: Array<{ message?: { content: string } }>;
     response?: string;
   };
   const latencyMs = Date.now() - startTime;
 
-  const responseText = data.choices?.[0]?.message?.content || data.response || '';
+  const responseText =
+    data.choices?.[0]?.message?.content || data.response || '';
 
   await logToTrajectory(params, 'phala', responseText, latencyMs);
 
@@ -381,20 +384,20 @@ export async function getAgentLLMStatus(): Promise<{
 
   switch (provider) {
     case 'huggingface':
-      configured = !!process.env.HUGGINGFACE_API_KEY && !!process.env.HUGGINGFACE_MODEL_ENDPOINT;
+      configured =
+        !!process.env.HUGGINGFACE_API_KEY &&
+        !!process.env.HUGGINGFACE_MODEL_ENDPOINT;
       details.hasApiKey = !!process.env.HUGGINGFACE_API_KEY;
       details.endpoint = process.env.HUGGINGFACE_MODEL_ENDPOINT || 'not set';
       if (configured) {
-        try {
-          const response = await fetch(process.env.HUGGINGFACE_MODEL_ENDPOINT!, {
-            method: 'HEAD',
-            headers: { 'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}` },
-            signal: AbortSignal.timeout(5000),
-          });
-          available = response.ok || response.status === 405;
-        } catch {
-          available = false;
-        }
+        const response = await fetch(process.env.HUGGINGFACE_MODEL_ENDPOINT!, {
+          method: 'HEAD',
+          headers: {
+            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+          },
+          signal: AbortSignal.timeout(5000),
+        });
+        available = response.ok || response.status === 405;
       }
       break;
 
@@ -402,14 +405,10 @@ export async function getAgentLLMStatus(): Promise<{
       configured = !!process.env.PHALA_ENDPOINT;
       details.endpoint = process.env.PHALA_ENDPOINT || 'not set';
       if (configured) {
-        try {
-          const response = await fetch(`${process.env.PHALA_ENDPOINT}/health`, {
-            signal: AbortSignal.timeout(5000),
-          });
-          available = response.ok;
-        } catch {
-          available = false;
-        }
+        const response = await fetch(`${process.env.PHALA_ENDPOINT}/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        available = response.ok;
       }
       break;
 
@@ -423,7 +422,9 @@ export async function getAgentLLMStatus(): Promise<{
         });
         available = response.ok;
         if (available) {
-          const data = await response.json() as { models?: Array<{ name: string }> };
+          const data = (await response.json()) as {
+            models?: Array<{ name: string }>;
+          };
           details.models = (data.models?.length || 0).toString();
         }
       } catch {
@@ -441,4 +442,3 @@ export async function getAgentLLMStatus(): Promise<{
 
   return { provider, configured, available, details };
 }
-

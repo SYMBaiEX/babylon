@@ -95,4 +95,3 @@ export const SUPER_PREDICTOR_PRIORITY_METRICS = [
   'information.predictionsMade',
   'information.correctPredictions',
 ];
-

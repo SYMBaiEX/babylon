@@ -1,6 +1,23 @@
 'use client';
 
-import { ArrowLeft, Coins, MessageCircle, Search } from 'lucide-react';
+import type { ProfileInfo } from '@babylon/shared';
+import {
+  type Actor,
+  cn,
+  extractUsername,
+  type FeedPost,
+  getBannerImageUrl,
+  isUsername,
+  type Organization,
+  POST_TYPES,
+} from '@babylon/shared';
+import {
+  ArrowLeft,
+  Coins,
+  FileText,
+  MessageCircle,
+  Search,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -15,9 +32,15 @@ import { FollowButton } from '@/components/interactions/FollowButton';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { SendPointsModal } from '@/components/points/SendPointsModal';
 import { PostCard } from '@/components/posts/PostCard';
+import { FollowListModal } from '@/components/profile/FollowListModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
+import {
+  type ProfileReply,
+  ProfileReplyCard,
+} from '@/components/profile/ProfileReplyCard';
 import { ProfileWidget } from '@/components/profile/ProfileWidget';
 import { Avatar } from '@/components/shared/Avatar';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { PageContainer } from '@/components/shared/PageContainer';
 import {
   FeedSkeleton,
@@ -27,12 +50,7 @@ import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { TradesFeed } from '@/components/trades/TradesFeed';
 import { useAuth } from '@/hooks/useAuth';
 import { useErrorToasts } from '@/hooks/useErrorToasts';
-import { getBannerImageUrl } from '@babylon/shared';
-import { extractUsername, isUsername } from '@babylon/shared';
-import { cn } from '@babylon/shared';
-import { POST_TYPES, type Actor, type FeedPost, type Organization } from '@babylon/shared';
 import { useGameStore } from '@/stores/gameStore';
-import type { ProfileInfo } from '@babylon/shared';
 
 export default function ActorProfilePage() {
   const params = useParams();
@@ -47,6 +65,10 @@ export default function ActorProfilePage() {
   const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<
     number | null
   >(null);
+  const [followListModal, setFollowListModal] = useState<{
+    isOpen: boolean;
+    type: 'followers' | 'following';
+  }>({ isOpen: false, type: 'followers' });
 
   // Check if viewing own profile - compare with both actorId and identifier (for ID-based URLs)
   const isOwnProfile =
@@ -139,12 +161,23 @@ export default function ActorProfilePage() {
     }>
   >([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [replies, setReplies] = useState<ProfileReply[]>([]);
+  const [loadingReplies, setLoadingReplies] = useState(false);
 
-  // Handle creating DM with user
+  // Handle creating DM with user or messaging own agent
   const handleMessageClick = async () => {
     if (!authenticated || !actorInfo?.id || isCreatingDM || !user?.id) return;
 
     setIsCreatingDM(true);
+
+    // Check if this is the user's own agent - redirect to team chat and select the agent
+    if (actorInfo.isAgent && actorInfo.managedBy === user.id) {
+      router.push(
+        `/agents/team?selectAgent=${encodeURIComponent(actorInfo.id)}`
+      );
+      setIsCreatingDM(false);
+      return;
+    }
 
     // Generate deterministic chat ID (same format as backend)
     // Sort IDs to ensure consistency
@@ -181,15 +214,35 @@ export default function ActorProfilePage() {
 
     if (userResponse?.ok) {
       const userData = await userResponse.json();
-      if (userData.user) {
-        const user = userData.user;
+      const user = userData.user;
+
+      // Database has two types of records in User table:
+      // 1. Human users (isActor=false) - real people who signed up
+      // 2. NPC records (isActor=true) - actors stored in User table for game interactions
+      //
+      // Skip NPC records - let the actor lookup below handle them
+      // since it has proper static image fallbacks (/images/actors/{id}.jpg)
+      //
+      // Also skip "shell" records that have no meaningful profile data
+      // (created when an org/actor ID was used as authorId for posts)
+      const isNonActorUser =
+        user &&
+        !user.isActor &&
+        (user.displayName ||
+          user.username ||
+          user.profileImageUrl ||
+          user.walletAddress);
+
+      if (isNonActorUser) {
         setActorInfo({
           id: user.id,
           name: user.displayName || user.username || 'User',
           description: user.bio || '',
-          role: user.isActor ? 'Actor' : 'User',
-          type: user.isActor ? 'actor' : ('user' as const),
-          isUser: true,
+          role: user.isAgent ? 'Agent' : 'User',
+          type: 'user' as const,
+          isUser: !user.isAgent,
+          isAgent: user.isAgent || false,
+          managedBy: user.managedBy || null,
           username: user.username,
           profileImageUrl: user.profileImageUrl,
           coverImageUrl: user.coverImageUrl,
@@ -201,8 +254,11 @@ export default function ActorProfilePage() {
           const cleanUsername = user.username.startsWith('@')
             ? user.username.slice(1)
             : user.username;
-          router.replace(`/profile/${cleanUsername}`);
-          return;
+          // Only redirect if we're not already on the target URL (case-insensitive comparison)
+          if (cleanUsername.toLowerCase() !== actorId.toLowerCase()) {
+            router.replace(`/profile/${cleanUsername}`);
+            return;
+          }
         }
 
         setLoading(false);
@@ -227,15 +283,19 @@ export default function ActorProfilePage() {
 
       if (usernameLookupResponse?.ok) {
         const usernameData = await usernameLookupResponse.json();
-        if (usernameData.user) {
-          const user = usernameData.user;
+        const user = usernameData.user;
+
+        // Skip NPC records (isActor=true) - let actor lookup handle them
+        if (user && !user.isActor) {
           setActorInfo({
             id: user.id,
             name: user.displayName || user.username || 'User',
             description: user.bio || '',
-            role: user.isActor ? 'Actor' : 'User',
-            type: user.isActor ? 'actor' : ('user' as const),
-            isUser: true,
+            role: user.isAgent ? 'Agent' : 'User',
+            type: 'user' as const,
+            isUser: !user.isAgent,
+            isAgent: user.isAgent || false,
+            managedBy: user.managedBy || null,
             username: user.username,
             profileImageUrl: user.profileImageUrl,
             coverImageUrl: user.coverImageUrl,
@@ -247,8 +307,11 @@ export default function ActorProfilePage() {
             const cleanUsername = user.username.startsWith('@')
               ? user.username.slice(1)
               : user.username;
-            router.replace(`/profile/${cleanUsername}`);
-            return;
+            // Only redirect if we're not already on the target URL (case-insensitive comparison)
+            if (cleanUsername.toLowerCase() !== actorId.toLowerCase()) {
+              router.replace(`/profile/${cleanUsername}`);
+              return;
+            }
           }
 
           setLoading(false);
@@ -258,21 +321,39 @@ export default function ActorProfilePage() {
     }
 
     // Try to load from API endpoint (uses optimized server-side loader)
-    const response = await fetch('/api/actors');
-    if (!response.ok) throw new Error('Failed to load actors');
-
-    const actorsDb = (await response.json()) as {
-      actors?: Actor[];
-      organizations?: Organization[];
+    let actorsDb: { actors?: Actor[]; organizations?: Organization[] } = {
+      actors: [],
+      organizations: [],
     };
+    try {
+      const response = await fetch('/api/actors');
+      if (response.ok) {
+        actorsDb = await response.json();
+      } else {
+        console.error('Failed to load actors:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching actors:', error);
+    }
 
-    // Find actor
+    // Find actor by id, username, or name (case-insensitive for username and name)
+    const actorIdLower = actorId.toLowerCase();
     let actor = actorsDb.actors?.find((a) => a.id === actorId);
     if (!actor) {
-      actor = actorsDb.actors?.find((a) => a.name === actorId);
+      actor = actorsDb.actors?.find(
+        (a) =>
+          'username' in a &&
+          typeof a.username === 'string' &&
+          a.username.toLowerCase() === actorIdLower
+      );
+    }
+    if (!actor) {
+      actor = actorsDb.actors?.find(
+        (a) => a.name.toLowerCase() === actorIdLower
+      );
     }
     if (actor) {
-      // Find which game this actor belongs to
+      // Find which game this actor belongs to (use actual actor.id, not URL parameter)
       let gameId: string | null = null;
       for (const game of allGames) {
         const allActors = [
@@ -280,7 +361,7 @@ export default function ActorProfilePage() {
           ...(game.setup?.supportingActors || []),
           ...(game.setup?.extras || []),
         ];
-        if (allActors.some((a) => a.id === actorId)) {
+        if (allActors.some((a) => a.id === actor.id)) {
           gameId = game.id;
           break;
         }
@@ -321,16 +402,26 @@ export default function ActorProfilePage() {
         username: ('username' in actor
           ? (actor.username as string)
           : actor.id) as string | undefined, // Use username if available, fallback to ID
+        // Explicitly set profile image URL with fallback to static actor image
+        // Use same defensive pattern as organization fallback below
+        profileImageUrl:
+          'profileImageUrl' in actor &&
+          typeof actor.profileImageUrl === 'string' &&
+          actor.profileImageUrl
+            ? actor.profileImageUrl
+            : `/images/actors/${actor.id}.jpg`,
         stats,
       });
       setLoading(false);
       return;
     }
 
-    // Find organization
+    // Find organization (case-insensitive for name)
     let org = actorsDb.organizations?.find((o) => o.id === actorId);
     if (!org) {
-      org = actorsDb.organizations?.find((o) => o.name === actorId);
+      org = actorsDb.organizations?.find(
+        (o) => o.name.toLowerCase() === actorIdLower
+      );
     }
     if (org) {
       // Fetch organization stats from database (orgs are also stored as actors)
@@ -353,6 +444,14 @@ export default function ActorProfilePage() {
         }
       }
 
+      // Check if org has a non-empty profileImageUrl property
+      const orgProfileImageUrl =
+        'profileImageUrl' in org &&
+        typeof org.profileImageUrl === 'string' &&
+        org.profileImageUrl
+          ? org.profileImageUrl
+          : `/images/organizations/${org.id}.jpg`;
+
       setActorInfo({
         id: org.id,
         name: org.name,
@@ -360,6 +459,7 @@ export default function ActorProfilePage() {
         profileDescription: org.profileDescription,
         type: 'organization' as const,
         role: 'Organization',
+        profileImageUrl: orgProfileImageUrl,
         stats,
       });
       setLoading(false);
@@ -435,6 +535,45 @@ export default function ActorProfilePage() {
       loadPosts();
     }
   }, [actorId, actorInfo?.id]);
+
+  // Load replies when tab changes to 'replies'
+  useEffect(() => {
+    if (tab !== 'replies') return;
+    if (!actorInfo?.id) return;
+
+    const controller = new AbortController();
+
+    const loadReplies = async () => {
+      setLoadingReplies(true);
+      try {
+        const token = await getAccessToken();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(actorInfo.id)}/posts?type=replies`,
+          { headers, signal: controller.signal }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const items = data?.data?.items ?? data?.items ?? [];
+          setReplies(items);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to fetch replies:', error);
+        }
+      } finally {
+        setLoadingReplies(false);
+      }
+    };
+
+    loadReplies();
+
+    return () => controller.abort();
+  }, [tab, actorInfo?.id, getAccessToken]);
 
   // Get posts for this actor from all games
   const gameStorePosts = useMemo(() => {
@@ -563,11 +702,19 @@ export default function ActorProfilePage() {
 
     return (
       <PageContainer noPadding className="min-h-screen">
-        <div className="mx-auto w-full max-w-[700px]">
-          <ProfileHeaderSkeleton />
-          <div className="mt-4 border-border/5 border-t">
-            <FeedSkeleton count={5} />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Main Content */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              <ProfileHeaderSkeleton />
+              <div className="mt-4 border-border/5 border-t">
+                <FeedSkeleton count={5} />
+              </div>
+            </div>
           </div>
+
+          {/* Right: Widget placeholder */}
+          <div className="hidden w-96 flex-shrink-0 flex-col bg-sidebar p-4 xl:flex" />
         </div>
       </PageContainer>
     );
@@ -604,8 +751,8 @@ export default function ActorProfilePage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Desktop: Content + Widget layout */}
-      <div className="hidden flex-1 overflow-hidden xl:flex">
+      {/* Main layout - responsive with optional sidebar on xl screens */}
+      <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header */}
@@ -703,13 +850,19 @@ export default function ActorProfilePage() {
                   <div className="flex items-center gap-2 pt-3">
                     {authenticated && user && user.id !== actorInfo.id && (
                       <>
-                        {/* Message button - only for regular users, not actors/NPCs/agents */}
-                        {actorInfo.isUser && actorInfo.type === 'user' && (
+                        {/* Message button - for regular users, own agents (team chat), and other users' agents (DM) */}
+                        {((actorInfo.isUser && actorInfo.type === 'user') ||
+                          actorInfo.isAgent) && (
                           <button
                             onClick={handleMessageClick}
                             disabled={isCreatingDM}
                             className="rounded-full border border-border p-2 transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Send message"
+                            title={
+                              actorInfo.isAgent &&
+                              actorInfo.managedBy === user.id
+                                ? 'Message in Agents'
+                                : 'Send message'
+                            }
                           >
                             <MessageCircle className="h-5 w-5" />
                           </button>
@@ -798,15 +951,25 @@ export default function ActorProfilePage() {
 
                 {/* Stats */}
                 <div className="flex gap-4 text-[15px]">
-                  <Link href="#" className="hover:underline">
+                  <button
+                    onClick={() =>
+                      setFollowListModal({ isOpen: true, type: 'following' })
+                    }
+                    className="hover:underline"
+                  >
                     <span className="font-bold text-foreground">
                       {actorInfo.stats?.following || 0}
                     </span>
                     <span className="ml-1 text-muted-foreground">
                       Following
                     </span>
-                  </Link>
-                  <Link href="#" className="hover:underline">
+                  </button>
+                  <button
+                    onClick={() =>
+                      setFollowListModal({ isOpen: true, type: 'followers' })
+                    }
+                    className="hover:underline"
+                  >
                     <span className="font-bold text-foreground">
                       {optimisticFollowerCount !== null
                         ? optimisticFollowerCount
@@ -815,7 +978,7 @@ export default function ActorProfilePage() {
                     <span className="ml-1 text-muted-foreground">
                       Followers
                     </span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -880,18 +1043,62 @@ export default function ActorProfilePage() {
             <div className="px-4">
               {tab === 'trades' ? (
                 <TradesFeed userId={actorInfo?.id} />
+              ) : tab === 'replies' ? (
+                // Replies tab - show actual comment replies
+                loadingReplies ? (
+                  <div className="w-full">
+                    <FeedSkeleton count={5} />
+                  </div>
+                ) : replies.length === 0 ? (
+                  <EmptyState
+                    icon={MessageCircle}
+                    title={searchQuery ? 'No replies found' : 'No replies yet'}
+                    description={
+                      searchQuery
+                        ? 'Try adjusting your search terms'
+                        : 'Replies to other posts will appear here'
+                    }
+                  />
+                ) : (
+                  <div>
+                    {replies
+                      .filter(
+                        (reply) =>
+                          !searchQuery.trim() ||
+                          reply.content
+                            ?.toLowerCase()
+                            .includes(searchQuery.toLowerCase())
+                      )
+                      .map((reply) => (
+                        <ProfileReplyCard
+                          key={reply.id}
+                          reply={reply}
+                          authorId={actorInfo?.id || ''}
+                          authorName={
+                            actorInfo?.name || actorInfo?.username || ''
+                          }
+                          authorUsername={actorInfo?.username || null}
+                          authorProfileImageUrl={
+                            actorInfo?.profileImageUrl || null
+                          }
+                        />
+                      ))}
+                  </div>
+                )
               ) : loadingPosts ? (
                 <div className="w-full">
                   <FeedSkeleton count={5} />
                 </div>
               ) : filteredPosts.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-muted-foreground">
-                    {searchQuery
-                      ? 'No posts found matching your search'
-                      : 'No posts yet'}
-                  </p>
-                </div>
+                <EmptyState
+                  icon={FileText}
+                  title={searchQuery ? 'No posts found' : 'No posts yet'}
+                  description={
+                    searchQuery
+                      ? 'Try adjusting your search terms'
+                      : 'Posts will appear here once published'
+                  }
+                />
               ) : (
                 <div className="space-y-0">
                   {filteredPosts.map((item, i) => {
@@ -933,6 +1140,10 @@ export default function ActorProfilePage() {
                         key={`${item.post.id}-${i}`}
                         post={postData}
                         showInteractions={true}
+                        showCommentInputBar={false}
+                        onCommentClick={() =>
+                          router.push(`/post/${item.post.id}`)
+                        }
                       />
                     );
                   })}
@@ -942,304 +1153,12 @@ export default function ActorProfilePage() {
           </div>
         </div>
 
-        {/* Widget Sidebar - Show for all user profiles */}
-        {actorInfo && actorInfo.isUser && (
+        {/* Widget Sidebar - Show for all profiles (users, actors, organizations) */}
+        {actorInfo && (
           <div className="hidden w-96 flex-shrink-0 flex-col overflow-y-auto bg-sidebar p-4 xl:flex">
             <ProfileWidget userId={actorInfo.id} />
           </div>
         )}
-      </div>
-
-      {/* Mobile/Tablet: Full width content */}
-      <div className="flex flex-1 flex-col overflow-hidden xl:hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
-              className="rounded-full p-2 transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="flex-1">
-              <h1 className="font-bold text-xl">{actorInfo.name}</h1>
-              <p className="text-muted-foreground text-sm">
-                {actorInfo.stats?.posts || actorPosts.length} posts
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Profile Header */}
-          <div className="border-border border-b">
-            {/* Cover Image */}
-            <div className="relative h-[200px] bg-muted">
-              {(() => {
-                // Get banner URL using the utility function (supports CDN)
-                const bannerUrl =
-                  actorInfo.isUser &&
-                  actorInfo.type === 'user' &&
-                  'coverImageUrl' in actorInfo
-                    ? (actorInfo.coverImageUrl as string)
-                    : getBannerImageUrl(
-                        null,
-                        actorInfo.id,
-                        actorInfo.type === 'organization'
-                          ? 'organization'
-                          : 'actor'
-                      );
-
-                return bannerUrl ? (
-                  <img
-                    src={bannerUrl}
-                    alt={`${actorInfo.name} banner`}
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      // Fallback to gradient if image not found
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove(
-                        'hidden'
-                      );
-                    }}
-                  />
-                ) : null;
-              })()}
-              <div
-                className={cn(
-                  'pointer-events-none absolute inset-0 h-full w-full bg-gradient-to-br from-primary/20 to-primary/5',
-                  actorInfo.type === 'actor' ||
-                    actorInfo.type === 'organization'
-                    ? 'hidden'
-                    : ''
-                )}
-              />
-            </div>
-
-            {/* Profile Info Container */}
-            <div className="px-4 pb-4">
-              {/* Top Row: Avatar + Action Buttons */}
-              <div className="mb-4 flex items-start justify-between">
-                {/* Profile Picture - Overlapping cover */}
-                <div className="-mt-16 sm:-mt-20 relative">
-                  <div className="h-32 w-32 overflow-hidden rounded-full border-4 border-background bg-background sm:h-36 sm:w-36">
-                    <Avatar
-                      id={actorInfo.id}
-                      name={
-                        (actorInfo.name ?? actorInfo.username ?? '') as string
-                      }
-                      type={
-                        actorInfo.type === 'organization'
-                          ? 'business'
-                          : actorInfo.isUser || actorInfo.type === 'user'
-                            ? 'user'
-                            : (actorInfo.type as 'actor' | undefined)
-                      }
-                      src={actorInfo.profileImageUrl || undefined}
-                      size="lg"
-                      className="h-full w-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2 pt-3">
-                  {authenticated && user && user.id !== actorInfo.id && (
-                    <>
-                      {/* Message button - only for regular users, not actors/NPCs/agents */}
-                      {actorInfo.isUser && actorInfo.type === 'user' && (
-                        <button
-                          onClick={handleMessageClick}
-                          disabled={isCreatingDM}
-                          className="rounded-full border border-border p-2 transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="Send message"
-                        >
-                          <MessageCircle className="h-5 w-5" />
-                        </button>
-                      )}
-                      {/* Send points button - available for ALL users including agents and actors */}
-                      <button
-                        onClick={() => setSendPointsModalOpen(true)}
-                        className="rounded-full border border-border p-2 transition-colors hover:bg-muted/50"
-                        title="Send points"
-                      >
-                        <Coins className="h-5 w-5" />
-                      </button>
-                      <FollowButton
-                        userId={actorInfo.id}
-                        size="md"
-                        variant="button"
-                        onFollowerCountChange={(delta) => {
-                          // Optimistically update the follower count based on current displayed value
-                          setOptimisticFollowerCount((prev) => {
-                            const currentCount =
-                              prev !== null
-                                ? prev
-                                : actorInfo.stats?.followers || 0;
-                            return Math.max(0, currentCount + delta); // Never go negative
-                          });
-                        }}
-                      />
-                    </>
-                  )}
-                  {isOwnProfile && (
-                    <Link
-                      href="/settings"
-                      className="rounded-full border border-border px-4 py-2 font-bold transition-colors hover:bg-muted/50"
-                    >
-                      Edit profile
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              {/* Name and Handle */}
-              <div className="mb-3">
-                <div className="mb-0.5 flex items-center gap-1">
-                  <h2 className="font-bold text-xl">
-                    {actorInfo.name ?? actorInfo.username ?? ''}
-                  </h2>
-                  {actorInfo.type === 'actor' && !actorInfo.isUser && (
-                    <VerifiedBadge size="md" />
-                  )}
-                </div>
-                {actorInfo.username && (
-                  <p className="text-[15px] text-muted-foreground">
-                    @{actorInfo.username}
-                  </p>
-                )}
-              </div>
-
-              {/* Description/Bio */}
-              {(actorInfo.profileDescription || actorInfo.description) && (
-                <p className="mb-3 whitespace-pre-wrap text-[15px] text-foreground">
-                  {actorInfo.profileDescription || actorInfo.description}
-                </p>
-              )}
-
-              {/* Stats */}
-              <div className="flex gap-4 text-[15px]">
-                <Link href="#" className="hover:underline">
-                  <span className="font-bold text-foreground">
-                    {actorInfo.stats?.following || 0}
-                  </span>
-                  <span className="ml-1 text-muted-foreground">Following</span>
-                </Link>
-                <Link href="#" className="hover:underline">
-                  <span className="font-bold text-foreground">
-                    {optimisticFollowerCount !== null
-                      ? optimisticFollowerCount
-                      : actorInfo.stats?.followers || 0}
-                  </span>
-                  <span className="ml-1 text-muted-foreground">Followers</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs: Posts vs Replies */}
-          <div className="sticky top-0 z-10 border-border border-b bg-background/95 backdrop-blur-sm">
-            <div className="flex flex-col px-4 sm:flex-row sm:items-center sm:justify-between">
-              {/* Tab Buttons */}
-              <div className="flex flex-1 items-center">
-                <button
-                  onClick={() => setTab('posts')}
-                  className={cn(
-                    'relative h-14 px-4 font-semibold transition-all duration-300 hover:bg-muted/30',
-                    tab === 'posts'
-                      ? 'text-foreground opacity-100'
-                      : 'text-foreground opacity-50'
-                  )}
-                >
-                  Posts
-                </button>
-                <button
-                  onClick={() => setTab('replies')}
-                  className={cn(
-                    'relative h-14 px-4 font-semibold transition-all duration-300 hover:bg-muted/30',
-                    tab === 'replies'
-                      ? 'text-foreground opacity-100'
-                      : 'text-foreground opacity-50'
-                  )}
-                >
-                  Replies
-                </button>
-              </div>
-
-              {/* Search Bar - Top Right (hidden on small screens) */}
-              <div className="relative w-full py-2 sm:w-64 sm:py-0">
-                <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search ${tab}...`}
-                  className="w-full rounded-full border-0 bg-muted py-2 pr-4 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Posts */}
-          <div className="px-4">
-            {loadingPosts ? (
-              <div className="w-full">
-                <FeedSkeleton count={4} />
-              </div>
-            ) : filteredPosts.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  {searchQuery
-                    ? 'No posts found matching your search'
-                    : 'No posts yet'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-0">
-                {filteredPosts.map((item, i) => {
-                  const postData = {
-                    id: item.post.id,
-                    type: item.post.type,
-                    content: item.post.content,
-                    fullContent: item.post.fullContent || null,
-                    articleTitle: item.post.articleTitle || null,
-                    byline: item.post.byline || null,
-                    biasScore: item.post.biasScore ?? null,
-                    category: item.post.category || null,
-                    authorId: item.post.author,
-                    authorName: item.post.authorName,
-                    authorUsername: item.post.authorUsername || null,
-                    authorProfileImageUrl:
-                      item.post.authorProfileImageUrl || null,
-                    timestamp: item.post.timestamp,
-                    likeCount: item.post.likeCount,
-                    commentCount: item.post.commentCount,
-                    shareCount: item.post.shareCount,
-                    isLiked: item.post.isLiked,
-                    isShared: item.post.isShared,
-                    // Repost metadata
-                    isRepost: item.post.isRepost || false,
-                    isQuote: item.post.isQuote || false,
-                    quoteComment: item.post.quoteComment || null,
-                    originalPostId: item.post.originalPostId || null,
-                    originalPost: item.post.originalPost || null,
-                  };
-
-                  return postData.type && postData.type === 'article' ? (
-                    <ArticleCard key={`${item.post.id}-${i}`} post={postData} />
-                  ) : (
-                    <PostCard
-                      key={`${item.post.id}-${i}`}
-                      post={postData}
-                      showInteractions={true}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Send Points Modal - Available for all users, agents, and actors */}
@@ -1254,6 +1173,18 @@ export default function ActorProfilePage() {
             // Refresh profile data after successful transfer
             loadActorInfo();
           }}
+        />
+      )}
+
+      {/* Follow List Modal */}
+      {actorInfo && (
+        <FollowListModal
+          isOpen={followListModal.isOpen}
+          onClose={() =>
+            setFollowListModal({ ...followListModal, isOpen: false })
+          }
+          userId={actorInfo.id}
+          type={followListModal.type}
         />
       )}
     </PageContainer>

@@ -3,21 +3,105 @@
  * Core game simulation, generation, and decision engines
  */
 
+export {
+  calculateExpectedPayout,
+  PredictionPricing,
+  type ShareCalculation,
+  type ShareCalculationWithFees,
+} from '@babylon/core/markets/prediction';
 // Article Generator
-export { ArticleGenerator, type Article } from './ArticleGenerator';
-
+export { type Article, ArticleGenerator } from './ArticleGenerator';
+// Actors Data Loader
+export {
+  clearDataCache,
+  getActorIds,
+  getOrganizationIds,
+  type LoadActorsOptions,
+  loadActorById,
+  loadActorsData,
+  loadOrganizationById,
+} from './actors-loader';
+// State Store Adapters
+export { DbStateStore, InMemoryStateStore } from './adapters';
+// Alpha Group Configuration
+export {
+  ALPHA_GROUP_CONFIG,
+  type AlphaGroupConfig,
+  calculateNextEligibleDate,
+  DOMAIN_FOCUS_WEIGHTS,
+  getFocusWeightsForDomains,
+  shouldResetDeclineCount,
+} from './config/alpha-group-config';
+// Content Pacing Configuration
+export {
+  CONTENT_PACING,
+  calculatePostsForTick,
+  getTimeOfDayMultiplier,
+  isNewDay,
+  shouldActorPost,
+} from './config/content-pacing';
+// Configuration
+export {
+  FEE_CONFIG,
+  type FeeTransactionType,
+  type FeeType,
+} from './config/fees';
+// NPC Activity Configuration
+export {
+  getMaxTradesPerDay,
+  getMinMinutesBetweenTrades,
+  getPreset,
+  getTradingProbability,
+  logCurrentConfig,
+  NPC_ACTIVITY_CONFIG,
+  NPC_ACTIVITY_PRESETS,
+  NPC_CONTENT_PACING_CONFIG,
+  NPC_DIVERSITY_CONFIG,
+  NPC_ENGAGEMENT_CONFIG,
+  NPC_FOLLOWING_CONFIG,
+  NPC_GROUP_DYNAMICS_CONFIG,
+  NPC_POSTING_CONFIG,
+  NPC_SOCIAL_ACTIONS_CONFIG,
+  NPC_TICK_CONFIG,
+  NPC_TRADING_CONFIG,
+  type NPCActivityConfig,
+  type NPCActivityPresetName,
+} from './config/npc-activity';
+export {
+  DEFAULT_SIMULATION_CONFIG,
+  PREDICTION_TEMPLATES,
+  SIMULATION_AGENT_NAMES,
+  SIMULATION_CLUE_TEMPLATES,
+  SIMULATION_COMPANIES,
+  SIMULATION_QUESTIONS,
+  SIMULATION_STRATEGIES,
+  type SimulationStrategy,
+} from './config/simulation';
+// Data Exports
+export {
+  getQuestionExamples,
+  questionExamples,
+} from './data/question-examples';
+export { realityGroundingContent } from './data/reality-grounding';
 // Emotion System
 export {
+  type EmotionalState,
   generateActorContext,
   getRelationshipModifier,
   luckToDescription,
   moodToEmotion,
-  type EmotionalState,
 } from './EmotionSystem';
-
 // Feed Generator
 export { FeedGenerator } from './FeedGenerator';
-
+// Bias Engine
+export {
+  type BiasAdjustment,
+  type BiasConfig,
+  BiasEngine,
+  biasEngine,
+} from './feedback/bias-engine';
+// Game Clock (injectable time abstraction)
+export { GameClock, type GameClockConfig, type GameTime } from './GameClock';
 // Game Generator
 export {
   createQuestionPrompt,
@@ -26,135 +110,233 @@ export {
   OrganizationBehavior,
   type OrganizationType,
 } from './GameGenerator';
-// GameHistory, GeneratedGame types are re-exported from ./types/shared
-
-// Game Loop
-export { GameLoop, type TickResult } from './GameLoop';
-
+// Game Loop (tick-based simulation orchestrator)
+export { GameLoop } from './GameLoop';
+// Game Simulator (standalone simulation engine)
+export {
+  type GameConfig,
+  type GameEvent,
+  type GameResult,
+  GameSimulator,
+  type MarketState as SimulatedMarketState,
+  type ReputationChange,
+  type SimulatedAgent,
+} from './GameSimulator';
+// Game Tick (canonical tick executor)
+export {
+  type ActiveMarket,
+  type ActiveQuestion,
+  type GameActor,
+  type GameOrganization,
+  type GameStateStore,
+  GameTick,
+  type TickConfig,
+  type TickResult,
+  type TickServices,
+} from './GameTick';
 // Game World
 export {
-  GameWorld,
+  type CausalEventContext,
+  type CausalEventType,
   type DayEvent,
+  GameWorld,
   type GameWorldEvents,
   type GroupMessage,
   type MarketContext,
   type NPC,
+  type ScheduledCausalEvent,
   type WorldConfig,
   type WorldState,
 } from './GameWorld';
-// WorldEvent type is re-exported from ./types/shared
-
-// Market Decision Engine
-export { MarketDecisionEngine } from './MarketDecisionEngine';
-
-// News Article Pacing Engine
+// Game Service
+export { type ActiveMarketSummary, gameService } from './game-service';
+// Game Tick (realtime/cron execution)
 export {
-  NewsArticlePacingEngine,
-  type ArticleStage,
-} from './NewsArticlePacingEngine';
-
-// Perpetuals Engine
-export { PerpetualsEngine } from './PerpetualsEngine';
-
-// Question Manager
-export {
-  QuestionManager,
-  type QuestionCreationParams,
-} from './QuestionManager';
-
-// Relationship Evolution Engine
-export {
-  RelationshipEvolutionEngine,
-  type Interaction,
-  type RelationshipChange,
-} from './RelationshipEvolutionEngine';
-
-// Trending Topics Engine
-export {
-  TrendingTopicsEngine,
-  type TrendingTopic,
-} from './TrendingTopicsEngine';
-
-// LLM Exports (re-exported for convenience)
-export { BabylonLLMClient } from './llm/openai-client';
+  executeGameTick,
+  type GameTickResult as ExecuteGameTickResult,
+  publishOracleCommitments,
+  publishOracleReveals,
+  resolveQuestionPayouts,
+  updateMarketPricesFromTrades,
+} from './game-tick';
 export {
   cleanMarkdownCodeBlocks,
   extractJsonFromText,
   parseContinuationContent,
 } from './llm/json-continuation-parser';
+// LLM Exports (re-exported for convenience)
+export {
+  BabylonLLMClient,
+  getTokenUsageCallback,
+  setTokenUsageCallback,
+  type TokenUsageCallback,
+} from './llm/openai-client';
+export {
+  type LLMGenerateJSONOptions,
+  type LLMJsonClient,
+  type LLMJsonSchema,
+} from './llm/types';
 export { parseXML, type XMLParseResult } from './llm/xml-parser';
-
+// Market Decision Engine
+export { MarketDecisionEngine } from './MarketDecisionEngine';
+// News Article Pacing Engine
+export {
+  type ArticleStage,
+  NewsArticlePacingEngine,
+} from './NewsArticlePacingEngine';
+// NPC Investment Manager
+export {
+  NPCInvestmentManager,
+  type PortfolioMetrics,
+  type PortfolioPosition,
+  type RebalanceAction,
+} from './npc/npc-investment-manager';
+// NPC Portfolio Strategy
+export {
+  NPCPortfolioStrategy,
+  type StrategyConfig,
+} from './npc/npc-portfolio-strategy';
+export {
+  type ParsedPostMetadata,
+  type ParseResult,
+  parsePostId,
+} from './post-id-parser';
+// Concentrated Liquidity
+export {
+  type AddPositionParams,
+  ConcentratedLiquidityPool,
+  type ConcentratedPosition,
+  type ConcentratedTradeResult,
+  calculateOptimalRange,
+  createPoolFromMarket,
+  estimateFeeAPR,
+  type PoolConfig,
+  type PoolState,
+  type RemovePositionResult,
+} from './prediction-concentrated-liquidity';
 // Prompts
 export * from './prompts';
-
-// Actors Data Loader
+// Question Manager
 export {
-  clearDataCache,
-  getActorIds,
-  getOrganizationIds,
-  loadActorById,
-  loadActorsData,
-  loadOrganizationById,
-  type LoadActorsOptions,
-} from './actors-loader';
-
-// World Facts Service
+  isEligibleActor,
+  type QuestionCreationParams,
+  QuestionManager,
+} from './QuestionManager';
+// Relationship Evolution Engine
 export {
-  WorldFactsService,
-  worldFactsService,
-  type WorldFactsContext,
-} from './world-facts-service';
-
-// Game Service
-export { gameService } from './game-service';
-
-// Serverless Game Tick
+  type Interaction,
+  type RelationshipChange,
+  RelationshipEvolutionEngine,
+} from './RelationshipEvolutionEngine';
+// Rate limiting (backward-compatible re-exports from @babylon/api)
+export * from './rate-limiting';
+// Reputation Module
 export {
-  executeGameTick,
-  resolveQuestionPayouts,
-  type GameTickResult,
-} from './serverless-game-tick';
-
-// Reputation Sync Interface (for optional integration with agents package)
+  calculateAverageROI,
+  calculateConfidenceScore,
+  // Trade Feedback Calculator
+  calculateEntryTimingScore,
+  calculateExitTimingScore,
+  calculateGameScore,
+  // Reputation Calculation Service
+  calculateReputationScore,
+  calculateRiskScore,
+  calculateSharpeRatio,
+  calculateTradeMetrics,
+  calculateTradeScore,
+  calculateWinRate,
+  denormalizePnL,
+  type GameMetrics,
+  generateBatchGameFeedback,
+  generateGameCompletionFeedback,
+  generateTradeCompletionFeedback,
+  getReputationBreakdown,
+  getReputationLeaderboard,
+  getTradeFeedbackSummary,
+  getTrustLevel,
+  // PNL Normalization utilities
+  normalizePnL,
+  type ReputationScoreBreakdown,
+  recalculateReputation,
+  type TradeMetrics,
+  updateFeedbackMetrics,
+  updateGameMetrics,
+  updateTradingMetrics,
+} from './reputation';
+// Services (all exported from services/index.ts)
+export * from './services';
+// Tier Configuration
 export {
-  getReputationSyncService,
-  setReputationSyncService,
-  syncReputationIfAvailable,
-  type ReputationSyncOptions,
-  type ReputationSyncResult,
-  type ReputationSyncServiceInterface as ReputationSyncService,
-} from './services/reputation-service';
-
-// Logger
-export { Logger, logger, type LogLevel } from '@babylon/shared';
-
-// Rate Limiting
+  ALL_TIERS,
+  getEffectiveTierConfig,
+  getHigherTier,
+  getLowerTier,
+  getNpcFocusWeights,
+  getTierConfig,
+  getTierForEngagementScore,
+  getTierForEngagementScoreWithNpc,
+  getTierGroupName,
+  getTierMessageGuidance,
+  getTierSuffix,
+  getTotalNpcCapacity,
+  isEligibleForPromotion,
+  isValidTier,
+  shouldDemote,
+  TIER_CONFIG,
+  TIER_MESSAGE_GUIDANCE,
+  type TierConfig,
+} from './services/tier-config';
+// Storage Bridge (database-agnostic storage abstraction)
 export {
-  checkDuplicate,
-  checkRateLimit,
-  cleanupDuplicates,
-  cleanupRateLimits,
-  clearAllDuplicates,
-  clearAllRateLimits,
-  clearDuplicates,
-  DUPLICATE_DETECTION_CONFIGS,
-  getDuplicateStats,
-  getRateLimitStatus,
-  RATE_LIMIT_CONFIGS,
-  resetRateLimit,
-} from './rate-limiting';
-
-// Configuration
-export { FEE_CONFIG, type FeeType, type FeeTransactionType } from './config/fees';
-
-// Prediction Pricing
+  db,
+  exportState,
+  getStorageMode,
+  initializeDatabaseMode,
+  initializeSimulationMode,
+  initializeTestMode,
+  isDatabaseMode,
+  isSimulationMode,
+  isTestMode,
+  loadSnapshot,
+  type StorageMode,
+  saveSnapshot,
+} from './storage-bridge';
+// Trending Topics Engine
 export {
-  calculateExpectedPayout,
-  PredictionPricing,
-  type ShareCalculation,
-  type ShareCalculationWithFees,
-} from './prediction-pricing';
-
+  type TrendingTopic,
+  TrendingTopicsEngine,
+} from './TrendingTopicsEngine';
+// Common Types
+export type {
+  ApiResponse,
+  ErrorLike,
+  FilterParams,
+  JsonRpcParams,
+  JsonRpcResult,
+  JsonValue,
+  LLMResponse,
+  LogData,
+  PaginatedResponse,
+  PaginationParams,
+  QueryParams,
+  SortOrder,
+  SortParams,
+  StringRecord,
+  WebSocketData,
+} from './types/common';
+// Market Context Types
+export type {
+  EventContext,
+  FeedPostContext,
+  GroupChatContext,
+  MarketSnapshots,
+  NewsArticleContext,
+  NPCMarketContext,
+  NPCPosition,
+  PerpMarketSnapshot,
+  PredictionMarketSnapshot,
+  RelationshipContext,
+} from './types/market-context';
 // Market Decision Types
 export type {
   ExecutedTrade,
@@ -164,15 +346,14 @@ export type {
   TradingDecision,
   TradingExecutionResult,
 } from './types/market-decisions';
-
 // Shared Game Types
 export type {
   Actor,
   ActorConnection,
   ActorData,
   ActorRelationship,
-  ActorsDatabase,
   ActorState,
+  ActorsDatabase,
   ActorTier,
   DayTimeline,
   FeedEvent,
@@ -197,10 +378,8 @@ export type {
   Scenario,
   SelectedActor,
   StockPrice,
-  WorldContext,
   WorldEvent,
 } from './types/shared';
-
 export {
   ACTOR_TIERS,
   DAY_RANGES,
@@ -209,97 +388,39 @@ export {
   POST_TYPES,
   RELATIONSHIP_TYPES,
 } from './types/shared';
-
-// Common Types
+// Token Stats Types
 export type {
-  ApiResponse,
-  ErrorLike,
-  FilterParams,
-  JsonRpcParams,
-  JsonRpcResult,
-  JsonValue,
-  LLMResponse,
-  LogData,
-  PaginatedResponse,
-  PaginationParams,
-  QueryParams,
-  SortOrder,
-  SortParams,
-  StringRecord,
-  WebSocketData,
-} from './types/common';
-
-// Services
+  LLMCallTokenUsage,
+  ModelStats,
+  PromptTypeStats,
+  TickTokenStats,
+  TokenStatsSummary,
+  TokenUsageCollector,
+} from './types/token-stats';
 export {
-  CharacterMappingService,
-  characterMappingService,
-  type TextReplacementResult,
-} from './services/character-mapping-service';
-
+  calculateEstimatedCost,
+  TOKEN_COST_PER_MILLION,
+} from './types/token-stats';
+// Utils - Entropy (secure random, weighted picks, cooldowns)
 export {
-  FeeService,
-  type FeeCalculation,
-  type FeeDistributionResult,
-  type ReferralEarnings,
-} from './services/fee-service';
-
+  biasedRandomCount,
+  type EventCooldownState,
+  generateSentimentSignal,
+  SeededRandom,
+  securePickN,
+  secureRandom,
+  secureRandomInt,
+  secureShuffle,
+  shouldFireEvent,
+  urgencyWeight,
+  weightedPick,
+} from './utils/entropy';
+// Utils - Prompt Logging
 export {
-  MarketContextService,
-} from './services/market-context-service';
-
-export {
-  aggregateTradeImpacts,
-  type AggregatedImpact,
-  type TradeImpactInput,
-} from './services/market-impact-service';
-
-export {
-  PredictionMarketService,
-  type BroadcasterFn,
-  type PredictionHistoryEventType,
-  type PredictionHistorySource,
-  type PredictionPriceSnapshot,
-  type PredictionResolutionEvent,
-  type PredictionTradeEvent,
-} from './services/prediction-market-service';
-
-export { EarnedPointsService } from './services/earned-points-service';
-
-export {
-  RSSFeedService,
-  rssFeedService,
-  type ParsedFeed,
-  type RSSFeedItem,
-} from './services/rss-feed-service';
-
-export {
-  NPCGroupDynamicsService as NPCGroupDynamicsCalculations,
-  type KickProbabilityResult,
-  type KickThresholds,
-} from './services/npc-group-dynamics-calculations';
-
-// Snowflake ID Generator
-export {
-  generateSnowflakeId,
-  isValidSnowflakeId,
-  parseSnowflakeId,
-  SnowflakeGenerator,
-} from '@babylon/shared';
-
-// Market Context Types
-export type {
-  EventContext,
-  FeedPostContext,
-  GroupChatContext,
-  MarketSnapshots,
-  NewsArticleContext,
-  NPCMarketContext,
-  NPCPosition,
-  PerpMarketSnapshot,
-  PredictionMarketSnapshot,
-  RelationshipContext,
-} from './types/market-context';
-
+  isPromptLoggingEnabled,
+  logPrompt,
+  type PromptLogEntry,
+} from './utils/prompt-logger';
 // Utils - Randomization
 export {
   pickRandom,
@@ -308,206 +429,9 @@ export {
   sampleRandom,
   shuffleArray,
 } from './utils/randomization';
-
-// Utils - Content Analysis
+// World Facts Service
 export {
-  analyzeCertainty,
-  analyzeSentiment,
-  calculateContentQuality,
-  calculateFreshness,
-  detectPrediction,
-  hasInsiderLanguage,
-} from '@babylon/shared';
-
-// Utils - Content Safety
-export {
-  checkAgentOutput,
-  checkUserInput,
-  sanitizeContent,
-  type ContentCheckResult,
-} from '@babylon/shared';
-
-// Utils - Prompt Logging
-export {
-  isPromptLoggingEnabled,
-  logPrompt,
-  type PromptLogEntry,
-} from './utils/prompt-logger';
-
-// Data Exports
-export {
-  getQuestionExamples,
-  questionExamples,
-} from './data/question-examples';
-export { realityGroundingContent } from './data/reality-grounding';
-
-// Token Counter (now in @babylon/api)
-export {
-  budgetTokens,
-  countTokens,
-  countTokensSync,
-  getModelTokenLimit,
-  getSafeContextLimit,
-  MODEL_TOKEN_LIMITS,
-  truncateToTokenLimit,
-  truncateToTokenLimitSync,
-} from '@babylon/api';
-
-// Post ID Parser
-export {
-  parsePostId,
-  type ParsedPostMetadata,
-  type ParseResult,
-} from './post-id-parser';
-
-// Concentrated Liquidity
-export {
-  calculateOptimalRange,
-  ConcentratedLiquidityPool,
-  createPoolFromMarket,
-  estimateFeeAPR,
-  type AddPositionParams,
-  type ConcentratedPosition,
-  type ConcentratedTradeResult,
-  type PoolConfig,
-  type PoolState,
-  type RemovePositionResult,
-} from './prediction-concentrated-liquidity';
-
-// Perps Service
-export {
-  ensurePerpsEngineReady,
-  getPerpsEngine,
-  getReadyPerpsEngine,
-  withPerpsEngine,
-} from './perps-service';
-
-// Perps Utilities (funding rate calculator, etc.)
-export * from './perps';
-
-// Reputation Module
-export {
-  // PNL Normalization utilities
-  normalizePnL,
-  denormalizePnL,
-  calculateWinRate,
-  calculateAverageROI,
-  calculateSharpeRatio,
-  getTrustLevel,
-  calculateConfidenceScore,
-  // Reputation Calculation Service
-  calculateReputationScore,
-  updateGameMetrics,
-  updateTradingMetrics,
-  updateFeedbackMetrics,
-  recalculateReputation,
-  getReputationBreakdown,
-  getReputationLeaderboard,
-  calculateGameScore,
-  calculateTradeScore,
-  generateGameCompletionFeedback,
-  generateTradeCompletionFeedback,
-  generateBatchGameFeedback,
-  // Trade Feedback Calculator
-  calculateEntryTimingScore,
-  calculateExitTimingScore,
-  calculateRiskScore,
-  calculateTradeMetrics,
-  getTradeFeedbackSummary,
-  type ReputationScoreBreakdown,
-  type GameMetrics,
-  type TradeMetrics,
-} from './reputation';
-
-// Bias Engine
-export {
-  BiasEngine,
-  biasEngine,
-  type BiasConfig,
-  type BiasAdjustment,
-} from './feedback/bias-engine';
-
-// Tag Services
-export {
-  storeTagsForPost,
-  getTagsForPost,
-  getPostsByTag,
-  getTagStatistics,
-  storeTrendingTags,
-  getCurrentTrendingTags,
-  getRelatedTags,
-} from './services/tag-service';
-
-export {
-  shouldRecalculateTrending,
-  calculateTrendingTags,
-  calculateTrendingIfNeeded,
-} from './services/trending-calculation-service';
-
-// Parody Headline Generator
-export {
-  createParodyHeadlineGenerator,
-  ParodyHeadlineGenerator,
-  type GeneratedParody,
-} from './services/parody-headline-generator';
-
-// Wallet Service
-export {
-  WalletService,
-  type BalanceInfo,
-  type TransactionHistoryItem,
-} from './services/wallet-service';
-
-// Trade Cache Invalidation
-export {
-  invalidateAfterPerpTrade,
-  invalidateAfterPredictionTrade,
-  invalidatePerpTradesCache,
-  invalidatePredictionTradesCache,
-  setCacheInvalidationClient,
-  type CacheInvalidationClient,
-} from './services/trade-cache-invalidation';
-
-// Trade Execution Service
-export { TradeExecutionService } from './services/trade-execution-service';
-
-// NPC Persona Generator
-export {
-  NPCPersonaGenerator,
-  type PersonaAssignment,
-} from './services/npc-persona-generator';
-
-// Question Arc Planner
-export {
-  QuestionArcPlanner,
-  type PhaseTargets,
-  type QuestionArcPlan,
-} from './services/question-arc-planner';
-
-// Event Generation Helpers
-export { generateEvents } from './services/event-generation-helpers';
-
-// Post Generation Helpers
-export {
-  generateNPCPost,
-  generateOrgArticle,
-  generateOrgPost,
-} from './services/post-generation-helpers';
-
-// NPC Investment Manager
-export {
-  NPCInvestmentManager,
-  type PortfolioMetrics,
-  type PortfolioPosition,
-  type RebalanceAction,
-} from './npc/npc-investment-manager';
-
-// NPC Portfolio Strategy
-export {
-  NPCPortfolioStrategy,
-  type StrategyConfig,
-} from './npc/npc-portfolio-strategy';
-
-// All Services (exported from services/index.ts)
-export * from './services';
-
+  type WorldFactsContext,
+  WorldFactsService,
+  worldFactsService,
+} from './world-facts-service';

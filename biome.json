@@ -23,7 +23,10 @@
       "!**/*.md",
       "!**/*.mdx",
       "!**/babylon-platform-artchitecture",
-      "!**/genesis.json"
+      "!**/genesis.json",
+      "!**/drizzle/migrations",
+      "!packages/training/book/mermaid-init.js",
+      "!packages/training/book/mermaid.min.js"
     ]
   },
   "formatter": {

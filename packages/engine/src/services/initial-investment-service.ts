@@ -7,11 +7,11 @@
  * Uses LLM to determine appropriate investments based on NPC characteristics.
  */
 
-import { actors, db, eq, sql } from '@babylon/db';
-import { BabylonLLMClient } from '@babylon/engine';
-import { loadActorById } from '@babylon/engine';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
+import { actorState, and, db, eq, getDbInstance, gte, sql } from '@babylon/db';
+import { generateSnowflakeId, logger } from '@babylon/shared';
+import { loadActorById } from '../actors-loader';
+import { BabylonLLMClient } from '../llm/openai-client';
+import { StaticDataRegistry } from './static-data-registry';
 
 /**
  * Initial investment specification
@@ -61,39 +61,45 @@ export class InitialInvestmentService {
       'InitialInvestment'
     );
 
-    // Get all NPCs with their affiliations
-    const npcs = (await db.actor.findMany({
-      where: { tradingBalance: { gt: '0' } },
-      select: {
-        id: true,
-        name: true,
-        affiliations: true,
-        domain: true,
-        personality: true,
-        tier: true,
-        tradingBalance: true,
-      },
-    })) as Array<{
-      id: string;
-      name: string;
-      affiliations: string[];
-      domain: string[];
-      personality: string | null;
-      tier: string | null;
-      tradingBalance: string;
-    }>;
+    // Get all NPCs with their affiliations from static registry + dynamic state
+    const actorStates = await getDbInstance().getAllActorStates();
+    const actorStateMap = new Map(actorStates.map((s) => [s.id, s]));
+    const npcs = StaticDataRegistry.getAllActors()
+      .map((actor) => {
+        const state = actorStateMap.get(actor.id);
+        const tradingBalance = state?.tradingBalance ?? '10000';
+        return {
+          id: actor.id,
+          name: actor.name,
+          affiliations: actor.affiliations ?? [],
+          domain: actor.domain ?? [],
+          personality: actor.personality ?? null,
+          tier: actor.tier ?? null,
+          tradingBalance,
+        };
+      })
+      .filter((npc) => Number.parseFloat(npc.tradingBalance) > 0);
 
-    // Get all companies
-    const companies = await db.organization.findMany({
-      where: { type: 'company', ticker: { not: null } },
-      select: {
-        id: true,
-        name: true,
-        ticker: true,
-        initialPrice: true,
-        currentPrice: true,
-      },
-    });
+    // Get all companies from static registry with dynamic prices
+    const orgStates = await getDbInstance().getAllOrganizationStates();
+    const priceMap = new Map(
+      orgStates.map((s): [string, number | null] => [s.id, s.currentPrice])
+    );
+    const companies = StaticDataRegistry.getAllOrganizations()
+      .filter((o) => o.type === 'company' && o.ticker)
+      .map((o) => {
+        const currentPriceFromDb = priceMap.get(o.id);
+        return {
+          id: o.id,
+          name: o.name,
+          ticker: o.ticker ?? null,
+          initialPrice: o.initialPrice,
+          currentPrice:
+            currentPriceFromDb !== undefined
+              ? currentPriceFromDb
+              : o.initialPrice,
+        };
+      });
 
     if (companies.length === 0) {
       logger.warn(
@@ -154,31 +160,13 @@ export class InitialInvestmentService {
         successfulInvestments++;
         totalVolume += investment.amount;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        failureReasons[errorMessage] = (failureReasons[errorMessage] || 0) + 1;
-
+        const reason = error instanceof Error ? error.message : 'Unknown error';
+        failureReasons[reason] = (failureReasons[reason] || 0) + 1;
         logger.warn(
-          `Failed to execute investment for ${investment.npcName}`,
-          {
-            error: errorMessage,
-            ticker: investment.ticker,
-            amount: investment.amount,
-          },
+          `Failed to execute investment: ${investment.npcName} → ${investment.ticker}`,
+          { error: reason, amount: investment.amount },
           'InitialInvestment'
         );
-
-        // FAIL FAST in development for first few failures
-        if (
-          process.env.NODE_ENV !== 'production' &&
-          successfulInvestments === 0 &&
-          Object.keys(failureReasons).length <= 3
-        ) {
-          throw new Error(
-            `[DEV] Initial investment execution failed: ${errorMessage}. ` +
-              `NPC: ${investment.npcName}, Ticker: ${investment.ticker}, Amount: $${investment.amount}`
-          );
-        }
       }
     }
 
@@ -304,84 +292,70 @@ Return ONLY valid JSON array (no explanations):
 
 Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investments totaling their target amount.`;
 
-    try {
-      const response = await llm.generateJSON<InitialInvestment[]>(
-        prompt,
-        {
-          properties: {
-            investments: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  npcId: { type: 'string' },
-                  npcName: { type: 'string' },
-                  ticker: { type: 'string' },
-                  orgName: { type: 'string' },
-                  amount: { type: 'number' },
-                  reasoning: { type: 'string' },
-                },
-              },
-            },
-          },
+    // Note: The prompt requests a raw JSON array, so the response is already an array
+    // if the LLM follows the prompt correctly. Schema validation is minimal here.
+    const response = await llm.generateJSON<InitialInvestment[]>(
+      prompt,
+      {
+        // Schema for array items validation (wrapped in investments property for compatibility)
+        properties: {
+          npcId: { type: 'string' },
+          npcName: { type: 'string' },
+          ticker: { type: 'string' },
+          orgName: { type: 'string' },
+          amount: { type: 'number' },
+          reasoning: { type: 'string' },
         },
-        {
-          temperature: 0.7,
-          maxTokens: 16000,
-          format: 'json',
-          promptType: 'generate_investments_batch',
-        }
-      );
-
-      logger.debug(
-        `LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`,
-        {
-          responseKeys: response ? Object.keys(response) : [],
-        },
-        'InitialInvestment'
-      );
-
-      // Validate response is array
-      const investments = Array.isArray(response) ? response : [];
-
-      if (investments.length === 0) {
-        logger.warn(
-          'LLM returned empty array, using fallback',
-          { npcCount: npcs.length },
-          'InitialInvestment'
-        );
-        return InitialInvestmentService.generateFallbackInvestments(
-          npcs,
-          companies
-        );
+        required: [
+          'npcId',
+          'npcName',
+          'ticker',
+          'orgName',
+          'amount',
+          'reasoning',
+        ],
+      },
+      {
+        temperature: 0.7,
+        maxTokens: 16000,
+        format: 'json',
+        promptType: 'generate_investments_batch',
       }
+    );
 
-      logger.info(
-        `Generated ${investments.length} initial investments for batch`,
-        {
-          npcCount: npcs.length,
-          investmentsCount: investments.length,
-        },
+    logger.debug(
+      `LLM response type: ${typeof response}, is array: ${Array.isArray(response)}`,
+      {
+        responseKeys: response ? Object.keys(response) : [],
+      },
+      'InitialInvestment'
+    );
+
+    // Validate response is array
+    const investments = Array.isArray(response) ? response : [];
+
+    if (investments.length === 0) {
+      logger.warn(
+        'LLM returned empty array, using fallback',
+        { npcCount: npcs.length },
         'InitialInvestment'
       );
-
-      return investments;
-    } catch (error) {
-      logger.error(
-        'Failed to generate initial investments for batch',
-        {
-          error: error instanceof Error ? error.message : String(error),
-          npcCount: npcs.length,
-        },
-        'InitialInvestment'
-      );
-
-      // Fallback: generate simple investments based on affiliations
       return InitialInvestmentService.generateFallbackInvestments(
         npcs,
         companies
       );
     }
+
+    logger.info(
+      `Generated ${investments.length} initial investments for batch`,
+      {
+        npcCount: npcs.length,
+        investmentsCount: investments.length,
+      },
+      'InitialInvestment'
+    );
+
+    return investments;
   }
 
   /**
@@ -516,14 +490,20 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
   private static async executeInvestment(
     investment: InitialInvestment
   ): Promise<void> {
-    // Get organization details
-    const org = await db.organization.findFirst({
-      where: { ticker: investment.ticker },
-    });
+    // Get organization details from static registry with dynamic price
+    const staticOrg = StaticDataRegistry.getAllOrganizations().find(
+      (o) => o.ticker === investment.ticker
+    );
 
-    if (!org || !org.ticker) {
+    if (!staticOrg || !staticOrg.ticker) {
       throw new Error(`Organization not found for ticker ${investment.ticker}`);
     }
+
+    const orgState = await getDbInstance().getOrganizationState(staticOrg.id);
+    const org = {
+      ...staticOrg,
+      currentPrice: orgState?.currentPrice ?? staticOrg.initialPrice,
+    };
 
     const entryPrice = org.currentPrice || org.initialPrice || 100;
     const shares = investment.amount / entryPrice;
@@ -557,16 +537,13 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
         })
         .catch((error) => {
           // Pool might already exist from race condition, that's fine
-          // But rethrow other errors in development
-          if (process.env.NODE_ENV !== 'production') {
-            const errorCode =
-              error && typeof error === 'object' && 'code' in error
-                ? error.code
-                : null;
-            if (errorCode !== 'P2002') {
-              // P2002 = unique constraint (already exists)
-              throw error;
-            }
+          const errorCode =
+            error && typeof error === 'object' && 'code' in error
+              ? error.code
+              : null;
+          if (errorCode !== 'P2002') {
+            // P2002 = unique constraint (already exists)
+            throw error;
           }
         });
     }
@@ -597,13 +574,29 @@ Generate investments for ALL ${npcs.length} NPCs. Each NPC must have 2-5 investm
       },
     });
 
-    // Deduct from NPC trading balance using raw SQL decrement
-    await db
-      .update(actors)
+    // Deduct from NPC trading balance (atomic check to prevent negative balance)
+    const debitResult = await db
+      .update(actorState)
       .set({
-        tradingBalance: sql`${actors.tradingBalance} - ${investment.amount}`,
+        tradingBalance: sql`${actorState.tradingBalance} - ${investment.amount}`,
+        updatedAt: new Date(),
       })
-      .where(eq(actors.id, investment.npcId));
+      .where(
+        and(
+          eq(actorState.id, investment.npcId),
+          gte(
+            sql<number>`${actorState.tradingBalance}::numeric`,
+            investment.amount
+          )
+        )
+      )
+      .returning({ id: actorState.id });
+
+    if (debitResult.length === 0) {
+      throw new Error(
+        `Insufficient NPC balance for initial investment: ${investment.npcName} → ${investment.ticker} $${investment.amount}`
+      );
+    }
 
     // Record the trade
     await db.npcTrade.create({

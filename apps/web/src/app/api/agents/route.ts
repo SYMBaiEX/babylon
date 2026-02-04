@@ -155,11 +155,15 @@
  * @see {@link /src/app/agents/page.tsx} Agents management UI
  */
 
+import {
+  agentService,
+  getAgentConfig,
+  isAutonomousTradingEnabled,
+} from '@babylon/agents';
+import { authenticateUser } from '@babylon/api';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { agentService } from '@babylon/agents';
-import { logger } from '@babylon/shared';
-import { authenticateUser } from '@babylon/api';
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
@@ -167,6 +171,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     name,
+    username,
     description,
     profileImageUrl,
     coverImageUrl,
@@ -175,11 +180,20 @@ export async function POST(req: NextRequest) {
     personality,
     tradingStrategy,
     initialDeposit,
+    // New settings from step 3
+    modelTier,
+    autonomousEnabled,
+    autonomousPosting,
+    autonomousCommenting,
+    autonomousDMs,
+    autonomousGroupChats,
+    a2aEnabled,
   } = body;
 
   const agentUser = await agentService.createAgent({
     userId: user.id,
     name,
+    username,
     description,
     profileImageUrl,
     coverImageUrl,
@@ -196,6 +210,21 @@ export async function POST(req: NextRequest) {
     'AgentsAPI'
   );
 
+  // Update agent config with settings from step 3
+  // (createAgent sets all autonomous features to true by default, so we apply user's choices here)
+  await agentService.updateAgent(agentUser.id, user.id, {
+    modelTier: modelTier || 'free',
+    autonomousTrading: autonomousEnabled ?? false,
+    autonomousPosting: autonomousPosting ?? false,
+    autonomousCommenting: autonomousCommenting ?? false,
+    autonomousDMs: autonomousDMs ?? false,
+    autonomousGroupChats: autonomousGroupChats ?? false,
+    a2aEnabled: a2aEnabled ?? false,
+  });
+
+  // Get agent config for the response
+  const config = await getAgentConfig(agentUser.id);
+
   return NextResponse.json({
     success: true,
     agent: {
@@ -204,13 +233,13 @@ export async function POST(req: NextRequest) {
       name: agentUser.displayName,
       description: agentUser.bio,
       profileImageUrl: agentUser.profileImageUrl,
-      pointsBalance: agentUser.agentPointsBalance,
-      autonomousTrading: agentUser.autonomousTrading,
-      autonomousPosting: agentUser.autonomousPosting,
-      autonomousCommenting: agentUser.autonomousCommenting,
-      autonomousDMs: agentUser.autonomousDMs,
-      autonomousGroupChats: agentUser.autonomousGroupChats,
-      modelTier: agentUser.agentModelTier,
+      virtualBalance: Number(agentUser.virtualBalance ?? 0),
+      autonomousTrading: isAutonomousTradingEnabled(config),
+      autonomousPosting: config?.autonomousPosting ?? false,
+      autonomousCommenting: config?.autonomousCommenting ?? false,
+      autonomousDMs: config?.autonomousDMs ?? false,
+      autonomousGroupChats: config?.autonomousGroupChats ?? false,
+      modelTier: config?.modelTier ?? 'lite',
       lifetimePnL: agentUser.lifetimePnL.toString(),
       walletAddress: agentUser.walletAddress,
       onChainRegistered: agentUser.onChainRegistered,
@@ -234,32 +263,33 @@ export async function GET(req: NextRequest) {
 
   const agentsWithStats = await Promise.all(
     agents.map(async (agent) => {
-      const performance = await agentService.getPerformance(agent.id);
+      const [performance, config] = await Promise.all([
+        agentService.getPerformance(agent.id),
+        getAgentConfig(agent.id),
+      ]);
+      const tradingEnabled = isAutonomousTradingEnabled(config);
       return {
         id: agent.id,
         username: agent.username,
         name: agent.displayName,
         description: agent.bio,
         profileImageUrl: agent.profileImageUrl,
-        pointsBalance: agent.agentPointsBalance,
-        totalDeposited: agent.agentTotalDeposited!,
-        totalWithdrawn: agent.agentTotalWithdrawn!,
-        totalPointsSpent: agent.agentTotalPointsSpent!,
-        autonomousEnabled: agent.autonomousTrading!,
-        autonomousTrading: agent.autonomousTrading,
-        autonomousPosting: agent.autonomousPosting,
-        autonomousCommenting: agent.autonomousCommenting,
-        autonomousDMs: agent.autonomousDMs,
-        autonomousGroupChats: agent.autonomousGroupChats,
-        modelTier: agent.agentModelTier,
-        status: agent.agentStatus,
-        isActive: agent.agentStatus === 'active',
+        virtualBalance: Number(agent.virtualBalance ?? 0),
+        autonomousEnabled: tradingEnabled,
+        autonomousTrading: tradingEnabled,
+        autonomousPosting: config?.autonomousPosting ?? false,
+        autonomousCommenting: config?.autonomousCommenting ?? false,
+        autonomousDMs: config?.autonomousDMs ?? false,
+        autonomousGroupChats: config?.autonomousGroupChats ?? false,
+        modelTier: config?.modelTier ?? 'lite',
+        status: config?.status ?? 'idle',
+        isActive: config?.status === 'active',
         lifetimePnL: agent.lifetimePnL.toString(),
         totalTrades: performance.totalTrades,
         profitableTrades: performance.profitableTrades,
         winRate: performance.winRate,
-        lastTickAt: agent.agentLastTickAt?.toISOString(),
-        lastChatAt: agent.agentLastChatAt?.toISOString(),
+        lastTickAt: config?.lastTickAt?.toISOString(),
+        lastChatAt: config?.lastChatAt?.toISOString(),
         walletAddress: agent.walletAddress,
         onChainRegistered: agent.onChainRegistered!,
         agent0TokenId: agent.agent0TokenId,

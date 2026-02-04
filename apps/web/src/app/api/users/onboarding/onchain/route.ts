@@ -55,14 +55,18 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { db, eq, users } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { BusinessLogicError, ConflictError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { processOnchainRegistration } from '@babylon/api';
 import type { JsonValue } from '@babylon/api';
+import {
+  authenticate,
+  BusinessLogicError,
+  ConflictError,
+  processOnchainRegistration,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { db, eq, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface OnchainRequestBody {
   walletAddress?: string | null;
@@ -71,10 +75,27 @@ interface OnchainRequestBody {
 }
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  const cookieToken = request.cookies.get('privy-token')?.value;
+  const authHeader = request.headers.get('authorization');
+  const headerToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
+  // Prefer the HttpOnly `privy-token` cookie when present. With Privy cookies enabled,
+  // this cookie contains the user's access token (JWT) and is the most reliable source.
+  // Fall back to the Authorization header for external clients/agents.
+  const userJwt = cookieToken ?? headerToken ?? null;
+
   const authUser = await authenticate(request);
   const body = (await request.json()) as
     | OnchainRequestBody
     | Record<string, JsonValue>;
+
+  if (!userJwt) {
+    throw new BusinessLogicError(
+      'Authentication required. Missing Privy access token.',
+      'AUTH_REQUIRED'
+    );
+  }
 
   const txHash =
     typeof (body as OnchainRequestBody).txHash === 'string'
@@ -136,6 +157,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const onchainResult = await processOnchainRegistration({
     user: authUser,
+    userJwt,
     walletAddress,
     username: dbUser.username,
     displayName: dbUser.displayName,

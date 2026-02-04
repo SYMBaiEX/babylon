@@ -40,7 +40,9 @@
  */
 
 import { logger } from '@babylon/shared';
+import { correlations } from '../data/organization-correlations';
 import type { Actor, Organization } from '../types';
+import { type RngFunction, randomChance } from '../utils/randomization';
 
 /**
  * NPC Persona Assignment
@@ -107,10 +109,53 @@ export interface PersonaAssignment {
  */
 export class NPCPersonaGenerator {
   /**
+   * Lazy-initialized competitor lookup map.
+   * Maps org ID -> Set of competitor org IDs (bidirectional).
+   */
+  private competitorMap: Map<string, Set<string>> | null = null;
+
+  /**
+   * Get or build the competitor map from correlations data.
+   * Built once on first access, then cached.
+   */
+  private getCompetitorMap(): Map<string, Set<string>> {
+    if (this.competitorMap) return this.competitorMap;
+
+    this.competitorMap = new Map<string, Set<string>>();
+
+    for (const c of correlations) {
+      if (c.relationship !== 'competitor') continue;
+
+      // Add primary -> related
+      if (!this.competitorMap.has(c.primary)) {
+        this.competitorMap.set(c.primary, new Set());
+      }
+      this.competitorMap.get(c.primary)!.add(c.related);
+
+      // Add related -> primary (bidirectional)
+      if (!this.competitorMap.has(c.related)) {
+        this.competitorMap.set(c.related, new Set());
+      }
+      this.competitorMap.get(c.related)!.add(c.primary);
+    }
+
+    return this.competitorMap;
+  }
+
+  /**
+   * Invalidate the competitor map cache.
+   * Call this if correlations data changes at runtime.
+   */
+  invalidateCompetitorCache(): void {
+    this.competitorMap = null;
+  }
+
+  /**
    * Assign personas to all actors
    *
    * @param actors - All game actors
    * @param organizations - All game organizations
+   * @param rng - Optional random number generator (defaults to Math.random)
    * @returns Map of actorId → persona assignment
    *
    * @description
@@ -141,7 +186,8 @@ export class NPCPersonaGenerator {
    */
   assignPersonas(
     actors: Actor[],
-    organizations: Organization[]
+    organizations: Organization[],
+    rng: RngFunction = Math.random
   ): Map<string, PersonaAssignment> {
     const personas = new Map<string, PersonaAssignment>();
 
@@ -149,7 +195,8 @@ export class NPCPersonaGenerator {
       const persona = this.generatePersonaForActor(
         actor,
         actors,
-        organizations
+        organizations,
+        rng
       );
       personas.set(actor.id, persona);
     }
@@ -175,8 +222,9 @@ export class NPCPersonaGenerator {
    */
   private generatePersonaForActor(
     actor: Actor,
-    _allActors: Actor[],
-    _organizations: Organization[]
+    allActors: Actor[],
+    organizations: Organization[],
+    rng: RngFunction
   ): PersonaAssignment {
     // Determine base reliability from role/personality/domain
     let baseReliability = 0.5;
@@ -190,7 +238,7 @@ export class NPCPersonaGenerator {
       actor.personality?.includes('conspiracy') ||
       actor.description?.toLowerCase().includes('conspiracy')
     ) {
-      baseReliability = 0.15 + Math.random() * 0.15; // 0.15-0.30
+      baseReliability = 0.15 + rng() * 0.15; // 0.15-0.30
       willingToLie = true;
       selfInterest = 'chaos';
     }
@@ -200,7 +248,7 @@ export class NPCPersonaGenerator {
       actor.description?.toLowerCase().includes('politician') ||
       actor.role === 'politician'
     ) {
-      baseReliability = 0.25 + Math.random() * 0.15; // 0.25-0.40
+      baseReliability = 0.25 + rng() * 0.15; // 0.25-0.40
       willingToLie = true;
       selfInterest = 'reputation';
     }
@@ -210,7 +258,7 @@ export class NPCPersonaGenerator {
       actor.domain?.includes('journalism') ||
       actor.role === 'journalist'
     ) {
-      baseReliability = 0.55 + Math.random() * 0.15; // 0.55-0.70
+      baseReliability = 0.55 + rng() * 0.15; // 0.55-0.70
       willingToLie = false;
       selfInterest = 'reputation';
     }
@@ -220,15 +268,15 @@ export class NPCPersonaGenerator {
       actor.domain?.includes('tech') ||
       actor.role === 'expert'
     ) {
-      baseReliability = 0.6 + Math.random() * 0.2; // 0.60-0.80
-      willingToLie = Math.random() > 0.7; // 30% willing to lie for profit
+      baseReliability = 0.6 + rng() * 0.2; // 0.60-0.80
+      willingToLie = randomChance(0.3, rng); // 30% willing to lie for profit
       selfInterest = 'wealth';
     }
     // Everyone else: Medium reliability
     else {
-      baseReliability = 0.5 + Math.random() * 0.2; // 0.50-0.70
-      willingToLie = Math.random() > 0.8; // 20% willing to lie
-      selfInterest = Math.random() > 0.5 ? 'reputation' : 'wealth';
+      baseReliability = 0.5 + rng() * 0.2; // 0.50-0.70
+      willingToLie = randomChance(0.2, rng); // 20% willing to lie
+      selfInterest = randomChance(0.5, rng) ? 'reputation' : 'wealth';
     }
 
     // Insiders get higher reliability about their orgs
@@ -242,10 +290,23 @@ export class NPCPersonaGenerator {
 
     // Determine favors/opposes from affiliations
     const favorsOrgs = insiderOrgs;
-    const opposesOrgs: string[] = []; // Could infer from competitor orgs later
 
-    const favorsActors: string[] = []; // Could infer from relationships
-    const opposesActors: string[] = [];
+    // Find competitor orgs from correlations data
+    const opposesOrgs = this.findCompetitorOrgs(insiderOrgs, organizations);
+
+    // Find actors with shared affiliations (colleagues = allies)
+    const favorsActors = this.findActorsWithSharedAffiliations(
+      actor,
+      allActors,
+      insiderOrgs
+    );
+
+    // Find actors from competing organizations (rivals)
+    const opposesActors = this.findActorsFromCompetingOrgs(
+      actor,
+      allActors,
+      opposesOrgs
+    );
 
     return {
       actorId: actor.id,
@@ -353,5 +414,120 @@ export class NPCPersonaGenerator {
   private countLiars(personas: Map<string, PersonaAssignment>): number {
     return Array.from(personas.values()).filter((p) => p.willingToLie).length;
   }
-}
 
+  // ===========================================================================
+  // Relationship Inference Helpers
+  // ===========================================================================
+
+  /**
+   * Find competitor organizations for an actor's affiliations
+   *
+   * Uses the precomputed competitor map for O(1) lookup per affiliation.
+   *
+   * @param affiliations - The actor's affiliated organization IDs
+   * @param organizations - All organizations (for validation)
+   * @returns Array of competitor organization IDs
+   */
+  private findCompetitorOrgs(
+    affiliations: string[],
+    organizations: Organization[]
+  ): string[] {
+    if (affiliations.length === 0) return [];
+
+    const validOrgIds = new Set(organizations.map((o) => o.id));
+    const competitors = new Set<string>();
+    const competitorMap = this.getCompetitorMap();
+
+    for (const affiliation of affiliations) {
+      const orgCompetitors = competitorMap.get(affiliation);
+      if (orgCompetitors) {
+        for (const competitor of orgCompetitors) {
+          // Only include valid orgs from the current game
+          if (validOrgIds.has(competitor)) {
+            competitors.add(competitor);
+          }
+        }
+      }
+    }
+
+    return Array.from(competitors);
+  }
+
+  /**
+   * Find actors who share affiliations with this actor (colleagues/allies)
+   *
+   * Actors working at the same organizations are natural allies who will
+   * defend each other and share favorable views.
+   *
+   * @param actor - The current actor
+   * @param allActors - All actors in the game
+   * @param affiliations - The actor's affiliated organization IDs
+   * @returns Array of allied actor IDs
+   */
+  private findActorsWithSharedAffiliations(
+    actor: Actor,
+    allActors: Actor[],
+    affiliations: string[]
+  ): string[] {
+    if (affiliations.length === 0) return [];
+
+    const affiliationSet = new Set(affiliations);
+    const allies: string[] = [];
+
+    for (const otherActor of allActors) {
+      // Skip self
+      if (otherActor.id === actor.id) continue;
+
+      // Check if any affiliations overlap
+      const otherAffiliations = otherActor.affiliations || [];
+      const hasSharedAffiliation = otherAffiliations.some((a) =>
+        affiliationSet.has(a)
+      );
+
+      if (hasSharedAffiliation) {
+        allies.push(otherActor.id);
+      }
+    }
+
+    return allies;
+  }
+
+  /**
+   * Find actors from competing organizations (rivals)
+   *
+   * Actors working at competing organizations have natural opposition.
+   * They will be skeptical of each other and may actively criticize.
+   *
+   * @param actor - The current actor
+   * @param allActors - All actors in the game
+   * @param competitorOrgs - Organization IDs that compete with this actor's orgs
+   * @returns Array of rival actor IDs
+   */
+  private findActorsFromCompetingOrgs(
+    actor: Actor,
+    allActors: Actor[],
+    competitorOrgs: string[]
+  ): string[] {
+    if (competitorOrgs.length === 0) return [];
+
+    const competitorSet = new Set(competitorOrgs);
+    const rivals: string[] = [];
+
+    for (const otherActor of allActors) {
+      // Skip self
+      if (otherActor.id === actor.id) continue;
+
+      // Check if actor works at a competitor org
+      const otherAffiliations = otherActor.affiliations || [];
+      const worksAtCompetitor = otherAffiliations.some((a) =>
+        competitorSet.has(a)
+      );
+
+      if (worksAtCompetitor) {
+        rivals.push(otherActor.id);
+      }
+    }
+
+    return rivals;
+  }
+}

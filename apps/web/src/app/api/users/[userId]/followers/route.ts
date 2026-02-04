@@ -6,7 +6,7 @@
  *
  * @description
  * Returns list of users and actors following the target user. Supports both
- * regular users and NPCs/actors. Includes legacy follow status support.
+ * regular users and NPCs/actors.
  *
  * @openapi
  * /api/users/{userId}/followers:
@@ -81,10 +81,14 @@
  * @see {@link /lib/db/context} RLS context
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  optionalAuth,
+  requireTargetByIdentifier,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import {
   actorFollows,
-  actors,
   and,
   db,
   desc,
@@ -96,14 +100,13 @@ import {
   userActorFollows,
   users,
 } from '@babylon/db';
-import { optionalAuth, successResponse } from '@babylon/api';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { requireUserByIdentifier } from '@babylon/api';
+import { StaticDataRegistry } from '@babylon/engine';
 import {
+  logger,
   UserFollowersQuerySchema,
   UserIdParamSchema,
 } from '@babylon/shared';
+import type { NextRequest } from 'next/server';
 
 interface FollowerResponse {
   id: string;
@@ -114,6 +117,7 @@ interface FollowerResponse {
   followedAt: string;
   isActor: boolean;
   tier?: string;
+  isMutualFollow?: boolean;
 }
 
 /**
@@ -125,7 +129,7 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ userId: string }> }
   ) => {
-    await optionalAuth(request);
+    const authUser = await optionalAuth(request);
     const params = await context.params;
     const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
 
@@ -138,42 +142,41 @@ export const GET = withErrorHandling(
     };
     UserFollowersQuerySchema.parse(queryParams);
 
-    const targetUser = await requireUserByIdentifier(targetIdentifier, {
-      id: true,
-    });
-    const targetId = targetUser.id;
-
-    logger.debug(
-      'Target not found as user, checking if actor',
-      { targetIdentifier },
-      'GET /api/users/[userId]/followers'
-    );
-
-    // Check if target is an actor
-    const [targetActor] = await db
-      .select({ id: actors.id })
-      .from(actors)
-      .where(eq(actors.id, targetId))
-      .limit(1);
+    // Find target (user or actor) - throws NotFoundError if neither exists
+    const { actor: targetActor, targetId } =
+      await requireTargetByIdentifier(targetIdentifier);
 
     let followersList: FollowerResponse[] = [];
 
     if (targetActor) {
       // Target is an NPC - get both actor followers and user followers
-      const actorFollowersList = await db
+      const actorFollowRelations = await db
         .select({
           id: actorFollows.id,
           followerId: actorFollows.followerId,
           createdAt: actorFollows.createdAt,
-          followerName: actors.name,
-          followerTier: actors.tier,
-          followerProfileImageUrl: actors.profileImageUrl,
-          followerDescription: actors.description,
         })
         .from(actorFollows)
-        .innerJoin(actors, eq(actorFollows.followerId, actors.id))
         .where(eq(actorFollows.followingId, targetId))
         .orderBy(desc(actorFollows.createdAt));
+
+      // Enrich with static actor data
+      const actorFollowersList = actorFollowRelations
+        .map((rel) => {
+          const followerActor = StaticDataRegistry.getActor(rel.followerId);
+          if (!followerActor) return null;
+          return {
+            id: rel.id,
+            followerId: rel.followerId,
+            createdAt: rel.createdAt,
+            followerName: followerActor.name,
+            followerUsername: followerActor.username,
+            followerTier: followerActor.tier,
+            followerProfileImageUrl: followerActor.profileImageUrl,
+            followerDescription: followerActor.description,
+          };
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== null);
 
       const userActorFollowersList = await db
         .select({
@@ -191,50 +194,11 @@ export const GET = withErrorHandling(
         .orderBy(desc(userActorFollows.createdAt))
         .limit(200);
 
-      const migratedUserIds = new Set(
-        userActorFollowersList.map((f) => f.userId)
-      );
-
-      const legacyUserFollowerStatuses = await db
-        .select()
-        .from(followStatuses)
-        .where(
-          and(
-            eq(followStatuses.npcId, targetId),
-            eq(followStatuses.isActive, true),
-            eq(followStatuses.followReason, 'user_followed')
-          )
-        )
-        .orderBy(desc(followStatuses.followedAt))
-        .limit(100);
-
-      // Fetch user data separately since FollowStatus doesn't have a relation to User
-      const legacyUserIds = legacyUserFollowerStatuses
-        .map((f) => f.userId)
-        .filter((id) => !migratedUserIds.has(id));
-
-      const legacyUsers =
-        legacyUserIds.length > 0
-          ? await db
-              .select({
-                id: users.id,
-                displayName: users.displayName,
-                username: users.username,
-                profileImageUrl: users.profileImageUrl,
-                bio: users.bio,
-              })
-              .from(users)
-              .where(inArray(users.id, legacyUserIds))
-          : [];
-
-      // Create a map for quick lookup
-      const userMap = new Map(legacyUsers.map((u) => [u.id, u]));
-
       followersList = [
         ...actorFollowersList.map((f) => ({
           id: f.followerId,
           displayName: f.followerName,
-          username: f.followerId,
+          username: f.followerUsername || null,
           profileImageUrl: f.followerProfileImageUrl || null,
           bio: f.followerDescription || '',
           followedAt: f.createdAt.toISOString(),
@@ -250,20 +214,6 @@ export const GET = withErrorHandling(
           followedAt: f.createdAt.toISOString(),
           isActor: false,
         })),
-        ...legacyUserFollowerStatuses
-          .filter((f) => !migratedUserIds.has(f.userId))
-          .map((f) => {
-            const user = userMap.get(f.userId);
-            return {
-              id: f.userId,
-              displayName: user?.displayName || '',
-              username: user?.username || null,
-              profileImageUrl: user?.profileImageUrl || null,
-              bio: user?.bio || '',
-              followedAt: f.followedAt.toISOString(),
-              isActor: false,
-            };
-          }),
       ].sort(
         (a, b) =>
           new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
@@ -298,20 +248,12 @@ export const GET = withErrorHandling(
         .orderBy(desc(followStatuses.followedAt));
 
       const npcIds = npcFollowersList.map((f) => f.npcId);
-      const npcActors =
-        npcIds.length > 0
-          ? await db
-              .select({
-                id: actors.id,
-                name: actors.name,
-                tier: actors.tier,
-                profileImageUrl: actors.profileImageUrl,
-                description: actors.description,
-              })
-              .from(actors)
-              .where(inArray(actors.id, npcIds))
-          : [];
-      const actorMap = new Map(npcActors.map((actor) => [actor.id, actor]));
+      const actorMap = new Map(
+        npcIds
+          .map((id) => StaticDataRegistry.getActor(id))
+          .filter((a): a is NonNullable<typeof a> => a !== null)
+          .map((a) => [a.id, a])
+      );
 
       followersList = [
         ...userFollows.map((f) => ({
@@ -328,7 +270,7 @@ export const GET = withErrorHandling(
           return {
             id: f.npcId,
             displayName: actor?.name || f.npcId,
-            username: actor?.id || null,
+            username: actor?.username || null,
             profileImageUrl: actor?.profileImageUrl || null,
             bio: actor?.description || '',
             followedAt: f.followedAt.toISOString(),
@@ -340,6 +282,57 @@ export const GET = withErrorHandling(
         (a, b) =>
           new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
       );
+    }
+
+    // Check if authenticated user follows each follower (for showing follow/unfollow button state)
+    if (authUser?.userId) {
+      const followerIds = followersList
+        .filter((f) => !f.isActor)
+        .map((f) => f.id);
+      const actorFollowerIds = followersList
+        .filter((f) => f.isActor)
+        .map((f) => f.id);
+
+      // Check which followers the authenticated user follows (using inArray for efficiency)
+      const followedUserIds = new Set<string>();
+      if (followerIds.length > 0) {
+        const userFollowResults = await db
+          .select({ followingId: follows.followingId })
+          .from(follows)
+          .where(
+            and(
+              eq(follows.followerId, authUser.userId),
+              inArray(follows.followingId, followerIds)
+            )
+          );
+        for (const f of userFollowResults) {
+          followedUserIds.add(f.followingId);
+        }
+      }
+
+      // Check actor follows (using inArray for efficiency)
+      const followedActorIds = new Set<string>();
+      if (actorFollowerIds.length > 0) {
+        const actorFollowResults = await db
+          .select({ actorId: userActorFollows.actorId })
+          .from(userActorFollows)
+          .where(
+            and(
+              eq(userActorFollows.userId, authUser.userId),
+              inArray(userActorFollows.actorId, actorFollowerIds)
+            )
+          );
+        for (const f of actorFollowResults) {
+          followedActorIds.add(f.actorId);
+        }
+      }
+
+      // Add isMutualFollow to each follower (true if auth user follows them)
+      for (const follower of followersList) {
+        follower.isMutualFollow = follower.isActor
+          ? followedActorIds.has(follower.id)
+          : followedUserIds.has(follower.id);
+      }
     }
 
     logger.info(

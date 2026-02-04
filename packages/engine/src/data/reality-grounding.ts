@@ -80,4 +80,3 @@ back to real names - DO NOT DO THIS. The parody names ARE the correct names.
 - Always avoid REAL product names if you can avoid, instead using funny parody names
 - Avoid talking about anyone or any org outside of the characters and orgs referenced, and only use their parody names
 - Don't talk about anyone outside America / the American geopolitical realm, basically - in our Universe, only USAI (United States of AImerica) exists`;
-

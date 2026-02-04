@@ -1,6 +1,7 @@
 {
   "name": "@babylon/db",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "Babylon Database Layer - Drizzle ORM",
   "main": "./src/index.ts",
@@ -21,12 +22,13 @@
   "scripts": {
     "lint": "biome lint .",
     "typecheck": "tsc -b .",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio",
-    "db:check": "drizzle-kit check"
+    "db:generate": "tsx ../../node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "tsx ../../node_modules/drizzle-kit/bin.cjs migrate",
+    "db:push": "tsx ../../node_modules/drizzle-kit/bin.cjs push",
+    "db:pull": "tsx ../../node_modules/drizzle-kit/bin.cjs pull",
+    "db:studio": "tsx ../../node_modules/drizzle-kit/bin.cjs studio",
+    "db:check": "tsx ../../node_modules/drizzle-kit/bin.cjs check",
+    "db:sync-migrations": "tsx scripts/sync-migrations.ts"
   },
   "dependencies": {
     "@babylon/shared": "workspace:*",
@@ -39,7 +41,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.19.4",
     "typescript": "^5.9.3"
   }
 }

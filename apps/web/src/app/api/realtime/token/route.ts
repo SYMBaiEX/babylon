@@ -1,14 +1,18 @@
+import {
+  authenticate,
+  issueRealtimeToken,
+  type RealtimeChannel,
+} from '@babylon/api';
+import { and, db, eq, inArray, users } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { issueRealtimeToken, type RealtimeChannel } from '@babylon/api';
 
 const BodySchema = z.object({
   channels: z.array(z.string()).optional(),
   chatIds: z.array(z.string()).optional(),
+  agentIds: z.array(z.string()).optional(),
   includeNotifications: z.coerce.boolean().optional(),
   ttlSeconds: z.number().int().positive().max(3600).optional(),
 });
@@ -21,10 +25,23 @@ const PUBLIC_CHANNELS: RealtimeChannel[] = [
 ];
 
 const dedupe = <T>(items: T[]) => Array.from(new Set(items));
-const isDmChatId = (id: string, userId: string) => {
+/**
+ * Validates a DM chat ID format and checks if user is a participant.
+ *
+ * @security DM chat IDs follow the format dm-{userId1}-{userId2} where IDs are sorted.
+ * This validation ensures:
+ * 1. The format is correct (dm- prefix, exactly 2 user IDs)
+ * 2. The requesting user is one of the participants
+ *
+ * Note: This is a format check only. For additional security, the actual
+ * chat authorization is verified against the database in the main flow.
+ */
+const isDmChatId = (id: string, userId: string): boolean => {
   if (!id.startsWith('dm-')) return false;
   const parts = id.substring('dm-'.length).split('-').filter(Boolean);
+  // Require exactly 2 user IDs
   if (parts.length !== 2) return false;
+  // User must be one of the participants
   return parts.includes(userId);
 };
 
@@ -32,15 +49,15 @@ export async function POST(request: NextRequest) {
   const user = await authenticate(request);
 
   let body: unknown = {};
-  try {
-    body = await request.json();
-  } catch {
-    // ignore empty body
+  const bodyText = await request.text();
+  if (bodyText.trim()) {
+    body = JSON.parse(bodyText);
   }
 
   const {
     channels = [],
     chatIds = [],
+    agentIds = [],
     includeNotifications = true,
     ttlSeconds,
   } = BodySchema.parse(body);
@@ -57,6 +74,14 @@ export async function POST(request: NextRequest) {
     ...requestedChannels
       .filter((ch) => ch.startsWith('chat:'))
       .map((ch) => ch.replace('chat:', '')),
+  ]).filter(Boolean);
+
+  // Extract agent IDs from requested channels and explicit agentIds param
+  const derivedAgentIds = dedupe([
+    ...agentIds,
+    ...requestedChannels
+      .filter((ch) => ch.startsWith('agent:'))
+      .map((ch) => ch.replace('agent:', '')),
   ]).filter(Boolean);
 
   // Determine which chats are authorized for this user.
@@ -96,6 +121,49 @@ export async function POST(request: NextRequest) {
     (id) => `chat:${id}` as RealtimeChannel
   );
 
+  // Determine which agent channels are authorized for this user.
+  // User can only subscribe to agents they own (managedBy = userId).
+  const allowedAgentIds = new Set<string>();
+
+  if (derivedAgentIds.length > 0) {
+    // Single query: fetch agents that match requested IDs AND are owned by this user
+    const ownedAgents = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          inArray(users.id, derivedAgentIds),
+          eq(users.managedBy, user.userId),
+          eq(users.isAgent, true)
+        )
+      );
+
+    for (const agent of ownedAgents) {
+      allowedAgentIds.add(agent.id);
+    }
+  }
+
+  // Authorization asymmetry: Agent channels are silently excluded when unauthorized,
+  // while chat channels return 403. Rationale:
+  // - Chat channels contain private messages; failed auth should be visible to caller
+  // - Agent activity is lower priority; silently excluding prevents UX disruption
+  //   when e.g., a stale agent ID is in the request but other channels are valid
+  // - Client can check isConnected status to detect missing subscriptions
+  const unauthorizedAgents = derivedAgentIds.filter(
+    (id) => !allowedAgentIds.has(id)
+  );
+  if (unauthorizedAgents.length > 0) {
+    logger.warn(
+      'Realtime token: unauthorized agent channels excluded',
+      { userId: user.userId, unauthorizedAgents },
+      'Realtime'
+    );
+  }
+
+  const agentChannels: RealtimeChannel[] = Array.from(allowedAgentIds).map(
+    (id) => `agent:${id}` as RealtimeChannel
+  );
+
   // Only allow explicitly known public channels from the request
   const requestedPublic = requestedChannels.filter((ch) =>
     PUBLIC_CHANNELS.includes(ch)
@@ -105,6 +173,7 @@ export async function POST(request: NextRequest) {
     ...baseChannels,
     ...requestedPublic,
     ...chatChannels,
+    ...agentChannels,
   ]);
 
   if (finalChannels.length === 0) {

@@ -57,36 +57,30 @@
  * ```
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import {
+  BadRequestError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { modelDeployer } from '@babylon/training';
+import type { NextRequest } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { modelVersion, strategy = 'gradual', rolloutPercentage = 10 } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await requireAdmin(request);
 
-    if (!modelVersion) {
-      return NextResponse.json(
-        { error: 'Model version required' },
-        { status: 400 }
-      );
-    }
+  const body = await request.json();
+  const { modelVersion, strategy = 'gradual', rolloutPercentage = 10 } = body;
 
-    const result = await modelDeployer.deploy({
-      modelVersion,
-      strategy,
-      rolloutPercentage,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Deployment failed',
-      },
-      { status: 500 }
-    );
+  if (!modelVersion) {
+    throw new BadRequestError('Model version required');
   }
-}
+
+  const result = await modelDeployer.deploy({
+    modelVersion,
+    strategy,
+    rolloutPercentage,
+  });
+
+  return successResponse(result);
+});

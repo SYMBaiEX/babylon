@@ -82,4 +82,3 @@ export const GOODY_TWOSHOES_PRIORITY_METRICS = [
   'social.uniqueUsersInteracted',
   'social.commentsMade',
 ];
-

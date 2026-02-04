@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@babylon/shared';
 import {
   Calendar,
   MessageCircle,
@@ -9,9 +10,8 @@ import {
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useTransition } from 'react';
-// import { toast } from 'sonner'
 import { z } from 'zod';
-import { cn } from '@babylon/shared';
+import { getAuthToken } from '@/lib/auth';
 
 /**
  * Participant schema for validation.
@@ -24,7 +24,6 @@ const ParticipantSchema = z.object({
   profileImageUrl: z.string().nullable(),
   joinedAt: z.coerce.date(),
 });
-// type Participant = z.infer<typeof ParticipantSchema>;
 
 /**
  * Message schema for validation.
@@ -39,7 +38,6 @@ const MessageSchema = z.object({
     isNPC: z.boolean(),
   }),
 });
-// type Message = z.infer<typeof MessageSchema>;
 
 /**
  * Group chat schema for validation.
@@ -94,8 +92,7 @@ export function GroupsTab() {
   const fetchGroups = useCallback(async () => {
     startRefresh(async () => {
       setIsLoading(true);
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = getAuthToken();
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -138,11 +135,16 @@ export function GroupsTab() {
   const getGroupTypeLabel = (type: string) => {
     switch (type) {
       case 'npc-only':
+      case 'npc':
         return 'NPC Only';
       case 'npc-mixed':
         return 'NPC + Users';
       case 'user':
         return 'User Created';
+      case 'agent':
+        return 'Agent Group';
+      case 'team':
+        return 'Agents';
       default:
         return 'Unknown';
     }
@@ -151,11 +153,16 @@ export function GroupsTab() {
   const getGroupTypeColor = (type: string) => {
     switch (type) {
       case 'npc-only':
+      case 'npc':
         return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
       case 'npc-mixed':
         return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
       case 'user':
         return 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+      case 'agent':
+        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+      case 'team':
+        return 'bg-primary/10 text-primary border-primary/20';
       default:
         return 'bg-muted text-muted-foreground border-border';
     }

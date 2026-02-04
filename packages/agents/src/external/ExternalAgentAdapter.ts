@@ -174,29 +174,19 @@ export class ExternalAgentAdapter {
 
       // Load and decrypt authentication credentials if present
       if (agent.authType && agent.authCredentials) {
-        try {
-          const decryptedCredentials = this.decryptCredentials(
-            agent.authCredentials
-          );
-          // Map authType to AuthMethod and create appropriate credentials structure
-          const authMethod = agent.authType as AuthMethod;
-          const credentials: AuthCredentials = {
-            method: authMethod,
-            ...(authMethod === AuthMethod.BEARER_TOKEN ||
-            authMethod === AuthMethod.API_KEY
-              ? { token: decryptedCredentials, apiKey: decryptedCredentials }
-              : {}),
-          };
-          this.configureAuth(agent.externalId, credentials);
-        } catch (error) {
-          logger.warn(
-            `Failed to decrypt credentials for ${agent.externalId}`,
-            {
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'ExternalAgentAdapter'
-          );
-        }
+        const decryptedCredentials = this.decryptCredentials(
+          agent.authCredentials
+        );
+        // Map authType to AuthMethod and create appropriate credentials structure
+        const authMethod = agent.authType as AuthMethod;
+        const credentials: AuthCredentials = {
+          method: authMethod,
+          ...(authMethod === AuthMethod.BEARER_TOKEN ||
+          authMethod === AuthMethod.API_KEY
+            ? { token: decryptedCredentials, apiKey: decryptedCredentials }
+            : {}),
+        };
+        this.configureAuth(agent.externalId, credentials);
       }
     }
 
@@ -233,28 +223,18 @@ export class ExternalAgentAdapter {
 
     // Load and decrypt authentication credentials if present
     if (agent.authType && agent.authCredentials) {
-      try {
-        const decryptedCredentials = this.decryptCredentials(
-          agent.authCredentials
-        );
-        const authMethod = agent.authType as AuthMethod;
-        const credentials: AuthCredentials = {
-          method: authMethod,
-          ...(authMethod === AuthMethod.BEARER_TOKEN ||
-          authMethod === AuthMethod.API_KEY
-            ? { token: decryptedCredentials, apiKey: decryptedCredentials }
-            : {}),
-        };
-        this.configureAuth(agent.externalId, credentials);
-      } catch (error) {
-        logger.warn(
-          `Failed to decrypt credentials for ${agent.externalId}`,
-          {
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'ExternalAgentAdapter'
-        );
-      }
+      const decryptedCredentials = this.decryptCredentials(
+        agent.authCredentials
+      );
+      const authMethod = agent.authType as AuthMethod;
+      const credentials: AuthCredentials = {
+        method: authMethod,
+        ...(authMethod === AuthMethod.BEARER_TOKEN ||
+        authMethod === AuthMethod.API_KEY
+          ? { token: decryptedCredentials, apiKey: decryptedCredentials }
+          : {}),
+      };
+      this.configureAuth(agent.externalId, credentials);
     }
 
     return connection;
@@ -288,33 +268,21 @@ export class ExternalAgentAdapter {
       };
     }
 
-    try {
-      // Route to appropriate protocol handler
-      switch (connection.protocol) {
-        case 'a2a':
-          return await this.sendA2AMessage(connection, message);
-        case 'mcp':
-          return await this.sendMCPMessage(connection, message);
-        case 'agent0':
-          return await this.sendAgent0Message(connection, message);
-        case 'custom':
-          return await this.sendCustomMessage(connection, message);
-        default:
-          return {
-            success: false,
-            error: `Unsupported protocol: ${connection.protocol}`,
-          };
-      }
-    } catch (error) {
-      logger.error(
-        `Error sending message to ${externalId}`,
-        error instanceof Error ? error : new Error(String(error)),
-        'ExternalAgentAdapter'
-      );
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+    // Route to appropriate protocol handler
+    switch (connection.protocol) {
+      case 'a2a':
+        return await this.sendA2AMessage(connection, message);
+      case 'mcp':
+        return await this.sendMCPMessage(connection, message);
+      case 'agent0':
+        return await this.sendAgent0Message(connection, message);
+      case 'custom':
+        return await this.sendCustomMessage(connection, message);
+      default:
+        return {
+          success: false,
+          error: `Unsupported protocol: ${connection.protocol}`,
+        };
     }
   }
 
@@ -347,47 +315,35 @@ export class ExternalAgentAdapter {
       params,
     };
 
-    try {
-      const response = await fetch(connection.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...this.getAuthHeaders(connection.externalId),
-        },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(30000), // 30s timeout
-      });
+    const response = await fetch(connection.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...this.getAuthHeaders(connection.externalId),
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(30000), // 30s timeout
+    });
 
-      if (!response.ok) {
-        throw new Error(`A2A HTTP ${response.status}: ${response.statusText}`);
-      }
+    if (!response.ok) {
+      throw new Error(`A2A HTTP ${response.status}: ${response.statusText}`);
+    }
 
-      const jsonRpcResponse = (await response.json()) as JsonRpcResponse;
+    const jsonRpcResponse = (await response.json()) as JsonRpcResponse;
 
-      if (jsonRpcResponse.error) {
-        return {
-          success: false,
-          error: `A2A Error ${jsonRpcResponse.error.code}: ${jsonRpcResponse.error.message}`,
-        };
-      }
-
-      return {
-        success: true,
-        data: jsonRpcResponse.result as JsonValue,
-        messageId: String(jsonRpcResponse.id),
-      };
-    } catch (error) {
-      logger.error(
-        `A2A message failed for ${connection.externalId}`,
-        { error: (error as Error).message },
-        'ExternalAgentAdapter'
-      );
+    if (jsonRpcResponse.error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: `A2A Error ${jsonRpcResponse.error.code}: ${jsonRpcResponse.error.message}`,
       };
     }
+
+    return {
+      success: true,
+      data: jsonRpcResponse.result as JsonValue,
+      messageId: String(jsonRpcResponse.id),
+    };
   }
 
   /**
@@ -493,48 +449,25 @@ export class ExternalAgentAdapter {
       return false;
     }
 
-    try {
-      const response = await fetch(connection.endpoint, {
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000), // 5 second timeout
-      });
+    const response = await fetch(connection.endpoint, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    });
 
-      const isHealthy = response.ok;
-      connection.isHealthy = isHealthy;
-      connection.lastHealthCheck = new Date();
+    const isHealthy = response.ok;
+    connection.isHealthy = isHealthy;
+    connection.lastHealthCheck = new Date();
 
-      // Update database
-      await db.externalAgentConnection
-        .update({
-          where: { externalId },
-          data: {
-            isHealthy,
-            lastHealthCheck: new Date(),
-          },
-        })
-        .catch(() => {
-          // Ignore update errors during health check
-        });
+    // Update database
+    await db.externalAgentConnection.update({
+      where: { externalId },
+      data: {
+        isHealthy,
+        lastHealthCheck: new Date(),
+      },
+    });
 
-      return isHealthy;
-    } catch {
-      connection.isHealthy = false;
-      connection.lastHealthCheck = new Date();
-
-      await db.externalAgentConnection
-        .update({
-          where: { externalId },
-          data: {
-            isHealthy: false,
-            lastHealthCheck: new Date(),
-          },
-        })
-        .catch(() => {
-          // Ignore update errors during health check
-        });
-
-      return false;
-    }
+    return isHealthy;
   }
 
   /**

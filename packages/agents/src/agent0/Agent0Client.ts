@@ -1,7 +1,8 @@
 /**
  * Agent0 SDK Client
  *
- * Full implementation of Agent0 SDK client for agent registration, search, and feedback.
+ * Comprehensive implementation of Agent0 SDK client for agent lifecycle management,
+ * search, feedback, reputation, and ownership operations.
  * Implements IAgent0Client interface for complete Agent0 integration.
  *
  * @remarks
@@ -10,16 +11,18 @@
  * @packageDocumentation
  */
 
+import { logger } from '@babylon/shared';
 import type {
   AgentSummary,
+  Feedback,
   RegistrationFile,
   SDKConfig,
   SearchParams,
+  SearchResultMeta,
 } from 'agent0-sdk';
 // Import SDK and types from agent0-sdk
 import { SDK } from 'agent0-sdk';
 import { Wallet } from 'ethers';
-import { logger } from '@babylon/shared';
 import type { JsonValue } from '../types/common';
 
 /**
@@ -63,14 +66,22 @@ function getContractAddresses(): ContractAddresses {
     network: 'localnet',
   };
 }
+
 import { parseCapabilities } from './capabilities-schema';
 import type {
   Agent0AgentProfile,
+  Agent0AgentUpdateParams,
+  Agent0Feedback,
   Agent0FeedbackParams,
+  Agent0FeedbackSearchParams,
   Agent0RegistrationParams,
   Agent0RegistrationResult,
+  Agent0ReputationSummary,
   Agent0SearchFilters,
+  Agent0SearchOptions,
+  Agent0SearchResponse,
   Agent0SearchResult,
+  Agent0TransferResult,
   IAgent0Client,
 } from './types';
 
@@ -157,12 +168,8 @@ export class Agent0Client implements IAgent0Client {
                 },
               };
             }
-          } catch (error) {
-            logger.warn(
-              'Failed to get contract addresses for registry overrides',
-              { error: error instanceof Error ? error.message : String(error) },
-              'Agent0Client'
-            );
+          } catch {
+            // Ignore local contract lookup failures
           }
         }
 
@@ -191,15 +198,6 @@ export class Agent0Client implements IAgent0Client {
 
         this.initPromise = null;
       } catch (error) {
-        logger.error(
-          'Failed to initialize Agent0 SDK',
-          {
-            error: error instanceof Error ? error.message : String(error),
-            chainId: this.chainId,
-            rpcUrl: this.config.rpcUrl,
-          },
-          'Agent0Client'
-        );
         this.initPromise = null;
         throw error;
       }
@@ -207,6 +205,10 @@ export class Agent0Client implements IAgent0Client {
 
     await this.initPromise;
   }
+
+  // ===========================================================================
+  // Registration
+  // ===========================================================================
 
   /**
    * Register an agent with Agent0 SDK
@@ -373,23 +375,31 @@ export class Agent0Client implements IAgent0Client {
     });
   }
 
+  // ===========================================================================
+  // Search & Discovery
+  // ===========================================================================
+
   /**
-   * Search for agents using Agent0 SDK
+   * Search for agents using Agent0 SDK with full filter and pagination support
    */
   async searchAgents(
-    filters: Agent0SearchFilters
-  ): Promise<Agent0SearchResult[]> {
+    filters: Agent0SearchFilters,
+    options?: Agent0SearchOptions
+  ): Promise<Agent0SearchResponse<Agent0SearchResult>> {
     await this.ensureSDK();
 
     logger.info(
       'Searching agents with filters:',
-      filters,
+      { filters, options },
       'Agent0Client [searchAgents]'
     );
 
     const searchParams: SearchParams = {};
 
-    if (filters.strategies && filters.strategies.length > 0) {
+    // Map Babylon filters to SDK SearchParams
+    if (filters.a2aSkills && filters.a2aSkills.length > 0) {
+      searchParams.a2aSkills = filters.a2aSkills;
+    } else if (filters.strategies && filters.strategies.length > 0) {
       searchParams.a2aSkills = filters.strategies;
     } else if (filters.skills && filters.skills.length > 0) {
       searchParams.a2aSkills = filters.skills;
@@ -399,89 +409,131 @@ export class Agent0Client implements IAgent0Client {
       searchParams.name = filters.name;
     }
 
-    if (filters.x402Support !== undefined) {
-      searchParams.x402support = filters.x402Support;
-    } else if (filters.hasX402 !== undefined) {
-      searchParams.x402support = filters.hasX402;
+    if (filters.description) {
+      searchParams.description = filters.description;
     }
 
-    const { items } = await this.sdk!.searchAgents(searchParams);
+    if (filters.x402Support !== undefined) {
+      searchParams.x402support = filters.x402Support;
+    }
 
-    return items.map((agent: AgentSummary) => {
-      const capabilities = this.parseCapabilities(agent.extras);
-      return {
-        tokenId: Number.parseInt(agent.agentId.split(':')[1] ?? '0', 10),
-        name: agent.name,
-        walletAddress: agent.walletAddress ?? '',
-        metadataCID: agent.agentId,
-        capabilities,
-        reputation: {
-          trustScore: 0,
-          accuracyScore: 0,
-        },
-      };
-    });
+    // Multi-chain search support (Agent0 SDK v0.31.0)
+    if (filters.chains !== undefined) {
+      searchParams.chains = filters.chains;
+    }
+
+    // Active status filter
+    if (filters.active !== undefined) {
+      searchParams.active = filters.active;
+    }
+
+    // Owner & operator filters
+    if (filters.owners && filters.owners.length > 0) {
+      searchParams.owners = filters.owners as `0x${string}`[];
+    }
+
+    if (filters.operators && filters.operators.length > 0) {
+      searchParams.operators = filters.operators as `0x${string}`[];
+    }
+
+    // Protocol capability filters
+    if (filters.mcp !== undefined) {
+      searchParams.mcp = filters.mcp;
+    }
+
+    if (filters.a2a !== undefined) {
+      searchParams.a2a = filters.a2a;
+    }
+
+    // Identity filters
+    if (filters.ens) {
+      searchParams.ens = filters.ens;
+    }
+
+    if (filters.did) {
+      searchParams.did = filters.did;
+    }
+
+    if (filters.walletAddress) {
+      searchParams.walletAddress = filters.walletAddress as `0x${string}`;
+    }
+
+    // Trust model filters
+    if (filters.supportedTrust && filters.supportedTrust.length > 0) {
+      searchParams.supportedTrust = filters.supportedTrust;
+    }
+
+    // Capability-specific filters
+    if (filters.mcpTools && filters.mcpTools.length > 0) {
+      searchParams.mcpTools = filters.mcpTools;
+    }
+
+    if (filters.mcpPrompts && filters.mcpPrompts.length > 0) {
+      searchParams.mcpPrompts = filters.mcpPrompts;
+    }
+
+    if (filters.mcpResources && filters.mcpResources.length > 0) {
+      searchParams.mcpResources = filters.mcpResources;
+    }
+
+    const { items, nextCursor, meta } = await this.sdk!.searchAgents(
+      searchParams,
+      options?.sort,
+      options?.pageSize,
+      options?.cursor
+    );
+
+    const results = items.map((agent: AgentSummary) =>
+      this.mapAgentSummaryToSearchResult(agent)
+    );
+
+    return {
+      items: results,
+      nextCursor,
+      meta: meta ? this.mapSearchResultMeta(meta) : undefined,
+    };
   }
 
   /**
-   * Submits feedback for an agent
-   *
-   * @remarks
-   * This method requires the agent to have pre-authorized feedback from the client address.
-   * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
-   * For system-level reputation updates, ensure the agent has pre-authorized the system address.
-   *
-   * @param params - Feedback parameters
-   * @throws Error if SDK not initialized or feedback submission fails
+   * Search agents by reputation scores
    */
-  async submitFeedback(params: Agent0FeedbackParams): Promise<void> {
+  async searchAgentsByReputation(
+    params: Agent0FeedbackSearchParams,
+    options?: Agent0SearchOptions
+  ): Promise<Agent0SearchResponse<Agent0SearchResult>> {
     await this.ensureSDK();
 
-    if (!this.sdk || this.sdk.isReadOnly) {
-      throw new Error('SDK not initialized with write access');
-    }
-
     logger.info(
-      `Submitting feedback for agent ${params.targetAgentId}`,
-      undefined,
-      'Agent0Client [submitFeedback]'
+      'Searching agents by reputation:',
+      { params, options },
+      'Agent0Client [searchAgentsByReputation]'
     );
 
-    const agentId =
-      `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
-    const agent0Score = Math.max(0, Math.min(100, (params.rating + 5) * 10));
+    const { items, nextCursor, meta } =
+      await this.sdk!.searchAgentsByReputation(
+        params.agents,
+        params.tags,
+        params.reviewers as `0x${string}`[] | undefined,
+        params.capabilities,
+        params.skills,
+        params.tasks,
+        params.names,
+        params.minScore,
+        params.includeRevoked,
+        options?.pageSize,
+        options?.cursor,
+        options?.sort
+      );
 
-    // Prepare feedback file
-    const feedbackFile = this.sdk.prepareFeedback(
-      agentId,
-      agent0Score,
-      [],
-      params.comment || undefined,
-      undefined,
-      undefined,
-      undefined
+    const results = items.map((agent: AgentSummary) =>
+      this.mapAgentSummaryToSearchResult(agent)
     );
 
-    // For system-level feedback, we need to sign authorization
-    // The SDK's signer (from config.privateKey) is used to sign the authorization
-    // The agent should have pre-authorized this client address during registration
-    const signerWallet = new Wallet(this.config.privateKey);
-    const signerAddress = signerWallet.address as `0x${string}`;
-
-    const auth = await this.sdk.signFeedbackAuth(
-      agentId,
-      signerAddress,
-      undefined,
-      24
-    );
-
-    await this.sdk.giveFeedback(agentId, feedbackFile, auth);
-
-    logger.info(
-      `Feedback submitted successfully for agent ${agentId}`,
-      undefined,
-      'Agent0Client [submitFeedback]'
-    );
+    return {
+      items: results,
+      nextCursor,
+      meta: meta ? this.mapSearchResultMeta(meta) : undefined,
+    };
   }
 
   /**
@@ -503,20 +555,498 @@ export class Agent0Client implements IAgent0Client {
       return null;
     }
 
-    const capabilities = this.parseCapabilities(agent.extras);
+    return this.mapAgentSummaryToProfile(agent, tokenId);
+  }
+
+  // ===========================================================================
+  // Agent Management
+  // ===========================================================================
+
+  /**
+   * Load an existing agent for editing
+   */
+  async loadAgent(agentId: string): Promise<Agent0AgentProfile | null> {
+    await this.ensureSDK();
+
+    logger.info(
+      `Loading agent: ${agentId}`,
+      undefined,
+      'Agent0Client [loadAgent]'
+    );
+
+    try {
+      const agent = await this.sdk!.loadAgent(agentId as `${number}:${number}`);
+      const registrationFile = agent.getRegistrationFile();
+      const parts = agentId.split(':');
+      const tokenId = Number.parseInt(parts[1] ?? '0', 10);
+
+      const capabilities = this.parseCapabilities(
+        registrationFile.metadata as Record<string, JsonValue> | undefined
+      );
+
+      return {
+        tokenId,
+        name: registrationFile.name,
+        walletAddress: registrationFile.walletAddress ?? '',
+        metadataCID: registrationFile.agentURI ?? agentId,
+        capabilities,
+        reputation: {
+          trustScore: 0,
+          accuracyScore: 0,
+        },
+        description: registrationFile.description,
+        image: registrationFile.image,
+        chainId: registrationFile.walletChainId,
+        owners: registrationFile.owners,
+        operators: registrationFile.operators,
+        endpoints: registrationFile.endpoints.map((ep) => ({
+          type: ep.type as 'MCP' | 'A2A' | 'ENS' | 'DID' | 'wallet' | 'OASF',
+          value: ep.value,
+          meta: ep.meta,
+        })),
+        trustModels: registrationFile.trustModels as string[],
+        active: registrationFile.active,
+        x402support: registrationFile.x402support,
+        metadata: registrationFile.metadata,
+        updatedAt: registrationFile.updatedAt,
+      };
+    } catch (error) {
+      logger.warn(
+        `Failed to load agent ${agentId}:`,
+        { error: error instanceof Error ? error.message : String(error) },
+        'Agent0Client [loadAgent]'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Update an existing agent's properties
+   */
+  async updateAgent(
+    agentId: string,
+    params: Agent0AgentUpdateParams
+  ): Promise<Agent0RegistrationResult> {
+    await this.ensureSDK();
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access');
+    }
+
+    logger.info(
+      `Updating agent: ${agentId}`,
+      { params },
+      'Agent0Client [updateAgent]'
+    );
+
+    const agent = await this.sdk.loadAgent(agentId as `${number}:${number}`);
+
+    // Update basic info if provided
+    if (params.name || params.description || params.image) {
+      agent.updateInfo(params.name, params.description, params.image);
+    }
+
+    // Update wallet if provided
+    if (params.walletAddress) {
+      agent.setAgentWallet(
+        params.walletAddress as `0x${string}`,
+        params.walletChainId ?? this.chainId
+      );
+    }
+
+    // Update endpoints if provided
+    if (params.mcpEndpoint) {
+      await agent.setMCP(params.mcpEndpoint, '1.0.0', false);
+    }
+
+    if (params.a2aEndpoint) {
+      await agent.setA2A(params.a2aEndpoint, '1.0.0', false);
+    }
+
+    // Update skills
+    if (params.skills) {
+      for (const skill of params.skills) {
+        agent.addSkill(skill, false);
+      }
+    }
+
+    // Update domains
+    if (params.domains) {
+      for (const domain of params.domains) {
+        agent.addDomain(domain, false);
+      }
+    }
+
+    // Update status flags
+    if (params.active !== undefined) {
+      agent.setActive(params.active);
+    }
+
+    if (params.x402Support !== undefined) {
+      agent.setX402Support(params.x402Support);
+    }
+
+    // Update trust models
+    if (params.trustModels) {
+      agent.setTrust(
+        params.trustModels.reputation,
+        params.trustModels.cryptoEconomic,
+        params.trustModels.teeAttestation
+      );
+    }
+
+    // Update metadata
+    if (params.metadata) {
+      agent.setMetadata(params.metadata);
+    }
+
+    // Re-register to IPFS with updated data
+    const registrationFile: RegistrationFile = await agent.registerIPFS();
+
+    const parts = agentId.split(':');
+    const tokenId = Number.parseInt(parts[1]!, 10);
+
+    logger.info(
+      `Agent updated successfully: ${agentId}`,
+      undefined,
+      'Agent0Client [updateAgent]'
+    );
 
     return {
       tokenId,
-      name: agent.name,
-      walletAddress: agent.walletAddress ?? '',
-      metadataCID: agent.agentId,
-      capabilities,
-      reputation: {
-        trustScore: 0,
-        accuracyScore: 0,
-      },
+      txHash: '',
+      metadataCID: registrationFile.agentURI?.replace('ipfs://', ''),
     };
   }
+
+  /**
+   * Transfer agent ownership to a new address
+   */
+  async transferAgent(
+    agentId: string,
+    newOwner: string
+  ): Promise<Agent0TransferResult> {
+    await this.ensureSDK();
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access');
+    }
+
+    logger.info(
+      `Transferring agent ${agentId} to ${newOwner}`,
+      undefined,
+      'Agent0Client [transferAgent]'
+    );
+
+    const result = await this.sdk.transferAgent(
+      agentId as `${number}:${number}`,
+      newOwner as `0x${string}`
+    );
+
+    logger.info(
+      `Agent transferred successfully: ${agentId}`,
+      { txHash: result.txHash },
+      'Agent0Client [transferAgent]'
+    );
+
+    return {
+      txHash: result.txHash,
+      from: result.from,
+      to: result.to,
+      agentId: result.agentId,
+    };
+  }
+
+  /**
+   * Check if an address owns the specified agent
+   */
+  async isAgentOwner(agentId: string, address: string): Promise<boolean> {
+    await this.ensureSDK();
+
+    return this.sdk!.isAgentOwner(
+      agentId as `${number}:${number}`,
+      address as `0x${string}`
+    );
+  }
+
+  /**
+   * Get the owner address of an agent
+   */
+  async getAgentOwner(agentId: string): Promise<string> {
+    await this.ensureSDK();
+
+    return this.sdk!.getAgentOwner(agentId as `${number}:${number}`);
+  }
+
+  // ===========================================================================
+  // Feedback & Reputation
+  // ===========================================================================
+
+  /**
+   * Submits feedback for an agent
+   *
+   * @remarks
+   * This method requires the agent to have pre-authorized feedback from the client address.
+   * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
+   * For system-level reputation updates, ensure the agent has pre-authorized the system address.
+   *
+   * @param params - Feedback parameters
+   * @throws Error if SDK not initialized or feedback submission fails
+   */
+  async submitFeedback(params: Agent0FeedbackParams): Promise<Agent0Feedback> {
+    await this.ensureSDK();
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access');
+    }
+
+    logger.info(
+      `Submitting feedback for agent ${params.targetAgentId}`,
+      undefined,
+      'Agent0Client [submitFeedback]'
+    );
+
+    const agentId =
+      `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
+    const agent0Score = Math.max(0, Math.min(100, (params.rating + 5) * 10));
+
+    // Prepare feedback file with extended parameters
+    const feedbackFile = this.sdk.prepareFeedback(
+      agentId,
+      agent0Score,
+      params.tags ?? [],
+      params.comment || undefined,
+      params.capability,
+      undefined,
+      params.skill,
+      params.task,
+      params.context,
+      params.proofOfPayment
+    );
+
+    // For system-level feedback, we need to sign authorization
+    // The SDK's signer (from config.privateKey) is used to sign the authorization
+    // The agent should have pre-authorized this client address during registration
+    const signerWallet = new Wallet(this.config.privateKey);
+    const signerAddress = signerWallet.address as `0x${string}`;
+
+    const auth = await this.sdk.signFeedbackAuth(
+      agentId,
+      signerAddress,
+      undefined,
+      24
+    );
+
+    const feedback = await this.sdk.giveFeedback(agentId, feedbackFile, auth);
+
+    logger.info(
+      `Feedback submitted successfully for agent ${agentId}`,
+      undefined,
+      'Agent0Client [submitFeedback]'
+    );
+
+    return this.mapFeedbackToAgent0Feedback(feedback);
+  }
+
+  /**
+   * Get a specific feedback record
+   */
+  async getFeedback(
+    agentId: string,
+    clientAddress: string,
+    feedbackIndex: number
+  ): Promise<Agent0Feedback> {
+    await this.ensureSDK();
+
+    logger.info(
+      `Getting feedback for agent ${agentId}, client ${clientAddress}, index ${feedbackIndex}`,
+      undefined,
+      'Agent0Client [getFeedback]'
+    );
+
+    const feedback = await this.sdk!.getFeedback(
+      agentId as `${number}:${number}`,
+      clientAddress as `0x${string}`,
+      feedbackIndex
+    );
+
+    return this.mapFeedbackToAgent0Feedback(feedback);
+  }
+
+  /**
+   * Search feedback for an agent
+   */
+  async searchFeedback(
+    agentId: string,
+    params?: Partial<Agent0FeedbackSearchParams>
+  ): Promise<Agent0Feedback[]> {
+    await this.ensureSDK();
+
+    logger.info(
+      `Searching feedback for agent ${agentId}`,
+      { params },
+      'Agent0Client [searchFeedback]'
+    );
+
+    const feedbackList = await this.sdk!.searchFeedback(
+      agentId as `${number}:${number}`,
+      params?.tags,
+      params?.capabilities,
+      params?.skills,
+      params?.minScore,
+      params?.maxScore
+    );
+
+    return feedbackList.map((f) => this.mapFeedbackToAgent0Feedback(f));
+  }
+
+  /**
+   * Revoke previously submitted feedback
+   */
+  async revokeFeedback(
+    agentId: string,
+    feedbackIndex: number
+  ): Promise<string> {
+    await this.ensureSDK();
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access');
+    }
+
+    logger.info(
+      `Revoking feedback for agent ${agentId}, index ${feedbackIndex}`,
+      undefined,
+      'Agent0Client [revokeFeedback]'
+    );
+
+    const txHash = await this.sdk.revokeFeedback(
+      agentId as `${number}:${number}`,
+      feedbackIndex
+    );
+
+    logger.info(
+      `Feedback revoked successfully for agent ${agentId}`,
+      { txHash },
+      'Agent0Client [revokeFeedback]'
+    );
+
+    return txHash;
+  }
+
+  /**
+   * Append a response to existing feedback
+   */
+  async appendFeedbackResponse(
+    agentId: string,
+    clientAddress: string,
+    feedbackIndex: number,
+    responseUri: string,
+    responseHash: string
+  ): Promise<string> {
+    await this.ensureSDK();
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access');
+    }
+
+    logger.info(
+      `Appending response to feedback for agent ${agentId}`,
+      { clientAddress, feedbackIndex },
+      'Agent0Client [appendFeedbackResponse]'
+    );
+
+    const txHash = await this.sdk.appendResponse(
+      agentId as `${number}:${number}`,
+      clientAddress as `0x${string}`,
+      feedbackIndex,
+      { uri: responseUri, hash: responseHash }
+    );
+
+    logger.info(
+      `Response appended successfully for agent ${agentId}`,
+      { txHash },
+      'Agent0Client [appendFeedbackResponse]'
+    );
+
+    return txHash;
+  }
+
+  /**
+   * Get reputation summary statistics for an agent
+   */
+  async getReputationSummary(
+    agentId: string,
+    tag1?: string,
+    tag2?: string
+  ): Promise<Agent0ReputationSummary> {
+    await this.ensureSDK();
+
+    logger.info(
+      `Getting reputation summary for agent ${agentId}`,
+      { tag1, tag2 },
+      'Agent0Client [getReputationSummary]'
+    );
+
+    const summary = await this.sdk!.getReputationSummary(
+      agentId as `${number}:${number}`,
+      tag1,
+      tag2
+    );
+
+    return {
+      count: summary.count,
+      averageScore: summary.averageScore,
+    };
+  }
+
+  // ===========================================================================
+  // Status & Utilities
+  // ===========================================================================
+
+  /**
+   * Checks if Agent0 SDK is available
+   *
+   * @returns True if SDK is initialized and not in read-only mode
+   * @remarks Returns false if SDK hasn't been initialized yet. Call ensureSDK()
+   * or any method that uses the SDK to initialize it first.
+   */
+  isAvailable(): boolean {
+    return this.sdk !== null && !this.sdk.isReadOnly;
+  }
+
+  /**
+   * Initialize SDK synchronously if possible, or return current availability
+   * For async initialization, use any method that calls ensureSDK()
+   */
+  async ensureAvailable(): Promise<boolean> {
+    await this.ensureSDK();
+    return this.isAvailable();
+  }
+
+  /**
+   * Get the underlying SDK instance
+   */
+  getSDK(): SDK | null {
+    return this.sdk;
+  }
+
+  /**
+   * Get the current chain ID
+   */
+  getChainId(): number {
+    return this.chainId;
+  }
+
+  /**
+   * Format a token ID as a full agent ID
+   */
+  formatAgentId(tokenId: number): string {
+    return `${this.chainId}:${tokenId}`;
+  }
+
+  // ===========================================================================
+  // Private Helpers
+  // ===========================================================================
 
   private parseCapabilities(extras: Record<string, JsonValue> | undefined): {
     strategies: string[];
@@ -544,31 +1074,108 @@ export class Agent0Client implements IAgent0Client {
     return result;
   }
 
-  /**
-   * Checks if Agent0 SDK is available
-   *
-   * @returns True if SDK is initialized and not in read-only mode
-   * @remarks Returns false if SDK hasn't been initialized yet. Call ensureSDK()
-   * or any method that uses the SDK to initialize it first.
-   */
-  isAvailable(): boolean {
-    return this.sdk !== null && !this.sdk.isReadOnly;
+  private mapAgentSummaryToSearchResult(
+    agent: AgentSummary
+  ): Agent0SearchResult {
+    const capabilities = this.parseCapabilities(
+      agent.extras as Record<string, JsonValue> | undefined
+    );
+    return {
+      tokenId: Number.parseInt(agent.agentId.split(':')[1] ?? '0', 10),
+      name: agent.name,
+      walletAddress: agent.walletAddress ?? '',
+      metadataCID: agent.agentId,
+      capabilities,
+      reputation: {
+        trustScore: 0,
+        accuracyScore: 0,
+      },
+      chainId: agent.chainId,
+      description: agent.description,
+      image: agent.image,
+      owners: agent.owners,
+      operators: agent.operators,
+      mcp: agent.mcp,
+      a2a: agent.a2a,
+      ens: agent.ens,
+      did: agent.did,
+      supportedTrusts: agent.supportedTrusts,
+      a2aSkills: agent.a2aSkills,
+      mcpTools: agent.mcpTools,
+      mcpPrompts: agent.mcpPrompts,
+      mcpResources: agent.mcpResources,
+      active: agent.active,
+      x402support: agent.x402support,
+    };
   }
 
-  /**
-   * Initialize SDK synchronously if possible, or return current availability
-   * For async initialization, use any method that calls ensureSDK()
-   */
-  async ensureAvailable(): Promise<boolean> {
-    await this.ensureSDK();
-    return this.isAvailable();
+  private mapAgentSummaryToProfile(
+    agent: AgentSummary,
+    tokenId: number
+  ): Agent0AgentProfile {
+    const capabilities = this.parseCapabilities(
+      agent.extras as Record<string, JsonValue> | undefined
+    );
+    return {
+      tokenId,
+      name: agent.name,
+      walletAddress: agent.walletAddress ?? '',
+      metadataCID: agent.agentId,
+      capabilities,
+      reputation: {
+        trustScore: 0,
+        accuracyScore: 0,
+      },
+      description: agent.description,
+      image: agent.image,
+      chainId: agent.chainId,
+      owners: agent.owners,
+      operators: agent.operators,
+      trustModels: agent.supportedTrusts,
+      active: agent.active,
+      x402support: agent.x402support,
+      metadata: agent.extras,
+    };
   }
 
-  /**
-   * Get the underlying SDK instance
-   */
-  getSDK(): SDK | null {
-    return this.sdk;
+  private mapSearchResultMeta(meta: SearchResultMeta): {
+    chains: number[];
+    successfulChains: number[];
+    failedChains: number[];
+    totalResults: number;
+    timing: { totalMs: number; averagePerChainMs?: number };
+  } {
+    return {
+      chains: meta.chains,
+      successfulChains: meta.successfulChains,
+      failedChains: meta.failedChains,
+      totalResults: meta.totalResults,
+      timing: {
+        totalMs: meta.timing.totalMs,
+        averagePerChainMs: meta.timing.averagePerChainMs,
+      },
+    };
+  }
+
+  private mapFeedbackToAgent0Feedback(feedback: Feedback): Agent0Feedback {
+    return {
+      id: feedback.id,
+      agentId: feedback.agentId,
+      reviewer: feedback.reviewer,
+      score: feedback.score,
+      tags: feedback.tags,
+      text: feedback.text,
+      context: feedback.context,
+      proofOfPayment: feedback.proofOfPayment,
+      fileURI: feedback.fileURI,
+      createdAt: feedback.createdAt,
+      answers: feedback.answers,
+      isRevoked: feedback.isRevoked,
+      capability: feedback.capability,
+      name: feedback.name,
+      skill: feedback.skill,
+      task: feedback.task,
+    };
   }
 }
 
@@ -653,4 +1260,11 @@ export function getAgent0Client(): Agent0Client {
   }
 
   return agent0ClientInstance;
+}
+
+/**
+ * Reset the singleton instance (useful for testing)
+ */
+export function resetAgent0Client(): void {
+  agent0ClientInstance = null;
 }

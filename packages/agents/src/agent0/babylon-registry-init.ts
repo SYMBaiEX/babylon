@@ -6,12 +6,12 @@
  * Publishes game metadata, capabilities, and endpoints for agent discovery.
  */
 
-import { getAgent0Client } from './index';
 import { db } from '@babylon/db';
+import { getA2AEndpoint, getMCPEndpoint } from '@babylon/shared';
 import { logger } from '../shared/logger';
 import { generateSnowflakeId } from '../shared/snowflake';
 import type { JsonValue } from '../types/common';
-import { getMCPEndpoint, getA2AEndpoint } from '@babylon/shared';
+import { getAgent0Client } from './Agent0Client';
 
 /**
  * Babylon registration result
@@ -106,85 +106,73 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   // - Game metadata and capabilities
   // - MCP and A2A endpoint configuration
   // - Cross-chain network info (points to Base where game operates)
-  let result: { tokenId: number; txHash: string; metadataCID?: string };
+  const result = await agent0Client.registerAgent({
+    name: 'Babylon Prediction Markets',
+    description: 'Real-time prediction market game with autonomous AI agents',
+    walletAddress: gameWalletAddress,
+    mcpEndpoint: getMCPEndpoint(),
+    a2aEndpoint: getA2AEndpoint(),
+    capabilities: {
+      strategies: [],
+      markets: ['prediction', 'perpetuals'],
+      actions: [
+        // Market Operations
+        'query_markets',
+        'get_market_data',
+        'place_bet',
+        'buy_prediction',
+        'sell_prediction',
+        'close_position',
+        'get_balance',
+        'get_positions',
+        'open_perp_position',
+        'close_perp_position',
+        // Social Features
+        'create_post',
+        'reply_post',
+        'like_post',
+        'share_post',
+        'comment_post',
+        'follow_user',
+        'unfollow_user',
+        'get_followers',
+        'get_following',
+        // Discovery & Search
+        'search_users',
+        'get_user_profile',
+        'query_feed',
+        'join_chat',
+        // Referrals & Rewards
+        'get_referral_code',
+        'get_referrals',
+      ],
+      version: '1.0.0',
+      x402Support: true, // Babylon supports ERC-402 micropayments for premium actions
+      skills: [],
+      domains: [],
+    },
+  });
 
-  try {
-    result = await agent0Client.registerAgent({
-      name: 'Babylon Prediction Markets',
-      description: 'Real-time prediction market game with autonomous AI agents',
-      walletAddress: gameWalletAddress,
-      mcpEndpoint: getMCPEndpoint(),
-      a2aEndpoint: getA2AEndpoint(),
-      capabilities: {
-        strategies: [],
-        markets: ['prediction', 'perpetuals'],
-        actions: [
-          // Market Operations
-          'query_markets',
-          'get_market_data',
-          'place_bet',
-          'buy_prediction',
-          'sell_prediction',
-          'close_position',
-          'get_balance',
-          'get_positions',
-          'open_perp_position',
-          'close_perp_position',
-          // Social Features
-          'create_post',
-          'reply_post',
-          'like_post',
-          'share_post',
-          'comment_post',
-          'follow_user',
-          'unfollow_user',
-          'get_followers',
-          'get_following',
-          // Discovery & Search
-          'search_users',
-          'get_user_profile',
-          'query_feed',
-          'join_chat',
-          // Referrals & Rewards
-          'get_referral_code',
-          'get_referrals',
-        ],
-        version: '1.0.0',
-        x402Support: true, // Babylon supports ERC-402 micropayments for premium actions
-        skills: [],
-        domains: [],
-      },
-    });
-
-    logger.info(
-      '✅ Babylon registered on agent0 (Ethereum Sepolia)',
-      undefined,
-      'BabylonRegistry'
-    );
-    logger.info(
-      '   Discovery: External agents can find Babylon via agent0',
-      undefined,
-      'BabylonRegistry'
-    );
-    logger.info(
-      `   Game Network: Base ${process.env.BASE_CHAIN_ID || '8453'}`,
-      undefined,
-      'BabylonRegistry'
-    );
-    logger.info(
-      `   Registry: ${process.env.BASE_IDENTITY_REGISTRY_ADDRESS}`,
-      undefined,
-      'BabylonRegistry'
-    );
-  } catch (error) {
-    // If Agent0 SDK is not available, registration failed
-    logger.error(
-      'Agent0 SDK registration failed. Check SDK installation and configuration.',
-      error,
-      'BabylonRegistry'
-    );
-    throw error;
-  }
+  logger.info(
+    '✅ Babylon registered on agent0 (Ethereum Sepolia)',
+    undefined,
+    'BabylonRegistry'
+  );
+  logger.info(
+    '   Discovery: External agents can find Babylon via agent0',
+    undefined,
+    'BabylonRegistry'
+  );
+  logger.info(
+    `   Game Network: Base ${process.env.BASE_CHAIN_ID || '8453'}`,
+    undefined,
+    'BabylonRegistry'
+  );
+  logger.info(
+    `   Registry: ${process.env.BASE_IDENTITY_REGISTRY_ADDRESS}`,
+    undefined,
+    'BabylonRegistry'
+  );
 
   const metadataCID = result.metadataCID || '';
 
@@ -227,4 +215,3 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
     registeredAt: new Date().toISOString(),
   };
 }
-

@@ -1,19 +1,60 @@
 'use client';
 
-import { ArrowLeft, Key, Palette, Save, Shield, User } from 'lucide-react';
+import { cn, logger } from '@babylon/shared';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Key,
+  Monitor,
+  Moon,
+  Palette,
+  Receipt,
+  Save,
+  Shield,
+  Sun,
+  User,
+} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
+import { BillingTab } from '@/components/settings/BillingTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
-import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { logger } from '@babylon/shared';
-import { cn } from '@babylon/shared';
 import { useAuthStore } from '@/stores/authStore';
+
+/**
+ * Check if billing feature is enabled
+ * Feature flag: NEXT_PUBLIC_BILLING_ENABLED
+ */
+function isBillingEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+}
+
+const themeOptions = [
+  {
+    value: 'light',
+    label: 'Light',
+    description: 'Light background with dark text',
+    icon: Sun,
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    description: 'Dark background with light text',
+    icon: Moon,
+  },
+  {
+    value: 'system',
+    label: 'System',
+    description: 'Match your system settings',
+    icon: Monitor,
+  },
+] as const;
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -52,6 +93,33 @@ export default function SettingsPage() {
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+
+  // Check if billing is enabled via feature flag
+  // Must be before any early returns to satisfy Rules of Hooks
+  const billingEnabled = isBillingEnabled();
+
+  // Build tabs array - billing is feature-flagged
+  // Must be before any early returns to satisfy Rules of Hooks
+  const tabs = useMemo(() => {
+    const baseTabs = [
+      { id: 'profile', label: 'Profile', icon: User },
+      { id: 'theme', label: 'Theme', icon: Palette },
+    ];
+
+    // Add billing tab if feature flag is enabled
+    if (billingEnabled) {
+      baseTabs.push({ id: 'billing', label: 'Billing', icon: Receipt });
+    }
+
+    // Add remaining tabs
+    baseTabs.push(
+      { id: 'security', label: 'Security', icon: Shield },
+      { id: 'privacy', label: 'Privacy', icon: Shield },
+      { id: 'api', label: 'API Keys', icon: Key }
+    );
+
+    return baseTabs;
+  }, [billingEnabled]);
 
   // Wait for hydration to avoid SSR mismatch
   useEffect(() => {
@@ -121,92 +189,85 @@ export default function SettingsPage() {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            displayName: trimmedDisplayName,
-            username: trimmedUsername,
-            bio: trimmedBio,
-          }),
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = payload?.error || 'Unable to save your changes.';
-        setErrorMessage(message);
-        logger.error(
-          'Failed to save profile settings',
-          { error: message },
-          'SettingsPage'
-        );
-        return;
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          bio: trimmedBio,
+        }),
       }
+    );
 
-      if (payload.user) {
-        setUser({
-          ...user,
-          username: payload.user.username,
-          displayName: payload.user.displayName,
-          bio: payload.user.bio,
-          usernameChangedAt: payload.user.usernameChangedAt,
-          referralCode: payload.user.referralCode,
-          onChainRegistered:
-            payload.user.onChainRegistered ?? user.onChainRegistered,
-        });
-      }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-      await refresh().catch(() => undefined);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to save profile settings';
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || 'Unable to save your changes.';
       setErrorMessage(message);
       logger.error(
         'Failed to save profile settings',
-        { error },
+        { error: message },
         'SettingsPage'
       );
-    } finally {
       setSaving(false);
+      return;
     }
+
+    if (payload.user) {
+      setUser({
+        ...user,
+        username: payload.user.username,
+        displayName: payload.user.displayName,
+        bio: payload.user.bio,
+        usernameChangedAt: payload.user.usernameChangedAt,
+        referralCode: payload.user.referralCode,
+        onChainRegistered:
+          payload.user.onChainRegistered ?? user.onChainRegistered,
+      });
+    }
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    await refresh().catch(() => undefined);
+    setSaving(false);
   };
 
   if (!ready) {
     return (
-      <PageContainer>
-        <div className="mx-auto w-full max-w-2xl space-y-6 px-4 sm:px-0">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-32 max-w-full" />
-            <Skeleton className="h-4 w-64 max-w-full" />
-          </div>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="space-y-4 rounded-lg border border-border bg-card/50 px-4 py-3 backdrop-blur sm:px-6 sm:py-4"
-            >
-              <Skeleton className="mb-4 h-6 w-40 max-w-full" />
-              {Array.from({ length: 2 }).map((_, j) => (
-                <div
-                  key={j}
-                  className="flex items-center justify-between gap-3 border-border/5 border-b py-3 last:border-0"
-                >
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32 max-w-full" />
-                    <Skeleton className="h-3 w-48 max-w-full" />
-                  </div>
-                  <Skeleton className="h-8 w-16 shrink-0 rounded-full" />
-                </div>
-              ))}
+      <PageContainer noPadding className="flex w-full flex-col">
+        <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
+          {/* Header skeleton */}
+          <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
+            <div className="mx-auto w-full max-w-4xl px-4 md:px-6">
+              <div className="flex items-center gap-4 py-3">
+                <Skeleton className="h-6 w-24" />
+              </div>
+              {/* Tab navigation skeleton */}
+              <div className="flex gap-1 border-border border-b">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-20" />
+                ))}
+              </div>
             </div>
-          ))}
+          </div>
+          <div className="mx-auto w-full max-w-4xl px-4 md:px-6">
+            {/* Form fields skeleton */}
+            <div className="pt-6">
+              <div className="space-y-5 rounded-lg border border-border p-5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-11 w-full rounded-lg" />
+                  </div>
+                ))}
+                <div className="border-border border-t pt-5">
+                  <Skeleton className="h-11 w-36 rounded-full" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </PageContainer>
     );
@@ -214,222 +275,232 @@ export default function SettingsPage() {
 
   if (!authenticated) {
     return (
-      <PageContainer>
-        <div className="mx-auto max-w-2xl py-12 text-center">
-          <h1 className="mb-4 font-bold text-3xl">Settings</h1>
-          <p className="mb-8 text-muted-foreground">
-            Please sign in to access your settings.
-          </p>
-          <LoginButton />
+      <PageContainer noPadding className="flex w-full flex-col">
+        <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
+          <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
+            <div className="mx-auto w-full max-w-4xl px-4 py-3 md:px-6">
+              <h1 className="font-bold text-xl">Settings</h1>
+            </div>
+          </div>
+          <div className="mx-auto max-w-2xl px-4 py-12 text-center md:px-6">
+            <p className="mb-8 text-muted-foreground">
+              Please sign in to access your settings.
+            </p>
+            <LoginButton />
+          </div>
         </div>
       </PageContainer>
     );
   }
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'theme', label: 'Theme', icon: Palette },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'privacy', label: 'Privacy', icon: Shield },
-    { id: 'api', label: 'API Keys', icon: Key },
-  ];
-
   return (
-    <PageContainer>
-      <div className="mx-auto max-w-4xl pb-24">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span>Back</span>
-          </button>
-          <h1 className="font-bold text-3xl">Settings</h1>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mb-8 flex gap-1 overflow-x-auto border-border border-b">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={cn(
-                  'flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 transition-all',
-                  activeTab === tab.id
-                    ? 'border-[#0066FF] text-[#0066FF]'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="font-medium">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab Content */}
-        <div className="space-y-6 pb-8">
-          {activeTab === 'profile' && (
-            <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="displayName"
-                  className="mb-2 block font-medium text-sm"
-                >
-                  Display Name
-                </label>
-                <input
-                  id="displayName"
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-                  placeholder="Enter your display name"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="username"
-                  className="mb-2 block font-medium text-sm"
-                >
-                  Username
-                </label>
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={Boolean(
-                    usernameChangeLimit && !usernameChangeLimit.canChange
-                  )}
-                  className="w-full rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF] disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="Enter your username"
-                />
-                {usernameChangeLimit && !usernameChangeLimit.canChange ? (
-                  <p className="mt-1 text-xs text-yellow-500">
-                    Username can only be changed once every 24 hours. Please
-                    wait {usernameChangeLimit.hours}h{' '}
-                    {usernameChangeLimit.minutes}m before changing again.
-                  </p>
-                ) : (
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    Username can be changed once every 24 hours. Changing your
-                    username will update your referral code.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="bio" className="mb-2 block font-medium text-sm">
-                  Bio
-                </label>
-                <textarea
-                  id="bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={4}
-                  className="w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
-                  placeholder="Tell us about yourself..."
-                />
-              </div>
+    <PageContainer noPadding className="flex w-full flex-col">
+      <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
+        {/* Sticky Header + Tab Navigation */}
+        <div className="sticky top-0 z-10 flex-shrink-0 bg-background/95 backdrop-blur-sm">
+          <div className="mx-auto w-full max-w-4xl px-4 md:px-6">
+            <div className="py-3">
+              <h1 className="font-bold text-xl">Settings</h1>
             </div>
-          )}
+            <div className="flex gap-1 overflow-x-auto border-border border-b">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={cn(
+                      'flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 font-semibold text-sm transition-all',
+                      activeTab === tab.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-          {activeTab === 'theme' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="mb-4 font-medium">Theme Preference</h3>
+        <div className="mx-auto w-full max-w-4xl px-4 pb-24 md:px-6">
+          {/* Tab Content */}
+          <div className="pt-6">
+            {activeTab === 'profile' && (
+              <div className="rounded-lg border border-border p-5">
+                <div className="space-y-5">
+                  <div>
+                    <label
+                      htmlFor="displayName"
+                      className="mb-2 block font-medium text-muted-foreground text-sm"
+                    >
+                      Display Name
+                    </label>
+                    <input
+                      id="displayName"
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="min-h-[44px] w-full rounded-lg border border-border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      placeholder="Enter your display name"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="username"
+                      className="mb-2 block font-medium text-muted-foreground text-sm"
+                    >
+                      Username
+                    </label>
+                    <input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      disabled={Boolean(
+                        usernameChangeLimit && !usernameChangeLimit.canChange
+                      )}
+                      className="min-h-[44px] w-full rounded-lg border border-border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Enter your username"
+                    />
+                    {usernameChangeLimit && !usernameChangeLimit.canChange ? (
+                      <div className="mt-2 flex items-start gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                        <p className="text-xs text-yellow-500">
+                          Username can only be changed once every 24 hours.
+                          Please wait {usernameChangeLimit.hours}h{' '}
+                          {usernameChangeLimit.minutes}m before changing again.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-muted-foreground text-xs">
+                        Username can be changed once every 24 hours. Changing
+                        your username will update your referral code.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="bio"
+                      className="mb-2 block font-medium text-muted-foreground text-sm"
+                    >
+                      Bio
+                    </label>
+                    <textarea
+                      id="bio"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      rows={4}
+                      className="min-h-[44px] w-full resize-none rounded-lg border border-border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      placeholder="Tell us about yourself..."
+                    />
+                  </div>
+                </div>
+
+                {/* Save area */}
+                <div className="mt-3">
+                  {errorMessage && (
+                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                      <p className="text-red-500 text-sm">{errorMessage}</p>
+                    </div>
+                  )}
+                  {user?.onChainRegistered !== true && !errorMessage && (
+                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                      <p className="text-sm text-yellow-500">
+                        Complete your on-chain registration before editing your
+                        profile.
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving || user?.onChainRegistered !== true}
+                      className={cn(
+                        'flex min-h-[44px] items-center gap-2 px-6 py-3 font-medium transition-all',
+                        'bg-primary text-primary-foreground hover:bg-primary/90',
+                        'disabled:cursor-not-allowed disabled:opacity-50'
+                      )}
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>
+                        {saving
+                          ? 'Saving...'
+                          : saved
+                            ? 'Saved!'
+                            : 'Save Changes'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'theme' && (
+              <div className="space-y-5">
                 {!mounted ? (
                   <div className="flex items-center justify-center py-8">
                     <Skeleton className="h-32 w-full" />
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {['light', 'dark', 'system'].map((themeOption) => (
-                      <label
-                        key={themeOption}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted"
-                      >
-                        <input
-                          type="radio"
-                          name="theme"
-                          value={themeOption}
-                          checked={theme === themeOption}
-                          onChange={() => setTheme(themeOption)}
-                          className="h-4 w-4 text-[#0066FF]"
-                        />
-                        <div>
-                          <p className="font-medium capitalize">
-                            {themeOption}
-                          </p>
-                          <p className="text-muted-foreground text-sm">
-                            {themeOption === 'light' &&
-                              'Light background with dark text'}
-                            {themeOption === 'dark' &&
-                              'Dark background with light text'}
-                            {themeOption === 'system' &&
-                              'Match your system settings'}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid gap-3">
+                      {themeOptions.map((option) => {
+                        const Icon = option.icon;
+                        const isSelected = theme === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setTheme(option.value)}
+                            className={cn(
+                              'flex items-center gap-3 rounded-lg border p-4 text-left transition-all',
+                              isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:bg-muted/30'
+                            )}
+                          >
+                            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            <div className="flex-1">
+                              <p className="font-medium">{option.label}</p>
+                              <p className="text-muted-foreground text-sm">
+                                {option.description}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      Theme preference is saved automatically and applied
+                      immediately.
+                    </p>
+                  </>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Security Tab */}
-          {activeTab === 'security' && <SecurityTab />}
+            {/* Billing Tab - Feature Flagged */}
+            {activeTab === 'billing' && billingEnabled && <BillingTab />}
 
-          {/* Privacy Tab */}
-          {activeTab === 'privacy' && <PrivacyTab />}
+            {/* Security Tab */}
+            {activeTab === 'security' && <SecurityTab />}
 
-          {/* API Keys Tab */}
-          {activeTab === 'api' && <ApiKeysTab />}
+            {/* Privacy Tab */}
+            {activeTab === 'privacy' && <PrivacyTab />}
 
-          {/* Save Button - Only show for profile tab (theme saves automatically) */}
-          {activeTab === 'profile' && (
-            <div className="border-border border-t pt-6">
-              {errorMessage && (
-                <p className="mb-4 text-red-500 text-sm">{errorMessage}</p>
-              )}
-              {user?.onChainRegistered !== true && !errorMessage && (
-                <p className="mb-4 text-sm text-yellow-500">
-                  Complete your on-chain registration before editing your
-                  profile.
-                </p>
-              )}
-              <button
-                onClick={handleSave}
-                disabled={saving || user?.onChainRegistered !== true}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                  'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                  'disabled:cursor-not-allowed disabled:opacity-50'
-                )}
-              >
-                <Save className="h-4 w-4" />
-                <span>
-                  {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* Theme saves automatically, show confirmation */}
-          {activeTab === 'theme' && mounted && (
-            <div className="border-border border-t pt-6">
-              <p className="text-muted-foreground text-sm">
-                Theme preference is saved automatically and applied immediately.
-              </p>
-            </div>
-          )}
+            {/* API Keys Tab */}
+            {activeTab === 'api' && <ApiKeysTab />}
+          </div>
         </div>
       </div>
     </PageContainer>

@@ -3,53 +3,23 @@
  *
  * @route POST /api/groups/invites/[inviteId]/accept - Accept group invite
  * @access Authenticated
- *
- * @description
- * Accepts a group invitation. Adds the authenticated user to the group
- * and removes the invite. User must be the invitee.
- *
- * @openapi
- * /api/groups/invites/{inviteId}/accept:
- *   post:
- *     tags:
- *       - Groups
- *     summary: Accept group invite
- *     description: Accepts a group invitation (authenticated user only)
- *     security:
- *       - PrivyAuth: []
- *     parameters:
- *       - in: path
- *         name: inviteId
- *         required: true
- *         schema:
- *           type: string
- *         description: Invite ID
- *     responses:
- *       200:
- *         description: Invite accepted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not the invitee
- *       404:
- *         description: Invite not found
- *
- * @example
- * ```typescript
- * await fetch(`/api/groups/invites/${inviteId}/accept`, {
- *   method: 'POST',
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
- * ```
  */
 
-import { nanoid } from 'nanoid';
+import {
+  ApiError,
+  authenticate,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
+  asUser,
+  chatParticipants,
+  generateSnowflakeId,
+  groupMembers,
+  sql,
+} from '@babylon/db';
+import { GROUP_CONFIG, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { authenticate } from '@babylon/api';
-import { asUser } from '@babylon/db';
-import { ApiError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 /**
  * POST /api/groups/invites/[inviteId]/accept
@@ -65,7 +35,7 @@ export const POST = withErrorHandling(
 
     const result = await asUser(user, async (db) => {
       // Get the invite
-      const invite = await db.userGroupInvite.findUnique({
+      const invite = await db.groupInvite.findUnique({
         where: { id: inviteId },
       });
 
@@ -81,58 +51,142 @@ export const POST = withErrorHandling(
         throw new ApiError('This invite has already been processed', 400);
       }
 
-      // Check if user is already a member
-      const existingMember = await db.userGroupMember.findFirst({
+      // Check if the invited group exists and get its type
+      const invitedGroup = await db.group.findUnique({
+        where: { id: invite.groupId },
+        select: { type: true },
+      });
+
+      if (!invitedGroup) {
+        throw new ApiError('Group not found', 404);
+      }
+
+      // Only check NPC group limit if the invited group is an NPC group
+      if (invitedGroup.type === 'npc') {
+        const activeMemberships = await db.groupMember.findMany({
+          where: {
+            userId: user.userId,
+            isActive: true,
+          },
+        });
+
+        // Fetch all groups in one query to avoid N+1
+        const groupIds = activeMemberships.map((m) => m.groupId);
+        const memberGroups =
+          groupIds.length > 0
+            ? await db.group.findMany({
+                where: { id: { in: groupIds } },
+                select: { id: true, type: true },
+              })
+            : [];
+
+        // Count NPC groups
+        const npcGroupCount = memberGroups.filter(
+          (g) => g.type === 'npc'
+        ).length;
+
+        if (npcGroupCount >= GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS) {
+          throw new ApiError(
+            `You can only be in ${GROUP_CONFIG.MAX_ACTIVE_USER_GROUPS} NPC groups at a time. Leave a group first.`,
+            400
+          );
+        }
+      }
+
+      // Check if user is already an active member (fail fast, no race condition here)
+      const existingActiveMember = await db.groupMember.findFirst({
         where: {
           groupId: invite.groupId,
           userId: user.userId,
+          isActive: true,
         },
       });
 
-      if (existingMember) {
-        // Update invite status and return
-        await db.userGroupInvite.update({
-          where: { id: inviteId },
-          data: {
-            status: 'accepted',
-            respondedAt: new Date(),
-          },
-        });
+      if (existingActiveMember) {
         throw new ApiError('You are already a member of this group', 400);
       }
 
-      // Add user as member
-      await db.userGroupMember.create({
-        data: {
-          id: nanoid(),
+      // Find the chat for this group (Chat.groupId → Group.id)
+      const groupChat = await db.chat.findFirst({
+        where: { groupId: invite.groupId },
+        select: { id: true },
+      });
+
+      const now = new Date();
+      const memberId = await generateSnowflakeId();
+
+      // Upsert GroupMember - use drizzle's onConflictDoUpdate
+      // Note: asUser already wraps this in a transaction, so no need for nested transaction
+      await db
+        .insert(groupMembers)
+        .values({
+          id: memberId,
           groupId: invite.groupId,
           userId: user.userId,
+          role: 'member',
           addedBy: invite.invitedBy,
-          joinedAt: new Date(),
-        },
-      });
+          joinedAt: now,
+          isActive: true,
+          messageCount: 0,
+          qualityScore: 1.0,
+        })
+        .onConflictDoUpdate({
+          target: [groupMembers.groupId, groupMembers.userId],
+          set: {
+            isActive: true,
+            role: 'member',
+            addedBy: invite.invitedBy,
+            joinedAt: now,
+            kickedAt: sql`NULL`,
+            kickReason: sql`NULL`,
+          },
+        });
 
-      // Add to associated chat
-      const chat = await db.chat.findFirst({
-        where: {
-          groupId: invite.groupId,
-          isGroup: true,
-        },
-      });
-
-      if (chat) {
-        await db.chatParticipant.create({
-          data: {
-            id: nanoid(),
-            chatId: chat.id,
+      // Upsert ChatParticipant if chat exists
+      if (groupChat) {
+        const participantId = await generateSnowflakeId();
+        await db
+          .insert(chatParticipants)
+          .values({
+            id: participantId,
+            chatId: groupChat.id,
             userId: user.userId,
-            joinedAt: new Date(),
+            joinedAt: now,
+            isActive: true,
+          })
+          .onConflictDoUpdate({
+            target: [chatParticipants.chatId, chatParticipants.userId],
+            set: {
+              isActive: true,
+              joinedAt: now,
+            },
+          });
+      }
+
+      // Get user's display name for system message
+      const joiningUser = await db.user.findUnique({
+        where: { id: user.userId },
+        select: { displayName: true, username: true },
+      });
+      const joinerName =
+        joiningUser?.displayName || joiningUser?.username || 'Someone';
+
+      // Create system message for joining
+      if (groupChat) {
+        await db.message.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: groupChat.id,
+            senderId: 'system',
+            type: 'system',
+            content: `${joinerName} joined the group`,
+            createdAt: now,
           },
         });
       }
 
       // Update invite status
-      await db.userGroupInvite.update({
+      await db.groupInvite.update({
         where: { id: inviteId },
         data: {
           status: 'accepted',
@@ -140,11 +194,12 @@ export const POST = withErrorHandling(
         },
       });
 
-      // Mark notification as read
+      // Mark only this specific invite's notification as read
       await db.notification.updateMany({
         where: {
           userId: user.userId,
           type: 'group_invite',
+          inviteId: inviteId,
         },
         data: {
           read: true,
@@ -153,7 +208,7 @@ export const POST = withErrorHandling(
 
       return {
         groupId: invite.groupId,
-        chatId: chat?.id,
+        chatId: groupChat?.id || null,
       };
     });
 
@@ -163,6 +218,9 @@ export const POST = withErrorHandling(
       'POST /api/groups/invites/:inviteId/accept'
     );
 
-    return successResponse(result);
+    return successResponse({
+      success: true,
+      ...result,
+    });
   }
 );

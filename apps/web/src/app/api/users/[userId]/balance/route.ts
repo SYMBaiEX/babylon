@@ -2,12 +2,12 @@
  * User Balance API
  *
  * @route GET /api/users/[userId]/balance - Get user balance
- * @access Authenticated (own balance only)
+ * @access Public
  *
  * @description
- * Retrieves authenticated user's balance information including virtual balance,
+ * Retrieves user's balance information including virtual balance,
  * total deposited, total withdrawn, and lifetime P&L. Uses caching for performance.
- * Users can only view their own balance.
+ * Balance is publicly viewable for all users (players).
  *
  * @openapi
  * /api/users/{userId}/balance:
@@ -15,16 +15,14 @@
  *     tags:
  *       - Users
  *     summary: Get user balance
- *     description: Returns user's balance information (own balance only)
- *     security:
- *       - PrivyAuth: []
+ *     description: Returns user's balance information (publicly viewable)
  *     parameters:
  *       - in: path
  *         name: userId
  *         required: true
  *         schema:
  *           type: string
- *         description: User ID (must match authenticated user)
+ *         description: User ID
  *     responses:
  *       200:
  *         description: Balance retrieved successfully
@@ -45,39 +43,42 @@
  *                 lifetimePnL:
  *                   type: string
  *                   description: Lifetime profit/loss
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Cannot view another user's balance
  *       404:
  *         description: Balance not found
  *
  * @example
  * ```typescript
- * const response = await fetch('/api/users/user_123/balance', {
- *   headers: { 'Authorization': `Bearer ${token}` }
- * });
+ * const response = await fetch('/api/users/user_123/balance');
  * const { balance, lifetimePnL } = await response.json();
  * ```
  *
  * @see {@link /lib/cached-database-service} Cached database service
  */
 
-import type { NextRequest } from 'next/server';
+import {
+  BusinessLogicError,
+  cachedDb,
+  checkRateLimitAsync,
+  findUserByIdentifier,
+  getClientIp,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
 import { db, users } from '@babylon/db';
-import { optionalAuth } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { AuthorizationError, BusinessLogicError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { convertBalanceToStrings } from '@babylon/shared';
-import { UserIdParamSchema } from '@babylon/shared';
+import {
+  convertBalanceToStrings,
+  logger,
+  UserIdParamSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * GET Handler for User Balance
  *
- * @description Retrieves authenticated user's balance information with caching for performance
+ * @description Retrieves user's balance information with caching for performance.
+ * Balance is publicly viewable for all users (players).
  *
  * @param {NextRequest} request - Next.js request object
  * @param {Object} context - Route context containing dynamic parameters
@@ -85,15 +86,13 @@ import { UserIdParamSchema } from '@babylon/shared';
  *
  * @returns {Promise<NextResponse>} User balance data
  *
- * @throws {AuthorizationError} When user tries to view another user's balance
  * @throws {BusinessLogicError} When balance data not found
  * @throws {ValidationError} When userId parameter is invalid
  *
  * @example
  * ```typescript
- * // Request (with auth header)
+ * // Request
  * GET /api/users/user_123/balance
- * Authorization: Bearer <token>
  *
  * // Response
  * {
@@ -109,10 +108,40 @@ export const GET = withErrorHandling(
     request: NextRequest,
     context: { params: Promise<{ userId: string }> }
   ) => {
-    const { userId } = UserIdParamSchema.parse(await context.params);
+    // IP-based rate limiting for public endpoint (prevents enumeration attacks)
+    // Uses Redis-backed rate limiting for serverless compatibility
+    const clientIp = getClientIp(request.headers);
 
-    // Optional authentication - check if user is requesting their own balance
-    const authUser = await optionalAuth(request);
+    // Use tiered rate limiting:
+    // - Identified IPs get normal rate limits (60/min)
+    // - Anonymous/unknown IPs get stricter limits (10/min) since they share a bucket
+    // This prevents the shared 'anonymous' bucket from being easily exhausted
+    // while still allowing legitimate requests through
+    const rateLimitConfig = clientIp
+      ? RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH
+      : RATE_LIMIT_CONFIGS.PUBLIC_BALANCE_FETCH_ANONYMOUS;
+
+    const rateLimitKey = clientIp ? `ip:${clientIp}` : 'ip:anonymous';
+    const rateLimit = await checkRateLimitAsync(rateLimitKey, rateLimitConfig);
+
+    if (!rateLimit.allowed) {
+      // retryAfter is already in seconds from checkRateLimit
+      const retryAfterSeconds = rateLimit.retryAfter || 60;
+      return NextResponse.json(
+        {
+          error: 'Too many requests',
+          retryAfter: retryAfterSeconds,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfterSeconds),
+          },
+        }
+      );
+    }
+
+    const { userId } = UserIdParamSchema.parse(await context.params);
 
     // Ensure user exists in database
     let dbUser = await findUserByIdentifier(userId, {
@@ -135,18 +164,9 @@ export const GET = withErrorHandling(
       dbUser = newUser;
     }
 
-    const canonicalUserId = dbUser!.id;
+    const canonicalUserId = dbUser.id;
 
-    // If authenticated, ensure they're requesting their own balance
-    if (authUser && authUser.userId !== canonicalUserId) {
-      throw new AuthorizationError(
-        'Can only view your own balance',
-        'balance',
-        'read'
-      );
-    }
-
-    // Get balance info with caching
+    // Get balance info with caching (balance is publicly viewable)
     const balanceData = await cachedDb.getUserBalance(canonicalUserId);
 
     if (!balanceData) {

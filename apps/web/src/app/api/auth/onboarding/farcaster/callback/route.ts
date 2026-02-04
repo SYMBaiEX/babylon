@@ -67,12 +67,12 @@
  * ```
  */
 
+import { withErrorHandling } from '@babylon/api';
+import { db } from '@babylon/db';
+import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@babylon/db';
-import { withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
 
 const FarcasterOnboardingCallbackBodySchema = z.object({
   message: z.string(),

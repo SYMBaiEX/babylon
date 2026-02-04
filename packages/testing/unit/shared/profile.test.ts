@@ -1,11 +1,11 @@
 /**
  * Tests for Profile URL utilities
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
+  extractUsername,
   getProfileUrl,
   isUsername,
-  extractUsername,
 } from '@babylon/shared/utils/profile';
 
 describe('Profile URL Utilities', () => {
@@ -103,4 +103,3 @@ describe('Profile URL Utilities', () => {
     });
   });
 });
-

@@ -285,4 +285,3 @@ export class PaymentError extends BusinessLogicError {
     super(message, `PAYMENT_${reason}`, { paymentId, reason });
   }
 }
-

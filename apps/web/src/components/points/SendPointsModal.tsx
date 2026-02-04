@@ -1,9 +1,10 @@
 'use client';
 
-import { Check, Loader2, Send, X } from 'lucide-react';
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@babylon/shared';
+import { Check, Loader2, Send, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useTransferPoints } from '@/hooks/useTransferPoints';
 
 /**
  * Send points modal component for transferring points to other users.
@@ -54,11 +55,23 @@ export function SendPointsModal({
   onSuccess,
 }: SendPointsModalProps) {
   const { getAccessToken } = useAuth();
+  const { transferPoints, isLoading: isSubmitting } = useTransferPoints({
+    getAccessToken,
+  });
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const successTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount to prevent calling callbacks after unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,40 +83,23 @@ export function SendPointsModal({
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
-      const token = await getAccessToken();
-      const response = await fetch('/api/points/transfer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          recipientId,
-          amount: numAmount,
-          message: message.trim() || undefined,
-        }),
+      await transferPoints({
+        recipientId,
+        amount: numAmount,
+        message: message.trim() || undefined,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send points');
-      }
 
       setSuccess(true);
 
-      // Wait a moment to show success state
-      setTimeout(() => {
+      // Wait a moment to show success state, then close
+      // Store timer ID so we can clear it on unmount
+      successTimeoutRef.current = setTimeout(() => {
         onSuccess?.();
         handleClose();
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send points');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

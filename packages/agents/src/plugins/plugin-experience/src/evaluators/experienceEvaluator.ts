@@ -1,6 +1,7 @@
 import {
   type Evaluator,
   type HandlerCallback,
+  type HandlerOptions,
   type IAgentRuntime,
   logger,
   type Memory,
@@ -104,7 +105,7 @@ export const experienceEvaluator: Evaluator = {
     runtime: IAgentRuntime,
     _message: Memory,
     state?: State,
-    _options?: Record<string, unknown>,
+    _options?: HandlerOptions,
     _callback?: HandlerCallback,
     _responses?: Memory[]
   ): Promise<void> {
@@ -123,7 +124,10 @@ export const experienceEvaluator: Evaluator = {
     }
 
     // Get last 10 messages as context for analysis
-    const recentMessages = state?.recentMessagesData?.slice(-10) || [];
+    const recentMessagesData = state?.recentMessagesData;
+    const recentMessages = Array.isArray(recentMessagesData)
+      ? recentMessagesData.slice(-10)
+      : [];
     if (recentMessages.length < 3) {
       logger.debug(
         '[experienceEvaluator] Not enough messages for experience extraction'

@@ -112,13 +112,15 @@
  *               $ref: '#/components/schemas/Error'
  */
 
+import {
+  cachedDb,
+  findUserByIdentifier,
+  optionalAuth,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { logger, UserIdParamSchema } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
-import { optionalAuth } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { findUserByIdentifier } from '@babylon/api';
-import { UserIdParamSchema } from '@babylon/shared';
 
 /**
  * GET Handler for User Profile
@@ -176,6 +178,8 @@ export const GET = withErrorHandling(
       profileImageUrl: true,
       coverImageUrl: true,
       isActor: true,
+      isAgent: true,
+      managedBy: true,
       profileComplete: true,
       hasUsername: true,
       hasBio: true,
@@ -185,6 +189,7 @@ export const GET = withErrorHandling(
       virtualBalance: true,
       lifetimePnL: true,
       reputationPoints: true,
+      totalPoints: true,
       earnedPoints: true,
       invitePoints: true,
       bonusPoints: true,
@@ -229,15 +234,18 @@ export const GET = withErrorHandling(
         profileImageUrl: dbUser.profileImageUrl,
         coverImageUrl: dbUser.coverImageUrl,
         isActor: dbUser.isActor,
+        isAgent: dbUser.isAgent,
+        managedBy: dbUser.managedBy,
         profileComplete: dbUser.profileComplete,
         hasUsername: dbUser.hasUsername,
         hasBio: dbUser.hasBio,
         hasProfileImage: dbUser.hasProfileImage,
         onChainRegistered: dbUser.onChainRegistered,
         nftTokenId: dbUser.nftTokenId,
-        virtualBalance: Number(dbUser.virtualBalance),
-        lifetimePnL: Number(dbUser.lifetimePnL),
+        virtualBalance: Number(dbUser.virtualBalance ?? 0),
+        lifetimePnL: Number(dbUser.lifetimePnL ?? 0),
         reputationPoints: dbUser.reputationPoints,
+        totalPoints: Number(dbUser.totalPoints ?? 0),
         earnedPoints: dbUser.earnedPoints,
         invitePoints: dbUser.invitePoints,
         bonusPoints: dbUser.bonusPoints,

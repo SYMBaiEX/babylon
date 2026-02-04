@@ -90,14 +90,18 @@
  * @see {@link /lib/api/admin-middleware} Admin middleware
  */
 
+import {
+  BusinessLogicError,
+  NotFoundError,
+  requireAdmin,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import { Decimal, db } from '@babylon/db';
+import { StaticDataRegistry } from '@babylon/engine';
+import { generateSnowflakeId, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { Decimal, db } from '@babylon/db';
-import { requireAdmin } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { generateSnowflakeId } from '@babylon/shared';
 
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
@@ -155,19 +159,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     where: params.type === 'npc' ? {} : undefined,
   });
 
-  // Fetch actors for NPC trades
   const actorIds = [...new Set(npcTrades.map((trade) => trade.npcActorId))];
 
-  const actors = await db.actor.findMany({
-    where: { id: { in: actorIds } },
-    select: {
-      id: true,
-      name: true,
-      profileImageUrl: true,
-    },
-  });
-
-  const actorsMap = new Map(actors.map((a) => [a.id, a]));
+  const actorsMap = new Map(
+    actorIds
+      .map((id) => StaticDataRegistry.getActor(id))
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => [
+        a.id,
+        { id: a.id, name: a.name, profileImageUrl: a.profileImageUrl },
+      ])
+  );
 
   // Get recent position changes
   const positions = await db.position.findMany({
@@ -358,7 +360,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       throw new NotFoundError('User', tradeData.userId);
     }
 
-    const currentBalance = Number(user.virtualBalance);
+    const currentBalance = Number(user.virtualBalance ?? 0);
     const amountDecimal = new Decimal(tradeData.amount);
     const newBalance = tradeData.updateBalance
       ? currentBalance + tradeData.amount
@@ -421,11 +423,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   }
   if (tradeData.type === 'npc') {
-    // Verify NPC actor exists (NPCTrade references Actor table per schema)
-    const actor = await db.actor.findUnique({
-      where: { id: tradeData.npcActorId },
-      select: { id: true },
-    });
+    const actor = StaticDataRegistry.getActor(tradeData.npcActorId);
 
     if (!actor) {
       throw new NotFoundError('Actor', tradeData.npcActorId);

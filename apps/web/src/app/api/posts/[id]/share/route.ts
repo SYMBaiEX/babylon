@@ -102,38 +102,46 @@
  *
  */
 
-import type { NextRequest } from 'next/server';
+import type { JsonValue } from '@babylon/api';
 import {
-  actors,
+  authenticate,
+  BusinessLogicError,
+  broadcastToChannel,
+  cachedDb,
+  checkRateLimitAndDuplicates,
+  ensureUserForAuth,
+  getCanonicalUserId,
+  NotFoundError,
+  notifyShare,
+  RATE_LIMIT_CONFIGS,
+  successResponse,
+  withErrorHandling,
+} from '@babylon/api';
+import {
   and,
   count,
   db,
   eq,
+  hasBlocked,
   isNull,
-  organizations,
   posts,
   shares,
   users,
 } from '@babylon/db';
-import { authenticate } from '@babylon/api';
-import { cachedDb } from '@babylon/api';
-import { BusinessLogicError, NotFoundError } from '@babylon/api';
-import { successResponse, withErrorHandling } from '@babylon/api';
-import { logger } from '@babylon/shared';
-import { hasBlocked } from '@babylon/db';
-import { parsePostId } from '@babylon/engine';
-import { trackServerEvent } from '@/lib/posthog/server';
 import {
-  checkRateLimitAndDuplicates,
-  RATE_LIMIT_CONFIGS,
-} from '@babylon/api';
-import { notifyShare } from '@babylon/api';
-import { NPCInteractionTracker } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
-import { broadcastToChannel } from '@babylon/api';
-import { ensureUserForAuth, getCanonicalUserId } from '@babylon/api';
-import { PostIdParamSchema, SharePostSchema } from '@babylon/shared';
-import type { JsonValue } from '@babylon/api';
+  NPCInteractionTracker,
+  parsePostId,
+  StaticDataRegistry,
+} from '@babylon/engine';
+import {
+  generateSnowflakeId,
+  isPureRepost,
+  logger,
+  PostIdParamSchema,
+  SharePostSchema,
+} from '@babylon/shared';
+import type { NextRequest } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/posts/[id]/share
@@ -182,22 +190,49 @@ export const POST = withErrorHandling(
     const [post] = await db
       .select({
         id: posts.id,
+        content: posts.content,
         deletedAt: posts.deletedAt,
         authorId: posts.authorId,
         timestamp: posts.timestamp,
+        originalPostId: posts.originalPostId,
       })
       .from(posts)
       .where(eq(posts.id, postId))
       .limit(1);
 
-    if (post && post.timestamp > now) {
-      throw new NotFoundError('Post', postId);
+    let shareTargetPostId = postId;
+    let shareTargetPost = post;
+
+    if (post && isPureRepost(post)) {
+      shareTargetPostId = post.originalPostId;
+      const [resolvedPost] = await db
+        .select({
+          id: posts.id,
+          content: posts.content,
+          deletedAt: posts.deletedAt,
+          authorId: posts.authorId,
+          timestamp: posts.timestamp,
+          originalPostId: posts.originalPostId,
+        })
+        .from(posts)
+        .where(eq(posts.id, shareTargetPostId))
+        .limit(1);
+
+      if (!resolvedPost) {
+        throw new NotFoundError('Post', shareTargetPostId);
+      }
+
+      shareTargetPost = resolvedPost;
     }
 
-    if (post) {
+    if (shareTargetPost && shareTargetPost.timestamp > now) {
+      throw new NotFoundError('Post', shareTargetPostId);
+    }
+
+    if (shareTargetPost) {
       const [isBlocked, hasBlockedMe] = await Promise.all([
-        hasBlocked(post.authorId, canonicalUserId),
-        hasBlocked(canonicalUserId, post.authorId),
+        hasBlocked(shareTargetPost.authorId, canonicalUserId),
+        hasBlocked(canonicalUserId, shareTargetPost.authorId),
       ]);
 
       if (isBlocked || hasBlockedMe) {
@@ -232,27 +267,47 @@ export const POST = withErrorHandling(
           timestamp,
         });
       }
-    } else if (post.deletedAt) {
+    } else if (shareTargetPost?.deletedAt) {
       throw new BusinessLogicError('Cannot share deleted post', 'POST_DELETED');
     }
 
     const [existingShare] = await db
       .select({ id: shares.id })
       .from(shares)
-      .where(and(eq(shares.userId, canonicalUserId), eq(shares.postId, postId)))
+      .where(
+        and(
+          eq(shares.userId, canonicalUserId),
+          eq(shares.postId, shareTargetPostId)
+        )
+      )
       .limit(1);
 
     if (existingShare) {
       throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
     }
 
+    // Backfill safety: legacy shares may still point at repost IDs
+    if (post && isPureRepost(post) && shareTargetPostId !== postId) {
+      const [existingRepostShare] = await db
+        .select({ id: shares.id })
+        .from(shares)
+        .where(
+          and(eq(shares.userId, canonicalUserId), eq(shares.postId, postId))
+        )
+        .limit(1);
+
+      if (existingRepostShare) {
+        throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
+      }
+    }
+
     await db.insert(shares).values({
       id: await generateSnowflakeId(),
       userId: canonicalUserId,
-      postId,
+      postId: shareTargetPostId,
     });
 
-    await NPCInteractionTracker.trackShare(canonicalUserId, postId);
+    await NPCInteractionTracker.trackShare(canonicalUserId, shareTargetPostId);
 
     const repostId = await generateSnowflakeId();
 
@@ -263,44 +318,30 @@ export const POST = withErrorHandling(
         timestamp: posts.timestamp,
       })
       .from(posts)
-      .where(eq(posts.id, postId))
+      .where(eq(posts.id, shareTargetPostId))
       .limit(1);
 
     if (originalPost && originalPost.timestamp > now) {
-      throw new NotFoundError('Post', postId);
+      throw new NotFoundError('Post', shareTargetPostId);
     }
 
     let repostPostData = null;
 
     if (originalPost) {
-      const [[originalUser], [originalActor], [originalOrg]] =
-        await Promise.all([
-          db
-            .select({
-              username: users.username,
-              displayName: users.displayName,
-              profileImageUrl: users.profileImageUrl,
-            })
-            .from(users)
-            .where(eq(users.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: actors.name,
-              profileImageUrl: actors.profileImageUrl,
-            })
-            .from(actors)
-            .where(eq(actors.id, originalPost.authorId))
-            .limit(1),
-          db
-            .select({
-              name: organizations.name,
-              imageUrl: organizations.imageUrl,
-            })
-            .from(organizations)
-            .where(eq(organizations.id, originalPost.authorId))
-            .limit(1),
-        ]);
+      const [originalUser] = await db
+        .select({
+          username: users.username,
+          displayName: users.displayName,
+          profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(eq(users.id, originalPost.authorId))
+        .limit(1);
+
+      const originalActor = StaticDataRegistry.getActor(originalPost.authorId);
+      const originalOrg = StaticDataRegistry.getOrganization(
+        originalPost.authorId
+      );
 
       const originalAuthorName =
         originalUser?.displayName ||
@@ -324,7 +365,7 @@ export const POST = withErrorHandling(
           content: repostContent,
           authorId: canonicalUserId,
           timestamp: new Date(),
-          originalPostId: postId,
+          originalPostId: shareTargetPostId,
         })
         .returning();
 
@@ -349,9 +390,9 @@ export const POST = withErrorHandling(
         timestamp: createdRepost.timestamp.toISOString(),
         isRepost: true,
         isQuote: !!quoteComment,
-        originalPostId: postId,
+        originalPostId: shareTargetPostId,
         originalPost: {
-          id: postId,
+          id: shareTargetPostId,
           content: originalPost.content,
           authorId: originalPost.authorId,
           authorName: originalAuthorName,
@@ -376,7 +417,7 @@ export const POST = withErrorHandling(
       });
       logger.info(
         'Broadcast repost to feed channel',
-        { repostId, postId },
+        { repostId, postId: shareTargetPostId },
         'POST /api/posts/[id]/share'
       );
     }
@@ -384,7 +425,7 @@ export const POST = withErrorHandling(
     const [postAuthor] = await db
       .select({ authorId: posts.authorId })
       .from(posts)
-      .where(eq(posts.id, postId))
+      .where(eq(posts.id, shareTargetPostId))
       .limit(1);
 
     if (
@@ -399,24 +440,28 @@ export const POST = withErrorHandling(
         .limit(1);
 
       if (postAuthorUser) {
-        await notifyShare(postAuthor.authorId, canonicalUserId, postId);
+        await notifyShare(
+          postAuthor.authorId,
+          canonicalUserId,
+          shareTargetPostId
+        );
       }
     }
 
     const [shareCountResult] = await db
       .select({ count: count() })
       .from(shares)
-      .where(eq(shares.postId, postId));
+      .where(eq(shares.postId, shareTargetPostId));
     const shareCount = Number(shareCountResult?.count ?? 0);
 
     logger.info(
       'Post shared successfully',
-      { postId, userId: canonicalUserId, shareCount },
+      { postId: shareTargetPostId, userId: canonicalUserId, shareCount },
       'POST /api/posts/[id]/share'
     );
 
     trackServerEvent(canonicalUserId, 'post_shared', {
-      postId,
+      postId: shareTargetPostId,
       ...(postAuthor?.authorId && { originalAuthorId: postAuthor.authorId }),
       shareCount,
       ...(repostId && { repostId }),
@@ -464,11 +509,39 @@ export const DELETE = withErrorHandling(
     await ensureUserForAuth(user, { displayName: fallbackDisplayName });
     const canonicalUserId = getCanonicalUserId(user);
 
-    const [share] = await db
+    let shareTargetPostId = postId;
+    let [share] = await db
       .select({ id: shares.id })
       .from(shares)
       .where(and(eq(shares.userId, canonicalUserId), eq(shares.postId, postId)))
       .limit(1);
+
+    if (!share) {
+      const [post] = await db
+        .select({
+          id: posts.id,
+          content: posts.content,
+          originalPostId: posts.originalPostId,
+        })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
+
+      if (post && isPureRepost(post)) {
+        shareTargetPostId = post.originalPostId;
+        const [redirectedShare] = await db
+          .select({ id: shares.id })
+          .from(shares)
+          .where(
+            and(
+              eq(shares.userId, canonicalUserId),
+              eq(shares.postId, shareTargetPostId)
+            )
+          )
+          .limit(1);
+        share = redirectedShare;
+      }
+    }
 
     if (!share) {
       throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
@@ -480,7 +553,7 @@ export const DELETE = withErrorHandling(
       .where(
         and(
           eq(posts.authorId, canonicalUserId),
-          eq(posts.originalPostId, postId),
+          eq(posts.originalPostId, shareTargetPostId),
           isNull(posts.deletedAt)
         )
       )
@@ -490,13 +563,17 @@ export const DELETE = withErrorHandling(
       await db.delete(posts).where(eq(posts.id, repostPost.id));
       logger.info(
         'Deleted repost post',
-        { repostPostId: repostPost.id, originalPostId: postId },
+        {
+          repostPostId: repostPost.id,
+          originalPostId: shareTargetPostId,
+          requestedPostId: postId,
+        },
         'DELETE /api/posts/[id]/share'
       );
     } else {
       logger.warn(
         'No repost post found to delete',
-        { postId, userId: canonicalUserId },
+        { postId: shareTargetPostId, userId: canonicalUserId },
         'DELETE /api/posts/[id]/share'
       );
     }
@@ -506,25 +583,25 @@ export const DELETE = withErrorHandling(
     const [shareCountResult] = await db
       .select({ count: count() })
       .from(shares)
-      .where(eq(shares.postId, postId));
+      .where(eq(shares.postId, shareTargetPostId));
     const shareCount = Number(shareCountResult?.count ?? 0);
 
     await cachedDb.invalidatePostsCache();
     await cachedDb.invalidateActorPostsCache(canonicalUserId);
     logger.info(
       'Invalidated post caches after unshare',
-      { postId },
+      { postId: shareTargetPostId, requestedPostId: postId },
       'DELETE /api/posts/[id]/share'
     );
 
     logger.info(
       'Post unshared successfully',
-      { postId, userId: canonicalUserId, shareCount },
+      { postId: shareTargetPostId, userId: canonicalUserId, shareCount },
       'DELETE /api/posts/[id]/share'
     );
 
     trackServerEvent(canonicalUserId, 'post_unshared', {
-      postId,
+      postId: shareTargetPostId,
       shareCount,
     });
 
