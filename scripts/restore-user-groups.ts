@@ -19,6 +19,7 @@ import { logger } from '@babylon/shared';
 
 async function main() {
   const args = process.argv.slice(2);
+  const minGroups = UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS;
 
   // Parse arguments
   const usernameArg = args.find((a) => a.startsWith('--username='));
@@ -37,9 +38,16 @@ async function main() {
   let userName: string | null = null;
 
   if (usernameArg) {
-    let username = usernameArg.split('=')[1]!;
+    const rawUsername = usernameArg.slice('--username='.length).trim();
     // Remove @ prefix if present
-    username = username.replace(/^@/, '');
+    const username = rawUsername.replace(/^@/, '').trim();
+
+    if (!username) {
+      console.error(
+        'Invalid --username value. Expected --username=@username (non-empty).'
+      );
+      process.exit(1);
+    }
 
     const [user] = await db
       .select({
@@ -74,7 +82,12 @@ async function main() {
       userName = user.displayName || user.username;
     }
   } else if (userIdArg) {
-    userId = userIdArg.split('=')[1]!;
+    const rawUserId = userIdArg.slice('--user='.length).trim();
+    if (!rawUserId) {
+      console.error('Invalid --user value. Expected --user=<user-id> (non-empty).');
+      process.exit(1);
+    }
+    userId = rawUserId;
 
     const [user] = await db
       .select({ displayName: users.displayName, username: users.username })
@@ -119,13 +132,15 @@ async function main() {
   const result =
     await UserAlphaGroupAssignmentService.assignDefaultGroups(userId);
 
-  if (result.success) {
+  if (result.success && result.groupsAssigned === 0) {
+    console.log(
+      `  ℹ️  User already has ${minGroups}+ groups, no action needed`
+    );
+  } else if (result.success) {
     console.log(`  ✅ Assigned ${result.groupsAssigned} groups:`);
     for (const assignment of result.assignments) {
       console.log(`     - ${assignment.npcName}'s Followers (Tier 3)`);
     }
-  } else if (result.groupsAssigned === 0 && result.errors.length === 0) {
-    console.log(`  ℹ️  User already has 3+ groups, no action needed`);
   } else {
     console.log(`  ⚠️  Assignment had issues:`);
     for (const error of result.errors) {
@@ -150,7 +165,7 @@ async function main() {
 
   console.log(`  ✅ User is now in ${groupCount?.count ?? 0} NPC groups\n`);
 
-  if ((groupCount?.count ?? 0) >= 3) {
+  if ((groupCount?.count ?? 0) >= minGroups) {
     console.log(
       '✨ Restoration complete! User should now see groups in /chats\n'
     );
@@ -164,10 +179,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  logger.error(
-    'Fatal error in restore-user-groups',
-    { error: String(error) },
-    'restore-user-groups'
-  );
+  const errorObj = error instanceof Error ? error : new Error(String(error));
+  logger.error('Fatal error in restore-user-groups', errorObj, 'restore-user-groups');
   process.exit(1);
 });

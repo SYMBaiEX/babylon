@@ -21,8 +21,7 @@ describe('Minimum Group Protection Configuration', () => {
       expect(GROUP_CONFIG.MIN_DEFAULT_GROUPS).toBeGreaterThan(0);
     });
 
-    it('should default to 3', () => {
-      // Default is 3 unless overridden by env
+    it('should be within sane bounds', () => {
       expect(GROUP_CONFIG.MIN_DEFAULT_GROUPS).toBeGreaterThanOrEqual(1);
       expect(GROUP_CONFIG.MIN_DEFAULT_GROUPS).toBeLessThanOrEqual(10);
     });
@@ -198,7 +197,7 @@ describe('Logging Expectations', () => {
     const expectedLogFields = {
       userId: 'user-123',
       userName: 'Test User',
-      currentGroups: 3,
+      currentGroups: GROUP_CONFIG.MIN_DEFAULT_GROUPS,
       minRequired: GROUP_CONFIG.MIN_DEFAULT_GROUPS,
       chatName: 'Test Group',
       reason: 'Never participated in conversation',

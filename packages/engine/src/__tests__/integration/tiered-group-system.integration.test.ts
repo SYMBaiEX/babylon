@@ -32,7 +32,7 @@ import {
   TieredGroupService,
   UserAlphaGroupAssignmentService,
 } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
+import { GROUP_CONFIG, generateSnowflakeId } from '@babylon/shared';
 
 // Set timeout to 60 seconds for integration tests
 setDefaultTimeout(60000);
@@ -467,10 +467,10 @@ describe('Minimum Group Protection', () => {
     await cleanupTestData();
   });
 
-  test('user assigned 3 default groups should be at protection threshold', async () => {
+  test('user assigned default groups should be at protection threshold', async () => {
     const user = await createTestUser({ displayName: 'Protected User' });
 
-    // Assign exactly 3 default groups
+    // Assign default groups up to the configured minimum
     const assignResult =
       await UserAlphaGroupAssignmentService.assignDefaultGroups(user.id);
 
@@ -482,7 +482,9 @@ describe('Minimum Group Protection', () => {
     );
   });
 
-  test('TARGET_DEFAULT_GROUPS should be 3', () => {
-    expect(UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS).toBe(3);
+  test('TARGET_DEFAULT_GROUPS should match MIN_DEFAULT_GROUPS', () => {
+    expect(UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS).toBe(
+      GROUP_CONFIG.MIN_DEFAULT_GROUPS
+    );
   });
 });
