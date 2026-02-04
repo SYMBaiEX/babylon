@@ -553,7 +553,9 @@ export function MessageInput({
                 ref={highlightRef}
                 className={cn(
                   'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[5px]',
-                  'text-[15px] leading-[22px]',
+                  compact
+                    ? 'text-sm leading-[22px] md:text-xs'
+                    : 'text-sm leading-[22px]',
                   'text-foreground'
                 )}
                 aria-hidden="true"
