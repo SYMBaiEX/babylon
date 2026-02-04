@@ -102,26 +102,20 @@ export async function sendSponsoredEvmTransaction({
   const appId =
     process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
-  // Debug: Log JWT header + claims to diagnose auth issues
+  // Debug: Log JWT header + claims to diagnose auth issues (no sensitive identifiers)
   const jwtHeader = decodeJwtHeader(userJwt);
-  logger.info(
-    'Wallet auth JWT debug',
+  logger.debug(
+    'Privy JWT diagnostics',
     {
-      // JWT Header
       alg: jwtHeader?.alg,
       typ: jwtHeader?.typ,
       kid: jwtHeader?.kid,
-      // JWT Payload claims
       iss: payload.iss,
       aud: payload.aud,
-      sub: payload.sub,
-      sid: payload.sid,
       iat: payload.iat,
       exp: payload.exp,
       isExpired: payload.exp ? payload.exp < Date.now() / 1000 : 'no-exp',
-      // Config
       configuredAppId: appId,
-      jwtLength: userJwt.length,
     },
     'sendSponsoredEvmTransaction'
   );
