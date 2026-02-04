@@ -190,10 +190,10 @@ function getAppOrigin(hostname: string, protocol: string): string {
   if (fromEnv && fromEnv.length > 0) return fromEnv;
 
   if (hostname.endsWith('staging.babylon.market')) {
-    return `${protocol}//app.staging.babylon.market`;
+    return `${protocol}//play.staging.babylon.market`;
   }
   if (hostname.endsWith('babylon.market')) {
-    return `${protocol}//app.babylon.market`;
+    return `${protocol}//play.babylon.market`;
   }
 
   return `${protocol}//${hostname}`;

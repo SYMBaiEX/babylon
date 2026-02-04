@@ -44,14 +44,14 @@ function getAppBaseUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (fromEnv && fromEnv.length > 0) return fromEnv;
 
-  if (typeof window === 'undefined') return 'https://app.babylon.market';
+  if (typeof window === 'undefined') return 'https://play.babylon.market';
 
   const hostname = window.location.hostname.toLowerCase();
   if (hostname.endsWith('staging.babylon.market')) {
-    return 'https://app.staging.babylon.market';
+    return 'https://play.staging.babylon.market';
   }
   if (hostname.endsWith('babylon.market')) {
-    return 'https://app.babylon.market';
+    return 'https://play.babylon.market';
   }
 
   return window.location.origin;
