@@ -17,12 +17,10 @@ import type {
   Feedback,
   RegistrationFile,
   SDKConfig,
-  SearchParams,
-  SearchResultMeta,
+  SearchFilters,
 } from 'agent0-sdk';
 // Import SDK and types from agent0-sdk
 import { SDK } from 'agent0-sdk';
-import { Wallet } from 'ethers';
 import type { JsonValue } from '../types/common';
 
 /**
@@ -380,12 +378,16 @@ export class Agent0Client implements IAgent0Client {
   // ===========================================================================
 
   /**
-   * Search for agents using Agent0 SDK with full filter and pagination support
+   * Search for agents using Agent0 SDK v1.5.2 unified search API
+   *
+   * @remarks
+   * v1.5.2 uses a unified search with feedback filters integrated.
+   * Returns a flat array (no pagination).
    */
   async searchAgents(
     filters: Agent0SearchFilters,
     options?: Agent0SearchOptions
-  ): Promise<Agent0SearchResponse<Agent0SearchResult>> {
+  ): Promise<Agent0SearchResult[]> {
     await this.ensureSDK();
 
     logger.info(
@@ -394,146 +396,134 @@ export class Agent0Client implements IAgent0Client {
       'Agent0Client [searchAgents]'
     );
 
-    const searchParams: SearchParams = {};
+    const sdkFilters = this.mapToSdkFilters(filters);
+    const sdkOptions = options?.sort ? { sort: options.sort } : undefined;
 
-    // Map Babylon filters to SDK SearchParams
-    if (filters.a2aSkills && filters.a2aSkills.length > 0) {
-      searchParams.a2aSkills = filters.a2aSkills;
-    } else if (filters.strategies && filters.strategies.length > 0) {
-      searchParams.a2aSkills = filters.strategies;
-    } else if (filters.skills && filters.skills.length > 0) {
-      searchParams.a2aSkills = filters.skills;
-    }
+    const results = await this.sdk!.searchAgents(sdkFilters, sdkOptions);
 
+    return results.map((agent: AgentSummary) =>
+      this.mapAgentSummaryToSearchResult(agent)
+    );
+  }
+
+  /**
+   * Maps Babylon search filters to SDK v1.5.2 SearchFilters
+   * @internal
+   */
+  private mapToSdkFilters(filters: Agent0SearchFilters): SearchFilters {
+    const sdkFilters: SearchFilters = {};
+
+    // Basic filters
     if (filters.name) {
-      searchParams.name = filters.name;
+      sdkFilters.name = filters.name;
     }
 
     if (filters.description) {
-      searchParams.description = filters.description;
+      sdkFilters.description = filters.description;
     }
 
     if (filters.x402Support !== undefined) {
-      searchParams.x402support = filters.x402Support;
-    }
-
-    // Multi-chain search support (Agent0 SDK v0.31.0)
-    if (filters.chains !== undefined) {
-      searchParams.chains = filters.chains;
+      sdkFilters.x402support = filters.x402Support;
     }
 
     // Active status filter
     if (filters.active !== undefined) {
-      searchParams.active = filters.active;
+      sdkFilters.active = filters.active;
+    }
+
+    // Multi-chain search support
+    if (filters.chains !== undefined) {
+      sdkFilters.chains = filters.chains;
     }
 
     // Owner & operator filters
     if (filters.owners && filters.owners.length > 0) {
-      searchParams.owners = filters.owners as `0x${string}`[];
+      sdkFilters.owners = filters.owners as `0x${string}`[];
     }
 
     if (filters.operators && filters.operators.length > 0) {
-      searchParams.operators = filters.operators as `0x${string}`[];
+      sdkFilters.operators = filters.operators as `0x${string}`[];
     }
 
     // Protocol capability filters
     if (filters.mcp !== undefined) {
-      searchParams.mcp = filters.mcp;
+      sdkFilters.mcp = filters.mcp;
     }
 
     if (filters.a2a !== undefined) {
-      searchParams.a2a = filters.a2a;
+      sdkFilters.a2a = filters.a2a;
     }
 
     // Identity filters
     if (filters.ens) {
-      searchParams.ens = filters.ens;
+      sdkFilters.ens = filters.ens;
     }
 
     if (filters.did) {
-      searchParams.did = filters.did;
+      sdkFilters.did = filters.did;
     }
 
     if (filters.walletAddress) {
-      searchParams.walletAddress = filters.walletAddress as `0x${string}`;
+      sdkFilters.walletAddress = filters.walletAddress as `0x${string}`;
     }
 
     // Trust model filters
     if (filters.supportedTrust && filters.supportedTrust.length > 0) {
-      searchParams.supportedTrust = filters.supportedTrust;
+      sdkFilters.supportedTrust = filters.supportedTrust;
     }
 
     // Capability-specific filters
     if (filters.mcpTools && filters.mcpTools.length > 0) {
-      searchParams.mcpTools = filters.mcpTools;
+      sdkFilters.mcpTools = filters.mcpTools;
     }
 
     if (filters.mcpPrompts && filters.mcpPrompts.length > 0) {
-      searchParams.mcpPrompts = filters.mcpPrompts;
+      sdkFilters.mcpPrompts = filters.mcpPrompts;
     }
 
     if (filters.mcpResources && filters.mcpResources.length > 0) {
-      searchParams.mcpResources = filters.mcpResources;
+      sdkFilters.mcpResources = filters.mcpResources;
     }
 
-    const { items, nextCursor, meta } = await this.sdk!.searchAgents(
-      searchParams,
-      options?.sort,
-      options?.pageSize,
-      options?.cursor
-    );
+    // OASF taxonomies (v1.5.2)
+    if (filters.oasfSkills && filters.oasfSkills.length > 0) {
+      sdkFilters.oasfSkills = filters.oasfSkills;
+    }
 
-    const results = items.map((agent: AgentSummary) =>
-      this.mapAgentSummaryToSearchResult(agent)
-    );
+    if (filters.oasfDomains && filters.oasfDomains.length > 0) {
+      sdkFilters.oasfDomains = filters.oasfDomains;
+    }
 
-    return {
-      items: results,
-      nextCursor,
-      meta: meta ? this.mapSearchResultMeta(meta) : undefined,
-    };
-  }
+    // Map legacy skill filters to OASF or a2aSkills
+    if (filters.a2aSkills && filters.a2aSkills.length > 0) {
+      sdkFilters.a2aSkills = filters.a2aSkills;
+    } else if (filters.strategies && filters.strategies.length > 0) {
+      sdkFilters.a2aSkills = filters.strategies;
+    } else if (filters.skills && filters.skills.length > 0) {
+      sdkFilters.a2aSkills = filters.skills;
+    }
 
-  /**
-   * Search agents by reputation scores
-   */
-  async searchAgentsByReputation(
-    params: Agent0FeedbackSearchParams,
-    options?: Agent0SearchOptions
-  ): Promise<Agent0SearchResponse<Agent0SearchResult>> {
-    await this.ensureSDK();
+    // Integrated feedback/reputation filters (v1.5.2)
+    if (filters.feedback) {
+      sdkFilters.feedback = {
+        hasFeedback: filters.feedback.hasFeedback,
+        minValue: filters.feedback.minValue,
+        maxValue: filters.feedback.maxValue,
+        minCount: filters.feedback.minCount,
+        fromReviewers: filters.feedback.fromReviewers as `0x${string}`[] | undefined,
+        tag: filters.feedback.tag,
+        includeRevoked: filters.feedback.includeRevoked,
+      };
+    }
 
-    logger.info(
-      'Searching agents by reputation:',
-      { params, options },
-      'Agent0Client [searchAgentsByReputation]'
-    );
+    // Legacy minReputation filter -> feedback.minValue
+    if (filters.minReputation !== undefined && !filters.feedback) {
+      sdkFilters.feedback = {
+        minValue: filters.minReputation,
+      };
+    }
 
-    const { items, nextCursor, meta } =
-      await this.sdk!.searchAgentsByReputation(
-        params.agents,
-        params.tags,
-        params.reviewers as `0x${string}`[] | undefined,
-        params.capabilities,
-        params.skills,
-        params.tasks,
-        params.names,
-        params.minScore,
-        params.includeRevoked,
-        options?.pageSize,
-        options?.cursor,
-        options?.sort
-      );
-
-    const results = items.map((agent: AgentSummary) =>
-      this.mapAgentSummaryToSearchResult(agent)
-    );
-
-    return {
-      items: results,
-      nextCursor,
-      meta: meta ? this.mapSearchResultMeta(meta) : undefined,
-    };
+    return sdkFilters;
   }
 
   /**
@@ -786,9 +776,7 @@ export class Agent0Client implements IAgent0Client {
    * Submits feedback for an agent
    *
    * @remarks
-   * This method requires the agent to have pre-authorized feedback from the client address.
-   * For user-submitted feedback, use Agent0FeedbackService which handles authorization properly.
-   * For system-level reputation updates, ensure the agent has pre-authorized the system address.
+   * v1.5.2 API: giveFeedback(agentId, value, tag1?, tag2?, endpoint?, feedbackFile?)
    *
    * @param params - Feedback parameters
    * @throws Error if SDK not initialized or feedback submission fails
@@ -810,34 +798,31 @@ export class Agent0Client implements IAgent0Client {
       `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
     const agent0Score = Math.max(0, Math.min(100, (params.rating + 5) * 10));
 
-    // Prepare feedback file with extended parameters
-    const feedbackFile = this.sdk.prepareFeedback(
+    // Prepare feedback file with extended parameters (for off-chain data)
+    const feedbackFile = {
+      text: params.comment || '',
+      context: params.context,
+      proofOfPayment: params.proofOfPayment,
+      capability: params.capability,
+      skill: params.skill,
+      task: params.task,
+    };
+
+    // v1.5.2 API: giveFeedback(agentId, value, tag1?, tag2?, endpoint?, feedbackFile?)
+    const tag1 = params.tags?.[0];
+    const tag2 = params.tags?.[1];
+
+    const tx = await this.sdk.giveFeedback(
       agentId,
       agent0Score,
-      params.tags ?? [],
-      params.comment || undefined,
-      params.capability,
-      undefined,
-      params.skill,
-      params.task,
-      params.context,
-      params.proofOfPayment
+      tag1,
+      tag2,
+      undefined, // endpoint
+      feedbackFile
     );
 
-    // For system-level feedback, we need to sign authorization
-    // The SDK's signer (from config.privateKey) is used to sign the authorization
-    // The agent should have pre-authorized this client address during registration
-    const signerWallet = new Wallet(this.config.privateKey);
-    const signerAddress = signerWallet.address as `0x${string}`;
-
-    const auth = await this.sdk.signFeedbackAuth(
-      agentId,
-      signerAddress,
-      undefined,
-      24
-    );
-
-    const feedback = await this.sdk.giveFeedback(agentId, feedbackFile, auth);
+    // Wait for transaction confirmation
+    const { result: feedback } = await tx.waitConfirmed();
 
     logger.info(
       `Feedback submitted successfully for agent ${agentId}`,
@@ -1135,25 +1120,6 @@ export class Agent0Client implements IAgent0Client {
       active: agent.active,
       x402support: agent.x402support,
       metadata: agent.extras,
-    };
-  }
-
-  private mapSearchResultMeta(meta: SearchResultMeta): {
-    chains: number[];
-    successfulChains: number[];
-    failedChains: number[];
-    totalResults: number;
-    timing: { totalMs: number; averagePerChainMs?: number };
-  } {
-    return {
-      chains: meta.chains,
-      successfulChains: meta.successfulChains,
-      failedChains: meta.failedChains,
-      totalResults: meta.totalResults,
-      timing: {
-        totalMs: meta.timing.totalMs,
-        averagePerChainMs: meta.timing.averagePerChainMs,
-      },
     };
   }
 

@@ -24,11 +24,24 @@ export interface LocalContractAddresses extends CoreContractAddresses {
   babylonOracle: Address;
 }
 
+export interface EthereumContractAddresses {
+  identityRegistry: Address;
+  reputationSystem: Address;
+  nft: Address;
+}
+
 export interface NetworkConfig {
   chainId: number;
   name: string;
   rpcUrl: string;
   contracts: CoreContractAddresses | LocalContractAddresses;
+}
+
+export interface EthereumNetworkConfig {
+  chainId: number;
+  name: string;
+  rpcUrl: string;
+  contracts: EthereumContractAddresses;
 }
 
 export interface EndpointsConfig {
@@ -43,6 +56,7 @@ export interface PublicConfig {
     local: NetworkConfig;
     baseSepolia: NetworkConfig;
     base: NetworkConfig;
+    ethereum: EthereumNetworkConfig;
   };
   environments: {
     development: { network: string; endpoints: EndpointsConfig };

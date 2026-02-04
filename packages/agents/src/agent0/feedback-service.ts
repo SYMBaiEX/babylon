@@ -133,10 +133,13 @@ export class Agent0FeedbackService implements IAgent0FeedbackService {
    * Submit feedback for an agent
    * Returns the created feedback record
    * Accepts Agent0FeedbackParams per IAgent0FeedbackService interface
+   *
+   * @remarks
+   * v1.5.2 SDK uses simplified giveFeedback() API with individual parameters.
    */
   async submitFeedback(params: Agent0FeedbackParams): Promise<Agent0Feedback> {
     // Convert targetAgentId to string format for SDK
-    const agentId = `${this.chainId}:${params.targetAgentId}`;
+    const agentId = `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
 
     // Convert rating from -5 to +5 scale to 0-100 scale
     // -5 → 0, 0 → 50, +5 → 100
@@ -151,20 +154,31 @@ export class Agent0FeedbackService implements IAgent0FeedbackService {
         skill: params.skill,
       });
 
-      // Prepare feedback using SDK
-      const feedback = this.sdk.prepareFeedback(
+      // Prepare feedback file with extended context (for off-chain data)
+      const feedbackFile = {
+        text: params.comment || '',
+        context: params.context,
+        proofOfPayment: params.proofOfPayment,
+        capability: params.capability,
+        skill: params.skill,
+        task: params.task || 'game-interaction',
+      };
+
+      // v1.5.2 API: giveFeedback(agentId, value, tag1?, tag2?, endpoint?, feedbackFile?)
+      const tag1 = params.tags?.[0];
+      const tag2 = params.tags?.[1];
+
+      const tx = await this.sdk.giveFeedback(
         agentId,
         score,
-        params.tags || [],
-        params.comment || '',
-        params.capability, // capability
-        undefined, // name
-        params.skill, // skill being rated
-        params.task || 'game-interaction' // task type
+        tag1,
+        tag2,
+        undefined, // endpoint
+        feedbackFile
       );
 
-      // Submit on-chain (SDK will handle authorization)
-      const result = await this.sdk.giveFeedback(agentId, feedback);
+      // Wait for transaction confirmation
+      const { result } = await tx.waitConfirmed();
 
       logger.info('Feedback submitted successfully', {
         agentId,

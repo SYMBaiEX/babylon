@@ -39,6 +39,16 @@
         "predictionMarketFacet": "0x0000000000000000000000000000000000000000",
         "oracleFacet": "0x0000000000000000000000000000000000000000"
       }
+    },
+    "ethereum": {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "rpcUrl": "https://eth.llamarpc.com",
+      "contracts": {
+        "identityRegistry": "0x0000000000000000000000000000000000000000",
+        "reputationSystem": "0x0000000000000000000000000000000000000000",
+        "nft": "0x0000000000000000000000000000000000000000"
+      }
     }
   },
 

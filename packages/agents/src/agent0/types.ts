@@ -9,12 +9,37 @@ import type { AgentProfile } from '@babylon/a2a';
 import type { AgentCapabilities } from '@babylon/shared';
 
 // =============================================================================
-// Search & Pagination Types
+// Search Types (Agent0 SDK v1.5.2)
 // =============================================================================
 
 /**
- * Agent0 Search Filters
- * Maps to Agent0 SDK SearchParams interface with full parameter support
+ * Feedback/Reputation filter for unified search (v1.5.2)
+ * Allows filtering agents by their feedback/reputation scores
+ */
+export interface Agent0FeedbackFilter {
+  /** Only include agents that have received feedback */
+  hasFeedback?: boolean;
+  /** Minimum average feedback value (0-100) */
+  minValue?: number;
+  /** Maximum average feedback value (0-100) */
+  maxValue?: number;
+  /** Minimum number of feedback entries */
+  minCount?: number;
+  /** Only include feedback from specific reviewers */
+  fromReviewers?: string[];
+  /** Filter by specific tag */
+  tag?: string;
+  /** Include revoked feedback in calculations */
+  includeRevoked?: boolean;
+}
+
+/**
+ * Agent0 Search Filters (v1.5.2 unified API)
+ * Maps to Agent0 SDK SearchFilters interface with full parameter support
+ *
+ * @remarks
+ * v1.5.2 uses a unified search API - no separate searchAgentsByReputation.
+ * Feedback/reputation filters are integrated via the `feedback` property.
  */
 export interface Agent0SearchFilters {
   // Basic filters
@@ -25,7 +50,7 @@ export interface Agent0SearchFilters {
   skills?: string[]; // Maps to a2aSkills
   strategies?: string[]; // Maps to a2aSkills
   markets?: string[]; // Babylon market categories
-  minReputation?: number; // For reputation-based filtering
+  minReputation?: number; // Legacy - maps to feedback.minValue
   type?: string; // Agent type classification
 
   // SDK direct mappings
@@ -34,8 +59,8 @@ export interface Agent0SearchFilters {
   hasX402?: boolean; // Legacy, use x402Support instead
 
   /**
-   * Chain IDs to search across (Agent0 SDK v0.31.0 multi-chain support)
-   * - Array of chain IDs: [11155111, 84532, 80002] for ETH Sepolia, Base Sepolia, Polygon Amoy
+   * Chain IDs to search across
+   * - Array of chain IDs: [1, 11155111, 84532] for ETH Mainnet, ETH Sepolia, Base Sepolia
    * - 'all': Search all configured chains
    * - undefined: Use SDK's default chain
    */
@@ -62,46 +87,28 @@ export interface Agent0SearchFilters {
   mcpPrompts?: string[];
   mcpResources?: string[];
   a2aSkills?: string[]; // Direct SDK mapping
+
+  // OASF taxonomies (v1.5.2)
+  oasfSkills?: string[];
+  oasfDomains?: string[];
+
+  /**
+   * Integrated feedback/reputation filters (v1.5.2)
+   * Replaces the separate searchAgentsByReputation() method
+   */
+  feedback?: Agent0FeedbackFilter;
 }
 
 /**
- * Pagination and sorting options for search operations
+ * Search options for Agent0 SDK v1.5.2
+ *
+ * @remarks
+ * v1.5.2 returns flat arrays (no pagination).
+ * Pagination options removed - use sort for ordering.
  */
 export interface Agent0SearchOptions {
-  /** Maximum number of results per page (default: 50) */
-  pageSize?: number;
-  /** Cursor for pagination (from previous response) */
-  cursor?: string;
-  /** Sort fields (e.g., ['name', '-createdAt']) */
+  /** Sort fields (e.g., ['averageValue:desc', 'updatedAt:desc']) */
   sort?: string[];
-}
-
-/**
- * Metadata about multi-chain search results
- */
-export interface Agent0SearchResultMeta {
-  /** All chains that were queried */
-  chains: number[];
-  /** Chains that returned results successfully */
-  successfulChains: number[];
-  /** Chains that failed to respond */
-  failedChains: number[];
-  /** Total number of results across all chains */
-  totalResults: number;
-  /** Timing information */
-  timing: {
-    totalMs: number;
-    averagePerChainMs?: number;
-  };
-}
-
-/**
- * Generic paginated search response
- */
-export interface Agent0SearchResponse<T> {
-  items: T[];
-  nextCursor?: string;
-  meta?: Agent0SearchResultMeta;
 }
 
 // =============================================================================
@@ -346,20 +353,16 @@ export interface IAgent0Client {
   // ---------------------------------------------------------------------------
 
   /**
-   * Search for agents with filters and pagination
+   * Search for agents with filters (v1.5.2 unified API)
+   *
+   * @remarks
+   * v1.5.2 uses a unified search - reputation/feedback filters are integrated.
+   * Returns a flat array (no pagination).
    */
   searchAgents(
     filters: Agent0SearchFilters,
     options?: Agent0SearchOptions
-  ): Promise<Agent0SearchResponse<Agent0SearchResult>>;
-
-  /**
-   * Search agents filtered by reputation scores
-   */
-  searchAgentsByReputation(
-    params: Agent0FeedbackSearchParams,
-    options?: Agent0SearchOptions
-  ): Promise<Agent0SearchResponse<Agent0SearchResult>>;
+  ): Promise<Agent0SearchResult[]>;
 
   /**
    * Get detailed agent profile by token ID
@@ -476,7 +479,7 @@ export interface IAgentDiscoveryService {
   discoverAgents(
     filters: DiscoveryFilters,
     options?: Agent0SearchOptions
-  ): Promise<Agent0SearchResponse<AgentProfile>>;
+  ): Promise<AgentProfile[]>;
   getAgent(agentId: string): Promise<AgentProfile | null>;
 }
 

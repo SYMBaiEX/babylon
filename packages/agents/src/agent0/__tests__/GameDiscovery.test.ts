@@ -5,12 +5,13 @@
  */
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { SubgraphAgent } from '../SubgraphClient';
 
-// Mock SubgraphClient
-const mockSubgraphClient = {
-  getGamePlatforms: mock(async (): Promise<SubgraphAgent[]> => []),
-  getAgent: mock(async (): Promise<SubgraphAgent | null> => null),
+// Mock Agent0Client
+const mockAgent0Client = {
+  ensureAvailable: mock(async () => true),
+  isAvailable: mock(() => true),
+  searchAgents: mock(async () => []),
+  getAgentProfile: mock(async () => null),
 };
 
 // Mock IPFSPublisher
@@ -29,18 +30,22 @@ const mockIpfsPublisher = {
   })),
 };
 
-// Mock the SubgraphClient module
-mock.module('../SubgraphClient', () => ({
-  SubgraphClient: class {
-    getGamePlatforms = mockSubgraphClient.getGamePlatforms;
-    getAgent = mockSubgraphClient.getAgent;
-  },
+// Mock the Agent0Client module
+mock.module('../Agent0Client', () => ({
+  getAgent0Client: () => mockAgent0Client,
 }));
 
-// Mock the IPFSPublisher module
+// Re-export the real AgentMetadataSchema to prevent breaking other test files
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const realIPFSPublisher = require('../IPFSPublisher');
+
+// Mock the IPFSPublisher module (include all exports to prevent interference with other tests)
 mock.module('../IPFSPublisher', () => ({
+  ...realIPFSPublisher,
   IPFSPublisher: class {
     fetchMetadata = mockIpfsPublisher.fetchMetadata;
+    isAvailable = () => true;
+    getGatewayUrl = (cid: string) => `https://gateway.pinata.cloud/ipfs/${cid}`;
   },
 }));
 
@@ -52,13 +57,15 @@ describe('GameDiscoveryService', () => {
 
   beforeEach(() => {
     // Reset mocks
-    mockSubgraphClient.getGamePlatforms.mockReset();
-    mockSubgraphClient.getAgent.mockReset();
+    mockAgent0Client.searchAgents.mockReset();
+    mockAgent0Client.getAgentProfile.mockReset();
     mockIpfsPublisher.fetchMetadata.mockReset();
 
     // Set default mock implementations
-    mockSubgraphClient.getGamePlatforms.mockImplementation(async () => []);
-    mockSubgraphClient.getAgent.mockImplementation(async () => null);
+    mockAgent0Client.ensureAvailable.mockImplementation(async () => true);
+    mockAgent0Client.isAvailable.mockImplementation(() => true);
+    mockAgent0Client.searchAgents.mockImplementation(async () => []);
+    mockAgent0Client.getAgentProfile.mockImplementation(async () => null);
     mockIpfsPublisher.fetchMetadata.mockImplementation(async () => ({
       endpoints: { a2a: '', mcp: '', api: '' },
       capabilities: { markets: [], actions: [], protocols: [] },
@@ -72,7 +79,7 @@ describe('GameDiscoveryService', () => {
   });
 
   test('discoverGames returns empty array when no games found', async () => {
-    mockSubgraphClient.getGamePlatforms.mockResolvedValue([]);
+    mockAgent0Client.searchAgents.mockResolvedValue([]);
 
     const games = await discovery.discoverGames({
       type: 'game-platform',
@@ -83,20 +90,20 @@ describe('GameDiscoveryService', () => {
     expect(games).toHaveLength(0);
   });
 
-  test('discoverGames returns games from subgraph', async () => {
-    mockSubgraphClient.getGamePlatforms.mockResolvedValue([
+  test('discoverGames returns games from Agent0 search', async () => {
+    mockAgent0Client.searchAgents.mockResolvedValue([
       {
-        id: 'agent-1',
         tokenId: 1,
         name: 'Babylon',
-        type: 'game-platform',
         metadataCID: 'QmTestCID',
         walletAddress: '0x1234567890abcdef',
-        a2aEndpoint: 'https://babylon.market/a2a',
-        mcpEndpoint: 'https://babylon.market/mcp',
+        capabilities: {
+          markets: ['prediction', 'perpetuals'],
+          actions: ['trade', 'post', 'comment'],
+          a2aEndpoint: 'https://babylon.market/a2a',
+          mcpEndpoint: 'https://babylon.market/mcp',
+        },
         reputation: {
-          totalBets: 100,
-          winningBets: 85,
           trustScore: 85,
           accuracyScore: 85,
         },
@@ -104,6 +111,7 @@ describe('GameDiscoveryService', () => {
     ]);
 
     mockIpfsPublisher.fetchMetadata.mockResolvedValue({
+      type: 'game-platform',
       endpoints: {
         a2a: 'https://babylon.market/a2a',
         mcp: 'https://babylon.market/mcp',
@@ -130,7 +138,7 @@ describe('GameDiscoveryService', () => {
   });
 
   test('findBabylon returns null when not found', async () => {
-    mockSubgraphClient.getGamePlatforms.mockResolvedValue([]);
+    mockAgent0Client.searchAgents.mockResolvedValue([]);
 
     const babylon = await discovery.findBabylon(1); // Only 1 retry for test speed
 
@@ -138,7 +146,7 @@ describe('GameDiscoveryService', () => {
   });
 
   test('getGameByTokenId returns null for unknown token', async () => {
-    mockSubgraphClient.getAgent.mockResolvedValue(null);
+    mockAgent0Client.getAgentProfile.mockResolvedValue(null);
 
     const game = await discovery.getGameByTokenId(999);
 
@@ -146,18 +154,27 @@ describe('GameDiscoveryService', () => {
   });
 
   test('getGameByTokenId returns game for valid token', async () => {
-    mockSubgraphClient.getAgent.mockResolvedValue({
-      id: 'agent-1',
+    mockAgent0Client.getAgentProfile.mockResolvedValue({
       tokenId: 1,
       name: 'Babylon',
-      type: 'game-platform',
       metadataCID: 'QmTestCID',
       walletAddress: '0x1234567890abcdef',
-      a2aEndpoint: 'https://babylon.market/a2a',
-      mcpEndpoint: 'https://babylon.market/mcp',
+      capabilities: {
+        markets: ['prediction'],
+        actions: ['trade'],
+      },
+      endpoints: [
+        { type: 'A2A', value: 'https://babylon.market/a2a' },
+        { type: 'MCP', value: 'https://babylon.market/mcp' },
+      ],
+      reputation: {
+        trustScore: 85,
+        accuracyScore: 85,
+      },
     });
 
     mockIpfsPublisher.fetchMetadata.mockResolvedValue({
+      type: 'game-platform',
       endpoints: {
         a2a: 'https://babylon.market/a2a',
         mcp: 'https://babylon.market/mcp',
@@ -178,24 +195,37 @@ describe('GameDiscoveryService', () => {
   });
 
   test('filters games by type', async () => {
-    mockSubgraphClient.getGamePlatforms.mockResolvedValue([
+    mockAgent0Client.searchAgents.mockResolvedValue([
       {
-        id: 'agent-1',
         tokenId: 1,
         name: 'Game 1',
-        type: 'game-platform',
         metadataCID: 'QmCID1',
         walletAddress: '0x1111111111111111',
+        capabilities: {},
+        reputation: { trustScore: 0, accuracyScore: 0 },
       },
       {
-        id: 'agent-2',
         tokenId: 2,
         name: 'Game 2',
-        type: 'trading-platform',
         metadataCID: 'QmCID2',
         walletAddress: '0x2222222222222222',
+        capabilities: {},
+        reputation: { trustScore: 0, accuracyScore: 0 },
       },
     ]);
+
+    // First game is game-platform, second is trading-platform
+    mockIpfsPublisher.fetchMetadata
+      .mockResolvedValueOnce({
+        type: 'game-platform',
+        endpoints: { a2a: '', mcp: '', api: '' },
+        capabilities: { markets: [], actions: [], protocols: [] },
+      })
+      .mockResolvedValueOnce({
+        type: 'trading-platform',
+        endpoints: { a2a: '', mcp: '', api: '' },
+        capabilities: { markets: [], actions: [], protocols: [] },
+      });
 
     const games = await discovery.discoverGames({
       type: 'game-platform',

@@ -8,7 +8,6 @@
 import { type AgentReputation, type RegistryClient } from '@babylon/a2a';
 import { logger } from '../shared/logger';
 import { getAgent0Client } from './Agent0Client';
-import { SubgraphClient } from './SubgraphClient';
 import type {
   Agent0ReputationSummary,
   AggregatedReputation,
@@ -17,11 +16,9 @@ import type {
 
 export class ReputationBridge implements IReputationBridge {
   private erc8004Registry?: RegistryClient;
-  private subgraphClient: SubgraphClient;
 
   constructor(erc8004Registry?: RegistryClient) {
     this.erc8004Registry = erc8004Registry;
-    this.subgraphClient = new SubgraphClient();
   }
 
   /**
@@ -65,26 +62,9 @@ export class ReputationBridge implements IReputationBridge {
 
     try {
       const agent0Client = getAgent0Client();
+      await agent0Client.ensureAvailable();
 
-      if (agent0Client.isAvailable()) {
-        return await agent0Client.getReputationSummary(agentId, tag1, tag2);
-      }
-
-      // Fallback to subgraph if Agent0Client is not available
-      const tokenId = this.extractTokenId(agentId);
-      if (tokenId === null) {
-        return { count: 0, averageScore: 0 };
-      }
-
-      const agent = await this.subgraphClient.getAgent(tokenId);
-      if (!agent || !agent.reputation) {
-        return { count: 0, averageScore: 0 };
-      }
-
-      return {
-        count: agent.reputation.totalBets || 0,
-        averageScore: (agent.reputation.trustScore || 0) / 100,
-      };
+      return await agent0Client.getReputationSummary(agentId, tag1, tag2);
     } catch (error) {
       logger.error(
         'Failed to get Agent0 reputation summary',
@@ -133,49 +113,31 @@ export class ReputationBridge implements IReputationBridge {
    * Get reputation from Agent0 network
    */
   private async getAgent0Reputation(tokenId: number): Promise<AgentReputation> {
-    // Try Agent0Client first if available
+    // Use Agent0Client if enabled
     if (process.env.AGENT0_ENABLED === 'true') {
       try {
         const agent0Client = getAgent0Client();
+        await agent0Client.ensureAvailable();
 
-        if (agent0Client.isAvailable()) {
-          const chainId = agent0Client.getChainId();
-          const agentId = `${chainId}:${tokenId}`;
-          const summary = await agent0Client.getReputationSummary(agentId);
+        const chainId = agent0Client.getChainId();
+        const agentId = `${chainId}:${tokenId}`;
+        const summary = await agent0Client.getReputationSummary(agentId);
 
-          return {
-            totalBets: summary.count,
-            winningBets: 0, // Not available in summary
-            accuracyScore: summary.averageScore / 100, // Convert 0-100 to 0-1
-            trustScore: summary.averageScore / 100,
-            totalVolume: '0',
-            profitLoss: 0,
-            isBanned: false,
-          };
-        }
+        return {
+          totalBets: summary.count,
+          winningBets: 0, // Not available in summary
+          accuracyScore: summary.averageScore / 100, // Convert 0-100 to 0-1
+          trustScore: summary.averageScore / 100,
+          totalVolume: '0',
+          profitLoss: 0,
+          isBanned: false,
+        };
       } catch {
-        // Fallback to subgraph
+        // Agent0 lookup failed
       }
     }
 
-    // Fallback to subgraph client
-    const agent = await this.subgraphClient.getAgent(tokenId);
-
-    if (!agent || !agent.reputation) {
-      return this.getDefaultReputation();
-    }
-
-    const rep = agent.reputation;
-
-    return {
-      totalBets: rep.totalBets || 0,
-      winningBets: rep.winningBets || 0,
-      accuracyScore: (rep.accuracyScore || 0) / 100,
-      trustScore: (rep.trustScore || 0) / 100,
-      totalVolume: '0',
-      profitLoss: 0,
-      isBanned: false,
-    };
+    return this.getDefaultReputation();
   }
 
   /**

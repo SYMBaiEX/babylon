@@ -34,8 +34,6 @@ export { ReputationBridge } from './ReputationBridge';
 export * from './reputation';
 // Resilience utilities
 export * from './resilience';
-// Subgraph Client
-export { type SubgraphAgent, SubgraphClient } from './SubgraphClient';
 
 // Comprehensive type exports
 export type {
@@ -45,6 +43,7 @@ export type {
   Agent0Endpoint,
   // Feedback types
   Agent0Feedback,
+  Agent0FeedbackFilter,
   Agent0FeedbackParams,
   Agent0FeedbackSearchParams,
   Agent0RegistrationParams,
@@ -53,9 +52,7 @@ export type {
   // Search types
   Agent0SearchFilters,
   Agent0SearchOptions,
-  Agent0SearchResponse,
   Agent0SearchResult,
-  Agent0SearchResultMeta,
   Agent0TransferResult,
   // Reputation types
   AggregatedReputation,
