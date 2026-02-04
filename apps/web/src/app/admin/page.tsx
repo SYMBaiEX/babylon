@@ -70,6 +70,7 @@ import { FeedbackTab } from '@/components/admin/FeedbackTab';
 import { FeesTab } from '@/components/admin/FeesTab';
 import { GameControlTab } from '@/components/admin/GameControlTab';
 import { GroupsTab } from '@/components/admin/GroupsTab';
+import { GrowthMetricsTab } from '@/components/admin/GrowthMetricsTab';
 import { HumanReviewTab } from '@/components/admin/HumanReviewTab';
 import { MarketOversightTab } from '@/components/admin/MarketOversightTab';
 import { NotificationsTab } from '@/components/admin/NotificationsTab';
@@ -91,6 +92,7 @@ import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 type Tab =
   | 'stats'
   | 'analytics'
+  | 'growth'
   | 'system-health'
   | 'game-control'
   | 'fees'
@@ -212,6 +214,7 @@ export default function AdminDashboard() {
       items: [
         { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
         { id: 'analytics' as const, label: 'Analytics', icon: LineChart },
+        { id: 'growth' as const, label: 'Growth Metrics', icon: TrendingUp },
         { id: 'system-health' as const, label: 'System Health', icon: Server },
       ],
     },
@@ -384,6 +387,7 @@ export default function AdminDashboard() {
       <div className="flex-1 overflow-auto">
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'analytics' && <AnalyticsTab />}
+        {activeTab === 'growth' && <GrowthMetricsTab />}
         {activeTab === 'system-health' && <SystemHealthTab />}
         {activeTab === 'game-control' && <GameControlTab />}
         {activeTab === 'markets' && <MarketOversightTab />}

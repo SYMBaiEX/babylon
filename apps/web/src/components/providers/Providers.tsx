@@ -10,10 +10,10 @@ import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
+import { SessionHeartbeatProvider } from '@/hooks/useSessionHeartbeat';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
-
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
@@ -299,6 +299,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
                       </Suspense>
                       {/* Onboarding provider for username setup */}
                       {/* <OnboardingProvider> */}
+                      {/* Session heartbeat for engagement metrics */}
+                      <SessionHeartbeatProvider>
                       {/* Game guide provider for first-time tutorial */}
                       <GameGuideProvider>
                         <WidgetRefreshProvider>
@@ -309,6 +311,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                           )}
                         </WidgetRefreshProvider>
                       </GameGuideProvider>
+                      </SessionHeartbeatProvider>
                       {/* </OnboardingProvider> */}
                     </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
