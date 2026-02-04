@@ -11,7 +11,7 @@
 
 import { cn, formatNumber } from '@babylon/shared';
 import { Calendar, Clock, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 
 type HeatmapType = 'hourly' | 'calendar';
@@ -185,6 +185,11 @@ export function ActivityHeatmap() {
   const hourlyData = isHourly ? (data.data as HourlyDataPoint[]) : [];
   const calendarData = !isHourly ? (data.data as CalendarDataPoint[]) : [];
 
+  const hourlyPointMap = useMemo(() => {
+    if (!isHourly) return new Map<string, HourlyDataPoint>();
+    return new Map(hourlyData.map((p) => [`${p.dayOfWeek}-${p.hour}`, p]));
+  }, [hourlyData, isHourly]);
+
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       {/* Header */}
@@ -286,9 +291,7 @@ export function ActivityHeatmap() {
                   {dayName}
                 </div>
                 {Array.from({ length: 24 }).map((_, hourIndex) => {
-                  const point = hourlyData.find(
-                    (p) => p.dayOfWeek === dayIndex && p.hour === hourIndex
-                  );
+                  const point = hourlyPointMap.get(`${dayIndex}-${hourIndex}`);
                   const count = point?.count ?? 0;
                   const intensity = point?.intensity ?? 0;
 

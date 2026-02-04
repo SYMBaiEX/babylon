@@ -70,7 +70,10 @@ export function useSessionHeartbeat(): void {
       const pageViews = pageViewsRef.current;
       pageViewsRef.current = 0;
 
-      fetch('/api/activity/heartbeat', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      void fetch('/api/activity/heartbeat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,7 +83,12 @@ export function useSessionHeartbeat(): void {
             typeof window !== 'undefined' ? window.location.pathname : '',
         }),
         keepalive: true,
-      }).catch(() => {});
+        signal: controller.signal,
+      })
+        .catch(() => {})
+        .finally(() => {
+          clearTimeout(timeoutId);
+        });
     };
 
     const resetInterval = (): void => {

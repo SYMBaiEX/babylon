@@ -21,7 +21,7 @@ import {
   userSessions,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
-import { and, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -115,9 +115,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const payload = tokenParts[1];
     if (payload) {
       // Use base64url decoding (JWTs use URL-safe base64 alphabet)
-      const decoded = decodeBase64Url(payload);
-      const parsed = JSON.parse(decoded) as { sub?: string };
-      userId = parsed.sub ?? null;
+      try {
+        const decoded = decodeBase64Url(payload);
+        const parsed = JSON.parse(decoded) as { sub?: string };
+        userId = parsed.sub ?? null;
+      } catch {
+        userId = null;
+      }
     }
   }
 
@@ -199,6 +203,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Check for existing active session
   const existingSession = await db.query.userSessions.findFirst({
     where: and(
+      eq(userSessions.userId, validUserId),
       eq(userSessions.sessionId, sessionId),
       isNull(userSessions.endedAt)
     ),
@@ -249,7 +254,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Opportunistically close stale sessions (non-blocking, ~25% of requests)
   // Higher probability ensures timely cleanup during low-traffic periods
   if (Math.random() < 0.25) {
-    closeStaleSessionsInternal().catch(() => {});
+    closeStaleSessionsInternal().catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(
+        'Opportunistic stale-session cleanup failed',
+        { errorMessage },
+        'POST /api/activity/heartbeat'
+      );
+    });
   }
 
   return NextResponse.json({
@@ -283,15 +295,20 @@ async function closeStaleSessionsInternal(): Promise<{ id: string }[]> {
     return [];
   }
 
-  // Close them in batches
-  for (const session of staleSessions) {
-    await db
-      .update(userSessions)
-      .set({
-        endedAt: session.lastActiveAt,
-      })
-      .where(eq(userSessions.id, session.id));
-  }
+  const staleSessionIds = staleSessions.map((s) => s.id);
+
+  await db
+    .update(userSessions)
+    .set({
+      endedAt: sql`${userSessions.lastActiveAt}`,
+    })
+    .where(
+      and(
+        isNull(userSessions.endedAt),
+        lt(userSessions.lastActiveAt, threshold),
+        inArray(userSessions.id, staleSessionIds)
+      )
+    );
 
   return staleSessions.map((s) => ({ id: s.id }));
 }

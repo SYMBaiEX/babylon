@@ -27,7 +27,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   Area,
   AreaChart,
@@ -249,49 +249,41 @@ export function GrowthMetricsTab() {
   ].filter((item) => item.value > 0);
 
   // Prepare funnel data
-  const funnelStages = [
-    {
-      label: 'Signups (30d)',
-      value: data.activation.funnel.signups,
-      pct: 100,
-    },
-    {
-      label: 'First Trade',
-      value: data.activation.funnel.tradedWithin24h,
-      pct:
-        data.activation.funnel.signups > 0
-          ? Math.round(
-              (data.activation.funnel.tradedWithin24h /
-                data.activation.funnel.signups) *
-                100
-            )
-          : 0,
-    },
-    {
-      label: 'First Command',
-      value: data.activation.funnel.commandedWithin24h,
-      pct:
-        data.activation.funnel.signups > 0
-          ? Math.round(
-              (data.activation.funnel.commandedWithin24h /
-                data.activation.funnel.signups) *
-                100
-            )
-          : 0,
-    },
-    {
-      label: 'Activated',
-      value: data.activation.funnel.activated,
-      pct:
-        data.activation.funnel.signups > 0
-          ? Math.round(
-              (data.activation.funnel.activated /
-                data.activation.funnel.signups) *
-                100
-            )
-          : 0,
-    },
-  ];
+  const funnelStages = useMemo(() => {
+    const signups = data.activation.funnel.signups;
+    const tradedWithin24h = data.activation.funnel.tradedWithin24h;
+    const commandedWithin24h = data.activation.funnel.commandedWithin24h;
+    const activated = data.activation.funnel.activated;
+
+    return [
+      {
+        label: 'Signups (30d)',
+        value: signups,
+        pct: 100,
+      },
+      {
+        label: 'First Trade',
+        value: tradedWithin24h,
+        pct: signups > 0 ? Math.round((tradedWithin24h / signups) * 100) : 0,
+      },
+      {
+        label: 'First Command',
+        value: commandedWithin24h,
+        pct:
+          signups > 0 ? Math.round((commandedWithin24h / signups) * 100) : 0,
+      },
+      {
+        label: 'Activated',
+        value: activated,
+        pct: signups > 0 ? Math.round((activated / signups) * 100) : 0,
+      },
+    ];
+  }, [
+    data.activation.funnel.activated,
+    data.activation.funnel.commandedWithin24h,
+    data.activation.funnel.signups,
+    data.activation.funnel.tradedWithin24h,
+  ]);
 
   return (
     <div className="space-y-6">

@@ -10,11 +10,13 @@
 
 import {
   applyRateLimit,
+  MAX_DATE_RANGE_DAYS,
   parseDateParam,
   RATE_LIMIT_CONFIGS,
   rateLimitError,
   requirePermission,
   successResponse,
+  validateDateRange,
   validateEnum,
   withErrorHandling,
 } from '@babylon/api';
@@ -65,6 +67,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const activityType = validateActivity(searchParams.get('activityType'));
   const startDate = parseDateParam(searchParams.get('startDate'));
   const endDate = parseDateParam(searchParams.get('endDate'));
+
+  const dateRangeError = validateDateRange(startDate, endDate);
+  if (dateRangeError) {
+    return successResponse(
+      { error: dateRangeError, maxDays: MAX_DATE_RANGE_DAYS },
+      400
+    );
+  }
 
   logger.info(
     'Heatmap data requested',
