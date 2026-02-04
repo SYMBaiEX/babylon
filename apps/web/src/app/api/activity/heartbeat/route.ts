@@ -255,7 +255,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Higher probability ensures timely cleanup during low-traffic periods
   if (Math.random() < 0.25) {
     closeStaleSessionsInternal().catch((error) => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.warn(
         'Opportunistic stale-session cleanup failed',
         { errorMessage },

@@ -301,16 +301,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
                       {/* <OnboardingProvider> */}
                       {/* Session heartbeat for engagement metrics */}
                       <SessionHeartbeatProvider>
-                      {/* Game guide provider for first-time tutorial */}
-                      <GameGuideProvider>
-                        <WidgetRefreshProvider>
-                          {mounted ? (
-                            <Fragment>{children}</Fragment>
-                          ) : (
-                            <div className="min-h-screen bg-sidebar" />
-                          )}
-                        </WidgetRefreshProvider>
-                      </GameGuideProvider>
+                        {/* Game guide provider for first-time tutorial */}
+                        <GameGuideProvider>
+                          <WidgetRefreshProvider>
+                            {mounted ? (
+                              <Fragment>{children}</Fragment>
+                            ) : (
+                              <div className="min-h-screen bg-sidebar" />
+                            )}
+                          </WidgetRefreshProvider>
+                        </GameGuideProvider>
                       </SessionHeartbeatProvider>
                       {/* </OnboardingProvider> */}
                     </FarcasterMiniAppProvider>
