@@ -16,6 +16,30 @@ export function getBaseUrl(): string {
 }
 
 /**
+ * Get the base URL for the waitlist (canonical referral destination).
+ *
+ * When you run the app on a separate subdomain (ex: app.babylon.market),
+ * referrals should generally land on the waitlist domain (babylon.market).
+ */
+export function getWaitlistBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_WAITLIST_URL;
+  if (fromEnv && fromEnv.trim().length > 0) return fromEnv.trim();
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname.endsWith('staging.babylon.market')) {
+      return 'https://staging.babylon.market';
+    }
+    if (hostname.endsWith('babylon.market')) {
+      return 'https://babylon.market';
+    }
+    return window.location.origin;
+  }
+
+  return 'https://babylon.market';
+}
+
+/**
  * Generate a shareable referral URL for a user
  *
  * @param usernameOrCode - The user's username or referral code
@@ -28,7 +52,7 @@ export function getBaseUrl(): string {
  * ```
  */
 export function getReferralUrl(usernameOrCode: string): string {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getWaitlistBaseUrl();
   return `${baseUrl}?ref=${encodeURIComponent(usernameOrCode)}`;
 }
 

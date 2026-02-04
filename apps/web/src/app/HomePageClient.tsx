@@ -2,13 +2,10 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
-import { ComingSoon } from '@/components/shared/ComingSoon';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { FeedLayoutSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
-
-const waitlistModeEnabled = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true';
 
 function HomePageContent() {
   const router = useRouter();
@@ -17,11 +14,6 @@ function HomePageContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Skip redirect logic if waitlist mode is enabled
-    if (waitlistModeEnabled) {
-      return;
-    }
-
     // Wait for Privy to be ready before deciding to show login modal
     // This prevents the modal from flashing on every page load
     if (!ready) {
@@ -42,11 +34,6 @@ function HomePageContent() {
     const feedUrl = ref ? `/feed?ref=${encodeURIComponent(ref)}` : '/feed';
     router.push(feedUrl);
   }, [ready, authenticated, router, showLoginModal, searchParams]);
-
-  // Show coming soon page if WAITLIST_MODE is enabled
-  if (waitlistModeEnabled) {
-    return <ComingSoon />;
-  }
 
   // Show feed skeleton while redirecting
   return (

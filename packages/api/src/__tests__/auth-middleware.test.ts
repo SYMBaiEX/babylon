@@ -24,6 +24,7 @@ const usersTable = {
 };
 
 const nftSnapshotTable = {
+  id: 'id',
   userId: 'userId',
   hasMinted: 'hasMinted',
 };
@@ -61,7 +62,7 @@ import { authenticate } from '../auth-middleware';
 
 let usersRows: Array<{ id: string; walletAddress: string; isAdmin?: boolean }> =
   [];
-let snapshotRows: Array<{ hasMinted: boolean }> = [];
+let snapshotRows: Array<{ id?: string; hasMinted: boolean }> = [];
 let ownershipRows: Array<{ tokenId: number }> = [];
 
 const createRequest = (token: string, pathname: string): NextRequest =>
@@ -181,7 +182,8 @@ describe('authenticate middleware', () => {
     mockVerifyAgentSession.mockReturnValueOnce(null);
     mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
     usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
-    snapshotRows = [{ hasMinted: false }];
+    snapshotRows = [];
+    ownershipRows = [];
 
     const request = createRequest('privy-token', '/api/posts');
 
@@ -236,6 +238,24 @@ describe('authenticate middleware', () => {
     mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
     usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
     snapshotRows = [{ hasMinted: true }];
+
+    const request = createRequest('privy-token', '/api/posts');
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+      isAdmin: false,
+    });
+  });
+
+  it('allows access for claimable users when NFT gating is enabled', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [{ hasMinted: false }];
 
     const request = createRequest('privy-token', '/api/posts');
     const result = await authenticate(request);
