@@ -539,6 +539,7 @@ export function MessageInput({
       <div
         className={cn(
           'flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
+          'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
           isFocused && 'shadow-sm',
           (sending || disabled) && 'opacity-60'
         )}
