@@ -335,12 +335,12 @@ export default function RewardsPage() {
               {/* Total Points */}
               <div className="rounded-lg border border-border p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-[#0066FF]" />
+                  <TrendingUp className="h-5 w-5 text-primary" />
                   <h2 className="font-medium text-muted-foreground text-sm">
                     Total Points
                   </h2>
                 </div>
-                <div className="font-bold text-3xl text-[#0066FF]">
+                <div className="font-bold text-3xl text-primary">
                   {referralData.user.totalPoints.toLocaleString()}
                 </div>
               </div>
@@ -348,7 +348,7 @@ export default function RewardsPage() {
               {/* Total Referrals */}
               <div className="rounded-lg border border-border p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-[#0066FF]" />
+                  <Users className="h-5 w-5 text-primary" />
                   <h2 className="font-medium text-muted-foreground text-sm">
                     Total Referrals
                   </h2>
@@ -385,7 +385,7 @@ export default function RewardsPage() {
                               : referralData.stats.weeklyReferralCount >=
                                   referralData.stats.weeklyLimit * 0.8
                                 ? 'bg-yellow-500'
-                                : 'bg-[#0066FF]'
+                                : 'bg-primary'
                           }`}
                           style={{
                             width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
@@ -403,7 +403,7 @@ export default function RewardsPage() {
             {/* Reward Tasks */}
             <div className="rounded-lg border border-border p-4">
               <div className="mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-[#0066FF]" />
+                <TrendingUp className="h-5 w-5 text-primary" />
                 <h2 className="font-bold text-base text-foreground">
                   Earn Points
                 </h2>
@@ -458,7 +458,7 @@ export default function RewardsPage() {
                   onClick={() => setShowShareModal(true)}
                   className="flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border p-4 text-left transition-all hover:bg-muted/50"
                 >
-                  <div className="shrink-0 text-[#0066FF]">
+                  <div className="shrink-0 text-primary">
                     <Share2 className="h-6 w-6" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -484,7 +484,7 @@ export default function RewardsPage() {
             {/* Referral Link */}
             <div className="rounded-lg border border-border p-4">
               <div className="mb-3 flex items-center gap-2">
-                <Gift className="h-5 w-5 text-[#0066FF]" />
+                <Gift className="h-5 w-5 text-primary" />
                 <h2 className="font-bold text-base text-foreground">
                   Referral Link
                 </h2>
@@ -543,7 +543,7 @@ export default function RewardsPage() {
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-1.5 font-bold text-base text-foreground">
-                  <Users className="h-4 w-4 text-[#0066FF]" />
+                  <Users className="h-4 w-4 text-primary" />
                   Your Referrals
                 </h2>
               </div>
@@ -652,12 +652,12 @@ export default function RewardsPage() {
               {/* Total Points */}
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-1 flex items-center gap-1">
-                  <TrendingUp className="h-4 w-4 text-[#0066FF]" />
+                  <TrendingUp className="h-4 w-4 text-primary" />
                   <h2 className="font-medium text-muted-foreground text-xs">
                     Total Points
                   </h2>
                 </div>
-                <div className="font-bold text-2xl text-[#0066FF]">
+                <div className="font-bold text-2xl text-primary">
                   {referralData.user.totalPoints.toLocaleString()}
                 </div>
               </div>
@@ -665,7 +665,7 @@ export default function RewardsPage() {
               {/* Total Referrals */}
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-1 flex items-center gap-1">
-                  <Users className="h-4 w-4 text-[#0066FF]" />
+                  <Users className="h-4 w-4 text-primary" />
                   <h2 className="font-medium text-muted-foreground text-xs">
                     Referrals
                   </h2>
@@ -702,7 +702,7 @@ export default function RewardsPage() {
                               : referralData.stats.weeklyReferralCount >=
                                   referralData.stats.weeklyLimit * 0.8
                                 ? 'bg-yellow-500'
-                                : 'bg-[#0066FF]'
+                                : 'bg-primary'
                           }`}
                           style={{
                             width: `${Math.min(100, (referralData.stats.weeklyReferralCount / referralData.stats.weeklyLimit) * 100)}%`,
@@ -720,7 +720,7 @@ export default function RewardsPage() {
             {/* Reward Tasks */}
             <div className="space-y-3">
               <h2 className="flex items-center gap-2 font-bold text-foreground text-lg">
-                <TrendingUp className="h-5 w-5 text-[#0066FF]" />
+                <TrendingUp className="h-5 w-5 text-primary" />
                 Earn Points
               </h2>
 
@@ -774,7 +774,7 @@ export default function RewardsPage() {
                   onClick={() => setShowShareModal(true)}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border p-3 text-left transition-all hover:bg-muted/50"
                 >
-                  <div className="shrink-0 text-[#0066FF]">
+                  <div className="shrink-0 text-primary">
                     <Share2 className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -800,7 +800,7 @@ export default function RewardsPage() {
             <div className="rounded-lg border border-border p-4">
               <div className="mb-3">
                 <div className="flex items-center gap-2">
-                  <Gift className="h-5 w-5 text-[#0066FF]" />
+                  <Gift className="h-5 w-5 text-primary" />
                   <h2 className="font-bold text-base text-foreground">
                     Referral Link
                   </h2>
@@ -855,7 +855,7 @@ export default function RewardsPage() {
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 font-bold text-base text-foreground">
-                  <Users className="h-5 w-5 text-[#0066FF]" />
+                  <Users className="h-5 w-5 text-primary" />
                   Your Referrals
                 </h2>
               </div>

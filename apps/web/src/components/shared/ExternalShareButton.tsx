@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * External share button component with tracking and points rewards.
  *

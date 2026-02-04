@@ -131,14 +131,12 @@ function SidebarContent() {
       name: 'Home',
       href: '/feed',
       icon: HouseIcon,
-      color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
-      color: '#0066FF',
       active: pathname === '/notifications',
       requiresAuth: true,
     },
@@ -146,21 +144,18 @@ function SidebarContent() {
       name: 'Leaderboard',
       href: '/leaderboard',
       icon: Trophy,
-      color: '#0066FF',
       active: pathname === '/leaderboard',
     },
     {
       name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
-      color: '#0066FF',
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#0066FF',
       active: pathname === '/chats',
       requiresAuth: true,
     },
@@ -168,7 +163,6 @@ function SidebarContent() {
       name: 'Agents',
       href: '/agents/team',
       icon: Users,
-      color: '#0066FF',
       active: pathname === '/agents' || pathname.startsWith('/agents/'),
       requiresAuth: true,
     },
@@ -176,7 +170,6 @@ function SidebarContent() {
       name: 'Rewards',
       href: '/rewards',
       icon: Gift,
-      color: '#0066FF',
       active: pathname === '/rewards',
       requiresAuth: true,
     },
@@ -184,7 +177,6 @@ function SidebarContent() {
       name: 'Profile',
       href: '/profile',
       icon: User,
-      color: '#0066FF',
       active: pathname === '/profile',
       requiresAuth: true,
     },
@@ -195,7 +187,6 @@ function SidebarContent() {
             name: 'Admin',
             href: '/admin',
             icon: Shield,
-            color: '#f97316',
             active: pathname === '/admin',
           },
         ]
@@ -224,11 +215,14 @@ function SidebarContent() {
           <Link href="/feed" aria-label="Babylon home">
             {/* Icon-only logo for md (tablet) or collapsed */}
             <BabylonIcon
-              className={cn('h-8 w-8 text-[#06f]', !collapsed && 'lg:hidden')}
+              className={cn(
+                'h-8 w-8 text-sidebar-primary',
+                !collapsed && 'lg:hidden'
+              )}
             />
             {/* Full logo with text for lg+ (desktop) when expanded */}
             {!collapsed && (
-              <BabylonFullLogo className="hidden h-8 w-auto text-[#06f] lg:block" />
+              <BabylonFullLogo className="hidden h-8 w-auto text-sidebar-primary lg:block" />
             )}
           </Link>
           {/* Collapse toggle - only visible on lg+ when expanded */}

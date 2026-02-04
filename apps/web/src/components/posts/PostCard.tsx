@@ -357,7 +357,7 @@ export const PostCard = memo(function PostCard({
                 </h2>
                 {!isDetail && (
                   <button
-                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#0066FF] px-3 py-2 font-semibold text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
+                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-primary px-3 py-2 font-semibold text-primary-foreground text-sm transition-colors hover:bg-primary/90"
                     onClick={handleCardClick}
                   >
                     Read Full Article →
