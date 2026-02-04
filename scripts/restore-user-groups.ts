@@ -3,7 +3,7 @@
  * Restore User Groups
  *
  * Quick script to restore a user's alpha groups if they were lost.
- * Finds user by username or ID and assigns them to 3 default Tier 3 groups.
+ * Finds user by username or ID and assigns them to the configured default Tier 3 groups.
  *
  * Usage:
  *   bun run scripts/restore-user-groups.ts --username=@ravioliravioli
@@ -84,7 +84,9 @@ async function main() {
   } else if (userIdArg) {
     const rawUserId = userIdArg.slice('--user='.length).trim();
     if (!rawUserId) {
-      console.error('Invalid --user value. Expected --user=<user-id> (non-empty).');
+      console.error(
+        'Invalid --user value. Expected --user=<user-id> (non-empty).'
+      );
       process.exit(1);
     }
     userId = rawUserId;
@@ -133,9 +135,7 @@ async function main() {
     await UserAlphaGroupAssignmentService.assignDefaultGroups(userId);
 
   if (result.success && result.groupsAssigned === 0) {
-    console.log(
-      `  ℹ️  User already has ${minGroups}+ groups, no action needed`
-    );
+    console.log(`  ℹ️  User already has ${minGroups}+ groups, no action needed`);
   } else if (result.success) {
     console.log(`  ✅ Assigned ${result.groupsAssigned} groups:`);
     for (const assignment of result.assignments) {
@@ -171,7 +171,7 @@ async function main() {
     );
   } else {
     console.log(
-      '⚠️  User still has fewer than 3 groups. This may indicate capacity issues.\n'
+      `⚠️  User still has fewer than ${minGroups} groups. This may indicate capacity issues.\n`
     );
   }
 
@@ -180,6 +180,10 @@ async function main() {
 
 main().catch((error) => {
   const errorObj = error instanceof Error ? error : new Error(String(error));
-  logger.error('Fatal error in restore-user-groups', errorObj, 'restore-user-groups');
+  logger.error(
+    'Fatal error in restore-user-groups',
+    errorObj,
+    'restore-user-groups'
+  );
   process.exit(1);
 });
