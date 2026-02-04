@@ -32,6 +32,26 @@ interface PrivyJwtPayload {
   sid?: string;
 }
 
+interface JwtHeader {
+  alg: string;
+  typ?: string;
+  kid?: string;
+}
+
+/**
+ * Decodes a JWT header without verification.
+ */
+function decodeJwtHeader(token: string): JwtHeader | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const json = Buffer.from(parts[0] ?? '', 'base64url').toString('utf8');
+    return JSON.parse(json) as JwtHeader;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Decodes a JWT payload without verification.
  * Used only to extract claims for pre-flight validation before Privy API calls.
@@ -79,9 +99,29 @@ export async function sendSponsoredEvmTransaction({
     );
   }
 
-  const tokenAud = payload.aud;
   const appId =
     process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  // Debug: Log JWT header + claims to diagnose auth issues (no sensitive identifiers)
+  const jwtHeader = decodeJwtHeader(userJwt);
+  logger.debug(
+    'Privy JWT diagnostics',
+    {
+      alg: jwtHeader?.alg,
+      typ: jwtHeader?.typ,
+      kid: jwtHeader?.kid,
+      iss: payload.iss,
+      aud: payload.aud,
+      iat: payload.iat,
+      exp: payload.exp,
+      isExpired: payload.exp ? payload.exp < Date.now() / 1000 : 'no-exp',
+      configuredAppId: appId,
+      jwtLength: userJwt.length,
+    },
+    'sendSponsoredEvmTransaction'
+  );
+
+  const tokenAud = payload.aud;
   if (typeof appId === 'string') {
     const audMatches =
       tokenAud === appId ||

@@ -1,8 +1,14 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Send } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { ArrowUp } from 'lucide-react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
@@ -497,6 +503,10 @@ export function MessageInput({
   const placeholderText = placeholder || 'Type a message...';
   const compact = density === 'compact';
 
+  const [isFocused, setIsFocused] = useState(false);
+  const hasContent = value.trim().length > 0;
+  const canSend = hasContent && !sending && !disabled;
+
   if (!authenticated) {
     return (
       <div className={cn('bg-background', compact ? 'px-3 py-2' : 'px-4 py-3')}>
@@ -511,13 +521,7 @@ export function MessageInput({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        'relative bg-background',
-        compact ? 'px-3 py-2' : 'px-4 py-3'
-      )}
-    >
+    <div ref={containerRef} className={cn('relative', compact ? 'p-3' : 'p-4')}>
       {/* Mention autocomplete dropdown */}
       {mentionsEnabled && (
         <MentionAutocomplete
@@ -531,95 +535,102 @@ export function MessageInput({
         />
       )}
 
-      {/* Input container with send button inside */}
-      <div className="relative">
-        {/* Textarea with optional highlight overlay for mentions */}
-        {mentionsEnabled ? (
-          <>
-            {/* Highlight overlay - renders mentions with styling */}
-            <div
-              ref={highlightRef}
-              className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl pr-14',
-                compact
-                  ? 'px-3 py-2.5 text-sm md:text-xs'
-                  : 'px-4 py-4 text-sm',
-                'text-foreground'
-              )}
-              aria-hidden="true"
-            >
-              <HighlightedText
-                text={value}
-                validUsernames={validMentionHandles}
+      {/* Composer shell */}
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
+          'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
+          isFocused && 'shadow-sm',
+          (sending || disabled) && 'opacity-60'
+        )}
+      >
+        {/* Input area */}
+        <div className="relative min-w-0 flex-1">
+          {mentionsEnabled ? (
+            <>
+              {/* Highlight overlay */}
+              <div
+                ref={highlightRef}
+                className={cn(
+                  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[5px]',
+                  'text-[15px] leading-[22px]',
+                  'text-foreground'
+                )}
+                aria-hidden="true"
+              >
+                <HighlightedText
+                  text={value}
+                  validUsernames={validMentionHandles}
+                />
+              </div>
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onScroll={handleScroll}
+                onSelect={handleSelect}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                aria-label="Message input, use @ to mention members"
+                placeholder={placeholderText}
+                disabled={sending || disabled}
+                rows={1}
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                className={cn(
+                  'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                  compact
+                    ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
+                    : 'min-h-[32px] text-sm leading-[22px]',
+                  'text-transparent caret-foreground placeholder:text-muted-foreground/40',
+                  'outline-none',
+                  'disabled:cursor-not-allowed'
+                )}
               />
-            </div>
-            {/* Actual textarea - text is transparent, caret visible */}
+            </>
+          ) : (
             <textarea
               ref={textareaRef}
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onScroll={handleScroll}
-              onSelect={handleSelect}
-              aria-label="Message input, use @ to mention members"
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder={placeholderText}
               disabled={sending || disabled}
               rows={1}
-              spellCheck={false}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
               className={cn(
-                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+                'max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
                 compact
-                  ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-                  : 'min-h-[56px] px-4 py-4 text-sm',
-                'message-input bg-sidebar-accent/50',
-                'text-transparent caret-foreground placeholder:text-muted-foreground',
-                'outline-none focus:ring-2 focus:ring-primary/50',
-                'disabled:cursor-not-allowed disabled:opacity-50'
+                  ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
+                  : 'min-h-[32px] text-sm leading-[22px]',
+                'text-foreground placeholder:text-muted-foreground/40',
+                'outline-none',
+                'disabled:cursor-not-allowed'
               )}
             />
-          </>
-        ) : (
-          /* Simple textarea without highlight overlay */
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholderText}
-            disabled={sending || disabled}
-            rows={1}
-            className={cn(
-              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
-              compact
-                ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-                : 'min-h-[56px] px-4 py-4 text-sm',
-              'message-input bg-sidebar-accent/50',
-              'text-foreground placeholder:text-muted-foreground',
-              'outline-none focus:ring-2 focus:ring-primary/50',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          />
-        )}
+          )}
+        </div>
 
-        {/* Send button - positioned inside input, vertically centered */}
+        {/* Send button */}
         <button
           type="button"
           onClick={onSend}
-          disabled={!value.trim() || sending || disabled}
+          disabled={!canSend}
           className={cn(
-            '-translate-y-1/2 absolute top-1/2 right-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg',
-            'text-primary transition-all duration-200',
-            'hover:bg-muted',
-            'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
+            canSend
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+              : 'text-muted-foreground'
           )}
         >
           {sending ? (
-            <Skeleton className="h-5 w-5 rounded" />
+            <Skeleton className="h-4 w-4 rounded" />
           ) : (
-            <Send className="h-5 w-5" />
+            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
           )}
         </button>
       </div>

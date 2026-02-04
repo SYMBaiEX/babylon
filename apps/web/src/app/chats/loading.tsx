@@ -1,4 +1,3 @@
-import { Separator } from '@/components/shared/Separator';
 import { ChatListSkeleton, Skeleton } from '@/components/shared/Skeleton';
 
 export default function ChatsLoading() {
@@ -6,7 +5,7 @@ export default function ChatsLoading() {
     <div className="flex h-[calc(100dvh-var(--header-height,112px))] flex-col overflow-hidden md:h-dvh">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left column: Chat list */}
-        <div className="flex w-full flex-col bg-background xl:w-96">
+        <div className="flex w-full flex-col border-border bg-background xl:w-80 xl:border-r">
           {/* Header */}
           <div className="px-4 py-3">
             <div className="mb-4 flex items-center justify-between">
@@ -36,12 +35,6 @@ export default function ChatsLoading() {
             <ChatListSkeleton count={10} />
           </div>
         </div>
-
-        {/* Separator */}
-        <Separator
-          orientation="vertical"
-          className="hidden shrink-0 xl:block"
-        />
 
         {/* Right column: Empty state */}
         <div className="hidden min-h-0 min-w-0 flex-1 bg-background xl:block">

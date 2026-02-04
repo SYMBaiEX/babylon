@@ -1452,11 +1452,16 @@ Return your response as XML:
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // Get all group chats
+    // Only NPC-managed group chats participate in NPC kick dynamics
     const groupList = await db
-      .select()
+      .select({
+        id: chats.id,
+        name: chats.name,
+        groupId: chats.groupId,
+      })
       .from(chats)
-      .where(eq(chats.isGroup, true));
+      .innerJoin(groups, eq(chats.groupId, groups.id))
+      .where(and(eq(chats.isGroup, true), eq(groups.type, 'npc')));
 
     for (const group of groupList) {
       // Get participants for this group
@@ -1538,6 +1543,36 @@ Return your response as XML:
         const tickMultiplier = category === 'spam' ? 0.2 : 0.05;
 
         if (randomChance(kickProbability * tickMultiplier, rng)) {
+          // PROTECTION: Don't kick if user would fall below minimum group count
+          const [userGroupCount] = await db
+            .select({ count: count() })
+            .from(groupMembers)
+            .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+            .where(
+              and(
+                eq(groupMembers.userId, userId),
+                eq(groupMembers.isActive, true),
+                eq(groups.type, 'npc')
+              )
+            );
+
+          const currentGroups = userGroupCount?.count ?? 0;
+          if (currentGroups <= GROUP_CONFIG.MIN_DEFAULT_GROUPS) {
+            logger.debug(
+              'Skipping kick - user at or below minimum group count',
+              {
+                userId,
+                userName: participant.displayName,
+                currentGroups,
+                minRequired: GROUP_CONFIG.MIN_DEFAULT_GROUPS,
+                chatName: group.name,
+                reason,
+              },
+              'NPCGroupDynamicsService'
+            );
+            continue;
+          }
+
           // Remove from chat participants
           await db
             .delete(chatParticipants)

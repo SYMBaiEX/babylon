@@ -254,7 +254,7 @@ export const PostCard = memo(function PostCard({
     >
       {/* Repost Indicator - Only show for simple reposts (not quote posts) */}
       {isSimpleRepost && (
-        <div className="mb-2 flex items-center gap-3 pl-12 text-muted-foreground text-sm">
+        <div className="mb-1 flex items-center gap-2 pl-12 text-muted-foreground text-xs">
           <Repeat2 size={14} className="text-green-600" />
           <span>
             Reposted by{' '}
@@ -276,79 +276,75 @@ export const PostCard = memo(function PostCard({
       {/* Two-column layout: Avatar | Content */}
       <div className="flex gap-3">
         {/* Left column: Avatar + Connecting Line */}
-        {!isSimpleRepost && (
-          <div className="flex flex-col items-center">
-            <Link
-              href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-              className="shrink-0 transition-opacity hover:opacity-80"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Avatar
-                id={displayAuthorId}
-                name={displayAuthorName}
-                type={post.type === 'article' ? 'business' : 'actor'}
-                size="md"
-                src={displayAuthorProfileImageUrl || undefined}
-                scaleFactor={fontSize}
-              />
-            </Link>
-            {/* Connecting line to comments */}
-            {showCommentPreviews &&
-              !isDetail &&
-              (post.commentPreviews?.length ?? 0) > 0 && (
-                <div className="mt-2 w-0.5 flex-1 bg-border" />
-              )}
-          </div>
-        )}
+        <div className="flex flex-col items-center">
+          <Link
+            href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+            className="shrink-0 transition-opacity hover:opacity-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Avatar
+              id={displayAuthorId}
+              name={displayAuthorName}
+              type={post.type === 'article' ? 'business' : 'actor'}
+              size="md"
+              src={displayAuthorProfileImageUrl || undefined}
+              scaleFactor={fontSize}
+            />
+          </Link>
+          {/* Connecting line to comments */}
+          {showCommentPreviews &&
+            !isDetail &&
+            (post.commentPreviews?.length ?? 0) > 0 && (
+              <div className="mt-2 w-0.5 flex-1 bg-border" />
+            )}
+        </div>
 
         {/* Right column: All content */}
         <div className="min-w-0 flex-1">
           {/* Header: Name/Handle on left, Timestamp and Menu on right */}
-          {!isSimpleRepost && (
-            <div className="mb-2 flex items-center justify-between gap-3">
-              {/* Name and Handle inline */}
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <Link
-                  href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-                  className="truncate font-semibold text-[15px] text-foreground hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {displayAuthorName}
-                </Link>
-                {showVerifiedBadge && <VerifiedBadge size="sm" />}
-                <Link
-                  href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-                  className="truncate text-[15px] text-muted-foreground hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  @{displayAuthorUsername || displayAuthorId}
-                </Link>
-              </div>
-              {/* Timestamp and Menu - Right aligned */}
-              <div className="flex shrink-0 items-center gap-2">
-                <time
-                  className="text-[15px] text-muted-foreground"
-                  title={postDate.toLocaleString()}
-                >
-                  {timeAgo}
-                </time>
-                {user && user.id !== displayAuthorId && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ModerationMenu
-                      targetUserId={displayAuthorId}
-                      targetUsername={displayAuthorUsername || undefined}
-                      targetDisplayName={displayAuthorName}
-                      targetProfileImageUrl={
-                        displayAuthorProfileImageUrl || undefined
-                      }
-                      postId={post.id}
-                      isNPC={authorIsNPC}
-                    />
-                  </div>
-                )}
-              </div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            {/* Name and Handle inline */}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Link
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {displayAuthorName}
+              </Link>
+              {showVerifiedBadge && <VerifiedBadge size="sm" />}
+              <Link
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                className="truncate text-[15px] text-muted-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{displayAuthorUsername || displayAuthorId}
+              </Link>
             </div>
-          )}
+            {/* Timestamp and Menu - Right aligned */}
+            <div className="flex shrink-0 items-center gap-2">
+              <time
+                className="text-[15px] text-muted-foreground"
+                title={postDate.toLocaleString()}
+              >
+                {timeAgo}
+              </time>
+              {user && user.id !== displayAuthorId && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ModerationMenu
+                    targetUserId={displayAuthorId}
+                    targetUsername={displayAuthorUsername || undefined}
+                    targetDisplayName={displayAuthorName}
+                    targetProfileImageUrl={
+                      displayAuthorProfileImageUrl || undefined
+                    }
+                    postId={post.id}
+                    isNPC={authorIsNPC}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Post Content */}
           {post.type === 'article' ? (
@@ -361,7 +357,7 @@ export const PostCard = memo(function PostCard({
                 </h2>
                 {!isDetail && (
                   <button
-                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#0066FF] px-3 py-2 font-semibold text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]"
+                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-primary px-3 py-2 font-semibold text-primary-foreground text-sm transition-colors hover:bg-primary/90"
                     onClick={handleCardClick}
                   >
                     Read Full Article →
@@ -379,8 +375,32 @@ export const PostCard = memo(function PostCard({
                 {post.content}
               </div>
             </div>
+          ) : post.isRepost && isSimpleRepost ? (
+            // Simple repost - show original content directly (no border/card)
+            <div className="post-content mb-3 w-full whitespace-pre-wrap break-words text-[15px] text-foreground leading-normal">
+              {post.originalPost ? (
+                <TaggedText
+                  text={post.originalPost.content}
+                  onTagClick={(tag) => {
+                    if (tag.startsWith('@')) {
+                      const username = tag.slice(1);
+                      router.push(getProfileUrl('', username));
+                    } else if (tag.startsWith('$')) {
+                      const symbol = tag.slice(1);
+                      router.push(
+                        `/markets?search=${encodeURIComponent(symbol)}`
+                      );
+                    }
+                  }}
+                />
+              ) : (
+                <span className="text-foreground/50 italic">
+                  This post has been deleted
+                </span>
+              )}
+            </div>
           ) : post.isRepost ? (
-            // Repost (with or without quote comment) - show embedded card
+            // Quote post - show quote comment + embedded original in card
             <div className="mb-4 w-full">
               {/* Quote comment (if present) */}
               {post.quoteComment && (
@@ -389,11 +409,9 @@ export const PostCard = memo(function PostCard({
                     text={post.quoteComment}
                     onTagClick={(tag) => {
                       if (tag.startsWith('@')) {
-                        // Handle @mentions - route to profile
                         const username = tag.slice(1);
                         router.push(getProfileUrl('', username));
                       } else if (tag.startsWith('$')) {
-                        // Handle $cashtags - route to markets
                         const symbol = tag.slice(1);
                         router.push(
                           `/markets?search=${encodeURIComponent(symbol)}`
@@ -477,11 +495,9 @@ export const PostCard = memo(function PostCard({
                         text={post.originalPost.content}
                         onTagClick={(tag) => {
                           if (tag.startsWith('@')) {
-                            // Handle @mentions - route to profile
                             const username = tag.slice(1);
                             router.push(getProfileUrl('', username));
                           } else if (tag.startsWith('$')) {
-                            // Handle $cashtags - route to markets
                             const symbol = tag.slice(1);
                             router.push(
                               `/markets?search=${encodeURIComponent(symbol)}`

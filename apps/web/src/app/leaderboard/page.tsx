@@ -586,7 +586,7 @@ export default function LeaderboardPage() {
       {/* Desktop: Content + Widgets layout */}
       <div className="hidden flex-1 overflow-hidden xl:flex">
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-[rgba(120,120,120,0.15)] lg:border-r lg:border-l">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-border lg:border-r lg:border-l">
           {/* Header with tabs */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <LeaderboardToggle

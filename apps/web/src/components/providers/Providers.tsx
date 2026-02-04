@@ -13,7 +13,6 @@ import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
-import { OnboardingProvider } from './OnboardingProvider';
 
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
@@ -299,18 +298,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         <ReferralCaptureProvider />
                       </Suspense>
                       {/* Onboarding provider for username setup */}
-                      <OnboardingProvider>
-                        {/* Game guide provider for first-time tutorial */}
-                        <GameGuideProvider>
-                          <WidgetRefreshProvider>
-                            {mounted ? (
-                              <Fragment>{children}</Fragment>
-                            ) : (
-                              <div className="min-h-screen bg-sidebar" />
-                            )}
-                          </WidgetRefreshProvider>
-                        </GameGuideProvider>
-                      </OnboardingProvider>
+                      {/* <OnboardingProvider> */}
+                      {/* Game guide provider for first-time tutorial */}
+                      <GameGuideProvider>
+                        <WidgetRefreshProvider>
+                          {mounted ? (
+                            <Fragment>{children}</Fragment>
+                          ) : (
+                            <div className="min-h-screen bg-sidebar" />
+                          )}
+                        </WidgetRefreshProvider>
+                      </GameGuideProvider>
+                      {/* </OnboardingProvider> */}
                     </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
                 </QueryClientProvider>
