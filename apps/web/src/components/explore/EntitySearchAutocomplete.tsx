@@ -15,6 +15,7 @@ interface ApiUser {
   username?: string;
   bio?: string;
   imageUrl?: string;
+  isActor?: boolean;
 }
 
 /**
@@ -113,16 +114,17 @@ export function EntitySearchAutocomplete({
       const response = await fetch(`/api/registry/all?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        const users: RegistryEntity[] = (data.users || []).map(
-          (u: ApiUser) => ({
+        // Filter out NPC users (isActor: true) - they appear in the actors array
+        const users: RegistryEntity[] = (data.users || [])
+          .filter((u: ApiUser) => !u.isActor)
+          .map((u: ApiUser) => ({
             id: u.id,
             name: u.name,
             username: u.username,
             bio: u.bio,
             imageUrl: u.imageUrl,
             type: 'user' as const,
-          })
-        );
+          }));
         const actors: RegistryEntity[] = (data.actors || []).map(
           (a: ApiActor) => ({
             id: a.id,
@@ -307,8 +309,10 @@ export function EntitySearchAutocomplete({
                   )}
                 >
                   <Avatar
+                    id={entity.id}
                     src={entity.imageUrl || undefined}
                     name={entity.name}
+                    type={entity.type === 'actor' ? 'actor' : 'user'}
                     size="sm"
                     className="shrink-0"
                   />

@@ -13,6 +13,7 @@ const DEFAULT_WAITLIST_HOSTS = [
   'babylon.market',
   'www.babylon.market',
   'staging.babylon.market',
+  'www.staging.babylon.market',
 ] as const;
 
 function getWaitlistHosts(): Set<string> {
@@ -168,8 +169,14 @@ function addCorsHeaders(
 }
 
 function getHostname(request: NextRequest): string {
-  const hostHeader = request.headers.get('host') ?? '';
-  return hostHeader.split(':')[0]?.toLowerCase() ?? '';
+  const forwardedHostHeader =
+    request.headers.get('x-forwarded-host') ??
+    request.headers.get('host') ??
+    '';
+  const forwardedHost = forwardedHostHeader.split(',')[0]?.trim() ?? '';
+  const host =
+    forwardedHost.length > 0 ? forwardedHost : request.nextUrl.hostname;
+  return host.split(':')[0]?.toLowerCase() ?? '';
 }
 
 function getWaitlistOrigin(hostname: string, protocol: string): string {
@@ -288,10 +295,10 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/';
-    redirectUrl.search = search;
-    return NextResponse.redirect(redirectUrl);
+    // Everything else should live on the app host to avoid "half UI" pages
+    // (e.g. app routes rendering without the app shell when visited via waitlist host).
+    const appOrigin = getAppOrigin(hostname, request.nextUrl.protocol);
+    return NextResponse.redirect(`${appOrigin}${pathname}${search}`);
   }
 
   // App host behavior: enforce gating via /api/nft/access for non-public pages.
