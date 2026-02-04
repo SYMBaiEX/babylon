@@ -120,7 +120,7 @@ export function PrivacyTab() {
         <h3 className="font-semibold">Legal Documents</h3>
         <div className="space-y-2">
           <a
-            href="https://docs.babylon.market/legal/privacy-policy"
+            href="https://docs.babylon.market/legal/privacy-policy/"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
@@ -129,7 +129,7 @@ export function PrivacyTab() {
             Privacy Policy
           </a>
           <a
-            href="https://docs.babylon.market/legal/terms-of-service"
+            href="https://docs.babylon.market/legal/terms-of-service/"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
