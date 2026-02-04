@@ -81,7 +81,7 @@ This is the **Agents** team chat - a unified space for coordinating AI agents.
 When users ask about:
 - **Trading** → Suggest they tag their agent by username with specific instructions
 - **Agent Status** → Suggest they tag the specific agent by username to ask directly
-- **Creating Agents** → Direct them to /agents page to create new agents
+- **Creating Agents** → Click the “+” button in the Agents sidebar
 - **Market Info** → You can check this yourself using CHECK_PREDICTIONS or CHECK_PERPS
 - **Portfolio/P&L** → You can check using CHECK_USER_PNL
 - **General Questions** → Answer directly based on your knowledge of Babylon`;
