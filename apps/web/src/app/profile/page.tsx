@@ -958,9 +958,9 @@ export default function ProfilePage() {
       {/* Main layout - responsive with optional sidebar on xl screens */}
       <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-border lg:border-r lg:border-l">
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
             <div className="flex items-center gap-4 px-4 py-3">
               <Link
                 href="/feed"

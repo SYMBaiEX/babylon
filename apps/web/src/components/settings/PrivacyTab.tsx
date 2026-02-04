@@ -5,6 +5,8 @@ import {
   AlertCircle,
   Download,
   ExternalLink,
+  FileText,
+  Mail,
   Shield,
   Trash2,
 } from 'lucide-react';
@@ -117,33 +119,38 @@ export function PrivacyTab() {
 
       {/* Legal Documents */}
       <div className="space-y-3 rounded-lg border border-border p-4">
-        <h3 className="font-semibold">Legal Documents</h3>
-        <div className="space-y-2">
-          <a
-            href="https://docs.babylon.market/legal/privacy-policy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Privacy Policy
-          </a>
-          <a
-            href="https://docs.babylon.market/legal/terms-of-service"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Terms of Service
-          </a>
+        <div className="flex items-start gap-3">
+          <FileText className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <div className="flex-1">
+            <h3 className="font-semibold">Legal Documents</h3>
+            <div className="mt-1 space-y-2">
+              <a
+                href="https://docs.babylon.market/legal/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Privacy Policy
+              </a>
+              <a
+                href="https://docs.babylon.market/legal/terms-of-service"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Terms of Service
+              </a>
+            </div>
+            {user?.tosAcceptedAt && (
+              <p className="mt-2 text-muted-foreground text-xs">
+                You accepted the Terms of Service on{' '}
+                {new Date(user.tosAcceptedAt).toLocaleDateString()}
+              </p>
+            )}
+          </div>
         </div>
-        {user?.tosAcceptedAt && (
-          <p className="text-muted-foreground text-xs">
-            You accepted the Terms of Service on{' '}
-            {new Date(user.tosAcceptedAt).toLocaleDateString()}
-          </p>
-        )}
       </div>
 
       {/* Data Export (GDPR Right to Access) */}
@@ -295,22 +302,27 @@ export function PrivacyTab() {
       </div>
 
       {/* Contact Information */}
-      <div className="space-y-2 rounded-lg border border-border p-4">
-        <h3 className="font-semibold">Privacy Questions?</h3>
-        <p className="text-muted-foreground text-sm">
-          For privacy-related inquiries, data subject requests, or to exercise
-          your rights, contact us at:
-        </p>
-        <a
-          href="mailto:privacy@elizas.com"
-          className="text-[#0066FF] text-sm hover:underline"
-        >
-          privacy@elizas.com
-        </a>
-        <p className="mt-2 text-muted-foreground text-xs">
-          We will respond to verified requests within 30 days (45 days for
-          complex requests) as required by GDPR and CCPA.
-        </p>
+      <div className="space-y-3 rounded-lg border border-border p-4">
+        <div className="flex items-start gap-3">
+          <Mail className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <div className="flex-1">
+            <h3 className="font-semibold">Privacy Questions?</h3>
+            <p className="mt-1 text-muted-foreground text-sm">
+              For privacy-related inquiries, data subject requests, or to
+              exercise your rights, contact us at:
+            </p>
+            <a
+              href="mailto:privacy@elizas.com"
+              className="text-[#0066FF] text-sm hover:underline"
+            >
+              privacy@elizas.com
+            </a>
+            <p className="mt-2 text-muted-foreground text-xs">
+              We will respond to verified requests within 30 days (45 days for
+              complex requests) as required by GDPR and CCPA.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -38,8 +38,8 @@ export function ChatViewHeader({
   onLeaveChat,
 }: ChatViewHeaderProps) {
   return (
-    <div className="bg-background px-4 py-4">
-      <div className="flex items-center gap-3">
+    <div className="overflow-hidden bg-background px-4 py-4">
+      <div className="flex min-w-0 items-center gap-3">
         {showBackButton && (
           <button
             onClick={onBack}
@@ -73,21 +73,23 @@ export function ChatViewHeader({
         )}
 
         {/* Chat name and status */}
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
             {chatDetails.chat.isGroup ? (
-              <h3 className="font-bold text-foreground text-lg">
+              <h3 className="truncate font-bold text-foreground text-lg">
                 {chatDetails.chat.name || 'Chat'}
               </h3>
             ) : chatDetails.chat.otherUser ? (
               <Link
                 href={getProfilePath(chatDetails.chat.otherUser)}
-                className="font-bold text-foreground text-lg transition-colors hover:text-primary"
+                className="truncate font-bold text-foreground text-lg transition-colors hover:text-primary"
               >
                 {chatDetails.chat.otherUser.displayName || 'Chat'}
               </Link>
             ) : (
-              <h3 className="font-bold text-foreground text-lg">Chat</h3>
+              <h3 className="truncate font-bold text-foreground text-lg">
+                Chat
+              </h3>
             )}
 
             {/* SSE status */}

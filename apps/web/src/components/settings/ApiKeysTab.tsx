@@ -246,7 +246,7 @@ export function ApiKeysTab() {
       )}
 
       {/* Generate New Key */}
-      <div className="rounded-lg border border-border bg-muted/50 p-4">
+      <div className="rounded-lg border border-border p-4">
         <h3 className="mb-3 font-semibold">Generate New API Key</h3>
         <div className="flex gap-2">
           <input

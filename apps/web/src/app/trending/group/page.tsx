@@ -137,7 +137,7 @@ export default function GroupedTrendingPage() {
     <PageContainer noPadding className="flex w-full flex-col">
       <div className="relative flex min-h-screen flex-1">
         {/* Desktop: Content area */}
-        <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+        <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
             <div className="px-6 py-4">
