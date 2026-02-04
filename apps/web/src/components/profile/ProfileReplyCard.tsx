@@ -1,13 +1,13 @@
 'use client';
 
-import { cn, getProfileUrl } from '@babylon/shared';
-import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, Repeat2 } from 'lucide-react';
+import { getProfileUrl } from '@babylon/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
-import { LikeButton } from '@/components/interactions/LikeButton';
+import { CommentInteractionBar } from '@/components/interactions/CommentInteractionBar';
+import { InteractionBar } from '@/components/interactions/InteractionBar';
+import { formatTimeAgo } from '@/components/posts/CommentPreview';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
 import {
@@ -45,6 +45,9 @@ export interface ProfileReply {
     authorId: string;
     createdAt: string;
     author?: AuthorInfo | null;
+    likeCount?: number;
+    replyCount?: number;
+    isLiked?: boolean;
   } | null;
   // Original post
   post: {
@@ -53,6 +56,11 @@ export interface ProfileReply {
     authorId: string;
     timestamp: string;
     author?: AuthorInfo | null;
+    likeCount?: number;
+    commentCount?: number;
+    shareCount?: number;
+    isLiked?: boolean;
+    isShared?: boolean;
   };
 }
 
@@ -124,6 +132,56 @@ export function ProfileReplyCard({
     ? `/comment/${reply.parentComment?.id}`
     : `/post/${reply.post.id}`;
 
+  const parentPostInteractions = useMemo(
+    () => ({
+      postId: reply.post.id,
+      likeCount: reply.post.likeCount ?? 0,
+      commentCount: reply.post.commentCount ?? 0,
+      shareCount: reply.post.shareCount ?? 0,
+      isLiked: reply.post.isLiked ?? false,
+      isShared: reply.post.isShared ?? false,
+    }),
+    [
+      reply.post.commentCount,
+      reply.post.id,
+      reply.post.isLiked,
+      reply.post.isShared,
+      reply.post.likeCount,
+      reply.post.shareCount,
+    ]
+  );
+
+  const parentPostData = useMemo(
+    () => ({
+      id: reply.post.id,
+      content: reply.post.content,
+      authorId: reply.post.authorId,
+      authorName: parentAuthorName,
+      authorUsername: parentAuthorUsername,
+      authorProfileImageUrl: parentAuthorProfileImageUrl,
+      timestamp: reply.post.timestamp,
+      likeCount: reply.post.likeCount,
+      commentCount: reply.post.commentCount,
+      shareCount: reply.post.shareCount,
+      isLiked: reply.post.isLiked,
+      isShared: reply.post.isShared,
+    }),
+    [
+      parentAuthorName,
+      parentAuthorProfileImageUrl,
+      parentAuthorUsername,
+      reply.post.authorId,
+      reply.post.commentCount,
+      reply.post.content,
+      reply.post.id,
+      reply.post.isLiked,
+      reply.post.isShared,
+      reply.post.likeCount,
+      reply.post.shareCount,
+      reply.post.timestamp,
+    ]
+  );
+
   const handleTagClick = (tag: string) => {
     if (tag.startsWith('@')) {
       const username = tag.slice(1);
@@ -145,60 +203,78 @@ export function ProfileReplyCard({
       {/* Parent Content - what they replied to (post or comment) */}
       <div className="relative">
         {/* Connector line - from parent avatar down to reply */}
-        <div className="absolute top-10 bottom-0 left-[1.625rem] w-0.5 bg-border sm:left-[1.875rem]" />
+        <div className="absolute top-10 bottom-0 left-[2.1875rem] w-0.5 bg-border sm:left-[2.6875rem]" />
 
         <div
           className="flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6"
           onClick={() => router.push(parentNavigateUrl)}
         >
           {/* Parent Author Avatar */}
-          <Link
-            href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
-            className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Avatar
-              id={parentAuthorId}
-              name={parentAuthorName}
-              size="sm"
-              imageUrl={parentAuthorProfileImageUrl || undefined}
-            />
-          </Link>
+          <div className="flex flex-col items-center">
+            <Link
+              href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
+              className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Avatar
+                id={parentAuthorId}
+                name={parentAuthorName}
+                size="md"
+                src={parentAuthorProfileImageUrl || undefined}
+              />
+            </Link>
+          </div>
 
           {/* Parent Content */}
           <div className="min-w-0 flex-1">
             {/* Header */}
-            <div className="mb-1 flex items-center gap-2">
-              <Link
-                href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
-                className="truncate font-semibold text-sm hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {parentAuthorName}
-              </Link>
-              {parentAuthorIsNPC && (
-                <VerifiedBadge size="sm" className="-ml-1" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1">
+                <Link
+                  href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
+                  className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {parentAuthorName}
+                </Link>
+                {parentAuthorIsNPC && <VerifiedBadge size="sm" />}
+                {parentAuthorUsername && (
+                  <span className="truncate text-[15px] text-muted-foreground">
+                    @{parentAuthorUsername}
+                  </span>
+                )}
+              </div>
+              {parentTimestamp && (
+                <span className="shrink-0 text-muted-foreground text-xs">
+                  {formatTimeAgo(parentTimestamp)}
+                </span>
               )}
-              <Link
-                href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
-                className="truncate text-muted-foreground text-xs hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                @{parentAuthorUsername || parentAuthorName}
-              </Link>
-              <span className="text-muted-foreground text-xs">·</span>
-              <span className="text-muted-foreground text-xs">
-                {parentTimestamp &&
-                  formatDistanceToNow(new Date(parentTimestamp), {
-                    addSuffix: true,
-                  })}
-              </span>
             </div>
 
             {/* Parent Content - truncated */}
-            <p className="line-clamp-3 text-foreground text-sm">
+            <p className="mt-0.5 line-clamp-3 text-foreground text-sm leading-relaxed">
               <TaggedText text={parentContent} onTagClick={handleTagClick} />
             </p>
+
+            {/* Parent Interaction Bar */}
+            {isReplyToComment ? (
+              <CommentInteractionBar
+                commentId={reply.parentComment!.id}
+                likeCount={reply.parentComment?.likeCount}
+                isLiked={reply.parentComment?.isLiked}
+                replyCount={reply.parentComment?.replyCount}
+                onReplyClick={() =>
+                  router.push(`/comment/${reply.parentComment!.id}`)
+                }
+              />
+            ) : (
+              <InteractionBar
+                postId={reply.post.id}
+                initialInteractions={parentPostInteractions}
+                onCommentClick={() => router.push(`/post/${reply.post.id}`)}
+                postData={parentPostData}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -209,99 +285,58 @@ export function ProfileReplyCard({
         onClick={() => router.push(`/comment/${reply.id}`)}
       >
         {/* Reply Author Avatar */}
-        <Link
-          href={getProfileUrl(authorId, authorUsername)}
-          className="shrink-0 transition-opacity hover:opacity-80"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Avatar
-            id={authorId}
-            name={authorName}
-            size="sm"
-            imageUrl={authorProfileImageUrl || undefined}
-          />
-        </Link>
+        <div className="flex flex-col items-center">
+          <Link
+            href={getProfileUrl(authorId, authorUsername)}
+            className="shrink-0 transition-opacity hover:opacity-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Avatar
+              id={authorId}
+              name={authorName}
+              size="md"
+              src={authorProfileImageUrl || undefined}
+            />
+          </Link>
+        </div>
 
         {/* Reply Content */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1 flex items-center gap-2">
-            <Link
-              href={getProfileUrl(authorId, authorUsername)}
-              className="truncate font-semibold text-sm hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {authorName}
-            </Link>
-            {replyAuthorIsNPC && <VerifiedBadge size="sm" className="-ml-1" />}
-            <Link
-              href={getProfileUrl(authorId, authorUsername)}
-              className="truncate text-muted-foreground text-xs hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{authorUsername || authorName}
-            </Link>
-            <span className="text-muted-foreground text-xs">·</span>
-            <span className="text-muted-foreground text-xs">
-              {formatDistanceToNow(new Date(reply.createdAt), {
-                addSuffix: true,
-              })}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1">
+              <Link
+                href={getProfileUrl(authorId, authorUsername)}
+                className="truncate font-semibold text-[15px] text-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {authorName}
+              </Link>
+              {replyAuthorIsNPC && <VerifiedBadge size="sm" />}
+              {authorUsername && (
+                <span className="truncate text-[15px] text-muted-foreground">
+                  @{authorUsername}
+                </span>
+              )}
+            </div>
+            <span className="shrink-0 text-muted-foreground text-xs">
+              {formatTimeAgo(reply.createdAt)}
             </span>
           </div>
 
           {/* Reply Content */}
-          <p className="mb-2 whitespace-pre-wrap break-words text-foreground text-sm">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground text-sm leading-relaxed">
             <TaggedText text={reply.content} onTagClick={handleTagClick} />
           </p>
 
           {/* Action Buttons */}
-          <div
-            className="mt-2 flex w-full items-center justify-between gap-6 text-muted-foreground"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Reply button */}
-            <button
-              type="button"
-              onClick={() => setIsReplying(!isReplying)}
-              className={cn(
-                'flex flex-1 items-center gap-1',
-                'bg-transparent transition-all duration-200 hover:opacity-70',
-                'cursor-pointer text-muted-foreground text-xs',
-                isReplying && 'text-[#0066FF]'
-              )}
-            >
-              <MessageCircle size={18} />
-              {replyCount > 0 && (
-                <span className="font-medium tabular-nums">{replyCount}</span>
-              )}
-            </button>
-
-            {/* Repost button (placeholder) */}
-            <div className="flex-1">
-              <button
-                type="button"
-                disabled
-                className="flex cursor-default items-center gap-1 text-muted-foreground/40 text-xs"
-              >
-                <Repeat2 size={18} />
-              </button>
-            </div>
-
-            {/* Like button */}
-            <div className="flex-1">
-              <LikeButton
-                targetId={reply.id}
-                targetType="comment"
-                initialLiked={reply.isLiked}
-                initialCount={reply.likeCount}
-                size="sm"
-                showCount
-              />
-            </div>
-
-            {/* Empty spacer to match 4-column layout */}
-            <div className="flex-1" />
-          </div>
+          <CommentInteractionBar
+            commentId={reply.id}
+            likeCount={reply.likeCount}
+            isLiked={reply.isLiked}
+            replyCount={replyCount}
+            onReplyClick={() => setIsReplying(!isReplying)}
+          />
 
           {/* Inline reply input */}
           {isReplying && (
