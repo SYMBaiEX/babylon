@@ -18,7 +18,6 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 import { useWalletFunding } from '@/hooks/useWalletFunding';
-import { getAuthToken } from '@/lib/auth';
 import { getExplorerTxUrl } from '@/lib/chain';
 import { isStripeEnabled } from '@/lib/stripe';
 
@@ -86,7 +85,7 @@ export function BuyPointsModal({
   onClose,
   onSuccess,
 }: BuyPointsModalProps) {
-  const { user, smartWalletAddress, smartWalletReady } = useAuth();
+  const { user, embeddedWalletAddress, embeddedWalletReady } = useAuth();
   const { getAccessToken } = usePrivy();
   const { sendPointsPayment } = useBuyPointsTx();
   const { ensureFunds } = useWalletFunding();
@@ -103,7 +102,7 @@ export function BuyPointsModal({
   const stripeAvailable = isStripeEnabled();
 
   // Determine available payment methods
-  const canUseCrypto = !!smartWalletAddress;
+  const canUseCrypto = !!embeddedWalletAddress;
   const canUseStripe = stripeAvailable;
   const hasAnyPaymentMethod = canUseCrypto || canUseStripe;
 
@@ -112,7 +111,7 @@ export function BuyPointsModal({
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => {
     // Default to Stripe if available and user has no wallet, otherwise crypto
-    if (stripeAvailable && !smartWalletAddress) {
+    if (stripeAvailable && !embeddedWalletAddress) {
       return 'stripe';
     }
     return 'crypto';
@@ -139,16 +138,16 @@ export function BuyPointsModal({
   // AbortController for canceling async operations
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Ref to track smartWalletReady state for use in async callbacks (avoids stale closure)
-  const smartWalletReadyRef = useRef(smartWalletReady);
+  // Ref to track embeddedWalletReady state for use in async callbacks (avoids stale closure)
+  const embeddedWalletReadyRef = useRef(embeddedWalletReady);
 
   // Ref to track if component is mounted
   const isMountedRef = useRef(true);
 
-  // Keep ref updated when smartWalletReady changes
+  // Keep ref updated when embeddedWalletReady changes
   useEffect(() => {
-    smartWalletReadyRef.current = smartWalletReady;
-  }, [smartWalletReady]);
+    embeddedWalletReadyRef.current = embeddedWalletReady;
+  }, [embeddedWalletReady]);
 
   // Track mounted state
   useEffect(() => {
@@ -229,7 +228,7 @@ export function BuyPointsModal({
   const pointsAmount = Math.floor(amountNum * 100);
 
   /**
-   * Waits for the smart wallet to be ready with proper interval-based polling.
+   * Waits for the embedded wallet to be ready with proper interval-based polling.
    * Uses refs to avoid stale closure issues and supports cancellation.
    */
   const waitForWalletReady = (signal: AbortSignal): Promise<boolean> => {
@@ -241,7 +240,7 @@ export function BuyPointsModal({
       }
 
       // If already ready, resolve immediately
-      if (smartWalletReadyRef.current) {
+      if (embeddedWalletReadyRef.current) {
         resolve(true);
         return;
       }
@@ -259,7 +258,7 @@ export function BuyPointsModal({
         }
 
         // Check if wallet is ready
-        if (smartWalletReadyRef.current) {
+        if (embeddedWalletReadyRef.current) {
           clearInterval(intervalId);
           resolve(true);
           return;
@@ -361,7 +360,7 @@ export function BuyPointsModal({
   };
 
   const handleCreatePayment = async () => {
-    if (!user || !smartWalletAddress) {
+    if (!user || !embeddedWalletAddress) {
       toast.error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       return;
     }
@@ -380,8 +379,8 @@ export function BuyPointsModal({
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    // Check if smart wallet is ready, if not wait for initialization
-    if (!smartWalletReady) {
+    // Check if embedded wallet is ready, if not wait for initialization
+    if (!embeddedWalletReady) {
       setWalletInitializing(true);
       toast.info('Initializing wallet...');
 
@@ -437,7 +436,7 @@ export function BuyPointsModal({
         },
         body: JSON.stringify({
           amountUSD: amountNum,
-          fromAddress: smartWalletAddress,
+          fromAddress: embeddedWalletAddress,
         }),
         signal,
       });
@@ -507,7 +506,7 @@ export function BuyPointsModal({
     setStep('payment');
 
     // Use ref for consistent check (avoids stale closure)
-    if (!smartWalletReadyRef.current || !smartWalletAddress) {
+    if (!embeddedWalletReadyRef.current || !embeddedWalletAddress) {
       const errorMessage = WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET;
       logger.error('Payment failed', { error: errorMessage }, 'BuyPointsModal');
       setError(errorMessage);
@@ -521,7 +520,7 @@ export function BuyPointsModal({
       const requiredAmountWei = BigInt(paymentRequest.amount);
 
       // Use shared hook with abort signal
-      await ensureFunds(smartWalletAddress, requiredAmountWei, { signal });
+      await ensureFunds(embeddedWalletAddress, requiredAmountWei, { signal });
 
       // Check if operation was cancelled after funding
       if (signal.aborted || !isMountedRef.current) {
@@ -572,7 +571,7 @@ export function BuyPointsModal({
       return;
     }
 
-    const token = getAuthToken();
+    const token = await getAccessToken();
     if (!token) {
       logger.error('Authentication required', undefined, 'BuyPointsModal');
       setError('Authentication required');
@@ -803,7 +802,7 @@ export function BuyPointsModal({
                     <div className="text-amber-700 text-xs dark:text-amber-300">
                       <p className="mb-1 font-medium">Wallet not connected</p>
                       <p>
-                        {smartWalletReady
+                        {embeddedWalletReady
                           ? 'No wallet found. Please connect a wallet to pay with crypto.'
                           : 'Your wallet is still initializing. Please wait a moment or switch to card payment.'}
                       </p>

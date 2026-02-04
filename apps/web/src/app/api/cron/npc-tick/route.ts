@@ -38,6 +38,7 @@ import {
   getRecentlyMentionedActorIds,
   getTrendingPromptContext,
   isActiveHour,
+  NPC_DIVERSITY_CONFIG,
   NPC_ENGAGEMENT_CONFIG,
   NPC_TICK_CONFIG,
   NPCInvestmentManager,
@@ -54,6 +55,40 @@ import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { ensureEngineServices } from '@/lib/engine/ensure-engine-services';
+
+// =============================================================================
+// TIMESTAMP STAGGERING (Organic pacing)
+// =============================================================================
+
+/**
+ * Creates a timestamp staggering function for organic action distribution.
+ * Inspired by organization-tick implementation.
+ *
+ * Posts/actions created within a tick get timestamps spread across the
+ * configured window, so they appear gradually in the feed rather than all at once.
+ *
+ * STAGGERING CONVENTION:
+ * - Engagement (likes/shares/comments): Staggered INTERNALLY by processNPCSocialEngagements
+ *   Pass the original `now` timestamp - the service handles its own staggering.
+ *
+ * - Discourse (quotes/replies): Staggered via getTimestamp option passed to
+ *   generateNPCRepliesFromPreviousTicks. The caller provides a staggerer function
+ *   that is called per-action inside the service.
+ *
+ * This separation exists because:
+ * - Engagement uses `now` for both window calculations AND action timestamps
+ * - Discourse needs separate base timestamp (for 2-hour lookback) vs action timestamps
+ *
+ * @param baseTime Base timestamp (start of tick)
+ * @returns Function that generates staggered timestamps, each call returns a unique time
+ */
+function createTimestampStaggerer(baseTime: Date): () => Date {
+  const staggerWindowMs = NPC_DIVERSITY_CONFIG.timestampStaggerMs;
+  return () => {
+    const randomOffset = Math.floor(secureRandom() * staggerWindowMs);
+    return new Date(baseTime.getTime() + randomOffset);
+  };
+}
 
 /** Game state shape for cache */
 interface GameState {
@@ -588,8 +623,10 @@ export async function POST(_req: NextRequest) {
         .trim();
 
       // Comment threads + lightweight engagement (likes/shares)
+      // Pass original `now` - processNPCSocialEngagements handles staggering internally
       npcSocialEngagementService.setLLMClient(llmClient);
       const engagementResult = await processNPCSocialEngagements({
+        now, // Original timestamp - service handles internal staggering
         currentDay: gameDay,
         promptContext: interactionPromptContext,
       });
@@ -609,14 +646,20 @@ export async function POST(_req: NextRequest) {
         role: a.role ?? null,
       }));
 
+      // Create timestamp staggerer for organic feed pacing
+      // Pass function reference so each discourse action gets its own staggered timestamp
+      const getStaggeredTimestamp = createTimestampStaggerer(now);
       discourseCreated = await generateNPCRepliesFromPreviousTicks(
         llmClient,
         discourseActors,
         interactionPromptContext,
-        now,
+        now, // Base timestamp for window calculations
         NPC_TICK_CONFIG.maxDiscourseReplies,
         gameDay,
-        { quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability }
+        {
+          quoteProbability: NPC_ENGAGEMENT_CONFIG.discourseQuoteProbability,
+          getTimestamp: getStaggeredTimestamp, // Function called per-action
+        }
       );
 
       if (

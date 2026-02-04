@@ -1254,6 +1254,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return basePost;
   });
 
+  // NOTE: Author diversity is NOT applied at the API layer because it would break
+  // cursor-based pagination. Post-query reordering cannot be reconciled with
+  // timestamp-based cursors without causing duplicates across pages.
+  // Feed diversity is instead handled at generation time via:
+  // - Stratified action deck (quote/reply ratio with no-consecutive constraint)
+  // - Timestamp staggering (posts spread across 5-minute windows)
+  // - Action diversity tracker (prevents consecutive same action types)
+
   logger.info(
     'Formatted posts',
     {
@@ -1264,21 +1272,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     'GET /api/posts'
   );
 
-  // Next.js 16: Add cache headers for real-time feeds
-  // Use 'no-store' to ensure fresh data for real-time updates
-  // This prevents stale data in client-side caches
-  logger.info(
-    'Returning formatted posts',
-    {
-      postCount: formattedPosts.length,
-      total: formattedPosts.length,
-      limit,
-      cursor,
-    },
-    'GET /api/posts'
-  );
-
-  // Calculate next cursor (timestamp of last post)
+  // Calculate next cursor (timestamp of last post for keyset pagination)
   const nextCursor =
     formattedPosts.length > 0
       ? formattedPosts[formattedPosts.length - 1]?.timestamp
@@ -1288,8 +1282,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     success: true,
     posts: formattedPosts,
     limit,
-    cursor: nextCursor, // Next cursor for pagination
-    hasMore: formattedPosts.length === limit, // Has more if we got a full page
+    cursor: nextCursor,
+    hasMore: formattedPosts.length === limit,
   });
 
   // PERFORMANCE FIX: Use short cache with stale-while-revalidate for high-traffic endpoint

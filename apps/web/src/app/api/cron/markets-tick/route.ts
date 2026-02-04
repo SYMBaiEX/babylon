@@ -160,10 +160,8 @@ const SYSTEM_MARKET_FEES = {
 /**
  * Market structure configuration - maintains exactly 10 active markets
  * with staggered timeframes for constant activity.
- *
- * Exported for testing purposes.
  */
-export const MARKET_STRUCTURE: Record<
+const MARKET_STRUCTURE: Record<
   string,
   { count: number; durationMs: number; label: string }
 > = {

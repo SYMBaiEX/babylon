@@ -20,15 +20,15 @@ interface SoldeerPackage {
 const PACKAGES: SoldeerPackage[] = [
   {
     name: 'forge-std',
-    version: '1.9.4',
-    folderName: 'forge-std-1.9.4',
-    url: 'https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_4_25-10-2024_14:36:59_forge-std-1.9.zip',
+    version: '1.9.7',
+    folderName: 'forge-std-1.9.7',
+    url: 'https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_7_28-04-2025_15:55:08_forge-std-1.9.zip',
   },
   {
     name: '@openzeppelin-contracts',
-    version: '5.2.0',
-    folderName: '@openzeppelin-contracts-5.2.0',
-    url: 'https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_2_0_11-01-2025_09:30:20_contracts.zip',
+    version: '5.4.0',
+    folderName: '@openzeppelin-contracts-5.4.0',
+    url: 'https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_4_0_19-07-2025_08:59:41_contracts.zip',
   },
 ];
 

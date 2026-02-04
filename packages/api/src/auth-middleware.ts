@@ -34,7 +34,8 @@ let privyClient: PrivyClient | null = null;
 
 export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
-    const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    const privyAppId =
+      process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     const privyAppSecret = process.env.PRIVY_APP_SECRET;
 
     if (!privyAppId || !privyAppSecret) {

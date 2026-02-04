@@ -42,8 +42,8 @@ cp ../env.example ../.env
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--image <image>` | Docker image | `revlentless/babylon-training:0.2.0` |
-| `--env-file <path>` | Environment file | `../deploy/.env` |
+| `--image <image>` | Docker image | `revlentless/babylon-training:latest` |
+| `--env-file <path>` | Environment file | `deploy/.env` (relative to training root) |
 | `--profile <profile>` | GPU profile | `12gb` |
 | `--steps <n>` | Training steps | `100` |
 | `--interactive, -i` | Start bash shell | - |
@@ -56,7 +56,7 @@ cp ../env.example ../.env
 | `24gb` | RTX 3090/4090 | 24GB | Qwen2.5-1.5B |
 | `l40` | L40S | 48GB | Qwen2.5-7B |
 | `a100` | A100 | 80GB | Qwen2.5-14B |
-| `h100` | H100 | 80GB | Qwen3-30B |
+| `h100` | H100 | 80GB | Qwen2.5-14B |
 
 ## Environment Variables
 
@@ -76,8 +76,69 @@ The script automatically mounts:
 
 | Host Path | Container Path | Purpose |
 |-----------|----------------|---------|
-| `../../trained_models` | `/app/trained_models` | Model checkpoints |
+| `../../trained_models` | `/app/python/trained_models` | Model checkpoints |
 | `../../logs` | `/app/logs` | Training logs |
+
+## Post-Training Actions
+
+### Push Model to HuggingFace
+
+Set these environment variables before training:
+
+```bash
+export HF_PUSH_REPO=elizaos/ishtar-qwen2.5-3b-grpo-v0.1
+export HF_MODEL_CODENAME=ishtar
+export HF_TOKEN=your-hf-token
+
+./run.sh --profile 24gb --steps 1000
+# Model will be pushed to HuggingFace after training completes
+```
+
+### Run Benchmark
+
+After training, run benchmarks in a containerized environment:
+
+```bash
+# Quick benchmark with trained model (base-model must match training!)
+./benchmark.sh --model gilgamesh-local-001 --base-model Qwen/Qwen2.5-0.5B-Instruct
+
+# Benchmark specific checkpoint
+./benchmark.sh --model step_500 --base-model Qwen/Qwen2.5-0.5B-Instruct
+
+# Specific scenario
+./benchmark.sh --model gilgamesh-local-001 --scenario bear-market
+
+# Full benchmark (22-day scenarios)
+./benchmark.sh --model gilgamesh-local-001 --full
+
+# Interactive shell for debugging
+./benchmark.sh --interactive
+```
+
+Benchmark results are saved to `../../benchmark-results/`.
+
+## Benchmark Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--image <image>` | Docker image | `revlentless/babylon-benchmark:latest` |
+| `--model <name>` | Model in trained_models/ | `final_model` |
+| `--base-model <name>` | Base model for vLLM (must match training!) | `Qwen/Qwen2.5-0.5B-Instruct` |
+| `--hf-model <id>` | HuggingFace model to benchmark | - |
+| `--scenario <id>` | Specific scenario | all |
+| `--quick` | Quick mode (7-day scenarios) | default |
+| `--full` | Full mode (22-day scenarios) | - |
+| `--output <dir>` | Results directory | `../../benchmark-results` |
+| `--interactive, -i` | Interactive shell | - |
+
+### Available Scenarios
+
+| Scenario | Description |
+|----------|-------------|
+| `bull-market` | Strong upward price trend |
+| `bear-market` | Downward trend with volatility |
+| `scandal-unfolds` | FUD event causes price drop |
+| `pump-and-dump` | Pump followed by crash |
 
 ## Troubleshooting
 

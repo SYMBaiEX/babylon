@@ -23,9 +23,10 @@
         train-l40-8gpu train-a100-4gpu train-h100-4gpu \
         train-online bridge-server generate-data venv lint test clean \
         docker-base docker-training docker-push docker-all \
-        local-train local-shell \
+        local-train local-shell local-benchmark local-benchmark-quick \
         runpod-train runpod-list runpod-stop \
-        hf-export-dataset hf-push-model
+        hf-export-dataset hf-push-model \
+        benchmark benchmark-quick benchmark-scenario ab-test ab-test-quick
 
 # Default target
 all: test
@@ -125,9 +126,17 @@ help:
 	@echo "  make hf-export-dataset   Export trajectories to HuggingFace dataset"
 	@echo "  make hf-push-model       Push trained model to HuggingFace Hub"
 	@echo ""
-	@echo "$(GREEN)A/B Testing & Evaluation:$(RESET)"
-	@echo "  make ab-test        Run A/B test (MODEL_A vs MODEL_B)"
-	@echo "  make ab-test-quick  Quick A/B test with trained model"
+	@echo "$(GREEN)Benchmarking (Docker):$(RESET)"
+	@echo "  make local-benchmark       Run benchmark in Docker container"
+	@echo "  make local-benchmark-quick Quick Docker benchmark (7-day scenarios)"
+	@echo "  Options: BENCHMARK_MODEL=step_500 SCENARIO=bear-market"
+	@echo ""
+	@echo "$(GREEN)Benchmarking (Native):$(RESET)"
+	@echo "  make benchmark           Run native benchmark (requires bun)"
+	@echo "  make benchmark-quick     Quick native benchmark"
+	@echo "  make benchmark-scenario  Run single scenario (SCENARIO=bear-market)"
+	@echo "  make ab-test             Run A/B test (MODEL_A vs MODEL_B)"
+	@echo "  make ab-test-quick       Quick A/B test with trained model"
 	@echo ""
 	@echo "$(GREEN)Development:$(RESET)"
 	@echo "  make venv           Create/update Python virtual environment"
@@ -471,8 +480,48 @@ train-cloud-online: db-up db-migrate bridge-check
 		$(if $(WANDB_ENTITY),--wandb-entity $(WANDB_ENTITY),)
 
 #---------------------------------------------------------------------------
-# A/B Testing & Evaluation
+# Benchmarking & Evaluation
 #---------------------------------------------------------------------------
+
+# Default benchmark settings
+BENCHMARK_MODEL ?= final_model
+BENCHMARK_OUTPUT ?= ./benchmark-results
+SCENARIO ?= 
+
+# Docker-based benchmark (recommended)
+local-benchmark:
+	@echo "$(CYAN)Running Docker benchmark...$(RESET)"
+	cd $(LOCAL_DIR) && ./benchmark.sh --model $(BENCHMARK_MODEL) $(if $(SCENARIO),--scenario $(SCENARIO),)
+
+local-benchmark-quick:
+	@echo "$(CYAN)Running quick Docker benchmark...$(RESET)"
+	cd $(LOCAL_DIR) && ./benchmark.sh --model $(BENCHMARK_MODEL) --quick $(if $(SCENARIO),--scenario $(SCENARIO),)
+
+# Native benchmark (requires full monorepo setup with bun)
+benchmark:
+	@echo "$(CYAN)Running native benchmark suite...$(RESET)"
+	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
+		--model packages/training/trained_models/$(BENCHMARK_MODEL) \
+		--output packages/training/$(BENCHMARK_OUTPUT) \
+		$(if $(SCENARIO),--scenario $(SCENARIO),)
+	@echo "$(GREEN)✓ Benchmark complete$(RESET)"
+
+benchmark-quick:
+	@echo "$(CYAN)Running quick native benchmark...$(RESET)"
+	cd ../.. && bun run packages/training/scripts/run-benchmark-suite.ts \
+		--model packages/training/trained_models/$(BENCHMARK_MODEL) \
+		--output packages/training/$(BENCHMARK_OUTPUT) \
+		--quick \
+		$(if $(SCENARIO),--scenario $(SCENARIO),)
+	@echo "$(GREEN)✓ Quick benchmark complete$(RESET)"
+
+benchmark-scenario:
+	@if [ -z "$(SCENARIO)" ]; then \
+		echo "$(YELLOW)Usage: make benchmark-scenario SCENARIO=bear-market$(RESET)"; \
+		echo "Valid scenarios: bull-market, bear-market, scandal-unfolds, pump-and-dump"; \
+		exit 1; \
+	fi
+	$(MAKE) benchmark SCENARIO=$(SCENARIO)
 
 # Run A/B test comparing trained model against baseline
 ab-test:

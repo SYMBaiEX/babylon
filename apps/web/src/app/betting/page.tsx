@@ -4,7 +4,7 @@
  * On-Chain Betting Page
  *
  * Real betting with Base Sepolia ETH
- * Transactions execute on blockchain via smart wallet
+ * Transactions execute on-chain via embedded wallet (server-sponsored gas)
  */
 
 import { getContractAddresses } from '@babylon/contracts';
@@ -24,7 +24,6 @@ import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnChainBetting } from '@/hooks/useOnChainBetting';
-import { useSmartWallet } from '@/hooks/useSmartWallet';
 import { usePerpMarkets } from '@/stores/perpMarketsStore';
 import {
   type PredictionMarket,
@@ -33,8 +32,8 @@ import {
 
 export default function OnChainBettingPage() {
   const router = useRouter();
-  const { authenticated, login } = useAuth();
-  const { smartWalletReady, smartWalletAddress } = useSmartWallet();
+  const { authenticated, login, embeddedWalletReady, embeddedWalletAddress } =
+    useAuth();
   const { buyShares, loading: txLoading } = useOnChainBetting();
 
   // Use shared stores
@@ -77,6 +76,11 @@ export default function OnChainBettingPage() {
       return;
     }
 
+    if (!embeddedWalletReady || !embeddedWalletAddress) {
+      toast.error('Wallet not ready');
+      return;
+    }
+
     const result = await buyShares(
       selectedMarket.id.toString(),
       betSide,
@@ -104,7 +108,7 @@ export default function OnChainBettingPage() {
         side: betSide.toLowerCase(),
         numShares: shares,
         txHash: result.txHash,
-        walletAddress: smartWalletAddress,
+        walletAddress: embeddedWalletAddress,
       }),
     });
 
@@ -143,7 +147,7 @@ export default function OnChainBettingPage() {
     );
   }
 
-  if (!smartWalletReady) {
+  if (!embeddedWalletReady) {
     return (
       <PageContainer>
         <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 p-4 md:p-6">
@@ -196,12 +200,12 @@ export default function OnChainBettingPage() {
           <div className="mt-2 flex items-center gap-2 text-sm">
             <Wallet className="h-4 w-4 text-green-600" />
             <span className="font-medium text-green-600">
-              Connected: {smartWalletAddress?.slice(0, 6)}...
-              {smartWalletAddress?.slice(-4)}
+              Connected: {embeddedWalletAddress?.slice(0, 6)}...
+              {embeddedWalletAddress?.slice(-4)}
             </span>
             {explorerUrl && (
               <a
-                href={`${explorerUrl}/address/${smartWalletAddress}`}
+                href={`${explorerUrl}/address/${embeddedWalletAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-[#0066FF] hover:underline"
@@ -399,8 +403,8 @@ export default function OnChainBettingPage() {
 
               <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
                 <p className="text-xs text-yellow-600">
-                  ⚠️ This is a real on-chain transaction. Gas fees apply.
-                  Transaction will be visible on Base Sepolia block explorer.
+                  ⚠️ This is a real on-chain transaction. Gas is sponsored, but
+                  transactions are visible on the Base Sepolia block explorer.
                 </p>
               </div>
 
@@ -424,10 +428,10 @@ export default function OnChainBettingPage() {
                 </button>
               </div>
 
-              {smartWalletAddress && (
+              {embeddedWalletAddress && (
                 <div className="text-center text-muted-foreground text-xs">
-                  Using wallet: {smartWalletAddress.slice(0, 6)}...
-                  {smartWalletAddress.slice(-4)}
+                  Using wallet: {embeddedWalletAddress.slice(0, 6)}...
+                  {embeddedWalletAddress.slice(-4)}
                 </div>
               )}
             </div>

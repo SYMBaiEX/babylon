@@ -41,6 +41,10 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { getPrivyClient } from '../auth-middleware';
+import {
+  type PrivyUserWalletsLite,
+  pickEmbeddedEvmWallet,
+} from './privy/user-wallets';
 
 // ============================================================================
 // Types
@@ -149,17 +153,7 @@ const TRANSFER_EVENT_SIGNATURE =
 // Helper Functions
 // ============================================================================
 
-type PrivyWalletAccountLite = {
-  type?: string | null;
-  address?: string | null;
-};
-
-type PrivyUserWalletsLite = {
-  smartWallet?: { address?: string | null } | null;
-  wallet?: PrivyWalletAccountLite | null;
-  linkedAccounts?: PrivyWalletAccountLite[] | null;
-  linked_accounts?: PrivyWalletAccountLite[] | null;
-};
+// PrivyUserWalletsLite is imported from ./privy/user-wallets
 
 function getChainConfig(chainId: number) {
   const config = CHAIN_CONFIG[chainId];
@@ -261,32 +255,28 @@ async function getDbUserForMint(dbUserId: string): Promise<{
   return { privyId: user.privyId, walletAddress: user.walletAddress };
 }
 
-function pickPrivySmartWalletAddress(privyUser: PrivyUserWalletsLite): string {
-  const direct = privyUser.smartWallet?.address?.toLowerCase() ?? null;
-  if (direct) return direct;
-
-  const accounts = [
-    ...(privyUser.linkedAccounts ?? []),
-    ...(privyUser.linked_accounts ?? []),
-  ];
-  const smartWallet = accounts.find((a) => a.type === 'smart_wallet');
-  const fromLinked = smartWallet?.address?.toLowerCase() ?? null;
-  if (fromLinked) return fromLinked;
+function pickPrivyEmbeddedWalletAddress(
+  privyUser: PrivyUserWalletsLite
+): string {
+  const embedded = pickEmbeddedEvmWallet(privyUser);
+  if (embedded) return embedded.address.toLowerCase();
 
   throw new ValidationError(
-    'Smart wallet not ready',
+    'Embedded wallet not ready',
     ['walletAddress'],
     [
       {
         field: 'walletAddress',
         message:
-          'Smart wallet address not available. Please re-login and try again.',
+          'Embedded wallet address not available. Please re-login and try again.',
       },
     ]
   );
 }
 
-async function resolveUserSmartWalletAddress(userId: string): Promise<Address> {
+async function resolveUserEmbeddedWalletAddress(
+  userId: string
+): Promise<Address> {
   const { privyId, walletAddress } = await getDbUserForMint(userId);
 
   if (isPrivyConfigured()) {
@@ -295,10 +285,10 @@ async function resolveUserSmartWalletAddress(userId: string): Promise<Address> {
       const privyUser = (await privyClient.getUser(
         privyId
       )) as PrivyUserWalletsLite;
-      const address = pickPrivySmartWalletAddress(privyUser);
+      const address = pickPrivyEmbeddedWalletAddress(privyUser);
       if (!isAddress(address)) {
         throw new ValidationError(
-          'Invalid smart wallet address',
+          'Invalid embedded wallet address',
           ['walletAddress'],
           [{ field: 'walletAddress', message: 'Invalid Ethereum address' }]
         );
@@ -319,13 +309,13 @@ async function resolveUserSmartWalletAddress(userId: string): Promise<Address> {
   }
 
   throw new ValidationError(
-    'Smart wallet not ready',
+    'Embedded wallet not ready',
     ['walletAddress'],
     [
       {
         field: 'walletAddress',
         message:
-          'Smart wallet address not available. Please re-login and try again.',
+          'Embedded wallet address not available. Please re-login and try again.',
       },
     ]
   );
@@ -480,8 +470,8 @@ export async function prepareMint(userId: string): Promise<PrepareResult> {
     );
   }
 
-  // Resolve user's smart wallet address from Privy (multi-chain safe).
-  const walletAddress = await resolveUserSmartWalletAddress(userId);
+  // Resolve user's embedded wallet address from Privy (multi-chain safe).
+  const walletAddress = await resolveUserEmbeddedWalletAddress(userId);
 
   // Generate nonce and deadline (1 hour from now)
   const nonce = generateNonce();
@@ -563,15 +553,15 @@ export async function confirmMint(
   const normalizedContract = contractAddress.toLowerCase() as Address;
 
   // Verify wallet belongs to the authenticated user via Privy (do not rely on DB).
-  const expectedSmartWallet = await resolveUserSmartWalletAddress(userId);
-  if (expectedSmartWallet.toLowerCase() !== normalizedWallet.toLowerCase()) {
+  const expectedEmbeddedWallet = await resolveUserEmbeddedWalletAddress(userId);
+  if (expectedEmbeddedWallet.toLowerCase() !== normalizedWallet.toLowerCase()) {
     throw new ValidationError(
       'Wallet mismatch',
       ['walletAddress'],
       [
         {
           field: 'walletAddress',
-          message: 'Wallet does not match authenticated user smart wallet',
+          message: 'Wallet does not match authenticated user embedded wallet',
         },
       ]
     );

@@ -29,22 +29,14 @@ bun run benchmark --scenario bear-market --model ./trained_models/step_100
 
 ## Success Criteria
 
-### Bull Market
-
-- **Trader**: Achieve positive P&L (basic competence)
-- **Degen**: Complete 4+ trades with acceptable risk/reward
-
 ### Bear Market
-
 - **Trader**: Lose < 50% of baseline loss (capital protection)
 - **Degen**: Complete 8+ trades (stays active)
 
 ### Scandal Unfolds
-
 - **Scammer**: Extract > $200 alpha (exploits hidden info)
 - **Trader**: Limit losses to < 30% (recognizes danger)
 
 ### Pump and Dump
-
 - **Trader**: Don't lose money (skepticism)
 - **Scammer**: Extract > $150 alpha (profits from scheme)

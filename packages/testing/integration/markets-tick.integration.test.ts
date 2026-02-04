@@ -20,6 +20,11 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
+import { NextRequest } from 'next/server';
+import type {
+  GET as MarketsTickGet,
+  POST as MarketsTickPost,
+} from '@/app/api/cron/markets-tick/route';
 
 // Set test environment first (before any imports)
 process.env.NODE_ENV = 'test';
@@ -582,16 +587,11 @@ describe('Idempotency Check Logic', () => {
 
 describe('POST Handler Integration', () => {
   // Import the POST handler dynamically to ensure mocks are applied
-  // Using 'any' type as the route handlers use NextRequest/NextResponse
-  // which are not compatible with the base Request/Response types
-  // biome-ignore lint/suspicious/noExplicitAny: NextRequest/NextResponse type mismatch
-  let POST: (request: any) => Promise<any>;
-  // biome-ignore lint/suspicious/noExplicitAny: NextRequest/NextResponse type mismatch
-  let GET: (request: any) => Promise<any>;
+  let POST: typeof MarketsTickPost;
+  let GET: typeof MarketsTickGet;
 
   beforeAll(async () => {
     // Dynamic import after mocks are set up
-    // Using @/app/* path alias defined in tsconfig.json
     const routeModule = await import('@/app/api/cron/markets-tick/route');
     POST = routeModule.POST;
     GET = routeModule.GET;
@@ -604,7 +604,7 @@ describe('POST Handler Integration', () => {
     }
 
     // Create a request with valid cron authorization header
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -625,7 +625,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -639,7 +639,10 @@ describe('POST Handler Integration', () => {
     if (!data.skipped) {
       expect(data).toHaveProperty('metrics');
       if (data.metrics) {
-        expect(typeof data.metrics.totalMs).toBe('number');
+        expect(typeof data.metrics.getActiveMarketsMs).toBe('number');
+        expect(typeof data.metrics.resolutionMs).toBe('number');
+        expect(typeof data.metrics.creationMs).toBe('number');
+        expect(typeof data.metrics.subMarketCreationMs).toBe('number');
       }
     }
   });
@@ -650,7 +653,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -662,8 +665,7 @@ describe('POST Handler Integration', () => {
 
     // Response should always include some timing information
     // Either in metrics.totalMs or as durationMs for skipped responses
-    const hasTiming =
-      data.metrics?.totalMs !== undefined || data.durationMs !== undefined;
+    const hasTiming = data.durationMs !== undefined;
     expect(hasTiming || data.skipped).toBe(true);
   });
 
@@ -677,15 +679,21 @@ describe('POST Handler Integration', () => {
       Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
     };
 
-    const getRequest = new Request('http://localhost/api/cron/markets-tick', {
-      method: 'GET',
-      headers,
-    });
+    const getRequest = new NextRequest(
+      'http://localhost/api/cron/markets-tick',
+      {
+        method: 'GET',
+        headers,
+      }
+    );
 
-    const postRequest = new Request('http://localhost/api/cron/markets-tick', {
-      method: 'POST',
-      headers,
-    });
+    const postRequest = new NextRequest(
+      'http://localhost/api/cron/markets-tick',
+      {
+        method: 'POST',
+        headers,
+      }
+    );
 
     const getResponse = await GET(getRequest);
     const postResponse = await POST(postRequest);
@@ -707,7 +715,7 @@ describe('POST Handler Integration', () => {
 
     // This test relies on the game state in the database
     // If there's no running game, the response should indicate skipped
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -731,7 +739,7 @@ describe('POST Handler Integration', () => {
       return;
     }
 
-    const request = new Request('http://localhost/api/cron/markets-tick', {
+    const request = new NextRequest('http://localhost/api/cron/markets-tick', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET || 'test-secret'}`,
@@ -746,9 +754,16 @@ describe('POST Handler Integration', () => {
     // If execution completed (not skipped), verify metrics structure
     if (!data.skipped && data.metrics) {
       // Check for expected metric fields
-      expect(data.metrics).toHaveProperty('totalMs');
-      expect(typeof data.metrics.totalMs).toBe('number');
-      expect(data.metrics.totalMs).toBeGreaterThanOrEqual(0);
+      expect(typeof data.metrics.getActiveMarketsMs).toBe('number');
+      expect(typeof data.metrics.resolutionMs).toBe('number');
+      expect(typeof data.metrics.creationMs).toBe('number');
+      expect(typeof data.metrics.subMarketCreationMs).toBe('number');
+    }
+
+    // Check for top-level durationMs (present in all responses, skipped or not)
+    if (!data.skipped) {
+      expect(typeof data.durationMs).toBe('number');
+      expect(data.durationMs).toBeGreaterThanOrEqual(0);
     }
   });
 });
