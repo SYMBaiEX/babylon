@@ -185,6 +185,12 @@ export class DailyLoginService {
     if (!userId || typeof userId !== 'string') {
       throw new Error('Invalid userId: must be a non-empty string');
     }
+    // Accept both Snowflake IDs and Privy DIDs (did:privy:...)
+    // Some users may have Privy IDs as their database ID
+    // Check Privy DID first since isValidSnowflakeId throws on non-numeric strings
+    if (userId.startsWith('did:privy:')) {
+      return; // Valid Privy DID format
+    }
     if (!isValidSnowflakeId(userId)) {
       throw new Error(`Invalid userId format: ${userId}`);
     }
@@ -263,7 +269,14 @@ export class DailyLoginService {
 
   static async claimDailyReward(userId: string): Promise<ClaimResult> {
     // Validate userId format before querying
-    if (!userId || typeof userId !== 'string' || !isValidSnowflakeId(userId)) {
+    // Accept both Snowflake IDs and Privy DIDs (did:privy:...)
+    // Check Privy DID first since isValidSnowflakeId throws on non-numeric strings
+    if (!userId || typeof userId !== 'string') {
+      return buildClaimResult({ streak: 0, error: 'Invalid userId format' });
+    }
+    const isPrivyDid = userId.startsWith('did:privy:');
+    const isSnowflake = !isPrivyDid && isValidSnowflakeId(userId);
+    if (!isPrivyDid && !isSnowflake) {
       return buildClaimResult({ streak: 0, error: 'Invalid userId format' });
     }
 
