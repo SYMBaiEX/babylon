@@ -488,7 +488,7 @@ export default function RewardsPage() {
                 <h2 className="font-bold text-base text-foreground">
                   Referral Link
                 </h2>
-                <span className="text-muted-foreground text-xs">
+                <span className="ml-auto text-muted-foreground text-xs">
                   +{POINTS.REFERRAL_SIGNUP} points per signup (max 10/week)
                 </span>
               </div>
