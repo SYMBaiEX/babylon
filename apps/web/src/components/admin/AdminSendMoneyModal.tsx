@@ -6,7 +6,7 @@ import {
   logger,
   WALLET_ERROR_MESSAGES,
 } from '@babylon/shared';
-import { usePrivy } from '@privy-io/react-auth';
+import { useSendTransaction } from '@privy-io/react-auth';
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,7 +17,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
-import { sendSponsoredEthTransferAction } from '@/app/_actions/onchain';
 import { useAuth } from '@/hooks/useAuth';
 import { useWalletFunding } from '@/hooks/useWalletFunding';
 
@@ -89,9 +88,10 @@ export function AdminSendMoneyModal({
   recipientWalletAddress,
   onSuccess,
 }: AdminSendMoneyModalProps) {
-  const { getAccessToken } = usePrivy();
-  const { embeddedWalletAddress, embeddedWalletReady } = useAuth();
+  const { embeddedWalletAddress, embeddedWalletReady, getAccessToken } =
+    useAuth();
   const { ensureFunds } = useWalletFunding();
+  const { sendTransaction } = useSendTransaction();
 
   const [amountUSD, setAmountUSD] = useState('10');
   const [reason, setReason] = useState('');
@@ -364,20 +364,6 @@ export function AdminSendMoneyModal({
     }
 
     try {
-      const token = await getAccessToken();
-      if (!token) {
-        logger.error(
-          'Authentication required',
-          undefined,
-          'AdminSendMoneyModal'
-        );
-        setError('Authentication required');
-        setStep('error');
-        toast.error('Failed to send payment');
-        setLoading(false);
-        return;
-      }
-
       const requiredAmountWei = BigInt(paymentReq.amount);
 
       // Use shared hook with abort signal
@@ -389,11 +375,17 @@ export function AdminSendMoneyModal({
         return;
       }
 
-      const { txHash: hash } = await sendSponsoredEthTransferAction({
-        to: paymentReq.to as Address,
-        amountWei: requiredAmountWei.toString(),
-        userJwt: token,
-      });
+      // Use Privy's client-side sendTransaction with gas sponsorship
+      const result = await sendTransaction(
+        {
+          to: paymentReq.to as Address,
+          value: requiredAmountWei,
+        },
+        {
+          sponsor: true, // Privy covers gas fees
+        }
+      );
+      const hash = result.hash;
 
       // Check if cancelled after payment
       if (signal.aborted || !isMountedRef.current) {
