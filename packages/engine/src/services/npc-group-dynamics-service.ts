@@ -1452,11 +1452,16 @@ Return your response as XML:
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // Get all group chats
+    // Only NPC-managed group chats participate in NPC kick dynamics
     const groupList = await db
-      .select()
+      .select({
+        id: chats.id,
+        name: chats.name,
+        groupId: chats.groupId,
+      })
       .from(chats)
-      .where(eq(chats.isGroup, true));
+      .innerJoin(groups, eq(chats.groupId, groups.id))
+      .where(and(eq(chats.isGroup, true), eq(groups.type, 'npc')));
 
     for (const group of groupList) {
       // Get participants for this group
