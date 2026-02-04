@@ -184,6 +184,8 @@ export function TradeCard({ trade }: TradeCardProps) {
     return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
   };
 
+  const timestamp = formatTime(trade.timestamp);
+
   const handleAssetClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -211,7 +213,7 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
-              timestamp={formatTime(trade.timestamp)}
+              timestamp={timestamp}
             />
           )}
           {trade.type === 'npc' && (
@@ -219,7 +221,7 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
-              timestamp={formatTime(trade.timestamp)}
+              timestamp={timestamp}
             />
           )}
           {trade.type === 'position' && (
@@ -227,7 +229,7 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
-              timestamp={formatTime(trade.timestamp)}
+              timestamp={timestamp}
             />
           )}
           {trade.type === 'perp' && (
@@ -235,14 +237,14 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
-              timestamp={formatTime(trade.timestamp)}
+              timestamp={timestamp}
             />
           )}
           {trade.type === 'transfer' && (
             <TransferTradeContent
               trade={trade}
               router={router}
-              timestamp={formatTime(trade.timestamp)}
+              timestamp={timestamp}
             />
           )}
         </div>

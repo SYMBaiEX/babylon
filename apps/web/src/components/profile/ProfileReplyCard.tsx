@@ -3,7 +3,7 @@
 import { getProfileUrl } from '@babylon/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { CommentInteractionBar } from '@/components/interactions/CommentInteractionBar';
 import { InteractionBar } from '@/components/interactions/InteractionBar';
@@ -132,6 +132,56 @@ export function ProfileReplyCard({
     ? `/comment/${reply.parentComment?.id}`
     : `/post/${reply.post.id}`;
 
+  const parentPostInteractions = useMemo(
+    () => ({
+      postId: reply.post.id,
+      likeCount: reply.post.likeCount ?? 0,
+      commentCount: reply.post.commentCount ?? 0,
+      shareCount: reply.post.shareCount ?? 0,
+      isLiked: reply.post.isLiked ?? false,
+      isShared: reply.post.isShared ?? false,
+    }),
+    [
+      reply.post.commentCount,
+      reply.post.id,
+      reply.post.isLiked,
+      reply.post.isShared,
+      reply.post.likeCount,
+      reply.post.shareCount,
+    ]
+  );
+
+  const parentPostData = useMemo(
+    () => ({
+      id: reply.post.id,
+      content: reply.post.content,
+      authorId: reply.post.authorId,
+      authorName: parentAuthorName,
+      authorUsername: parentAuthorUsername,
+      authorProfileImageUrl: parentAuthorProfileImageUrl,
+      timestamp: reply.post.timestamp,
+      likeCount: reply.post.likeCount,
+      commentCount: reply.post.commentCount,
+      shareCount: reply.post.shareCount,
+      isLiked: reply.post.isLiked,
+      isShared: reply.post.isShared,
+    }),
+    [
+      parentAuthorName,
+      parentAuthorProfileImageUrl,
+      parentAuthorUsername,
+      reply.post.authorId,
+      reply.post.commentCount,
+      reply.post.content,
+      reply.post.id,
+      reply.post.isLiked,
+      reply.post.isShared,
+      reply.post.likeCount,
+      reply.post.shareCount,
+      reply.post.timestamp,
+    ]
+  );
+
   const handleTagClick = (tag: string) => {
     if (tag.startsWith('@')) {
       const username = tag.slice(1);
@@ -220,29 +270,9 @@ export function ProfileReplyCard({
             ) : (
               <InteractionBar
                 postId={reply.post.id}
-                initialInteractions={{
-                  postId: reply.post.id,
-                  likeCount: reply.post.likeCount ?? 0,
-                  commentCount: reply.post.commentCount ?? 0,
-                  shareCount: reply.post.shareCount ?? 0,
-                  isLiked: reply.post.isLiked ?? false,
-                  isShared: reply.post.isShared ?? false,
-                }}
+                initialInteractions={parentPostInteractions}
                 onCommentClick={() => router.push(`/post/${reply.post.id}`)}
-                postData={{
-                  id: reply.post.id,
-                  content: reply.post.content,
-                  authorId: reply.post.authorId,
-                  authorName: parentAuthorName,
-                  authorUsername: parentAuthorUsername,
-                  authorProfileImageUrl: parentAuthorProfileImageUrl,
-                  timestamp: reply.post.timestamp,
-                  likeCount: reply.post.likeCount,
-                  commentCount: reply.post.commentCount,
-                  shareCount: reply.post.shareCount,
-                  isLiked: reply.post.isLiked,
-                  isShared: reply.post.isShared,
-                }}
+                postData={parentPostData}
               />
             )}
           </div>
