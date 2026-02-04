@@ -108,7 +108,7 @@ export function PrivacyTab() {
       {/* Header */}
       <div className="space-y-2">
         <h2 className="flex items-center gap-2 font-bold text-2xl">
-          <Shield className="h-6 w-6 text-[#0066FF]" />
+          <Shield className="h-6 w-6 text-primary" />
           Privacy & Data
         </h2>
         <p className="text-muted-foreground text-sm">
@@ -120,24 +120,24 @@ export function PrivacyTab() {
       {/* Legal Documents */}
       <div className="space-y-3 rounded-lg border border-border p-4">
         <div className="flex items-start gap-3">
-          <FileText className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <FileText className="mt-0.5 h-5 w-5 text-primary" />
           <div className="flex-1">
             <h3 className="font-semibold">Legal Documents</h3>
             <div className="mt-1 space-y-2">
               <a
-                href="https://docs.babylon.market/legal/privacy-policy"
+                href="https://docs.babylon.market/legal/privacy-policy/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+                className="flex items-center gap-2 text-primary text-sm hover:underline"
               >
                 <ExternalLink className="h-4 w-4" />
                 Privacy Policy
               </a>
               <a
-                href="https://docs.babylon.market/legal/terms-of-service"
+                href="https://docs.babylon.market/legal/terms-of-service/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-[#0066FF] text-sm hover:underline"
+                className="flex items-center gap-2 text-primary text-sm hover:underline"
               >
                 <ExternalLink className="h-4 w-4" />
                 Terms of Service
@@ -156,7 +156,7 @@ export function PrivacyTab() {
       {/* Data Export (GDPR Right to Access) */}
       <div className="space-y-3 rounded-lg border border-border p-4">
         <div className="flex items-start gap-3">
-          <Download className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <Download className="mt-0.5 h-5 w-5 text-primary" />
           <div className="flex-1">
             <h3 className="font-semibold">Download Your Data</h3>
             <p className="mt-1 text-muted-foreground text-sm">
@@ -167,7 +167,7 @@ export function PrivacyTab() {
             <button
               onClick={handleExportData}
               disabled={isExporting}
-              className="mt-3 rounded-lg bg-[#0066FF] px-4 py-2 text-primary-foreground hover:bg-[#0066FF]/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isExporting ? 'Exporting...' : 'Export My Data'}
             </button>
@@ -304,7 +304,7 @@ export function PrivacyTab() {
       {/* Contact Information */}
       <div className="space-y-3 rounded-lg border border-border p-4">
         <div className="flex items-start gap-3">
-          <Mail className="mt-0.5 h-5 w-5 text-[#0066FF]" />
+          <Mail className="mt-0.5 h-5 w-5 text-primary" />
           <div className="flex-1">
             <h3 className="font-semibold">Privacy Questions?</h3>
             <p className="mt-1 text-muted-foreground text-sm">
@@ -313,7 +313,7 @@ export function PrivacyTab() {
             </p>
             <a
               href="mailto:privacy@elizas.com"
-              className="text-[#0066FF] text-sm hover:underline"
+              className="text-primary text-sm hover:underline"
             >
               privacy@elizas.com
             </a>
