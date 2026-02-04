@@ -144,11 +144,6 @@ export function ChatView({
           />
         )}
 
-        {/* Input Separator */}
-        <div className="px-4">
-          <Separator />
-        </div>
-
         {/* Message Input with mention support */}
         <MessageInput
           value={messageInput}

@@ -30,10 +30,32 @@ import { Avatar } from '@/components/shared/Avatar';
 import { PlayerStatsModal } from '@/components/shared/PlayerStatsModal';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
+import type {
+  EligibilityApiResponse,
+  EligibilityResponse,
+  NftAccessResponse,
+} from '@/types/nft';
 
 // Blog URL from environment with fallback
 const blogUrl =
   process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.babylon.market';
+
+function getAppBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+
+  if (typeof window === 'undefined') return 'https://play.babylon.market';
+
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname.endsWith('staging.babylon.market')) {
+    return 'https://play.staging.babylon.market';
+  }
+  if (hostname.endsWith('babylon.market')) {
+    return 'https://play.babylon.market';
+  }
+
+  return window.location.origin;
+}
 
 /**
  * Waitlist data structure containing user position and points information.
@@ -118,6 +140,11 @@ export function ComingSoon() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [waitlistData, setWaitlistData] = useState<WaitlistData | null>(null);
+  const [nftAccess, setNftAccess] = useState<{ hasAccess: boolean } | null>(
+    null
+  );
+  const [nftEligibility, setNftEligibility] =
+    useState<EligibilityResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLinkSocialModal, setShowLinkSocialModal] = useState(false);
@@ -1193,6 +1220,53 @@ export function ComingSoon() {
     login();
   };
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const run = async () => {
+      if (!authenticated || !dbUser?.id) return;
+
+      try {
+        const token = await getAccessToken();
+        if (!token || controller.signal.aborted) return;
+
+        const [eligibilityRes, accessRes] = await Promise.all([
+          fetch('/api/nft/eligibility', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+          fetch('/api/nft/access', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!controller.signal.aborted && eligibilityRes.ok) {
+          const json = (await eligibilityRes.json()) as EligibilityApiResponse;
+          setNftEligibility(json.data);
+        }
+
+        if (!controller.signal.aborted && accessRes.ok) {
+          const json = (await accessRes.json()) as NftAccessResponse;
+          setNftAccess({ hasAccess: json.data.hasAccess });
+        }
+      } catch {
+        // best-effort only (do not block waitlist UI)
+      }
+    };
+
+    void run();
+
+    return () => {
+      controller.abort();
+    };
+  }, [authenticated, dbUser?.id, getAccessToken]);
+
+  const appBaseUrl = getAppBaseUrl();
+  const canClaimNft =
+    nftEligibility?.eligible === true && nftEligibility.hasMinted === false;
+  const hasNft = Boolean(nftAccess?.hasAccess) && !canClaimNft;
+
   // Unauthenticated state - Show landing page
   if (!authenticated || !dbUser) {
     return (
@@ -2086,13 +2160,17 @@ export function ComingSoon() {
                   </h3>
                   <nav className="flex flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
                     <a
-                      href="#"
+                      href="https://docs.babylon.market/legal/privacy-policy/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                     >
                       Privacy Policy
                     </a>
                     <a
-                      href="#"
+                      href="https://docs.babylon.market/legal/terms-of-service/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                     >
                       Terms of Service
@@ -2216,81 +2294,93 @@ export function ComingSoon() {
                 </div>
               </div>
 
-              {/* Profile Dropdown */}
-              <div className="relative shrink-0" ref={profileDropdownRef}>
-                <button
-                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                  className="flex min-h-[48px] items-center gap-3 rounded-lg border border-border/50 bg-background/30 px-4 py-2 backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-background/40"
-                >
-                  {/* Avatar */}
-                  <Avatar
-                    id={dbUser.id}
-                    type="user"
-                    src={dbUser.profileImageUrl || undefined}
-                    alt={dbUser.displayName || dbUser.username || 'User'}
-                    size="sm"
-                  />
-
-                  {/* User Info - Hidden on mobile */}
-                  <div className="hidden min-w-0 text-left sm:block">
-                    <div className="truncate font-semibold text-foreground text-sm">
-                      {dbUser.displayName || dbUser.username || 'User'}
-                    </div>
-                    {dbUser.username && dbUser.displayName && (
-                      <div className="truncate text-muted-foreground text-xs">
-                        @{dbUser.username}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dropdown Icon */}
-                  <ChevronDown
-                    className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
-                      showProfileDropdown ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-
-                {/* Dropdown Menu */}
-                {showProfileDropdown && (
-                  <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border/50 bg-background shadow-xl backdrop-blur-sm">
-                    <div className="p-2">
-                      {/* Edit Profile */}
-                      <button
-                        onClick={() => {
-                          setShowProfileModal(true);
-                          setShowProfileDropdown(false);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
-                      >
-                        <User className="h-4 w-4 text-primary" />
-                        <div>
-                          <div className="font-medium text-foreground text-sm">
-                            Edit Profile
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            Update your information
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Divider */}
-                      <div className="my-1 border-border/50 border-t" />
-
-                      {/* Sign Out */}
-                      <button
-                        onClick={() => {
-                          logout();
-                          setShowProfileDropdown(false);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-red-500 transition-colors hover:bg-red-500/10"
-                      >
-                        <X className="h-4 w-4" />
-                        <div className="font-medium text-sm">Sign Out</div>
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {(canClaimNft || hasNft) && (
+                  <a
+                    href={`${appBaseUrl}${canClaimNft ? '/nft' : '/feed'}`}
+                    className="flex min-h-[48px] items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 font-semibold text-primary backdrop-blur-sm transition-all duration-200 hover:bg-primary/15"
+                  >
+                    <Wallet className="h-4 w-4" />
+                    {canClaimNft ? 'Claim your NFT' : 'Open the app'}
+                  </a>
                 )}
+
+                {/* Profile Dropdown */}
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                    className="flex min-h-[48px] items-center gap-3 rounded-lg border border-border/50 bg-background/30 px-4 py-2 backdrop-blur-sm transition-all duration-200 hover:border-primary/30 hover:bg-background/40"
+                  >
+                    {/* Avatar */}
+                    <Avatar
+                      id={dbUser.id}
+                      type="user"
+                      src={dbUser.profileImageUrl || undefined}
+                      alt={dbUser.displayName || dbUser.username || 'User'}
+                      size="sm"
+                    />
+
+                    {/* User Info - Hidden on mobile */}
+                    <div className="hidden min-w-0 text-left sm:block">
+                      <div className="truncate font-semibold text-foreground text-sm">
+                        {dbUser.displayName || dbUser.username || 'User'}
+                      </div>
+                      {dbUser.username && dbUser.displayName && (
+                        <div className="truncate text-muted-foreground text-xs">
+                          @{dbUser.username}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dropdown Icon */}
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                        showProfileDropdown ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {showProfileDropdown && (
+                    <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border/50 bg-background shadow-xl backdrop-blur-sm">
+                      <div className="p-2">
+                        {/* Edit Profile */}
+                        <button
+                          onClick={() => {
+                            setShowProfileModal(true);
+                            setShowProfileDropdown(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                        >
+                          <User className="h-4 w-4 text-primary" />
+                          <div>
+                            <div className="font-medium text-foreground text-sm">
+                              Edit Profile
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              Update your information
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Divider */}
+                        <div className="my-1 border-border/50 border-t" />
+
+                        {/* Sign Out */}
+                        <button
+                          onClick={() => {
+                            logout();
+                            setShowProfileDropdown(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-red-500 transition-colors hover:bg-red-500/10"
+                        >
+                          <X className="h-4 w-4" />
+                          <div className="font-medium text-sm">Sign Out</div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

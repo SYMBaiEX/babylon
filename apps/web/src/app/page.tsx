@@ -1,5 +1,8 @@
 import { isNftGatingEnabled } from '@babylon/shared';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { ComingSoon } from '@/components/shared/ComingSoon';
+import { isWaitlistHostname } from '@/lib/host-routing';
 import { HomePageClient } from './HomePageClient';
 
 type HomePageProps = {
@@ -7,6 +10,14 @@ type HomePageProps = {
 };
 
 export default async function HomePage({ searchParams }: HomePageProps) {
+  const hostHeader = (await headers()).get('host') ?? '';
+  const hostname = hostHeader.split(':')[0]?.toLowerCase() ?? '';
+  const isWaitlistHost = isWaitlistHostname(hostname);
+
+  if (isWaitlistHost) {
+    return <ComingSoon />;
+  }
+
   const nftGatingEnabled = isNftGatingEnabled();
 
   if (nftGatingEnabled) {

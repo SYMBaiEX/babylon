@@ -4,6 +4,8 @@ import { cn, getReferralUrl } from '@babylon/shared';
 import {
   Bell,
   Check,
+  ChevronsLeft,
+  ChevronsRight,
   Copy,
   Gift,
   LogOut,
@@ -23,7 +25,6 @@ import { Avatar } from '@/components/shared/Avatar';
 import { BabylonIcon } from '@/components/shared/icons/BabylonIcon';
 import { BabylonFullLogo } from '@/components/shared/icons/BabylonLogo';
 import { HouseIcon } from '@/components/shared/icons/HouseIcon';
-import { Separator } from '@/components/shared/Separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { getAuthToken } from '@/lib/auth';
@@ -38,6 +39,7 @@ import { getAuthToken } from '@/lib/auth';
  * @returns Sidebar content element
  */
 function SidebarContent() {
+  const [collapsed, setCollapsed] = useState(false);
   const [showMdMenu, setShowMdMenu] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -129,14 +131,12 @@ function SidebarContent() {
       name: 'Home',
       href: '/feed',
       icon: HouseIcon,
-      color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
-      color: '#0066FF',
       active: pathname === '/notifications',
       requiresAuth: true,
     },
@@ -144,21 +144,18 @@ function SidebarContent() {
       name: 'Leaderboard',
       href: '/leaderboard',
       icon: Trophy,
-      color: '#0066FF',
       active: pathname === '/leaderboard',
     },
     {
       name: 'Terminal',
       href: '/markets',
       icon: TrendingUp,
-      color: '#0066FF',
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#0066FF',
       active: pathname === '/chats',
       requiresAuth: true,
     },
@@ -166,15 +163,13 @@ function SidebarContent() {
       name: 'Agents',
       href: '/agents/team',
       icon: Users,
-      color: '#0066FF',
-      active: pathname === '/agents/team',
+      active: pathname === '/agents' || pathname.startsWith('/agents/'),
       requiresAuth: true,
     },
     {
       name: 'Rewards',
       href: '/rewards',
       icon: Gift,
-      color: '#0066FF',
       active: pathname === '/rewards',
       requiresAuth: true,
     },
@@ -182,7 +177,6 @@ function SidebarContent() {
       name: 'Profile',
       href: '/profile',
       icon: User,
-      color: '#0066FF',
       active: pathname === '/profile',
       requiresAuth: true,
     },
@@ -193,7 +187,6 @@ function SidebarContent() {
             name: 'Admin',
             href: '/admin',
             icon: Shield,
-            color: '#f97316',
             active: pathname === '/admin',
           },
         ]
@@ -208,21 +201,56 @@ function SidebarContent() {
           'sticky top-0 isolate z-40 hidden h-screen md:flex md:flex-col',
           'bg-sidebar',
           'transition-all duration-300',
-          'md:w-20 lg:w-64'
+          'md:w-20',
+          !collapsed && 'lg:w-64'
         )}
       >
-        {/* Header - Logo */}
-        <div className="flex items-center justify-center p-6 lg:justify-start lg:px-4">
+        {/* Header - Logo & Collapse Toggle */}
+        <div
+          className={cn(
+            'flex items-center justify-center p-6',
+            !collapsed && 'lg:justify-start lg:px-4'
+          )}
+        >
           <Link href="/feed" aria-label="Babylon home">
-            {/* Icon-only logo for md (tablet) */}
-            <BabylonIcon className="h-8 w-8 text-[#06f] lg:hidden" />
-            {/* Full logo with text for lg+ (desktop) */}
-            <BabylonFullLogo className="hidden h-8 w-auto text-[#06f] lg:block" />
+            {/* Icon-only logo for md (tablet) or collapsed */}
+            <BabylonIcon
+              className={cn(
+                'h-8 w-8 text-sidebar-primary',
+                !collapsed && 'lg:hidden'
+              )}
+            />
+            {/* Full logo with text for lg+ (desktop) when expanded */}
+            {!collapsed && (
+              <BabylonFullLogo className="hidden h-8 w-auto text-sidebar-primary lg:block" />
+            )}
           </Link>
+          {/* Collapse toggle - only visible on lg+ when expanded */}
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              className="ml-auto hidden items-center justify-center rounded-md p-1 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-black lg:flex dark:hover:text-white"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronsLeft className="h-6 w-6" />
+            </button>
+          )}
         </div>
+        {/* Expand toggle - only visible on lg+ when collapsed, styled like nav items */}
+        {collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="hidden w-full items-center justify-center px-4 py-3 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-black lg:flex dark:hover:text-white"
+            aria-label="Expand sidebar"
+          >
+            <ChevronsRight className="h-6 w-6" />
+          </button>
+        )}
 
-        {/* Navigation */}
-        <nav className="pointer-events-auto relative z-20 flex-1">
+        {/* Navigation - scrollable when screen is short */}
+        <nav className="pointer-events-auto relative z-20 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const hasNotificationBadge =
@@ -232,7 +260,7 @@ function SidebarContent() {
             const navContent = (
               <>
                 {/* Icon with notification indicator */}
-                <div className="relative lg:mr-3">
+                <div className={cn('relative', !collapsed && 'lg:mr-3')}>
                   <Icon
                     className={cn(
                       'h-6 w-6 flex-shrink-0',
@@ -250,7 +278,8 @@ function SidebarContent() {
                 {/* Label - hidden on tablet (md), shown on desktop (lg+) */}
                 <span
                   className={cn(
-                    'hidden lg:block',
+                    'hidden',
+                    !collapsed && 'lg:block',
                     'text-lg transition-colors duration-300',
                     item.active
                       ? 'font-semibold text-black dark:text-white'
@@ -265,7 +294,8 @@ function SidebarContent() {
             const sharedClassName = cn(
               'group pointer-events-auto relative z-10 flex items-center px-4 py-3',
               'transition-colors duration-200',
-              'md:justify-center lg:justify-start',
+              'md:justify-center',
+              !collapsed && 'lg:justify-start',
               'bg-transparent hover:bg-sidebar-accent'
             );
 
@@ -297,13 +327,8 @@ function SidebarContent() {
           })}
         </nav>
 
-        {/* Separator - only shown on desktop */}
-        <div className="hidden px-4 py-2 lg:block">
-          <Separator />
-        </div>
-
         {/* Bottom Section - Authentication (Desktop lg+) */}
-        <div className="hidden p-4 lg:block">
+        <div className={cn('hidden', !collapsed && 'lg:block')}>
           {!ready ? (
             // Skeleton loader while authentication is initializing
             <div className="flex animate-pulse items-center gap-3 p-3">
@@ -322,48 +347,45 @@ function SidebarContent() {
 
         {/* Bottom Section - User Icon (Tablet md) */}
         {authenticated && user && (
-          <div className="relative md:block lg:hidden" ref={mdMenuRef}>
-            <div className="flex justify-center p-4">
-              <button
-                onClick={() => setShowMdMenu(!showMdMenu)}
-                className="transition-opacity hover:opacity-80"
-                aria-label="Open user menu"
-              >
-                <Avatar
-                  id={user.id}
-                  name={user.displayName || user.email || 'User'}
-                  type="user"
-                  size="md"
-                  src={user.profileImageUrl || undefined}
-                  imageUrl={user.profileImageUrl || undefined}
-                />
-              </button>
-            </div>
+          <div
+            className={cn('relative md:block', !collapsed && 'lg:hidden')}
+            ref={mdMenuRef}
+          >
+            {/* User avatar button - styled like nav items */}
+            <button
+              onClick={() => setShowMdMenu(!showMdMenu)}
+              className="flex w-full items-center justify-center px-4 py-3 transition-colors duration-200 hover:bg-sidebar-accent"
+              aria-label="Open user menu"
+            >
+              <Avatar
+                id={user.id}
+                name={user.displayName || user.email || 'User'}
+                type="user"
+                size="sm"
+                src={user.profileImageUrl || undefined}
+                imageUrl={user.profileImageUrl || undefined}
+              />
+            </button>
 
-            {/* Dropdown Menu - Icon Only */}
+            {/* Dropdown Menu - styled like nav items */}
             {showMdMenu && (
-              <div className="-translate-x-1/2 absolute bottom-full left-1/2 z-50 mb-2 w-auto overflow-hidden rounded-lg border border-border bg-sidebar shadow-lg">
+              <div className="absolute bottom-full left-0 z-50 mb-2 w-full overflow-hidden bg-sidebar shadow-lg">
                 {/* Referral Code */}
                 {user.referralCode && (
                   <button
                     onClick={copyReferralCode}
-                    className="flex w-full items-center justify-center p-3 transition-colors hover:bg-sidebar-accent"
+                    className="flex w-full items-center justify-center px-4 py-3 transition-colors duration-200 hover:bg-sidebar-accent"
                     title={copiedReferral ? 'Copied!' : 'Copy Referral Link'}
                     aria-label={
                       copiedReferral ? 'Copied!' : 'Copy Referral Link'
                     }
                   >
                     {copiedReferral ? (
-                      <Check className="h-5 w-5 flex-shrink-0 text-green-500" />
+                      <Check className="h-6 w-6 flex-shrink-0 text-green-500" />
                     ) : (
-                      <Copy className="h-5 w-5 flex-shrink-0 text-sidebar-foreground" />
+                      <Copy className="h-6 w-6 flex-shrink-0 text-sidebar-foreground" />
                     )}
                   </button>
-                )}
-
-                {/* Separator */}
-                {user.referralCode && (
-                  <div className="border-border border-t" />
                 )}
 
                 {/* Logout */}
@@ -372,11 +394,11 @@ function SidebarContent() {
                     setShowMdMenu(false);
                     logout();
                   }}
-                  className="flex w-full items-center justify-center p-3 text-destructive transition-colors hover:bg-destructive/10"
+                  className="flex w-full items-center justify-center px-4 py-3 text-destructive transition-colors duration-200 hover:bg-sidebar-accent"
                   title="Logout"
                   aria-label="Logout"
                 >
-                  <LogOut className="h-5 w-5 flex-shrink-0" />
+                  <LogOut className="h-6 w-6 flex-shrink-0" />
                 </button>
               </div>
             )}

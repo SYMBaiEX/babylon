@@ -2,7 +2,6 @@
 
 import { logger, privyConfig } from '@babylon/shared';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
-import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import { Fragment, Suspense, useEffect, useRef, useState } from 'react';
@@ -15,7 +14,6 @@ import { SessionHeartbeatProvider } from '@/hooks/useSessionHeartbeat';
 import { FarcasterMiniAppProvider } from './FarcasterMiniAppProvider';
 import { GameGuideProvider } from './GameGuideProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
-import { OnboardingProvider } from './OnboardingProvider';
 import { PostHogProvider } from './PostHogProvider';
 import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
@@ -183,7 +181,7 @@ function ThemedPrivyProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PrivyProviderWrapper appId={privyConfig.appId} config={config}>
-      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      {children}
     </PrivyProviderWrapper>
   );
 }
@@ -300,21 +298,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         <ReferralCaptureProvider />
                       </Suspense>
                       {/* Onboarding provider for username setup */}
-                      <OnboardingProvider>
-                        {/* Session heartbeat for engagement metrics */}
-                        <SessionHeartbeatProvider>
-                          {/* Game guide provider for first-time tutorial */}
-                          <GameGuideProvider>
-                            <WidgetRefreshProvider>
-                              {mounted ? (
-                                <Fragment>{children}</Fragment>
-                              ) : (
-                                <div className="min-h-screen bg-sidebar" />
-                              )}
-                            </WidgetRefreshProvider>
-                          </GameGuideProvider>
-                        </SessionHeartbeatProvider>
-                      </OnboardingProvider>
+                      {/* <OnboardingProvider> */}
+                      {/* Session heartbeat for engagement metrics */}
+                      <SessionHeartbeatProvider>
+                      {/* Game guide provider for first-time tutorial */}
+                      <GameGuideProvider>
+                        <WidgetRefreshProvider>
+                          {mounted ? (
+                            <Fragment>{children}</Fragment>
+                          ) : (
+                            <div className="min-h-screen bg-sidebar" />
+                          )}
+                        </WidgetRefreshProvider>
+                      </GameGuideProvider>
+                      </SessionHeartbeatProvider>
+                      {/* </OnboardingProvider> */}
                     </FarcasterMiniAppProvider>
                   </ThemedPrivyProvider>
                 </QueryClientProvider>

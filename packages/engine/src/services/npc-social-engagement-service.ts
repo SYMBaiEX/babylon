@@ -10,11 +10,15 @@
 
 import { db } from '@babylon/db';
 import type { JsonValue } from '@babylon/shared';
-import { generateSnowflakeId, logger } from '@babylon/shared';
-import { NPC_ENGAGEMENT_CONFIG } from '../config/npc-activity';
+import { generateSnowflakeId, isPureRepost, logger } from '@babylon/shared';
+import {
+  NPC_DIVERSITY_CONFIG,
+  NPC_ENGAGEMENT_CONFIG,
+} from '../config/npc-activity';
 import type { LLMJsonClient } from '../llm/types';
 import { secureRandom } from '../utils/entropy';
 import { formatError } from '../utils/error-utils';
+import { ActionDiversityTracker } from '../utils/feed-diversity';
 import { shuffleArray } from '../utils/randomization';
 import {
   formatActorFinanceGuardrails,
@@ -152,7 +156,7 @@ export async function processNPCSocialEngagements(
   };
 
   try {
-    const now = options.now ?? new Date();
+    const baseNow = options.now ?? new Date();
     const currentDay = options.currentDay;
     const random = options.random ?? secureRandom;
     const skipActorProbability = options.skipActorProbability ?? 0.3;
@@ -168,8 +172,24 @@ export async function processNPCSocialEngagements(
     let topLevelCommentsCreated = 0;
     let replyCommentsCreated = 0;
 
+    // Initialize action diversity tracker (TikTok-style clustering prevention)
+    // Tracks recent actions and skips if too many consecutive same types
+    const diversityTracker = new ActionDiversityTracker(
+      NPC_DIVERSITY_CONFIG.maxRecentActions,
+      NPC_DIVERSITY_CONFIG.maxConsecutiveSameAction
+    );
+
+    // Timestamp staggering for organic feed pacing
+    // Each action gets a timestamp spread across the window
+    const STAGGER_WINDOW_MS = NPC_DIVERSITY_CONFIG.timestampStaggerMs;
+    const getStaggeredTimestamp = (): Date => {
+      const offset = Math.floor(random() * STAGGER_WINDOW_MS);
+      return new Date(baseNow.getTime() + offset);
+    };
+
     // Get recent posts (last 6 hours)
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    // Use baseNow for time window calculations, getStaggeredTimestamp() for action timestamps
+    const sixHoursAgo = new Date(baseNow.getTime() - 6 * 60 * 60 * 1000);
     const recentPostsRaw = await db.post.findMany({
       where: {
         deletedAt: null,
@@ -257,7 +277,7 @@ export async function processNPCSocialEngagements(
     // Add per-actor agenda fuel: positions + running bit (batch, no LLM calls)
     const [positionsByActorId, runningBitsByActorId] = await Promise.all([
       buildPositionsPromptContextByActorId(contextActorIds),
-      ensureRunningBits(contextActorIds, { now, currentDay }),
+      ensureRunningBits(contextActorIds, { now: baseNow, currentDay }),
     ]);
 
     const actorContextById = new Map<string, ActorContext>();
@@ -297,13 +317,19 @@ export async function processNPCSocialEngagements(
 
     // Get existing engagements
     const postIds = recentPosts.map((p) => p.id);
+    const shareTargetPostIds = new Set(postIds);
+    for (const post of recentPosts) {
+      if (isPureRepost(post)) {
+        shareTargetPostIds.add(post.originalPostId);
+      }
+    }
     const [existingReactions, existingShares] = await Promise.all([
       db.reaction.findMany({
         where: { postId: { in: postIds } },
         select: { postId: true, userId: true },
       }),
       db.share.findMany({
-        where: { postId: { in: postIds } },
+        where: { postId: { in: Array.from(shareTargetPostIds) } },
         select: { postId: true, userId: true },
       }),
     ]);
@@ -399,7 +425,7 @@ export async function processNPCSocialEngagements(
                   relatedQuestion: quotePost.relatedQuestion ?? null,
                   quoteOriginalPostId: quotePost.originalPostId ?? null,
                 },
-                timestamp: now,
+                timestamp: baseNow,
               },
             });
           } catch (_error) {
@@ -436,12 +462,19 @@ export async function processNPCSocialEngagements(
 
         const key = `${post.id}-${actor.id}`;
         const probs = calculateEngagementProbability(actor, post, random);
+        // If this is a pure repost, share the original instead of the repost itself
+        const shareTargetPostId = isPureRepost(post)
+          ? post.originalPostId
+          : post.id;
+        const shareKey = `${shareTargetPostId}-${actor.id}`;
 
         // LIKE
         // Skip if global likes quota reached (other actors may still process shares/comments)
+        // Skip if diversity tracker says too many consecutive likes
         if (
           !likesQuotaReached &&
           !reactionSet.has(key) &&
+          !diversityTracker.shouldSkipForDiversity('like') &&
           random() < probs.like
         ) {
           try {
@@ -455,6 +488,7 @@ export async function processNPCSocialEngagements(
             });
             result.likesCreated++;
             engagedActors.add(actor.id);
+            diversityTracker.recordAction('like');
           } catch (error) {
             // Likely a unique constraint race - ignore to keep engagement loop resilient
             logger.debug(
@@ -472,9 +506,11 @@ export async function processNPCSocialEngagements(
         }
 
         // SHARE (creates both a Share record AND a visible repost Post)
+        // Skip if diversity tracker says too many consecutive shares
         if (
-          !shareSet.has(key) &&
-          result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick
+          !shareSet.has(shareKey) &&
+          result.sharesCreated < NPC_ENGAGEMENT_CONFIG.maxSharesPerTick &&
+          !diversityTracker.shouldSkipForDiversity('share')
         ) {
           if (random() < probs.share) {
             try {
@@ -483,20 +519,21 @@ export async function processNPCSocialEngagements(
                 await tx.share.create({
                   data: {
                     id: await generateSnowflakeId(),
-                    postId: post.id,
+                    postId: shareTargetPostId,
                     userId: actor.id,
                   },
                 });
 
                 // Create visible repost Post (empty content = simple repost)
+                // Use staggered timestamp for organic feed pacing
                 const repostId = await generateSnowflakeId();
                 await tx.post.create({
                   data: {
                     id: repostId,
                     content: '',
                     authorId: actor.id,
-                    timestamp: now,
-                    originalPostId: post.id,
+                    timestamp: getStaggeredTimestamp(), // Staggered for organic feel
+                    originalPostId: shareTargetPostId,
                     type: 'repost', // Explicit type for query filtering
                   },
                 });
@@ -504,7 +541,8 @@ export async function processNPCSocialEngagements(
 
               result.sharesCreated++;
               engagedActors.add(actor.id);
-              shareSet.add(key); // Only mark on success - allows retry on failure
+              shareSet.add(shareKey); // Only mark on success - allows retry on failure
+              diversityTracker.recordAction('share');
             } catch (error) {
               // Unique constraint or other error - don't mark as processed, allows retry
               logger.debug(
@@ -522,9 +560,11 @@ export async function processNPCSocialEngagements(
         }
 
         // COMMENT - comments don't have unique constraints per-actor
+        // Skip if diversity tracker says too many consecutive comments
         if (
           npcSocialEngagementService.getLLMClient() &&
-          topLevelCommentsCreated < maxTopLevelCommentsPerTick
+          topLevelCommentsCreated < maxTopLevelCommentsPerTick &&
+          !diversityTracker.shouldSkipForDiversity('comment')
         ) {
           if (topLevelCommentSet.has(key)) {
             continue;
@@ -551,6 +591,7 @@ export async function processNPCSocialEngagements(
                 result.commentsCreated++;
                 engagedActors.add(actor.id);
                 topLevelCommentSet.add(key);
+                diversityTracker.recordAction('comment');
 
                 // Record this as a first-class NPC interaction for relationship evolution + continuity.
                 // Sentiment is a lightweight heuristic driven by existing relationship sentiment (if any).
@@ -571,7 +612,7 @@ export async function processNPCSocialEngagements(
                       commentId,
                       relatedQuestion: post.relatedQuestion ?? null,
                     },
-                    timestamp: now,
+                    timestamp: baseNow,
                   },
                 });
               } catch (commentError) {
@@ -737,7 +778,7 @@ export async function processNPCSocialEngagements(
                   parentCommentId: root.id,
                   relatedQuestion: post.relatedQuestion ?? null,
                 },
-                timestamp: now,
+                timestamp: baseNow,
               },
             });
 
@@ -748,7 +789,7 @@ export async function processNPCSocialEngagements(
               authorId: author.id,
               content: authorReply,
               parentCommentId: root.id,
-              createdAt: now,
+              createdAt: baseNow,
             };
             postComments.unshift(created);
             commentById.set(commentId, created);
@@ -821,7 +862,7 @@ export async function processNPCSocialEngagements(
                     parentCommentId: parent.id,
                     relatedQuestion: post.relatedQuestion ?? null,
                   },
-                  timestamp: now,
+                  timestamp: baseNow,
                 },
               });
 
@@ -831,7 +872,7 @@ export async function processNPCSocialEngagements(
                 authorId: speaker.id,
                 content: replyText,
                 parentCommentId: parent.id,
-                createdAt: now,
+                createdAt: baseNow,
               };
               postComments.unshift(createdReply);
               commentById.set(replyId, createdReply);
@@ -851,6 +892,18 @@ export async function processNPCSocialEngagements(
     }
 
     result.actorsEngaged = engagedActors.size;
+
+    // Log diversity distribution for debugging
+    const diversityDist = diversityTracker.getDistribution();
+    logger.debug(
+      'Social engagement diversity distribution',
+      {
+        distribution: diversityDist,
+        totalActions:
+          result.likesCreated + result.sharesCreated + result.commentsCreated,
+      },
+      'NPCSocialEngagement'
+    );
 
     if (
       result.likesCreated + result.sharesCreated + result.commentsCreated >

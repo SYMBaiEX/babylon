@@ -16,12 +16,6 @@ const sentryAuthTokenFromProcessEnv = process.env.SENTRY_AUTH_TOKEN;
 config({ path: path.join(monorepoRoot, '.env') });
 config({ path: path.join(monorepoRoot, '.env.local') });
 
-const waitlistFlag =
-  process.env.WAITLIST_MODE ?? process.env.NEXT_PUBLIC_WAITLIST_MODE ?? 'false';
-const waitlistEnabled = ['true', '1', 'yes', 'on'].includes(
-  waitlistFlag.toLowerCase()
-);
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Specify workspace root for monorepo
@@ -48,22 +42,6 @@ const nextConfig: NextConfig = {
   typescript: {
     // Ignore type errors during build - we run typecheck separately via turbo
     ignoreBuildErrors: true,
-  },
-  env: {
-    WAITLIST_MODE: process.env.WAITLIST_MODE ?? 'false',
-  },
-  async redirects() {
-    if (!waitlistEnabled) return [];
-
-    return [
-      {
-        // Redirect everything except root and static/API assets to home during waitlist
-        source:
-          '/:path((?!$|_next|api|assets|static|images|fonts|favicon\\.ico|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|\\.well-known|monitoring).*)',
-        destination: '/',
-        permanent: false,
-      },
-    ];
   },
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,

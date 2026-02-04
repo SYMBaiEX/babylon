@@ -162,6 +162,12 @@ export interface PnlTagData {
    */
   ownerName?: string;
 
+  /**
+   * Display name of the agent.
+   * Only populated for `agent-pnl` tags; undefined for `owner-pnl`.
+   */
+  agentName?: string;
+
   /** Current available balance (trading points) */
   balance: number;
 

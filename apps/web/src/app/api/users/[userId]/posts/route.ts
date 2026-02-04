@@ -155,7 +155,12 @@ export const GET = withErrorHandling(
       const userComments = await db
         .select()
         .from(comments)
-        .where(eq(comments.authorId, canonicalUserId))
+        .where(
+          and(
+            eq(comments.authorId, canonicalUserId),
+            isNull(comments.deletedAt)
+          )
+        )
         .orderBy(desc(comments.createdAt))
         .limit(100);
 
@@ -209,7 +214,12 @@ export const GET = withErrorHandling(
             createdAt: comments.createdAt,
           })
           .from(comments)
-          .where(inArray(comments.id, parentCommentIds));
+          .where(
+            and(
+              inArray(comments.id, parentCommentIds),
+              isNull(comments.deletedAt)
+            )
+          );
 
         parentCommentsMap = new Map(parentCommentsData.map((c) => [c.id, c]));
       }
@@ -240,7 +250,12 @@ export const GET = withErrorHandling(
           count: count(),
         })
         .from(comments)
-        .where(inArray(comments.parentCommentId, commentIds))
+        .where(
+          and(
+            inArray(comments.parentCommentId, commentIds),
+            isNull(comments.deletedAt)
+          )
+        )
         .groupBy(comments.parentCommentId);
 
       const replyCountsMap = new Map(
@@ -262,6 +277,165 @@ export const GET = withErrorHandling(
           );
         userLikesSet = new Set(
           userLikes
+            .map((l) => l.commentId)
+            .filter((id): id is string => id !== null)
+        );
+      }
+
+      // Fetch interaction counts for parent posts
+      const [postLikeCounts, postCommentCounts, postShareCounts] =
+        postIds.length > 0
+          ? await Promise.all([
+              db
+                .select({
+                  postId: reactions.postId,
+                  count: count(),
+                })
+                .from(reactions)
+                .where(
+                  and(
+                    inArray(reactions.postId, postIds),
+                    eq(reactions.type, 'like')
+                  )
+                )
+                .groupBy(reactions.postId),
+              db
+                .select({
+                  postId: comments.postId,
+                  count: count(),
+                })
+                .from(comments)
+                .where(
+                  and(
+                    inArray(comments.postId, postIds),
+                    isNull(comments.deletedAt)
+                  )
+                )
+                .groupBy(comments.postId),
+              db
+                .select({
+                  postId: shares.postId,
+                  count: count(),
+                })
+                .from(shares)
+                .where(inArray(shares.postId, postIds))
+                .groupBy(shares.postId),
+            ])
+          : [[], [], []];
+
+      const postLikeCountsMap = new Map(
+        postLikeCounts.map((r) => [r.postId, Number(r.count)])
+      );
+      const postCommentCountsMap = new Map(
+        postCommentCounts.map((r) => [r.postId, Number(r.count)])
+      );
+      const postShareCountsMap = new Map(
+        postShareCounts.map((r) => [r.postId, Number(r.count)])
+      );
+
+      // Fetch interaction counts for parent comments
+      let parentCommentLikeCountsMap = new Map<string, number>();
+      let parentCommentReplyCountsMap = new Map<string, number>();
+      if (parentCommentIds.length > 0) {
+        const [parentCommentLikeCounts, parentCommentReplyCounts] =
+          await Promise.all([
+            db
+              .select({
+                commentId: reactions.commentId,
+                count: count(),
+              })
+              .from(reactions)
+              .where(
+                and(
+                  inArray(reactions.commentId, parentCommentIds),
+                  eq(reactions.type, 'like')
+                )
+              )
+              .groupBy(reactions.commentId),
+            db
+              .select({
+                parentCommentId: comments.parentCommentId,
+                count: count(),
+              })
+              .from(comments)
+              .where(
+                and(
+                  inArray(comments.parentCommentId, parentCommentIds),
+                  isNull(comments.deletedAt)
+                )
+              )
+              .groupBy(comments.parentCommentId),
+          ]);
+
+        parentCommentLikeCountsMap = new Map(
+          parentCommentLikeCounts
+            .filter(
+              (r): r is typeof r & { commentId: string } => r.commentId !== null
+            )
+            .map((r) => [r.commentId, Number(r.count)])
+        );
+        parentCommentReplyCountsMap = new Map(
+          parentCommentReplyCounts
+            .filter(
+              (r): r is typeof r & { parentCommentId: string } =>
+                r.parentCommentId !== null
+            )
+            .map((r) => [r.parentCommentId, Number(r.count)])
+        );
+      }
+
+      // Fetch user's likes/shares on parent posts and parent comments
+      let userPostLikesSet = new Set<string>();
+      let userPostSharesSet = new Set<string>();
+      let userParentCommentLikesSet = new Set<string>();
+      if (user) {
+        const [userPostLikes, userPostShares, userParentCommentLikes] =
+          await Promise.all([
+            postIds.length > 0
+              ? db
+                  .select({ postId: reactions.postId })
+                  .from(reactions)
+                  .where(
+                    and(
+                      inArray(reactions.postId, postIds),
+                      eq(reactions.userId, user.userId),
+                      eq(reactions.type, 'like')
+                    )
+                  )
+              : Promise.resolve([] as Array<{ postId: string | null }>),
+            postIds.length > 0
+              ? db
+                  .select({ postId: shares.postId })
+                  .from(shares)
+                  .where(
+                    and(
+                      inArray(shares.postId, postIds),
+                      eq(shares.userId, user.userId)
+                    )
+                  )
+              : Promise.resolve([] as Array<{ postId: string }>),
+            parentCommentIds.length > 0
+              ? db
+                  .select({ commentId: reactions.commentId })
+                  .from(reactions)
+                  .where(
+                    and(
+                      inArray(reactions.commentId, parentCommentIds),
+                      eq(reactions.userId, user.userId),
+                      eq(reactions.type, 'like')
+                    )
+                  )
+              : Promise.resolve([] as Array<{ commentId: string | null }>),
+          ]);
+
+        userPostLikesSet = new Set(
+          userPostLikes
+            .map((l) => l.postId)
+            .filter((id): id is string => id !== null)
+        );
+        userPostSharesSet = new Set(userPostShares.map((s) => s.postId));
+        userParentCommentLikesSet = new Set(
+          userParentCommentLikes
             .map((l) => l.commentId)
             .filter((id): id is string => id !== null)
         );
@@ -363,6 +537,11 @@ export const GET = withErrorHandling(
                 authorId: parentComment.authorId,
                 createdAt: parentComment.createdAt.toISOString(),
                 author: getAuthorInfo(parentComment.authorId),
+                likeCount:
+                  parentCommentLikeCountsMap.get(parentComment.id) ?? 0,
+                replyCount:
+                  parentCommentReplyCountsMap.get(parentComment.id) ?? 0,
+                isLiked: userParentCommentLikesSet.has(parentComment.id),
               }
             : null,
           // Original post (always included for context)
@@ -373,6 +552,11 @@ export const GET = withErrorHandling(
                 authorId: post.authorId,
                 timestamp: post.timestamp.toISOString(),
                 author: getAuthorInfo(post.authorId),
+                likeCount: postLikeCountsMap.get(post.id) ?? 0,
+                commentCount: postCommentCountsMap.get(post.id) ?? 0,
+                shareCount: postShareCountsMap.get(post.id) ?? 0,
+                isLiked: userPostLikesSet.has(post.id),
+                isShared: userPostSharesSet.has(post.id),
               }
             : null,
         };
@@ -438,7 +622,7 @@ export const GET = withErrorHandling(
         count: count(),
       })
       .from(comments)
-      .where(inArray(comments.postId, postIds))
+      .where(and(inArray(comments.postId, postIds), isNull(comments.deletedAt)))
       .groupBy(comments.postId);
 
     const commentCountsMap = new Map(

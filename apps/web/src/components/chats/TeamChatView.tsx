@@ -207,12 +207,12 @@ export function TeamChatView({
       {!hideHeader && (
         <div className="shrink-0">
           <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               {/* Left sidebar toggle - desktop only */}
               {onToggleLeftSidebar && (
                 <button
                   onClick={onToggleLeftSidebar}
-                  className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+                  className="hidden shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
                   aria-label={
                     leftSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'
                   }
@@ -220,13 +220,13 @@ export function TeamChatView({
                   <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
                 </button>
               )}
-              <div>
-                <h2 className="font-semibold text-foreground text-lg">
+              <div className="min-w-0">
+                <h2 className="truncate font-semibold text-foreground text-lg">
                   {chatDetails.chat.name || 'Agents'}
                 </h2>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3">
               {/* Mobile members button */}
               {onShowMembers && (
                 <button
@@ -314,11 +314,6 @@ export function TeamChatView({
           <FeedbackMessages error={sendError} warning={null} success={false} />
         )}
 
-        {/* Input Separator */}
-        <div className={compact ? 'px-3' : 'px-4'}>
-          <Separator />
-        </div>
-
         {/* Message Input with @mention support */}
         <MessageInput
           value={messageInput}
@@ -327,7 +322,7 @@ export function TeamChatView({
           sending={sending}
           authenticated={authenticated}
           density={density}
-          placeholder="Ask the swarm...(Type @ to mention agents)"
+          placeholder="Message your team — @ to mention agents"
           mentionableMembers={agents}
         />
       </div>

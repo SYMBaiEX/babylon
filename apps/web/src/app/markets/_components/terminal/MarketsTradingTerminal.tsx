@@ -9,6 +9,7 @@ import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   ArrowUpDown,
   Check,
+  ChevronDown,
   Filter,
   Info,
   Maximize2,
@@ -505,7 +506,8 @@ export function MarketsTradingTerminal({
     parseSelected(searchParams)
   );
 
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
+  const marketDropdownRef = useRef<HTMLDivElement | null>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
   const [bottomTab, setBottomTab] = useState<BottomTab>('agent');
 
@@ -744,6 +746,34 @@ export function MarketsTradingTerminal({
     };
   }, [showMarketsMenu]);
 
+  // Click-outside + Escape handler for market dropdown overlay
+  useEffect(() => {
+    if (!marketDropdownOpen) return undefined;
+
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Ignore clicks on the dropdown trigger buttons to avoid close-then-reopen
+      if (target.closest?.('[data-market-dropdown-trigger]')) return;
+      if (
+        marketDropdownRef.current &&
+        !marketDropdownRef.current.contains(target)
+      ) {
+        setMarketDropdownOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMarketDropdownOpen(false);
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [marketDropdownOpen]);
+
   // One-way sync from URL → local UI state
   useEffect(() => {
     const nextFilter = parseFilter(searchParams);
@@ -890,6 +920,8 @@ export function MarketsTradingTerminal({
     if (!stillVisible) selectAndUpdateUrl(rows[0]?.key ?? null);
   }, [selected, rows, router, searchParams, filter]);
 
+  // Removed: auto-open dropdown — keep it closed by default
+
   const selectedPerp = useMemo(() => {
     if (!selected || selected.kind !== 'perp') return null;
     return (
@@ -1019,6 +1051,7 @@ export function MarketsTradingTerminal({
       next.delete('tabs');
       next.delete('side');
       router.replace(`/markets?${next.toString()}`, { scroll: false });
+      setMarketDropdownOpen(false);
       setIsMobileMarketListOpen(false);
     },
     [router, searchParams, filter]
@@ -1349,68 +1382,45 @@ export function MarketsTradingTerminal({
   const desktopTradesContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileTradesContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const terminalHeader = (
-    <div className="flex h-11 shrink-0 items-center justify-between border-white/5 border-b bg-background/40 px-3 backdrop-blur-md">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="truncate font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-          Terminal
-        </div>
-      </div>
-
-      <div className="ml-3 flex items-center gap-2 text-xs">
-        {!authenticated && (
-          <button
-            type="button"
-            onClick={login}
-            className="rounded bg-foreground px-3 py-1 font-semibold text-background"
-          >
-            Log in
-          </button>
-        )}
-      </div>
-    </div>
-  );
-
   const listPanel = (
     <div className="flex h-full min-h-0 flex-col">
       <div
         ref={marketsMenuRef}
-        className="shrink-0 space-y-3 border-white/5 border-b p-3"
+        className="shrink-0 space-y-2 border-white/5 border-b p-3"
       >
-        <div className="flex items-center justify-between">
-          <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-            Markets
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="-translate-y-1/2 absolute top-1/2 left-2 text-muted-foreground"
+              size={14}
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              className="w-full rounded border border-border bg-background/40 py-2 pr-3 pl-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShowMarketsMenu((v) => !v)}
-              aria-expanded={showMarketsMenu}
-              aria-controls="markets-filter-sort"
-              className={cn(
-                'rounded p-1.5 transition-colors hover:bg-muted/20',
-                showMarketsMenu ||
-                  filter !== 'all' ||
-                  sortBy !== 'volume' ||
-                  sortDesc !== true
-                  ? 'bg-muted/20 text-primary'
-                  : 'text-muted-foreground'
-              )}
-              aria-label="Filter and sort markets"
-              title="Filter & Sort"
-            >
-              <Filter size={14} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setLeftCollapsed(true)}
-              className="hidden rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground md:inline-flex"
-              aria-label="Collapse markets panel"
-            >
-              ◀
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowMarketsMenu((v) => !v)}
+            aria-expanded={showMarketsMenu}
+            aria-controls="markets-filter-sort"
+            className={cn(
+              'shrink-0 rounded p-2 transition-colors hover:bg-muted/20',
+              showMarketsMenu ||
+                filter !== 'all' ||
+                sortBy !== 'volume' ||
+                sortDesc !== true
+                ? 'bg-muted/20 text-primary'
+                : 'text-muted-foreground'
+            )}
+            aria-label="Filter and sort markets"
+            title="Filter & Sort"
+          >
+            <Filter size={14} />
+          </button>
         </div>
 
         {showMarketsMenu && (
@@ -1494,28 +1504,24 @@ export function MarketsTradingTerminal({
             ))}
           </div>
         )}
-
-        <div className="relative">
-          <Search
-            className="-translate-y-1/2 absolute top-1/2 left-2 text-muted-foreground"
-            size={14}
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className="w-full rounded border border-white/10 bg-background/40 py-2 pr-3 pl-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
         {(perpLoading || predictionLoading) && rows.length === 0 ? (
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+          <div className="divide-y divide-white/5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2">
+                <Skeleton className="h-3.5 w-3.5 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Skeleton className="h-3.5 w-3/4" />
+                  <Skeleton className="h-2.5 w-1/2" />
+                </div>
+                <div className="space-y-1 text-right">
+                  <Skeleton className="ml-auto h-3.5 w-12" />
+                </div>
+                <Skeleton className="h-5 w-14 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : perpError || predictionError ? (
           <div className="p-4 text-muted-foreground text-sm">
@@ -1567,25 +1573,25 @@ export function MarketsTradingTerminal({
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex min-w-0 flex-col">
-                        <div className="truncate font-bold text-foreground">
+                        <div className="line-clamp-2 font-bold text-foreground">
                           {row.title}
                         </div>
-                        <div className="truncate text-[10px] text-muted-foreground">
+                        <div className="truncate text-[10px] text-foreground/50">
                           {row.subtitle}
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-right">
-                      <div className="font-mono text-foreground/90 tabular-nums">
+                    <td className="whitespace-nowrap px-2 py-2 text-right">
+                      <div className="font-mono font-semibold text-foreground text-xs tabular-nums">
                         {row.valuePrimary}
                       </div>
                       {row.valueSecondary && (
-                        <div className="font-mono text-[9px] text-muted-foreground tabular-nums">
+                        <div className="font-mono font-semibold text-[11px] text-foreground/80 tabular-nums">
                           {row.valueSecondary}
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
                       {row.kind === 'perp' && change != null ? (
                         <div
                           className={cn(
@@ -1633,17 +1639,76 @@ export function MarketsTradingTerminal({
     return computeYesPctFromShares(predictionState);
   }, [predictionState]);
 
+  const marketDropdown = marketDropdownOpen ? (
+    <div
+      ref={marketDropdownRef}
+      className="fade-in-0 zoom-in-95 absolute top-full left-0 z-50 flex max-h-[60vh] w-96 animate-in flex-col rounded-br-lg border-border border-t border-r border-b bg-background/95 shadow-lg backdrop-blur-md duration-150"
+    >
+      <div className="min-h-0 flex-1 overflow-auto">{listPanel}</div>
+    </div>
+  ) : null;
+
   const centerPanel = (
     <div className="flex h-full min-h-0 flex-col bg-background/10">
       {selected?.kind === 'prediction' ? (
         <>
-          <div className="shrink-0 border-white/5 border-b px-4 py-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="whitespace-normal break-words font-bold text-foreground text-lg leading-snug">
+          <div className="relative shrink-0 border-white/5 border-b px-4 py-2.5">
+            {/* Row 1: Title + action buttons */}
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                data-market-dropdown-trigger
+                onClick={() => setMarketDropdownOpen((v) => !v)}
+                className="group inline-flex min-w-0 items-start gap-1.5 text-left"
+              >
+                <span className="mt-[3px] inline-flex shrink-0 items-center justify-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
+                  <ChevronDown
+                    size={14}
+                    className={cn(
+                      'transition-transform',
+                      marketDropdownOpen && 'rotate-180'
+                    )}
+                  />
+                </span>
+                <span className="line-clamp-2 text-balance font-semibold text-foreground text-sm leading-snug">
                   {predictionState?.text ?? 'Prediction market'}
-                </div>
-                <div className="mt-1 whitespace-normal break-words text-muted-foreground text-xs">
+                </span>
+              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPredictionDetailsOpen(true)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+                  aria-label="View market details"
+                  title="Details"
+                >
+                  <Info size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  aria-pressed={isFullscreen}
+                  aria-label={
+                    isFullscreen
+                      ? 'Exit fullscreen terminal view'
+                      : 'Enter fullscreen terminal view'
+                  }
+                  title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+                >
+                  {isFullscreen ? (
+                    <Minimize2 size={14} />
+                  ) : (
+                    <Maximize2 size={14} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Row 2: Metadata + YES/NO + time range */}
+            <div className="mt-1.5 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="truncate text-muted-foreground text-xs">
                   {predictionState?.resolutionDescription?.trim()
                     ? predictionState.resolutionDescription
                     : `Scenario ${predictionState?.scenario ?? ''}${
@@ -1655,46 +1720,35 @@ export function MarketsTradingTerminal({
                           : ''
                       }`}
                 </div>
-              </div>
-
-              <div className="flex flex-col gap-2 lg:items-end">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full bg-blue-500/10 px-2 py-1 font-bold text-[10px] text-blue-400 tabular-nums">
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="rounded-full bg-blue-500/10 px-2 py-0.5 font-bold text-[10px] text-blue-400 tabular-nums">
                     YES {formatYesPct(predictionYesPct)}
                   </div>
-                  <div className="rounded-full bg-violet-500/10 px-2 py-1 font-bold text-[10px] text-violet-400 tabular-nums">
+                  <div className="rounded-full bg-violet-500/10 px-2 py-0.5 font-bold text-[10px] text-violet-400 tabular-nums">
                     NO {formatYesPct(100 - predictionYesPct)}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPredictionDetailsOpen(true)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                    aria-label="View market details"
-                    title="Details"
-                  >
-                    <Info size={14} />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-                  {MARKET_TIME_RANGES.map((range) => (
-                    <button
-                      key={range}
-                      type="button"
-                      onClick={() => setPredictionTimeRange(range)}
-                      className={cn(
-                        'rounded px-2 py-1 transition-colors',
-                        predictionTimeRange === range
-                          ? 'bg-foreground text-background'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {range}
-                    </button>
-                  ))}
                 </div>
               </div>
+
+              <div className="flex shrink-0 items-center gap-1 rounded-md bg-muted/20 p-0.5 font-semibold text-[11px]">
+                {MARKET_TIME_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    type="button"
+                    onClick={() => setPredictionTimeRange(range)}
+                    className={cn(
+                      'rounded px-1.5 py-0.5 transition-colors',
+                      predictionTimeRange === range
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
+            {marketDropdown}
           </div>
 
           <div className="min-h-0 flex-1 p-4">
@@ -1710,32 +1764,67 @@ export function MarketsTradingTerminal({
         </>
       ) : selectedPerp ? (
         <>
-          <div className="flex shrink-0 items-start justify-between gap-3 border-white/5 border-b px-4 py-3">
-            <div className="min-w-0">
-              <div className="font-bold text-foreground text-lg">
-                ${selectedPerp.ticker}
-              </div>
-              <div className="truncate text-muted-foreground text-xs">
-                {selectedPerp.name}
-              </div>
-            </div>
-            <div className="flex items-center gap-1 rounded-md bg-muted/20 p-1 font-semibold text-xs">
-              {MARKET_TIME_RANGES.map((range) => (
-                <button
-                  key={range}
-                  type="button"
-                  onClick={() => setPerpTimeRange(range)}
+          <div className="relative flex shrink-0 items-center justify-between gap-3 border-white/5 border-b px-4 py-2.5">
+            <button
+              type="button"
+              data-market-dropdown-trigger
+              onClick={() => setMarketDropdownOpen((v) => !v)}
+              className="group flex min-w-0 items-baseline gap-2"
+            >
+              <span className="inline-flex shrink-0 items-center justify-center self-center rounded bg-muted/40 p-1 text-foreground transition-colors group-hover:bg-muted/60">
+                <ChevronDown
+                  size={14}
                   className={cn(
-                    'rounded px-2 py-1 transition-colors',
-                    perpTimeRange === range
-                      ? 'bg-foreground text-background'
-                      : 'text-muted-foreground hover:text-foreground'
+                    'transition-transform',
+                    marketDropdownOpen && 'rotate-180'
                   )}
-                >
-                  {range}
-                </button>
-              ))}
+                />
+              </span>
+              <span className="font-semibold text-foreground text-sm">
+                ${selectedPerp.ticker}
+              </span>
+              <span className="truncate text-muted-foreground text-xs">
+                {selectedPerp.name}
+              </span>
+            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex items-center gap-1 rounded-md bg-muted/20 p-0.5 font-semibold text-[11px]">
+                {MARKET_TIME_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    type="button"
+                    onClick={() => setPerpTimeRange(range)}
+                    className={cn(
+                      'rounded px-1.5 py-0.5 transition-colors',
+                      perpTimeRange === range
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-pressed={isFullscreen}
+                aria-label={
+                  isFullscreen
+                    ? 'Exit fullscreen terminal view'
+                    : 'Enter fullscreen terminal view'
+                }
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+              >
+                {isFullscreen ? (
+                  <Minimize2 size={14} />
+                ) : (
+                  <Maximize2 size={14} />
+                )}
+              </button>
             </div>
+            {marketDropdown}
           </div>
           <div className="min-h-0 flex-1 p-4">
             <PerpPriceChart
@@ -1751,77 +1840,84 @@ export function MarketsTradingTerminal({
           </div>
         </>
       ) : (
-        <div className="flex h-full items-center justify-center text-muted-foreground">
-          Select a market
+        <div className="relative flex h-full flex-col">
+          <button
+            type="button"
+            data-market-dropdown-trigger
+            onClick={() => setMarketDropdownOpen(true)}
+            className="flex h-full w-full items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Select a market
+            <ChevronDown size={16} className="ml-1.5" />
+          </button>
+          {marketDropdown}
         </div>
       )}
     </div>
   );
 
   const rightPanel = (
-    <div className="flex h-full min-h-0 flex-col bg-background/20">
-      <div className="flex items-center justify-between border-white/5 border-b px-3 py-2">
-        <div className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-          Trade
-        </div>
-      </div>
-
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-background">
       {selected?.kind === 'prediction' ? (
-        <div className="flex h-full min-h-0 flex-col bg-background/10">
-          <div className="border-white/5 border-b bg-muted/10 p-4">
+        <div className="flex min-h-0 flex-col">
+          <div className="border-border border-b px-3 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                <div className="text-muted-foreground text-xs">
                   Available Balance
                 </div>
-                <div className="flex items-center gap-2 font-mono text-foreground text-lg tabular-nums">
+                <div className="flex items-center gap-2 font-mono text-base text-foreground tabular-nums">
                   <Wallet size={14} className="text-muted-foreground" />
                   {balanceLoading ? (
                     <Skeleton className="h-5 w-20" />
                   ) : (
                     formatBalance(balance)
                   )}
-                  {onRequestBuyPoints && (
-                    <button
-                      type="button"
-                      onClick={onRequestBuyPoints}
-                      className="ml-2 rounded bg-muted/20 px-2 py-1 font-sans text-[10px] text-muted-foreground uppercase tracking-wider transition-colors hover:bg-muted/30 hover:text-foreground"
-                    >
-                      Buy
-                    </button>
-                  )}
                 </div>
               </div>
-              {selectedPredictionPositions.length > 0 && (
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Open Position
+              <div className="flex flex-col items-end gap-1">
+                {onRequestBuyPoints && (
+                  <button
+                    type="button"
+                    onClick={onRequestBuyPoints}
+                    className="rounded bg-primary px-3 py-1 font-sans font-semibold text-primary-foreground text-xs transition-colors hover:bg-primary/90"
+                  >
+                    Buy
+                  </button>
+                )}
+                {selectedPredictionPositions.length > 0 && (
+                  <div className="text-right">
+                    <div className="text-muted-foreground text-xs">
+                      Open Position
+                    </div>
+                    <div className="text-xs">
+                      {(['YES', 'NO'] as const)
+                        .map((side) => {
+                          const total = selectedPredictionPositions
+                            .filter((p) => p.side === side)
+                            .reduce((sum, p) => sum + p.shares, 0);
+                          return total > 0
+                            ? `${side} ${total.toFixed(2)}`
+                            : null;
+                        })
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </div>
                   </div>
-                  <div className="text-xs">
-                    {(['YES', 'NO'] as const)
-                      .map((side) => {
-                        const total = selectedPredictionPositions
-                          .filter((p) => p.side === side)
-                          .reduce((sum, p) => sum + p.shares, 0);
-                        return total > 0 ? `${side} ${total.toFixed(2)}` : null;
-                      })
-                      .filter(Boolean)
-                      .join(' • ')}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+          <div className="p-4">
             <div className="flex items-center justify-between">
-              <div className="font-semibold text-sm">Place Order</div>
-              <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
+              <div className="font-medium text-sm">Place Order</div>
+              <div className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
                 Standard
               </div>
             </div>
 
-            <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+            <div className="mt-3 flex gap-1 rounded bg-muted p-1">
               <button
                 type="button"
                 onClick={() => setPredictionSide('yes')}
@@ -1831,14 +1927,14 @@ export function MarketsTradingTerminal({
                   !sellablePositions.hasSellableYes
                 }
                 className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  'flex-1 rounded py-2 font-semibold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
                     !sellablePositions.hasSellableYes &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
                 YES
@@ -1852,14 +1948,14 @@ export function MarketsTradingTerminal({
                   !sellablePositions.hasSellableNo
                 }
                 className={cn(
-                  'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                  'flex-1 rounded py-2 font-semibold text-xs transition-colors',
                   predictionTradeMode === 'sell' &&
                     canSellPrediction &&
                     !sellablePositions.hasSellableNo &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
-                    ? 'bg-violet-500 text-white'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-violet-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
                 NO
@@ -1867,15 +1963,15 @@ export function MarketsTradingTerminal({
             </div>
 
             {canSellPrediction && (
-              <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+              <div className="mt-3 flex gap-1 rounded bg-muted p-1">
                 <button
                   type="button"
                   onClick={() => setPredictionTradeMode('buy')}
                   className={cn(
-                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    'flex-1 rounded py-2 font-semibold text-xs transition-colors',
                     predictionTradeMode === 'buy'
-                      ? 'bg-green-600 text-white'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   )}
                 >
                   BUY
@@ -1884,10 +1980,10 @@ export function MarketsTradingTerminal({
                   type="button"
                   onClick={() => setPredictionTradeMode('sell')}
                   className={cn(
-                    'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+                    'flex-1 rounded py-2 font-semibold text-xs transition-colors',
                     predictionTradeMode === 'sell'
-                      ? 'bg-red-600 text-white'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   )}
                 >
                   SELL
@@ -1898,10 +1994,10 @@ export function MarketsTradingTerminal({
             {predictionTradeMode === 'buy' ? (
               <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
-                  <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <label className="font-medium text-muted-foreground text-xs">
                     Amount
                   </label>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     Min {BABYLON_POINTS_SYMBOL}1
                   </span>
                 </div>
@@ -1911,17 +2007,17 @@ export function MarketsTradingTerminal({
                   onChange={(e) => setPredictionAmount(e.target.value)}
                   min={1}
                   step="1"
-                  className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded border border-border bg-input px-3 py-2.5 font-mono text-sm tabular-nums placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder="10"
                 />
               </div>
             ) : (
               <div className={cn('mt-4', !canSellPrediction && 'mt-3')}>
                 <div className="mb-1 flex items-center justify-between">
-                  <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <label className="font-medium text-muted-foreground text-xs">
                     Shares
                   </label>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs">
                     <span>Min {MIN_SELLABLE_SHARES}</span>
                     <button
                       type="button"
@@ -1930,7 +2026,7 @@ export function MarketsTradingTerminal({
                           maxSellShares > 0 ? maxSellShares.toFixed(2) : ''
                         )
                       }
-                      className="rounded bg-muted/20 px-2 py-0.5 hover:bg-muted/30"
+                      className="rounded bg-muted px-2 py-0.5 hover:bg-muted/80"
                       disabled={maxSellShares <= 0}
                     >
                       Max
@@ -1943,14 +2039,14 @@ export function MarketsTradingTerminal({
                   onChange={(e) => setPredictionSellShares(e.target.value)}
                   min={MIN_SELLABLE_SHARES}
                   step="0.01"
-                  className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded border border-border bg-input px-3 py-2.5 font-mono text-sm tabular-nums placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder={
                     maxSellShares > 0 ? maxSellShares.toFixed(2) : '0.00'
                   }
                   disabled={maxSellShares <= 0}
                 />
                 {maxSellShares <= 0 && (
-                  <div className="mt-2 text-[10px] text-muted-foreground">
+                  <div className="mt-2 text-muted-foreground text-xs">
                     No sellable position for this side.
                   </div>
                 )}
@@ -1958,27 +2054,27 @@ export function MarketsTradingTerminal({
             )}
 
             {predictionTradeMode === 'buy' && predictionBuyCalculation && (
-              <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
-                <div className="flex items-center justify-between">
+              <div className="mt-4 space-y-2 rounded bg-muted/50 p-3 text-xs">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Shares</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {predictionBuyCalculation.sharesBought.toFixed(2)}
                   </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Avg price</span>
                   <span className="font-mono text-foreground tabular-nums">
                     ${predictionBuyCalculation.avgPrice.toFixed(3)}
                   </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Fee</span>
-                  <span className="font-mono text-muted-foreground tabular-nums">
+                  <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
                     {predictionBuyCalculation.fee?.toFixed(2) ?? '0.00'}
                   </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Expected payout</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
@@ -1989,22 +2085,22 @@ export function MarketsTradingTerminal({
             )}
 
             {predictionTradeMode === 'sell' && predictionSellCalculation && (
-              <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
-                <div className="flex items-center justify-between">
+              <div className="mt-4 space-y-2 rounded bg-muted/50 p-3 text-xs">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Gross proceeds</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
                     {predictionSellCalculation.totalCost.toFixed(2)}
                   </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Fee</span>
-                  <span className="font-mono text-muted-foreground tabular-nums">
+                  <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
                     {predictionSellCalculation.fee?.toFixed(2) ?? '0.00'}
                   </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between font-semibold">
+                <div className="flex items-center justify-between py-0.5 font-semibold">
                   <span className="text-muted-foreground">Net proceeds</span>
                   <span className="font-mono text-foreground tabular-nums">
                     {BABYLON_POINTS_SYMBOL}
@@ -2033,20 +2129,10 @@ export function MarketsTradingTerminal({
                     !predictionSellCalculation))
               }
               className={cn(
-                'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
+                'mt-5 w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
                 predictionTradeMode === 'buy'
-                  ? 'bg-green-600 hover:brightness-110'
-                  : 'bg-red-600 hover:brightness-110',
-                (predictionSubmitting ||
-                  (predictionTradeMode === 'buy' &&
-                    authenticated &&
-                    (predictionAmountNum < 1 || !predictionBuyCalculation)) ||
-                  (predictionTradeMode === 'sell' &&
-                    authenticated &&
-                    (maxSellShares <= 0 ||
-                      clampedSellShares < MIN_SELLABLE_SHARES ||
-                      !predictionSellCalculation))) &&
-                  'cursor-not-allowed opacity-50'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-red-600 hover:bg-red-700'
               )}
             >
               {predictionSubmitting
@@ -2076,8 +2162,8 @@ export function MarketsTradingTerminal({
   );
 
   const bottomPanel = (
-    <div className="flex h-full min-h-0 flex-col bg-background/20">
-      <div className="flex items-center justify-between border-white/5 border-b bg-background/30 px-2">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="flex items-center justify-between border-border border-b bg-background px-2">
         <div className="flex min-w-0 flex-1">
           <TabButton
             active={bottomTab === 'agent'}
@@ -2132,7 +2218,6 @@ export function MarketsTradingTerminal({
         ) : bottomTab === 'portfolio' ? (
           <TerminalPortfolio
             authenticated={authenticated}
-            onLogin={login}
             onRequestBuyPoints={onRequestBuyPoints ?? null}
             balance={balance}
             balanceLoading={balanceLoading}
@@ -2148,7 +2233,7 @@ export function MarketsTradingTerminal({
           />
         ) : bottomTab === 'positions' ? (
           !authenticated ? (
-            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+            <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
               Log in to view positions.
             </div>
           ) : selected?.kind === 'prediction' ? (
@@ -2243,21 +2328,7 @@ export function MarketsTradingTerminal({
     >
       {/* Desktop */}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
-        {terminalHeader}
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          {leftCollapsed && (
-            <button
-              type="button"
-              onClick={() => setLeftCollapsed(false)}
-              className="w-9 shrink-0 border-white/5 border-r bg-background/30 text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-              aria-label="Open markets panel"
-            >
-              <span className="writing-vertical-lr rotate-180 font-semibold text-[10px] tracking-wider">
-                MARKETS
-              </span>
-            </button>
-          )}
-
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <PanelGroup direction="vertical" className="flex min-h-0 flex-1">
               <Panel
@@ -2266,34 +2337,16 @@ export function MarketsTradingTerminal({
                 className="min-h-0"
               >
                 <PanelGroup direction="horizontal" className="min-h-0">
-                  {!leftCollapsed && (
-                    <>
-                      <Panel
-                        defaultSize={22}
-                        minSize={15}
-                        maxSize={32}
-                        className="min-h-0 border-white/5 border-r"
-                      >
-                        {listPanel}
-                      </Panel>
-                      <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
-                    </>
-                  )}
-
-                  <Panel
-                    defaultSize={leftCollapsed ? 72 : 56}
-                    minSize={40}
-                    className="min-h-0"
-                  >
+                  <Panel defaultSize={70} minSize={30} className="min-h-0">
                     {centerPanel}
                   </Panel>
 
                   <PanelResizeHandle className="w-1 bg-white/5 hover:bg-primary/40" />
                   <Panel
-                    defaultSize={22}
-                    minSize={18}
-                    maxSize={32}
-                    className="min-h-0 border-white/5 border-l bg-background/20"
+                    defaultSize={30}
+                    minSize={22}
+                    maxSize={40}
+                    className="min-h-0 border-border border-l bg-background"
                   >
                     {rightPanel}
                   </Panel>
@@ -2302,11 +2355,11 @@ export function MarketsTradingTerminal({
 
               {!bottomCollapsed && (
                 <>
-                  <PanelResizeHandle className="h-1 bg-white/5 hover:bg-primary/40" />
+                  <PanelResizeHandle className="h-1 bg-border hover:bg-primary/40" />
                   <Panel
                     defaultSize={30}
                     minSize={12}
-                    className="min-h-0 border-white/5 border-t bg-background/20"
+                    className="min-h-0 border-border border-t bg-background"
                   >
                     {bottomPanel}
                   </Panel>
@@ -2319,7 +2372,7 @@ export function MarketsTradingTerminal({
                 type="button"
                 onClick={() => setBottomCollapsed(false)}
                 className={cn(
-                  'flex h-7 shrink-0 items-center justify-between border-white/5 border-t bg-background/40 px-4 text-muted-foreground',
+                  'flex h-7 shrink-0 items-center justify-between border-border border-t bg-background px-4 text-muted-foreground',
                   'transition-colors hover:bg-muted/20 hover:text-foreground'
                 )}
               >
@@ -2340,26 +2393,6 @@ export function MarketsTradingTerminal({
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        aria-pressed={isFullscreen}
-        aria-label={
-          isFullscreen
-            ? 'Exit fullscreen terminal view'
-            : 'Enter fullscreen terminal view'
-        }
-        title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        className={cn(
-          'absolute z-40 hidden h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-background/70 text-muted-foreground shadow-lg backdrop-blur-md md:inline-flex',
-          'right-[calc(16px+env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))]',
-          'transition-colors hover:bg-muted/40 hover:text-foreground',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
-        )}
-      >
-        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-      </button>
 
       {/* Mobile */}
       <div className="relative flex h-full flex-col overflow-hidden overscroll-none md:hidden">
@@ -2534,7 +2567,6 @@ export function MarketsTradingTerminal({
                 ) : bottomTab === 'portfolio' ? (
                   <TerminalPortfolio
                     authenticated={authenticated}
-                    onLogin={login}
                     onRequestBuyPoints={onRequestBuyPoints ?? null}
                     balance={balance}
                     balanceLoading={balanceLoading}
@@ -2550,7 +2582,7 @@ export function MarketsTradingTerminal({
                   />
                 ) : bottomTab === 'positions' ? (
                   !authenticated ? (
-                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+                    <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
                       Log in to view positions.
                     </div>
                   ) : selected?.kind === 'prediction' ? (

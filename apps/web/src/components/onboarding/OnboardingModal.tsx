@@ -542,7 +542,7 @@ export function OnboardingModal({
           <span className="text-muted-foreground text-sm leading-relaxed group-hover:text-foreground">
             I accept the{' '}
             <a
-              href="https://docs.babylon.market/legal/terms-of-service"
+              href="https://docs.babylon.market/legal/terms-of-service/"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-[#0066FF] hover:underline"
@@ -552,7 +552,7 @@ export function OnboardingModal({
             </a>{' '}
             and{' '}
             <a
-              href="https://docs.babylon.market/legal/privacy-policy"
+              href="https://docs.babylon.market/legal/privacy-policy/"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-[#0066FF] hover:underline"
@@ -910,7 +910,7 @@ export function OnboardingModal({
                   {!isWalletReady && (
                     <div className="flex items-center gap-2 text-amber-500 text-sm">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Preparing your smart wallet...</span>
+                      <span>Preparing your wallet...</span>
                     </div>
                   )}
                   <button

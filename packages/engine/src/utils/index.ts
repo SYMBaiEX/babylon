@@ -79,6 +79,14 @@ export {
   safeExecute,
   withRetry,
 } from './error-utils';
+// Feed diversity utilities (TikTok-inspired clustering prevention)
+export {
+  ActionDiversityTracker,
+  createDiscourseActionDeck,
+  type DiscourseActionType,
+  type EngagementActionType,
+  shuffleWithNoConsecutive,
+} from './feed-diversity';
 // Rich game context builder for game generation prompts
 export {
   buildCharacterRoster,

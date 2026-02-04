@@ -79,7 +79,7 @@
   --accent-foreground: #0066FF;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #2f3336;
+  --border: #393d41;
   --input: #22303c;
   --ring: #0066FF;
   --chart-1: #0066FF;
@@ -93,7 +93,7 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2a2a2a;
   --sidebar-accent-foreground: #0066FF;
-  --sidebar-border: #2f3336;
+  --sidebar-border: #393d41;
   --sidebar-ring: #0066FF;
   --scrollbar-track: #000000;
   --scrollbar-thumb: #0066FF;
@@ -379,16 +379,11 @@ button:disabled {
 }
 
 .message-input {
-  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.15), inset -3px -3px 5px rgba(255, 255, 255, 0.05);
-  transition: all 0.3s ease;
-}
-
-.message-input:focus {
-  box-shadow: inset 3px 3px 5px var(--primary-glow, rgba(0, 102, 255, 0.2)), inset -3px -3px 5px var(--primary-glow-secondary, rgba(0, 102, 255, 0.1));
+  box-shadow: none;
 }
 
 .message-bubble {
-  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.15), -3px -3px 8px rgba(255, 255, 255, 0.05);
+  box-shadow: none;
 }
 
 .chat-tab {
@@ -410,13 +405,25 @@ button:disabled {
 }
 
 .dark .message-input {
-  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.3), inset -3px -3px 5px rgba(255, 255, 255, 0.02);
+  box-shadow: none;
 }
 
 .dark .message-bubble {
-  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.3), -3px -3px 8px rgba(255, 255, 255, 0.02);
+  box-shadow: none;
 }
 
 .dark .chat-tab {
   box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.3), inset -3px -3px 5px rgba(255, 255, 255, 0.02);
+}
+
+/* Daily Login Modal - Confetti Animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
 }

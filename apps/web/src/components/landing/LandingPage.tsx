@@ -690,13 +690,17 @@ export function LandingPage() {
                 </h3>
                 <nav className="flex flex-col gap-2 text-muted-foreground text-sm sm:gap-3">
                   <a
-                    href="#"
+                    href="https://docs.babylon.market/legal/privacy-policy/"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                   >
                     Privacy Policy
                   </a>
                   <a
-                    href="#"
+                    href="https://docs.babylon.market/legal/terms-of-service/"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="touch-manipulation opacity-60 transition-colors duration-200 hover:text-primary"
                   >
                     Terms of Service

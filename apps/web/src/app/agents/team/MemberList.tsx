@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { MoreVertical, Settings, Square, User } from 'lucide-react';
+import { MoreVertical, Settings, Square } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar } from '@/components/shared/Avatar';
 import {
@@ -38,8 +38,6 @@ interface MemberListProps {
   onTagAgent?: (agent: TeamChatAgent) => void;
   /** Called when "Stop" is clicked on a processing agent */
   onStopAgent?: (agentId: string) => void;
-  /** Called when "View Profile" is clicked */
-  onViewProfile?: (agentId: string) => void;
   /** Called when "Settings" is clicked */
   onViewSettings?: (agentId: string) => void;
 }
@@ -57,14 +55,13 @@ export function MemberList({
   processingAgentIds = new Set(),
   onTagAgent,
   onStopAgent,
-  onViewProfile,
   onViewSettings,
 }: MemberListProps) {
   // Track which dropdown is open (by agent id)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto">
       {/* Agents */}
       <div>
         {teamChat?.agents.length ? (
@@ -154,18 +151,6 @@ export function MemberList({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        {/* View Profile */}
-                        <DropdownMenuItem
-                          onClick={() => {
-                            onViewProfile?.(agent.id);
-                            onClose?.();
-                            setOpenDropdown(null);
-                          }}
-                        >
-                          <User className="mr-2 h-4 w-4" />
-                          View Profile
-                        </DropdownMenuItem>
-
                         {/* Agent Settings */}
                         <DropdownMenuItem
                           onClick={() => {

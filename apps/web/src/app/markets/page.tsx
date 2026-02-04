@@ -81,7 +81,7 @@ export default function MarketsPage() {
       noPadding
       className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh"
     >
-      <div className="flex flex-1 overflow-hidden bg-background/20">
+      <div className="flex flex-1 overflow-hidden border-border bg-background/20 lg:border-l">
         <MarketsTradingTerminal
           onRequestBuyPoints={() => setShowBuyPointsModal(true)}
         />

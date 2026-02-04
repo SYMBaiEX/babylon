@@ -1,28 +1,23 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import {
-  Activity,
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FileText,
-  Wallet,
-} from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export type BottomPanelTab = 'activity' | 'portfolio' | 'logs';
+export type BottomPanelTab = 'activity' | 'wallet' | 'pnl' | 'logs';
+export type EntityType = 'user' | 'agent';
 
-interface AgentOption {
+interface EntityOption {
   id: string;
   name: string;
+  type: EntityType;
 }
 
 const MIN_HEIGHT = 150;
@@ -35,16 +30,22 @@ interface BottomPanelProps {
   onToggle: () => void;
   activeTab: BottomPanelTab;
   onTabChange: (tab: BottomPanelTab) => void;
-  selectedAgentId: string | null;
-  onAgentChange: (agentId: string) => void;
-  agents: AgentOption[];
+  selectedEntityId: string | null;
+  selectedEntityType: EntityType | null;
+  onEntityChange: (id: string, type: EntityType) => void;
+  userId?: string;
+  userName?: string;
+  agents: { id: string; name: string }[];
   height: number;
   onHeightChange: (height: number) => void;
   children: React.ReactNode;
 }
 
 /**
- * Bottom panel with tabs for Activity, Portfolio, and Logs.
+ * Bottom panel with tabs for Activity, Wallet, PnL, and Logs.
+ * Supports viewing both user and agent data.
+ * - Agent: Shows all 4 tabs (Activity, Wallet, PnL, Logs)
+ * - User: Shows only Wallet and PnL tabs
  * Spans full width, collapsible, and resizable.
  */
 export function BottomPanel({
@@ -52,8 +53,11 @@ export function BottomPanel({
   onToggle,
   activeTab,
   onTabChange,
-  selectedAgentId,
-  onAgentChange,
+  selectedEntityId,
+  selectedEntityType,
+  onEntityChange,
+  userId,
+  userName,
   agents,
   height,
   onHeightChange,
@@ -77,6 +81,36 @@ export function BottomPanel({
       }
     };
   }, []);
+
+  // Build entity options list (user first, then agents)
+  const entities: EntityOption[] = [
+    ...(userId
+      ? [{ id: userId, name: userName || 'You', type: 'user' as EntityType }]
+      : []),
+    ...agents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: 'agent' as EntityType,
+    })),
+  ];
+
+  // Get currently selected entity
+  const selectedEntity = entities.find(
+    (e) => e.id === selectedEntityId && e.type === selectedEntityType
+  );
+
+  // Determine which tabs to show based on entity type
+  const isUserSelected = selectedEntityType === 'user';
+  const allTabs: { id: BottomPanelTab; label: string }[] = [
+    { id: 'activity', label: 'Activity' },
+    { id: 'wallet', label: 'Wallet' },
+    { id: 'pnl', label: 'PnL' },
+    { id: 'logs', label: 'Logs' },
+  ];
+  // Hide Logs tab for user (Activity is now available for users)
+  const tabs = isUserSelected
+    ? allTabs.filter((t) => t.id !== 'logs')
+    : allTabs;
 
   // Handle tab click - if clicking active tab while open, collapse
   const handleTabClick = useCallback(
@@ -129,12 +163,6 @@ export function BottomPanel({
     },
     [isOpen, height, onHeightChange]
   );
-
-  const tabs: { id: BottomPanelTab; label: string; icon: typeof Activity }[] = [
-    { id: 'activity', label: 'Activity', icon: Activity },
-    { id: 'portfolio', label: 'Portfolio', icon: Wallet },
-    { id: 'logs', label: 'Logs', icon: FileText },
-  ];
 
   return (
     <div
@@ -203,29 +231,30 @@ export function BottomPanel({
       )}
 
       {/* Tab Bar */}
-      <div className="flex h-10 items-center justify-between border-border border-b bg-muted/30 px-2">
-        <div className="flex items-center gap-1">
+      <div className="flex h-10 items-center border-border border-b bg-muted/30 px-2">
+        {/* Scrollable tabs area */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleTabClick(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
+                'shrink-0 rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
                 activeTab === tab.id && isOpen
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <tab.icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Agent Selector Dropdown */}
-          {agents.length > 0 && (
+        {/* Right controls - always visible */}
+        <div className="flex shrink-0 items-center gap-2 pl-2">
+          {/* Entity Selector Dropdown */}
+          {entities.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -236,8 +265,7 @@ export function BottomPanel({
                   )}
                 >
                   <span className="max-w-[120px] truncate">
-                    {agents.find((a) => a.id === selectedAgentId)?.name ||
-                      'Select agent'}
+                    {selectedEntity?.name || 'Select...'}
                   </span>
                   <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
                 </button>
@@ -246,16 +274,36 @@ export function BottomPanel({
                 align="end"
                 className="max-h-60 w-48 overflow-y-auto"
               >
+                {/* User option first */}
+                {userId && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => onEntityChange(userId, 'user')}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="truncate font-medium">
+                        {userName || 'You'}
+                      </span>
+                      {selectedEntityId === userId &&
+                        selectedEntityType === 'user' && (
+                          <Check className="h-4 w-4 shrink-0 text-primary" />
+                        )}
+                    </DropdownMenuItem>
+                    {agents.length > 0 && <DropdownMenuSeparator />}
+                  </>
+                )}
+                {/* Agent options */}
                 {agents.map((agent) => (
                   <DropdownMenuItem
                     key={agent.id}
-                    onClick={() => onAgentChange(agent.id)}
+                    onClick={() => onEntityChange(agent.id, 'agent')}
                     className="flex items-center justify-between"
                   >
                     <span className="truncate">{agent.name}</span>
-                    {selectedAgentId === agent.id && (
-                      <Check className="h-4 w-4 shrink-0 text-primary" />
-                    )}
+                    {selectedEntityId === agent.id &&
+                      selectedEntityType === 'agent' && (
+                        <Check className="h-4 w-4 shrink-0 text-primary" />
+                      )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -284,11 +332,11 @@ export function BottomPanel({
           className="overflow-auto"
           style={{ height: height - BOTTOM_PANEL_COLLAPSED_HEIGHT }}
         >
-          {selectedAgentId ? (
+          {selectedEntityId ? (
             children
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-              Select an agent from the sidebar to view details
+              Select an option from the dropdown to view details
             </div>
           )}
         </div>

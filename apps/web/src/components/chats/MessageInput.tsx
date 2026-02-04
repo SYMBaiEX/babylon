@@ -1,8 +1,14 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { Send } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { ArrowUp } from 'lucide-react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
@@ -13,6 +19,13 @@ import {
 
 const MAX_TEXTAREA_HEIGHT = 160;
 
+/** Represents a mention range in the text */
+interface MentionRange {
+  start: number;
+  end: number;
+  text: string;
+}
+
 /**
  * Check if @ is at a valid mention position (start of word).
  * Returns true if @ is at position 0 OR after whitespace.
@@ -22,6 +35,86 @@ function isAtValidMentionPosition(text: string, atIndex: number): boolean {
   if (atIndex === 0) return true;
   const charBefore = text[atIndex - 1];
   return /\s/.test(charBefore || '');
+}
+
+/**
+ * Find all valid mention ranges in the text.
+ * Only returns mentions that exist in validUsernames set AND are at valid
+ * mention positions (start of text or after whitespace).
+ */
+function findMentionRanges(
+  text: string,
+  validUsernames: Set<string>
+): MentionRange[] {
+  const ranges: MentionRange[] = [];
+  const mentionRegex = /(@[A-Za-z0-9_.-]+)/g;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const mention = match[0];
+    const handle = mention.slice(1).toLowerCase();
+
+    // Only include valid mentions at valid positions (not in emails, etc.)
+    if (
+      validUsernames.has(handle) &&
+      isAtValidMentionPosition(text, match.index)
+    ) {
+      ranges.push({
+        start: match.index,
+        end: match.index + mention.length,
+        text: mention,
+      });
+    }
+  }
+
+  return ranges;
+}
+
+/**
+ * Find if cursor is inside a mention.
+ * Returns the mention range if cursor is inside one, null otherwise.
+ */
+function getMentionAtCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    // Cursor is inside the mention (not at boundaries)
+    if (cursorPos > range.start && cursorPos < range.end) {
+      return range;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the mention that ends just before the cursor (for backspace).
+ */
+function getMentionBeforeCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    if (range.end === cursorPos) {
+      return range;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the mention that starts just after the cursor (for delete key).
+ */
+function getMentionAfterCursor(
+  cursorPos: number,
+  mentionRanges: MentionRange[]
+): MentionRange | null {
+  for (const range of mentionRanges) {
+    if (range.start === cursorPos) {
+      return range;
+    }
+  }
+  return null;
 }
 
 /**
@@ -145,6 +238,12 @@ export function MessageInput({
     return set;
   }, [mentionableMembers]);
 
+  // Calculate mention ranges for atomic mention behavior
+  const mentionRanges = useMemo(
+    () => findMentionRanges(value, validMentionHandles),
+    [value, validMentionHandles]
+  );
+
   // Reference for the highlight overlay to sync scroll
   const highlightRef = useRef<HTMLDivElement>(null);
 
@@ -258,9 +357,34 @@ export function MessageInput({
     ]
   );
 
-  // Handle keyboard navigation
+  // Handle selection/click to snap cursor out of mentions
+  const handleSelect = useCallback(() => {
+    if (!mentionsEnabled || mentionRanges.length === 0) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const selectionEnd = textarea.selectionEnd;
+
+    // Only handle single cursor position, not text selection
+    if (cursorPos !== selectionEnd) return;
+
+    const mentionAtCursor = getMentionAtCursor(cursorPos, mentionRanges);
+    if (mentionAtCursor) {
+      // Snap cursor to the end of the mention
+      setTimeout(() => {
+        textarea.setSelectionRange(mentionAtCursor.end, mentionAtCursor.end);
+      }, 0);
+    }
+  }, [mentionsEnabled, mentionRanges]);
+
+  // Handle keyboard navigation with atomic mention behavior
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
       if (mentionsEnabled) {
         // Let autocomplete handle navigation first
         const handled = autocompleteKeyDown(e);
@@ -275,6 +399,83 @@ export function MessageInput({
           }
           return;
         }
+
+        const cursorPos = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        const hasSelection = cursorPos !== selectionEnd;
+
+        // Arrow key navigation - skip over mentions
+        if (
+          !hasSelection &&
+          (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+        ) {
+          if (e.key === 'ArrowLeft' && cursorPos > 0) {
+            // Check if we're at the end of a mention
+            const mentionBefore = getMentionBeforeCursor(
+              cursorPos,
+              mentionRanges
+            );
+            if (mentionBefore) {
+              e.preventDefault();
+              textarea.setSelectionRange(
+                mentionBefore.start,
+                mentionBefore.start
+              );
+              return;
+            }
+          } else if (e.key === 'ArrowRight' && cursorPos < value.length) {
+            // Check if we're at the start of a mention
+            const mentionAfter = getMentionAfterCursor(
+              cursorPos,
+              mentionRanges
+            );
+            if (mentionAfter) {
+              e.preventDefault();
+              textarea.setSelectionRange(mentionAfter.end, mentionAfter.end);
+              return;
+            }
+          }
+        }
+
+        // Backspace - delete entire mention if cursor is right after one
+        if (e.key === 'Backspace' && !hasSelection && cursorPos > 0) {
+          const mentionBefore = getMentionBeforeCursor(
+            cursorPos,
+            mentionRanges
+          );
+          if (mentionBefore) {
+            e.preventDefault();
+            const newValue =
+              value.slice(0, mentionBefore.start) + value.slice(cursorPos);
+            onChange(newValue);
+            // Close autocomplete if open
+            if (isOpen) closeAutocomplete();
+            setTimeout(() => {
+              textarea.setSelectionRange(
+                mentionBefore.start,
+                mentionBefore.start
+              );
+            }, 0);
+            return;
+          }
+        }
+
+        // Delete key - delete entire mention if cursor is right before one
+        if (e.key === 'Delete' && !hasSelection && cursorPos < value.length) {
+          const mentionAfter = getMentionAfterCursor(cursorPos, mentionRanges);
+          if (mentionAfter) {
+            e.preventDefault();
+            const newValue =
+              value.slice(0, cursorPos) + value.slice(mentionAfter.end);
+            onChange(newValue);
+            // Close autocomplete if open
+            if (isOpen) closeAutocomplete();
+            setTimeout(() => {
+              textarea.setSelectionRange(cursorPos, cursorPos);
+            }, 0);
+            return;
+          }
+        }
       }
 
       // Normal Enter to send (when autocomplete is closed)
@@ -286,9 +487,14 @@ export function MessageInput({
     },
     [
       mentionsEnabled,
+      mentionRanges,
+      value,
+      isOpen,
       autocompleteKeyDown,
+      closeAutocomplete,
       getSelectedAgent,
       handleSelectMember,
+      onChange,
       onSend,
     ]
   );
@@ -296,6 +502,10 @@ export function MessageInput({
   // Determine placeholder text
   const placeholderText = placeholder || 'Type a message...';
   const compact = density === 'compact';
+
+  const [isFocused, setIsFocused] = useState(false);
+  const hasContent = value.trim().length > 0;
+  const canSend = hasContent && !sending && !disabled;
 
   if (!authenticated) {
     return (
@@ -311,13 +521,7 @@ export function MessageInput({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        'relative bg-background',
-        compact ? 'px-3 py-2' : 'px-4 py-3'
-      )}
-    >
+    <div ref={containerRef} className={cn('relative', compact ? 'p-3' : 'p-4')}>
       {/* Mention autocomplete dropdown */}
       {mentionsEnabled && (
         <MentionAutocomplete
@@ -331,94 +535,102 @@ export function MessageInput({
         />
       )}
 
-      {/* Input container with send button inside */}
-      <div className="relative">
-        {/* Textarea with optional highlight overlay for mentions */}
-        {mentionsEnabled ? (
-          <>
-            {/* Highlight overlay - renders mentions with styling */}
-            <div
-              ref={highlightRef}
-              className={cn(
-                'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl pr-14',
-                compact
-                  ? 'px-3 py-2.5 text-sm md:text-xs'
-                  : 'px-4 py-4 text-sm',
-                'text-foreground'
-              )}
-              aria-hidden="true"
-            >
-              <HighlightedText
-                text={value}
-                validUsernames={validMentionHandles}
+      {/* Composer shell */}
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
+          'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
+          isFocused && 'shadow-sm',
+          (sending || disabled) && 'opacity-60'
+        )}
+      >
+        {/* Input area */}
+        <div className="relative min-w-0 flex-1">
+          {mentionsEnabled ? (
+            <>
+              {/* Highlight overlay */}
+              <div
+                ref={highlightRef}
+                className={cn(
+                  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[5px]',
+                  'text-[15px] leading-[22px]',
+                  'text-foreground'
+                )}
+                aria-hidden="true"
+              >
+                <HighlightedText
+                  text={value}
+                  validUsernames={validMentionHandles}
+                />
+              </div>
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onScroll={handleScroll}
+                onSelect={handleSelect}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                aria-label="Message input, use @ to mention members"
+                placeholder={placeholderText}
+                disabled={sending || disabled}
+                rows={1}
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                className={cn(
+                  'relative z-10 max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
+                  compact
+                    ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
+                    : 'min-h-[32px] text-sm leading-[22px]',
+                  'text-transparent caret-foreground placeholder:text-muted-foreground/40',
+                  'outline-none',
+                  'disabled:cursor-not-allowed'
+                )}
               />
-            </div>
-            {/* Actual textarea - text is transparent, caret visible */}
+            </>
+          ) : (
             <textarea
               ref={textareaRef}
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onScroll={handleScroll}
-              aria-label="Message input, use @ to mention members"
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder={placeholderText}
               disabled={sending || disabled}
               rows={1}
-              spellCheck={false}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
               className={cn(
-                'relative z-10 max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
+                'max-h-40 w-full resize-none overflow-y-auto bg-transparent py-[5px]',
                 compact
-                  ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-                  : 'min-h-[56px] px-4 py-4 text-sm',
-                'message-input bg-sidebar-accent/50',
-                'text-transparent caret-foreground placeholder:text-muted-foreground',
-                'outline-none focus:ring-2 focus:ring-primary/50',
-                'disabled:cursor-not-allowed disabled:opacity-50'
+                  ? 'min-h-[32px] text-sm leading-[22px] md:text-xs'
+                  : 'min-h-[32px] text-sm leading-[22px]',
+                'text-foreground placeholder:text-muted-foreground/40',
+                'outline-none',
+                'disabled:cursor-not-allowed'
               )}
             />
-          </>
-        ) : (
-          /* Simple textarea without highlight overlay */
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholderText}
-            disabled={sending || disabled}
-            rows={1}
-            className={cn(
-              'max-h-40 w-full resize-none overflow-y-auto rounded-xl pr-14',
-              compact
-                ? 'min-h-[48px] px-3 py-2.5 text-sm md:text-xs'
-                : 'min-h-[56px] px-4 py-4 text-sm',
-              'message-input bg-sidebar-accent/50',
-              'text-foreground placeholder:text-muted-foreground',
-              'outline-none focus:ring-2 focus:ring-primary/50',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          />
-        )}
+          )}
+        </div>
 
-        {/* Send button - positioned inside input, vertically centered */}
+        {/* Send button */}
         <button
           type="button"
           onClick={onSend}
-          disabled={!value.trim() || sending || disabled}
+          disabled={!canSend}
           className={cn(
-            '-translate-y-1/2 absolute top-1/2 right-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg',
-            'text-primary transition-all duration-200',
-            'hover:bg-muted',
-            'disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50'
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-150',
+            canSend
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+              : 'text-muted-foreground'
           )}
         >
           {sending ? (
-            <Skeleton className="h-5 w-5 rounded" />
+            <Skeleton className="h-4 w-4 rounded" />
           ) : (
-            <Send className="h-5 w-5" />
+            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
           )}
         </button>
       </div>

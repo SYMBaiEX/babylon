@@ -1,7 +1,7 @@
 'use client';
 
 import type { PnlTagData } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { cn, formatCompactCurrency } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { PanelViewMoreLink } from './PanelViewMoreLink';
 
@@ -13,6 +13,7 @@ interface PnlPanelProps {
 export function PnlPanel({ data, type }: PnlPanelProps) {
   const {
     ownerName,
+    agentName,
     balance,
     lifetimePnL,
     predictionPositions,
@@ -22,20 +23,26 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
 
   const isPositivePnL = lifetimePnL >= 0;
 
+  // Determine the display name based on type
+  const displayName =
+    type === 'owner-pnl'
+      ? `${ownerName || 'Your'} P&L`
+      : `${agentName || 'Agent'} P&L`;
+
   return (
     <div className="space-y-4 p-4">
       {/* Header */}
       <div>
-        <h3 className="font-semibold text-sm">
-          {type === 'owner-pnl' ? `${ownerName || 'Your'} P&L` : 'Agent P&L'}
-        </h3>
+        <h3 className="font-semibold text-sm">{displayName}</h3>
       </div>
 
       {/* Balance & P&L */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-muted-foreground text-xs">Balance</p>
-          <p className="mt-1 font-bold text-lg">${balance.toFixed(2)}</p>
+          <p className="mt-1 font-bold text-lg">
+            {formatCompactCurrency(balance)}
+          </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-muted-foreground text-xs">Lifetime P&L</p>
@@ -50,7 +57,7 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
             ) : (
               <TrendingDown className="h-4 w-4" />
             )}
-            ${Math.abs(lifetimePnL).toFixed(2)}
+            {formatCompactCurrency(Math.abs(lifetimePnL))}
           </p>
         </div>
       </div>
@@ -108,7 +115,7 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
               <div className="mt-1.5 flex items-center justify-between text-muted-foreground text-xs">
                 <span>Size: {pos.size.toFixed(4)}</span>
                 {pos.entryPrice != null && (
-                  <span>Entry: ${pos.entryPrice.toFixed(2)}</span>
+                  <span>Entry: {formatCompactCurrency(pos.entryPrice)}</span>
                 )}
               </div>
             </div>
@@ -127,7 +134,7 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
             >
               <span className="font-medium">{trade.action}</span>
               <span className="text-muted-foreground">{trade.ticker}</span>
-              <span>${trade.amount.toFixed(2)}</span>
+              <span>{formatCompactCurrency(trade.amount)}</span>
               {trade.pnl !== null && (
                 <span
                   className={cn(
@@ -135,7 +142,8 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
                     trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
                   )}
                 >
-                  {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                  {trade.pnl >= 0 ? '+' : ''}
+                  {formatCompactCurrency(trade.pnl)}
                 </span>
               )}
             </div>

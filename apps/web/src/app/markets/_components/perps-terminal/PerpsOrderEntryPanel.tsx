@@ -276,7 +276,7 @@ export function PerpsOrderEntryPanel({
   if (!market) {
     return (
       <div className="flex h-full flex-col p-4">
-        <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-white/5 bg-background/20 p-6 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-lg p-6 text-center">
           <div className="font-semibold text-muted-foreground">Trade</div>
           <div className="mt-1 text-muted-foreground/70 text-sm">
             Select a market to place an order.
@@ -287,65 +287,67 @@ export function PerpsOrderEntryPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background/10">
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Account summary */}
-      <div className="border-white/5 border-b bg-muted/10 p-4">
+      <div className="border-border border-b px-3 py-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            <div className="text-muted-foreground text-xs">
               Available Balance
             </div>
-            <div className="flex items-center gap-2 font-mono text-foreground text-lg tabular-nums">
+            <div className="flex items-center gap-2 font-mono text-base text-foreground tabular-nums">
               <Wallet size={14} className="text-muted-foreground" />
               {balanceLoading ? (
                 <Skeleton className="h-5 w-20" />
               ) : (
                 formatBalance(balance)
               )}
-              {onRequestBuyPoints && (
-                <button
-                  type="button"
-                  onClick={onRequestBuyPoints}
-                  className="ml-2 rounded bg-muted/20 px-2 py-1 font-sans text-[10px] text-muted-foreground uppercase tracking-wider transition-colors hover:bg-muted/30 hover:text-foreground"
-                >
-                  Buy
-                </button>
-              )}
             </div>
           </div>
-          {existingPosition && (
-            <div className="text-right">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Open Position
+          <div className="flex flex-col items-end gap-1">
+            {onRequestBuyPoints && (
+              <button
+                type="button"
+                onClick={onRequestBuyPoints}
+                className="rounded bg-primary px-3 py-1 font-sans font-semibold text-primary-foreground text-xs transition-colors hover:bg-primary/90"
+              >
+                Buy
+              </button>
+            )}
+            {existingPosition && (
+              <div className="text-right">
+                <div className="text-muted-foreground text-xs">
+                  Open Position
+                </div>
+                <div className="font-mono text-foreground text-xs">
+                  {existingPosition.leverage}x{' '}
+                  {existingPosition.side.toUpperCase()} •{' '}
+                  {formatPrice(existingPosition.size)}
+                </div>
               </div>
-              <div className="font-mono text-foreground text-xs">
-                {existingPosition.leverage}x{' '}
-                {existingPosition.side.toUpperCase()} •{' '}
-                {formatPrice(existingPosition.size)}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Order form */}
       <div className="min-h-0 flex-1 overflow-auto p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <div className="flex items-center justify-between">
-          <div className="font-semibold text-sm">Place Order</div>
-          <div className="rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">
+          <div className="font-medium text-sm">Place Order</div>
+          <div className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
             Standard
           </div>
         </div>
 
-        <div className="mt-3 flex rounded-md bg-muted/20 p-1">
+        <div className="mt-3 flex gap-1 rounded bg-muted p-1">
           <button
             type="button"
             onClick={() => setSide('long')}
             className={cn(
-              'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+              'flex-1 rounded py-2 font-semibold text-xs transition-colors',
               side === 'long'
-                ? 'bg-green-600 text-white'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
             )}
           >
             LONG
@@ -354,10 +356,10 @@ export function PerpsOrderEntryPanel({
             type="button"
             onClick={() => setSide('short')}
             className={cn(
-              'flex-1 rounded-sm py-2 font-bold text-xs transition-colors',
+              'flex-1 rounded py-2 font-semibold text-xs transition-colors',
               side === 'short'
-                ? 'bg-red-600 text-white'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
             )}
           >
             SHORT
@@ -387,7 +389,7 @@ export function PerpsOrderEntryPanel({
               disabled
             />
             Limit
-            <span className="ml-1 rounded bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
               soon
             </span>
           </label>
@@ -396,12 +398,12 @@ export function PerpsOrderEntryPanel({
         <div className="mt-4 space-y-4">
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+              <label className="font-medium text-muted-foreground text-xs">
                 Size (USD)
               </label>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 Min {BABYLON_POINTS_SYMBOL}
-                {market.minOrderSize} • Max {market.maxLeverage}x
+                {market.minOrderSize}
               </span>
             </div>
             <input
@@ -410,17 +412,17 @@ export function PerpsOrderEntryPanel({
               onChange={(e) => setSize(e.target.value)}
               min={market.minOrderSize}
               step="10"
-              className="w-full rounded border border-white/10 bg-background/30 px-3 py-2 font-mono text-sm tabular-nums focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded border border-border bg-input px-3 py-2.5 font-mono text-sm tabular-nums placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               placeholder="0.00"
             />
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+              <label className="font-medium text-muted-foreground text-xs">
                 Leverage
               </label>
-              <span className="font-mono text-foreground text-xs">
+              <span className="font-medium font-mono text-foreground text-sm">
                 {clampedLeverage}x
               </span>
             </div>
@@ -430,32 +432,32 @@ export function PerpsOrderEntryPanel({
               max={market.maxLeverage}
               value={clampedLeverage}
               onChange={(e) => setLeverage(Number.parseInt(e.target.value))}
-              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-border accent-primary"
             />
           </div>
 
-          <div className="rounded border border-white/10 bg-muted/10 p-3 text-xs">
+          <div className="space-y-2 rounded bg-muted/50 p-3 text-xs">
             <Row label="Margin" value={formatPrice(baseMargin)} />
             <Row label="Fees" value={formatPrice(estimatedFee)} />
-            <div className="my-2 border-white/10 border-t" />
+            <div className="border-border border-t" />
             <Row label="Total" value={formatPrice(totalRequired)} strong />
           </div>
 
           {showBalanceWarning && (
-            <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-400">
+            <div className="rounded bg-red-500/10 p-3 text-red-400 text-xs">
               Insufficient balance ({formatPrice(balance)})
             </div>
           )}
 
           {positionsLoading && authenticated && (
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               Syncing positions…
             </div>
           )}
         </div>
 
         {rebalanceInfo && (
-          <div className="mt-4 rounded border border-white/10 bg-muted/10 p-3 text-xs">
+          <div className="mt-4 rounded bg-muted/50 p-3 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-muted-foreground">
                 {rebalanceInfo.label}
@@ -464,7 +466,7 @@ export function PerpsOrderEntryPanel({
                 {formatPrice(rebalanceInfo.newSize)}
               </span>
             </div>
-            <div className="mt-1 text-[10px] text-muted-foreground">
+            <div className="mt-1 text-muted-foreground text-xs">
               {rebalanceInfo.description}
             </div>
           </div>
@@ -473,14 +475,18 @@ export function PerpsOrderEntryPanel({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting || (authenticated && showBalanceWarning)}
+          disabled={
+            submitting ||
+            (authenticated &&
+              (showBalanceWarning ||
+                sizeNum <= 0 ||
+                sizeNum < (market?.minOrderSize ?? 0)))
+          }
           className={cn(
-            'mt-5 w-full rounded py-3 font-bold text-sm text-white shadow transition-all',
+            'mt-5 w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
             side === 'long'
-              ? 'bg-green-600 hover:brightness-110'
-              : 'bg-red-600 hover:brightness-110',
-            (submitting || (authenticated && showBalanceWarning)) &&
-              'cursor-not-allowed opacity-50'
+              ? 'bg-green-600 hover:bg-green-700'
+              : 'bg-red-600 hover:bg-red-700'
           )}
         >
           {submitLabel}
@@ -524,12 +530,12 @@ function Row({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between py-0.5">
       <span className="text-muted-foreground">{label}</span>
       <span
         className={cn(
           'font-mono tabular-nums',
-          strong ? 'font-bold text-foreground' : 'text-foreground/90'
+          strong ? 'font-semibold text-foreground' : 'text-foreground'
         )}
       >
         {value}

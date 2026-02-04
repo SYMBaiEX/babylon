@@ -34,6 +34,7 @@ import { type JsonValue, logger } from '@babylon/shared';
 import type { BabylonLLMClient } from '../llm/openai-client';
 import type { LLMJsonClient } from '../llm/types';
 import type { EventContext, FeedPostContext } from '../types/market-context';
+import { createDiscourseActionDeck } from '../utils/feed-diversity';
 import {
   formatActorFinanceGuardrails,
   formatActorToneGuardrails,
@@ -1340,6 +1341,11 @@ export interface GenerateNPCDiscourseOptions {
    * @default 0.5
    */
   quoteProbability?: number;
+  /**
+   * Timestamp supplier called per-action for staggered timestamps.
+   * If not provided, uses the base timestamp parameter for all actions.
+   */
+  getTimestamp?: () => Date;
 }
 
 /**
@@ -1488,86 +1494,120 @@ export async function generateNPCRepliesFromPreviousTicks(
     Math.min(maxReplies, eligiblePosts.length)
   );
 
+  // Identify which posts are original (can become quotes) vs replies (always reply)
+  // Pre-compute this to avoid race conditions in parallel processing
+  const postActionAssignments = postsToReplyTo.map((post) => ({
+    post,
+    isOriginalPost:
+      post.commentOnPostId === null || post.commentOnPostId === undefined,
+  }));
+
+  // Count original posts and build deck sized for them only
+  const originalPosts = postActionAssignments.filter((p) => p.isOriginalPost);
+  const originalPostCount = originalPosts.length;
+
+  // Create stratified action deck for guaranteed diversity (TikTok-style)
+  // Deck is sized for original posts only since replies can't become quotes
+  const quoteDeck = createDiscourseActionDeck(
+    originalPostCount,
+    quoteProbability,
+    random
+  );
+
+  // PRE-ASSIGN deck actions to posts BEFORE parallel execution
+  // This avoids race condition from incrementing shared index in async callbacks
+  let quoteDeckIndex = 0;
+  const actionAssignments = postActionAssignments.map((assignment) => ({
+    ...assignment,
+    // Short-circuit evaluation: quoteDeckIndex++ only runs when isOriginalPost is true.
+    // This ensures we only consume deck entries for original posts, preserving the ratio.
+    shouldQuote:
+      assignment.isOriginalPost && quoteDeck[quoteDeckIndex++] === 'quote',
+  }));
+
+  const quoteCount = quoteDeck.filter((a) => a === 'quote').length;
+  const replyCount = quoteDeck.filter((a) => a === 'reply').length;
+
   logger.info(
     `Generating ${postsToReplyTo.length} NPC replies to previous tick posts`,
     {
       eligiblePosts: eligiblePosts.length,
       targetReplies: postsToReplyTo.length,
+      originalPosts: originalPostCount,
+      quoteDeck: { quotes: quoteCount, replies: replyCount },
     },
     'PostGeneration'
   );
 
   // Generate replies and quote posts in parallel
-  // 70% chance of reply, 30% chance of quote post for variety
-  const discoursePromises = postsToReplyTo.map(async (originalPost) => {
-    // Pick a random actor to engage (not the original author)
-    // Filter by cooldown to prevent repetitive interactions
-    const availableEngagers = actorsWithContext.filter(
-      (a) =>
-        a.id !== originalPost.authorId &&
-        canNPCReplyToNPC(a.id, originalPost.authorId)
-    );
-
-    if (availableEngagers.length === 0) {
-      logger.debug(
-        'No eligible engagers for post (all on cooldown or same author)',
-        { postAuthor: originalPost.authorName },
-        'PostGeneration'
+  // Action type is pre-assigned to avoid race conditions
+  const discoursePromises = actionAssignments.map(
+    async ({ post: originalPost, shouldQuote }) => {
+      // Pick a random actor to engage (not the original author)
+      // Filter by cooldown to prevent repetitive interactions
+      const availableEngagers = actorsWithContext.filter(
+        (a) =>
+          a.id !== originalPost.authorId &&
+          canNPCReplyToNPC(a.id, originalPost.authorId)
       );
-      return { type: 'none' as const, success: false };
+
+      if (availableEngagers.length === 0) {
+        logger.debug(
+          'No eligible engagers for post (all on cooldown or same author)',
+          { postAuthor: originalPost.authorName },
+          'PostGeneration'
+        );
+        return { type: 'none' as const, success: false };
+      }
+
+      const engager =
+        availableEngagers[Math.floor(random() * availableEngagers.length)];
+      if (!engager) return { type: 'none' as const, success: false };
+
+      // Get staggered timestamp for this action (or use base timestamp)
+      const actionTimestamp = options.getTimestamp?.() ?? timestamp;
+
+      let success = false;
+      if (shouldQuote) {
+        success = await generateNPCQuotePost(
+          llmClient,
+          engager,
+          originalPost,
+          worldFactsContext,
+          actionTimestamp,
+          currentDay
+        );
+      } else {
+        success = await generateNPCReplyToPost(
+          llmClient,
+          engager,
+          originalPost,
+          worldFactsContext,
+          actionTimestamp,
+          currentDay
+        );
+      }
+
+      // Record interaction for cooldown tracking if successful
+      if (success) {
+        recordNPCInteraction(engager.id, originalPost.authorId);
+        logger.debug(
+          'Recorded NPC interaction for cooldown',
+          {
+            replier: engager.name,
+            target: originalPost.authorName,
+            type: shouldQuote ? 'quote' : 'reply',
+          },
+          'PostGeneration'
+        );
+      }
+
+      return {
+        type: shouldQuote ? ('quote' as const) : ('reply' as const),
+        success,
+      };
     }
-
-    const engager =
-      availableEngagers[Math.floor(random() * availableEngagers.length)];
-    if (!engager) return { type: 'none' as const, success: false };
-
-    // Decide: reply (70%) or quote post (30%)
-    // Quote posts only for original posts (not replies) to keep it clean
-    const isOriginalPost =
-      originalPost.commentOnPostId === null ||
-      originalPost.commentOnPostId === undefined;
-    const shouldQuote = isOriginalPost && random() < quoteProbability;
-
-    let success = false;
-    if (shouldQuote) {
-      success = await generateNPCQuotePost(
-        llmClient,
-        engager,
-        originalPost,
-        worldFactsContext,
-        timestamp,
-        currentDay
-      );
-    } else {
-      success = await generateNPCReplyToPost(
-        llmClient,
-        engager,
-        originalPost,
-        worldFactsContext,
-        timestamp,
-        currentDay
-      );
-    }
-
-    // Record interaction for cooldown tracking if successful
-    if (success) {
-      recordNPCInteraction(engager.id, originalPost.authorId);
-      logger.debug(
-        'Recorded NPC interaction for cooldown',
-        {
-          replier: engager.name,
-          target: originalPost.authorName,
-          type: shouldQuote ? 'quote' : 'reply',
-        },
-        'PostGeneration'
-      );
-    }
-
-    return {
-      type: shouldQuote ? ('quote' as const) : ('reply' as const),
-      success,
-    };
-  });
+  );
 
   const results = await Promise.allSettled(discoursePromises);
 

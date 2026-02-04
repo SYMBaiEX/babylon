@@ -32,7 +32,7 @@ import {
   TieredGroupService,
   UserAlphaGroupAssignmentService,
 } from '@babylon/engine';
-import { generateSnowflakeId } from '@babylon/shared';
+import { GROUP_CONFIG, generateSnowflakeId } from '@babylon/shared';
 
 // Set timeout to 60 seconds for integration tests
 setDefaultTimeout(60000);
@@ -459,5 +459,32 @@ describe('Tier Capacity and Fill Rate', () => {
     expect(tier1!.maxMembers).toBe(12);
     expect(tier2!.maxMembers).toBe(50);
     expect(tier3!.maxMembers).toBe(500);
+  });
+});
+
+describe('Minimum Group Protection', () => {
+  afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  test('user assigned default groups should be at protection threshold', async () => {
+    const user = await createTestUser({ displayName: 'Protected User' });
+
+    // Assign default groups up to the configured minimum
+    const assignResult =
+      await UserAlphaGroupAssignmentService.assignDefaultGroups(user.id);
+
+    expect(assignResult.success).toBe(true);
+    // User has been assigned exactly TARGET_DEFAULT_GROUPS (the minimum/default)
+    // This means they should be protected from being kicked below this threshold
+    expect(assignResult.groupsAssigned).toBe(
+      UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS
+    );
+  });
+
+  test('TARGET_DEFAULT_GROUPS should match MIN_DEFAULT_GROUPS', () => {
+    expect(UserAlphaGroupAssignmentService.TARGET_DEFAULT_GROUPS).toBe(
+      GROUP_CONFIG.MIN_DEFAULT_GROUPS
+    );
   });
 });

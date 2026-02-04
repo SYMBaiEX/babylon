@@ -9,6 +9,7 @@ import {
   actorState,
   and,
   asc,
+  balanceTransactions,
   count,
   db,
   desc,
@@ -877,14 +878,25 @@ export class PointsService {
     paymentProvider: 'crypto' | 'stripe' = 'crypto'
   ): Promise<AwardPointsResult> {
     const pointsAmount = Math.floor(amountUSD * 100);
+    const transactionType = `${paymentProvider}_purchase`;
+    // Use payment intent ID as relatedId for Stripe (enables dispute/refund lookups)
+    // Fall back to session ID for crypto or when payment intent not available
+    const relatedIdValue = paymentTxHash || paymentRequestId;
 
     // Execute everything in a transaction for atomicity
     const result = await db.transaction(async (tx) => {
       // Idempotency check: has this payment already been processed?
+      // Check both by relatedId (payment intent) and by session ID in description
       const existingTransaction = await tx
-        .select({ id: pointsTransactions.id })
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, paymentRequestId))
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.type, transactionType),
+            eq(balanceTransactions.relatedId, relatedIdValue)
+          )
+        )
         .limit(1);
 
       if (existingTransaction.length > 0) {
@@ -930,25 +942,24 @@ export class PointsService {
         })
         .where(eq(users.id, userId));
 
-      // Record the transaction
-      await tx.insert(pointsTransactions).values({
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      // Store paymentTxHash (payment intent ID) in relatedId for dispute/refund lookups
+      await tx.insert(balanceTransactions).values({
         id: await generateSnowflakeId(),
         userId,
-        amount: pointsAmount,
-        pointsBefore: balanceBefore,
-        pointsAfter: balanceAfter,
-        reason: 'purchase',
-        metadata: JSON.stringify({
+        type: transactionType,
+        amount: String(pointsAmount),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: relatedIdValue, // Payment intent ID (for lookups) or session ID
+        description: JSON.stringify({
           amountUSD,
           pointsPerDollar: 100,
           purchasedAt: new Date().toISOString(),
           paymentProvider,
+          paymentRequestId, // Session ID for reference
+          paymentTxHash, // Payment intent ID for reference
         }),
-        paymentRequestId,
-        paymentTxHash,
-        paymentAmount: amountUSD.toFixed(2),
-        paymentVerified: true,
-        paymentProvider,
       });
 
       return {
@@ -997,16 +1008,22 @@ export class PointsService {
     stripeEventId: string
   ): Promise<AwardPointsResult> {
     const pointsToDeduct = Math.floor(amountUSD * 100);
-    const transactionReason =
-      reason === 'refund' ? 'purchase_refund' : 'purchase_dispute';
+    const transactionType =
+      reason === 'refund' ? 'stripe_refund' : 'stripe_dispute';
 
     // Execute everything in a transaction for atomicity
     const result = await db.transaction(async (tx) => {
       // Idempotency check: has this event already been processed?
+      // Use balanceTransactions with relatedId = stripeEventId
       const existingReversal = await tx
-        .select({ id: pointsTransactions.id })
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.relatedId, stripeEventId)
+          )
+        )
         .limit(1);
 
       if (existingReversal.length > 0) {
@@ -1059,28 +1076,23 @@ export class PointsService {
         })
         .where(eq(users.id, userId));
 
-      // Record the transaction
-      await tx.insert(pointsTransactions).values({
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      await tx.insert(balanceTransactions).values({
         id: await generateSnowflakeId(),
         userId,
-        amount: -actualDeduction, // Negative for deduction
-        pointsBefore: balanceBefore,
-        pointsAfter: balanceAfter,
-        reason: transactionReason,
-        metadata: JSON.stringify({
+        type: transactionType,
+        amount: String(-actualDeduction), // Negative for deduction
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: stripeEventId, // Used for idempotency
+        description: JSON.stringify({
           amountUSD,
           pointsRequested: pointsToDeduct,
           pointsActuallyDeducted: actualDeduction,
           originalPaymentIntentId: paymentIntentId,
-          stripeEventId,
           reversalReason: reason,
           reversedAt: new Date().toISOString(),
         }),
-        paymentRequestId: stripeEventId, // Use event ID for idempotency
-        paymentTxHash: paymentIntentId,
-        paymentAmount: amountUSD.toFixed(2),
-        paymentVerified: true,
-        paymentProvider: 'stripe',
       });
 
       logger.info(
@@ -1133,10 +1145,16 @@ export class PointsService {
     // Execute everything in a transaction for atomicity
     const result = await db.transaction(async (tx) => {
       // Idempotency check: has this event already been processed?
+      // Use balanceTransactions with relatedId = stripeEventId
       const existingCredit = await tx
-        .select({ id: pointsTransactions.id })
-        .from(pointsTransactions)
-        .where(eq(pointsTransactions.paymentRequestId, stripeEventId))
+        .select({ id: balanceTransactions.id })
+        .from(balanceTransactions)
+        .where(
+          and(
+            eq(balanceTransactions.userId, userId),
+            eq(balanceTransactions.relatedId, stripeEventId)
+          )
+        )
         .limit(1);
 
       if (existingCredit.length > 0) {
@@ -1187,26 +1205,21 @@ export class PointsService {
         })
         .where(eq(users.id, userId));
 
-      // Record the transaction
-      await tx.insert(pointsTransactions).values({
+      // Record the transaction in balanceTransactions (supports decimal balances)
+      await tx.insert(balanceTransactions).values({
         id: await generateSnowflakeId(),
         userId,
-        amount: pointsToCredit,
-        pointsBefore: balanceBefore,
-        pointsAfter: balanceAfter,
-        reason: 'purchase_dispute_won',
-        metadata: JSON.stringify({
+        type: 'stripe_dispute_won',
+        amount: String(pointsToCredit),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        relatedId: stripeEventId, // Used for idempotency
+        description: JSON.stringify({
           amountUSD,
           pointsCredited: pointsToCredit,
           disputeId,
-          stripeEventId,
           creditedAt: new Date().toISOString(),
         }),
-        paymentRequestId: stripeEventId, // Use event ID for idempotency
-        paymentTxHash: disputeId,
-        paymentAmount: amountUSD.toFixed(2),
-        paymentVerified: true,
-        paymentProvider: 'stripe',
       });
 
       logger.info(

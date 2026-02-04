@@ -193,7 +193,7 @@ export default function PostPage({ params }: PostPageProps) {
       >
         <div className="relative flex min-h-screen flex-1">
           {/* Desktop loading */}
-          <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+          <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
             <div className="flex-1 bg-background">
               <div className="w-full lg:mx-auto lg:max-w-[700px]">
                 <div className="space-y-4 px-4 py-6">
@@ -226,7 +226,7 @@ export default function PostPage({ params }: PostPageProps) {
       >
         <div className="relative flex min-h-screen flex-1">
           {/* Desktop error */}
-          <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+          <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
             <div className="flex flex-1 flex-col items-center justify-center bg-background">
               <div className="text-center">
                 <h1 className="mb-2 font-bold text-2xl">Post Not Found</h1>
@@ -267,7 +267,7 @@ export default function PostPage({ params }: PostPageProps) {
     <PageContainer noPadding className="!overflow-visible flex w-full flex-col">
       <div className="relative flex min-h-screen flex-1">
         {/* Desktop: Post content area */}
-        <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+        <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop: Top bar with back button */}
           <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
             <div className="px-6 py-4">

@@ -65,7 +65,7 @@ export const feedProvider: Provider = {
     const feedText = `Recent Feed Posts:\n${posts
       .map(
         (p, idx) =>
-          `${idx + 1}. [${p.type || 'post'}] ${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''} (Author: ${p.authorId}, ID: ${p.id})`
+          `${idx + 1}. [${p.type || 'post'}] ${p.content?.substring(0, 200) ?? ''}${(p.content?.length ?? 0) > 200 ? '...' : ''} (Author: ${p.authorId}, ID: ${p.id})`
       )
       .join('\n\n')}`;
 

@@ -160,10 +160,8 @@ const SYSTEM_MARKET_FEES = {
 /**
  * Market structure configuration - maintains exactly 10 active markets
  * with staggered timeframes for constant activity.
- *
- * Exported for testing purposes.
  */
-export const MARKET_STRUCTURE: Record<
+const MARKET_STRUCTURE: Record<
   string,
   { count: number; durationMs: number; label: string }
 > = {
@@ -1930,10 +1928,8 @@ function mapTimeframeToDbType(timeframe: string): MarketTimeframe {
  * allowing accurate gap-filling with correct durations.
  *
  * Uses threshold-based matching with 10% tolerance to handle minor variations.
- *
- * Exported for testing purposes.
  */
-export function inferGranularTimeframe(durationMs: number): string {
+function inferGranularTimeframe(durationMs: number): string {
   // Sort entries by duration ascending to find the best match
   const sortedEntries = Object.entries(MARKET_STRUCTURE).sort(
     (a, b) => a[1].durationMs - b[1].durationMs

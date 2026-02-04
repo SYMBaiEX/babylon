@@ -33,12 +33,14 @@ import {
   createPublicClient,
   createWalletClient,
   decodeEventLog,
+  encodeFunctionData,
   http,
   type Log,
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, foundry } from 'viem/chains';
+import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
 
 /**
  * Agent0Client interface for dependency injection
@@ -126,6 +128,11 @@ export const DEPLOYER_PRIVATE_KEY: `0x${string}` =
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser;
+  /**
+   * Privy user auth token (JWT) for server-side user wallet actions.
+   * Required when Babylon needs to submit a transaction from the user's embedded wallet.
+   */
+  userJwt?: string | null;
   walletAddress?: string | null;
   username?: string | null;
   displayName?: string | null;
@@ -148,6 +155,7 @@ export interface OnchainRegistrationResult {
 
 export async function processOnchainRegistration({
   user,
+  userJwt,
   walletAddress,
   username,
   displayName,
@@ -248,6 +256,7 @@ export async function processOnchainRegistration({
   let dbUser: {
     id: string;
     username: string | null;
+    privyWalletId: string | null;
     walletAddress: string | null;
     onChainRegistered: boolean;
     nftTokenId: number | null;
@@ -260,6 +269,7 @@ export async function processOnchainRegistration({
       .select({
         id: users.id,
         username: users.username,
+        privyWalletId: users.privyWalletId,
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
@@ -290,6 +300,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -302,6 +313,7 @@ export async function processOnchainRegistration({
       .select({
         id: users.id,
         username: users.username,
+        privyWalletId: users.privyWalletId,
         walletAddress: users.walletAddress,
         onChainRegistered: users.onChainRegistered,
         nftTokenId: users.nftTokenId,
@@ -333,6 +345,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -360,6 +373,7 @@ export async function processOnchainRegistration({
         .returning({
           id: users.id,
           username: users.username,
+          privyWalletId: users.privyWalletId,
           walletAddress: users.walletAddress,
           onChainRegistered: users.onChainRegistered,
           nftTokenId: users.nftTokenId,
@@ -378,10 +392,11 @@ export async function processOnchainRegistration({
   }
 
   const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+  const isLocalNetwork = chainId === 31337;
 
   // Create publicClient at function scope for use throughout registration flow
   const publicClient = createPublicClient({
-    chain: chainId === 31337 ? foundry : baseSepolia,
+    chain: isLocalNetwork ? foundry : baseSepolia,
     transport: http(getRpcUrl()),
   });
 
@@ -475,30 +490,24 @@ export async function processOnchainRegistration({
     };
   }
 
-  // Validate deployer private key format
+  // Deployer wallet is only required for:
+  // - agent registrations (server-owned)
+  // - localnet fallback (Privy cannot sign on local chains)
   const deployerConfigured =
     Boolean(DEPLOYER_PRIVATE_KEY) &&
     typeof DEPLOYER_PRIVATE_KEY === 'string' &&
     /^0x[0-9a-fA-F]{64}$/.test(DEPLOYER_PRIVATE_KEY);
 
   let deployerAccount: Account | null = null;
-  let walletClient: WalletClient | null = null;
+  let deployerWalletClient: WalletClient | null = null;
 
-  if (deployerConfigured) {
-    const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+  if (deployerConfigured && (user.isAgent || isLocalNetwork)) {
     deployerAccount = privateKeyToAccount(DEPLOYER_PRIVATE_KEY!);
-    walletClient = createWalletClient({
+    deployerWalletClient = createWalletClient({
       account: deployerAccount,
-      chain: chainId === 31337 ? foundry : baseSepolia,
+      chain: isLocalNetwork ? foundry : baseSepolia,
       transport: http(getRpcUrl()),
     });
-  }
-
-  if (!submittedTxHash && !deployerConfigured) {
-    throw new InternalServerError(
-      'Server wallet not configured for gas payments',
-      { missing: 'DEPLOYER_PRIVATE_KEY' }
-    );
   }
 
   const name = username || (user.isAgent ? user.userId : finalUsername);
@@ -567,13 +576,19 @@ export async function processOnchainRegistration({
         { txHash: submittedTxHash, receipt: receipt.status }
       );
     }
-  } else if (walletClient) {
-    registrationTxHash = await walletClient.writeContract({
+  } else if (user.isAgent || isLocalNetwork) {
+    if (!deployerWalletClient) {
+      throw new InternalServerError('Server wallet not configured', {
+        missing: 'DEPLOYER_PRIVATE_KEY',
+      });
+    }
+
+    registrationTxHash = await deployerWalletClient.writeContract({
       address: IDENTITY_REGISTRY,
       abi: identityRegistryAbi,
       functionName: 'registerAgent',
       args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
+    } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
 
     logger.info(
       'Registration transaction sent',
@@ -603,13 +618,59 @@ export async function processOnchainRegistration({
       );
     }
   } else {
-    throw new InternalServerError(
-      'Unable to determine registration transaction result',
-      {
-        hasSubmittedTx: Boolean(submittedTxHash),
-        deployerConfigured,
-      }
+    // Non-agent: submit from the user's embedded wallet via Privy (server-side user wallet flow).
+    if (!userJwt) {
+      throw new InternalServerError(
+        'Missing Privy user token for transaction',
+        {
+          missing: 'userJwt',
+        }
+      );
+    }
+    if (!dbUser.privyWalletId) {
+      throw new InternalServerError('User embedded wallet id missing', {
+        missing: 'users.privyWalletId',
+      });
+    }
+
+    const data = encodeFunctionData({
+      abi: identityRegistryAbi,
+      functionName: 'registerAgent',
+      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+    });
+
+    const { hash } = await sendSponsoredEvmTransaction({
+      userJwt,
+      walletId: dbUser.privyWalletId,
+      to: IDENTITY_REGISTRY,
+      data,
+      valueWei: 0n,
+      caip2: `eip155:${chainId}`,
+      chainId,
+    });
+    registrationTxHash = hash;
+
+    logger.info(
+      'Registration transaction sent (Privy sponsored)',
+      { txHash: registrationTxHash },
+      'OnboardingOnchain'
     );
+
+    receipt = await publicClient.waitForTransactionReceipt({
+      hash: registrationTxHash,
+      confirmations: 2,
+    });
+
+    if (receipt.status !== 'success') {
+      throw new BusinessLogicError(
+        'Blockchain registration transaction failed',
+        'REGISTRATION_TX_FAILED',
+        {
+          txHash: registrationTxHash,
+          receipt: receipt.status,
+        }
+      );
+    }
   }
 
   const finalizedReceipt = receipt;
@@ -687,18 +748,18 @@ export async function processOnchainRegistration({
   const args = decodedLog.args as { tokenId?: bigint } | undefined;
   tokenId = args?.tokenId ? Number(args.tokenId) : 0;
   logger.info('Registered with token ID', { tokenId }, 'OnboardingOnchain');
-  if (walletClient) {
+  if (deployerWalletClient) {
     logger.info(
       'Bootstrapping on-chain reputation via feedback...',
       undefined,
       'OnboardingOnchain'
     );
-    const bootstrapTx = await walletClient.writeContract({
+    const bootstrapTx = await deployerWalletClient.writeContract({
       address: REPUTATION_SYSTEM,
       abi: reputationSystemAbi,
       functionName: 'submitFeedback',
       args: [BigInt(tokenId), 1, 'Bootstrap reputation'],
-    } as unknown as Parameters<typeof walletClient.writeContract>[0]);
+    } as unknown as Parameters<typeof deployerWalletClient.writeContract>[0]);
     await publicClient.waitForTransactionReceipt({
       hash: bootstrapTx,
       confirmations: 1,

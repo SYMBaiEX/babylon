@@ -50,13 +50,6 @@ function formatMessage(msg: RawApiMessage, chatId: string): ChatMessage {
   };
 }
 
-/** Sort messages by createdAt timestamp */
-function sortByTime(messages: ChatMessage[]): ChatMessage[] {
-  return [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-}
-
 /**
  * Time window (ms) for matching optimistic messages to confirmed messages.
  * If a confirmed message arrives within this window of an optimistic message
@@ -107,16 +100,23 @@ function replaceOptimisticMessage(
   // Replace optimistic message if found
   const pending = messages.find((msg) => isMatchingOptimistic(msg, confirmed));
   if (pending) {
-    return sortByTime(
-      messages.map((msg) =>
-        msg.id === pending.id
-          ? { ...confirmed, stableKey: pending.stableKey || pending.id }
-          : msg
-      )
+    // Preserve the optimistic message's createdAt to maintain visual order
+    // The server timestamp might differ due to network latency, but we want
+    // to keep the message in the same position the user saw it
+    return messages.map((msg) =>
+      msg.id === pending.id
+        ? {
+            ...confirmed,
+            stableKey: pending.stableKey || pending.id,
+            createdAt: pending.createdAt,
+          }
+        : msg
     );
   }
 
-  return sortByTime([...messages, confirmed]);
+  // Don't sort - just append. This preserves visual order during real-time chat.
+  // Messages are already sorted when loaded from API.
+  return [...messages, confirmed];
 }
 
 /** Polling interval - less aggressive since SSE is primary */
@@ -387,18 +387,21 @@ export function useChatMessages(chatId: string | null) {
               const pending = updated.find((m) => isMatchingOptimistic(m, msg));
               if (pending) {
                 const idx = updated.indexOf(pending);
+                // Preserve original timestamp to maintain visual order
                 updated[idx] = {
                   ...msg,
                   stableKey: pending.stableKey || pending.id,
+                  createdAt: pending.createdAt,
                 };
                 changed = true;
               } else {
+                // Just append new messages, don't sort
                 updated.push(msg);
                 changed = true;
               }
             }
 
-            return changed ? sortByTime(updated) : prev;
+            return changed ? updated : prev;
           });
 
           hasLoadedRef.current.add(chatId);
@@ -424,7 +427,16 @@ export function useChatMessages(chatId: string | null) {
   }, [isConnected, chatId]);
 
   const addMessage = useCallback((message: ChatMessage) => {
-    setMessages((prev) => replaceOptimisticMessage(prev, message));
+    // Optimistic/thinking messages should be appended directly without replacement logic
+    // Only confirmed messages (from SSE) should go through replacement to match their optimistic
+    if (
+      message.id.startsWith('pending-') ||
+      message.id.startsWith('thinking-')
+    ) {
+      setMessages((prev) => [...prev, message]);
+    } else {
+      setMessages((prev) => replaceOptimisticMessage(prev, message));
+    }
   }, []);
 
   const updateMessage = useCallback(

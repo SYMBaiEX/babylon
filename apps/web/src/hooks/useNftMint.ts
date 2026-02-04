@@ -1,18 +1,16 @@
-import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { mintNftAction } from '@/app/_actions/nft';
 import { useAuth } from '@/hooks/useAuth';
 import type {
   EligibilityApiResponse,
   EligibilityResponse,
   MintConfirmResponse,
   MintFlowState,
-  MintPrepareResponse,
 } from '@/types/nft';
 
 const MINTING_STATES = new Set<MintFlowState>([
   'preparing',
-  'awaiting_signature',
   'minting',
   'confirming',
 ]);
@@ -31,7 +29,6 @@ interface UseNftMintResult {
 
 export function useNftMint(): UseNftMintResult {
   const { authenticated, getAccessToken } = useAuth();
-  const { getClientForChain } = useSmartWallets();
 
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(
     null
@@ -147,151 +144,50 @@ export function useNftMint(): UseNftMintResult {
     setFlowState('preparing');
     setError(null);
 
-    let token: string | null;
-    try {
-      token = await getAccessToken();
-    } catch {
-      handleError('Authentication failed');
-      return;
-    }
-
-    if (!token) {
-      handleError('Authentication failed');
-      return;
-    }
-
-    // Step 1: Prepare mint (get signature from backend)
-    let prepareData: MintPrepareResponse;
-    try {
-      const prepareResponse = await fetch('/api/nft/mint/prepare', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!prepareResponse.ok) {
-        const errorData = await prepareResponse.json().catch(() => ({}));
-        handleError(errorData.error ?? 'Failed to prepare mint');
-        return;
-      }
-
-      prepareData = await prepareResponse.json();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      handleError(`Failed to prepare mint: ${message}`);
-      return;
-    }
-
-    // Validate response data before transitioning to awaiting_signature state
-    const zeroAddress = '0x0000000000000000000000000000000000000000';
-    if (prepareData.contractAddress === zeroAddress) {
-      handleError('NFT contract not deployed');
-      return;
-    }
-
-    if (!prepareData.encodedData || !prepareData.signature) {
-      handleError('Failed to generate mint signature');
-      return;
-    }
-
-    // Only transition to awaiting_signature after validation passes
-    setFlowState('awaiting_signature');
-
-    // Step 2: Send transaction
     setFlowState('minting');
 
-    let txHash: string;
     try {
-      const chainClient = await getClientForChain({
-        id: prepareData.chainId,
-      });
-
-      const chainClientAddress = chainClient?.account?.address;
-      if (!chainClientAddress) {
-        handleError('Smart wallet not ready');
+      const userJwt = await getAccessToken().catch(() => null);
+      if (!userJwt) {
+        handleError('Authentication failed');
         return;
       }
 
-      if (prepareData.to.toLowerCase() !== chainClientAddress.toLowerCase()) {
-        handleError(
-          'Smart wallet mismatch. Please refresh and try again (or re-login).'
-        );
+      const result = await mintNftAction({ userJwt });
+
+      if (result.status === 'pending') {
+        // Transaction submitted but not yet confirmed
+        // Show a different toast and let user know they can check later
+        toast.info(result.message, { duration: 10000 });
+        setFlowState('eligible'); // Reset to eligible state so they can try again later
         return;
       }
 
-      txHash = await chainClient.sendTransaction({
-        to: prepareData.contractAddress as `0x${string}`,
-        data: prepareData.encodedData as `0x${string}`,
-        value: 0n,
-      });
+      // Transaction confirmed - update state with minted NFT
+      setMintedNft(result.nft);
+      setFlowState('revealing');
+      setEligibility((prev) =>
+        prev
+          ? {
+              ...prev,
+              hasMinted: true,
+              status: 'already_minted',
+              mintedNft: {
+                tokenId: result.nft.tokenId,
+                name: result.nft.name,
+                thumbnailUrl: result.nft.thumbnailUrl ?? result.nft.imageUrl,
+                txHash: result.txHash,
+              },
+            }
+          : null
+      );
+
+      toast.success('NFT minted successfully!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Transaction failed';
-      // User rejection is common, don't show harsh error
-      if (message.includes('rejected') || message.includes('denied')) {
-        setFlowState('eligible');
-        setError(null);
-        return;
-      }
       handleError(message);
-      return;
     }
-
-    // Step 3: Confirm mint on backend
-    setFlowState('confirming');
-
-    let confirmData: MintConfirmResponse;
-    try {
-      const confirmResponse = await fetch('/api/nft/mint/confirm', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          txHash,
-          walletAddress: prepareData.to,
-        }),
-      });
-
-      if (!confirmResponse.ok) {
-        const errorData = await confirmResponse.json().catch(() => ({}));
-        handleError(errorData.error ?? 'Failed to confirm mint');
-        return;
-      }
-
-      confirmData = await confirmResponse.json();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      // Transaction succeeded but confirm failed - don't lose the tx
-      handleError(
-        `Mint confirmed on chain but database update failed: ${message}. TX: ${txHash}`
-      );
-      return;
-    }
-
-    // Update state with minted NFT
-    setMintedNft(confirmData.nft);
-    setFlowState('revealing');
-    setEligibility((prev) =>
-      prev
-        ? {
-            ...prev,
-            hasMinted: true,
-            status: 'already_minted',
-            mintedNft: {
-              tokenId: confirmData.nft.tokenId,
-              name: confirmData.nft.name,
-              thumbnailUrl: confirmData.nft.thumbnailUrl ?? '',
-              txHash,
-            },
-          }
-        : null
-    );
-
-    toast.success('NFT minted successfully!');
-  }, [authenticated, eligibility, getAccessToken, getClientForChain]);
+  }, [authenticated, eligibility, getAccessToken]);
 
   const resetFlow = useCallback(() => {
     setFlowState(

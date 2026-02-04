@@ -94,7 +94,7 @@ function BottomNavContent() {
     },
     {
       name: 'Agents',
-      href: '/agents',
+      href: '/agents/team',
       icon: Bot,
       color: '#0066FF',
       active: pathname === '/agents' || pathname.startsWith('/agents/'),
