@@ -116,6 +116,7 @@ export async function sendSponsoredEvmTransaction({
       exp: payload.exp,
       isExpired: payload.exp ? payload.exp < Date.now() / 1000 : 'no-exp',
       configuredAppId: appId,
+      jwtLength: userJwt.length,
     },
     'sendSponsoredEvmTransaction'
   );

@@ -3,10 +3,10 @@
 import { cookies } from 'next/headers';
 
 /**
- * Retrieves the Privy authentication token from cookies or explicit parameter.
+ * Retrieves the Privy authentication token from cookies (preferred) or an explicit parameter.
  *
- * Used for server actions that need to authenticate API requests.
- * Prefers the HttpOnly `privy-token` cookie which is set by Privy's SDK.
+ * Used by server actions that need to authenticate Privy-backed API calls.
+ * Prefers the HttpOnly `privy-token` cookie which is set/managed by Privy's SDK.
  *
  * @param explicitToken - Optional fallback token if cookies are not available
  * @returns The Privy JWT token

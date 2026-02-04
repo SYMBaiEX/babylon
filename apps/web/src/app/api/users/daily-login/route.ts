@@ -6,7 +6,7 @@
  */
 
 import {
-  authenticate,
+  authenticateWithDbUser,
   DailyLoginService,
   successResponse,
   withErrorHandling,
@@ -14,8 +14,8 @@ import {
 import type { NextRequest } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const { userId } = await authenticate(request);
-  const info = await DailyLoginService.getStreakInfo(userId);
+  const { dbUserId } = await authenticateWithDbUser(request);
+  const info = await DailyLoginService.getStreakInfo(dbUserId);
   return successResponse({
     ...info,
     lastClaim: info.lastClaim?.toISOString() ?? null,
@@ -23,7 +23,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const { userId } = await authenticate(request);
-  const result = await DailyLoginService.claimDailyReward(userId);
+  const { dbUserId } = await authenticateWithDbUser(request);
+  const result = await DailyLoginService.claimDailyReward(dbUserId);
   return successResponse(result);
 });
