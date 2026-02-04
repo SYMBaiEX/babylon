@@ -23,7 +23,6 @@ function formatSignedBalance(value: number): string {
 /** Props for the TerminalPortfolio component */
 interface TerminalPortfolioProps {
   authenticated: boolean;
-  onLogin: () => void;
   onRequestBuyPoints?: (() => void) | null;
   balance: number;
   balanceLoading: boolean;
@@ -76,7 +75,6 @@ function StatCard({
 
 export function TerminalPortfolio({
   authenticated,
-  onLogin,
   onRequestBuyPoints,
   balance,
   balanceLoading,
@@ -92,19 +90,8 @@ export function TerminalPortfolio({
 }: TerminalPortfolioProps) {
   if (!authenticated) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-center">
-        <div className="max-w-md text-muted-foreground text-sm">
-          <div className="mb-3 font-semibold text-foreground">
-            Log in to view your portfolio
-          </div>
-          <button
-            type="button"
-            onClick={onLogin}
-            className="mt-2 rounded bg-foreground px-4 py-2 font-semibold text-background text-sm transition-colors hover:opacity-90"
-          >
-            Log In
-          </button>
-        </div>
+      <div className="flex h-full justify-center pt-6 text-muted-foreground text-sm">
+        Log in to view your portfolio.
       </div>
     );
   }

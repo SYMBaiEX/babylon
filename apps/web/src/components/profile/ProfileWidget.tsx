@@ -7,7 +7,14 @@ import type {
   UserProfileStats,
 } from '@babylon/shared';
 import { cn } from '@babylon/shared';
-import { HelpCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  BarChart3,
+  Coins,
+  HelpCircle,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -306,12 +313,10 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   if (loading) {
     return (
       <div className="flex h-full w-full flex-col overflow-y-auto">
-        <div className="flex items-center justify-center py-8">
-          <div className="w-full space-y-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
+        <div className="space-y-4">
+          <Skeleton className="h-48 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
         </div>
       </div>
     );
@@ -333,88 +338,101 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     );
   }
 
+  const StatRow = ({
+    label,
+    value,
+    valueClassName,
+  }: {
+    label: string;
+    value: string;
+    valueClassName?: string;
+  }) => (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span
+        className={cn('font-medium text-foreground text-sm', valueClassName)}
+      >
+        {value}
+      </span>
+    </div>
+  );
+
   return (
-    <div className="flex h-full w-full flex-col overflow-y-auto">
+    <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto">
       {/* Points Section */}
-      <div className="mb-6">
-        <h3 className="mb-3 font-bold text-foreground text-lg">Points</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between rounded-lg bg-[#0066FF]/10 px-2 py-1.5">
-            <span className="font-semibold text-[#0066FF] text-sm">
-              Total Points
-            </span>
-            <span className="font-bold text-[#0066FF] text-sm">
-              {formatPoints(portfolio?.totalPoints ?? 0)} pts
-            </span>
+      <div className="rounded-lg border border-border p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Coins className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-foreground text-sm">Points</h3>
+        </div>
+
+        {/* Total Points highlight */}
+        <div className="mb-3 rounded-lg bg-primary/5 px-3 py-2.5">
+          <div className="text-primary/90 text-xs">Total Points</div>
+          <div className="font-bold text-lg text-primary">
+            {formatPoints(portfolio?.totalPoints ?? 0)}
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">Available</span>
-            <span className="font-semibold text-foreground text-sm">
-              {formatPoints(portfolio?.available ?? 0)} pts
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">In Positions</span>
-            <span className="font-semibold text-foreground text-sm">
-              {formatPoints(portfolio?.positions ?? 0)} pts
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">Agents</span>
-            <span className="font-semibold text-foreground text-sm">
-              {formatPoints(portfolio?.agents ?? 0)} pts
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">Wallet</span>
-            <span className="font-semibold text-foreground text-sm">
-              {formatPoints(portfolio?.wallet ?? 0)} pts
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">Total Assets</span>
-            <span className="font-semibold text-foreground text-sm">
-              {formatPoints(portfolio?.totalAssets ?? 0)} pts
-            </span>
-          </div>
-          <div className="flex items-center justify-between border-border border-t pt-2">
-            <span className="text-muted-foreground text-sm">P&L</span>
-            <span
-              className={cn(
-                'font-semibold text-sm',
-                (portfolio?.totalPnL ?? 0) >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              )}
-            >
-              {formatPoints(portfolio?.totalPnL ?? 0)} pts (
-              {formatPercent(pnlPercent)})
-            </span>
+        </div>
+
+        <div className="space-y-0">
+          <StatRow
+            label="Available"
+            value={`${formatPoints(portfolio?.available ?? 0)} pts`}
+          />
+          <StatRow
+            label="In Positions"
+            value={`${formatPoints(portfolio?.positions ?? 0)} pts`}
+          />
+          <StatRow
+            label="Agents"
+            value={`${formatPoints(portfolio?.agents ?? 0)} pts`}
+          />
+          <StatRow
+            label="Wallet"
+            value={`${formatPoints(portfolio?.wallet ?? 0)} pts`}
+          />
+          <StatRow
+            label="Total Assets"
+            value={`${formatPoints(portfolio?.totalAssets ?? 0)} pts`}
+          />
+          <div className="mt-1 border-border border-t pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">P&L</span>
+              <span
+                className={cn(
+                  'font-semibold text-sm',
+                  (portfolio?.totalPnL ?? 0) >= 0
+                    ? 'text-green-500'
+                    : 'text-red-500'
+                )}
+              >
+                {formatPoints(portfolio?.totalPnL ?? 0)} pts (
+                {formatPercent(pnlPercent)})
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Holdings Section */}
-      <div className="mb-6">
+      <div className="rounded-lg border border-border p-4">
         <button
           onClick={() => router.push('/markets')}
-          className="mb-3 cursor-pointer text-left font-bold text-foreground text-lg transition-colors hover:text-[#0066FF]"
+          className="mb-3 flex items-center gap-2 transition-colors hover:text-primary"
         >
-          Holdings
+          <Wallet className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-foreground text-sm">Holdings</h3>
         </button>
 
         {/* Predictions */}
         {predictions.length > 0 && (
-          <div className="mb-4">
-            <button
-              onClick={() => router.push('/markets')}
-              className="mb-2 block cursor-pointer font-semibold text-muted-foreground text-xs uppercase transition-colors hover:text-[#0066FF]"
-            >
-              PREDICTIONS
-            </button>
-            <div className="space-y-2">
+          <div className="mb-3">
+            <div className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              Predictions
+            </div>
+            <div className="space-y-1">
               {predictions.slice(0, 3).map((pred) => {
-                const pnlPercent =
+                const pnlPct =
                   pred.avgPrice > 0
                     ? ((pred.currentPrice - pred.avgPrice) / pred.avgPrice) *
                       100
@@ -427,22 +445,24 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
                       setModalType('prediction');
                       setModalOpen(true);
                     }}
-                    className="-ml-2 w-full cursor-pointer rounded p-2 text-left text-sm transition-colors hover:bg-muted/30"
+                    className="w-full rounded-lg p-2 text-left transition-colors hover:bg-muted/30"
                   >
-                    <div className="truncate font-medium text-foreground">
+                    <div className="truncate font-medium text-foreground text-sm">
                       {pred.question}
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                      {pred.shares} shares {pred.side} @{' '}
-                      {formatPrice(pred.avgPrice)}
-                    </div>
-                    <div
-                      className={cn(
-                        'mt-0.5 font-medium text-xs',
-                        pnlPercent >= 0 ? 'text-green-600' : 'text-red-600'
-                      )}
-                    >
-                      {formatPercent(pnlPercent)}
+                    <div className="mt-0.5 flex items-center justify-between">
+                      <span className="text-muted-foreground text-xs">
+                        {pred.shares} shares {pred.side} @{' '}
+                        {formatPrice(pred.avgPrice)}
+                      </span>
+                      <span
+                        className={cn(
+                          'font-medium text-xs',
+                          pnlPct >= 0 ? 'text-green-500' : 'text-red-500'
+                        )}
+                      >
+                        {formatPercent(pnlPct)}
+                      </span>
                     </div>
                   </button>
                 );
@@ -453,14 +473,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
 
         {/* Stocks (Perps) */}
         {perps.length > 0 && (
-          <div className="mb-4">
-            <button
-              onClick={() => router.push('/markets')}
-              className="mb-2 block cursor-pointer font-semibold text-muted-foreground text-xs uppercase transition-colors hover:text-[#0066FF]"
-            >
-              STOCKS
-            </button>
-            <div className="space-y-2">
+          <div>
+            <div className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              Stocks
+            </div>
+            <div className="space-y-1">
               {perps.slice(0, 3).map((perp) => (
                 <button
                   key={perp.id}
@@ -469,31 +486,33 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
                     setModalType('perp');
                     setModalOpen(true);
                   }}
-                  className="-ml-2 w-full cursor-pointer rounded p-2 text-left text-sm transition-colors hover:bg-muted/30"
+                  className="w-full rounded-lg p-2 text-left transition-colors hover:bg-muted/30"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-foreground">
+                    <span className="font-medium text-foreground text-sm">
                       {perp.ticker}
                     </span>
                     {perp.unrealizedPnLPercent >= 0 ? (
-                      <TrendingUp className="h-3 w-3 text-green-600" />
+                      <TrendingUp className="h-3 w-3 text-green-500" />
                     ) : (
-                      <TrendingDown className="h-3 w-3 text-red-600" />
+                      <TrendingDown className="h-3 w-3 text-red-500" />
                     )}
                   </div>
-                  <div className="text-muted-foreground text-xs">
-                    {formatPoints(perp.size)} pts
-                  </div>
-                  <div
-                    className={cn(
-                      'mt-0.5 font-medium text-xs',
-                      perp.unrealizedPnL >= 0
-                        ? 'text-green-600'
-                        : 'text-red-600'
-                    )}
-                  >
-                    {formatPoints(perp.unrealizedPnL)} pts (
-                    {formatPercent(perp.unrealizedPnLPercent)})
+                  <div className="mt-0.5 flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">
+                      {formatPoints(perp.size)} pts
+                    </span>
+                    <span
+                      className={cn(
+                        'font-medium text-xs',
+                        perp.unrealizedPnL >= 0
+                          ? 'text-green-500'
+                          : 'text-red-500'
+                      )}
+                    >
+                      {formatPoints(perp.unrealizedPnL)} pts (
+                      {formatPercent(perp.unrealizedPnLPercent)})
+                    </span>
                   </div>
                 </button>
               ))}
@@ -510,38 +529,30 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
 
       {/* Stats Section */}
       {stats && (
-        <div className="mb-6">
-          <h3 className="mb-3 font-bold text-foreground text-lg">Stats</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-sm">
-                {stats.following} Following
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-sm">
-                {stats.followers} Followers
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-sm">
-                {stats.totalActivity} Total Activity
-              </span>
-            </div>
+        <div className="rounded-lg border border-border p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-foreground text-sm">Stats</h3>
+          </div>
+          <div className="space-y-0">
+            <StatRow label="Following" value={String(stats.following)} />
+            <StatRow label="Followers" value={String(stats.followers)} />
+            <StatRow
+              label="Total Activity"
+              value={String(stats.totalActivity)}
+            />
             {isOwnProfile && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">My Agents</span>
-                <span className="font-semibold text-foreground text-sm">
-                  {portfolio?.agentCount ?? 0}
-                </span>
-              </div>
+              <StatRow
+                label="My Agents"
+                value={String(portfolio?.agentCount ?? 0)}
+              />
             )}
           </div>
         </div>
       )}
 
       {/* Help Icon */}
-      <div className="mt-auto flex justify-end pt-4">
+      <div className="mt-auto flex justify-end pt-2">
         <button
           type="button"
           className="text-muted-foreground transition-colors hover:text-foreground"

@@ -26,6 +26,7 @@ interface DropdownProps {
   trigger: ReactNode;
   children: ReactNode;
   className?: string;
+  popoverClassName?: string;
   placement?: 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left';
   width?: 'default' | 'sidebar';
 }
@@ -34,6 +35,7 @@ export function Dropdown({
   trigger,
   children,
   className,
+  popoverClassName,
   placement = 'bottom-right',
   width = 'default',
 }: DropdownProps) {
@@ -75,7 +77,7 @@ export function Dropdown({
       };
 
   // Determine width based on width prop
-  const widthClass = width === 'sidebar' ? 'w-64 lg:w-64 xl:w-72' : 'w-60';
+  const widthClass = width === 'sidebar' ? 'w-full' : 'w-60';
 
   return (
     <div className={cn('relative', className)} ref={dropdownRef}>
@@ -90,7 +92,8 @@ export function Dropdown({
             className={cn(
               'absolute z-50 rounded-lg border border-border bg-popover shadow-lg',
               widthClass,
-              positionClasses
+              positionClasses,
+              popoverClassName
             )}
           >
             {children}

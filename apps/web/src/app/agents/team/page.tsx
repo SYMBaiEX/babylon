@@ -496,7 +496,7 @@ export default function TeamChatPage() {
       <div className="flex h-[calc(100dvh-112px)] flex-col md:h-dvh">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Member sidebar skeleton */}
-          <div className="hidden w-64 flex-col border-border border-r p-4 lg:flex">
+          <div className="hidden w-80 flex-col border-border border-r p-4 lg:flex">
             <Skeleton className="mb-4 h-8 w-32" />
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -539,7 +539,7 @@ export default function TeamChatPage() {
   return (
     <div
       data-command-center-container
-      className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh"
+      className="relative flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l"
     >
       {/* Mobile Tab Navigation - visible on small screens only */}
       <div className="flex h-12 shrink-0 items-center justify-around border-border border-b bg-background lg:hidden">
@@ -790,7 +790,7 @@ export default function TeamChatPage() {
         {/* Member Sidebar - visible on lg+ when not collapsed */}
         {!leftSidebarCollapsed && (
           <>
-            <div className="flex w-64 shrink-0 flex-col border-border border-r">
+            <div className="flex w-80 shrink-0 flex-col border-border border-r">
               {/* Conversations Section */}
               <div className="p-3">
                 <ConversationList
@@ -828,13 +828,11 @@ export default function TeamChatPage() {
                 onViewSettings={handleViewSettings}
               />
             </div>
-
-            <Separator orientation="vertical" className="hidden lg:block" />
           </>
         )}
 
         {/* Chat Content - min-width ensures chat doesn't get too small on desktop */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background md:min-w-[400px]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <TeamChatView
             chatDetails={chatDetails}
             currentUserId={user?.id}

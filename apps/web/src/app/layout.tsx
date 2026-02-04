@@ -126,7 +126,7 @@ export default function RootLayout({
               <MobileHeader />
             </Suspense>
 
-            <div className="mx-auto flex min-h-screen max-w-screen-xl bg-sidebar">
+            <div className="mark mx-auto flex min-h-screen max-w-7xl bg-sidebar">
               {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
               <Suspense fallback={null}>
                 <Sidebar />

@@ -261,7 +261,7 @@ export function LinkSocialAccountsModal({
                   disabled={linking === 'farcaster'}
                   className={cn(
                     'w-full rounded-lg px-4 py-2 font-semibold transition-colors',
-                    'bg-[#8A63D2] text-foreground hover:bg-[#7952c4]',
+                    'bg-[#8A63D2] text-white hover:bg-[#7952c4]',
                     'disabled:cursor-not-allowed disabled:opacity-50',
                     'flex items-center justify-center gap-2'
                   )}

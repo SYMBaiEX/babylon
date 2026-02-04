@@ -13,7 +13,6 @@ import {
 } from '@/components/chats';
 import { CreateGroupModal } from '@/components/groups/CreateGroupModal';
 import { GroupManagementModal } from '@/components/groups/GroupManagementModal';
-import { Separator } from '@/components/shared/Separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -149,18 +148,18 @@ export default function ChatsPage() {
       {/* Use fixed viewport heights to ensure proper scroll containment */}
       {/* Mobile: 100dvh - 56px (MobileHeader pt-14) - 56px (BottomNav pb-14) = 112px */}
       {/* Desktop: full viewport height (no header/nav padding) */}
-      <div className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden md:h-dvh">
+      <div className="flex h-[calc(100dvh-112px)] flex-col overflow-hidden border-border md:h-dvh lg:border-l">
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Left Column: Chat List */}
           {/* Mobile: full width when no chat selected, hidden when chat selected */}
-          {/* Tablet (lg): w-96 sidebar when chat selected */}
-          {/* Desktop (xl): always visible w-96 sidebar */}
+          {/* Tablet (lg): w-80 sidebar when chat selected */}
+          {/* Desktop (xl): always visible w-80 sidebar */}
           <div
             className={cn(
-              'h-full min-h-0 flex-col bg-background',
+              'h-full min-h-0 flex-col border-border bg-background',
               selectedChatId
-                ? 'hidden w-96 lg:flex' // Hide on mobile, show as sidebar on lg+
-                : 'flex w-full xl:w-96' // Full width on mobile, sidebar width on xl
+                ? 'hidden w-80 border-r lg:flex' // Hide on mobile, show as sidebar on lg+
+                : 'flex w-full xl:w-80 xl:border-r' // Full width on mobile, sidebar width on xl
             )}
           >
             <ChatHeader
@@ -184,15 +183,6 @@ export default function ChatsPage() {
               />
             </div>
           </div>
-
-          {/* Vertical Separator - visible on lg+ when chat selected */}
-          <Separator
-            orientation="vertical"
-            className={cn(
-              'shrink-0',
-              selectedChatId ? 'hidden lg:block' : 'hidden xl:block'
-            )}
-          />
 
           {/* Right Column: Chat View */}
           {/* Mobile/Tablet: only shown when chat selected */}

@@ -137,7 +137,7 @@ export default function GroupedTrendingPage() {
     <PageContainer noPadding className="flex w-full flex-col">
       <div className="relative flex min-h-screen flex-1">
         {/* Desktop: Content area */}
-        <div className="hidden min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:flex lg:border-r lg:border-l">
+        <div className="hidden min-w-0 flex-1 flex-col border-border lg:flex lg:border-r lg:border-l">
           {/* Desktop header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background shadow-sm">
             <div className="px-6 py-4">
@@ -150,7 +150,7 @@ export default function GroupedTrendingPage() {
                   <ArrowLeft size={20} />
                 </button>
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-[#0066FF]" />
+                  <TrendingUp className="h-5 w-5 text-primary" />
                   <h1 className="font-bold text-xl">{headerTitle}</h1>
                 </div>
                 {headerCategory && (
@@ -186,7 +186,7 @@ export default function GroupedTrendingPage() {
                 <ArrowLeft size={20} />
               </button>
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-[#0066FF]" />
+                <TrendingUp className="h-5 w-5 text-primary" />
                 <h1 className="font-bold text-xl">{headerTitle}</h1>
               </div>
               {headerCategory && (

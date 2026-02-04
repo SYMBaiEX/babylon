@@ -294,10 +294,12 @@ export function FeedClient() {
     <PageContainer noPadding className="flex w-full flex-col">
       <div ref={scrollContainerRef} className="relative flex flex-1">
         {/* Feed area */}
-        <div className="flex min-w-0 flex-1 flex-col border-[rgba(120,120,120,0.15)] lg:border-r lg:border-l">
+        <div className="flex min-w-0 flex-1 flex-col border-border lg:border-r lg:border-l">
           {/* Header with tabs */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-            <FeedToggle activeTab={tab} onTabChange={setTab} />
+            <div className="w-full lg:mx-auto lg:max-w-[700px]">
+              <FeedToggle activeTab={tab} onTabChange={setTab} />
+            </div>
           </div>
 
           {/* Feed content */}
