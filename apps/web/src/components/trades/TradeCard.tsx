@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { useRouter } from 'next/navigation';
-import { Avatar } from '@/components/shared/Avatar';
 
 /**
  * Trade type discriminator for trade card display.
@@ -164,9 +163,6 @@ export function TradeCard({ trade }: TradeCardProps) {
   // Handle null user (should not happen, but be safe)
   if (!trade.user) return null;
 
-  const displayName =
-    trade.user.displayName || trade.user.username || 'Anonymous';
-
   const formatTime = (timestamp: Date | string) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -188,11 +184,6 @@ export function TradeCard({ trade }: TradeCardProps) {
     return formatCompactCurrency(Number.isNaN(num) ? 0 : num);
   };
 
-  const handleProfileClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    router.push(`/profile/${trade.user!.id}`);
-  };
-
   const handleAssetClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -212,46 +203,15 @@ export function TradeCard({ trade }: TradeCardProps) {
   return (
     <div className="border-border border-b p-4 transition-colors hover:bg-muted/30">
       <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div
-          className="flex-shrink-0 cursor-pointer"
-          onClick={handleProfileClick}
-        >
-          <Avatar
-            src={trade.user.profileImageUrl || undefined}
-            alt={displayName}
-            size="sm"
-          />
-        </div>
-
         {/* Trade Content */}
         <div className="min-w-0 flex-1">
-          {/* User Info */}
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="cursor-pointer truncate font-medium hover:underline"
-                onClick={handleProfileClick}
-              >
-                {displayName}
-              </span>
-              {trade.user.isActor && (
-                <span className="rounded bg-purple-500/20 px-2 py-0.5 text-purple-500 text-xs">
-                  NPC
-                </span>
-              )}
-            </div>
-            <span className="shrink-0 text-muted-foreground text-xs">
-              {formatTime(trade.timestamp)}
-            </span>
-          </div>
-
           {/* Trade Details */}
           {trade.type === 'balance' && (
             <BalanceTradeContent
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
+              timestamp={formatTime(trade.timestamp)}
             />
           )}
           {trade.type === 'npc' && (
@@ -259,6 +219,7 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
+              timestamp={formatTime(trade.timestamp)}
             />
           )}
           {trade.type === 'position' && (
@@ -266,6 +227,7 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
+              timestamp={formatTime(trade.timestamp)}
             />
           )}
           {trade.type === 'perp' && (
@@ -273,10 +235,15 @@ export function TradeCard({ trade }: TradeCardProps) {
               trade={trade}
               onAssetClick={handleAssetClick}
               formatCurrency={formatCurrency}
+              timestamp={formatTime(trade.timestamp)}
             />
           )}
           {trade.type === 'transfer' && (
-            <TransferTradeContent trade={trade} router={router} />
+            <TransferTradeContent
+              trade={trade}
+              router={router}
+              timestamp={formatTime(trade.timestamp)}
+            />
           )}
         </div>
       </div>
@@ -288,10 +255,12 @@ function BalanceTradeContent({
   trade,
   onAssetClick,
   formatCurrency,
+  timestamp,
 }: {
   trade: BalanceTrade;
   onAssetClick: (e: React.MouseEvent) => void;
   formatCurrency: (value: string | number) => string;
+  timestamp: string;
 }) {
   const amount = Number.parseFloat(trade.amount);
   const isPositive = amount >= 0;
@@ -299,21 +268,26 @@ function BalanceTradeContent({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        {isPositive ? (
-          <ArrowUpRight className="h-4 w-4 text-green-500" />
-        ) : (
-          <ArrowDownRight className="h-4 w-4 text-red-500" />
-        )}
-        <span className="text-muted-foreground text-sm">{actionText}</span>
-        <span
-          className={cn(
-            'font-semibold text-base',
-            isPositive ? 'text-green-600' : 'text-red-600'
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isPositive ? (
+            <ArrowUpRight className="h-4 w-4 text-green-500" />
+          ) : (
+            <ArrowDownRight className="h-4 w-4 text-red-500" />
           )}
-        >
-          {isPositive ? '+' : ''}
-          {formatCurrency(amount)}
+          <span className="text-muted-foreground text-sm">{actionText}</span>
+          <span
+            className={cn(
+              'font-semibold text-base',
+              isPositive ? 'text-green-600' : 'text-red-600'
+            )}
+          >
+            {isPositive ? '+' : ''}
+            {formatCurrency(amount)}
+          </span>
+        </div>
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {timestamp}
         </span>
       </div>
       {trade.description && (
@@ -332,45 +306,52 @@ function NPCTradeContent({
   trade,
   onAssetClick,
   formatCurrency,
+  timestamp,
 }: {
   trade: NPCTrade;
   onAssetClick: (e: React.MouseEvent) => void;
   formatCurrency: (value: string | number) => string;
+  timestamp: string;
 }) {
   const isLong = trade.side === 'long' || trade.side === 'YES';
   const action = trade.action.toUpperCase();
 
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={cn(
-            'rounded px-2 py-1 font-medium text-xs',
-            isLong
-              ? 'bg-green-500/20 text-green-500'
-              : 'bg-red-500/20 text-red-500'
-          )}
-        >
-          {action}
-        </span>
-        {trade.ticker && (
-          <span
-            className="cursor-pointer font-bold hover:underline"
-            onClick={onAssetClick}
-          >
-            {trade.ticker}
-          </span>
-        )}
-        {trade.side && (
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              'font-medium text-xs',
-              isLong ? 'text-green-600' : 'text-red-600'
+              'rounded px-2 py-1 font-medium text-xs',
+              isLong
+                ? 'bg-green-500/20 text-green-500'
+                : 'bg-red-500/20 text-red-500'
             )}
           >
-            {trade.side}
+            {action}
           </span>
-        )}
+          {trade.ticker && (
+            <span
+              className="cursor-pointer font-bold hover:underline"
+              onClick={onAssetClick}
+            >
+              {trade.ticker}
+            </span>
+          )}
+          {trade.side && (
+            <span
+              className={cn(
+                'font-medium text-xs',
+                isLong ? 'text-green-600' : 'text-red-600'
+              )}
+            >
+              {trade.side}
+            </span>
+          )}
+        </div>
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {timestamp}
+        </span>
       </div>
       <div className="flex items-center gap-3 text-muted-foreground text-sm">
         <span>Amount: {formatCurrency(trade.amount)}</span>
@@ -389,27 +370,34 @@ function PositionTradeContent({
   trade,
   onAssetClick,
   formatCurrency,
+  timestamp,
 }: {
   trade: PositionTrade;
   onAssetClick: (e: React.MouseEvent) => void;
   formatCurrency: (value: string | number) => string;
+  timestamp: string;
 }) {
   const isYes = trade.side === 'YES';
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            'rounded px-2 py-1 font-medium text-xs',
-            isYes
-              ? 'bg-green-500/20 text-green-500'
-              : 'bg-red-500/20 text-red-500'
-          )}
-        >
-          {trade.side}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              'rounded px-2 py-1 font-medium text-xs',
+              isYes
+                ? 'bg-green-500/20 text-green-500'
+                : 'bg-red-500/20 text-red-500'
+            )}
+          >
+            {trade.side}
+          </span>
+          <span className="text-muted-foreground text-sm">Position</span>
+        </div>
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {timestamp}
         </span>
-        <span className="text-muted-foreground text-sm">Position</span>
       </div>
       {trade.market && (
         <p
@@ -431,10 +419,12 @@ function PerpTradeContent({
   trade,
   onAssetClick,
   formatCurrency,
+  timestamp,
 }: {
   trade: PerpTrade;
   onAssetClick: (e: React.MouseEvent) => void;
   formatCurrency: (value: string | number) => string;
+  timestamp: string;
 }) {
   const isLong = trade.side === 'long';
   const pnl = Number.parseFloat(trade.unrealizedPnL);
@@ -443,34 +433,41 @@ function PerpTradeContent({
 
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        {isLong ? (
-          <TrendingUp className="h-4 w-4 text-green-500" />
-        ) : (
-          <TrendingDown className="h-4 w-4 text-red-500" />
-        )}
-        <span
-          className={cn(
-            'rounded px-2 py-1 font-medium text-xs',
-            isLong
-              ? 'bg-green-500/20 text-green-500'
-              : 'bg-red-500/20 text-red-500'
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isLong ? (
+            <TrendingUp className="h-4 w-4 text-green-500" />
+          ) : (
+            <TrendingDown className="h-4 w-4 text-red-500" />
           )}
-        >
-          {trade.side.toUpperCase()}
-        </span>
-        <span
-          className="cursor-pointer font-bold hover:underline"
-          onClick={onAssetClick}
-        >
-          {trade.ticker}
-        </span>
-        <span className="text-muted-foreground text-xs">{trade.leverage}x</span>
-        {isClosed && (
-          <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
-            CLOSED
+          <span
+            className={cn(
+              'rounded px-2 py-1 font-medium text-xs',
+              isLong
+                ? 'bg-green-500/20 text-green-500'
+                : 'bg-red-500/20 text-red-500'
+            )}
+          >
+            {trade.side.toUpperCase()}
           </span>
-        )}
+          <span
+            className="cursor-pointer font-bold hover:underline"
+            onClick={onAssetClick}
+          >
+            {trade.ticker}
+          </span>
+          <span className="text-muted-foreground text-xs">
+            {trade.leverage}x
+          </span>
+          {isClosed && (
+            <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+              CLOSED
+            </span>
+          )}
+        </div>
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {timestamp}
+        </span>
       </div>
       <div className="flex items-center gap-3 text-muted-foreground text-sm">
         <span>Size: {formatCurrency(trade.size)}</span>
@@ -497,9 +494,11 @@ function PerpTradeContent({
 function TransferTradeContent({
   trade,
   router,
+  timestamp,
 }: {
   trade: TransferTrade;
   router: AppRouterInstance;
+  timestamp: string;
 }) {
   const isSent = trade.direction === 'sent';
   const otherPartyName =
@@ -514,20 +513,25 @@ function TransferTradeContent({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        {isSent ? (
-          <Send className="h-4 w-4 text-blue-500" />
-        ) : (
-          <Coins className="h-4 w-4 text-green-500" />
-        )}
-        <span className="text-muted-foreground text-sm">
-          {isSent ? 'Sent points to' : 'Received points from'}
-        </span>
-        <span
-          className="cursor-pointer font-medium hover:underline"
-          onClick={handleOtherPartyClick}
-        >
-          {otherPartyName}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isSent ? (
+            <Send className="h-4 w-4 text-blue-500" />
+          ) : (
+            <Coins className="h-4 w-4 text-green-500" />
+          )}
+          <span className="text-muted-foreground text-sm">
+            {isSent ? 'Sent points to' : 'Received points from'}
+          </span>
+          <span
+            className="cursor-pointer font-medium hover:underline"
+            onClick={handleOtherPartyClick}
+          >
+            {otherPartyName}
+          </span>
+        </div>
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {timestamp}
         </span>
       </div>
       <div className="flex items-center gap-2">
