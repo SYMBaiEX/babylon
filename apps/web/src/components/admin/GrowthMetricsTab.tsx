@@ -27,7 +27,13 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from 'react';
 import {
   Area,
   AreaChart,
@@ -269,8 +275,7 @@ export function GrowthMetricsTab() {
       {
         label: 'First Command',
         value: commandedWithin24h,
-        pct:
-          signups > 0 ? Math.round((commandedWithin24h / signups) * 100) : 0,
+        pct: signups > 0 ? Math.round((commandedWithin24h / signups) * 100) : 0,
       },
       {
         label: 'Activated',

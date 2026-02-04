@@ -92,7 +92,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const hostHeader = (await headers()).get('host') ?? '';
+  const requestHeaders = await headers();
+  const hostHeader =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host') ?? '';
   const hostname = hostHeader.split(':')[0]?.toLowerCase() ?? '';
   const isWaitlistHost = isWaitlistHostname(hostname);
 
