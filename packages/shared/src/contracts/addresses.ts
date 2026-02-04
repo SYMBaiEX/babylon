@@ -78,7 +78,8 @@ export const ETHEREUM_MAINNET_CONTRACTS: ERC8004ContractAddresses = {
     .reputationSystem as Address,
   // Ethereum mainnet doesn't have prediction market contracts
   diamond: '0x0000000000000000000000000000000000000000' as Address,
-  predictionMarketFacet: '0x0000000000000000000000000000000000000000' as Address,
+  predictionMarketFacet:
+    '0x0000000000000000000000000000000000000000' as Address,
   oracleFacet: '0x0000000000000000000000000000000000000000' as Address,
 };
 

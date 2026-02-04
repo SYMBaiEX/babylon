@@ -77,7 +77,6 @@ import type {
   Agent0ReputationSummary,
   Agent0SearchFilters,
   Agent0SearchOptions,
-  Agent0SearchResponse,
   Agent0SearchResult,
   Agent0TransferResult,
   IAgent0Client,
@@ -510,7 +509,9 @@ export class Agent0Client implements IAgent0Client {
         minValue: filters.feedback.minValue,
         maxValue: filters.feedback.maxValue,
         minCount: filters.feedback.minCount,
-        fromReviewers: filters.feedback.fromReviewers as `0x${string}`[] | undefined,
+        fromReviewers: filters.feedback.fromReviewers as
+          | `0x${string}`[]
+          | undefined,
         tag: filters.feedback.tag,
         includeRevoked: filters.feedback.includeRevoked,
       };

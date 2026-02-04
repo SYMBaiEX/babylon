@@ -139,7 +139,8 @@ export class Agent0FeedbackService implements IAgent0FeedbackService {
    */
   async submitFeedback(params: Agent0FeedbackParams): Promise<Agent0Feedback> {
     // Convert targetAgentId to string format for SDK
-    const agentId = `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
+    const agentId =
+      `${this.chainId}:${params.targetAgentId}` as `${number}:${number}`;
 
     // Convert rating from -5 to +5 scale to 0-100 scale
     // -5 → 0, 0 → 50, +5 → 100

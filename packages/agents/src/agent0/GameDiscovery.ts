@@ -82,15 +82,23 @@ export class GameDiscoveryService {
           type: metadata.type || 'game-platform',
           metadataCID: agent.metadataCID,
           endpoints: {
-            a2a: metadata.endpoints?.a2a || agent.capabilities?.a2aEndpoint || '',
-            mcp: metadata.endpoints?.mcp || agent.capabilities?.mcpEndpoint || '',
+            a2a:
+              metadata.endpoints?.a2a || agent.capabilities?.a2aEndpoint || '',
+            mcp:
+              metadata.endpoints?.mcp || agent.capabilities?.mcpEndpoint || '',
             api: metadata.endpoints?.api || '',
             docs: metadata.endpoints?.docs,
             websocket: metadata.endpoints?.websocket,
           },
           capabilities: {
-            markets: metadata.capabilities?.markets || agent.capabilities?.markets || [],
-            actions: metadata.capabilities?.actions || agent.capabilities?.actions || [],
+            markets:
+              metadata.capabilities?.markets ||
+              agent.capabilities?.markets ||
+              [],
+            actions:
+              metadata.capabilities?.actions ||
+              agent.capabilities?.actions ||
+              [],
             protocols: metadata.capabilities?.protocols || [],
             socialFeatures: metadata.capabilities?.socialFeatures,
             realtime: metadata.capabilities?.realtime,
@@ -183,15 +191,27 @@ export class GameDiscoveryService {
                 type: metadata.type || 'game-platform',
                 metadataCID: profile.metadataCID,
                 endpoints: {
-                  a2a: metadata.endpoints?.a2a || profile.endpoints?.find((e) => e.type === 'A2A')?.value || '',
-                  mcp: metadata.endpoints?.mcp || profile.endpoints?.find((e) => e.type === 'MCP')?.value || '',
+                  a2a:
+                    metadata.endpoints?.a2a ||
+                    profile.endpoints?.find((e) => e.type === 'A2A')?.value ||
+                    '',
+                  mcp:
+                    metadata.endpoints?.mcp ||
+                    profile.endpoints?.find((e) => e.type === 'MCP')?.value ||
+                    '',
                   api: metadata.endpoints?.api || '',
                   docs: metadata.endpoints?.docs,
                   websocket: metadata.endpoints?.websocket,
                 },
                 capabilities: {
-                  markets: metadata.capabilities?.markets || profile.capabilities?.markets || [],
-                  actions: metadata.capabilities?.actions || profile.capabilities?.actions || [],
+                  markets:
+                    metadata.capabilities?.markets ||
+                    profile.capabilities?.markets ||
+                    [],
+                  actions:
+                    metadata.capabilities?.actions ||
+                    profile.capabilities?.actions ||
+                    [],
                   protocols: metadata.capabilities?.protocols || [],
                   socialFeatures: metadata.capabilities?.socialFeatures,
                   realtime: metadata.capabilities?.realtime,
@@ -316,7 +336,9 @@ export class GameDiscoveryService {
         return null;
       }
 
-      const metadata = await this.ipfsPublisher.fetchMetadata(profile.metadataCID);
+      const metadata = await this.ipfsPublisher.fetchMetadata(
+        profile.metadataCID
+      );
 
       return {
         tokenId: profile.tokenId,
@@ -324,15 +346,27 @@ export class GameDiscoveryService {
         type: metadata.type || 'game-platform',
         metadataCID: profile.metadataCID,
         endpoints: {
-          a2a: metadata.endpoints?.a2a || profile.endpoints?.find((e) => e.type === 'A2A')?.value || '',
-          mcp: metadata.endpoints?.mcp || profile.endpoints?.find((e) => e.type === 'MCP')?.value || '',
+          a2a:
+            metadata.endpoints?.a2a ||
+            profile.endpoints?.find((e) => e.type === 'A2A')?.value ||
+            '',
+          mcp:
+            metadata.endpoints?.mcp ||
+            profile.endpoints?.find((e) => e.type === 'MCP')?.value ||
+            '',
           api: metadata.endpoints?.api || '',
           docs: metadata.endpoints?.docs,
           websocket: metadata.endpoints?.websocket,
         },
         capabilities: {
-          markets: metadata.capabilities?.markets || profile.capabilities?.markets || [],
-          actions: metadata.capabilities?.actions || profile.capabilities?.actions || [],
+          markets:
+            metadata.capabilities?.markets ||
+            profile.capabilities?.markets ||
+            [],
+          actions:
+            metadata.capabilities?.actions ||
+            profile.capabilities?.actions ||
+            [],
           protocols: metadata.capabilities?.protocols || [],
           socialFeatures: metadata.capabilities?.socialFeatures,
           realtime: metadata.capabilities?.realtime,
