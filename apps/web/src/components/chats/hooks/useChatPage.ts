@@ -137,10 +137,7 @@ export function useChatPage() {
       // Only filter DMs (not group chats)
       if (chat.isGroup) return true;
       // Check if the other user is an agent managed by the current user
-      const otherUser = chat.otherUser as
-        | { isAgent?: boolean; managedBy?: string | null }
-        | undefined;
-      if (otherUser?.isAgent && otherUser?.managedBy === user?.id) {
+      if (chat.otherUser?.isAgent && chat.otherUser?.managedBy === user?.id) {
         return false;
       }
       return true;

@@ -179,7 +179,6 @@ import {
 } from '@babylon/api/services/nft-chat-gating-service';
 // Import from new Drizzle client
 import {
-  agentMessages,
   and,
   asSystem,
   asUser,
@@ -594,38 +593,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }
 
         // Get last message for this chat
-        // If the other user is an agent owned by the current user, get from agentMessages
-        let lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
-
-        if (
-          otherUserDetails.isAgent &&
-          otherUserDetails.managedBy === user.userId
-        ) {
-          // Fetch last message from agentMessages table for owned agents
-          const [agentLastMsg] = await dbClient
-            .select({
-              id: agentMessages.id,
-              content: agentMessages.content,
-              createdAt: agentMessages.createdAt,
-            })
-            .from(agentMessages)
-            .where(eq(agentMessages.agentUserId, otherUserDetails.id))
-            .orderBy(desc(agentMessages.createdAt))
-            .limit(1);
-
-          if (agentLastMsg) {
-            lastMessage = {
-              id: agentLastMsg.id,
-              content: agentLastMsg.content,
-              chatId: chat.id,
-              senderId: otherUserDetails.id,
-              type: 'user' as const,
-              createdAt: agentLastMsg.createdAt,
-              targetIds: null, // Not applicable for DM messages
-              metadata: null, // Not applicable for DM messages
-            };
-          }
-        }
+        const lastMessage = messagesByChatId.get(chat.id)?.[0] || null;
 
         return {
           id: chat.id,
