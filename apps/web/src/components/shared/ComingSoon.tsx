@@ -3756,8 +3756,10 @@ export function ComingSoon() {
         </div>
       </section>
 
+      {profileCompletionModal}
+
       {/* Profile Completion Modal */}
-      {showProfileModal && (
+      {false && (
         <>
           <div
             className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm transition-opacity duration-300"
