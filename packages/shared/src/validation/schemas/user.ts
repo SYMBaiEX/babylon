@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import {
+  AssetOrUrlSchema,
   createTrimmedStringSchema,
   EmailSchema,
   PaginationSchema,
@@ -23,8 +24,8 @@ export const CreateUserSchema = z
     username: UsernameSchema.optional(),
     displayName: createTrimmedStringSchema(undefined, 100).optional(),
     bio: createTrimmedStringSchema(undefined, 500).optional(),
-    profileImageUrl: URLSchema.optional(),
-    coverImageUrl: URLSchema.optional(),
+    profileImageUrl: AssetOrUrlSchema.optional(),
+    coverImageUrl: AssetOrUrlSchema.optional(),
   })
   .refine((data) => data.walletAddress || data.email, {
     message: 'Either wallet address or email is required',
@@ -37,8 +38,8 @@ export const UpdateUserSchema = z.object({
   username: UsernameSchema.optional(),
   displayName: createTrimmedStringSchema(undefined, 100).optional(),
   bio: createTrimmedStringSchema(undefined, 500).optional(),
-  profileImageUrl: URLSchema.optional(),
-  coverImageUrl: URLSchema.optional(),
+  profileImageUrl: AssetOrUrlSchema.optional(),
+  coverImageUrl: AssetOrUrlSchema.optional(),
   showTwitterPublic: z.boolean().optional(),
   showFarcasterPublic: z.boolean().optional(),
   showWalletPublic: z.boolean().optional(),
