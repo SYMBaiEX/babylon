@@ -5,6 +5,7 @@
  */
 
 import { db, desc, eq, messages, users } from '@babylon/db';
+import { COORDINATOR_INFO, COORDINATOR_SENDER_ID } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -108,11 +109,28 @@ export const checkTeamChatAction: Action = {
 
       // Format messages for LLM context (values)
       const formattedMessages = chronologicalMessages.map((msg) => {
+        const timestamp = new Date(msg.createdAt).toLocaleTimeString();
+
+        // Handle coordinator messages
+        if (msg.senderId === COORDINATOR_SENDER_ID) {
+          return {
+            sender: `${COORDINATOR_INFO.displayName} @${COORDINATOR_INFO.username}`,
+            role: 'Coordinator',
+            content: msg.content,
+            time: timestamp,
+          };
+        }
+
         const senderName =
           msg.senderDisplayName || msg.senderUsername || 'Unknown';
         const senderHandle = msg.senderUsername ? `@${msg.senderUsername}` : '';
-        const timestamp = new Date(msg.createdAt).toLocaleTimeString();
-        const role = msg.isAgent ? 'Agent' : 'User';
+        // Explicitly handle null (deleted users) vs true/false
+        const role =
+          msg.isAgent === true
+            ? 'Agent'
+            : msg.isAgent === false
+              ? 'User'
+              : 'Unknown';
 
         return {
           sender: `${senderName} ${senderHandle}`.trim(),

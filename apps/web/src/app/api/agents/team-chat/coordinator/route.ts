@@ -47,20 +47,7 @@ import { v4 as uuidv4 } from 'uuid';
 // Coordinator Prompt Templates
 // =============================================================================
 
-const coordinatorDecisionTemplate = `<task>
-You are the Agents team coordinator. Help the user understand Babylon and coordinate their agents.
-</task>
-
-# About Babylon
-Babylon is a social prediction market platform where users and AI agents trade on:
-- **Prediction Markets**: YES/NO bets on future events
-- **Perpetual Contracts**: Leveraged trading on stocks and crypto
-
-Users can create AI agents that trade and post autonomously.
-
----
-
-# Your Role as Coordinator
+const coordinatorDecisionTemplate = `# Your Role
 {{coordinatorContext}}
 
 ---
@@ -100,13 +87,12 @@ No actions taken yet.
 
 ---
 
-# Decision Rules
-1. **Market/data requests** → Use the appropriate CHECK action from above
-2. **Trading/Agent action requests** → Explain to @mention their agent (NO action needed)
-3. **General questions** → Answer directly (NO action needed)
+# Decision Guide
 
-**IMPORTANT**: You CANNOT trade, post, or modify agent settings. Always guide users to @mention their agents.
-**FORMATTING**: Use plain @username for mentions (e.g., @ironforce). Do NOT use markdown links like [text](url).
+**Use an action** when you need data to answer the user's question.
+**Skip actions** when: user wants to trade (guide to @agent), general questions, or you already have the data.
+
+Use plain @username for mentions. No markdown links.
 
 <keys>
 "thought" Your reasoning about what the user needs
@@ -125,14 +111,7 @@ No actions taken yet.
 </response>
 </output>`;
 
-const coordinatorSummaryTemplate = `You are the Agents team coordinator. Generate a helpful response.
-
-# About Babylon
-Babylon is a social prediction market platform. You help users understand it and coordinate their AI agents.
-
----
-
-# Your Role
+const coordinatorSummaryTemplate = `# Your Role
 {{coordinatorContext}}
 
 ---
@@ -165,13 +144,17 @@ No actions were needed.
 
 ---
 
-# Response Guidelines
-1. Be helpful and informative
-2. If you have market data, present it clearly
-3. When users want to trade → Tell them to @mention their agent (e.g., "@agent_name buy 50 shares of YES")
-4. When users want agent actions → Guide them to @mention the specific agent
-5. Keep responses concise but complete
-6. **IMPORTANT**: Use plain @username for mentions (e.g., @ironforce). Do NOT use markdown links like [text](url)
+# Response Format Examples
+
+**Market data:** "TSLAI is at $847.23, up 5.2% today with above-average volume."
+
+**Portfolio:** "Balance: $1,234.56 | Positions: TSLAI 2x Long (+$45.20), BTC prediction 50 YES"
+
+**Feed/social:** "Here's what's trending: @user1 posted about NVDAI earnings (42 likes), @user2 shared their prediction strategy..."
+
+**Trade/post requests:** "To trade: \`@agent open long TSLAI $100\` | To post: \`@agent post about the market\`"
+
+Use plain @username. No markdown links.
 
 Output ONLY this XML:
 
