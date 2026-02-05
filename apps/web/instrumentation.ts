@@ -93,6 +93,11 @@ export async function register() {
     const { setReputationSyncService } = await import('@babylon/engine');
     const { createReputationSyncAdapter } = await import('@babylon/agents');
     setReputationSyncService(createReputationSyncAdapter());
+
+    // Initialize Agent0 blockchain reputation functions
+    // CRITICAL: Must be called before any agent registration to prevent runtime crashes
+    const { initializeAgent0Services } = await import('./lib/agent0-init');
+    initializeAgent0Services();
   }
 
   // Register Babylon on Agent0 registry (ERC-8004) on startup

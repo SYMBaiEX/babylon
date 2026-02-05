@@ -60,9 +60,12 @@ export interface Agent0SearchFilters {
 
   /**
    * Chain IDs to search across
-   * - Array of chain IDs: [1, 11155111, 84532] for ETH Mainnet, ETH Sepolia, Base Sepolia
+   * - Array of chain IDs: [1] for Ethereum Mainnet (Babylon uses Ethereum mainnet exclusively)
    * - 'all': Search all configured chains
-   * - undefined: Use SDK's default chain
+   * - undefined: Use SDK's default chain (Ethereum mainnet)
+   *
+   * Note: Babylon uses Ethereum mainnet (chainId 1) for Agent0 identity and reputation.
+   * Game contracts on Base are separate from Agent0 operations.
    */
   chains?: number[] | 'all';
 
@@ -303,7 +306,7 @@ export interface Agent0FeedbackSearchParams {
  */
 export interface Agent0ReputationSummary {
   count: number;
-  averageScore: number;
+  averageValue: number;
 }
 
 /**

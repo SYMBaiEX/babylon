@@ -10,7 +10,7 @@ import { agentPerformanceMetrics, feedbacks, users } from '@babylon/db/schema';
 import { getReputationBreakdown, recalculateReputation } from '@babylon/engine';
 import { logger } from '../../shared/logger';
 import { generateSnowflakeId } from '../../shared/snowflake';
-import { getAgent0Client } from '../Agent0Client';
+import { getAgent0SDK } from '../sdk-instance';
 
 /**
  * Functions that need to be provided by the consuming application
@@ -208,20 +208,31 @@ export async function submitFeedbackToAgent0(feedbackId: string) {
     return null;
   }
 
-  // Get Agent0 client
-  const agent0Client = getAgent0Client();
+  // Get SDK instance
+  const sdk = getAgent0SDK();
 
-  // Convert 0-100 score to -5 to +5 scale for Agent0
-  // 0-100 → -5 to +5 (0 = -5, 50 = 0, 100 = +5)
-  const agent0Rating = Math.round((feedback.score / 100) * 10 - 5);
+  // Convert 0-100 score to Agent0 score format
+  // Agent0 expects scores in a specific range (typically 0-100)
+  const agent0Score = Math.round(feedback.score);
 
-  // Submit to Agent0 network
-  await agent0Client.submitFeedback({
-    targetAgentId: agent0TokenId,
-    rating: agent0Rating,
-    comment: feedback.comment || 'Feedback from Babylon platform',
-    transactionId: feedback.id,
-  });
+  // Prepare feedback file (off-chain content only)
+  const agentId = `1:${agent0TokenId}`; // Ethereum mainnet
+  const feedbackFile = sdk.prepareFeedbackFile(
+    {
+      text: feedback.comment || 'Feedback from Babylon platform',
+      context: { transactionId: feedback.id },
+    }
+  );
+
+  // Submit to Agent0 network (on-chain + off-chain)
+  await sdk.giveFeedback(
+    agentId,
+    agent0Score,
+    'babylon-platform',
+    undefined,
+    undefined,
+    feedbackFile
+  );
 
   // Update feedback record to mark as submitted to Agent0
   await db
@@ -242,12 +253,12 @@ export async function submitFeedbackToAgent0(feedbackId: string) {
     feedbackId,
     agent0TokenId,
     score: feedback.score,
-    agent0Rating,
+    agent0Score,
   });
 
   return {
     agent0TokenId,
-    agent0Rating,
+    agent0Score,
     submitted: true,
   };
 }

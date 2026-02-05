@@ -1,65 +1,54 @@
 /**
  * Agent0 Integration
  *
- * Provides integration with Agent0's on-chain reputation system, agent discovery,
- * feedback submission, and ERC-8004 compliance.
+ * Direct SDK exports with minimal Babylon-specific utilities.
+ * Uses Agent0's canonical Ethereum mainnet contracts for identity and reputation.
  *
  * @packageDocumentation
  */
 
-export {
-  getAgent0Client,
-  resetAgent0Client,
-  setContractAddressesProvider,
-} from './Agent0Client';
-// Agent Discovery
-export {
-  AgentDiscoveryService,
-  getAgentDiscoveryService,
-  resetAgentDiscoveryService,
-} from './AgentDiscovery';
+// ============================================================================
+// Direct SDK exports - no wrappers
+// ============================================================================
+
+export { SDK, Agent, FeedbackManager, SubgraphClient } from 'agent0-sdk';
+export type {
+  AgentSummary,
+  Feedback,
+  SDKConfig,
+  RegistrationFile,
+  SearchFilters,
+  SearchOptions,
+} from 'agent0-sdk';
+
+// ============================================================================
+// Babylon-specific utilities (minimal)
+// ============================================================================
+
 export {
   type BabylonRegistrationResult,
   registerBabylonGame,
 } from './babylon-registry-init';
-export {
-  Agent0FeedbackService,
-  getAgent0FeedbackService,
-  type ReputationSummary,
-  resetAgent0FeedbackService,
-} from './feedback-service';
-// Reputation Bridge
+
+export { parseCapabilities } from './capabilities-schema';
+
+// SDK instance management
+export { setAgent0SDK, getAgent0SDK } from './sdk-instance';
+
+// Reputation Bridge - aggregates reputation from multiple sources
 export { ReputationBridge } from './ReputationBridge';
+
+// Game Discovery
+export { GameDiscovery } from './GameDiscovery';
+
 // Reputation utilities
 export * from './reputation';
+
 // Resilience utilities
 export * from './resilience';
 
-// Comprehensive type exports
-export type {
-  // Agent types
-  Agent0AgentProfile,
-  Agent0AgentUpdateParams,
-  Agent0Endpoint,
-  // Feedback types
-  Agent0Feedback,
-  Agent0FeedbackFilter,
-  Agent0FeedbackParams,
-  Agent0FeedbackSearchParams,
-  Agent0RegistrationParams,
-  Agent0RegistrationResult,
-  Agent0ReputationSummary,
-  // Search types
-  Agent0SearchFilters,
-  Agent0SearchOptions,
-  Agent0SearchResult,
-  Agent0TransferResult,
-  // Reputation types
-  AggregatedReputation,
-  // Interface types
-  DiscoveryFilters,
-  IAgent0Client,
-  IAgent0FeedbackService,
-  IAgentDiscoveryService,
-  IReputationBridge,
-} from './types';
+// ============================================================================
+// Type exports
+// ============================================================================
+
+export type * from './types';

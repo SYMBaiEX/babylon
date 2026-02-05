@@ -73,6 +73,13 @@ export async function GET(
       bio: true,
       profileImageUrl: true,
       isAgent: true,
+      // Agent0 fields for on-chain identity and reputation
+      agent0TokenId: true,
+      agent0MetadataCID: true,
+      onChainRegistered: true,
+      agent0RegisteredAt: true,
+      agent0TrustScore: true,
+      agent0FeedbackCount: true,
     },
   });
 
@@ -97,6 +104,31 @@ export async function GET(
     personality: agentConfig?.personality,
     tradingStrategy: agentConfig?.tradingStrategy,
   });
+
+  // Add Agent0 metadata if agent is registered on-chain
+  if (agent.onChainRegistered && agent.agent0TokenId) {
+    const extendedCard = agentCard as Record<string, unknown>;
+    extendedCard.onChain = {
+      registered: true,
+      tokenId: agent.agent0TokenId,
+      metadataCID: agent.agent0MetadataCID,
+      registeredAt: agent.agent0RegisteredAt?.toISOString(),
+      chainId: 1, // Ethereum mainnet
+      agentId: `1:${agent.agent0TokenId}`,
+    };
+
+    extendedCard.reputation = {
+      trustScore: agent.agent0TrustScore,
+      feedbackCount: agent.agent0FeedbackCount,
+      verifiedIdentity: true,
+    };
+
+    extendedCard.discovery = {
+      discoverable: true,
+      searchable: true,
+      publicProfile: true,
+    };
+  }
 
   return NextResponse.json(agentCard, {
     headers: {

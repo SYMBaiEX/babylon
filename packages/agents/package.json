@@ -39,7 +39,7 @@
     "@elizaos/plugin-openai": "^1.5.18",
     "@huggingface/hub": "^2.6.12",
     "@privy-io/server-auth": "^1.32.5",
-    "agent0-sdk": "^1.5.2",
+    "agent0-sdk": "1.5.2",
     "ai": "^5.0.106",
     "drizzle-orm": "^0.44.7",
     "ethers": "^6.16.0",

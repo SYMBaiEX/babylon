@@ -1,3 +1,4 @@
+import { getAgent0SDK } from '@babylon/agents';
 import { getContractAddresses, getRpcUrl } from '@babylon/contracts';
 import {
   and,
@@ -43,34 +44,13 @@ import { baseSepolia, foundry } from 'viem/chains';
 import { sendSponsoredEvmTransaction } from './privy/evm-send-transaction';
 
 /**
- * Agent0Client interface for dependency injection
- *
- * @description Client interface for Agent0 registry operations, injected from
- * the web application layer to avoid circular dependencies.
- */
-type Agent0Client = {
-  registerAgent: (params: {
-    name: string;
-    description: string;
-    imageUrl?: string;
-    walletAddress: string;
-    a2aEndpoint: string;
-    capabilities: AgentCapabilities;
-  }) => Promise<{ tokenId: number; metadataCID?: string }>;
-};
-
-/**
  * OnboardingServices interface for dependency injection
  *
  * @description Service interfaces for onboarding operations, injected from
  * the web application layer to avoid circular dependencies.
+ * Note: Agent0 operations now use SDK directly via getAgent0SDK() from @babylon/agents
  */
 type OnboardingServices = {
-  getAgent0Client: () => Agent0Client;
-  syncAfterAgent0Registration: (
-    userId: string,
-    tokenId: number
-  ) => Promise<void>;
   notifyNewAccount: (userId: string) => Promise<void>;
   pointsService: {
     awardReferralSignup: (
@@ -800,19 +780,35 @@ export async function processOnchainRegistration({
     .where(eq(users.id, dbUser.id));
 
   if (user.isAgent) {
-    const agent0Client = getOnboardingServices().getAgent0Client();
+    const sdk = getAgent0SDK();
 
     // Use individual agent's A2A endpoint if provided, otherwise construct it
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const individualAgentA2AEndpoint =
       endpoint || `${baseUrl}/api/agents/${dbUser.id}/a2a`;
 
-    const agent0Result = await agent0Client.registerAgent({
-      name: username || dbUser.username || user.userId,
-      description: bio || `Autonomous AI agent: ${user.userId}`,
-      imageUrl: profileImageUrl ?? undefined,
-      walletAddress: registrationAddress,
-      a2aEndpoint: individualAgentA2AEndpoint,
+    // Create agent using SDK
+    const agent = sdk.createAgent(
+      username || dbUser.username || user.userId,
+      bio || `Autonomous AI agent: ${user.userId}`,
+      profileImageUrl ?? undefined
+    );
+
+    // Set agent configuration (wallet will be set after registration via setWallet() if needed)
+    await agent.setA2A(individualAgentA2AEndpoint);
+    agent.setX402Support(true);
+    agent.setActive(true);
+
+    // Add skills
+    const skills = ['trade', 'analyze', 'prediction-markets'];
+    for (const skill of skills) {
+      agent.addSkill(skill, false);
+    }
+
+    // Set metadata
+    agent.setMetadata({
+      platform: 'babylon',
+      userType: 'agent',
       capabilities: {
         strategies: ['momentum'],
         markets: ['prediction'],
@@ -821,12 +817,21 @@ export async function processOnchainRegistration({
       } as AgentCapabilities,
     });
 
+    // Register on-chain and publish to IPFS
+    const registrationHandle = await agent.registerIPFS();
+    const { result: registration } = await registrationHandle.waitMined();
+
+    // Extract tokenId from agentId (format: "chainId:tokenId")
+    const agent0AgentId = registration.agentId || '';
+    const agent0TokenId = agent0AgentId ? Number.parseInt(agent0AgentId.split(':')[1] || '0', 10) : 0;
+    const agent0MetadataCID = registration.agentURI || null;
+
     // Store Agent0 registration metadata
     await db
       .update(users)
       .set({
-        agent0TokenId: agent0Result.tokenId,
-        agent0MetadataCID: agent0Result.metadataCID ?? null,
+        agent0TokenId,
+        agent0MetadataCID,
         agent0RegisteredAt: new Date(),
       })
       .where(eq(users.id, dbUser.id));
@@ -835,20 +840,20 @@ export async function processOnchainRegistration({
       'Agent registered with Agent0',
       {
         agentId: user.userId,
-        agent0TokenId: agent0Result.tokenId,
-        metadataCID: agent0Result.metadataCID,
+        agent0TokenId,
+        metadataCID: agent0MetadataCID,
       },
       'OnboardingOnchain'
     );
 
     // Sync on-chain reputation to local database
-    const services = getOnboardingServices();
-    await services.syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId);
+    const { syncAfterAgent0Registration } = await import('@babylon/agents');
+    await syncAfterAgent0Registration(dbUser.id, agent0TokenId);
     logger.info(
       'Agent0 reputation synced successfully',
       {
         userId: dbUser.id,
-        agent0TokenId: agent0Result.tokenId,
+        agent0TokenId,
       },
       'OnboardingOnchain'
     );

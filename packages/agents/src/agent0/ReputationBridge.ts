@@ -3,11 +3,12 @@
  *
  * Aggregates reputation from ERC-8004 on-chain data and Agent0 network feedback
  * to provide comprehensive reputation scores with tag-filtered support.
+ * Uses Agent0 SDK directly for Ethereum mainnet queries.
  */
 
 import { type AgentReputation, type RegistryClient } from '@babylon/a2a';
+import type { SDK } from 'agent0-sdk';
 import { logger } from '../shared/logger';
-import { getAgent0Client } from './Agent0Client';
 import type {
   Agent0ReputationSummary,
   AggregatedReputation,
@@ -16,9 +17,11 @@ import type {
 
 export class ReputationBridge implements IReputationBridge {
   private erc8004Registry?: RegistryClient;
+  private agent0SDK?: SDK;
 
-  constructor(erc8004Registry?: RegistryClient) {
+  constructor(erc8004Registry?: RegistryClient, agent0SDK?: SDK) {
     this.erc8004Registry = erc8004Registry;
+    this.agent0SDK = agent0SDK;
   }
 
   /**
@@ -49,53 +52,27 @@ export class ReputationBridge implements IReputationBridge {
 
   /**
    * Get Agent0 reputation summary with optional tag filtering
-   * Uses the Agent0Client's getReputationSummary method
+   * Uses the Agent0 SDK directly to query Ethereum mainnet
    */
   async getAgent0ReputationSummary(
     agentId: string,
     tag1?: string,
     tag2?: string
   ): Promise<Agent0ReputationSummary> {
-    if (process.env.AGENT0_ENABLED !== 'true') {
-      return { count: 0, averageScore: 0 };
+    if (process.env.AGENT0_ENABLED !== 'true' || !this.agent0SDK) {
+      return { count: 0, averageValue: 0 };
     }
 
     try {
-      const agent0Client = getAgent0Client();
-      await agent0Client.ensureAvailable();
-
-      return await agent0Client.getReputationSummary(agentId, tag1, tag2);
+      return await this.agent0SDK.getReputationSummary(agentId, tag1, tag2);
     } catch (error) {
       logger.error(
         'Failed to get Agent0 reputation summary',
         { error, agentId, tag1, tag2 },
         'ReputationBridge'
       );
-      return { count: 0, averageScore: 0 };
+      return { count: 0, averageValue: 0 };
     }
-  }
-
-  /**
-   * Extract token ID from agent ID string
-   * Supports formats: "84532:1234", "agent0-1234", "1234"
-   */
-  private extractTokenId(agentId: string): number | null {
-    if (agentId.includes(':')) {
-      // Format: "chainId:tokenId" (e.g., "84532:1234")
-      const parts = agentId.split(':');
-      const tokenId = Number.parseInt(parts[1] || '', 10);
-      return Number.isNaN(tokenId) ? null : tokenId;
-    }
-
-    if (agentId.startsWith('agent0-')) {
-      // Format: "agent0-1234"
-      const tokenId = Number.parseInt(agentId.replace('agent0-', ''), 10);
-      return Number.isNaN(tokenId) ? null : tokenId;
-    }
-
-    // Format: plain token ID "1234"
-    const tokenId = Number.parseInt(agentId, 10);
-    return Number.isNaN(tokenId) ? null : tokenId;
   }
 
   /**
@@ -110,24 +87,21 @@ export class ReputationBridge implements IReputationBridge {
   }
 
   /**
-   * Get reputation from Agent0 network
+   * Get reputation from Agent0 network (Ethereum mainnet)
    */
   private async getAgent0Reputation(tokenId: number): Promise<AgentReputation> {
-    // Use Agent0Client if enabled
-    if (process.env.AGENT0_ENABLED === 'true') {
+    // Use Agent0 SDK if enabled
+    if (process.env.AGENT0_ENABLED === 'true' && this.agent0SDK) {
       try {
-        const agent0Client = getAgent0Client();
-        await agent0Client.ensureAvailable();
-
-        const chainId = agent0Client.getChainId();
-        const agentId = `${chainId}:${tokenId}`;
-        const summary = await agent0Client.getReputationSummary(agentId);
+        // Agent0 uses Ethereum mainnet (chainId 1)
+        const agentId = `1:${tokenId}`;
+        const summary = await this.agent0SDK.getReputationSummary(agentId);
 
         return {
           totalBets: summary.count,
           winningBets: 0, // Not available in summary
-          accuracyScore: summary.averageScore / 100, // Convert 0-100 to 0-1
-          trustScore: summary.averageScore / 100,
+          accuracyScore: summary.averageValue / 100, // Convert 0-100 to 0-1
+          trustScore: summary.averageValue / 100,
           totalVolume: '0',
           profitLoss: 0,
           isBanned: false,
