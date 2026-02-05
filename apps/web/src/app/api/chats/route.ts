@@ -583,6 +583,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           return null;
         }
 
+        // Filter out DMs with the user's own agents
+        // These legacy conversations should be hidden - agent-owner communication
+        // now happens through the team chat at /agents/team
+        if (
+          otherUserDetails.isAgent &&
+          otherUserDetails.managedBy === user.userId
+        ) {
+          return null;
+        }
+
         // Get last message for this chat
         // If the other user is an agent owned by the current user, get from agentMessages
         let lastMessage = messagesByChatId.get(chat.id)?.[0] || null;

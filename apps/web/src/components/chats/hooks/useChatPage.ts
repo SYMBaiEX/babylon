@@ -130,9 +130,25 @@ export function useChatPage() {
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
 
-    setAllChats(combined);
+    // Client-side fallback: filter out DMs with the user's own agents
+    // This guards against any edge cases where API-level filtering didn't catch them
+    // Agent-owner communication should happen through /agents/team instead
+    const filteredCombined = combined.filter((chat) => {
+      // Only filter DMs (not group chats)
+      if (chat.isGroup) return true;
+      // Check if the other user is an agent managed by the current user
+      const otherUser = chat.otherUser as
+        | { isAgent?: boolean; managedBy?: string | null }
+        | undefined;
+      if (otherUser?.isAgent && otherUser?.managedBy === user?.id) {
+        return false;
+      }
+      return true;
+    });
+
+    setAllChats(filteredCombined);
     setLoading(false);
-  }, [getAccessToken, isDebugMode, ready, authenticated]);
+  }, [getAccessToken, isDebugMode, ready, authenticated, user?.id]);
 
   // Load chat details
   const loadChatDetails = useCallback(
