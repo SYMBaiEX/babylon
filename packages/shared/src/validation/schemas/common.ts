@@ -136,6 +136,30 @@ export const URLSchema = z.string().url({
 });
 
 /**
+ * Public asset path OR http(s) URL schema.
+ *
+ * Used for user-facing images where we support preset local assets (e.g. /assets/*)
+ * as well as uploaded assets (e.g. /uploads/*) and remote URLs.
+ */
+export const AssetOrUrlSchema = z.string().refine(
+  (val) => {
+    const value = val.trim();
+    if (value.length === 0) return true;
+    if (value.startsWith('/assets/') || value.startsWith('/uploads/')) {
+      return true;
+    }
+
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  },
+  { message: 'Invalid URL format' }
+);
+
+/**
  * Phone number validation (basic international format)
  */
 export const PhoneNumberSchema = z

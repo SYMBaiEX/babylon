@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UsernameSchema } from './common';
+import { AssetOrUrlSchema, UsernameSchema } from './common';
 
 export const OnboardingProfileSchema = z.object({
   username: UsernameSchema,
@@ -15,14 +15,18 @@ export const OnboardingProfileSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   profileImageUrl: z
-    .string()
-    .url('Profile image must be a valid URL')
+    .preprocess(
+      (val) => (typeof val === 'string' ? val.trim() : val),
+      AssetOrUrlSchema
+    )
     .optional()
     .or(z.literal('').transform(() => undefined))
     .nullable(),
   coverImageUrl: z
-    .string()
-    .url('Cover image must be a valid URL')
+    .preprocess(
+      (val) => (typeof val === 'string' ? val.trim() : val),
+      AssetOrUrlSchema
+    )
     .optional()
     .or(z.literal('').transform(() => undefined))
     .nullable(),
