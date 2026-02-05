@@ -11,7 +11,11 @@
 
 import { authenticate } from '@babylon/api';
 import { db } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  getWaitlistBaseUrl,
+  logger,
+} from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set('client_id', process.env.DISCORD_CLIENT_ID!);
   authUrl.searchParams.set(
     'redirect_uri',
-    `${process.env.NEXT_PUBLIC_WAITLIST_URL || process.env.NEXT_PUBLIC_APP_URL}/api/auth/discord/callback`
+    `${getWaitlistBaseUrl()}/api/auth/discord/callback`
   );
   authUrl.searchParams.set('scope', 'identify guilds');
   authUrl.searchParams.set('state', state);
