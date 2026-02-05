@@ -2,14 +2,15 @@
  * Game Discovery Service
  *
  * Enables external agents to discover Babylon and other games
- * through the Agent0 registry.
+ * through the Agent0 registry on Ethereum mainnet.
+ * Uses Agent0 SDK directly.
  */
 
 import { db } from '@babylon/db';
+import type { SDK } from 'agent0-sdk';
 import { z } from 'zod';
 import { logger } from '../shared/logger';
 import { IPFSPublisher } from './IPFSPublisher';
-import { SubgraphClient } from './SubgraphClient';
 
 const GameConfigValueSchema = z.object({
   tokenId: z.number(),
@@ -39,61 +40,78 @@ export interface DiscoverableGame {
   };
 }
 
-export class GameDiscoveryService {
-  private subgraphClient: SubgraphClient;
+export class GameDiscovery {
   private ipfsPublisher: IPFSPublisher;
+  private sdk?: SDK;
 
-  constructor() {
-    this.subgraphClient = new SubgraphClient();
+  constructor(sdk?: SDK) {
     this.ipfsPublisher = new IPFSPublisher();
+    this.sdk = sdk;
   }
 
   /**
    * Discover games by type (prediction markets, trading games, etc.)
    * This is what external agents call to find Babylon
+   *
+   * @remarks
+   * Uses Agent0 SDK directly with v1.5.2 unified search API.
    */
   async discoverGames(filters: {
     type?: string; // "game-platform", "prediction-market", etc.
-    markets?: string[]; // ["prediction", "perpetuals"]
+    skills?: string[]; // Agent skills like "prediction", "perpetuals"
     minReputation?: number;
   }): Promise<DiscoverableGame[]> {
-    const subgraphAgents = await this.subgraphClient.getGamePlatforms({
-      markets: filters.markets,
-      minTrustScore: filters.minReputation,
-    });
-
     const games: DiscoverableGame[] = [];
 
-    for (const agent of subgraphAgents) {
-      const metadata = await this.ipfsPublisher.fetchMetadata(
-        agent.metadataCID
-      );
+    if (!this.sdk) {
+      return games;
+    }
 
-      games.push({
-        tokenId: agent.tokenId,
-        name: agent.name,
-        type: agent.type || 'game-platform',
-        metadataCID: agent.metadataCID,
-        endpoints: {
-          a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-          mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-          api: metadata.endpoints?.api || '',
-          docs: metadata.endpoints?.docs,
-          websocket: metadata.endpoints?.websocket,
-        },
-        capabilities: {
-          markets: metadata.capabilities?.markets || [],
-          actions: metadata.capabilities?.actions || [],
-          protocols: metadata.capabilities?.protocols || [],
-          socialFeatures: metadata.capabilities?.socialFeatures,
-          realtime: metadata.capabilities?.realtime,
-        },
-        reputation: agent.reputation
-          ? {
-              trustScore: agent.reputation.trustScore,
-            }
-          : undefined,
+    try {
+      // Search for game platforms using unified search
+      const agents = await this.sdk.searchAgents({
+        a2aSkills: filters.skills,
+        active: true,
       });
+
+      for (const agent of agents) {
+        // Extract agentId number from chainId:tokenId format
+        const tokenId = Number.parseInt(agent.agentId.split(':')[1] || '0', 10);
+
+        // Get MCP and A2A endpoints from agent summary
+        // SDK v1.5.2 provides endpoint URLs directly in AgentSummary
+        const mcpEndpoint = agent.mcp || '';
+        const a2aEndpoint = agent.a2a || '';
+
+        games.push({
+          tokenId,
+          name: agent.name,
+          type: 'game-platform', // Default type
+          metadataCID: '', // Not available in AgentSummary
+          endpoints: {
+            a2a: a2aEndpoint,
+            mcp: mcpEndpoint,
+            api: '',
+            docs: undefined,
+            websocket: undefined,
+          },
+          capabilities: {
+            markets: agent.a2aSkills || [],
+            actions: agent.mcpTools || [],
+            protocols: agent.supportedTrusts || [],
+            socialFeatures: undefined,
+            realtime: undefined,
+          },
+          reputation: undefined, // Not available in search results
+        });
+      }
+    } catch (error) {
+      logger.error(
+        'Agent0 discovery failed',
+        error instanceof Error ? error : new Error(String(error)),
+        'GameDiscovery'
+      );
+      // Return empty array but error is logged for debugging
     }
 
     if (filters.type) {
@@ -116,7 +134,7 @@ export class GameDiscoveryService {
 
       const games = await this.discoverGames({
         type: 'game-platform',
-        markets: ['prediction'],
+        skills: ['prediction'],
       });
 
       const babylon = games.find(
@@ -156,32 +174,53 @@ export class GameDiscoveryService {
         const validation = GameConfigValueSchema.safeParse(config?.value);
         if (validation.success) {
           const tokenId = validation.data.tokenId;
-          const agent = await this.subgraphClient.getAgent(tokenId);
 
-          if (agent) {
-            const metadata = await this.ipfsPublisher.fetchMetadata(
-              agent.metadataCID
-            );
-            return {
-              tokenId: agent.tokenId,
-              name: agent.name,
-              type: agent.type || 'game-platform',
-              metadataCID: agent.metadataCID,
-              endpoints: {
-                a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-                mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-                api: metadata.endpoints?.api || '',
-                docs: metadata.endpoints?.docs,
-                websocket: metadata.endpoints?.websocket,
-              },
-              capabilities: {
-                markets: metadata.capabilities?.markets || [],
-                actions: metadata.capabilities?.actions || [],
-                protocols: metadata.capabilities?.protocols || [],
-                socialFeatures: metadata.capabilities?.socialFeatures,
-                realtime: metadata.capabilities?.realtime,
-              },
-            };
+          if (this.sdk) {
+            try {
+              // loadAgent expects AgentId (string format: "chainId:tokenId")
+              const agent = await this.sdk.loadAgent(`1:${tokenId}`);
+              const regFile = agent.getRegistrationFile();
+
+              if (regFile) {
+                const metadata = regFile.agentURI
+                  ? await this.ipfsPublisher.fetchMetadata(regFile.agentURI)
+                  : null;
+
+                return {
+                  tokenId,
+                  name: regFile.name,
+                  type: (metadata?.type as string) || 'game-platform',
+                  metadataCID: regFile.agentURI || '',
+                  endpoints: {
+                    a2a: metadata?.endpoints?.a2a || agent.a2aEndpoint || '',
+                    mcp: metadata?.endpoints?.mcp || agent.mcpEndpoint || '',
+                    api: metadata?.endpoints?.api || '',
+                    docs: metadata?.endpoints?.docs,
+                    websocket: metadata?.endpoints?.websocket,
+                  },
+                  capabilities: {
+                    markets:
+                      (metadata?.capabilities?.markets as string[]) ||
+                      agent.a2aSkills ||
+                      [],
+                    actions:
+                      (metadata?.capabilities?.actions as string[]) ||
+                      agent.mcpTools ||
+                      [],
+                    protocols:
+                      (metadata?.capabilities?.protocols as string[]) || [],
+                    socialFeatures: metadata?.capabilities?.socialFeatures as
+                      | boolean
+                      | undefined,
+                    realtime: metadata?.capabilities?.realtime as
+                      | boolean
+                      | undefined,
+                  },
+                };
+              }
+            } catch {
+              // Agent0 lookup failed
+            }
           }
         }
       }
@@ -289,49 +328,66 @@ export class GameDiscoveryService {
    * Get game metadata by token ID
    */
   async getGameByTokenId(tokenId: number): Promise<DiscoverableGame | null> {
-    const agent = await this.subgraphClient.getAgent(tokenId);
-    if (!agent) {
+    if (!this.sdk) {
       return null;
     }
 
-    const metadata = await this.ipfsPublisher.fetchMetadata(agent.metadataCID);
+    try {
+      // loadAgent expects AgentId (string format: "chainId:tokenId")
+      const agent = await this.sdk.loadAgent(`1:${tokenId}`);
+      const regFile = agent.getRegistrationFile();
 
-    return {
-      tokenId: agent.tokenId,
-      name: agent.name,
-      type: agent.type || 'game-platform',
-      metadataCID: agent.metadataCID,
-      endpoints: {
-        a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-        mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-        api: metadata.endpoints?.api || '',
-        docs: metadata.endpoints?.docs,
-        websocket: metadata.endpoints?.websocket,
-      },
-      capabilities: {
-        markets: metadata.capabilities?.markets || [],
-        actions: metadata.capabilities?.actions || [],
-        protocols: metadata.capabilities?.protocols || [],
-        socialFeatures: metadata.capabilities?.socialFeatures,
-        realtime: metadata.capabilities?.realtime,
-      },
-      reputation: agent.reputation
-        ? {
-            trustScore: agent.reputation.trustScore,
-          }
-        : undefined,
-    };
+      if (!regFile) {
+        return null;
+      }
+
+      const metadata = regFile.agentURI
+        ? await this.ipfsPublisher.fetchMetadata(regFile.agentURI)
+        : null;
+
+      return {
+        tokenId,
+        name: regFile.name,
+        type: (metadata?.type as string) || 'game-platform',
+        metadataCID: regFile.agentURI || '',
+        endpoints: {
+          a2a: metadata?.endpoints?.a2a || agent.a2aEndpoint || '',
+          mcp: metadata?.endpoints?.mcp || agent.mcpEndpoint || '',
+          api: metadata?.endpoints?.api || '',
+          docs: metadata?.endpoints?.docs,
+          websocket: metadata?.endpoints?.websocket,
+        },
+        capabilities: {
+          markets:
+            (metadata?.capabilities?.markets as string[]) ||
+            agent.a2aSkills ||
+            [],
+          actions:
+            (metadata?.capabilities?.actions as string[]) ||
+            agent.mcpTools ||
+            [],
+          protocols: (metadata?.capabilities?.protocols as string[]) || [],
+          socialFeatures: metadata?.capabilities?.socialFeatures as
+            | boolean
+            | undefined,
+          realtime: metadata?.capabilities?.realtime as boolean | undefined,
+        },
+        reputation: undefined, // Not available from loadAgent
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
 /**
- * Get or create singleton GameDiscoveryService instance
+ * Get or create singleton GameDiscovery instance
  */
-let gameDiscoveryInstance: GameDiscoveryService | null = null;
+let gameDiscoveryInstance: GameDiscovery | null = null;
 
-export function getGameDiscoveryService(): GameDiscoveryService {
+export function getGameDiscoveryService(sdk?: SDK): GameDiscovery {
   if (!gameDiscoveryInstance) {
-    gameDiscoveryInstance = new GameDiscoveryService();
+    gameDiscoveryInstance = new GameDiscovery(sdk);
   }
   return gameDiscoveryInstance;
 }

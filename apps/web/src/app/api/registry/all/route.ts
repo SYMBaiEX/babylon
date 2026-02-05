@@ -47,13 +47,54 @@
  * ```
  */
 
-import { SubgraphClient } from '@babylon/agents';
+import {
+  type AgentSummary,
+  getAgent0SDK,
+  type SearchFilters,
+} from '@babylon/agents';
 import { optionalAuth, successResponse, withErrorHandling } from '@babylon/api';
 import type { DrizzleClient } from '@babylon/db';
 import { asPublic } from '@babylon/db';
 import { StaticDataRegistry } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
+
+function parseAgent0TokenId(agentId: string): number {
+  const tokenIdPart = agentId.split(':')[1];
+  const parsed = tokenIdPart ? Number.parseInt(tokenIdPart, 10) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mapAgent0SummaryToEntity(
+  summary: AgentSummary,
+  entityType: 'agent' | 'app'
+): Record<string, unknown> {
+  const tokenId = parseAgent0TokenId(summary.agentId);
+  return {
+    type: entityType,
+    id: `${entityType}-${tokenId}`,
+    tokenId,
+    name: summary.name,
+    description: summary.description,
+    imageUrl: summary.image,
+    walletAddress: summary.walletAddress,
+    metadataCID: summary.agentURI,
+    mcpEndpoint: summary.mcp,
+    a2aEndpoint: summary.a2a,
+    capabilities: {
+      supportedTrusts: summary.supportedTrusts,
+      a2aSkills: summary.a2aSkills,
+      mcpTools: summary.mcpTools,
+      mcpPrompts: summary.mcpPrompts,
+      mcpResources: summary.mcpResources,
+      oasfSkills: summary.oasfSkills,
+      oasfDomains: summary.oasfDomains,
+      x402support: summary.x402support,
+    },
+    reputationScore: summary.averageValue,
+    totalFeedbackCount: summary.feedbackCount,
+  };
+}
 
 /**
  * GET /api/registry/all
@@ -260,58 +301,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
 
   const fetchAgents = async () => {
-    const subgraphClient = new SubgraphClient();
-    const agents = await subgraphClient.searchAgents({
-      type: 'agent',
-      limit: 100,
-    });
+    if (process.env.AGENT0_ENABLED !== 'true') return [];
 
-    return agents.map((agent) => {
-      let parsedCapabilities: unknown = {};
-      if (agent.capabilities) {
-        parsedCapabilities = JSON.parse(agent.capabilities);
-      }
+    const sdk = getAgent0SDK();
+    const filters: SearchFilters = {
+      keyword: search || undefined,
+      metadataValue: { key: 'userType', value: 'agent' },
+      active: onChainOnly ? true : undefined,
+    };
 
-      return {
-        type: 'agent',
-        id: `agent0-${agent.tokenId}`,
-        tokenId: agent.tokenId,
-        name: agent.name,
-        walletAddress: agent.walletAddress,
-        metadataCID: agent.metadataCID,
-        mcpEndpoint: agent.mcpEndpoint,
-        a2aEndpoint: agent.a2aEndpoint,
-        capabilities: parsedCapabilities,
-        reputation: agent.reputation,
-      };
-    });
+    const results = await sdk.searchAgents(filters);
+    return results
+      .slice(0, 100)
+      .map((agent) => mapAgent0SummaryToEntity(agent, 'agent'));
   };
 
   const fetchApps = async () => {
-    const subgraphClient = new SubgraphClient();
-    const apps = await subgraphClient.getGamePlatforms({
-      minTrustScore: 0,
-    });
+    if (process.env.AGENT0_ENABLED !== 'true') return [];
 
-    return apps.map((app) => {
-      let parsedCapabilities: unknown = {};
-      if (app.capabilities) {
-        parsedCapabilities = JSON.parse(app.capabilities);
-      }
+    const sdk = getAgent0SDK();
+    const filters: SearchFilters = {
+      keyword: search || undefined,
+      metadataValue: { key: 'type', value: 'game-platform' },
+      active: onChainOnly ? true : undefined,
+    };
 
-      return {
-        type: 'app',
-        id: `app-${app.tokenId}`,
-        tokenId: app.tokenId,
-        name: app.name,
-        walletAddress: app.walletAddress,
-        metadataCID: app.metadataCID,
-        mcpEndpoint: app.mcpEndpoint,
-        a2aEndpoint: app.a2aEndpoint,
-        capabilities: parsedCapabilities,
-        reputation: app.reputation || 0,
-      };
-    });
+    const results = await sdk.searchAgents(filters);
+    return results
+      .slice(0, 100)
+      .map((app) => mapAgent0SummaryToEntity(app, 'app'));
   };
 
   // Fetch based on entity type
@@ -332,10 +350,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     actors = await fetchActors();
   }
   if (!entityType || entityType === 'all' || entityType === 'agents') {
-    agents = await fetchAgents();
+    agents = await fetchAgents().catch((error) => {
+      logger.warn(
+        'Agent0 agent search failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GET /api/registry/all'
+      );
+      return [];
+    });
   }
   if (!entityType || entityType === 'all' || entityType === 'apps') {
-    apps = await fetchApps();
+    apps = await fetchApps().catch((error) => {
+      logger.warn(
+        'Agent0 app search failed',
+        { error: error instanceof Error ? error.message : String(error) },
+        'GET /api/registry/all'
+      );
+      return [];
+    });
   }
 
   const result = {

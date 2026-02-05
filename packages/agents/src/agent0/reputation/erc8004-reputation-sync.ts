@@ -24,7 +24,7 @@ import {
 import { recalculateReputation } from '@babylon/engine';
 import { logger } from '@babylon/shared';
 import { generateSnowflakeId } from '../../shared/snowflake';
-import { getAgent0Client } from '../Agent0Client';
+import { getAgent0SDK } from '../sdk-instance';
 import { getCachedAgent0ReputationScore } from './agent0-reputation-cache';
 
 interface ReputationSyncResult {
@@ -250,14 +250,13 @@ export async function syncUserReputationToERC8004(
       );
       onChainError = 'Agent has no wallet address';
     } else {
-      const agent0Client = getAgent0Client();
+      const sdk = getAgent0SDK();
 
-      // Verify client is available and not in read-only mode
-      const isAvailable = await agent0Client.ensureAvailable();
-      if (!isAvailable) {
-        onChainError = 'Agent0Client not available or in read-only mode';
+      // Verify SDK is not in read-only mode
+      if (sdk.isReadOnly) {
+        onChainError = 'SDK is in read-only mode (no signer configured)';
         logger.debug(
-          'Agent0Client not available for feedback submission',
+          'SDK not available for feedback submission',
           {
             userId,
             agent0TokenId: user.agent0TokenId,
@@ -266,15 +265,23 @@ export async function syncUserReputationToERC8004(
         );
       } else {
         // Submit feedback via Agent0 SDK
-        // Convert 0-100 score to -5 to +5 scale (ERC-8004 uses -5 to +5)
-        const rating = Math.round((feedbackScore / 100) * 10 - 5);
+        // Convert 0-100 score to Agent0 format
+        const score = Math.round(feedbackScore);
 
-        await agent0Client.submitFeedback({
-          targetAgentId: userWithMetrics.agent0TokenId!,
-          rating,
-          comment: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
-          transactionId: `reputation-sync-${userId}-${Date.now()}`,
+        const agentId = `1:${userWithMetrics.agent0TokenId!}`; // Ethereum mainnet
+        const feedbackFile = sdk.prepareFeedbackFile({
+          text: `System reputation update: ${feedbackScore}/100. Tags: ${tags.join(', ')}`,
+          context: { transactionId: `reputation-sync-${userId}-${Date.now()}` },
         });
+
+        await sdk.giveFeedback(
+          agentId,
+          score,
+          tags[0],
+          tags[1],
+          undefined,
+          feedbackFile
+        );
 
         onChainSubmitted = true;
         logger.info(
@@ -283,7 +290,7 @@ export async function syncUserReputationToERC8004(
             userId,
             agent0TokenId: userWithMetrics.agent0TokenId,
             feedbackScore,
-            rating,
+            score,
             tags,
           },
           'ERC8004ReputationSync'

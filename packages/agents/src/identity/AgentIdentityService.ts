@@ -18,8 +18,8 @@ import {
   type User,
   users,
 } from '@babylon/db';
-import { getAgent0Client } from '../agent0/Agent0Client';
 import { syncAfterAgent0Registration } from '../agent0/reputation/agent0-reputation-sync';
+import { getAgent0SDK } from '../agent0/sdk-instance';
 import {
   getAgentConfig,
   isAutonomousTradingEnabled,
@@ -104,88 +104,108 @@ export class AgentIdentityService {
     // Get agent config for capabilities
     const config = await getAgentConfig(agentUserId);
 
-    const agent0Client = getAgent0Client();
-    const capabilities = {
-      strategies: config?.tradingStrategy
-        ? ['autonomous-trading', 'prediction-markets', 'social-interaction']
-        : ['chat', 'analysis'],
-      markets: ['prediction', 'perp', 'crypto'],
-      actions: [
-        'trade',
-        'analyze',
-        'chat',
-        'post',
-        'comment',
-        'moderation-escrow',
-        'appeal-ban',
-      ],
-      version: '1.0.0',
-      platform: 'babylon',
-      userType: 'agent',
-      x402Support: true,
-      moderationEscrowSupport: true,
-      autonomousTrading: isAutonomousTradingEnabled(config),
-      autonomousPosting: config?.autonomousPosting ?? false,
-      skills: [],
-      domains: [],
-    };
+    const sdk = getAgent0SDK();
 
     // Use individual agent's A2A endpoint, not the game's endpoint
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const individualAgentA2AEndpoint = `${baseUrl}/api/agents/${agentUserId}/a2a`;
 
-    const registration = await agent0Client.registerAgent({
-      name: agentUser.displayName || agentUser.username || 'Agent',
-      description: agentUser.bio || 'Autonomous AI agent in Babylon',
-      imageUrl: agentUser.profileImageUrl || undefined,
-      walletAddress: agentUser.walletAddress,
-      a2aEndpoint: individualAgentA2AEndpoint,
-      capabilities,
+    // Create agent using SDK
+    const agent = sdk.createAgent(
+      agentUser.displayName || agentUser.username || 'Agent',
+      agentUser.bio || 'Autonomous AI agent in Babylon',
+      agentUser.profileImageUrl || undefined
+    );
+
+    // Set agent configuration (wallet will be set after registration via setWallet() if needed)
+    await agent.setA2A(individualAgentA2AEndpoint);
+    agent.setX402Support(true);
+    agent.setActive(true);
+
+    // Add skills (A2A capabilities)
+    const skills = [
+      'trade',
+      'analyze',
+      'chat',
+      'post',
+      'comment',
+      'moderation-escrow',
+      'appeal-ban',
+    ];
+
+    if (config?.tradingStrategy) {
+      skills.push(
+        'autonomous-trading',
+        'prediction-markets',
+        'social-interaction'
+      );
+    }
+
+    for (const skill of skills) {
+      agent.addSkill(skill, false);
+    }
+
+    // Set metadata for additional capabilities
+    agent.setMetadata({
+      platform: 'babylon',
+      userType: 'agent',
+      moderationEscrowSupport: true,
+      autonomousTrading: isAutonomousTradingEnabled(config),
+      autonomousPosting: config?.autonomousPosting ?? false,
     });
+
+    // Register on-chain and publish to IPFS
+    const registrationHandle = await agent.registerIPFS();
+    const { result: registration } = await registrationHandle.waitMined();
+
+    // Extract tokenId from agentId (format: "chainId:tokenId")
+    const agentId = registration.agentId || '';
+    const tokenId = agentId
+      ? Number.parseInt(agentId.split(':')[1] || '0', 10)
+      : 0;
+    const metadataCID = registration.agentURI || '';
 
     await db
       .update(users)
       .set({
-        agent0TokenId: registration.tokenId,
-        agent0MetadataCID: registration.metadataCID ?? null,
-        registrationTxHash: registration.txHash,
+        agent0TokenId: tokenId,
+        agent0MetadataCID: metadataCID || null,
+        registrationTxHash: null, // RegistrationFile doesn't have txHash
         onChainRegistered: true,
       })
       .where(eq(users.id, agentUserId));
 
     // Fire-and-forget reputation sync; log but do not block registration
-    syncAfterAgent0Registration(agentUserId, registration.tokenId).catch(
-      (error) => {
-        logger.warn(
-          'Agent0 reputation sync failed after registration',
-          { agentUserId, tokenId: registration.tokenId, error },
-          'AgentIdentityService'
-        );
-      }
-    );
+    syncAfterAgent0Registration(agentUserId, tokenId).catch((error) => {
+      logger.warn(
+        'Agent0 reputation sync failed after registration',
+        { agentUserId, tokenId, error },
+        'AgentIdentityService'
+      );
+    });
 
     await db.insert(agentLogs).values({
       id: await generateSnowflakeId(),
       agentUserId,
       type: 'system',
       level: 'info',
-      message: `Agent registered on Agent0: Token ID ${registration.tokenId}`,
+      message: `Agent registered on Agent0: Agent ID ${agentId}`,
       metadata: {
-        tokenId: registration.tokenId,
-        metadataCID: registration.metadataCID,
-        txHash: registration.txHash,
+        agentId,
+        tokenId,
+        metadataCID,
       } as JsonValue,
     });
 
     logger.info(
-      `Agent ${agentUserId} registered on Agent0: Token ID ${registration.tokenId}`,
+      `Agent ${agentUserId} registered on Agent0: Agent ID ${agentId}`,
       undefined,
       'AgentIdentityService'
     );
     return {
-      agent0TokenId: registration.tokenId,
-      metadataCID: registration.metadataCID,
-      txHash: registration.txHash,
+      agent0TokenId: tokenId,
+      metadataCID,
+      txHash: undefined,
     };
   }
 
@@ -262,9 +282,10 @@ export class AgentIdentityService {
     }
 
     // Verification is a non-critical check operation - catch errors and return false
-    const verificationResult = await getAgent0Client()
-      .getAgentProfile(agent.agent0TokenId)
-      .then((profile) => profile !== null)
+    const agentId = `1:${agent.agent0TokenId}`; // Ethereum mainnet
+    const verificationResult = await getAgent0SDK()
+      .getAgent(agentId)
+      .then((agentSummary) => agentSummary !== null)
       .catch((error) => {
         logger.warn(
           `Failed to verify agent identity for ${agentUserId} on Agent0`,

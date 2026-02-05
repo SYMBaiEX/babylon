@@ -39,33 +39,28 @@
         "predictionMarketFacet": "0x0000000000000000000000000000000000000000",
         "oracleFacet": "0x0000000000000000000000000000000000000000"
       }
+    },
+    "ethereum": {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "rpcUrl": "https://eth.llamarpc.com",
+      "contracts": {
+        "identityRegistry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+        "reputationSystem": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
+        "nft": "0x0000000000000000000000000000000000000000"
+      }
     }
   },
 
   "environments": {
     "development": {
-      "network": "local",
-      "endpoints": {
-        "apiBaseUrl": "http://localhost:3000/api",
-        "a2aEndpoint": "ws://localhost:3001/ws/a2a",
-        "mcpEndpoint": "http://localhost:3000/mcp"
-      }
+      "network": "local"
     },
     "staging": {
-      "network": "baseSepolia",
-      "endpoints": {
-        "apiBaseUrl": "https://staging.babylon.market/api",
-        "a2aEndpoint": "wss://staging.babylon.market/ws/a2a",
-        "mcpEndpoint": "https://staging.babylon.market/mcp"
-      }
+      "network": "baseSepolia"
     },
     "production": {
-      "network": "base",
-      "endpoints": {
-        "apiBaseUrl": "https://babylon.market/api",
-        "a2aEndpoint": "wss://babylon.market/ws/a2a",
-        "mcpEndpoint": "https://babylon.market/mcp"
-      }
+      "network": "base"
     }
   }
 }

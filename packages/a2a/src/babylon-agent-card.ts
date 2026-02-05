@@ -8,11 +8,9 @@
  */
 
 import type { AgentCard } from '@a2a-js/sdk';
+import { getBaseUrl } from '@babylon/shared';
 
-const BASE_URL =
-  process.env.BABYLON_A2A_ENDPOINT ||
-  process.env.NEXT_PUBLIC_APP_URL ||
-  'http://localhost:3000';
+const BASE_URL = getBaseUrl();
 const SECURITY_SCHEME_NAME = 'babylonApiKey';
 
 export const babylonAgentCard: AgentCard = {
@@ -39,7 +37,7 @@ export const babylonAgentCard: AgentCard = {
   documentationUrl: `${BASE_URL}/docs`,
 
   capabilities: {
-    streaming: true,
+    streaming: false,
     pushNotifications: false,
     stateTransitionHistory: true,
   },
@@ -208,7 +206,7 @@ export const babylonAgentCard: AgentCard = {
       name: 'Escrow Payments & Appeals',
       description:
         'Create, verify, refund escrow payments. Appeal bans using escrow stakes.',
-      tags: ['escrow', 'payments', 'appeals', 'admin'],
+      tags: ['escrow', 'payments', 'appeals', 'admin', 'moderation'],
       examples: [
         'Create escrow payment for compensation',
         'Verify escrow payment transaction',
