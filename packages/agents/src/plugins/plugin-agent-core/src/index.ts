@@ -52,6 +52,7 @@ import { toggleAutonomyAction } from './actions/toggle-autonomy';
 import {
   actionStateProvider,
   actionsProvider,
+  agentContextProvider,
   recentMessagesProvider,
   teamMembersProvider,
 } from './providers';
@@ -96,6 +97,7 @@ export const agentCorePlugin: Plugin = {
 
   providers: [
     actionsProvider,
+    agentContextProvider,
     recentMessagesProvider,
     actionStateProvider,
     teamMembersProvider,
