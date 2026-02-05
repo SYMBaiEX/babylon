@@ -56,10 +56,20 @@ export type MessageTag =
   | MessageTagBase<'agent-pnl'>
   | MessageTagBase<'owner-pnl'>;
 
+/** Action button for system messages */
+export interface MessageAction {
+  /** URL to navigate to when clicked */
+  url: string;
+  /** Button label text */
+  label: string;
+}
+
 /** Message metadata stored in DB */
 export interface MessageMetadata {
   /** Action tags from executed actions */
   tags?: MessageTag[];
+  /** Optional action button (used by system messages) */
+  action?: MessageAction;
 }
 
 // =============================================================================
