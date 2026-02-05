@@ -137,17 +137,21 @@ export const checkPnlAction: Action = {
           and(eq(perpPositions.userId, agentId), isNull(perpPositions.closedAt))
         );
 
-      // Get recent trades
+      // Get recent trades with market details for predictions
       const recentTrades = await db
         .select({
           action: agentTrades.action,
+          marketType: agentTrades.marketType,
           ticker: agentTrades.ticker,
           marketId: agentTrades.marketId,
           amount: agentTrades.amount,
           pnl: agentTrades.pnl,
           executedAt: agentTrades.executedAt,
+          // Join with markets to get question for prediction trades
+          marketQuestion: markets.question,
         })
         .from(agentTrades)
+        .leftJoin(markets, eq(agentTrades.marketId, markets.id))
         .where(eq(agentTrades.agentUserId, agentId))
         .orderBy(desc(agentTrades.executedAt))
         .limit(5);
@@ -180,12 +184,26 @@ export const checkPnlAction: Action = {
         leverage: p.leverage,
       }));
 
-      const formattedRecentTrades = recentTrades.map((t) => ({
-        action: t.action,
-        ticker: t.ticker || t.marketId || '',
-        amount: Number(t.amount),
-        pnl: t.pnl ? Number(t.pnl) : null,
-      }));
+      const formattedRecentTrades = recentTrades.map((t) => {
+        const isPrediction = t.marketType === 'prediction';
+        // For predictions, use marketId; for perps, use ticker
+        const marketId = isPrediction ? t.marketId || '' : t.ticker || '';
+        // For predictions, use truncated question; for perps, use ticker
+        const displayName = isPrediction
+          ? t.marketQuestion?.substring(0, 50) || `Market ${t.marketId}`
+          : t.ticker || 'Unknown';
+
+        return {
+          action: t.action,
+          marketType: (t.marketType === 'prediction'
+            ? 'prediction'
+            : 'perpetual') as 'prediction' | 'perpetual',
+          marketId,
+          displayName,
+          amount: Number(t.amount),
+          pnl: t.pnl ? Number(t.pnl) : null,
+        };
+      });
 
       return {
         success: true,
