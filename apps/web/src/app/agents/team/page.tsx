@@ -386,39 +386,42 @@ export default function TeamChatPage() {
     setRightSidebarOpen(true);
   }, []);
 
-  // Handle selectAgent from query parameter (when redirected from agent profile)
-  // Tags the agent in the input instead of selecting
+  // Handle query parameters for agent actions
+  // - selectAgent: Tags the agent in the input (from agent profile redirect)
+  // - openWallet: Opens bottom panel with wallet tab (from insufficient balance)
+  // Combined into single effect to avoid race conditions if both params present
   useEffect(() => {
+    if (loading || !teamChat) return;
+
     const agentIdToSelect = searchParams.get('selectAgent');
-    if (agentIdToSelect && !loading && teamChat) {
-      // Find the agent and tag them in the input
+    const agentIdForWallet = searchParams.get('openWallet');
+
+    // Nothing to do if no relevant query params
+    if (!agentIdToSelect && !agentIdForWallet) return;
+
+    // Handle selectAgent - tag the agent in the input
+    if (agentIdToSelect) {
       const agent = teamChat.agents.find((a) => a.id === agentIdToSelect);
       if (agent) {
         tagAgentInInput(agent);
       }
-      // Clean up URL by removing the query parameter
-      router.replace('/agents/team', { scroll: false });
     }
-  }, [searchParams, loading, teamChat, tagAgentInInput, router]);
 
-  // Handle openWallet from query parameter (when agent needs more points)
-  // Opens bottom panel with wallet tab for the specified agent
-  useEffect(() => {
-    const agentIdForWallet = searchParams.get('openWallet');
-    if (agentIdForWallet && !loading && teamChat) {
-      // Find the agent
+    // Handle openWallet - open bottom panel with wallet tab
+    // (prioritize over selectAgent if both present)
+    if (agentIdForWallet) {
       const agent = teamChat.agents.find((a) => a.id === agentIdForWallet);
       if (agent) {
-        // Open bottom panel with wallet tab for this agent
         setBottomPanelEntityId(agent.id);
         setBottomPanelEntityType('agent');
         setBottomPanelTab('wallet');
         setBottomPanelOpen(true);
       }
-      // Clean up URL by removing the query parameter
-      router.replace('/agents/team', { scroll: false });
     }
-  }, [searchParams, loading, teamChat, router]);
+
+    // Clean up URL by removing query parameters
+    router.replace('/agents/team', { scroll: false });
+  }, [searchParams, loading, teamChat, tagAgentInInput, router]);
 
   // Scroll to bottom on initial load
   // Uses MutationObserver to keep scrolling as images/content load

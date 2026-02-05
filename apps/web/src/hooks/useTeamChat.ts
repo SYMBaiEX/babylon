@@ -1054,7 +1054,9 @@ export function useTeamChat(): UseTeamChatReturn {
                 errorData.error || errorData.message || 'Failed to respond';
 
               // Check for insufficient balance error
-              if (errorMessage.toLowerCase().includes('insufficient')) {
+              // Match "insufficient balance" specifically to avoid false positives
+              // (e.g., "insufficient permissions" should not trigger this)
+              if (errorMessage.toLowerCase().includes('insufficient balance')) {
                 // Replace thinking bubble with system message that has action button
                 const agentDisplayName = agent?.displayName || 'Agent';
                 updateMessage(thinkingId, {
@@ -1066,7 +1068,7 @@ export function useTeamChat(): UseTeamChatReturn {
                   metadata: {
                     action: {
                       // Open bottom panel with wallet tab for this agent
-                      url: `/agents/team?openWallet=${agentId}`,
+                      url: `/agents/team?openWallet=${encodeURIComponent(agentId)}`,
                       label: 'Open Wallet →',
                     },
                   },

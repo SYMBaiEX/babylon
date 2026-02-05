@@ -25,7 +25,7 @@ export default function AgentDetailPage() {
 
   useEffect(() => {
     // Redirect to team chat with the agent selected
-    router.replace(`/agents/team?selectAgent=${agentId}`);
+    router.replace(`/agents/team?selectAgent=${encodeURIComponent(agentId)}`);
   }, [agentId, router]);
 
   // Show nothing while redirecting
