@@ -6,7 +6,7 @@
  */
 
 import { db, desc, eq, messages, users } from '@babylon/db';
-import { COORDINATOR_SENDER_ID } from '@babylon/shared';
+import { COORDINATOR_INFO, COORDINATOR_SENDER_ID } from '@babylon/shared';
 import type {
   Action,
   ActionResult,
@@ -115,7 +115,7 @@ export const checkTeamChatAction: Action = {
         // Handle coordinator messages
         if (msg.senderId === COORDINATOR_SENDER_ID) {
           return {
-            sender: 'Coordinator',
+            sender: `${COORDINATOR_INFO.displayName} @${COORDINATOR_INFO.username}`,
             role: 'Coordinator',
             content: msg.content,
             time: new Date(msg.createdAt).toLocaleTimeString(),
