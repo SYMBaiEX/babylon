@@ -8,6 +8,7 @@ import type {
   WaitlistData,
 } from '@/components/waitlist/types';
 import { useAuth } from '@/hooks/useAuth';
+import { apiFetch } from '@/utils/api-fetch';
 
 interface UseWaitlistDataOptions {
   authenticated: boolean;
@@ -45,7 +46,7 @@ export function useWaitlistData({
   profileComplete,
   username,
 }: UseWaitlistDataOptions): UseWaitlistDataReturn {
-  const { getAccessToken } = useAuth();
+  useAuth();
 
   const [waitlistData, setWaitlistData] = useState<WaitlistData | null>(null);
   const [topUsers, setTopUsers] = useState<TopUser[]>([]);
@@ -72,12 +73,8 @@ export function useWaitlistData({
           now - leaderboardLastFetched > LEADERBOARD_CACHE_DURATION;
         const pointsType = getPointsTypeForTab(leaderboardTab);
 
-        const token = await getAccessToken();
-
         const requests: Promise<Response>[] = [
-          fetch('/api/waitlist/position', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
+          apiFetch('/api/waitlist/position'),
         ];
 
         if (shouldFetchLeaderboard) {
@@ -183,13 +180,7 @@ export function useWaitlistData({
         return false;
       }
     },
-    [
-      leaderboardLastFetched,
-      leaderboardTab,
-      getAccessToken,
-      previousRank,
-      getPointsTypeForTab,
-    ]
+    [leaderboardLastFetched, leaderboardTab, previousRank, getPointsTypeForTab]
   );
 
   const fetchLeaderboardPage = useCallback(
