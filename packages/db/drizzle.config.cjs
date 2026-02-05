@@ -23,8 +23,12 @@ if (!databaseUrl) {
 
 /** @type {import('drizzle-kit').Config} */
 module.exports = {
-  schema: path.resolve(__dirname, './src/schema/index.ts'),
-  out: path.resolve(__dirname, './drizzle/migrations'),
+  // NOTE: Keep `schema`/`out` as relative paths.
+  // Drizzle Kit currently mis-resolves absolute paths by prefixing them with `./`,
+  // which breaks reading existing snapshots under `drizzle/migrations/meta/*`.
+  // These scripts are run with `--cwd packages/db`, so relative paths are stable.
+  schema: './src/schema/index.ts',
+  out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,
