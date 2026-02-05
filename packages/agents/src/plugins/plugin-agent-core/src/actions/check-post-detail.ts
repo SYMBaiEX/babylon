@@ -56,20 +56,15 @@ interface CommentThread {
 /**
  * Build a tree structure from flat comments
  */
-function buildCommentTree(
-  flatComments: CommentWithAuthor[],
-  agentUserId: string
-): CommentThread[] {
+function buildCommentTree(flatComments: CommentWithAuthor[]): CommentThread[] {
   const commentMap = new Map<string, CommentThread>();
   const rootComments: CommentThread[] = [];
 
   // First pass: create all comment nodes
   for (const comment of flatComments) {
-    const authorLabel =
-      comment.authorId === agentUserId ? 'You' : comment.authorName;
     commentMap.set(comment.id, {
       id: comment.id,
-      author: authorLabel,
+      author: comment.authorName,
       content: comment.content,
       depth: 0,
       createdAt: comment.createdAt,
@@ -193,13 +188,12 @@ export const checkPostDetailAction: Action = {
   ): Promise<boolean> => true,
 
   handler: async (
-    runtime: IAgentRuntime,
+    _runtime: IAgentRuntime,
     _message: Memory,
     state?: State,
     _options?: Record<string, unknown>,
     _callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const agentUserId = runtime.agentId;
     const actionParams = state?.data?.actionParams as
       | { postId?: string }
       | undefined;
@@ -309,7 +303,7 @@ export const checkPostDetailAction: Action = {
       );
 
       // Build comment tree
-      const commentTree = buildCommentTree(commentsWithAuthor, agentUserId);
+      const commentTree = buildCommentTree(commentsWithAuthor);
       const { formatted: formattedComments } = formatCommentTree(commentTree);
 
       // Get share count
@@ -326,10 +320,8 @@ export const checkPostDetailAction: Action = {
         post.authorUsername,
         post.authorProfileImageUrl
       );
-      const postAuthorName =
-        post.authorId === agentUserId ? 'You' : postAuthorInfo.name;
-      const postAuthorProfileImageUrl =
-        post.authorId === agentUserId ? null : postAuthorInfo.profileImageUrl;
+      const postAuthorName = postAuthorInfo.name;
+      const postAuthorProfileImageUrl = postAuthorInfo.profileImageUrl;
 
       // Build formatted view
       const formattedView = `POST [ID: ${post.id}] by @${postAuthorName}:
