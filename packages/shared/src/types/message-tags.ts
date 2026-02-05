@@ -223,8 +223,15 @@ export interface PnlTagData {
    * Omitted or empty array when no recent trades exist.
    */
   recentTrades?: Array<{
+    /** Trade action: 'open' or 'close' */
     action: string;
-    ticker: string;
+    /** Market type: 'prediction' or 'perpetual' */
+    marketType: 'prediction' | 'perpetual';
+    /** Market ID for linking (prediction market ID or perp ticker) */
+    marketId: string;
+    /** Human-readable display name (market question or perp ticker) */
+    displayName: string;
+    /** Trade amount */
     amount: number;
     /**
      * Realized P&L for this trade.

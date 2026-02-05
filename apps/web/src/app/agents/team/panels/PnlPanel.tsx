@@ -2,7 +2,8 @@
 
 import type { PnlTagData } from '@babylon/shared';
 import { cn, formatCompactCurrency } from '@babylon/shared';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { BarChart3, Target, TrendingDown, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 import { PanelViewMoreLink } from './PanelViewMoreLink';
 
 interface PnlPanelProps {
@@ -127,27 +128,91 @@ export function PnlPanel({ data, type }: PnlPanelProps) {
       {type === 'agent-pnl' && recentTrades && recentTrades.length > 0 && (
         <div className="space-y-2">
           <h4 className="font-medium text-sm">Recent Trades</h4>
-          {recentTrades.map((trade, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-2 text-xs"
-            >
-              <span className="font-medium">{trade.action}</span>
-              <span className="text-muted-foreground">{trade.ticker}</span>
-              <span>{formatCompactCurrency(trade.amount)}</span>
-              {trade.pnl !== null && (
+          {recentTrades.map((trade, i) => {
+            // Build the link URL based on market type
+            // Support both old format (with ticker) and new format (with marketType)
+            const marketType =
+              'marketType' in trade ? trade.marketType : undefined;
+            const displayName =
+              'displayName' in trade
+                ? trade.displayName
+                : 'ticker' in trade
+                  ? (trade as { ticker?: string }).ticker
+                  : '';
+            const marketId =
+              'marketId' in trade
+                ? trade.marketId
+                : 'ticker' in trade
+                  ? (trade as { ticker?: string }).ticker
+                  : '';
+
+            const href =
+              marketType === 'prediction'
+                ? `/markets/predictions/${marketId}`
+                : marketType === 'perpetual'
+                  ? `/markets/perps/${marketId}`
+                  : undefined;
+
+            const isPrediction = marketType === 'prediction';
+
+            const content = (
+              <div className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-2 rounded-lg border border-border bg-muted/30 p-2.5 text-xs transition-colors hover:bg-muted/50">
+                {/* Action badge */}
                 <span
                   className={cn(
-                    'font-medium',
-                    trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
+                    'rounded px-1.5 py-0.5 font-medium text-[10px] uppercase',
+                    trade.action === 'open'
+                      ? 'bg-blue-500/10 text-blue-500'
+                      : 'bg-orange-500/10 text-orange-500'
                   )}
                 >
-                  {trade.pnl >= 0 ? '+' : ''}
-                  {formatCompactCurrency(trade.pnl)}
+                  {trade.action}
                 </span>
-              )}
-            </div>
-          ))}
+                {/* Market type icon */}
+                <span
+                  className="text-muted-foreground"
+                  title={isPrediction ? 'Prediction' : 'Perpetual'}
+                >
+                  {isPrediction ? (
+                    <Target className="h-3.5 w-3.5" />
+                  ) : (
+                    <BarChart3 className="h-3.5 w-3.5" />
+                  )}
+                </span>
+                {/* Market name */}
+                <span className="truncate" title={displayName || ''}>
+                  {displayName || 'Unknown'}
+                </span>
+                {/* Amount */}
+                <span className="text-right text-muted-foreground">
+                  {formatCompactCurrency(trade.amount)}
+                </span>
+                {/* P&L */}
+                <span
+                  className={cn(
+                    'min-w-[4rem] text-right font-medium',
+                    trade.pnl !== null
+                      ? trade.pnl >= 0
+                        ? 'text-green-500'
+                        : 'text-red-500'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {trade.pnl !== null
+                    ? `${trade.pnl >= 0 ? '+' : ''}${formatCompactCurrency(trade.pnl)}`
+                    : '—'}
+                </span>
+              </div>
+            );
+
+            return href ? (
+              <Link key={i} href={href} className="block">
+                {content}
+              </Link>
+            ) : (
+              <div key={i}>{content}</div>
+            );
+          })}
         </div>
       )}
 
