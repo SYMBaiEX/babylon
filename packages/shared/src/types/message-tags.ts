@@ -56,10 +56,20 @@ export type MessageTag =
   | MessageTagBase<'agent-pnl'>
   | MessageTagBase<'owner-pnl'>;
 
+/** Action button for system messages */
+export interface MessageAction {
+  /** URL to navigate to when clicked */
+  url: string;
+  /** Button label text */
+  label: string;
+}
+
 /** Message metadata stored in DB */
 export interface MessageMetadata {
   /** Action tags from executed actions */
   tags?: MessageTag[];
+  /** Optional action button (used by system messages) */
+  action?: MessageAction;
 }
 
 // =============================================================================
@@ -213,8 +223,15 @@ export interface PnlTagData {
    * Omitted or empty array when no recent trades exist.
    */
   recentTrades?: Array<{
+    /** Trade action: 'open' or 'close' */
     action: string;
-    ticker: string;
+    /** Market type: 'prediction' or 'perpetual' */
+    marketType: 'prediction' | 'perpetual';
+    /** Market ID for linking (prediction market ID or perp ticker) */
+    marketId: string;
+    /** Human-readable display name (market question or perp ticker) */
+    displayName: string;
+    /** Trade amount */
     amount: number;
     /**
      * Realized P&L for this trade.

@@ -1044,9 +1044,6 @@ export function useTeamChat(): UseTeamChatReturn {
               });
             }
           } else {
-            // Remove thinking bubble on error
-            removeMessage(thinkingId);
-
             // Handle error response from backend
             try {
               const errorData = (await agentResponse.json()) as {
@@ -1057,15 +1054,32 @@ export function useTeamChat(): UseTeamChatReturn {
                 errorData.error || errorData.message || 'Failed to respond';
 
               // Check for insufficient balance error
-              if (errorMessage.toLowerCase().includes('insufficient')) {
-                toast.error(
-                  `${agent?.displayName}: Insufficient points. Deposit to continue.`
-                );
+              // Match "insufficient balance" specifically to avoid false positives
+              // (e.g., "insufficient permissions" should not trigger this)
+              if (errorMessage.toLowerCase().includes('insufficient balance')) {
+                // Replace thinking bubble with system message that has action button
+                const agentDisplayName = agent?.displayName || 'Agent';
+                updateMessage(thinkingId, {
+                  id: `system-insufficient-${agentId}-${Date.now()}`,
+                  content: `${agentDisplayName} needs more points to respond.`,
+                  senderId: 'system',
+                  type: MessageTypeEnum.SYSTEM,
+                  isThinking: false,
+                  metadata: {
+                    action: {
+                      // Open bottom panel with wallet tab for this agent
+                      url: `/agents/team?openWallet=${encodeURIComponent(agentId)}`,
+                      label: 'Open Wallet →',
+                    },
+                  },
+                });
               } else {
-                // Show toast for other errors instead of just logging
+                // Remove thinking bubble and show toast for other errors
+                removeMessage(thinkingId);
                 toast.error(`${agent?.displayName}: ${errorMessage}`);
               }
             } catch {
+              removeMessage(thinkingId);
               toast.error(`${agent?.displayName} failed to respond`);
             }
           }
