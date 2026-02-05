@@ -80,7 +80,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   // Use the app URL as base for all redirects
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_WAITLIST_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    request.nextUrl.origin;
 
   if (!parsed.success) {
     return NextResponse.redirect(
@@ -223,7 +226,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     body: new URLSearchParams({
       code,
       grant_type: 'authorization_code',
-      redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter/callback`,
+      redirect_uri: `${process.env.NEXT_PUBLIC_WAITLIST_URL || process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter/callback`,
       code_verifier: oauthState.codeVerifier,
     }),
   });

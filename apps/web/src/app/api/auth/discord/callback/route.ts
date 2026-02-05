@@ -32,7 +32,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   );
 
   // Use the app URL as base for all redirects
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_WAITLIST_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    request.nextUrl.origin;
 
   if (!parsed.success) {
     return NextResponse.redirect(
@@ -157,7 +160,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         client_secret: process.env.DISCORD_CLIENT_SECRET!,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/discord/callback`,
+        redirect_uri: `${process.env.NEXT_PUBLIC_WAITLIST_URL || process.env.NEXT_PUBLIC_APP_URL}/api/auth/discord/callback`,
       }),
     }
   );
