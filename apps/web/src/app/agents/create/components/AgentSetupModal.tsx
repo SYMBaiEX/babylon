@@ -245,55 +245,46 @@ export function AgentSetupModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4">
-      <div className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-lg md:border md:border-border">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-border border-b bg-background px-4 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4">
+      <div className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[600px] md:max-w-3xl md:rounded-lg md:border md:border-border">
+        {/* Header - fixed */}
+        <div className="shrink-0 border-border border-b px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-lg">Set Up Your Agent</h2>
             {!hideCloseButton && (
               <button
                 onClick={onClose}
-                className="shrink-0 rounded-full p-2 transition-colors hover:bg-muted"
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Close"
               >
                 <XIcon className="h-5 w-5" />
               </button>
             )}
-            <h2 className="truncate font-bold text-lg">Set Up Your Agent</h2>
           </div>
-          <button
-            onClick={handleContinue}
-            disabled={isContinueDisabled}
-            className={cn(
-              'shrink-0 rounded-lg bg-[#0066FF] px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-[#2952d9]',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            Continue
-          </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          {/* Cover Image Section */}
-          <div className="space-y-2 p-4">
-            <label className="block font-medium text-sm">Profile Banner</label>
-            <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
+        {/* Content - scrollable */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+
+        {/* Profile Images Section */}
+        <div className="relative mb-14 sm:mb-16">
+            {/* Banner */}
+            <div className="group relative h-24 overflow-hidden rounded-lg bg-muted sm:h-32">
               <img
                 src={currentBanner}
                 alt="Profile banner"
                 className="h-full w-full object-cover"
               />
-              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                 <button
                   type="button"
                   onClick={() => cycleBanner('prev')}
-                  className="rounded-lg bg-background/80 p-2 hover:bg-background"
+                  className="rounded-full bg-background/90 p-1.5 hover:bg-background sm:p-2"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
-                <label className="cursor-pointer rounded-lg bg-background/80 p-2 hover:bg-background">
-                  <Upload className="h-5 w-5" />
+                <label className="cursor-pointer rounded-full bg-background/90 p-1.5 hover:bg-background sm:p-2">
+                  <Upload className="h-4 w-4" />
                   <input
                     ref={coverInputRef}
                     type="file"
@@ -306,9 +297,9 @@ export function AgentSetupModal({
                 <button
                   type="button"
                   onClick={() => cycleBanner('next')}
-                  className="rounded-lg bg-background/80 p-2 hover:bg-background"
+                  className="rounded-full bg-background/90 p-1.5 hover:bg-background sm:p-2"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
               {uploadingImage === 'cover' && (
@@ -317,57 +308,60 @@ export function AgentSetupModal({
                 </div>
               )}
             </div>
+
+            {/* Avatar - overlapping banner */}
+            <div className="absolute -bottom-12 left-3 sm:-bottom-14 sm:left-4">
+              <div className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted sm:h-28 sm:w-28">
+                <img
+                  src={currentProfileImage}
+                  alt="Profile picture"
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => cycleProfilePicture('prev')}
+                    className="rounded-full bg-background/90 p-1 hover:bg-background sm:p-1.5"
+                  >
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </button>
+                  <label className="cursor-pointer rounded-full bg-background/90 p-1 hover:bg-background sm:p-1.5">
+                    <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <input
+                      ref={profileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageUpload}
+                      className="hidden"
+                      disabled={uploadingImage === 'profile'}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => cycleProfilePicture('next')}
+                    className="rounded-full bg-background/90 p-1 hover:bg-background sm:p-1.5"
+                  >
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </button>
+                </div>
+                {uploadingImage === 'profile' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <span className="text-white text-xs">...</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Profile Image Section */}
-          <div className="flex items-start gap-4 px-4 pb-6">
-            <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
-              <img
-                src={currentProfileImage}
-                alt="Profile picture"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                <button
-                  type="button"
-                  onClick={() => cycleProfilePicture('prev')}
-                  className="rounded-lg bg-background/80 p-1.5 hover:bg-background"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <label className="cursor-pointer rounded-lg bg-background/80 p-1.5 hover:bg-background">
-                  <Upload className="h-4 w-4" />
-                  <input
-                    ref={profileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfileImageUpload}
-                    className="hidden"
-                    disabled={uploadingImage === 'profile'}
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => cycleProfilePicture('next')}
-                  className="rounded-lg bg-background/80 p-1.5 hover:bg-background"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              {uploadingImage === 'profile' && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
-                  <span className="text-white text-xs">...</span>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 pt-2 text-muted-foreground text-xs">
-              <p>Use arrows to browse or click upload icon for custom image</p>
-              <p>Max 5MB, JPG/PNG/GIF/WebP</p>
-            </div>
-          </div>
+          {/* Image upload info */}
+          <p className="mb-4 text-muted-foreground text-xs">
+            Tap images to browse or upload custom.
+            <br />
+            Max 5MB, JPG/PNG/GIF/WebP.
+          </p>
 
           {/* Form Fields */}
-          <div className="space-y-5 px-4 pb-6">
+          <div className="space-y-5">
             {/* Username */}
             <div>
               <label
@@ -516,6 +510,23 @@ export function AgentSetupModal({
                 This will appear on your agent's profile.
               </p>
             </div>
+          </div>
+
+        </div>
+
+        {/* Footer - fixed */}
+        <div className="shrink-0 border-border border-t px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex justify-end">
+            <button
+              onClick={handleContinue}
+              disabled={isContinueDisabled}
+              className={cn(
+                'flex w-1/2 items-center justify-center rounded-lg bg-[#0066FF] px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-[#2952d9] sm:py-3',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              Continue
+            </button>
           </div>
         </div>
       </div>

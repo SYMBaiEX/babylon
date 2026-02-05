@@ -904,7 +904,7 @@ export default function TeamChatPage() {
         {/* Spacer for right sidebar - only on desktop to make room for fixed sidebar */}
         {rightSidebarOpen && (
           <div
-            className="hidden shrink-0 transition-[width] duration-200 lg:block"
+            className="hidden shrink-0 lg:block"
             style={{ width: rightSidebarWidth }}
             aria-hidden="true"
           />

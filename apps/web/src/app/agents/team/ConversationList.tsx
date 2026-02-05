@@ -168,13 +168,6 @@ export function ConversationList({
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  conversation.isActive ? 'bg-primary' : 'bg-transparent'
-                )}
-              />
-
               {editingId === conversation.id ? (
                 // Inline edit mode
                 <div className="flex min-w-0 flex-1 items-center gap-1">

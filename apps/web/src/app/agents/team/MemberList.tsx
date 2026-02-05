@@ -1,15 +1,8 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { MoreVertical, Settings, Square } from 'lucide-react';
-import { useState } from 'react';
+import { Settings, Square } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 /** Agent info for member list */
 interface TeamChatAgent {
@@ -57,9 +50,6 @@ export function MemberList({
   onStopAgent,
   onViewSettings,
 }: MemberListProps) {
-  // Track which dropdown is open (by agent id)
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {/* Agents */}
@@ -116,7 +106,7 @@ export function MemberList({
                     </div>
                   </button>
 
-                  {/* Stop button when processing, otherwise show dropdown menu */}
+                  {/* Stop button when processing, otherwise show settings button */}
                   {isProcessing ? (
                     <button
                       type="button"
@@ -130,40 +120,21 @@ export function MemberList({
                       <Square className="relative h-3 w-3 fill-primary text-primary" />
                     </button>
                   ) : (
-                    <DropdownMenu
-                      open={openDropdown === agent.id}
-                      onOpenChange={(open) =>
-                        setOpenDropdown(open ? agent.id : null)
-                      }
+                    <button
+                      type="button"
+                      className={cn(
+                        'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
+                        'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        'opacity-0 focus:opacity-100 group-hover:opacity-100'
+                      )}
+                      onClick={() => {
+                        onViewSettings?.(agent.id);
+                        onClose?.();
+                      }}
+                      aria-label={`Settings for ${agentName}`}
                     >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded transition-colors',
-                            'text-muted-foreground hover:bg-muted hover:text-foreground',
-                            'opacity-0 focus:opacity-100 group-hover:opacity-100',
-                            openDropdown === agent.id && 'opacity-100'
-                          )}
-                          aria-label={`Options for ${agentName}`}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        {/* Agent Settings */}
-                        <DropdownMenuItem
-                          onClick={() => {
-                            onViewSettings?.(agent.id);
-                            onClose?.();
-                            setOpenDropdown(null);
-                          }}
-                        >
-                          <Settings className="mr-2 h-4 w-4" />
-                          Settings
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      <Settings className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               );

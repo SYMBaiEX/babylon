@@ -8,7 +8,7 @@
 'use client';
 
 import { cn } from '@babylon/shared';
-import { ArrowLeft, Bot, Loader2, Wallet } from 'lucide-react';
+import { Loader2, Wallet } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -263,8 +263,6 @@ export function AgentCreate({
     onSuccess,
   ]);
 
-  const containerClass = compact ? '' : 'mx-auto max-w-4xl pb-24';
-
   // Step 1 uses its own modal UI
   if (currentStep === Step.Profile) {
     return (
@@ -286,40 +284,14 @@ export function AgentCreate({
     );
   }
 
-  // Steps 2 and 3 content
-  const stepsContent = (
-    <div className={containerClass}>
-      {/* Header - only shown for Steps 2 and 3 */}
-      <div className="mb-8">
-        <button
-          onClick={() => {
-            setCurrentStep((prev) => prev - 1);
-          }}
-          className="mb-4 flex items-center gap-3 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <span>Previous Step</span>
-        </button>
-        <div className="flex items-center gap-3">
-          <Bot className="h-6 w-6 text-[#0066FF]" />
-          <div>
-            <h1 className="font-bold text-3xl">Create AI Agent</h1>
-            <p className="text-muted-foreground">
-              {currentStep === Step.Prompts
-                ? "Configure your agent's personality and prompts"
-                : "Set up your agent's capabilities"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-
+  // Scrollable content for steps 2 and 3 (without actions)
+  const stepContent = (
+    <>
       {currentStep === Step.Prompts && (
         // Step 2: Grid layout with sidebar
-        <div className="grid gap-8 lg:grid-cols-3">
-          {/* Profile Preview - Left Column */}
-          <div className="space-y-4 lg:col-span-1">
+        <div className="grid gap-4 sm:gap-8 lg:grid-cols-3">
+          {/* Profile Preview - Left Column (hidden on mobile) */}
+          <div className="hidden space-y-4 lg:col-span-1 lg:block">
             <ProfilePreviewCard
               profileData={profileData}
               onCycleProfilePic={(direction) =>
@@ -353,43 +325,15 @@ export function AgentCreate({
           </div>
 
           {/* Configuration - Right Column */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="space-y-4 sm:space-y-6 lg:col-span-2">
             {isInitialized ? (
-              <>
-                <AgentConfigForm
-                  agentData={agentData}
-                  generatingField={generatingField}
-                  maxDeposit={maxDeposit}
-                  onFieldChange={updateAgentField}
-                  onRegenerate={regenerateField}
-                />
-
-                {/* Actions */}
-                <div className="flex justify-end gap-3 border-border border-t pt-6">
-                  {onBack && (
-                    <button
-                      onClick={() => onBack()}
-                      className={cn(
-                        'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                        'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      )}
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    onClick={handleContinueToSettings}
-                    disabled={!isInitialized}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                      'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                      'disabled:cursor-not-allowed disabled:opacity-50'
-                    )}
-                  >
-                    Continue
-                  </button>
-                </div>
-              </>
+              <AgentConfigForm
+                agentData={agentData}
+                generatingField={generatingField}
+                maxDeposit={maxDeposit}
+                onFieldChange={updateAgentField}
+                onRegenerate={regenerateField}
+              />
             ) : (
               <div className="space-y-6">
                 <div className="space-y-4">
@@ -416,83 +360,129 @@ export function AgentCreate({
 
       {currentStep === Step.Settings && (
         // Step 3: Full-width settings (no sidebar)
-        <div className="space-y-6">
-          <AgentSettingsStep
-            settings={settingsData}
-            onSettingsChange={setSettingsData}
-          />
+        <AgentSettingsStep
+          settings={settingsData}
+          onSettingsChange={setSettingsData}
+        />
+      )}
+    </>
+  );
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 border-border border-t pt-6">
-            <button
-              onClick={() => setCurrentStep(Step.Prompts)}
-              disabled={isCreating}
-              className={cn(
-                'rounded-lg border border-border px-6 py-3 font-medium transition-colors',
-                'text-muted-foreground hover:bg-muted hover:text-foreground',
-                'disabled:cursor-not-allowed disabled:opacity-50'
-              )}
-            >
-              Back
-            </button>
-            <button
-              onClick={handleCreate}
-              disabled={isCreating}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-all',
-                'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
-                'disabled:cursor-not-allowed disabled:opacity-50'
-              )}
-            >
-              {isCreating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Create Agent'
-              )}
-            </button>
-          </div>
-        </div>
+  // Fixed footer actions for steps 2 and 3
+  const stepActions = (
+    <div className="flex gap-3">
+      {currentStep === Step.Prompts ? (
+        <>
+          <button
+            onClick={() => setCurrentStep(Step.Profile)}
+            className={cn(
+              'flex-1 rounded-lg border border-border px-4 py-2.5 font-medium transition-colors sm:py-3',
+              'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            Back
+          </button>
+          <button
+            onClick={handleContinueToSettings}
+            disabled={!isInitialized}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-all sm:py-3',
+              'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            Continue
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => setCurrentStep(Step.Prompts)}
+            disabled={isCreating}
+            className={cn(
+              'flex-1 rounded-lg border border-border px-4 py-2.5 font-medium transition-colors sm:py-3',
+              'text-muted-foreground hover:bg-muted hover:text-foreground',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            Back
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={isCreating}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-all sm:py-3',
+              'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            {isCreating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Create Agent'
+            )}
+          </button>
+        </>
       )}
     </div>
   );
 
-  // In compact mode (embedded in Command Center), wrap in modal-style container
-  if (compact) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/60 p-4 backdrop-blur-sm">
-        <div
-          className="relative max-h-[90vh] w-full min-w-[800px] max-w-5xl overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close button - only rendered when onBack is provided */}
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Close"
-            >
-              <span className="sr-only">Close</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+  // Modal wrapper with fixed header/footer pattern
+  const modalContent = (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4">
+      <div
+        className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[600px] md:max-w-3xl md:rounded-lg md:border md:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header - fixed */}
+        <div className="shrink-0 border-border border-b px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-lg">
+              {currentStep === Step.Prompts ? 'Configure Prompts' : 'Agent Settings'}
+            </h2>
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
               >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-          {stepsContent}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content - scrollable */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+          {stepContent}
+        </div>
+
+        {/* Footer - fixed */}
+        <div className="shrink-0 border-border border-t px-4 py-3 sm:px-6 sm:py-4">
+          {stepActions}
         </div>
       </div>
-    );
+    </div>
+  );
+
+  // In compact mode (embedded in Command Center), use modal wrapper
+  if (compact) {
+    return modalContent;
   }
 
-  return stepsContent;
+  // Standalone page mode - also use the same fixed header/footer pattern for consistency
+  return modalContent;
 }
