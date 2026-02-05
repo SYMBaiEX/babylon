@@ -59,6 +59,31 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+type AgentCard = ReturnType<typeof generateAgentCardSync>;
+
+type Agent0Extensions = {
+  onChain?: {
+    registered: boolean;
+    tokenId: string;
+    metadataCID: string | null;
+    registeredAt?: string;
+    chainId: number;
+    agentId: string;
+  };
+  reputation?: {
+    trustScore: number | null;
+    feedbackCount: number | null;
+    verifiedIdentity: boolean;
+  };
+  discovery?: {
+    discoverable: boolean;
+    searchable: boolean;
+    publicProfile: boolean;
+  };
+};
+
+type ExtendedAgentCard = AgentCard & Agent0Extensions;
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ agentId: string }> }
@@ -73,6 +98,13 @@ export async function GET(
       bio: true,
       profileImageUrl: true,
       isAgent: true,
+      // Agent0 fields for on-chain identity and reputation
+      agent0TokenId: true,
+      agent0MetadataCID: true,
+      onChainRegistered: true,
+      agent0RegisteredAt: true,
+      agent0TrustScore: true,
+      agent0FeedbackCount: true,
     },
   });
 
@@ -98,7 +130,36 @@ export async function GET(
     tradingStrategy: agentConfig?.tradingStrategy,
   });
 
-  return NextResponse.json(agentCard, {
+  let responseCard: ExtendedAgentCard = agentCard;
+
+  // Add Agent0 metadata if agent is registered on-chain
+  if (agent.onChainRegistered && agent.agent0TokenId) {
+    const tokenId = String(agent.agent0TokenId);
+
+    responseCard = {
+      ...agentCard,
+      onChain: {
+        registered: true,
+        tokenId,
+        metadataCID: agent.agent0MetadataCID,
+        registeredAt: agent.agent0RegisteredAt?.toISOString(),
+        chainId: 1, // Ethereum mainnet
+        agentId: `1:${tokenId}`,
+      },
+      reputation: {
+        trustScore: agent.agent0TrustScore,
+        feedbackCount: agent.agent0FeedbackCount,
+        verifiedIdentity: true,
+      },
+      discovery: {
+        discoverable: true,
+        searchable: true,
+        publicProfile: true,
+      },
+    };
+  }
+
+  return NextResponse.json(responseCard, {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'public, max-age=3600', // Cache for 1 hour

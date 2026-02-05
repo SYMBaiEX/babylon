@@ -99,21 +99,20 @@ async function checkForge(): Promise<boolean> {
 async function main() {
   console.log('\n🔧 Setting up Solidity dependencies...');
 
-  // Check if Forge is installed
+  // Create dependencies directory
+  if (!existsSync(DEPS_DIR)) {
+    mkdirSync(DEPS_DIR, { recursive: true });
+  }
+
+  // Check if Forge is installed (optional - dependencies can still be downloaded)
   const hasForge = await checkForge();
   if (!hasForge) {
     console.log(
-      '   ⚠️  Foundry (forge) not installed. Skipping Solidity setup.'
+      '   ⚠️  Foundry (forge) not installed. Installing Solidity dependencies anyway.'
     );
     console.log(
       '   💡 Install Foundry: curl -L https://foundry.paradigm.xyz | bash && foundryup'
     );
-    return;
-  }
-
-  // Create dependencies directory
-  if (!existsSync(DEPS_DIR)) {
-    mkdirSync(DEPS_DIR, { recursive: true });
   }
 
   // Download packages
@@ -127,7 +126,11 @@ async function main() {
     console.log('   ✅ Solidity dependencies ready\n');
   } else {
     console.log('   ⚠️  Some dependencies failed to install\n');
-    console.log('   💡 Try running: forge soldeer update\n');
+    if (hasForge) {
+      console.log('   💡 Try running: forge soldeer update\n');
+    } else {
+      console.log('   💡 Install Foundry, then run: forge soldeer update\n');
+    }
   }
 }
 
