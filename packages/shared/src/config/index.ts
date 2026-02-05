@@ -127,6 +127,7 @@ export function getCurrentRpcUrl(): string {
  * Get the base URL for the application with intelligent fallback chain
  *
  * Priority order:
+ * 0. `window.location.origin` (browser runtime, always accurate)
  * 1. NEXT_PUBLIC_APP_URL (explicit override for all environments)
  * 2. NEXT_PUBLIC_VERCEL_URL or VERCEL_URL (Vercel auto-set for preview/staging/production)
  * 3. http://localhost:3000 (local development fallback)
@@ -137,18 +138,31 @@ export function getCurrentRpcUrl(): string {
  * - Preview: Uses unique Vercel URL (e.g., babylon-pr-123.vercel.app via VERCEL_URL)
  * - Local: Uses localhost:3000
  */
-function getBaseUrl(): string {
+function normalizeBaseUrl(input: string): string {
+  const trimmed = input.trim().replace(/\/+$/, '');
+  if (!trimmed) return 'http://localhost:3000';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+export function getBaseUrl(): string {
+  // 0. Browser runtime: always use the current origin
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+
   // 1. Explicit override (highest priority)
   if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
+    return normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
   }
 
   // 2. Vercel auto-set variables (preview/staging/production)
   const vercelUrl =
     process.env.NEXT_PUBLIC_VERCEL_URL || process.env.VERCEL_URL;
   if (vercelUrl) {
-    // Vercel URLs don't include protocol, add https://
-    return `https://${vercelUrl}`;
+    return normalizeBaseUrl(vercelUrl);
   }
 
   // 3. Local development fallback

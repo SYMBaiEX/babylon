@@ -59,6 +59,31 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+type AgentCard = ReturnType<typeof generateAgentCardSync>;
+
+type Agent0Extensions = {
+  onChain?: {
+    registered: boolean;
+    tokenId: string;
+    metadataCID: string | null;
+    registeredAt?: string;
+    chainId: number;
+    agentId: string;
+  };
+  reputation?: {
+    trustScore: number | null;
+    feedbackCount: number | null;
+    verifiedIdentity: boolean;
+  };
+  discovery?: {
+    discoverable: boolean;
+    searchable: boolean;
+    publicProfile: boolean;
+  };
+};
+
+type ExtendedAgentCard = AgentCard & Agent0Extensions;
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ agentId: string }> }
@@ -105,32 +130,36 @@ export async function GET(
     tradingStrategy: agentConfig?.tradingStrategy,
   });
 
+  let responseCard: ExtendedAgentCard = agentCard;
+
   // Add Agent0 metadata if agent is registered on-chain
   if (agent.onChainRegistered && agent.agent0TokenId) {
-    const extendedCard = agentCard as Record<string, unknown>;
-    extendedCard.onChain = {
-      registered: true,
-      tokenId: agent.agent0TokenId,
-      metadataCID: agent.agent0MetadataCID,
-      registeredAt: agent.agent0RegisteredAt?.toISOString(),
-      chainId: 1, // Ethereum mainnet
-      agentId: `1:${agent.agent0TokenId}`,
-    };
+    const tokenId = String(agent.agent0TokenId);
 
-    extendedCard.reputation = {
-      trustScore: agent.agent0TrustScore,
-      feedbackCount: agent.agent0FeedbackCount,
-      verifiedIdentity: true,
-    };
-
-    extendedCard.discovery = {
-      discoverable: true,
-      searchable: true,
-      publicProfile: true,
+    responseCard = {
+      ...agentCard,
+      onChain: {
+        registered: true,
+        tokenId,
+        metadataCID: agent.agent0MetadataCID,
+        registeredAt: agent.agent0RegisteredAt?.toISOString(),
+        chainId: 1, // Ethereum mainnet
+        agentId: `1:${tokenId}`,
+      },
+      reputation: {
+        trustScore: agent.agent0TrustScore,
+        feedbackCount: agent.agent0FeedbackCount,
+        verifiedIdentity: true,
+      },
+      discovery: {
+        discoverable: true,
+        searchable: true,
+        publicProfile: true,
+      },
     };
   }
 
-  return NextResponse.json(agentCard, {
+  return NextResponse.json(responseCard, {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
