@@ -820,7 +820,6 @@ export function ComingSoon() {
   );
 
   const dbUserId = dbUser?.id;
-  const dbUserProfileComplete = dbUser?.profileComplete;
   const dbUserUsername = dbUser?.username;
   const privyWalletAddress = privyUser?.wallet?.address;
 
@@ -828,8 +827,9 @@ export function ComingSoon() {
     async (attempt = 0) => {
       if (!authenticated || !dbUserId) return;
 
-      // Only mark as waitlisted if user has completed profile setup (has username).
-      if (!dbUserProfileComplete || !dbUserUsername) return;
+      // Only mark as waitlisted if user has a username.
+      // `profileComplete` is stricter (requires bio + image) and shouldn't block waitlist access.
+      if (!dbUserUsername) return;
 
       setWaitlistSetupError(null);
 
@@ -917,7 +917,6 @@ export function ComingSoon() {
     [
       authenticated,
       dbUserId,
-      dbUserProfileComplete,
       dbUserUsername,
       privyWalletAddress,
       searchParams,
@@ -2541,17 +2540,17 @@ export function ComingSoon() {
     </>
   );
 
-  // Authenticated but not onboarded yet: don't show an infinite waitlist loader.
-  if (!dbUser.profileComplete || !dbUser.username) {
+  // Authenticated but missing username: don't show an infinite waitlist loader.
+  if (!dbUser.username) {
     return (
       <>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
           <div className="mx-auto w-full max-w-md px-6 text-center">
             <h2 className="mb-2 font-semibold text-foreground text-xl">
-              Complete your profile to continue
+              Choose a username to continue
             </h2>
             <p className="mb-6 text-muted-foreground">
-              We need a username before we can show your waitlist position.
+              Once you pick a username, we’ll show your waitlist position.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
