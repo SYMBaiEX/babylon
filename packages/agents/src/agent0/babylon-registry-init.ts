@@ -101,8 +101,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   );
 
   // Initialize SDK with Ethereum mainnet configuration
-  const chainId =
-    process.env.AGENT0_NETWORK === 'sepolia' ? 11155111 : 1; // Sepolia or Mainnet
+  const chainId = process.env.AGENT0_NETWORK === 'sepolia' ? 11155111 : 1; // Sepolia or Mainnet
   const sdk = new SDK({
     chainId,
     rpcUrl: process.env.AGENT0_RPC_URL || 'https://eth.llamarpc.com',
@@ -197,7 +196,9 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
 
   const metadataCID = registrationResult.agentURI || '';
   const agentId = registrationResult.agentId || '';
-  const tokenId = agentId ? Number.parseInt(agentId.split(':')[1] || '0', 10) : 0;
+  const tokenId = agentId
+    ? Number.parseInt(agentId.split(':')[1] || '0', 10)
+    : 0;
 
   logger.info(
     '✅ Babylon registered in Agent0 registry!',

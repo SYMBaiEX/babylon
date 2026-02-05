@@ -11,7 +11,13 @@
 
 import { cn, formatNumber } from '@babylon/shared';
 import { Calendar, Clock, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 
 type HeatmapType = 'hourly' | 'calendar';

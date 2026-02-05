@@ -2,12 +2,12 @@
  * Integration Tests: Reputation Sync with Localnet Default Keys
  *
  * Tests that default test keys are used correctly in localnet mode
- *
- * TODO: Update this test to use the new SDK-based approach instead of
- * the removed Agent0FeedbackService wrapper class.
  */
 
-import { describe, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'bun:test';
+import { syncUserReputationToERC8004 } from '@babylon/agents';
+import { db } from '@babylon/db';
+import { generateSnowflakeId } from '@babylon/shared';
 
 describe.skip('Reputation Sync with Localnet Default Keys', () => {
   let testAgentUserId: string;
@@ -141,41 +141,6 @@ describe.skip('Reputation Sync with Localnet Default Keys', () => {
       }
       if (originalBabylonKey) {
         process.env.BABYLON_AGENT0_PRIVATE_KEY = originalBabylonKey;
-      }
-    }
-  });
-
-  test('should handle Agent0FeedbackService with default key', async () => {
-    const originalNetwork = process.env.AGENT0_NETWORK;
-    const originalFeedbackKey = process.env.AGENT0_FEEDBACK_PRIVATE_KEY;
-    const originalBabylonKey = process.env.BABYLON_AGENT0_PRIVATE_KEY;
-    const originalIpfsProvider = process.env.AGENT0_IPFS_PROVIDER;
-
-    try {
-      process.env.AGENT0_NETWORK = 'localnet';
-      process.env.AGENT0_IPFS_PROVIDER = 'node'; // Use node IPFS for localnet
-      delete process.env.AGENT0_FEEDBACK_PRIVATE_KEY;
-      delete process.env.BABYLON_AGENT0_PRIVATE_KEY;
-
-      // Should be able to instantiate service without error
-      const service = new Agent0FeedbackService();
-      expect(service).toBeDefined();
-    } finally {
-      if (originalNetwork) {
-        process.env.AGENT0_NETWORK = originalNetwork;
-      } else {
-        delete process.env.AGENT0_NETWORK;
-      }
-      if (originalFeedbackKey) {
-        process.env.AGENT0_FEEDBACK_PRIVATE_KEY = originalFeedbackKey;
-      }
-      if (originalBabylonKey) {
-        process.env.BABYLON_AGENT0_PRIVATE_KEY = originalBabylonKey;
-      }
-      if (originalIpfsProvider) {
-        process.env.AGENT0_IPFS_PROVIDER = originalIpfsProvider;
-      } else {
-        delete process.env.AGENT0_IPFS_PROVIDER;
       }
     }
   });

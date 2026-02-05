@@ -5,13 +5,13 @@
  * This MUST be called before any agent registration occurs to prevent runtime crashes.
  */
 
-import { logger } from '@babylon/shared';
-import { setBlockchainReputationFunctions } from '@babylon/agents/agent0';
 import { getAgent0SDK } from '@babylon/agents';
+import { setBlockchainReputationFunctions } from '@babylon/agents/agent0';
 import {
   getOnChainReputation,
   syncOnChainReputation,
 } from '@babylon/agents/agent0/reputation/blockchain-reputation-impl';
+import { logger } from '@babylon/shared';
 
 /**
  * Initialize Agent0 services if enabled

@@ -217,12 +217,10 @@ export async function submitFeedbackToAgent0(feedbackId: string) {
 
   // Prepare feedback file (off-chain content only)
   const agentId = `1:${agent0TokenId}`; // Ethereum mainnet
-  const feedbackFile = sdk.prepareFeedbackFile(
-    {
-      text: feedback.comment || 'Feedback from Babylon platform',
-      context: { transactionId: feedback.id },
-    }
-  );
+  const feedbackFile = sdk.prepareFeedbackFile({
+    text: feedback.comment || 'Feedback from Babylon platform',
+    context: { transactionId: feedback.id },
+  });
 
   // Submit to Agent0 network (on-chain + off-chain)
   await sdk.giveFeedback(

@@ -284,7 +284,11 @@ export class AgentWalletService {
     ];
 
     if (config?.tradingStrategy) {
-      skills.push('autonomous-trading', 'prediction-markets', 'social-interaction');
+      skills.push(
+        'autonomous-trading',
+        'prediction-markets',
+        'social-interaction'
+      );
     }
 
     for (const skill of skills) {
@@ -306,7 +310,9 @@ export class AgentWalletService {
 
     // Extract tokenId from agentId (format: "chainId:tokenId")
     const agentId = registration.agentId || '';
-    const tokenId = agentId ? Number.parseInt(agentId.split(':')[1] || '0', 10) : 0;
+    const tokenId = agentId
+      ? Number.parseInt(agentId.split(':')[1] || '0', 10)
+      : 0;
     const metadataCID = registration.agentURI || '';
 
     // Step 4: Update agent with on-chain data

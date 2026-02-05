@@ -144,7 +144,8 @@ function getBaseUrl(): string {
   }
 
   // 2. Vercel auto-set variables (preview/staging/production)
-  const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.VERCEL_URL;
+  const vercelUrl =
+    process.env.NEXT_PUBLIC_VERCEL_URL || process.env.VERCEL_URL;
   if (vercelUrl) {
     // Vercel URLs don't include protocol, add https://
     return `https://${vercelUrl}`;

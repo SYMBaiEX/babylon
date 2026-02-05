@@ -134,7 +134,11 @@ export class AgentIdentityService {
     ];
 
     if (config?.tradingStrategy) {
-      skills.push('autonomous-trading', 'prediction-markets', 'social-interaction');
+      skills.push(
+        'autonomous-trading',
+        'prediction-markets',
+        'social-interaction'
+      );
     }
 
     for (const skill of skills) {
@@ -156,7 +160,9 @@ export class AgentIdentityService {
 
     // Extract tokenId from agentId (format: "chainId:tokenId")
     const agentId = registration.agentId || '';
-    const tokenId = agentId ? Number.parseInt(agentId.split(':')[1] || '0', 10) : 0;
+    const tokenId = agentId
+      ? Number.parseInt(agentId.split(':')[1] || '0', 10)
+      : 0;
     const metadataCID = registration.agentURI || '';
 
     await db
@@ -170,15 +176,13 @@ export class AgentIdentityService {
       .where(eq(users.id, agentUserId));
 
     // Fire-and-forget reputation sync; log but do not block registration
-    syncAfterAgent0Registration(agentUserId, tokenId).catch(
-      (error) => {
-        logger.warn(
-          'Agent0 reputation sync failed after registration',
-          { agentUserId, tokenId, error },
-          'AgentIdentityService'
-        );
-      }
-    );
+    syncAfterAgent0Registration(agentUserId, tokenId).catch((error) => {
+      logger.warn(
+        'Agent0 reputation sync failed after registration',
+        { agentUserId, tokenId, error },
+        'AgentIdentityService'
+      );
+    });
 
     await db.insert(agentLogs).values({
       id: await generateSnowflakeId(),

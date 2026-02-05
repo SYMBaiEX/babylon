@@ -192,14 +192,8 @@ export class GameDiscovery {
                   type: (metadata?.type as string) || 'game-platform',
                   metadataCID: regFile.agentURI || '',
                   endpoints: {
-                    a2a:
-                      metadata?.endpoints?.a2a ||
-                      agent.a2aEndpoint ||
-                      '',
-                    mcp:
-                      metadata?.endpoints?.mcp ||
-                      agent.mcpEndpoint ||
-                      '',
+                    a2a: metadata?.endpoints?.a2a || agent.a2aEndpoint || '',
+                    mcp: metadata?.endpoints?.mcp || agent.mcpEndpoint || '',
                     api: metadata?.endpoints?.api || '',
                     docs: metadata?.endpoints?.docs,
                     websocket: metadata?.endpoints?.websocket,
@@ -213,9 +207,14 @@ export class GameDiscovery {
                       (metadata?.capabilities?.actions as string[]) ||
                       agent.mcpTools ||
                       [],
-                    protocols: (metadata?.capabilities?.protocols as string[]) || [],
-                    socialFeatures: metadata?.capabilities?.socialFeatures as boolean | undefined,
-                    realtime: metadata?.capabilities?.realtime as boolean | undefined,
+                    protocols:
+                      (metadata?.capabilities?.protocols as string[]) || [],
+                    socialFeatures: metadata?.capabilities?.socialFeatures as
+                      | boolean
+                      | undefined,
+                    realtime: metadata?.capabilities?.realtime as
+                      | boolean
+                      | undefined,
                   },
                 };
               }
@@ -352,14 +351,8 @@ export class GameDiscovery {
         type: (metadata?.type as string) || 'game-platform',
         metadataCID: regFile.agentURI || '',
         endpoints: {
-          a2a:
-            metadata?.endpoints?.a2a ||
-            agent.a2aEndpoint ||
-            '',
-          mcp:
-            metadata?.endpoints?.mcp ||
-            agent.mcpEndpoint ||
-            '',
+          a2a: metadata?.endpoints?.a2a || agent.a2aEndpoint || '',
+          mcp: metadata?.endpoints?.mcp || agent.mcpEndpoint || '',
           api: metadata?.endpoints?.api || '',
           docs: metadata?.endpoints?.docs,
           websocket: metadata?.endpoints?.websocket,
@@ -374,7 +367,9 @@ export class GameDiscovery {
             agent.mcpTools ||
             [],
           protocols: (metadata?.capabilities?.protocols as string[]) || [],
-          socialFeatures: metadata?.capabilities?.socialFeatures as boolean | undefined,
+          socialFeatures: metadata?.capabilities?.socialFeatures as
+            | boolean
+            | undefined,
           realtime: metadata?.capabilities?.realtime as boolean | undefined,
         },
         reputation: undefined, // Not available from loadAgent

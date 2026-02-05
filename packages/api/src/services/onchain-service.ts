@@ -823,7 +823,9 @@ export async function processOnchainRegistration({
 
     // Extract tokenId from agentId (format: "chainId:tokenId")
     const agent0AgentId = registration.agentId || '';
-    const agent0TokenId = agent0AgentId ? Number.parseInt(agent0AgentId.split(':')[1] || '0', 10) : 0;
+    const agent0TokenId = agent0AgentId
+      ? Number.parseInt(agent0AgentId.split(':')[1] || '0', 10)
+      : 0;
     const agent0MetadataCID = registration.agentURI || null;
 
     // Store Agent0 registration metadata

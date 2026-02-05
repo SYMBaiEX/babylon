@@ -11,15 +11,15 @@
 // Direct SDK exports - no wrappers
 // ============================================================================
 
-export { SDK, Agent, FeedbackManager, SubgraphClient } from 'agent0-sdk';
 export type {
   AgentSummary,
   Feedback,
-  SDKConfig,
   RegistrationFile,
+  SDKConfig,
   SearchFilters,
   SearchOptions,
 } from 'agent0-sdk';
+export { Agent, FeedbackManager, SDK, SubgraphClient } from 'agent0-sdk';
 
 // ============================================================================
 // Babylon-specific utilities (minimal)
@@ -31,21 +31,17 @@ export {
 } from './babylon-registry-init';
 
 export { parseCapabilities } from './capabilities-schema';
-
-// SDK instance management
-export { setAgent0SDK, getAgent0SDK } from './sdk-instance';
-
-// Reputation Bridge - aggregates reputation from multiple sources
-export { ReputationBridge } from './ReputationBridge';
-
 // Game Discovery
 export { GameDiscovery } from './GameDiscovery';
 
+// Reputation Bridge - aggregates reputation from multiple sources
+export { ReputationBridge } from './ReputationBridge';
 // Reputation utilities
 export * from './reputation';
-
 // Resilience utilities
 export * from './resilience';
+// SDK instance management
+export { getAgent0SDK, setAgent0SDK } from './sdk-instance';
 
 // ============================================================================
 // Type exports
