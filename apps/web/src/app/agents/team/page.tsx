@@ -401,6 +401,25 @@ export default function TeamChatPage() {
     }
   }, [searchParams, loading, teamChat, tagAgentInInput, router]);
 
+  // Handle openWallet from query parameter (when agent needs more points)
+  // Opens bottom panel with wallet tab for the specified agent
+  useEffect(() => {
+    const agentIdForWallet = searchParams.get('openWallet');
+    if (agentIdForWallet && !loading && teamChat) {
+      // Find the agent
+      const agent = teamChat.agents.find((a) => a.id === agentIdForWallet);
+      if (agent) {
+        // Open bottom panel with wallet tab for this agent
+        setBottomPanelEntityId(agent.id);
+        setBottomPanelEntityType('agent');
+        setBottomPanelTab('wallet');
+        setBottomPanelOpen(true);
+      }
+      // Clean up URL by removing the query parameter
+      router.replace('/agents/team', { scroll: false });
+    }
+  }, [searchParams, loading, teamChat, router]);
+
   // Scroll to bottom on initial load
   // Uses MutationObserver to keep scrolling as images/content load
   useEffect(() => {
