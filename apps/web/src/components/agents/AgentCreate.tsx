@@ -438,7 +438,9 @@ export function AgentCreate({
         <div className="shrink-0 border-border border-b px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-lg">
-              {currentStep === Step.Prompts ? 'Configure Prompts' : 'Agent Settings'}
+              {currentStep === Step.Prompts
+                ? 'Configure Prompts'
+                : 'Agent Settings'}
             </h2>
             {onBack && (
               <button

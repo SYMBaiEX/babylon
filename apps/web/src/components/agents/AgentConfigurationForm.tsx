@@ -123,11 +123,15 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Autonomous Trading</div>
-              <div className="text-muted-foreground text-xs">Execute trades on markets</div>
+              <div className="text-muted-foreground text-xs">
+                Execute trades on markets
+              </div>
             </div>
             <Switch
               checked={data.autonomousEnabled}
-              onCheckedChange={(checked) => updateField('autonomousEnabled', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousEnabled', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -135,11 +139,15 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Autonomous Posting</div>
-              <div className="text-muted-foreground text-xs">Create posts automatically</div>
+              <div className="text-muted-foreground text-xs">
+                Create posts automatically
+              </div>
             </div>
             <Switch
               checked={data.autonomousPosting}
-              onCheckedChange={(checked) => updateField('autonomousPosting', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousPosting', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -147,11 +155,15 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Autonomous Commenting</div>
-              <div className="text-muted-foreground text-xs">Comment on posts in feed</div>
+              <div className="text-muted-foreground text-xs">
+                Comment on posts in feed
+              </div>
             </div>
             <Switch
               checked={data.autonomousCommenting}
-              onCheckedChange={(checked) => updateField('autonomousCommenting', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousCommenting', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -159,11 +171,15 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Autonomous DMs</div>
-              <div className="text-muted-foreground text-xs">Respond to direct messages</div>
+              <div className="text-muted-foreground text-xs">
+                Respond to direct messages
+              </div>
             </div>
             <Switch
               checked={data.autonomousDMs}
-              onCheckedChange={(checked) => updateField('autonomousDMs', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousDMs', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -171,11 +187,15 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Autonomous Group Chats</div>
-              <div className="text-muted-foreground text-xs">Participate in group chats</div>
+              <div className="text-muted-foreground text-xs">
+                Participate in group chats
+              </div>
             </div>
             <Switch
               checked={data.autonomousGroupChats}
-              onCheckedChange={(checked) => updateField('autonomousGroupChats', checked)}
+              onCheckedChange={(checked) =>
+                updateField('autonomousGroupChats', checked)
+              }
               className="shrink-0"
             />
           </div>
@@ -183,7 +203,9 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
           <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
             <div className="min-w-0">
               <div className="font-medium text-sm">Enable A2A Server</div>
-              <div className="text-muted-foreground text-xs">Connect via A2A protocol</div>
+              <div className="text-muted-foreground text-xs">
+                Connect via A2A protocol
+              </div>
             </div>
             <Switch
               checked={data.a2aEnabled}

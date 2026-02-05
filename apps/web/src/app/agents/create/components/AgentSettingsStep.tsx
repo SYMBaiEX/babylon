@@ -24,7 +24,10 @@ export const AgentSettingsStep = memo(function AgentSettingsStep({
       {/* Info Banner - compact */}
       <div className="flex items-start gap-2 text-muted-foreground text-xs">
         <Info className="h-4 w-4 shrink-0 text-[#0066FF]" />
-        <p>Configure capabilities below. You can change these anytime from settings.</p>
+        <p>
+          Configure capabilities below. You can change these anytime from
+          settings.
+        </p>
       </div>
 
       {/* Shared Configuration Form */}

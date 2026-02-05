@@ -265,9 +265,8 @@ export function AgentSetupModal({
 
         {/* Content - scrollable */}
         <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-
-        {/* Profile Images Section */}
-        <div className="relative mb-14 sm:mb-16">
+          {/* Profile Images Section */}
+          <div className="relative mb-14 sm:mb-16">
             {/* Banner */}
             <div className="group relative h-24 overflow-hidden rounded-lg bg-muted sm:h-32">
               <img
@@ -310,7 +309,7 @@ export function AgentSetupModal({
             </div>
 
             {/* Avatar - overlapping banner */}
-            <div className="absolute -bottom-12 left-3 sm:-bottom-14 sm:left-4">
+            <div className="-bottom-12 sm:-bottom-14 absolute left-3 sm:left-4">
               <div className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted sm:h-28 sm:w-28">
                 <img
                   src={currentProfileImage}
@@ -511,7 +510,6 @@ export function AgentSetupModal({
               </p>
             </div>
           </div>
-
         </div>
 
         {/* Footer - fixed */}

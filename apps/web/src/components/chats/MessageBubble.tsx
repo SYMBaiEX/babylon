@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, COORDINATOR_SENDER_ID, type MessageTag } from '@babylon/shared';
+import { COORDINATOR_SENDER_ID, cn, type MessageTag } from '@babylon/shared';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
