@@ -99,11 +99,13 @@
 import type { AgentDiscoveryFilter } from '@babylon/agents';
 import {
   AgentStatus,
+  type AgentSummary,
   AgentType,
   agentRegistry,
-  getAgentDiscoveryService,
+  getAgent0SDK,
+  type SearchFilters,
 } from '@babylon/agents';
-import { logger } from '@babylon/shared';
+import { getBaseUrl, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -173,40 +175,50 @@ export async function GET(req: NextRequest) {
     'AgentDiscovery'
   );
 
-  // Build agent cards for discovered agents
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = getBaseUrl();
 
   // If includeExternal is true, use AgentDiscoveryService for merged results
   if (includeExternal) {
-    const discoveryService = getAgentDiscoveryService();
-    const response = await discoveryService.discoverAgents(
-      {
-        skills: filter.requiredSkills,
-        active: true,
-        includeExternal: true,
-      },
-      { pageSize: limit }
-    );
+    const sdk = getAgent0SDK();
 
-    const externalAgentCards = response.items.map((agent) => {
-      const agentId = agent.agentId ?? `agent0-${agent.tokenId}`;
+    const searchFilters: SearchFilters = {
+      keyword: filter.search,
+      oasfSkills: filter.requiredSkills,
+      oasfDomains: filter.requiredDomains,
+      active: true,
+    };
+
+    const summaries = await sdk.searchAgents(searchFilters);
+    const pagedSummaries = summaries.slice(offset, offset + limit);
+
+    const externalAgentCards = pagedSummaries.map((agent: AgentSummary) => {
+      const agentId = agent.agentId;
+      const tokenId = Number.parseInt(agentId.split(':')[1] ?? '0', 10);
+      const externalId = `agent0-${tokenId}`;
+
       return {
         version: '1.0' as const,
         agentId,
         name: agent.name,
-        description: '',
-        type: agentId.startsWith('agent0-') ? 'EXTERNAL' : 'USER_CONTROLLED',
-        status: agent.isActive ? 'ACTIVE' : 'INACTIVE',
-        trustLevel: agent.reputation?.trustScore || 0,
+        description: agent.description,
+        type: 'EXTERNAL',
+        status: agent.active ? 'ACTIVE' : 'INACTIVE',
+        trustLevel: agent.averageValue ?? 0,
         endpoints: {
-          a2a: agent.endpoint || `${baseUrl}/api/agents/${agentId}/a2a`,
-          mcp:
-            agent.capabilities?.mcpEndpoint ||
-            `${baseUrl}/api/agents/${agentId}/mcp`,
-          card: `${baseUrl}/api/agents/${agentId}/card`,
+          a2a: agent.a2a ?? `${baseUrl}/api/agents/${externalId}/a2a`,
+          mcp: agent.mcp ?? `${baseUrl}/api/agents/${externalId}/mcp`,
+          card: agent.web ?? `${baseUrl}/api/agents/${externalId}/card`,
         },
-        capabilities: agent.capabilities || {},
-        reputation: agent.reputation,
+        capabilities: {
+          supportedTrusts: agent.supportedTrusts,
+          a2aSkills: agent.a2aSkills,
+          mcpTools: agent.mcpTools,
+          mcpPrompts: agent.mcpPrompts,
+          mcpResources: agent.mcpResources,
+          oasfSkills: agent.oasfSkills,
+          oasfDomains: agent.oasfDomains,
+          x402support: agent.x402support,
+        },
         authentication: {
           required: false,
           methods: [],
@@ -218,7 +230,6 @@ export async function GET(req: NextRequest) {
       `Discovered ${externalAgentCards.length} agents (including external)`,
       {
         totalFound: externalAgentCards.length,
-        hasNextPage: !!response.nextCursor,
       },
       'AgentDiscovery'
     );
@@ -226,8 +237,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         agents: externalAgentCards,
-        total: externalAgentCards.length,
-        nextCursor: response.nextCursor,
+        total: summaries.length,
+        offset,
+        limit,
         filter: {
           types: filter.types,
           skills: filter.requiredSkills,

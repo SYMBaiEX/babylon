@@ -35,6 +35,7 @@ import type {
   EligibilityResponse,
   NftAccessResponse,
 } from '@/types/nft';
+import { apiFetch } from '@/utils/api-fetch';
 
 // Blog URL from environment with fallback
 const blogUrl =
@@ -140,6 +141,9 @@ export function ComingSoon() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [waitlistData, setWaitlistData] = useState<WaitlistData | null>(null);
+  const [waitlistSetupError, setWaitlistSetupError] = useState<string | null>(
+    null
+  );
   const [nftAccess, setNftAccess] = useState<{ hasAccess: boolean } | null>(
     null
   );
@@ -630,14 +634,7 @@ export function ComingSoon() {
         !skipLeaderboard && now - leaderboardLastFetched > 5 * 60 * 1000;
       const pointsType = getPointsTypeForTab(leaderboardTab);
 
-      // Get auth token for authenticated position endpoint
-      const token = await getAccessToken();
-
-      const requests = [
-        fetch('/api/waitlist/position', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }),
-      ];
+      const requests = [apiFetch('/api/waitlist/position')];
       if (shouldFetchLeaderboard) {
         // Fetch first page of leaderboard with pagination
         requests.push(
@@ -770,13 +767,7 @@ export function ComingSoon() {
 
       return true;
     },
-    [
-      leaderboardLastFetched,
-      leaderboardTab,
-      getAccessToken,
-      previousRank,
-      getPointsTypeForTab,
-    ]
+    [leaderboardLastFetched, leaderboardTab, previousRank, getPointsTypeForTab]
   );
 
   const awardWalletBonus = useCallback(
@@ -828,31 +819,23 @@ export function ComingSoon() {
     [fetchWaitlistPosition]
   );
 
-  // If user completes onboarding, mark as waitlisted and fetch position
-  useEffect(() => {
-    if (!authenticated || !dbUser || !dbUser.id) return;
+  const dbUserId = dbUser?.id;
+  const dbUserProfileComplete = dbUser?.profileComplete;
+  const dbUserUsername = dbUser?.username;
+  const privyWalletAddress = privyUser?.wallet?.address;
 
-    // Only mark as waitlisted if user has completed profile setup (has username)
-    // This ensures onboarding modal completes first
-    if (!dbUser.profileComplete || !dbUser.username) {
-      return;
-    }
+  const setupWaitlist = useCallback(
+    async (attempt = 0) => {
+      if (!authenticated || !dbUserId) return;
 
-    const setupWaitlist = async (userId: string) => {
+      // Only mark as waitlisted if user has completed profile setup (has username).
+      if (!dbUserProfileComplete || !dbUserUsername) return;
+
+      setWaitlistSetupError(null);
+
       // Check if already on waitlist
-      const existingPosition = await fetchWaitlistPosition(userId);
+      const existingPosition = await fetchWaitlistPosition(dbUserId);
       if (existingPosition) {
-        // Already setup, just refresh data
-        // Check if user has been awarded points for Farcaster follow
-        const token = await getAccessToken();
-        const response = await fetch(`/api/waitlist/position`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
-        if (response.ok) {
-          // Check points transactions to see if farcaster_follow was awarded
-          // For now, we'll fetch this status when needed
-        }
         return;
       }
 
@@ -862,23 +845,19 @@ export function ComingSoon() {
       logger.info(
         'Marking user as waitlisted',
         {
-          userId,
+          userId: dbUserId,
           hasReferralCode: !!referralCode,
           referralCode,
         },
         'ComingSoon'
       );
 
-      // Get access token for authentication
-      const token = await getAccessToken();
-      const response = await fetch('/api/waitlist/mark', {
+      const response = await apiFetch('/api/waitlist/mark', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          userId,
           referralCode,
         }),
       });
@@ -888,11 +867,22 @@ export function ComingSoon() {
         logger.error(
           'Failed to mark as waitlisted',
           {
-            userId,
+            userId: dbUserId,
             status: response.status,
             errorText,
           },
           'ComingSoon'
+        );
+        if (
+          (response.status === 401 || response.status === 403) &&
+          attempt < 5
+        ) {
+          const delayMs = 200 * (attempt + 1);
+          await new Promise((r) => setTimeout(r, delayMs));
+          return setupWaitlist(attempt + 1);
+        }
+        setWaitlistSetupError(
+          'We could not load your waitlist position. Please retry in a moment.'
         );
         return;
       }
@@ -901,7 +891,7 @@ export function ComingSoon() {
       logger.info(
         'User marked as waitlisted',
         {
-          userId,
+          userId: dbUserId,
           position: result.waitlistPosition,
           inviteCode: result.inviteCode,
           points: result.points,
@@ -911,28 +901,35 @@ export function ComingSoon() {
       );
 
       // Fetch position data to get complete info
-      await fetchWaitlistPosition(userId);
+      const ok = await fetchWaitlistPosition(dbUserId);
+      if (!ok) {
+        setWaitlistSetupError(
+          'We could not load your waitlist position. Please retry in a moment.'
+        );
+        return;
+      }
 
       // Award bonuses if available
-      const walletAddress = privyUser?.wallet?.address;
-      if (walletAddress) {
-        await awardWalletBonus(userId, walletAddress);
+      if (privyWalletAddress) {
+        await awardWalletBonus(dbUserId, privyWalletAddress);
       }
-    };
+    },
+    [
+      authenticated,
+      dbUserId,
+      dbUserProfileComplete,
+      dbUserUsername,
+      privyWalletAddress,
+      searchParams,
+      fetchWaitlistPosition,
+      awardWalletBonus,
+    ]
+  );
 
-    void setupWaitlist(dbUser.id);
-  }, [
-    authenticated,
-    dbUser?.id,
-    dbUser?.profileComplete,
-    dbUser?.username,
-    privyUser,
-    searchParams,
-    dbUser,
-    getAccessToken,
-    fetchWaitlistPosition,
-    awardWalletBonus,
-  ]);
+  // If user completes onboarding, mark as waitlisted and fetch position
+  useEffect(() => {
+    void setupWaitlist();
+  }, [setupWaitlist]);
 
   // Award wallet bonus when user connects wallet
   // This runs separately from setupWaitlist to catch cases where user connects wallet after joining waitlist
@@ -2235,8 +2232,69 @@ export function ComingSoon() {
     );
   }
 
+  // Authenticated but not onboarded yet: don't show an infinite waitlist loader.
+  if (!dbUser.profileComplete || !dbUser.username) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <div className="mx-auto w-full max-w-md px-6 text-center">
+          <h2 className="mb-2 font-semibold text-foreground text-xl">
+            Complete your profile to continue
+          </h2>
+          <p className="mb-6 text-muted-foreground">
+            We need a username before we can show your waitlist position.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Complete profile
+            </button>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded-lg border border-border px-4 py-2 font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Loading waitlist data
   if (!waitlistData) {
+    if (waitlistSetupError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+          <div className="mx-auto w-full max-w-md text-center">
+            <h2 className="mb-3 font-semibold text-foreground text-xl">
+              Waitlist temporarily unavailable
+            </h2>
+            <p className="mb-6 text-muted-foreground">{waitlistSetupError}</p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void setupWaitlist()}
+                className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="rounded-lg border border-border px-4 py-2 font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
         <div className="text-center">

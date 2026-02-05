@@ -8,7 +8,7 @@
  * Get the base URL for the application
  * Uses window.location.origin in browser, falls back to env variable or default
  */
-export function getBaseUrl(): string {
+export function getReferralAppBaseUrl(): string {
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }

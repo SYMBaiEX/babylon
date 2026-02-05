@@ -2,8 +2,6 @@
  * LLM Client for Babylon Game Generation
  * Supports multiple providers with intelligent fallback
  * Priority: Groq > Claude > OpenAI
- *
- * IMPORTANT: Always requires an API key - never falls back to mock mode
  */
 
 import OpenAI from 'openai';
@@ -22,6 +20,7 @@ import type { LLMJsonSchema as JSONSchema } from './types';
 import { parseXML } from './xml-parser';
 
 type LLMProvider = 'groq' | 'claude' | 'openai';
+type LLMDisabledContext = 'default' | 'gameTick';
 
 /**
  * Token usage callback function type
@@ -57,11 +56,12 @@ export function getTokenUsageCallback(): TokenUsageCallback | null {
 // NOTE: Schema types are shared via ./types to avoid duplicating shapes across the engine.
 
 export class BabylonLLMClient {
-  private client: OpenAI;
-  private provider: LLMProvider;
+  private client: OpenAI | null = null;
+  private provider: LLMProvider = 'openai';
   private groqKey: string | undefined;
   private claudeKey: string | undefined;
   private openaiKey: string | undefined;
+  private missingKeyContext: LLMDisabledContext = 'default';
 
   /**
    * Create a BabylonLLMClient configured to use Groq provider (Priority #1)
@@ -92,28 +92,16 @@ export class BabylonLLMClient {
    * Priority: Groq > Claude > OpenAI
    */
   static forGameTick(): BabylonLLMClient {
-    // Check providers in order
-    if (process.env.GROQ_API_KEY) {
-      return new BabylonLLMClient('', 'groq');
-    }
-    if (process.env.ANTHROPIC_API_KEY) {
-      return new BabylonLLMClient('', 'claude');
-    }
-    if (process.env.OPENAI_API_KEY) {
-      return new BabylonLLMClient('', 'openai');
-    }
-    // Fallback: throw error if no providers available
-    throw new Error(
-      '❌ No API key found for game tick operations!\n' +
-        '   Set one of these environment variables:\n' +
-        '   - GROQ_API_KEY (recommended for game tick)\n' +
-        '   - ANTHROPIC_API_KEY\n' +
-        '   - OPENAI_API_KEY\n' +
-        '   Example: export GROQ_API_KEY=your_key_here'
-    );
+    return new BabylonLLMClient('', undefined, 'gameTick');
   }
 
-  constructor(apiKey?: string, forceProvider?: LLMProvider) {
+  constructor(
+    apiKey?: string,
+    forceProvider?: LLMProvider,
+    missingKeyContext: LLMDisabledContext = 'default'
+  ) {
+    this.missingKeyContext = missingKeyContext;
+
     // Priority: Groq > Claude > OpenAI (unless forceProvider is set)
     this.groqKey = process.env.GROQ_API_KEY;
     this.claudeKey = process.env.ANTHROPIC_API_KEY;
@@ -189,15 +177,37 @@ export class BabylonLLMClient {
       });
       this.provider = 'openai';
     } else {
+      this.client = null;
+      logger.warn(
+        'No LLM API key configured - BabylonLLMClient is disabled',
+        { missingKeyContext: this.missingKeyContext },
+        'BabylonLLMClient'
+      );
+    }
+  }
+
+  private assertEnabled(): void {
+    if (this.client) return;
+
+    if (this.missingKeyContext === 'gameTick') {
       throw new Error(
-        '❌ No API key found!\n' +
-          '   Set one of these environment variables (in priority order):\n' +
-          '   - GROQ_API_KEY (fast inference)\n' +
-          '   - ANTHROPIC_API_KEY (Claude)\n' +
-          '   - OPENAI_API_KEY (fallback)\n' +
+        '❌ No API key found for game tick operations!\n' +
+          '   Set one of these environment variables:\n' +
+          '   - GROQ_API_KEY (recommended for game tick)\n' +
+          '   - ANTHROPIC_API_KEY\n' +
+          '   - OPENAI_API_KEY\n' +
           '   Example: export GROQ_API_KEY=your_key_here'
       );
     }
+
+    throw new Error(
+      '❌ No API key found!\n' +
+        '   Set one of these environment variables (in priority order):\n' +
+        '   - GROQ_API_KEY (fast inference)\n' +
+        '   - ANTHROPIC_API_KEY (Claude)\n' +
+        '   - OPENAI_API_KEY (fallback)\n' +
+        '   Example: export GROQ_API_KEY=your_key_here'
+    );
   }
 
   /**
@@ -219,6 +229,7 @@ export class BabylonLLMClient {
       promptTemplate?: string;
     } = {}
   ): Promise<T> {
+    this.assertEnabled();
     const defaultModel = this.getDefaultModel();
 
     const {
@@ -285,7 +296,7 @@ WORLD RULES:
         const isQwen3Model = model.includes('qwen3');
 
         callStartTime = Date.now();
-        const response = await this.client.chat.completions.create({
+        const response = await this.client!.chat.completions.create({
           model,
           messages,
           ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
@@ -365,7 +376,7 @@ WORLD RULES:
             );
 
             const continuationResponse =
-              await this.client.chat.completions.create({
+              await this.client!.chat.completions.create({
                 model,
                 messages: continuationMessages,
                 ...(useJsonFormat ? { response_format: useJsonFormat } : {}),

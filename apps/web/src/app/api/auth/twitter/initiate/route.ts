@@ -37,7 +37,11 @@
 
 import { authenticate } from '@babylon/api';
 import { db } from '@babylon/db';
-import { generateSnowflakeId, logger } from '@babylon/shared';
+import {
+  generateSnowflakeId,
+  getWaitlistBaseUrl,
+  logger,
+} from '@babylon/shared';
 import crypto from 'crypto';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -95,7 +99,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set('client_id', process.env.TWITTER_CLIENT_ID!);
   authUrl.searchParams.set(
     'redirect_uri',
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter/callback`
+    `${getWaitlistBaseUrl()}/api/auth/twitter/callback`
   );
   authUrl.searchParams.set(
     'scope',

@@ -59,7 +59,7 @@
 
 import { PointsService, withErrorHandling } from '@babylon/api';
 import { db } from '@babylon/db';
-import { logger } from '@babylon/shared';
+import { getWaitlistBaseUrl, logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -79,8 +79,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     Object.fromEntries(searchParams)
   );
 
-  // Use the app URL as base for all redirects
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  // Use the waitlist URL as base for all redirects
+  const baseUrl = getWaitlistBaseUrl();
 
   if (!parsed.success) {
     return NextResponse.redirect(
@@ -223,7 +223,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     body: new URLSearchParams({
       code,
       grant_type: 'authorization_code',
-      redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter/callback`,
+      redirect_uri: `${getWaitlistBaseUrl()}/api/auth/twitter/callback`,
       code_verifier: oauthState.codeVerifier,
     }),
   });

@@ -12,7 +12,7 @@ import { agentLogs, db, eq, type JsonValue, users } from '@babylon/db';
 import { PrivyClient } from '@privy-io/server-auth';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
-import { getAgent0Client } from '../agent0/Agent0Client';
+import { getAgent0SDK } from '../agent0/sdk-instance';
 import {
   getAgentConfig,
   isAutonomousTradingEnabled,
@@ -227,7 +227,7 @@ export class AgentWalletService {
    */
   async registerAgentOnChain(agentUserId: string): Promise<{
     tokenId: number;
-    txHash: string;
+    txHash?: string;
     metadataCID?: string;
   }> {
     logger.info(
@@ -253,83 +253,103 @@ export class AgentWalletService {
     // Get agent config for capabilities
     const config = await getAgentConfig(agentUserId);
 
-    // Step 1: Prepare agent metadata
-    const capabilities = {
-      strategies: config?.tradingStrategy
-        ? ['autonomous-trading', 'prediction-markets', 'social-interaction']
-        : ['chat', 'analysis'],
-      markets: ['prediction', 'perp', 'crypto'],
-      actions: [
-        'trade',
-        'analyze',
-        'chat',
-        'post',
-        'comment',
-        'moderation-escrow',
-        'appeal-ban',
-      ],
-      version: '1.0.0',
-      platform: 'babylon',
-      userType: 'agent',
-      x402Support: true,
-      moderationEscrowSupport: true,
-      autonomousTrading: isAutonomousTradingEnabled(config),
-      autonomousPosting: config?.autonomousPosting ?? false,
-      skills: [],
-      domains: [],
-    };
+    // Step 1: Get SDK instance
+    const sdk = getAgent0SDK();
 
-    // Step 2: Register via Agent0Client (handles signing and gas server-side)
-    const agent0Client = getAgent0Client();
-
-    // Use individual agent's A2A endpoint, not the game's endpoint
+    // Step 2: Use individual agent's A2A endpoint, not the game's endpoint
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const individualAgentA2AEndpoint = `${baseUrl}/api/agents/${agentUserId}/a2a`;
 
-    const registration = await agent0Client.registerAgent({
-      name: agent.displayName || agent.username || 'Agent',
-      description: agent.bio || 'Autonomous AI agent in Babylon',
-      imageUrl: agent.profileImageUrl || undefined,
-      walletAddress: agent.walletAddress,
-      a2aEndpoint: individualAgentA2AEndpoint,
-      capabilities,
+    // Step 3: Create agent using SDK
+    const agentInstance = sdk.createAgent(
+      agent.displayName || agent.username || 'Agent',
+      agent.bio || 'Autonomous AI agent in Babylon',
+      agent.profileImageUrl || undefined
+    );
+
+    // Set agent configuration (wallet will be set after registration via setWallet() if needed)
+    await agentInstance.setA2A(individualAgentA2AEndpoint);
+    agentInstance.setX402Support(true);
+    agentInstance.setActive(true);
+
+    // Add skills (A2A capabilities)
+    const skills = [
+      'trade',
+      'analyze',
+      'chat',
+      'post',
+      'comment',
+      'moderation-escrow',
+      'appeal-ban',
+    ];
+
+    if (config?.tradingStrategy) {
+      skills.push(
+        'autonomous-trading',
+        'prediction-markets',
+        'social-interaction'
+      );
+    }
+
+    for (const skill of skills) {
+      agentInstance.addSkill(skill, false);
+    }
+
+    // Set metadata for additional capabilities
+    agentInstance.setMetadata({
+      platform: 'babylon',
+      userType: 'agent',
+      moderationEscrowSupport: true,
+      autonomousTrading: isAutonomousTradingEnabled(config),
+      autonomousPosting: config?.autonomousPosting ?? false,
     });
 
-    // Step 3: Update agent with on-chain data
+    // Register on-chain and publish to IPFS
+    const registrationHandle = await agentInstance.registerIPFS();
+    const { result: registration } = await registrationHandle.waitMined();
+
+    // Extract tokenId from agentId (format: "chainId:tokenId")
+    const agentId = registration.agentId || '';
+    const tokenId = agentId
+      ? Number.parseInt(agentId.split(':')[1] || '0', 10)
+      : 0;
+    const metadataCID = registration.agentURI || '';
+
+    // Step 4: Update agent with on-chain data
     await db
       .update(users)
       .set({
-        agent0TokenId: registration.tokenId,
-        agent0MetadataCID: registration.metadataCID ?? null,
-        registrationTxHash: registration.txHash,
+        agent0TokenId: tokenId,
+        agent0MetadataCID: metadataCID || null,
+        registrationTxHash: null, // RegistrationFile doesn't have txHash
         onChainRegistered: true,
       })
       .where(eq(users.id, agentUserId));
 
-    // Step 4: Log registration
+    // Step 5: Log registration
     await db.insert(agentLogs).values({
       id: uuidv4(),
       agentUserId,
       type: 'system',
       level: 'info',
-      message: `Agent registered on-chain: Token ID ${registration.tokenId}`,
+      message: `Agent registered on-chain: Agent ID ${agentId}`,
       metadata: {
-        tokenId: registration.tokenId,
-        txHash: registration.txHash,
-        metadataCID: registration.metadataCID,
+        agentId,
+        tokenId,
+        metadataCID,
       } as JsonValue,
     });
 
     logger.info(
-      `Agent ${agentUserId} registered on-chain: Token ID ${registration.tokenId}`,
+      `Agent ${agentUserId} registered on-chain: Agent ID ${agentId}`,
       undefined,
       'AgentWalletService'
     );
 
     return {
-      tokenId: registration.tokenId,
-      txHash: registration.txHash,
-      metadataCID: registration.metadataCID,
+      tokenId,
+      txHash: undefined,
+      metadataCID,
     };
   }
 
@@ -422,10 +442,10 @@ export class AgentWalletService {
     }
 
     // Verify with Agent0 network
-    const agent0Client = getAgent0Client();
-    const profile = await agent0Client.getAgentProfile(agent.agent0TokenId);
+    const agentId = `1:${agent.agent0TokenId}`; // Ethereum mainnet
+    const agentSummary = await getAgent0SDK().getAgent(agentId);
 
-    return profile !== null;
+    return agentSummary !== null;
   }
 }
 

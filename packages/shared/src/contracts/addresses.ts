@@ -2,7 +2,7 @@
  * Contract Address Configuration
  *
  * ERC-8004 Identity, Reputation, and Prediction Market contract addresses.
- * Supports: localnet (Hardhat), Base Sepolia (staging), Base Mainnet (production).
+ * Supports: localnet (Hardhat), Base Sepolia (staging), Base Mainnet, Ethereum Mainnet.
  *
  * @see packages/shared/src/config/default-config.ts for the canonical source
  */
@@ -70,6 +70,19 @@ export const BASE_MAINNET_CONTRACTS: ERC8004ContractAddresses = {
   oracleFacet: PUBLIC_CONFIG.networks.base.contracts.oracleFacet as Address,
 };
 
+/** Ethereum Mainnet - Chain ID: 1 */
+export const ETHEREUM_MAINNET_CONTRACTS: ERC8004ContractAddresses = {
+  identityRegistry: PUBLIC_CONFIG.networks.ethereum.contracts
+    .identityRegistry as Address,
+  reputationSystem: PUBLIC_CONFIG.networks.ethereum.contracts
+    .reputationSystem as Address,
+  // Ethereum mainnet doesn't have prediction market contracts
+  diamond: '0x0000000000000000000000000000000000000000' as Address,
+  predictionMarketFacet:
+    '0x0000000000000000000000000000000000000000' as Address,
+  oracleFacet: '0x0000000000000000000000000000000000000000' as Address,
+};
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -81,6 +94,8 @@ export function getERC8004ContractAddresses(
   chainId: number
 ): ERC8004ContractAddresses {
   switch (chainId) {
+    case 1:
+      return ETHEREUM_MAINNET_CONTRACTS;
     case 31337:
       return LOCAL_CONTRACTS;
     case 84532:
