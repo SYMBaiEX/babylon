@@ -10,6 +10,57 @@ import { ZodError } from 'zod';
 import { ApiError, BabylonError, isAuthenticationError } from './errors';
 import type { JsonValue } from './types';
 
+const SENSITIVE_HEADER_KEYS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'x-vercel-oidc-token',
+  'x-vercel-proxy-signature',
+  'x-vercel-sc-headers',
+]);
+
+function sanitizeHeaders(headers: Headers): Record<string, string> {
+  const headersObj: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (SENSITIVE_HEADER_KEYS.has(lowerKey)) {
+      headersObj[key] = '[REDACTED]';
+      return;
+    }
+    // Heuristic redaction for custom headers that may contain secrets
+    if (/(token|secret|api[-_]?key|signature)/i.test(lowerKey)) {
+      headersObj[key] = '[REDACTED]';
+      return;
+    }
+    headersObj[key] = value;
+  });
+  return headersObj;
+}
+
+function serializeErrorCause(cause: unknown): Record<string, JsonValue> | null {
+  if (!cause) return null;
+  if (cause instanceof Error) {
+    const anyCause = cause as Error & {
+      code?: string;
+      detail?: string;
+      hint?: string;
+    };
+    const out: Record<string, JsonValue> = {
+      name: anyCause.name,
+      message: anyCause.message,
+    };
+    if (anyCause.code) out.code = anyCause.code;
+    if (anyCause.detail) out.detail = anyCause.detail;
+    if (anyCause.hint) out.hint = anyCause.hint;
+    return out;
+  }
+  if (typeof cause === 'object') {
+    // Best-effort: avoid serializing large/recursive objects
+    return { message: String(cause) };
+  }
+  return { message: String(cause) };
+}
+
 /**
  * Options for error tracking and logging
  */
@@ -41,13 +92,7 @@ export function errorHandler(
   const errorContext = {
     url: request.url,
     method: request.method,
-    headers: (() => {
-      const headersObj: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headersObj[key] = value;
-      });
-      return headersObj;
-    })(),
+    headers: sanitizeHeaders(request.headers),
     timestamp: new Date().toISOString(),
   };
 
@@ -157,10 +202,12 @@ export function errorHandler(
     });
   } else {
     // Log unexpected errors at ERROR level
+    const maybeCause = (error as Error & { cause?: unknown }).cause;
     logger.error('API Error', {
       error: error.message,
       stack: error.stack,
       name: error.name,
+      cause: serializeErrorCause(maybeCause),
       ...errorContext,
     });
   }
@@ -203,13 +250,7 @@ export function errorHandler(
       request: {
         url: request.url,
         method: request.method,
-        headers: (() => {
-          const headersObj: Record<string, string> = {};
-          request.headers.forEach((value, key) => {
-            headersObj[key] = value;
-          });
-          return headersObj;
-        })(),
+        headers: sanitizeHeaders(request.headers),
       },
     };
     if (userId) {
