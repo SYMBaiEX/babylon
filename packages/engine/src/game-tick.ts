@@ -33,6 +33,7 @@ import {
   questions as questionsSchema,
   tags,
   tickTokenStats,
+  timeframedMarkets,
   trendingTags,
   widgetCaches,
   worldFacts,
@@ -1487,6 +1488,17 @@ export async function resolveQuestionPayouts(
         updatedAt: resolutionTimestamp,
       })
       .where(eq(questionsSchema.id, question.id));
+
+    // Update timeframedMarkets in the same transaction for atomicity
+    await tx
+      .update(timeframedMarkets)
+      .set({
+        isResolved: true,
+        isActive: false,
+        resolvedAt: resolutionTimestamp,
+        updatedAt: resolutionTimestamp,
+      })
+      .where(eq(timeframedMarkets.questionId, question.id));
   });
 
   // Record PnL post-transaction to avoid nested transactions inside the DB tx.
