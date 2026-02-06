@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useMemo, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { BillingTab } from '@/components/settings/BillingTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
@@ -27,7 +28,6 @@ import { SecurityTab } from '@/components/settings/SecurityTab';
 import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
@@ -197,12 +197,10 @@ export default function SettingsPage() {
 
   const currentProfileImageUrl =
     profileImage.preview || user?.profileImageUrl || null;
-  const currentCoverImageUrl = coverImage.preview || user?.coverImageUrl || null;
+  const currentCoverImageUrl =
+    coverImage.preview || user?.coverImageUrl || null;
 
-  const handleImageSelect = (
-    file: File,
-    type: 'profile' | 'cover'
-  ): void => {
+  const handleImageSelect = (file: File, type: 'profile' | 'cover'): void => {
     const allowedTypes = [
       'image/jpeg',
       'image/jpg',
@@ -357,7 +355,9 @@ export default function SettingsPage() {
           displayName: trimmedDisplayName,
           username: trimmedUsername,
           bio: trimmedBio,
-          ...(nextProfileImageUrl ? { profileImageUrl: nextProfileImageUrl } : {}),
+          ...(nextProfileImageUrl
+            ? { profileImageUrl: nextProfileImageUrl }
+            : {}),
           ...(nextCoverImageUrl ? { coverImageUrl: nextCoverImageUrl } : {}),
         }),
       }
@@ -688,7 +688,9 @@ export default function SettingsPage() {
                         <div className="min-w-0">
                           <div className="font-medium text-sm">Wallet</div>
                           <div className="truncate text-muted-foreground text-xs">
-                            {user?.walletAddress ? 'Connected' : 'Not connected'}
+                            {user?.walletAddress
+                              ? 'Connected'
+                              : 'Not connected'}
                           </div>
                         </div>
                         <Switch

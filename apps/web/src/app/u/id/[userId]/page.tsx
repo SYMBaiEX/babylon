@@ -9,4 +9,3 @@ export default async function UserProfileByIdPage({
   const identifier = decodeURIComponent(userId);
   return <ProfilePageClient identifier={identifier} mode="user_id" />;
 }
-

@@ -9,4 +9,3 @@ export default async function UserProfileByHandlePage({
   const identifier = decodeURIComponent(handle);
   return <ProfilePageClient identifier={identifier} mode="user" />;
 }
-

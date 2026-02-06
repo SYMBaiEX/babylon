@@ -9,4 +9,3 @@ export default async function OrganizationProfilePage({
   const identifier = decodeURIComponent(id);
   return <ProfilePageClient identifier={identifier} mode="org" />;
 }
-

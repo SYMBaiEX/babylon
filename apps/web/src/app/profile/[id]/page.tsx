@@ -38,7 +38,11 @@ export default async function LegacyProfileIdPage({
   const org =
     organizations?.find((o) => o.id === identifier) ||
     organizations?.find((o) => equalsLoose(o.name, identifier)) ||
-    organizations?.find((o) => (o as { username?: string }).username && equalsLoose((o as { username: string }).username, identifier));
+    organizations?.find(
+      (o) =>
+        (o as { username?: string }).username &&
+        equalsLoose((o as { username: string }).username, identifier)
+    );
 
   if (org) {
     redirect(`/orgs/${encodeURIComponent(org.id)}`);
@@ -46,7 +50,11 @@ export default async function LegacyProfileIdPage({
 
   const actor =
     actors?.find((a) => a.id === identifier) ||
-    actors?.find((a) => (a as { username?: string }).username && equalsLoose((a as { username: string }).username, identifier)) ||
+    actors?.find(
+      (a) =>
+        (a as { username?: string }).username &&
+        equalsLoose((a as { username: string }).username, identifier)
+    ) ||
     actors?.find((a) => a.name.toLowerCase() === idLower);
 
   if (actor) {

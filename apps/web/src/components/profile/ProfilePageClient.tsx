@@ -70,8 +70,8 @@ export function ProfilePageClient({
     mode === 'user'
       ? extractUsername(identifier)
       : mode === 'auto' && isUsernameParam
-      ? extractUsername(identifier)
-      : identifier;
+        ? extractUsername(identifier)
+        : identifier;
 
   const { user, authenticated, getAccessToken } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -207,7 +207,8 @@ export function ProfilePageClient({
 
     const actorIdLower = routeKey.toLowerCase();
 
-    const allowUserLookup = mode === 'auto' || mode === 'user' || mode === 'user_id';
+    const allowUserLookup =
+      mode === 'auto' || mode === 'user' || mode === 'user_id';
     const allowActorLookup = mode === 'auto' || mode === 'actor';
     const allowOrgLookup = mode === 'auto' || mode === 'org';
 
@@ -316,7 +317,12 @@ export function ProfilePageClient({
           });
 
           // In legacy /profile, redirect to username URL for non-own profiles.
-          if (mode === 'auto' && foundUser.username && !isUsernameParam && !isOwnProfile) {
+          if (
+            mode === 'auto' &&
+            foundUser.username &&
+            !isUsernameParam &&
+            !isOwnProfile
+          ) {
             const cleanUsername = foundUser.username.startsWith('@')
               ? foundUser.username.slice(1)
               : foundUser.username;
@@ -437,7 +443,9 @@ export function ProfilePageClient({
         );
       }
       if (!actor) {
-        actor = actorsDb.actors?.find((a) => a.name.toLowerCase() === actorIdLower);
+        actor = actorsDb.actors?.find(
+          (a) => a.name.toLowerCase() === actorIdLower
+        );
       }
 
       if (actor) {
@@ -1102,7 +1110,9 @@ export function ProfilePageClient({
                           authorId={actorInfo.id}
                           authorName={actorInfo.name ?? ''}
                           authorUsername={actorInfo.username ?? null}
-                          authorProfileImageUrl={actorInfo.profileImageUrl ?? null}
+                          authorProfileImageUrl={
+                            actorInfo.profileImageUrl ?? null
+                          }
                         />
                       ))}
                     </div>
@@ -1147,14 +1157,19 @@ export function ProfilePageClient({
                       };
 
                       return postData.type && postData.type === 'article' ? (
-                        <ArticleCard key={`${item.post.id}-${i}`} post={postData} />
+                        <ArticleCard
+                          key={`${item.post.id}-${i}`}
+                          post={postData}
+                        />
                       ) : (
                         <PostCard
                           key={`${item.post.id}-${i}`}
                           post={postData}
                           showInteractions={true}
                           showCommentInputBar={false}
-                          onCommentClick={() => router.push(`/post/${item.post.id}`)}
+                          onCommentClick={() =>
+                            router.push(`/post/${item.post.id}`)
+                          }
                         />
                       );
                     })}
