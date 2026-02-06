@@ -28,9 +28,7 @@ export default function ProfileRootRedirectPage() {
       return () => window.clearTimeout(timer);
     }
 
-    const identifier = user.username
-      ? extractUsername(user.username)
-      : user.id;
+    const identifier = user.username ? extractUsername(user.username) : user.id;
 
     router.replace(`/profile/${encodeURIComponent(identifier)}`);
     return undefined;
@@ -44,4 +42,3 @@ export default function ProfileRootRedirectPage() {
     </PageContainer>
   );
 }
-

@@ -509,7 +509,9 @@ function TransferTradeContent({
   const handleOtherPartyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (trade.otherParty) {
-      router.push(getProfileUrl(trade.otherParty.id, trade.otherParty.username));
+      router.push(
+        getProfileUrl(trade.otherParty.id, trade.otherParty.username)
+      );
     }
   };
 

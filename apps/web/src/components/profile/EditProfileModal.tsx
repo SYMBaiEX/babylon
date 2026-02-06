@@ -43,7 +43,13 @@ export function EditProfileModal({
       profileImageUrl: user?.profileImageUrl || '',
       coverImageUrl: user?.coverImageUrl || '',
     };
-  }, [user?.username, user?.displayName, user?.bio, user?.profileImageUrl, user?.coverImageUrl]);
+  }, [
+    user?.username,
+    user?.displayName,
+    user?.bio,
+    user?.profileImageUrl,
+    user?.coverImageUrl,
+  ]);
 
   const [state, setState] = useState<EditModalState>(() => ({
     formData: initialFormData,
@@ -185,12 +191,14 @@ export function EditProfileModal({
     }
 
     // Remove empty strings so backend can treat as "no change"
-    (Object.keys(updatedData) as Array<keyof ProfileFormData>).forEach((key) => {
-      const val = updatedData[key];
-      if (typeof val === 'string' && val.trim() === '') {
-        delete updatedData[key];
+    (Object.keys(updatedData) as Array<keyof ProfileFormData>).forEach(
+      (key) => {
+        const val = updatedData[key];
+        if (typeof val === 'string' && val.trim() === '') {
+          delete updatedData[key];
+        }
       }
-    });
+    );
 
     const updateResponse = await fetch(
       `/api/users/${encodeURIComponent(user.id)}/update-profile`,
@@ -239,7 +247,8 @@ export function EditProfileModal({
       profileImageUrl: payload.user.profileImageUrl ?? user.profileImageUrl,
       coverImageUrl: payload.user.coverImageUrl ?? user.coverImageUrl,
       profileComplete: payload.user.profileComplete ?? user.profileComplete,
-      usernameChangedAt: payload.user.usernameChangedAt ?? user.usernameChangedAt,
+      usernameChangedAt:
+        payload.user.usernameChangedAt ?? user.usernameChangedAt,
       referralCode: payload.user.referralCode ?? user.referralCode,
       reputationPoints: payload.user.reputationPoints ?? user.reputationPoints,
       referralCount: payload.user.referralCount ?? user.referralCount,
@@ -249,7 +258,9 @@ export function EditProfileModal({
     onClose();
 
     if (usernameChanged && nextUsername) {
-      router.replace(`/profile/${encodeURIComponent(extractUsername(nextUsername))}`);
+      router.replace(
+        `/profile/${encodeURIComponent(extractUsername(nextUsername))}`
+      );
     }
   };
 
@@ -414,4 +425,3 @@ export function EditProfileModal({
     </div>
   );
 }
-
