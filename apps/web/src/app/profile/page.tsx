@@ -3,7 +3,6 @@
 import { cn } from '@babylon/shared';
 import {
   AlertCircle,
-  ArrowLeft,
   Camera,
   Check,
   ExternalLink,
@@ -13,7 +12,6 @@ import {
   User,
   X as XIcon,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArticleCard } from '@/components/articles/ArticleCard';
@@ -961,13 +959,7 @@ export default function ProfilePage() {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-border lg:border-r lg:border-l">
           {/* Header */}
           <div className="sticky top-0 z-10 flex-shrink-0 bg-background shadow-sm">
-            <div className="flex items-center gap-4 px-4 py-3">
-              <Link
-                href="/feed"
-                className="rounded-full p-2 transition-colors hover:bg-muted/50"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
+            <div className="flex items-center px-4 py-3">
               <div className="flex-1">
                 <h1 className="font-bold text-xl">
                   {formData.displayName || formData.username || 'Profile'}
