@@ -15,7 +15,10 @@ import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
-import { uploadImage } from '@/utils/upload-image';
+import {
+  uploadImage,
+  validateImageFile,
+} from '@/utils/upload-image';
 
 /**
  * Imported profile data structure from social platforms.
@@ -78,8 +81,6 @@ interface OnboardingModalProps {
   /** Called when onboarding is fully complete (after COMPLETED stage) */
   onComplete: () => void;
   onLogout?: () => Promise<void>;
-  /** Used to upload profile image before signup */
-  getAccessToken?: () => Promise<string | null>;
   user: {
     id?: string;
     username?: string;
@@ -148,7 +149,6 @@ export function OnboardingModal({
   onRetryOnchain,
   onComplete,
   onLogout,
-  getAccessToken,
   user,
   importedData,
 }: OnboardingModalProps) {
@@ -361,17 +361,8 @@ export function OnboardingModal({
 
     let profileImageUrl: string | undefined;
     if (uploadedProfileFile) {
-      const token = getAccessToken ? await getAccessToken() : null;
-      if (!token) {
-        setFormError('Authentication required');
-        return;
-      }
       try {
-        profileImageUrl = await uploadImage(
-          uploadedProfileFile,
-          'profile',
-          token
-        );
+        profileImageUrl = await uploadImage(uploadedProfileFile, 'profile');
       } catch (err) {
         setFormError(
           err instanceof Error ? err.message : 'Failed to upload profile image'
@@ -641,16 +632,9 @@ export function OnboardingModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate MIME type
-    if (!file.type.startsWith('image/')) {
-      setFormError('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      setFormError('Image must be less than 5MB');
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 

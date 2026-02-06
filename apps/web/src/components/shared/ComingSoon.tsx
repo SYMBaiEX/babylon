@@ -36,7 +36,10 @@ import type {
   NftAccessResponse,
 } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
-import { uploadImage } from '@/utils/upload-image';
+import {
+  uploadImage,
+  validateImageFile,
+} from '@/utils/upload-image';
 
 // Blog URL from environment with fallback
 const blogUrl =
@@ -1033,22 +1036,13 @@ export function ComingSoon() {
 
     try {
       const token = await getAccessToken();
-      if ((uploadedProfileFile || uploadedBannerFile) && !token) {
-        toast.error('Authentication required');
-        setIsSavingProfile(false);
-        return;
-      }
 
       let profileImageUrl: string;
       let coverImageUrl: string;
 
-      if (uploadedProfileFile && token) {
+      if (uploadedProfileFile) {
         try {
-          profileImageUrl = await uploadImage(
-            uploadedProfileFile,
-            'profile',
-            token
-          );
+          profileImageUrl = await uploadImage(uploadedProfileFile, 'profile');
         } catch {
           toast.error('Failed to upload profile image');
           setIsSavingProfile(false);
@@ -1061,13 +1055,9 @@ export function ComingSoon() {
           `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
       }
 
-      if (uploadedBannerFile && token) {
+      if (uploadedBannerFile) {
         try {
-          coverImageUrl = await uploadImage(
-            uploadedBannerFile,
-            'cover',
-            token
-          );
+          coverImageUrl = await uploadImage(uploadedBannerFile, 'cover');
         } catch {
           toast.error('Failed to upload cover image');
           setIsSavingProfile(false);
@@ -1235,13 +1225,9 @@ export function ComingSoon() {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error('Image must be less than 5MB');
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     const reader = new FileReader();
@@ -1256,13 +1242,9 @@ export function ComingSoon() {
   const handleBannerUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error('Image must be less than 5MB');
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     const reader = new FileReader();

@@ -411,8 +411,7 @@ export default function ProfilePage() {
       try {
         updatedData.profileImageUrl = await uploadImage(
           editModal.profileImage.file,
-          'profile',
-          token ?? null
+          'profile'
         );
       } catch (err) {
         const message =
@@ -431,8 +430,7 @@ export default function ProfilePage() {
       try {
         updatedData.coverImageUrl = await uploadImage(
           editModal.coverImage.file,
-          'cover',
-          token ?? null
+          'cover'
         );
       } catch (err) {
         const message =
