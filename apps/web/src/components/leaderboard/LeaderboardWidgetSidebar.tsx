@@ -324,7 +324,10 @@ export function LeaderboardWidgetSidebar({
                   href={
                     selectedUser.isActor
                       ? getActorProfileUrl(selectedUser.id)
-                      : getUserProfileUrl(selectedUser.id, selectedUser.username)
+                      : getUserProfileUrl(
+                          selectedUser.id,
+                          selectedUser.username
+                        )
                   }
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-[#2952d9]"
                 >
