@@ -652,9 +652,11 @@ export default function CommentPage({ params }: CommentPageProps) {
     );
   }
 
+  // Back: go to previous page when there's history; else fallback to thread hierarchy (parent comment > post > feed) for direct links / new tab
   const backButtonHandler = () => {
-    // Navigate to parent: immediate parent comment > post > feed
-    if (parentChain.length > 0) {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else if (parentChain.length > 0) {
       router.push(`/comment/${parentChain[parentChain.length - 1]?.id}`);
     } else if (post) {
       router.push(`/post/${post.id}`);
