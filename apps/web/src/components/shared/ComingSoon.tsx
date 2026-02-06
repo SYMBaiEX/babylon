@@ -36,6 +36,7 @@ import type {
   NftAccessResponse,
 } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 // Blog URL from environment with fallback
 const blogUrl =
@@ -196,9 +197,15 @@ export function ComingSoon() {
   });
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
+  const [uploadedProfileFile, setUploadedProfileFile] = useState<File | null>(
+    null
+  );
   const [uploadedProfileImage, setUploadedProfileImage] = useState<
     string | null
   >(null);
+  const [uploadedBannerFile, setUploadedBannerFile] = useState<File | null>(
+    null
+  );
   const [uploadedBanner, setUploadedBanner] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const prevShowProfileModalRef = useRef(false);
@@ -1011,16 +1018,6 @@ export function ComingSoon() {
     const trimmedDisplayName = profileForm.displayName?.trim();
     const trimmedBio = profileForm.bio?.trim();
 
-    // Use uploaded image or current form value
-    const profileImageUrl =
-      uploadedProfileImage ||
-      profileForm.profileImageUrl?.trim() ||
-      `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
-    const coverImageUrl =
-      uploadedBanner ||
-      profileForm.coverImageUrl?.trim() ||
-      `/assets/user-banners/banner-${bannerIndex}.jpg`;
-
     if (!trimmedUsername || !trimmedDisplayName) {
       toast.error('Please fill in all required fields.');
       return;
@@ -1036,6 +1033,40 @@ export function ComingSoon() {
 
     try {
       const token = await getAccessToken();
+
+      let profileImageUrl: string;
+      let coverImageUrl: string;
+
+      if (uploadedProfileFile) {
+        try {
+          profileImageUrl = await uploadImage(uploadedProfileFile, 'profile');
+        } catch {
+          toast.error('Failed to upload profile image');
+          setIsSavingProfile(false);
+          return;
+        }
+      } else {
+        profileImageUrl =
+          uploadedProfileImage ||
+          profileForm.profileImageUrl?.trim() ||
+          `/assets/user-profiles/profile-${profilePictureIndex}.jpg`;
+      }
+
+      if (uploadedBannerFile) {
+        try {
+          coverImageUrl = await uploadImage(uploadedBannerFile, 'cover');
+        } catch {
+          toast.error('Failed to upload cover image');
+          setIsSavingProfile(false);
+          return;
+        }
+      } else {
+        coverImageUrl =
+          uploadedBanner ||
+          profileForm.coverImageUrl?.trim() ||
+          `/assets/user-banners/banner-${bannerIndex}.jpg`;
+      }
+
       const response = await fetch(
         `/api/users/${encodeURIComponent(dbUser.id)}/update-profile`,
         {
@@ -1098,7 +1129,9 @@ export function ComingSoon() {
           coverImageUrl: dbUser.coverImageUrl || '',
         });
         // Reset upload states
+        setUploadedProfileFile(null);
         setUploadedProfileImage(null);
+        setUploadedBannerFile(null);
         setUploadedBanner(null);
         // Reset username validation
         setUsernameStatus(null);
@@ -1163,6 +1196,7 @@ export function ComingSoon() {
 
   // Image cycling and upload handlers
   const cycleProfilePicture = (direction: 'next' | 'prev') => {
+    setUploadedProfileFile(null);
     setUploadedProfileImage(null);
     setProfilePictureIndex((prev) => {
       if (direction === 'next') {
@@ -1173,6 +1207,7 @@ export function ComingSoon() {
   };
 
   const cycleBanner = (direction: 'next' | 'prev') => {
+    setUploadedBannerFile(null);
     setUploadedBanner(null);
     setBannerIndex((prev) => {
       if (direction === 'next') {
@@ -1187,8 +1222,14 @@ export function ComingSoon() {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
+      setUploadedProfileFile(file);
       setUploadedProfileImage(reader.result as string);
       setProfileForm((prev) => ({ ...prev, profileImageUrl: '' }));
     };
@@ -1198,8 +1239,14 @@ export function ComingSoon() {
   const handleBannerUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
+      setUploadedBannerFile(file);
       setUploadedBanner(reader.result as string);
       setProfileForm((prev) => ({ ...prev, coverImageUrl: '' }));
     };
