@@ -820,6 +820,7 @@ export function ComingSoon() {
   );
 
   const dbUserId = dbUser?.id;
+  const dbUserProfileComplete = dbUser?.profileComplete;
   const dbUserUsername = dbUser?.username;
   const privyWalletAddress = privyUser?.wallet?.address;
 
@@ -827,9 +828,8 @@ export function ComingSoon() {
     async (attempt = 0) => {
       if (!authenticated || !dbUserId) return;
 
-      // Only mark as waitlisted if user has a username.
-      // `profileComplete` is stricter (requires bio + image) and shouldn't block waitlist access.
-      if (!dbUserUsername) return;
+      // Only mark as waitlisted if user has completed profile setup (has username).
+      if (!dbUserProfileComplete || !dbUserUsername) return;
 
       setWaitlistSetupError(null);
 
@@ -917,6 +917,7 @@ export function ComingSoon() {
     [
       authenticated,
       dbUserId,
+      dbUserProfileComplete,
       dbUserUsername,
       privyWalletAddress,
       searchParams,
@@ -2231,347 +2232,35 @@ export function ComingSoon() {
     );
   }
 
-  // Keep the profile completion modal renderable even when we early-return
-  // (e.g. when the authenticated user hasn't completed onboarding yet).
-  const profileCompletionModal = (
-    <>
-      {showProfileModal && (
-        <>
-          <div
-            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm transition-opacity duration-300"
-            onClick={() => !isSavingProfile && setShowProfileModal(false)}
-            style={{ pointerEvents: 'auto' }}
-          />
-          <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
-            <div
-              className="pointer-events-auto my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-xl transition-all duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between border-border border-b p-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-primary/10 p-2">
-                    <User className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-2xl">
-                      {dbUser?.profileComplete
-                        ? 'Edit Profile'
-                        : 'Complete Profile'}
-                    </h2>
-                    {!dbUser?.profileComplete ? (
-                      <p className="text-muted-foreground text-sm">
-                        Earn{' '}
-                        <span className="font-semibold text-primary">
-                          +{POINTS.PROFILE_COMPLETION} points
-                        </span>{' '}
-                        when complete
-                      </p>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">
-                        Update your profile information
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowProfileModal(false)}
-                  disabled={isSavingProfile}
-                  className="rounded-lg p-2 transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSaveProfile();
-                }}
-                className="space-y-6 p-6"
-              >
-                {/* Help Text */}
-                {!dbUser?.profileComplete && (
-                  <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
-                    <p className="text-foreground text-sm leading-relaxed">
-                      <span className="font-semibold">💡 Pro Tip:</span>{' '}
-                      Complete all fields below to earn{' '}
-                      <span className="font-bold text-primary">
-                        {POINTS.PROFILE_COMPLETION} points
-                      </span>{' '}
-                      and personalize your Babylon experience!
-                    </p>
-                  </div>
-                )}
-
-                {/* Banner Image */}
-                <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Profile Banner
-                  </label>
-                  <div className="group relative h-40 overflow-hidden rounded-lg bg-muted">
-                    <Image
-                      src={
-                        uploadedBanner ||
-                        profileForm.coverImageUrl ||
-                        `/assets/user-banners/banner-${bannerIndex}.jpg`
-                      }
-                      alt="Profile banner"
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => cycleBanner('prev')}
-                        className="rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
-                        title="Previous banner"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      <label
-                        className="cursor-pointer rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
-                        title="Upload banner"
-                      >
-                        <Upload className="h-5 w-5" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleBannerUpload}
-                          className="hidden"
-                          disabled={isSavingProfile}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => cycleBanner('next')}
-                        className="rounded-lg bg-background/80 p-2 transition-colors hover:bg-background"
-                        title="Next banner"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    Click to cycle through banners or upload your own
-                  </p>
-                </div>
-
-                {/* Profile Picture */}
-                <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Profile Picture
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div className="group relative h-20 w-20 overflow-hidden rounded-full bg-muted">
-                      <Image
-                        src={
-                          uploadedProfileImage ||
-                          profileForm.profileImageUrl ||
-                          `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
-                        }
-                        alt="Profile picture"
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                      <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Upload className="h-5 w-5 text-white" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfileImageUpload}
-                          className="hidden"
-                          disabled={isSavingProfile}
-                        />
-                      </label>
-                    </div>
-                    <div className="flex flex-1 flex-col gap-2">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => cycleProfilePicture('prev')}
-                          className="rounded-lg border border-border bg-muted px-3 py-2 text-sm transition-colors hover:bg-accent"
-                        >
-                          Previous
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => cycleProfilePicture('next')}
-                          className="rounded-lg border border-border bg-muted px-3 py-2 text-sm transition-colors hover:bg-accent"
-                        >
-                          Next
-                        </button>
-                      </div>
-                      <p className="text-muted-foreground text-xs">
-                        Or upload your own image
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Username */}
-                <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Username <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={profileForm.username}
-                      onChange={(e) =>
-                        setProfileForm((prev) => ({
-                          ...prev,
-                          username: e.target.value.toLowerCase(),
-                        }))
-                      }
-                      placeholder="Choose a unique username"
-                      className="w-full rounded-lg border border-border bg-muted px-3 py-2 pr-10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                      disabled={isSavingProfile}
-                      maxLength={20}
-                    />
-                    {isCheckingUsername && (
-                      <div className="-translate-y-1/2 absolute top-1/2 right-3">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      </div>
-                    )}
-                    {usernameStatus === 'available' && !isCheckingUsername && (
-                      <Check className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-green-500" />
-                    )}
-                    {usernameStatus === 'taken' && !isCheckingUsername && (
-                      <X className="-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                  {usernameStatus === 'taken' && usernameSuggestion && (
-                    <p className="text-muted-foreground text-xs">
-                      Suggestion:{' '}
-                      <button
-                        type="button"
-                        className="text-primary underline hover:text-primary/80"
-                        onClick={() =>
-                          setProfileForm((prev) => ({
-                            ...prev,
-                            username: usernameSuggestion ?? '',
-                          }))
-                        }
-                      >
-                        {usernameSuggestion}
-                      </button>
-                    </p>
-                  )}
-                </div>
-
-                {/* Display Name */}
-                <div className="space-y-2">
-                  <label className="block font-medium text-sm">
-                    Display Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={profileForm.displayName}
-                    onChange={(e) =>
-                      setProfileForm((prev) => ({
-                        ...prev,
-                        displayName: e.target.value,
-                      }))
-                    }
-                    placeholder="Your name"
-                    className="w-full rounded-lg border border-border bg-muted px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                    disabled={isSavingProfile}
-                    maxLength={50}
-                  />
-                </div>
-
-                {/* Bio */}
-                <div className="space-y-2">
-                  <label className="block font-medium text-sm">Bio</label>
-                  <textarea
-                    value={profileForm.bio}
-                    onChange={(e) =>
-                      setProfileForm((prev) => ({
-                        ...prev,
-                        bio: e.target.value,
-                      }))
-                    }
-                    placeholder="Tell us about yourself..."
-                    rows={3}
-                    maxLength={280}
-                    className="w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                    disabled={isSavingProfile}
-                  />
-                  <p className="text-right text-muted-foreground text-xs">
-                    {profileForm.bio.length}/280
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowProfileModal(false)}
-                    disabled={isSavingProfile}
-                    className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-2 font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={(() => {
-                      const username = profileForm.username?.trim() || '';
-                      const displayName = profileForm.displayName?.trim() || '';
-                      return isSavingProfile || !username || !displayName;
-                    })()}
-                    className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSavingProfile
-                      ? 'Saving...'
-                      : dbUser?.profileComplete
-                        ? 'Save Changes'
-                        : 'Save & Earn Points'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </>
-      )}
-    </>
-  );
-
-  // Authenticated but missing username: don't show an infinite waitlist loader.
-  if (!dbUser.username) {
+  // Authenticated but not onboarded yet: don't show an infinite waitlist loader.
+  if (!dbUser.profileComplete || !dbUser.username) {
     return (
-      <>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-          <div className="mx-auto w-full max-w-md px-6 text-center">
-            <h2 className="mb-2 font-semibold text-foreground text-xl">
-              Choose a username to continue
-            </h2>
-            <p className="mb-6 text-muted-foreground">
-              Once you pick a username, we’ll show your waitlist position.
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(true)}
-                className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-              >
-                Complete profile
-              </button>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="rounded-lg border border-border px-4 py-2 font-semibold text-foreground transition-colors hover:bg-muted"
-              >
-                Logout
-              </button>
-            </div>
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background">
+        <div className="mx-auto w-full max-w-md px-6 text-center">
+          <h2 className="mb-2 font-semibold text-foreground text-xl">
+            Complete your profile to continue
+          </h2>
+          <p className="mb-6 text-muted-foreground">
+            We need a username before we can show your waitlist position.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Complete profile
+            </button>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded-lg border border-border px-4 py-2 font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              Logout
+            </button>
           </div>
         </div>
-        {profileCompletionModal}
-      </>
+      </div>
     );
   }
 
@@ -2579,7 +2268,7 @@ export function ComingSoon() {
   if (!waitlistData) {
     if (waitlistSetupError) {
       return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background">
           <div className="mx-auto w-full max-w-md text-center">
             <h2 className="mb-3 font-semibold text-foreground text-xl">
               Waitlist temporarily unavailable
@@ -2607,7 +2296,7 @@ export function ComingSoon() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-primary border-b-2" />
           <p className="text-muted-foreground">
@@ -3755,10 +3444,8 @@ export function ComingSoon() {
         </div>
       </section>
 
-      {profileCompletionModal}
-
       {/* Profile Completion Modal */}
-      {false && (
+      {showProfileModal && (
         <>
           <div
             className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm transition-opacity duration-300"
@@ -3996,7 +3683,7 @@ export function ComingSoon() {
                             onClick={() =>
                               setProfileForm((prev) => ({
                                 ...prev,
-                                username: usernameSuggestion ?? '',
+                                username: usernameSuggestion,
                               }))
                             }
                           >

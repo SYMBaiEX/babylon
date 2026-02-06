@@ -13,7 +13,6 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
-  X,
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -365,38 +364,35 @@ export function PredictionTradingModal({
   };
 
   return (
-    <>
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) {
+          onClose();
+        }
+      }}
+    >
       <div
-        className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 z-50 w-full max-w-lg">
-        <div className="fade-in zoom-in-95 m-4 max-h-[90vh] animate-in overflow-y-auto rounded bg-popover px-4 py-3 shadow-xl duration-200 sm:px-6 sm:py-4">
-          {/* Header */}
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="font-bold text-foreground text-xl">
-                Prediction Market
-              </h2>
-              {daysLeft !== null && (
-                <span className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-muted-foreground text-sm">
-                  <Clock size={14} />
-                  {daysLeft}d left
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X size={20} />
-            </button>
+        className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-lg md:rounded-lg md:border md:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-border border-b px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center gap-3">
+            <h2 className="font-bold text-foreground text-xl">
+              Prediction Market
+            </h2>
+            {daysLeft !== null && (
+              <span className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-muted-foreground text-sm">
+                <Clock size={14} />
+                {daysLeft}d left
+              </span>
+            )}
           </div>
+        </div>
 
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
           {/* Question */}
           <div className="mb-6 rounded bg-muted px-4 py-3">
             <p className="font-medium text-foreground text-sm sm:text-base">
@@ -792,18 +788,20 @@ export function PredictionTradingModal({
               )}
             </>
           )}
+        </div>
 
-          {/* Cancel */}
+        {/* Footer */}
+        <div className="shrink-0 border-border border-t px-4 py-3 sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="mt-3 w-full cursor-pointer rounded py-2.5 font-medium text-muted-foreground transition-all hover:bg-muted disabled:cursor-not-allowed sm:py-3"
+            className="w-full cursor-pointer rounded py-2.5 font-medium text-muted-foreground transition-all hover:bg-muted disabled:cursor-not-allowed sm:py-3"
           >
             Cancel
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -115,17 +115,14 @@ export function SendPointsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4">
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-background shadow-xl">
+      <div
+        className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-md md:rounded-xl md:border md:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-border border-b p-6">
+        <div className="flex shrink-0 items-start justify-between border-border border-b p-4 md:p-6">
           <div>
             <h2 className="font-bold text-foreground text-xl">Send Points</h2>
             <p className="mt-1 text-muted-foreground text-sm">
@@ -142,7 +139,11 @@ export function SendPointsModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form
+          id="send-points-form"
+          onSubmit={handleSubmit}
+          className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6"
+        >
           {success ? (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
@@ -223,44 +224,49 @@ export function SendPointsModal({
                   </p>
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  disabled={isSubmitting}
-                  className="flex-1 rounded-lg border border-border px-4 py-3 font-semibold transition-colors hover:bg-muted/50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    isSubmitting || !amount || Number.parseInt(amount) <= 0
-                  }
-                  className={cn(
-                    'flex-1 rounded-lg px-4 py-3 font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50',
-                    'bg-primary text-primary-foreground hover:bg-primary/90',
-                    'flex items-center justify-center gap-2'
-                  )}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Send Points
-                    </>
-                  )}
-                </button>
-              </div>
             </>
           )}
         </form>
+
+        {/* Footer */}
+        {!success && (
+          <div className="shrink-0 border-border border-t bg-background p-4 md:p-6">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="flex-1 rounded-lg border border-border px-4 py-3 font-semibold transition-colors hover:bg-muted/50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="send-points-form"
+                disabled={
+                  isSubmitting || !amount || Number.parseInt(amount) <= 0
+                }
+                className={cn(
+                  'flex-1 rounded-lg px-4 py-3 font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                  'bg-primary text-primary-foreground hover:bg-primary/90',
+                  'flex items-center justify-center gap-2'
+                )}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Send Points
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

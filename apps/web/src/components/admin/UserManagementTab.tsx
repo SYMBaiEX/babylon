@@ -610,7 +610,7 @@ export function UserManagementTab() {
 
       {/* Ban Modal */}
       {showBanModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
             <h2 className="mb-4 font-bold text-xl">Ban User</h2>
             <p className="mb-4 text-muted-foreground">

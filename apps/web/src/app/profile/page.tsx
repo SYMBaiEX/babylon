@@ -1001,7 +1001,7 @@ export default function ProfilePage() {
 
       {/* Edit Profile Modal */}
       {editModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:px-4 md:py-3">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:px-4 md:py-3">
           <div className="flex h-full w-full flex-col border-0 bg-background md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-xl md:border md:border-border">
             {/* Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-border border-b bg-background px-4 py-3">

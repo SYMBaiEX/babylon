@@ -24,8 +24,6 @@ interface MentionAutocompleteProps {
   agents: MentionableAgent[];
   /** Whether the dropdown is visible */
   isOpen: boolean;
-  /** Position of the dropdown (absolute from bottom-left of container) */
-  position: { bottom: number; left: number };
   /** Currently selected index */
   selectedIndex: number;
   /** Callback when an agent is selected */
@@ -45,7 +43,6 @@ interface MentionAutocompleteProps {
 export function MentionAutocomplete({
   agents,
   isOpen,
-  position,
   selectedIndex,
   onSelect,
   onIndexChange,
@@ -97,11 +94,7 @@ export function MentionAutocomplete({
       role="listbox"
       aria-label="Mention suggestions"
       aria-activedescendant={activeDescendantId}
-      className="absolute z-50 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
-      style={{
-        bottom: position.bottom,
-        left: position.left,
-      }}
+      className="absolute right-0 bottom-full left-0 z-50 mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg sm:right-auto sm:w-80"
     >
       <div className="max-h-48 overflow-y-auto">
         {filteredAgents.map((agent, index) => (
@@ -157,7 +150,6 @@ export function MentionAutocomplete({
 export function useMentionAutocomplete(agents: MentionableAgent[]) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [position, setPosition] = useState({ bottom: 0, left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
 
@@ -174,16 +166,12 @@ export function useMentionAutocomplete(agents: MentionableAgent[]) {
     });
   }, [agents, query]);
 
-  const openAutocomplete = useCallback(
-    (startIndex: number, pos: { bottom: number; left: number }) => {
-      setIsOpen(true);
-      setMentionStartIndex(startIndex);
-      setPosition(pos);
-      setQuery('');
-      setSelectedIndex(0);
-    },
-    []
-  );
+  const openAutocomplete = useCallback((startIndex: number) => {
+    setIsOpen(true);
+    setMentionStartIndex(startIndex);
+    setQuery('');
+    setSelectedIndex(0);
+  }, []);
 
   const closeAutocomplete = useCallback(() => {
     setIsOpen(false);
@@ -244,7 +232,6 @@ export function useMentionAutocomplete(agents: MentionableAgent[]) {
   return {
     isOpen,
     query,
-    position,
     selectedIndex,
     mentionStartIndex,
     filteredAgents,

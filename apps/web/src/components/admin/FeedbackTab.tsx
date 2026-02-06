@@ -481,7 +481,7 @@ export function FeedbackTab() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="feedback-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
           onClick={() => setSelectedFeedback(null)}
         >
           <div

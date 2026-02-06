@@ -90,13 +90,13 @@ export function ProfileModal({
         onClick={() => !isSavingProfile && onClose()}
         style={{ pointerEvents: 'auto' }}
       />
-      <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
+      <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-4">
         <div
-          className="pointer-events-auto my-8 w-full max-w-2xl rounded-lg border border-border bg-background shadow-xl transition-all duration-300"
+          className="pointer-events-auto flex h-full w-full flex-col bg-background transition-all duration-300 md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-2xl md:rounded-lg md:border md:border-border md:shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-border border-b p-6">
+          <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
                 <User className="h-6 w-6 text-primary" />
@@ -123,14 +123,18 @@ export function ProfileModal({
             <button
               onClick={onClose}
               disabled={isSavingProfile}
-              className="rounded-lg p-2 transition-colors hover:bg-muted disabled:opacity-50"
+              className="rounded-full p-2 transition-colors hover:bg-muted disabled:opacity-50"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Content */}
-          <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <form
+            onSubmit={handleSubmit}
+            id="profile-form"
+            className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6"
+          >
             {/* Help Text */}
             {!profileComplete && (
               <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
@@ -345,21 +349,24 @@ export function ProfileModal({
                 {profileForm.bio.length}/280
               </p>
             </div>
+          </form>
 
-            {/* Actions */}
-            <div className="flex gap-3 pt-4">
+          {/* Footer */}
+          <div className="shrink-0 border-border border-t p-6">
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSavingProfile}
-                className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-2 font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-3 font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                form="profile-form"
                 disabled={isSubmitDisabled}
-                className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-[44px] flex-1 rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSavingProfile
                   ? 'Saving...'
@@ -368,7 +375,7 @@ export function ProfileModal({
                     : 'Save & Earn Points'}
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </>

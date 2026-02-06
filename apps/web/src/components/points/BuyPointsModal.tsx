@@ -674,50 +674,87 @@ export function BuyPointsModal({
     switch (step) {
       case 'input':
         return (
-          <>
-            <div className="space-y-4">
+          <div className="flex h-full flex-col">
+            <div className="flex-1 space-y-5">
               {/* Payment Method Selector */}
               {stripeAvailable && (
                 <div>
-                  <label className="mb-2 block font-medium text-sm">
+                  <label className="mb-2 block font-medium text-foreground text-sm">
                     Payment Method
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => handlePaymentMethodChange('crypto')}
                       className={cn(
-                        'flex items-center justify-center gap-2 rounded-lg border px-4 py-3 transition-colors',
+                        'flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-all',
                         paymentMethod === 'crypto'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-sidebar hover:border-primary/50'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
                       )}
                       disabled={loading}
                     >
-                      <Wallet className="h-4 w-4" />
-                      <span className="font-medium text-sm">Crypto</span>
+                      <Wallet
+                        className={cn(
+                          'h-5 w-5',
+                          paymentMethod === 'crypto'
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          'font-medium',
+                          paymentMethod === 'crypto'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        )}
+                      >
+                        Crypto
+                      </span>
                     </button>
                     <button
                       onClick={() => handlePaymentMethodChange('stripe')}
                       className={cn(
-                        'flex items-center justify-center gap-2 rounded-lg border px-4 py-3 transition-colors',
+                        'flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-all',
                         paymentMethod === 'stripe'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-sidebar hover:border-primary/50'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-muted-foreground/50'
                       )}
                       disabled={loading}
                     >
-                      <CreditCard className="h-4 w-4" />
-                      <span className="font-medium text-sm">Card</span>
+                      <CreditCard
+                        className={cn(
+                          'h-5 w-5',
+                          paymentMethod === 'stripe'
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          'font-medium',
+                          paymentMethod === 'stripe'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        )}
+                      >
+                        Card
+                      </span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Amount Input */}
+              {/* Amount Input + Quick Buttons */}
               <div>
-                <label className="mb-2 block font-medium text-sm">
-                  Amount (USD)
-                </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="font-medium text-foreground text-sm">
+                    Amount (USD)
+                  </label>
+                  <span className="text-muted-foreground text-xs">
+                    Min: $1 • Max: $1,000
+                  </span>
+                </div>
                 <div className="relative">
                   <DollarSign className="-translate-y-1/2 absolute top-1/2 left-3 h-5 w-5 text-muted-foreground" />
                   <input
@@ -727,11 +764,8 @@ export function BuyPointsModal({
                     pattern="[0-9]*"
                     value={amountUSD}
                     onChange={(e) => {
-                      // Only allow digits, filter out everything else
                       const sanitized = e.target.value.replace(/[^0-9]/g, '');
-                      // Remove leading zeros (except for empty string)
                       const noLeadingZeros = sanitized.replace(/^0+/, '') || '';
-                      // Clamp to max 1000
                       const num = parseInt(noLeadingZeros, 10);
                       if (noLeadingZeros === '' || isNaN(num)) {
                         setAmountUSD('');
@@ -741,135 +775,108 @@ export function BuyPointsModal({
                         setAmountUSD(noLeadingZeros);
                       }
                     }}
-                    className="w-full rounded-lg border border-border bg-sidebar py-3 pr-4 pl-10 focus:border-border focus:outline-none"
+                    className="w-full rounded-lg border-2 border-border bg-background py-3 pr-4 pl-10 font-medium text-lg transition-colors focus:border-primary focus:outline-none"
                     placeholder="10"
                     disabled={loading}
                   />
                 </div>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Min: $1 • Max: $1000
-                </p>
-              </div>
-
-              {/* Quick Amount Buttons */}
-              <div className="grid grid-cols-4 gap-2">
-                {[10, 25, 50, 100].map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => setAmountUSD(amt.toString())}
-                    className={cn(
-                      'rounded-lg border px-4 py-2 transition-colors',
-                      amountNum === amt
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-sidebar hover:border-primary'
-                    )}
-                    disabled={loading}
-                  >
-                    ${amt}
-                  </button>
-                ))}
+                {/* Quick Amount Buttons */}
+                <div className="mt-1 grid grid-cols-4 gap-2">
+                  {[10, 25, 50, 100].map((amt) => (
+                    <button
+                      key={amt}
+                      onClick={() => setAmountUSD(amt.toString())}
+                      className={cn(
+                        'rounded-lg border-2 py-2.5 font-medium transition-all',
+                        amountNum === amt
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border hover:border-muted-foreground/50'
+                      )}
+                      disabled={loading}
+                    >
+                      ${amt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Points Calculation */}
-              <div className="rounded-2xl border border-border bg-sidebar p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-muted-foreground text-sm">
-                    You'll receive:
+              <div className="rounded-lg bg-blue-500/10 p-4 text-center">
+                <p className="mb-1 text-muted-foreground text-xs uppercase tracking-wide">
+                  You'll receive
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Sparkles className="h-6 w-6 text-yellow-500" />
+                  <span
+                    data-testid="points-amount-display"
+                    className="font-bold text-3xl text-foreground"
+                  >
+                    {pointsAmount.toLocaleString()}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-yellow-500" />
-                    <span
-                      data-testid="points-amount-display"
-                      className="font-bold text-xl"
-                    >
-                      {pointsAmount.toLocaleString()}
-                    </span>
-                    <span className="text-muted-foreground text-sm">
-                      points
-                    </span>
-                  </div>
+                  <span className="font-medium text-lg text-muted-foreground">
+                    pts
+                  </span>
                 </div>
-                <div className="mt-2 text-center text-muted-foreground text-xs">
+                <p className="mt-3 text-muted-foreground text-xs">
                   100 points = $1 USD
-                </div>
+                </p>
               </div>
 
               {/* Crypto selected but no wallet */}
               {paymentMethod === 'crypto' && !canUseCrypto && (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
-                  <div className="flex items-start gap-2">
-                    <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                    <div className="text-amber-700 text-xs dark:text-amber-300">
-                      <p className="mb-1 font-medium">Wallet not connected</p>
-                      <p>
-                        {embeddedWalletReady
-                          ? 'No wallet found. Please connect a wallet to pay with crypto.'
-                          : 'Your wallet is still initializing. Please wait a moment or switch to card payment.'}
-                      </p>
-                    </div>
+                <div className="flex items-start gap-3 rounded-lg bg-amber-500/10 p-3">
+                  <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <div className="text-xs">
+                    <p className="font-medium text-amber-600 dark:text-amber-400">
+                      Wallet not connected
+                    </p>
+                    <p className="mt-0.5 text-amber-600/80 dark:text-amber-400/80">
+                      {embeddedWalletReady
+                        ? 'No wallet found. Please connect a wallet to pay with crypto.'
+                        : 'Your wallet is still initializing. Please wait a moment or switch to card payment.'}
+                    </p>
                   </div>
                 </div>
               )}
 
               {/* No Payment Methods Warning */}
               {!hasAnyPaymentMethod && (
-                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                    <div className="text-red-700 text-xs dark:text-red-300">
-                      <p className="mb-1 font-medium">
-                        No payment methods available
-                      </p>
-                      <p>
-                        Your wallet is still initializing. Please wait a moment
-                        and try again.
-                      </p>
-                    </div>
+                <div className="flex items-start gap-3 rounded-lg bg-red-500/10 p-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                  <div className="text-xs">
+                    <p className="font-medium text-red-600 dark:text-red-400">
+                      No payment methods available
+                    </p>
+                    <p className="mt-0.5 text-red-600/80 dark:text-red-400/80">
+                      Your wallet is still initializing. Please wait a moment
+                      and try again.
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Info Box */}
-              <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-                  <div className="text-blue-700 text-xs dark:text-blue-300">
-                    <p className="mb-1 font-medium">
-                      Points are non-transferable
-                    </p>
-                    <p>
-                      Points can be used for trading and rewards but cannot be
-                      transferred to other users.
-                    </p>
-                  </div>
+              {/* Info notices */}
+              <div className="space-y-2 text-muted-foreground text-xs">
+                <div>
+                  <p>Points are non-transferable.</p>
+                  <p>Points can be used for trading and rewards.</p>
                 </div>
+                {paymentMethod === 'stripe' && (
+                  <p className="flex items-start gap-2">
+                    <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      You'll be redirected to Stripe for secure checkout.
+                    </span>
+                  </p>
+                )}
               </div>
-
-              {/* Stripe Info */}
-              {paymentMethod === 'stripe' && (
-                <div className="rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
-                  <div className="flex items-start gap-2">
-                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-purple-500" />
-                    <div className="text-purple-700 text-xs dark:text-purple-300">
-                      <p className="mb-1 font-medium">
-                        Secure checkout via Stripe
-                      </p>
-                      <p>
-                        You'll be redirected to Stripe to complete your payment
-                        securely. Points will be credited after payment
-                        confirmation.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="mt-6 flex gap-3">
+            {/* Action Buttons - Fixed at bottom on mobile */}
+            <div className="mt-6 flex gap-3 border-border pt-4 md:border-t">
               <button
                 onClick={handleClose}
-                className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors hover:bg-accent"
+                className="flex-1 rounded-lg border-2 border-border py-3 font-medium transition-colors hover:bg-muted"
                 disabled={loading}
               >
                 Cancel
@@ -888,39 +895,34 @@ export function BuyPointsModal({
                   (paymentMethod === 'stripe' && !canUseStripe)
                 }
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition-colors',
+                  'flex flex-1 items-center justify-center gap-2 rounded-lg py-3 font-medium transition-all',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
                   'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
               >
-                {paymentMethod === 'stripe' ? (
-                  <CreditCard className="h-4 w-4" />
-                ) : (
-                  <Wallet className="h-4 w-4" />
-                )}
                 {walletInitializing
-                  ? 'Initializing wallet...'
+                  ? 'Initializing...'
                   : loading
                     ? 'Processing...'
-                    : `Buy ${pointsAmount.toLocaleString()} Points`}
+                    : 'Buy'}
               </button>
             </div>
-          </>
+          </div>
         );
 
       case 'payment':
       case 'verifying':
         return (
-          <div className="py-8 text-center">
-            <div className="mx-auto mb-4 flex justify-center">
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="mb-6">
               <Skeleton className="h-16 w-16 rounded-full" />
             </div>
-            <h3 className="mb-2 font-semibold text-lg">
+            <h3 className="mb-2 font-semibold text-foreground text-lg">
               {step === 'payment'
                 ? 'Processing Payment...'
                 : 'Verifying Transaction...'}
             </h3>
-            <p className="mb-4 text-muted-foreground text-sm">
+            <p className="mb-6 text-center text-muted-foreground text-sm">
               {step === 'payment'
                 ? 'Preparing your payment transaction...'
                 : 'Confirming your payment on the blockchain'}
@@ -931,9 +933,9 @@ export function BuyPointsModal({
                 href={getExplorerTxUrl(txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary text-xs hover:underline"
+                className="text-primary text-sm hover:underline"
               >
-                View transaction
+                View transaction →
               </a>
             )}
           </div>
@@ -941,37 +943,39 @@ export function BuyPointsModal({
 
       case 'success':
         return (
-          <div data-testid="payment-success" className="py-8 text-center">
-            <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500" />
-            <h3 className="mb-2 font-semibold text-lg">Purchase Successful!</h3>
-            <div className="mb-6 rounded-2xl border border-border bg-sidebar p-4">
-              <div className="mb-2 flex items-center justify-center gap-2">
-                <Sparkles className="h-6 w-6 text-yellow-500" />
-                <span
-                  data-testid="points-awarded-amount"
-                  className="font-bold text-2xl"
-                >
-                  {pointsAwarded.toLocaleString()}
-                </span>
-                <span className="text-muted-foreground">points</span>
-              </div>
-              <p className="text-muted-foreground text-xs">
-                added to your account
-              </p>
+          <div
+            data-testid="payment-success"
+            className="flex flex-col items-center justify-center py-12"
+          >
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
+              <CheckCircle2 className="h-10 w-10 text-green-500" />
+            </div>
+            <h3 className="mb-2 font-semibold text-foreground text-lg">
+              Purchase Successful!
+            </h3>
+            <div className="mb-6 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-yellow-500" />
+              <span
+                data-testid="points-awarded-amount"
+                className="font-bold text-2xl text-foreground"
+              >
+                {pointsAwarded.toLocaleString()}
+              </span>
+              <span className="text-muted-foreground">points added</span>
             </div>
             {txHash && getExplorerTxUrl(txHash) && (
               <a
                 href={getExplorerTxUrl(txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mb-4 inline-block text-primary text-xs hover:underline"
+                className="mb-6 text-primary text-sm hover:underline"
               >
-                View transaction
+                View transaction →
               </a>
             )}
             <button
               onClick={handleClose}
-              className="w-full rounded-lg bg-primary px-4 py-3 text-primary-foreground transition-colors hover:bg-primary/90"
+              className="w-full rounded-lg bg-primary py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Done
             </button>
@@ -980,19 +984,26 @@ export function BuyPointsModal({
 
       case 'error':
         return (
-          <div data-testid="payment-error" className="py-8 text-center">
-            <AlertCircle className="mx-auto mb-4 h-16 w-16 text-red-500" />
-            <h3 className="mb-2 font-semibold text-lg">Payment Failed</h3>
+          <div
+            data-testid="payment-error"
+            className="flex flex-col items-center justify-center py-12"
+          >
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+              <AlertCircle className="h-10 w-10 text-red-500" />
+            </div>
+            <h3 className="mb-2 font-semibold text-foreground text-lg">
+              Payment Failed
+            </h3>
             <p
               data-testid="payment-error-message"
-              className="mb-6 text-muted-foreground text-sm"
+              className="mb-8 text-center text-muted-foreground text-sm"
             >
               {error || 'An error occurred during payment'}
             </p>
-            <div className="flex gap-3">
+            <div className="flex w-full gap-3">
               <button
                 onClick={handleClose}
-                className="flex-1 rounded-lg border border-border bg-sidebar px-4 py-3 transition-colors hover:bg-accent"
+                className="flex-1 rounded-lg border-2 border-border py-3 font-medium transition-colors hover:bg-muted"
               >
                 Cancel
               </button>
@@ -1001,7 +1012,7 @@ export function BuyPointsModal({
                   setStep('input');
                   setError(null);
                 }}
-                className="flex-1 rounded-lg bg-primary px-4 py-3 text-primary-foreground transition-colors hover:bg-primary/90"
+                className="flex-1 rounded-lg bg-primary py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Try Again
               </button>
@@ -1014,7 +1025,7 @@ export function BuyPointsModal({
   return (
     <div
       data-testid="buy-points-modal-overlay"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleClose();
@@ -1023,26 +1034,31 @@ export function BuyPointsModal({
     >
       <div
         data-testid="buy-points-modal"
-        className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl"
+        className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-lg md:rounded-lg md:border md:border-border"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-border border-b p-6">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-yellow-500" />
-            <h2 className="font-bold text-xl">Buy Points</h2>
+        {/* Header - fixed */}
+        <div className="shrink-0 border-border border-b px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-yellow-500" />
+              <h2 className="font-bold text-lg">Buy Points</h2>
+            </div>
+            <button
+              onClick={handleClose}
+              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              disabled={loading || step === 'payment' || step === 'verifying'}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-muted-foreground transition-colors hover:text-foreground"
-            disabled={loading || step === 'payment' || step === 'verifying'}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6">{renderContent()}</div>
+        {/* Content - scrollable */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-6">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );
