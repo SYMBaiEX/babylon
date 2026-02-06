@@ -1,6 +1,10 @@
 'use client';
 
-import { formatCurrency } from '@babylon/shared';
+import {
+  formatCurrency,
+  getActorProfileUrl,
+  getUserProfileUrl,
+} from '@babylon/shared';
 import { ExternalLink, TrendingUp, Trophy, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
@@ -317,7 +321,11 @@ export function LeaderboardWidgetSidebar({
               {/* Action Buttons */}
               <div className="flex flex-col gap-2">
                 <Link
-                  href={`/profile/${selectedUser.username || selectedUser.id}`}
+                  href={
+                    selectedUser.isActor
+                      ? getActorProfileUrl(selectedUser.id)
+                      : getUserProfileUrl(selectedUser.id, selectedUser.username)
+                  }
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0066FF] px-4 py-3 font-semibold text-primary-foreground transition-colors hover:bg-[#2952d9]"
                 >
                   View Profile
