@@ -84,42 +84,13 @@ export default function ActorProfilePage() {
         !user.username.startsWith('@') &&
         user.username === actorId));
 
-  // Use useLayoutEffect to redirect BEFORE paint to prevent flash of old username
-  // This runs synchronously before the browser paints, preventing any visual flash
+  // When viewing own profile via /profile/[id] or /profile/username, redirect to /profile
+  // so the user gets the "my profile" experience (no back button, consistent nav).
   useLayoutEffect(() => {
-    if (authenticated && user?.username && !isUsernameParam) {
-      const decodedIdentifier = decodeURIComponent(identifier);
-      const viewingOwnId =
-        user.id === actorId ||
-        user.id === decodedIdentifier ||
-        user.id === identifier;
-
-      if (viewingOwnId && user.username) {
-        // Additional null check to prevent redirecting to /profile/undefined
-        const cleanUsername = user.username.startsWith('@')
-          ? user.username.slice(1)
-          : user.username;
-        // Only redirect if cleanUsername is valid and the current URL doesn't already match
-        if (
-          cleanUsername &&
-          identifier !== cleanUsername &&
-          decodedIdentifier !== cleanUsername &&
-          actorId !== cleanUsername
-        ) {
-          // Use router.replace for client-side navigation (preserves React state)
-          router.replace(`/profile/${cleanUsername}`);
-        }
-      }
+    if (authenticated && user && isOwnProfile) {
+      router.replace('/profile');
     }
-  }, [
-    authenticated,
-    user?.id,
-    user?.username,
-    actorId,
-    identifier,
-    isUsernameParam,
-    router,
-  ]);
+  }, [authenticated, user, isOwnProfile, router]);
 
   // Enable error toast notifications
   useErrorToasts();
