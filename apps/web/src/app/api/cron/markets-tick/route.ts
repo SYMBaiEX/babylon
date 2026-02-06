@@ -719,6 +719,9 @@ export async function POST(_req: NextRequest) {
         if (Date.now() > deadline) break;
 
         try {
+          const resolutionTimestamp = new Date();
+          let shouldMarkTimeframedResolved = true;
+
           // Check if the linked question needs resolution
           if (orphan.questionId) {
             const [linkedQuestion] = await db
@@ -726,7 +729,6 @@ export async function POST(_req: NextRequest) {
                 id: questions.id,
                 questionNumber: questions.questionNumber,
                 status: questions.status,
-                outcome: questions.outcome,
               })
               .from(questions)
               .where(eq(questions.id, orphan.questionId))
@@ -742,15 +744,13 @@ export async function POST(_req: NextRequest) {
 
               try {
                 await resolveQuestionPayouts(linkedQuestion.questionNumber);
-                await db
-                  .update(questions)
-                  .set({
-                    status: 'resolved',
-                    resolvedOutcome: linkedQuestion.outcome,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(questions.id, linkedQuestion.id));
+                // resolveQuestionPayouts now updates questions + timeframedMarkets
+                // atomically. Avoid duplicate writes here.
+                shouldMarkTimeframedResolved = false;
+                results.marketsResolved++;
               } catch (payoutError) {
+                // Keep the orphan active so the next cron run can retry.
+                shouldMarkTimeframedResolved = false;
                 logger.error(
                   'Failed to resolve orphaned question payouts',
                   {
@@ -766,18 +766,19 @@ export async function POST(_req: NextRequest) {
             }
           }
 
-          // Always mark the timeframedMarket as resolved
-          await db
-            .update(timeframedMarkets)
-            .set({
-              isResolved: true,
-              isActive: false,
-              resolvedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(timeframedMarkets.id, orphan.id));
+          if (shouldMarkTimeframedResolved) {
+            await db
+              .update(timeframedMarkets)
+              .set({
+                isResolved: true,
+                isActive: false,
+                resolvedAt: resolutionTimestamp,
+                updatedAt: resolutionTimestamp,
+              })
+              .where(eq(timeframedMarkets.id, orphan.id));
 
-          results.marketsResolved++;
+            results.marketsResolved++;
+          }
         } catch (orphanError) {
           logger.error(
             'Failed to resolve orphaned timeframedMarket',
