@@ -6,6 +6,13 @@ import type { NftAccessResponse } from '@/types/nft';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
 
+  if (user.isAdmin) {
+    return successResponse({
+      success: true,
+      data: { hasAccess: true, degraded: false },
+    } satisfies NftAccessResponse);
+  }
+
   let allowed: boolean;
   let degraded: boolean;
   try {
