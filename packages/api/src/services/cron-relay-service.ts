@@ -49,24 +49,57 @@ export async function relayCronToStaging(
   const { pathname, search } = new URL(request.url);
   const targetUrl = `${stagingBaseUrl}${pathname}${search}`;
 
-  const res = await fetch(targetUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${cronSecret}`,
-      'x-cron-relay': routeName,
-    },
-    cache: 'no-store',
-  });
+  try {
+    const res = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cronSecret}`,
+        'x-cron-relay': routeName,
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10000),
+    });
 
-  logger.info(
-    'Relayed cron execution to staging',
-    {
-      routeName,
-      targetUrl,
-      status: res.status,
-    },
-    'CronRelay'
-  );
+    if (!res.ok) {
+      logger.warn(
+        'Cron relay to staging returned non-2xx status',
+        {
+          routeName,
+          targetUrl,
+          status: res.status,
+          statusText: res.statusText,
+        },
+        'CronRelay'
+      );
+      return {
+        forwarded: false,
+        status: res.status,
+        error: `Relay failed with HTTP ${res.status}`,
+      };
+    }
 
-  return { forwarded: true, status: res.status };
+    logger.info(
+      'Relayed cron execution to staging',
+      {
+        routeName,
+        targetUrl,
+        status: res.status,
+      },
+      'CronRelay'
+    );
+
+    return { forwarded: true, status: res.status };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(
+      'Cron relay to staging failed',
+      {
+        routeName,
+        targetUrl,
+        error: message,
+      },
+      'CronRelay'
+    );
+    return { forwarded: false, error: message };
+  }
 }
