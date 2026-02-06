@@ -241,21 +241,14 @@ export async function POST(_req: NextRequest) {
   const processId = `article-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('Article tick started', { processId }, 'ArticleTick');
 
-  // Relay to staging if configured
+  // Relay to staging if configured (fan-out)
   const relayResult = await relayCronToStaging(_req, 'article-tick');
   if (relayResult.forwarded) {
     logger.info(
-      'Cron execution relayed to staging - skipping local execution',
+      'Cron execution relayed to staging (fan-out: continuing local execution)',
       { status: relayResult.status, error: relayResult.error },
       'ArticleTick'
     );
-    return NextResponse.json({
-      success: true,
-      skipped: true,
-      reason: 'Relayed to staging environment',
-      relayStatus: relayResult.status,
-      articlesCreated: 0,
-    });
   }
 
   // Acquire global lock to prevent overlapping cron invocations

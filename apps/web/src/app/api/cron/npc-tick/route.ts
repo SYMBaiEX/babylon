@@ -147,21 +147,14 @@ export async function POST(_req: NextRequest) {
   const processId = `npc-tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   logger.info('NPC tick started', { processId }, 'NPCTick');
 
-  // Relay to staging if configured
+  // Relay to staging if configured (fan-out)
   const relayResult = await relayCronToStaging(_req, 'npc-tick');
   if (relayResult.forwarded) {
     logger.info(
-      'Cron execution relayed to staging - skipping local execution',
+      'Cron execution relayed to staging (fan-out: continuing local execution)',
       { status: relayResult.status, error: relayResult.error },
       'NPCTick'
     );
-    return NextResponse.json({
-      success: true,
-      skipped: true,
-      reason: 'Relayed to staging environment',
-      relayStatus: relayResult.status,
-      processed: 0,
-    });
   }
 
   // Acquire global lock to prevent overlapping cron invocations
