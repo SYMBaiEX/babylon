@@ -2453,7 +2453,7 @@ export function ComingSoon() {
                         onClick={() =>
                           setProfileForm((prev) => ({
                             ...prev,
-                            username: usernameSuggestion,
+                            username: usernameSuggestion ?? '',
                           }))
                         }
                       >
@@ -3996,7 +3996,7 @@ export function ComingSoon() {
                             onClick={() =>
                               setProfileForm((prev) => ({
                                 ...prev,
-                                username: usernameSuggestion,
+                                username: usernameSuggestion ?? '',
                               }))
                             }
                           >
