@@ -381,8 +381,8 @@ export async function getAllAdmins(): Promise<
       username: legacy.username,
       displayName: legacy.displayName,
       profileImageUrl: legacy.profileImageUrl,
-      role: 'SUPER_ADMIN',
-      permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
+      role: 'ADMIN',
+      permissions: ROLE_PERMISSIONS.ADMIN,
       grantedAt: legacy.createdAt,
       grantedBy: legacy.id, // Self-granted for legacy
     });
