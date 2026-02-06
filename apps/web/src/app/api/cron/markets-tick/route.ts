@@ -682,6 +682,113 @@ export async function POST(_req: NextRequest) {
         );
       }
     }
+
+    // Step 2b: Catch-all resolution for orphaned timeframedMarkets
+    // This handles edge cases where:
+    // 1. The question was resolved but timeframedMarkets.isActive wasn't updated
+    // 2. Markets past their endTime that weren't caught by the question query
+    // This is a safety net to ensure timeframedMarkets.isActive stays in sync
+    const orphanedMarkets = await db
+      .select({
+        id: timeframedMarkets.id,
+        questionId: timeframedMarkets.questionId,
+        endTime: timeframedMarkets.endTime,
+      })
+      .from(timeframedMarkets)
+      .where(
+        and(
+          eq(timeframedMarkets.isActive, true),
+          lte(timeframedMarkets.endTime, now)
+        )
+      );
+
+    if (orphanedMarkets.length > 0) {
+      logger.info(
+        `Found ${orphanedMarkets.length} orphaned timeframedMarkets past endTime`,
+        { ids: orphanedMarkets.map((m) => m.id) },
+        'MarketsTick'
+      );
+
+      for (const orphan of orphanedMarkets) {
+        if (Date.now() > deadline) break;
+
+        try {
+          const resolutionTimestamp = new Date();
+          let shouldMarkTimeframedResolved = true;
+
+          // Check if the linked question needs resolution
+          if (orphan.questionId) {
+            const [linkedQuestion] = await db
+              .select({
+                id: questions.id,
+                questionNumber: questions.questionNumber,
+                status: questions.status,
+              })
+              .from(questions)
+              .where(eq(questions.id, orphan.questionId))
+              .limit(1);
+
+            // If question exists and is still active, resolve it
+            if (linkedQuestion && linkedQuestion.status === 'active') {
+              logger.info(
+                `Resolving orphaned market via question Q${linkedQuestion.questionNumber}`,
+                { timeframedMarketId: orphan.id },
+                'MarketsTick'
+              );
+
+              try {
+                await resolveQuestionPayouts(linkedQuestion.questionNumber);
+                // resolveQuestionPayouts now updates questions + timeframedMarkets
+                // atomically. Avoid duplicate writes here.
+                shouldMarkTimeframedResolved = false;
+                results.marketsResolved++;
+              } catch (payoutError) {
+                // Keep the orphan active so the next cron run can retry.
+                shouldMarkTimeframedResolved = false;
+                logger.error(
+                  'Failed to resolve orphaned question payouts',
+                  {
+                    questionNumber: linkedQuestion.questionNumber,
+                    error:
+                      payoutError instanceof Error
+                        ? payoutError.message
+                        : String(payoutError),
+                  },
+                  'MarketsTick'
+                );
+              }
+            }
+          }
+
+          if (shouldMarkTimeframedResolved) {
+            await db
+              .update(timeframedMarkets)
+              .set({
+                isResolved: true,
+                isActive: false,
+                resolvedAt: resolutionTimestamp,
+                updatedAt: resolutionTimestamp,
+              })
+              .where(eq(timeframedMarkets.id, orphan.id));
+
+            results.marketsResolved++;
+          }
+        } catch (orphanError) {
+          logger.error(
+            'Failed to resolve orphaned timeframedMarket',
+            {
+              id: orphan.id,
+              error:
+                orphanError instanceof Error
+                  ? orphanError.message
+                  : String(orphanError),
+            },
+            'MarketsTick'
+          );
+        }
+      }
+    }
+
     metrics.resolutionMs = Date.now() - resolutionStart;
 
     // Step 3: Ensure market structure (fill any gaps)
@@ -1509,18 +1616,8 @@ async function resolveMarket(
     );
   }
 
-  // ==========================================================================
-  // STEP 5: Update timeframedMarkets state
-  // ==========================================================================
-  await db
-    .update(timeframedMarkets)
-    .set({
-      isResolved: true,
-      isActive: false,
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(timeframedMarkets.questionId, market.id));
+  // NOTE: timeframedMarkets is now updated atomically inside resolveQuestionPayouts
+  // to ensure transactional consistency with question and market updates.
 
   // Invalidate active markets cache since market is no longer active
   await invalidateCache('main_markets', {

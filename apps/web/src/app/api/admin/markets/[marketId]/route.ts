@@ -23,7 +23,16 @@ import {
   PredictionDbAdapter,
   PredictionMarketService,
 } from '@babylon/core/markets/prediction';
-import { db, desc, eq, markets, positions, withTransaction } from '@babylon/db';
+import {
+  db,
+  desc,
+  eq,
+  markets,
+  positions,
+  questions,
+  timeframedMarkets,
+  withTransaction,
+} from '@babylon/db';
 import {
   FEE_CONFIG,
   invalidateAfterPredictionTrade,
@@ -205,8 +214,10 @@ export const POST = withErrorHandling(
         return successResponse({ error: 'Market already resolved' }, 400);
       }
 
-      // Use transaction to ensure atomic updates of market and positions
+      // Use transaction to ensure atomic updates of market, positions, questions, and timeframedMarkets
+      const resolvedAt = new Date();
       await withTransaction(async (tx) => {
+        // Update the market table
         await tx
           .update(markets)
           .set({
@@ -214,7 +225,7 @@ export const POST = withErrorHandling(
             resolution,
             resolutionDescription:
               reason || `Resolved by admin as ${resolution ? 'YES' : 'NO'}`,
-            updatedAt: new Date(),
+            updatedAt: resolvedAt,
           })
           .where(eq(markets.id, marketId));
 
@@ -224,10 +235,31 @@ export const POST = withErrorHandling(
           .set({
             status: 'resolved',
             outcome: resolution,
-            resolvedAt: new Date(),
-            updatedAt: new Date(),
+            resolvedAt,
+            updatedAt: resolvedAt,
           })
           .where(eq(positions.marketId, marketId));
+
+        // Update the question table (market.id matches question.id)
+        await tx
+          .update(questions)
+          .set({
+            status: 'resolved',
+            resolvedOutcome: resolution,
+            updatedAt: resolvedAt,
+          })
+          .where(eq(questions.id, marketId));
+
+        // Update timeframedMarkets linked to this question
+        await tx
+          .update(timeframedMarkets)
+          .set({
+            isActive: false,
+            isResolved: true,
+            resolvedAt,
+            updatedAt: resolvedAt,
+          })
+          .where(eq(timeframedMarkets.questionId, marketId));
       });
 
       await logAdminModify({
@@ -298,6 +330,30 @@ export const POST = withErrorHandling(
       const result = await service.cancel({
         marketId,
         reason: reason || 'Market voided by admin',
+      });
+
+      // Also update questions and timeframedMarkets tables for consistency
+      const cancelledAt = new Date();
+      await withTransaction(async (tx) => {
+        // Update the question table (market.id matches question.id)
+        await tx
+          .update(questions)
+          .set({
+            status: 'cancelled',
+            updatedAt: cancelledAt,
+          })
+          .where(eq(questions.id, marketId));
+
+        // Update timeframedMarkets linked to this question
+        await tx
+          .update(timeframedMarkets)
+          .set({
+            isActive: false,
+            isResolved: true,
+            resolvedAt: cancelledAt,
+            updatedAt: cancelledAt,
+          })
+          .where(eq(timeframedMarkets.questionId, marketId));
       });
 
       logger.info(

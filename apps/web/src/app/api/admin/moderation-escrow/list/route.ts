@@ -74,7 +74,7 @@
  * ```
  */
 
-import { requireAdmin } from '@babylon/api';
+import { requireAdmin, withErrorHandling } from '@babylon/api';
 import { and, db, desc, eq, lt, moderationEscrows, sql } from '@babylon/db';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -88,7 +88,7 @@ const ListEscrowQuerySchema = z.object({
   offset: z.coerce.number().min(0).optional().default(0),
 });
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
   await requireAdmin(req);
 
   const { searchParams } = new URL(req.url);
@@ -240,4 +240,4 @@ export async function GET(req: NextRequest) {
       offset,
     },
   });
-}
+});
