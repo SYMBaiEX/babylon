@@ -18,11 +18,11 @@ export default async function LegacyProfileIdPage({
   const { id } = await params;
   const identifier = decodeURIComponent(id);
 
-  const user = await findUserByIdentifierWithSelect(identifier, {
+  const user = (await findUserByIdentifierWithSelect(identifier, {
     id: users.id,
     username: users.username,
     isActor: users.isActor,
-  });
+  })) as { id: string; username: string | null; isActor: boolean } | null;
 
   if (user && user.isActor !== true) {
     if (user.username) {

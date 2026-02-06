@@ -1,7 +1,7 @@
 'use client';
 
 import type { CommentData } from '@babylon/shared';
-import { cn, getProfileUrl, getUserProfileUrl } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { ArrowLeft, MessageCircle, Repeat2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -247,7 +247,7 @@ function ParentCommentCard({
       >
         {/* Avatar */}
         <Link
-          href={getUserProfileUrl(parent.authorId, parent.authorUsername)}
+          href={getProfileUrl(parent.authorId, parent.authorUsername)}
           className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -265,7 +265,7 @@ function ParentCommentCard({
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Link
-                href={getUserProfileUrl(parent.authorId, parent.authorUsername)}
+                href={getProfileUrl(parent.authorId, parent.authorUsername)}
                 className="truncate font-semibold text-sm hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -275,7 +275,7 @@ function ParentCommentCard({
                 <VerifiedBadge size="sm" className="-ml-1" />
               )}
               <Link
-                href={getUserProfileUrl(parent.authorId, parent.authorUsername)}
+                href={getProfileUrl(parent.authorId, parent.authorUsername)}
                 className="truncate text-muted-foreground text-xs hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -347,7 +347,7 @@ function ReplyCard({
       <div className="flex gap-3">
         {/* Avatar */}
         <Link
-          href={getUserProfileUrl(reply.authorId, reply.authorUsername)}
+          href={getProfileUrl(reply.authorId, reply.authorUsername)}
           className="shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -365,7 +365,7 @@ function ReplyCard({
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Link
-                href={getUserProfileUrl(reply.authorId, reply.authorUsername)}
+                href={getProfileUrl(reply.authorId, reply.authorUsername)}
                 className="truncate font-semibold text-sm hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -375,7 +375,7 @@ function ReplyCard({
                 <VerifiedBadge size="sm" className="-ml-1" />
               )}
               <Link
-                href={getUserProfileUrl(reply.authorId, reply.authorUsername)}
+                href={getProfileUrl(reply.authorId, reply.authorUsername)}
                 className="truncate text-muted-foreground text-xs hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -691,7 +691,7 @@ export default function CommentPage({ params }: CommentPageProps) {
         <div className="flex gap-3">
           {/* Avatar */}
           <Link
-            href={getUserProfileUrl(comment.authorId, comment.authorUsername)}
+            href={getProfileUrl(comment.authorId, comment.authorUsername)}
             className="shrink-0 transition-opacity hover:opacity-80"
           >
             <Avatar
@@ -708,10 +708,7 @@ export default function CommentPage({ params }: CommentPageProps) {
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Link
-                  href={getUserProfileUrl(
-                    comment.authorId,
-                    comment.authorUsername
-                  )}
+                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
                   className="font-semibold hover:underline"
                 >
                   {comment.authorName}
@@ -720,10 +717,7 @@ export default function CommentPage({ params }: CommentPageProps) {
                   <VerifiedBadge size="sm" className="-ml-1" />
                 )}
                 <Link
-                  href={getUserProfileUrl(
-                    comment.authorId,
-                    comment.authorUsername
-                  )}
+                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
                   className="text-muted-foreground text-sm hover:underline"
                 >
                   @{comment.authorUsername || comment.authorName}

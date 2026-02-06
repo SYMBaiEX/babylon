@@ -1,6 +1,6 @@
 'use client';
 
-import { getUserProfileUrl } from '@babylon/shared';
+import { getProfileUrl } from '@babylon/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -185,7 +185,7 @@ export function ProfileReplyCard({
   const handleTagClick = (tag: string) => {
     if (tag.startsWith('@')) {
       const username = tag.slice(1);
-      router.push(getUserProfileUrl('', username));
+      router.push(getProfileUrl('', username));
     } else if (tag.startsWith('$')) {
       const symbol = tag.slice(1);
       router.push(`/markets?search=${encodeURIComponent(symbol)}`);
@@ -212,7 +212,7 @@ export function ProfileReplyCard({
           {/* Parent Author Avatar */}
           <div className="flex flex-col items-center">
             <Link
-              href={getUserProfileUrl(parentAuthorId, parentAuthorUsername)}
+              href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
               className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
               onClick={(e) => e.stopPropagation()}
             >
@@ -231,7 +231,7 @@ export function ProfileReplyCard({
             <div className="flex items-start justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1">
                 <Link
-                  href={getUserProfileUrl(parentAuthorId, parentAuthorUsername)}
+                  href={getProfileUrl(parentAuthorId, parentAuthorUsername)}
                   className="truncate font-semibold text-[15px] text-foreground hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -287,7 +287,7 @@ export function ProfileReplyCard({
         {/* Reply Author Avatar */}
         <div className="flex flex-col items-center">
           <Link
-            href={getUserProfileUrl(authorId, authorUsername)}
+            href={getProfileUrl(authorId, authorUsername)}
             className="shrink-0 transition-opacity hover:opacity-80"
             onClick={(e) => e.stopPropagation()}
           >
@@ -306,7 +306,7 @@ export function ProfileReplyCard({
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1">
               <Link
-                href={getUserProfileUrl(authorId, authorUsername)}
+                href={getProfileUrl(authorId, authorUsername)}
                 className="truncate font-semibold text-[15px] text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
