@@ -28,7 +28,7 @@
  */
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   Activity,
   AlertCircle,
@@ -176,7 +176,7 @@ export function NPCPortfolioCard({
           Total Portfolio Value
         </div>
         <div className="font-bold text-3xl text-foreground">
-          ${portfolio.totalValue.toLocaleString()}
+          {BABYLON_POINTS_SYMBOL}{portfolio.totalValue.toLocaleString()}
         </div>
         <div className="mt-2 flex items-center gap-4">
           <div className="flex items-center gap-1 text-sm">
@@ -190,7 +190,7 @@ export function NPCPortfolioCard({
                 portfolio.unrealizedPnL >= 0 ? 'text-green-500' : 'text-red-500'
               }
             >
-              ${Math.abs(portfolio.unrealizedPnL).toLocaleString()}
+              {BABYLON_POINTS_SYMBOL}{Math.abs(portfolio.unrealizedPnL).toLocaleString()}
             </span>
             <span className="text-muted-foreground text-xs">unrealized</span>
           </div>
@@ -201,7 +201,7 @@ export function NPCPortfolioCard({
                   portfolio.realizedPnL >= 0 ? 'text-green-500' : 'text-red-500'
                 }
               >
-                ${Math.abs(portfolio.realizedPnL).toLocaleString()}
+                {BABYLON_POINTS_SYMBOL}{Math.abs(portfolio.realizedPnL).toLocaleString()}
               </span>
               <span className="text-xs">realized</span>
             </div>
@@ -215,7 +215,7 @@ export function NPCPortfolioCard({
         <div className="rounded-lg bg-muted/30 p-3">
           <div className="mb-1 text-muted-foreground text-xs">Available</div>
           <div className="font-bold text-foreground text-lg">
-            ${portfolio.availableBalance.toLocaleString()}
+            {BABYLON_POINTS_SYMBOL}{portfolio.availableBalance.toLocaleString()}
           </div>
         </div>
 
@@ -271,7 +271,7 @@ export function NPCPortfolioCard({
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground">
-                    ${position.size.toLocaleString()}
+                    {BABYLON_POINTS_SYMBOL}{position.size.toLocaleString()}
                   </span>
                   {position.leverage && position.leverage > 1 && (
                     <span className="text-yellow-500">
@@ -285,7 +285,7 @@ export function NPCPortfolioCard({
                         : 'text-red-500'
                     }
                   >
-                    {position.unrealizedPnL >= 0 ? '+' : ''}$
+                    {position.unrealizedPnL >= 0 ? '+' : ''}{BABYLON_POINTS_SYMBOL}
                     {position.unrealizedPnL.toLocaleString()}
                   </span>
                 </div>

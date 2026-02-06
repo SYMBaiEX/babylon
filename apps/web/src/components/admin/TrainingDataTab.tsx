@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   AlertCircle,
   CheckCircle,
@@ -235,7 +235,7 @@ export function TrainingDataTab() {
                   : 'text-red-500'
               )}
             >
-              ${data.qualityMetrics.avgPnl.toFixed(2)}
+              {BABYLON_POINTS_SYMBOL}{data.qualityMetrics.avgPnl.toFixed(2)}
             </div>
           </div>
         </div>
@@ -268,7 +268,7 @@ export function TrainingDataTab() {
                         window.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
                       )}
                     >
-                      {window.avgPnl >= 0 ? '+' : ''}${window.avgPnl.toFixed(2)}
+                      {window.avgPnl >= 0 ? '+' : ''}{BABYLON_POINTS_SYMBOL}{window.avgPnl.toFixed(2)}
                     </div>
                     <div className="text-muted-foreground text-xs">avg P&L</div>
                   </div>
@@ -317,7 +317,7 @@ export function TrainingDataTab() {
                           traj.finalPnL >= 0 ? 'text-green-500' : 'text-red-500'
                         )}
                       >
-                        {traj.finalPnL >= 0 ? '+' : ''}$
+                        {traj.finalPnL >= 0 ? '+' : ''}{BABYLON_POINTS_SYMBOL}
                         {traj.finalPnL.toFixed(2)}
                       </div>
                     )}

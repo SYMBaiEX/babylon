@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -220,7 +220,7 @@ export function MarketsPanel() {
                         </p>
                         <div className="mt-0.5 flex items-center justify-between gap-1">
                           <span className="truncate text-muted-foreground text-xs">
-                            $
+                            {BABYLON_POINTS_SYMBOL}
                             {token.currentPrice.toLocaleString('en-US', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
@@ -263,7 +263,7 @@ export function MarketsPanel() {
                         </p>
                         <div className="mt-0.5 flex items-center justify-between gap-1">
                           <span className="truncate text-muted-foreground text-xs">
-                            $
+                            {BABYLON_POINTS_SYMBOL}
                             {token.currentPrice.toLocaleString('en-US', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
@@ -315,7 +315,7 @@ export function MarketsPanel() {
                         </div>
                         {market.volume > 0 && (
                           <span className="text-muted-foreground text-xs">
-                            Vol ${Math.round(market.volume).toLocaleString()}
+                            Vol {BABYLON_POINTS_SYMBOL}{Math.round(market.volume).toLocaleString()}
                           </span>
                         )}
                       </div>
