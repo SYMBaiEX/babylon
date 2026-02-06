@@ -708,10 +708,7 @@ export default function CommentPage({ params }: CommentPageProps) {
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Link
-href={getProfileUrl(
-                  comment.authorId,
-                  comment.authorUsername
-                )}
+                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
                   className="font-semibold hover:underline"
                 >
                   {comment.authorName}
@@ -720,10 +717,7 @@ href={getProfileUrl(
                   <VerifiedBadge size="sm" className="-ml-1" />
                 )}
                 <Link
-href={getProfileUrl(
-                  comment.authorId,
-                  comment.authorUsername
-                )}
+                  href={getProfileUrl(comment.authorId, comment.authorUsername)}
                   className="text-muted-foreground text-sm hover:underline"
                 >
                   @{comment.authorUsername || comment.authorName}

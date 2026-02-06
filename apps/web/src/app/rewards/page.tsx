@@ -1,9 +1,9 @@
 'use client';
 
 import {
+  getProfileUrl,
   getReferralShareText,
   getReferralUrl,
-  getProfileUrl,
   POINTS,
 } from '@babylon/shared';
 import {
