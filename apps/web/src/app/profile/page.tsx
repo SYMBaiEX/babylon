@@ -33,6 +33,7 @@ import {
 } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { uploadImage } from '@/utils/upload-image';
 
 interface ProfileFormData {
   username: string;
@@ -403,60 +404,46 @@ export default function ProfilePage() {
     setEditModal((prev) => ({ ...prev, isSaving: true, error: null }));
 
     const token = await getAccessToken();
-    const headers: HeadersInit = token
-      ? { Authorization: `Bearer ${token}` }
-      : {};
-
     const updatedData = { ...editModal.formData };
 
     // Upload profile image if changed
     if (editModal.profileImage.file) {
-      const formData = new FormData();
-      formData.append('file', editModal.profileImage.file);
-      formData.append('type', 'profile');
-
-      const uploadResponse = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        const error = new Error('Failed to upload profile image');
+      try {
+        updatedData.profileImageUrl = await uploadImage(
+          editModal.profileImage.file,
+          'profile',
+          token ?? null
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to upload profile image';
         setEditModal((prev) => ({
           ...prev,
-          error: error.message,
+          error: message,
           isSaving: false,
         }));
-        throw error;
+        throw err;
       }
-      const uploadData = await uploadResponse.json();
-      updatedData.profileImageUrl = uploadData.url;
     }
 
     // Upload cover image if changed
     if (editModal.coverImage.file) {
-      const formData = new FormData();
-      formData.append('file', editModal.coverImage.file);
-      formData.append('type', 'cover');
-
-      const uploadResponse = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        const error = new Error('Failed to upload cover image');
+      try {
+        updatedData.coverImageUrl = await uploadImage(
+          editModal.coverImage.file,
+          'cover',
+          token ?? null
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to upload cover image';
         setEditModal((prev) => ({
           ...prev,
-          error: error.message,
+          error: message,
           isSaving: false,
         }));
-        throw error;
+        throw err;
       }
-      const uploadData = await uploadResponse.json();
-      updatedData.coverImageUrl = uploadData.url;
     }
 
     // Remove empty strings from updatedData

@@ -767,6 +767,7 @@ export function OnboardingProvider({
         onComplete={handleComplete}
         onLogout={logout}
         user={user}
+        getAccessToken={getAccessToken}
         importedData={importedProfileData}
       />
     );

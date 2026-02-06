@@ -15,6 +15,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
+import { uploadImage } from '@/utils/upload-image';
 
 /**
  * Imported profile data structure from social platforms.
@@ -77,6 +78,8 @@ interface OnboardingModalProps {
   /** Called when onboarding is fully complete (after COMPLETED stage) */
   onComplete: () => void;
   onLogout?: () => Promise<void>;
+  /** Used to upload profile image before signup */
+  getAccessToken?: () => Promise<string | null>;
   user: {
     id?: string;
     username?: string;
@@ -145,6 +148,7 @@ export function OnboardingModal({
   onRetryOnchain,
   onComplete,
   onLogout,
+  getAccessToken,
   user,
   importedData,
 }: OnboardingModalProps) {
@@ -152,6 +156,9 @@ export function OnboardingModal({
   const [username, setUsername] = useState('');
   const [profilePictureIndex, setProfilePictureIndex] = useState(1);
   const [bannerIndex, setBannerIndex] = useState(1);
+  const [uploadedProfileFile, setUploadedProfileFile] = useState<File | null>(
+    null
+  );
   const [uploadedProfileImage, setUploadedProfileImage] = useState<
     string | null
   >(null);
@@ -195,7 +202,8 @@ export function OnboardingModal({
     // Set username from social data (displayName = username in simplified flow)
     setUsername(importedData.username);
 
-    // If we have a profile image URL from social import, use it
+    // If we have a profile image URL from social import, use it (no file upload)
+    setUploadedProfileFile(null);
     if (importedData.profileImageUrl) {
       setUploadedProfileImage(importedData.profileImageUrl);
     } else {
@@ -250,6 +258,7 @@ export function OnboardingModal({
         setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1);
       }
 
+      setUploadedProfileFile(null);
       setUploadedProfileImage(null);
       setUploadedBanner(null);
       setIsLoadingDefaults(false);
@@ -350,16 +359,39 @@ export function OnboardingModal({
       return;
     }
 
+    let profileImageUrl: string | undefined;
+    if (uploadedProfileFile) {
+      const token = getAccessToken ? await getAccessToken() : null;
+      if (!token) {
+        setFormError('Authentication required');
+        return;
+      }
+      try {
+        profileImageUrl = await uploadImage(
+          uploadedProfileFile,
+          'profile',
+          token
+        );
+      } catch (err) {
+        setFormError(
+          err instanceof Error ? err.message : 'Failed to upload profile image'
+        );
+        return;
+      }
+    } else {
+      profileImageUrl = resolveAssetUrl(
+        uploadedProfileImage ??
+          `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+      );
+    }
+
     // Simplified payload: username = displayName, bio is empty
     const trimmedUsername = username.trim().toLowerCase();
     const profilePayload: OnboardingProfilePayload = {
       username: trimmedUsername,
       displayName: trimmedUsername, // Username serves as display name initially
       bio: '', // Empty bio by default (can be customized later in settings)
-      profileImageUrl: resolveAssetUrl(
-        uploadedProfileImage ??
-          `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
-      ),
+      profileImageUrl,
       coverImageUrl: resolveAssetUrl(
         uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`
       ),
@@ -593,6 +625,7 @@ export function OnboardingModal({
   );
 
   const cycleProfilePicture = (direction: 'next' | 'prev') => {
+    setUploadedProfileFile(null);
     setUploadedProfileImage(null);
     setProfilePictureIndex((prev) => {
       if (direction === 'next') {
@@ -623,12 +656,14 @@ export function OnboardingModal({
 
     const reader = new FileReader();
     reader.onload = () => {
+      setUploadedProfileFile(file);
       setUploadedProfileImage(reader.result as string);
       setFormError(null);
     };
     reader.onerror = () => {
       logger.error('Failed to read image file', {}, 'OnboardingModal');
       setFormError('Failed to read image file. Please try again.');
+      setUploadedProfileFile(null);
       setUploadedProfileImage(null);
     };
     reader.readAsDataURL(file);
