@@ -15,6 +15,8 @@ import { db, eq, inArray, nftSnapshot, users } from '@babylon/db'
 import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
 
+export const maxDuration = 60
+
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request)
 

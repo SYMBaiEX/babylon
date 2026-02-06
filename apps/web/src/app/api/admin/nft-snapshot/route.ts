@@ -14,7 +14,7 @@ import {
 } from '@babylon/api'
 import { db, eq, nftSnapshot, users } from '@babylon/db'
 import { nanoid } from 'nanoid'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await requireAdmin(request)
@@ -61,10 +61,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (!userId || typeof userId !== 'string') {
-    return new Response(
-      JSON.stringify({ error: 'userId is required' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    )
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
   }
 
   // Check if user exists
@@ -75,10 +72,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1)
 
   if (!user) {
-    return new Response(
-      JSON.stringify({ error: 'User not found' }),
-      { status: 404, headers: { 'Content-Type': 'application/json' } }
-    )
+    return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
   // Check if user is already in snapshot
@@ -89,9 +83,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .limit(1)
 
   if (existing) {
-    return new Response(
-      JSON.stringify({ error: 'User is already in the snapshot' }),
-      { status: 409, headers: { 'Content-Type': 'application/json' } }
+    return NextResponse.json(
+      { error: 'User is already in the snapshot' },
+      { status: 409 }
     )
   }
 
@@ -130,10 +124,7 @@ export const DELETE = withErrorHandling(async (request: NextRequest) => {
   const { userId } = body as { userId: string }
 
   if (!userId || typeof userId !== 'string') {
-    return new Response(
-      JSON.stringify({ error: 'userId is required' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    )
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
   }
 
   // Check if entry exists and hasn't minted
@@ -144,16 +135,16 @@ export const DELETE = withErrorHandling(async (request: NextRequest) => {
     .limit(1)
 
   if (!existing) {
-    return new Response(
-      JSON.stringify({ error: 'User not found in snapshot' }),
-      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    return NextResponse.json(
+      { error: 'User not found in snapshot' },
+      { status: 404 }
     )
   }
 
   if (existing.hasMinted) {
-    return new Response(
-      JSON.stringify({ error: 'Cannot remove a user who has already minted' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    return NextResponse.json(
+      { error: 'Cannot remove a user who has already minted' },
+      { status: 400 }
     )
   }
 

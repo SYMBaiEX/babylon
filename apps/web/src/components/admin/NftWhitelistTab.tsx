@@ -9,7 +9,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
 
@@ -38,9 +38,26 @@ export function NftWhitelistTab() {
   const [stats, setStats] = useState<SnapshotStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [addUserId, setAddUserId] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [isPending, startTransition] = useTransition()
   const [refreshing, setRefreshing] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+
+  const filteredSnapshots = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return snapshots
+
+    return snapshots.filter((entry) => {
+      const username = (entry.username ?? '').toLowerCase()
+      const userId = entry.userId.toLowerCase()
+      const walletAddress = (entry.walletAddress ?? '').toLowerCase()
+      return (
+        username.includes(query) ||
+        userId.includes(query) ||
+        walletAddress.includes(query)
+      )
+    })
+  }, [searchQuery, snapshots])
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -178,31 +195,41 @@ export function NftWhitelistTab() {
 
       {/* Actions Row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Add User Form */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {/* Add User Form */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={addUserId}
+              onChange={(e) => setAddUserId(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddUser() }}
+              placeholder="User ID to add..."
+              className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+            <button
+              onClick={handleAddUser}
+              disabled={isPending || !addUserId.trim()}
+              className={cn(
+                'flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors',
+                'hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Add
+            </button>
+          </div>
+
           <input
             type="text"
-            value={addUserId}
-            onChange={(e) => setAddUserId(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAddUser() }}
-            placeholder="User ID to add..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by user, ID, or wallet..."
             className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
-          <button
-            onClick={handleAddUser}
-            disabled={isPending || !addUserId.trim()}
-            className={cn(
-              'flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors',
-              'hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Add
-          </button>
         </div>
 
         {/* Refresh Button */}
@@ -236,18 +263,27 @@ export function NftWhitelistTab() {
             </tr>
           </thead>
           <tbody>
-            {snapshots.length === 0 ? (
+            {filteredSnapshots.length === 0 ? (
               <tr>
                 <td
                   colSpan={7}
                   className="px-4 py-8 text-center text-muted-foreground"
                 >
-                  No snapshot entries. Click &quot;Refresh from Leaderboard&quot;
-                  to populate, or add users manually.
+                  {snapshots.length === 0
+                    ? (
+                      <>
+                        No snapshot entries. Click
+                        {' '}
+                        &quot;Refresh from Leaderboard&quot;
+                        {' '}
+                        to populate, or add users manually.
+                      </>
+                    )
+                    : 'No entries match your search.'}
                 </td>
               </tr>
             ) : (
-              snapshots.map((entry) => (
+              filteredSnapshots.map((entry) => (
                 <tr
                   key={entry.id}
                   className="border-border border-b last:border-b-0 hover:bg-muted/30"
