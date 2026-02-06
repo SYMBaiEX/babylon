@@ -1,6 +1,10 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import {
+  BABYLON_POINTS_SYMBOL,
+  cn,
+  formatCompactCurrency,
+} from '@babylon/shared';
 import { memo, useState } from 'react';
 import {
   type AgentActivity,
@@ -117,12 +121,13 @@ function renderActivityContent(activity: AgentActivity, expanded: boolean) {
           </span>
           <span className="text-muted-foreground/60">•</span>
           <span className="font-mono text-foreground">
-            ${amount.toLocaleString()}
+            {BABYLON_POINTS_SYMBOL}
+            {amount.toLocaleString()}
           </span>
           <span className="text-muted-foreground/60">@</span>
           <span className="font-mono text-foreground/80">
             {marketType === 'perp'
-              ? `$${price.toLocaleString()}`
+              ? `${BABYLON_POINTS_SYMBOL}${price.toLocaleString()}`
               : `${(price * 100).toFixed(1)}%`}
           </span>
         </div>
@@ -199,11 +204,8 @@ function PnLBadge({ pnl }: { pnl: number }) {
           : 'border border-red-300 bg-red-100 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400'
       )}
     >
-      {isPositive ? '+' : ''}$
-      {pnl.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}
+      {isPositive ? '+' : ''}
+      {formatCompactCurrency(pnl)}
     </div>
   );
 }
