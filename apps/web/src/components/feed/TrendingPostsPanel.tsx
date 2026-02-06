@@ -101,7 +101,7 @@ export function TrendingPostsPanel() {
                 {/* Author */}
                 <div className="mb-1.5 flex items-center gap-2">
                   <Link
-                    href={getProfileUrl(post.authorId, post.authorUsername)}
+                    href={getProfileUrl(post.authorId, null)}
                     onClick={(e) => e.stopPropagation()}
                     className="truncate font-semibold text-foreground text-sm hover:underline"
                   >

@@ -177,7 +177,7 @@ function SidebarContent() {
       name: 'Profile',
       href: '/profile',
       icon: User,
-      active: pathname === '/profile',
+      active: pathname === '/profile' || pathname.startsWith('/u/'),
       requiresAuth: true,
     },
     // Admin link (only shown for admins)

@@ -10,23 +10,23 @@ import {
   requireAdmin,
   successResponse,
   withErrorHandling,
-} from '@babylon/api'
-import { db, eq, inArray, nftSnapshot, users } from '@babylon/db'
-import { nanoid } from 'nanoid'
-import type { NextRequest } from 'next/server'
+} from '@babylon/api';
+import { db, eq, inArray, nftSnapshot, users } from '@babylon/db';
+import { nanoid } from 'nanoid';
+import type { NextRequest } from 'next/server';
 
-export const maxDuration = 60
+export const maxDuration = 60;
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  await requireAdmin(request)
+  await requireAdmin(request);
 
-  const snapshotTime = new Date()
+  const snapshotTime = new Date();
   const { users: topUsers } = await PointsService.getLeaderboard(
     1,
     100,
     0,
     'all'
-  )
+  );
 
   const existingSnapshots = await db
     .select({
@@ -36,32 +36,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       mintedAt: nftSnapshot.mintedAt,
       mintTxHash: nftSnapshot.mintTxHash,
     })
-    .from(nftSnapshot)
+    .from(nftSnapshot);
 
-  const existingMap = new Map(existingSnapshots.map((s) => [s.userId, s]))
+  const existingMap = new Map(existingSnapshots.map((s) => [s.userId, s]));
 
-  const userIds = topUsers.map((u) => u.id)
-  const walletMap = new Map<string, string | null>()
+  const userIds = topUsers.map((u) => u.id);
+  const walletMap = new Map<string, string | null>();
 
   if (userIds.length > 0) {
     const wallets = await db
       .select({ id: users.id, walletAddress: users.walletAddress })
       .from(users)
-      .where(inArray(users.id, userIds))
+      .where(inArray(users.id, userIds));
 
     for (const w of wallets) {
-      walletMap.set(w.id, w.walletAddress)
+      walletMap.set(w.id, w.walletAddress);
     }
   }
 
-  let newlyEligible = 0
-  let updated = 0
+  let newlyEligible = 0;
+  let updated = 0;
 
   for (let i = 0; i < topUsers.length; i++) {
-    const user = topUsers[i]!
-    const rank = i + 1
-    const existing = existingMap.get(user.id)
-    const walletAddress = walletMap.get(user.id) ?? null
+    const user = topUsers[i]!;
+    const rank = i + 1;
+    const existing = existingMap.get(user.id);
+    const walletAddress = walletMap.get(user.id) ?? null;
 
     if (existing) {
       await db
@@ -72,8 +72,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           walletAddress,
           snapshotTakenAt: snapshotTime,
         })
-        .where(eq(nftSnapshot.userId, user.id))
-      updated++
+        .where(eq(nftSnapshot.userId, user.id));
+      updated++;
     } else {
       await db.insert(nftSnapshot).values({
         id: nanoid(),
@@ -83,18 +83,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         points: user.allPoints,
         snapshotTakenAt: snapshotTime,
         hasMinted: false,
-      })
-      newlyEligible++
+      });
+      newlyEligible++;
     }
 
-    existingMap.delete(user.id)
+    existingMap.delete(user.id);
   }
 
-  let removed = 0
+  let removed = 0;
   for (const [userId, snapshot] of existingMap) {
     if (!snapshot.hasMinted) {
-      await db.delete(nftSnapshot).where(eq(nftSnapshot.userId, userId))
-      removed++
+      await db.delete(nftSnapshot).where(eq(nftSnapshot.userId, userId));
+      removed++;
     }
   }
 
@@ -105,5 +105,5 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     newlyEligible,
     updated,
     removed,
-  })
-})
+  });
+});

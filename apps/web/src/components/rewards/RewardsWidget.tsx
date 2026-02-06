@@ -1,6 +1,6 @@
 'use client';
 
-import { getProfileUrl, POINTS } from '@babylon/shared';
+import { getUserProfileUrl, POINTS } from '@babylon/shared';
 import { ArrowRight, Award, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -282,7 +282,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
             {recentReferrals.map((referredUser) => (
               <Link
                 key={referredUser.id}
-                href={getProfileUrl(referredUser.id, referredUser.username)}
+                href={getUserProfileUrl(referredUser.id, referredUser.username)}
                 className="group flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-sidebar-accent/50"
               >
                 <Avatar

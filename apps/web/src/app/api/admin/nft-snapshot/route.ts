@@ -7,17 +7,13 @@
  * @access Admin
  */
 
-import {
-  requireAdmin,
-  successResponse,
-  withErrorHandling,
-} from '@babylon/api'
-import { db, eq, nftSnapshot, users } from '@babylon/db'
-import { nanoid } from 'nanoid'
-import { NextResponse, type NextRequest } from 'next/server'
+import { requireAdmin, successResponse, withErrorHandling } from '@babylon/api';
+import { db, eq, nftSnapshot, users } from '@babylon/db';
+import { nanoid } from 'nanoid';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  await requireAdmin(request)
+  await requireAdmin(request);
 
   const snapshots = await db
     .select({
@@ -35,10 +31,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
     .from(nftSnapshot)
     .leftJoin(users, eq(nftSnapshot.userId, users.id))
-    .orderBy(nftSnapshot.rank)
+    .orderBy(nftSnapshot.rank);
 
-  const totalEligible = snapshots.length
-  const totalMinted = snapshots.filter((s) => s.hasMinted).length
+  const totalEligible = snapshots.length;
+  const totalMinted = snapshots.filter((s) => s.hasMinted).length;
 
   return successResponse({
     snapshots,
@@ -47,32 +43,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalMinted,
       remaining: totalEligible - totalMinted,
     },
-  })
-})
+  });
+});
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  await requireAdmin(request)
+  await requireAdmin(request);
 
-  const body = await request.json()
+  const body = await request.json();
   const { userId, rank, points } = body as {
-    userId: string
-    rank?: number
-    points?: number
-  }
+    userId: string;
+    rank?: number;
+    points?: number;
+  };
 
   if (!userId || typeof userId !== 'string') {
-    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 });
   }
 
   // Check if user exists
   const [user] = await db
-    .select({ id: users.id, username: users.username, walletAddress: users.walletAddress })
+    .select({
+      id: users.id,
+      username: users.username,
+      walletAddress: users.walletAddress,
+    })
     .from(users)
     .where(eq(users.id, userId))
-    .limit(1)
+    .limit(1);
 
   if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   // Check if user is already in snapshot
@@ -80,24 +80,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .select({ id: nftSnapshot.id })
     .from(nftSnapshot)
     .where(eq(nftSnapshot.userId, userId))
-    .limit(1)
+    .limit(1);
 
   if (existing) {
     return NextResponse.json(
       { error: 'User is already in the snapshot' },
       { status: 409 }
-    )
+    );
   }
 
   // Get current max rank for default
   const allSnapshots = await db
     .select({ rank: nftSnapshot.rank })
     .from(nftSnapshot)
-    .orderBy(nftSnapshot.rank)
+    .orderBy(nftSnapshot.rank);
 
-  const maxRank = allSnapshots.length > 0
-    ? Math.max(...allSnapshots.map((s) => s.rank))
-    : 0
+  const maxRank =
+    allSnapshots.length > 0 ? Math.max(...allSnapshots.map((s) => s.rank)) : 0;
 
   const newEntry = {
     id: nanoid(),
@@ -107,24 +106,24 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     points: points ?? 0,
     snapshotTakenAt: new Date(),
     hasMinted: false,
-  }
+  };
 
-  await db.insert(nftSnapshot).values(newEntry)
+  await db.insert(nftSnapshot).values(newEntry);
 
   return successResponse({
     success: true,
     entry: { ...newEntry, username: user.username },
-  })
-})
+  });
+});
 
 export const DELETE = withErrorHandling(async (request: NextRequest) => {
-  await requireAdmin(request)
+  await requireAdmin(request);
 
-  const body = await request.json()
-  const { userId } = body as { userId: string }
+  const body = await request.json();
+  const { userId } = body as { userId: string };
 
   if (!userId || typeof userId !== 'string') {
-    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 });
   }
 
   // Check if entry exists and hasn't minted
@@ -132,23 +131,23 @@ export const DELETE = withErrorHandling(async (request: NextRequest) => {
     .select({ id: nftSnapshot.id, hasMinted: nftSnapshot.hasMinted })
     .from(nftSnapshot)
     .where(eq(nftSnapshot.userId, userId))
-    .limit(1)
+    .limit(1);
 
   if (!existing) {
     return NextResponse.json(
       { error: 'User not found in snapshot' },
       { status: 404 }
-    )
+    );
   }
 
   if (existing.hasMinted) {
     return NextResponse.json(
       { error: 'Cannot remove a user who has already minted' },
       { status: 400 }
-    )
+    );
   }
 
-  await db.delete(nftSnapshot).where(eq(nftSnapshot.userId, userId))
+  await db.delete(nftSnapshot).where(eq(nftSnapshot.userId, userId));
 
-  return successResponse({ success: true, removedUserId: userId })
-})
+  return successResponse({ success: true, removedUserId: userId });
+});

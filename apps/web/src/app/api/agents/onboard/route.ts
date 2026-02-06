@@ -143,6 +143,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         username: true,
         displayName: true,
         bio: true,
+        walletAddress: true,
         onChainRegistered: true,
         nftTokenId: true,
         registrationTxHash: true,
@@ -298,6 +299,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       : 0;
     agent0MetadataCID = registration.agentURI || null;
 
+    // Persist Agent0 registration data to user record
+    await asUser(user, async (db) => {
+      await db.user.update({
+        where: { id: dbUser.id },
+        data: {
+          agent0TokenId: agent0TokenId,
+          agent0MetadataCID: agent0MetadataCID,
+          onChainRegistered: true,
+        },
+      });
+    });
+
     logger.info(
       '✅ Agent registered with Agent0 SDK',
       {
@@ -368,12 +381,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       select: {
         onChainRegistered: true,
         nftTokenId: true,
+        agent0TokenId: true,
+        agent0MetadataCID: true,
         registrationTxHash: true,
       },
     });
   });
 
-  const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null;
+  const isRegistered =
+    dbUser.onChainRegistered || dbUser.agent0TokenId !== null;
 
   logger.info(
     'Agent registration status checked',
@@ -383,7 +399,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse({
     isRegistered,
-    tokenId: dbUser.nftTokenId,
+    tokenId: dbUser.nftTokenId ?? dbUser.agent0TokenId,
+    agent0MetadataCID: dbUser.agent0MetadataCID,
     txHash: dbUser.registrationTxHash,
     agentId,
   });
