@@ -29,12 +29,7 @@
 'use client';
 
 import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
-import {
-  Activity,
-  TrendingDown,
-  TrendingUp,
-  Trophy,
-} from 'lucide-react';
+import { Activity, TrendingDown, TrendingUp, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 /**
@@ -243,7 +238,8 @@ export function NPCLeaderboard({
                       : 'text-red-500'
                   )}
                 >
-                  {entry.performance.unrealizedPnL >= 0 ? '+' : ''}{BABYLON_POINTS_SYMBOL}
+                  {entry.performance.unrealizedPnL >= 0 ? '+' : ''}
+                  {BABYLON_POINTS_SYMBOL}
                   {Math.abs(entry.performance.unrealizedPnL).toLocaleString()}
                 </div>
                 <div className="text-muted-foreground text-xs">Unrealized</div>
@@ -273,7 +269,8 @@ export function NPCLeaderboard({
       {/* Footer */}
       {data.leaderboard.length === data.metadata.limit && (
         <div className="border-border border-t pt-2 text-center text-muted-foreground text-xs">
-          Showing top {data.metadata.limit} NPCs. Minimum portfolio value: {BABYLON_POINTS_SYMBOL}
+          Showing top {data.metadata.limit} NPCs. Minimum portfolio value:{' '}
+          {BABYLON_POINTS_SYMBOL}
           {data.metadata.minValue.toLocaleString()}
         </div>
       )}

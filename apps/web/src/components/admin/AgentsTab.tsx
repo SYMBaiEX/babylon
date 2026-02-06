@@ -680,7 +680,8 @@ export function AgentsTab() {
                             : 'text-red-500'
                         )}
                       >
-                        {agent.lifetimePnL >= 0 ? '+' : ''}{BABYLON_POINTS_SYMBOL}
+                        {agent.lifetimePnL >= 0 ? '+' : ''}
+                        {BABYLON_POINTS_SYMBOL}
                         {agent.lifetimePnL.toFixed(2)}
                       </div>
                     </div>

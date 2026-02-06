@@ -315,7 +315,8 @@ export function MarketsPanel() {
                         </div>
                         {market.volume > 0 && (
                           <span className="text-muted-foreground text-xs">
-                            Vol {BABYLON_POINTS_SYMBOL}{Math.round(market.volume).toLocaleString()}
+                            Vol {BABYLON_POINTS_SYMBOL}
+                            {Math.round(market.volume).toLocaleString()}
                           </span>
                         )}
                       </div>
