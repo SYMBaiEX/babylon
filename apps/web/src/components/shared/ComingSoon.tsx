@@ -36,10 +36,7 @@ import type {
   NftAccessResponse,
 } from '@/types/nft';
 import { apiFetch } from '@/utils/api-fetch';
-import {
-  uploadImage,
-  validateImageFile,
-} from '@/utils/upload-image';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 // Blog URL from environment with fallback
 const blogUrl =

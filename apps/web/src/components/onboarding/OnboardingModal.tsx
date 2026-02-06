@@ -15,10 +15,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { apiFetch } from '@/utils/api-fetch';
-import {
-  uploadImage,
-  validateImageFile,
-} from '@/utils/upload-image';
+import { uploadImage, validateImageFile } from '@/utils/upload-image';
 
 /**
  * Imported profile data structure from social platforms.

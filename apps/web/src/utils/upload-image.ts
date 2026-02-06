@@ -57,9 +57,7 @@ export async function uploadImage(
 
   if (!response.ok) {
     const body: UploadErrorResponse = await response.json().catch(() => ({}));
-    throw new Error(
-      body.error ?? body.message ?? 'Upload failed'
-    );
+    throw new Error(body.error ?? body.message ?? 'Upload failed');
   }
 
   const data = (await response.json()) as { url: string };
