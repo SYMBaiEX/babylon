@@ -104,23 +104,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
   const lockId = `tick-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
-  // 1.5. Relay to staging if REDIRECT_CRON_STAGING is enabled
+  // 1.5. Relay to staging if REDIRECT_CRON_STAGING is enabled (fan-out)
   const relayResult = await relayCronToStaging(request, 'game-tick');
   if (relayResult.forwarded) {
     logger.info(
-      'Cron execution relayed to staging - skipping local execution',
+      'Cron execution relayed to staging (fan-out: continuing local execution)',
       {
         status: relayResult.status,
         error: relayResult.error,
       },
       'Cron'
     );
-    return successResponse({
-      success: true,
-      skipped: true,
-      reason: 'Relayed to staging environment',
-      relayStatus: relayResult.status,
-    });
   }
 
   // 1.6. Check GAME_START environment variable (manual override)
