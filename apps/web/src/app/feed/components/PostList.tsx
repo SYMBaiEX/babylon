@@ -153,7 +153,14 @@ export const PostList = memo(function PostList({
                 density={density}
                 showCommentInputBar={false}
                 onCommentClick={() => {
-                  router.push(`/post/${post.id}`);
+                  // For simple reposts, comments live on the original post
+                  const postId =
+                    post.isRepost &&
+                    !post.isQuote &&
+                    post.originalPostId != null
+                      ? post.originalPostId
+                      : post.id;
+                  router.push(`/post/${postId}`);
                 }}
               />
             )}
