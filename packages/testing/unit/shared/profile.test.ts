@@ -4,10 +4,10 @@
 import { describe, expect, it } from 'bun:test';
 import {
   extractUsername,
-  getProfileUrl,
-  getUserProfileUrl,
   getActorProfileUrl,
   getOrganizationProfileUrl,
+  getProfileUrl,
+  getUserProfileUrl,
   isUsername,
 } from '@babylon/shared/utils/profile';
 
