@@ -36,6 +36,15 @@ export default function PostPage({ params }: PostPageProps) {
     setIsCommentModalOpen(true);
   };
 
+  // Back: go to previous page (e.g. quote post, profile); fallback to feed when no history (direct link / new tab)
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/feed');
+    }
+  };
+
   const [post, setPost] = useState<{
     id: string;
     type?: string;
@@ -273,7 +282,7 @@ export default function PostPage({ params }: PostPageProps) {
             <div className="px-6 py-4">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => router.push('/feed')}
+                  onClick={handleBack}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ArrowLeft size={20} />
@@ -386,7 +395,7 @@ export default function PostPage({ params }: PostPageProps) {
           <div className="sticky top-0 z-10 shrink-0 border-border border-b bg-background">
             <div className="flex items-center gap-4 px-4 py-3">
               <button
-                onClick={() => router.push('/feed')}
+                onClick={handleBack}
                 className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <ArrowLeft size={20} />
