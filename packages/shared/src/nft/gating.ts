@@ -36,7 +36,8 @@ const SUFFIX_ALLOWLIST = [
 
 export function isNftGatingAllowlistedPath(pathname: string): boolean {
   if (EXACT_ALLOWLIST.has(pathname)) return true;
-  if (PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix))) return true;
+  if (PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix)))
+    return true;
   return SUFFIX_ALLOWLIST.some((suffix) => pathname.endsWith(suffix));
 }
 
