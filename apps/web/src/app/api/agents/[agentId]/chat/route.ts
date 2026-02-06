@@ -194,17 +194,18 @@ You were created by **{{ownerName}}**{{#if ownerUsername}} (@{{ownerUsername}}){
 ---
 
 # Your Task
-Write a natural response to the user that:
-- Summarizes what you did and the results
-- Includes specific numbers, names, or data from the action results
-- Stays in character with your personality
-- References conversation context when relevant
+Reply to the user **in character**: your tone, voice, and wording must match the Character and Personality above. Do not sound generic, polite, or like a default assistant—sound like THIS agent.
+
+Then, in that same character voice:
+- Summarize what you did and the results (if any actions were taken)
+- Include specific numbers, names, or data from the action results when relevant
+- Reference the conversation when it fits
 
 Output ONLY this XML with your actual response (not examples or placeholders):
 
 <response>
-<thought>Brief reasoning about what to tell the user</thought>
-<text>Your helpful response with specific details from the actions</text>
+<thought>Brief reasoning: what to say and how to say it in character</thought>
+<text>Your reply in character, with any relevant details from the actions</text>
 </response>`;
 
 // =============================================================================
