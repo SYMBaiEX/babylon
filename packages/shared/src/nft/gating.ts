@@ -31,9 +31,7 @@ const PREFIX_ALLOWLIST = [
 
 // Regex patterns for dynamic-segment routes that should bypass NFT gating.
 // Each pattern must be anchored (^ ... $) to prevent unintended matches.
-const PATTERN_ALLOWLIST = [
-  /^\/api\/users\/[^/]+\/update-profile$/,
-] as const;
+const PATTERN_ALLOWLIST = [/^\/api\/users\/[^/]+\/update-profile$/] as const;
 
 export function isNftGatingAllowlistedPath(pathname: string): boolean {
   if (EXACT_ALLOWLIST.has(pathname)) return true;

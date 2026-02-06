@@ -3996,17 +3996,17 @@ export function ComingSoon() {
                             onClick={() =>
                               setProfileForm((prev) => ({
                                 ...prev,
-                            username: usernameSuggestion ?? '',
-                          }))
-                        }
-                      >
-                        {usernameSuggestion}
-                      </button>
-                    </p>
-                  )}
+                                username: usernameSuggestion ?? '',
+                              }))
+                            }
+                          >
+                            {usernameSuggestion}
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
                 {/* Bio */}
                 <div className="space-y-2">

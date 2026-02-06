@@ -10,8 +10,8 @@
  * Best practice: This is the last line of defense for errors in the app.
  */
 
-import * as Sentry from '@sentry/nextjs';
 import type { SeverityLevel } from '@sentry/nextjs';
+import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect } from 'react';
 

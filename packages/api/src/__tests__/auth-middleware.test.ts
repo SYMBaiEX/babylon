@@ -244,10 +244,7 @@ describe('authenticate middleware', () => {
     snapshotRows = [];
     ownershipRows = [];
 
-    const request = createRequest(
-      'privy-token',
-      '/api/admin/update-profile'
-    );
+    const request = createRequest('privy-token', '/api/admin/update-profile');
 
     try {
       await authenticate(request);
