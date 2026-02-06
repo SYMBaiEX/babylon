@@ -1,6 +1,6 @@
 'use client';
 
-import { getProfileUrl } from '@babylon/shared';
+import { getUserProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageCircle, Share2, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
@@ -101,7 +101,7 @@ export function TrendingPostsPanel() {
                 {/* Author */}
                 <div className="mb-1.5 flex items-center gap-2">
                   <Link
-                    href={getProfileUrl(post.authorId, post.authorUsername)}
+                    href={getUserProfileUrl(post.authorId, post.authorUsername)}
                     onClick={(e) => e.stopPropagation()}
                     className="truncate font-semibold text-foreground text-sm hover:underline"
                   >

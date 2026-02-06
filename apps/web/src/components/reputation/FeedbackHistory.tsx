@@ -30,7 +30,7 @@
  */
 'use client';
 
-import { getProfileUrl } from '@babylon/shared';
+import { getUserProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
@@ -191,7 +191,7 @@ export function FeedbackHistory({
                       </div>
                     ) : feedback.fromUserName ? (
                       <Link
-                        href={getProfileUrl(
+                        href={getUserProfileUrl(
                           feedback.fromUserId || '',
                           feedback.fromUsername
                         )}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { CommentCardProps, CommentData } from '@babylon/shared';
-import { cn, getProfileUrl } from '@babylon/shared';
+import { cn, getUserProfileUrl } from '@babylon/shared';
 import {
   Edit2,
   MessageCircle,
@@ -159,7 +159,7 @@ export function CommentCard({
       <div className="flex gap-3">
         {/* Avatar - Round */}
         <Link
-          href={getProfileUrl(comment.userId, comment.userUsername)}
+          href={getUserProfileUrl(comment.userId, comment.userUsername)}
           className="shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -178,7 +178,7 @@ export function CommentCard({
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Link
-                href={getProfileUrl(comment.userId, comment.userUsername)}
+                href={getUserProfileUrl(comment.userId, comment.userUsername)}
                 className="truncate font-semibold text-sm hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -188,7 +188,7 @@ export function CommentCard({
                 <VerifiedBadge size="sm" className="-ml-1" />
               )}
               <Link
-                href={getProfileUrl(comment.userId, comment.userUsername)}
+                href={getUserProfileUrl(comment.userId, comment.userUsername)}
                 className="truncate text-muted-foreground text-xs hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >

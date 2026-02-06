@@ -1,7 +1,7 @@
 'use client';
 
 import type { PostInteraction } from '@babylon/shared';
-import { cn, getProfileUrl } from '@babylon/shared';
+import { cn, getUserProfileUrl } from '@babylon/shared';
 import { Repeat2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -262,7 +262,7 @@ export const PostCard = memo(function PostCard({
               <span className="font-semibold text-foreground">you</span>
             ) : (
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getUserProfileUrl(post.authorId, post.authorUsername)}
                 className="font-semibold text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -278,7 +278,7 @@ export const PostCard = memo(function PostCard({
         {/* Left column: Avatar + Connecting Line */}
         <div className="flex flex-col items-center">
           <Link
-            href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+            href={getUserProfileUrl(displayAuthorId, displayAuthorUsername)}
             className="shrink-0 transition-opacity hover:opacity-80"
             onClick={(e) => e.stopPropagation()}
           >
@@ -306,7 +306,7 @@ export const PostCard = memo(function PostCard({
             {/* Name and Handle inline */}
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Link
-                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                href={getUserProfileUrl(displayAuthorId, displayAuthorUsername)}
                 className="truncate font-semibold text-[15px] text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -314,7 +314,7 @@ export const PostCard = memo(function PostCard({
               </Link>
               {showVerifiedBadge && <VerifiedBadge size="sm" />}
               <Link
-                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+                href={getUserProfileUrl(displayAuthorId, displayAuthorUsername)}
                 className="truncate text-[15px] text-muted-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >

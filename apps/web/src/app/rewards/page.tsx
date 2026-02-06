@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  getProfileUrl,
+  getUserProfileUrl,
   getReferralShareText,
   getReferralUrl,
   POINTS,
@@ -597,7 +597,7 @@ export default function RewardsPage() {
 
                       {/* View Profile */}
                       <a
-                        href={getProfileUrl(
+                        href={getUserProfileUrl(
                           referredUser.id,
                           referredUser.username
                         )}
@@ -910,7 +910,7 @@ export default function RewardsPage() {
 
                       {/* View Profile */}
                       <a
-                        href={getProfileUrl(
+                        href={getUserProfileUrl(
                           referredUser.id,
                           referredUser.username
                         )}
