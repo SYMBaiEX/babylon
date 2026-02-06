@@ -2,7 +2,7 @@
 // Run: bun test integration/admin-dashboard-rbac.integration.test.ts --preload ./integration/preload.ts
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { getDevCredentials } from '@babylon/api';
+import { getAllAdmins, getDevCredentials } from '@babylon/api';
 import {
   ADMIN_PERMISSIONS,
   ADMIN_ROLES,
@@ -189,8 +189,10 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
     });
 
     test('ROLE_PERMISSIONS assigns correct permissions to ADMIN', () => {
-      // ADMIN should not have manage_admins
+      // ADMIN should not have super-admin-only permissions
       expect(ROLE_PERMISSIONS.ADMIN).not.toContain('manage_admins');
+      expect(ROLE_PERMISSIONS.ADMIN).not.toContain('manage_game');
+      expect(ROLE_PERMISSIONS.ADMIN).not.toContain('manage_escrow');
       expect(ROLE_PERMISSIONS.ADMIN).toContain('view_stats');
       expect(ROLE_PERMISSIONS.ADMIN).toContain('manage_users');
       expect(ROLE_PERMISSIONS.ADMIN).toContain('resolve_reports');
@@ -267,6 +269,16 @@ describe('Admin Dashboard RBAC Integration Tests', () => {
 
       expect(user).toBeDefined();
       expect(user!.isAdmin).toBe(true);
+    });
+
+    test('legacy isAdmin users are exposed as ADMIN in getAllAdmins', async () => {
+      const userId = await createTestUser({ isAdmin: true });
+      const admins = await getAllAdmins();
+      const legacyAdmin = admins.find((admin) => admin.userId === userId);
+
+      expect(legacyAdmin).toBeDefined();
+      expect(legacyAdmin!.role).toBe('ADMIN');
+      expect(legacyAdmin!.permissions).toEqual(ROLE_PERMISSIONS.ADMIN);
     });
 
     test('user can have role without legacy isAdmin', async () => {

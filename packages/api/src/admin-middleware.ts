@@ -84,8 +84,10 @@ export async function getAdminRole(
     .limit(1);
 
   // Backward compatibility: Check isAdmin flag for legacy admins
+  // NOTE: isAdmin flag now grants ADMIN role, not SUPER_ADMIN
+  // SUPER_ADMIN must be explicitly granted via AdminRole table
   if (user?.isAdmin) {
-    return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+    return { role: 'ADMIN', permissions: ROLE_PERMISSIONS.ADMIN };
   }
 
   // Check admin email domain - fetch verified email directly from Privy for security
@@ -103,7 +105,7 @@ export async function getAdminRole(
 
     if (adminEmail) {
       logger.info(
-        'Auto-promoting user to SUPER_ADMIN via verified Privy email domain',
+        'Auto-promoting user to ADMIN via verified Privy email domain',
         {
           userId,
           emailDomain: adminEmail.split('@')[1] ?? null,
@@ -112,7 +114,9 @@ export async function getAdminRole(
         },
         'getAdminRole'
       );
-      return { role: 'SUPER_ADMIN', permissions: ROLE_PERMISSIONS.SUPER_ADMIN };
+      // Grant ADMIN role (not SUPER_ADMIN) for email domain matches
+      // SUPER_ADMIN must be explicitly granted via AdminRole table
+      return { role: 'ADMIN', permissions: ROLE_PERMISSIONS.ADMIN };
     }
   }
 
@@ -377,8 +381,8 @@ export async function getAllAdmins(): Promise<
       username: legacy.username,
       displayName: legacy.displayName,
       profileImageUrl: legacy.profileImageUrl,
-      role: 'SUPER_ADMIN',
-      permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
+      role: 'ADMIN',
+      permissions: ROLE_PERMISSIONS.ADMIN,
       grantedAt: legacy.createdAt,
       grantedBy: legacy.id, // Self-granted for legacy
     });

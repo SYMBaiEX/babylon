@@ -44,6 +44,10 @@ export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
 /**
  * Default permissions by role
+ *
+ * SUPER_ADMIN: Full access - can manage admins, escrow, and game controls
+ * ADMIN: Standard admin - can view everything, manage users/reports, but NOT escrow/game/admins
+ * VIEWER: Read-only access to dashboards
  */
 export const ROLE_PERMISSIONS: Record<AdminRoleType, AdminPermission[]> = {
   SUPER_ADMIN: [...ADMIN_PERMISSIONS],
@@ -54,12 +58,11 @@ export const ROLE_PERMISSIONS: Record<AdminRoleType, AdminPermission[]> = {
     'view_trading',
     'view_system',
     'give_feedback',
-    'manage_game',
     'view_reports',
     'resolve_reports',
-    'manage_escrow',
     'view_alpha_groups',
     'manage_alpha_groups',
+    // NOTE: manage_game, manage_escrow, manage_admins are SUPER_ADMIN only
   ],
   VIEWER: [
     'view_stats',
