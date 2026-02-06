@@ -214,6 +214,27 @@ describe('authenticate middleware', () => {
     });
   });
 
+  it('does not enforce NFT gating for update-profile (suffix allowlist)', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [];
+    ownershipRows = [];
+
+    const request = createRequest(
+      'privy-token',
+      '/api/users/db-user-id/update-profile'
+    );
+    const result = await authenticate(request);
+
+    expect(result).toMatchObject({
+      userId: 'db-user-id',
+      dbUserId: 'db-user-id',
+    });
+  });
+
   it('bypasses NFT gating for admins', async () => {
     process.env.NFT_GATING_ENABLED = 'true';
 

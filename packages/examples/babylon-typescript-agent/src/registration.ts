@@ -68,7 +68,8 @@ export async function registerAgent(): Promise<AgentIdentity> {
 
   // Register on-chain
   console.log('⛓️  Registering on-chain...');
-  const registration = await agent.registerIPFS();
+  const registrationHandle = await agent.registerIPFS();
+  const { result: registration } = await registrationHandle.waitMined();
 
   console.log('✅ Registration complete!');
   console.log(`   Token ID: ${registration.agentId}`);
@@ -87,7 +88,7 @@ export async function registerAgent(): Promise<AgentIdentity> {
     address: wallet.address,
     agentId: registration.agentId!,
     metadataCID: registration.agentURI?.replace('ipfs://', ''),
-    txHash: '',
+    txHash: registrationHandle.hash,
   };
 
   fs.writeFileSync(IDENTITY_FILE, JSON.stringify(identity, null, 2));

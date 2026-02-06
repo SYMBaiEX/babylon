@@ -29,9 +29,15 @@ const PREFIX_ALLOWLIST = [
   '/api/waitlist/',
 ] as const;
 
+const SUFFIX_ALLOWLIST = [
+  // Dynamic-segment routes (e.g. /api/users/{userId}/update-profile)
+  '/update-profile',
+] as const;
+
 export function isNftGatingAllowlistedPath(pathname: string): boolean {
   if (EXACT_ALLOWLIST.has(pathname)) return true;
-  return PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix));
+  if (PREFIX_ALLOWLIST.some((prefix) => pathname.startsWith(prefix))) return true;
+  return SUFFIX_ALLOWLIST.some((suffix) => pathname.endsWith(suffix));
 }
 
 /**
