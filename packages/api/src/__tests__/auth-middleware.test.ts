@@ -214,7 +214,7 @@ describe('authenticate middleware', () => {
     });
   });
 
-  it('does not enforce NFT gating for update-profile (suffix allowlist)', async () => {
+  it('does not enforce NFT gating for /api/users/{id}/update-profile', async () => {
     process.env.NFT_GATING_ENABLED = 'true';
 
     mockVerifyAgentSession.mockReturnValueOnce(null);
@@ -233,6 +233,30 @@ describe('authenticate middleware', () => {
       userId: 'db-user-id',
       dbUserId: 'db-user-id',
     });
+  });
+
+  it('still enforces NFT gating for non-user update-profile paths', async () => {
+    process.env.NFT_GATING_ENABLED = 'true';
+
+    mockVerifyAgentSession.mockReturnValueOnce(null);
+    mockVerifyAuthToken.mockResolvedValueOnce({ userId: 'privy-user' });
+    usersRows = [{ id: 'db-user-id', walletAddress: '0xabc', isAdmin: false }];
+    snapshotRows = [];
+    ownershipRows = [];
+
+    const request = createRequest(
+      'privy-token',
+      '/api/admin/update-profile'
+    );
+
+    try {
+      await authenticate(request);
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('NFT access required');
+      expect((error as { code: string }).code).toBe('FORBIDDEN');
+    }
   });
 
   it('bypasses NFT gating for admins', async () => {
