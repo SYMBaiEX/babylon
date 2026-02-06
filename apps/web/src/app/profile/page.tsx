@@ -8,7 +8,10 @@ import { ProfileHeaderSkeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
- * Canonical profile route: all profile views are handled by `/profile/[id]`.
+ * Legacy profile route.
+ *
+ * We keep `/profile` as a stable entry point (Sidebar, old links) and redirect
+ * to the canonical user route.
  *
  * This route exists as a stable "My Profile" entry point (Sidebar, etc.) and
  * redirects to the username- or id-based profile page to avoid UI drift between
@@ -30,7 +33,12 @@ export default function ProfileRootRedirectPage() {
 
     const identifier = user.username ? extractUsername(user.username) : user.id;
 
-    router.replace(`/profile/${encodeURIComponent(identifier)}`);
+    if (user.username) {
+      router.replace(`/u/${encodeURIComponent(identifier)}`);
+      return undefined;
+    }
+
+    router.replace(`/u/id/${encodeURIComponent(identifier)}`);
     return undefined;
   }, [ready, authenticated, user?.id, user?.username, router, login]);
 
