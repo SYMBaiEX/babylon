@@ -2453,7 +2453,7 @@ export function ComingSoon() {
                         onClick={() =>
                           setProfileForm((prev) => ({
                             ...prev,
-                            username: usernameSuggestion,
+                            username: usernameSuggestion ?? '',
                           }))
                         }
                       >
@@ -3996,17 +3996,17 @@ export function ComingSoon() {
                             onClick={() =>
                               setProfileForm((prev) => ({
                                 ...prev,
-                                username: usernameSuggestion,
-                              }))
-                            }
-                          >
-                            {usernameSuggestion}
-                          </button>
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                            username: usernameSuggestion ?? '',
+                          }))
+                        }
+                      >
+                        {usernameSuggestion}
+                      </button>
+                    </p>
+                  )}
                 </div>
+              </div>
+            </div>
 
                 {/* Bio */}
                 <div className="space-y-2">

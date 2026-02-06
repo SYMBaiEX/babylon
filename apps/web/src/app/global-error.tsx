@@ -11,6 +11,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
+import type { SeverityLevel } from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -24,7 +25,7 @@ export default function GlobalError({
   useEffect(() => {
     // Capture error in Sentry with highest priority context
     Sentry.withScope((scope) => {
-      scope.setLevel('fatal'); // Mark as fatal since it's a global error
+      scope.setLevel('fatal' as SeverityLevel); // Mark as fatal since it's a global error
       scope.setTag('errorBoundary', 'global');
       if (error.digest) {
         scope.setTag('errorDigest', error.digest);
