@@ -32,6 +32,7 @@ import { FollowButton } from '@/components/interactions/FollowButton';
 import { ModerationMenu } from '@/components/moderation/ModerationMenu';
 import { SendPointsModal } from '@/components/points/SendPointsModal';
 import { PostCard } from '@/components/posts/PostCard';
+import { EditProfileModal } from '@/components/profile/EditProfileModal';
 import { FollowListModal } from '@/components/profile/FollowListModal';
 import { OnChainBadge } from '@/components/profile/OnChainBadge';
 import {
@@ -65,6 +66,7 @@ export default function ActorProfilePage() {
   const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<
     number | null
   >(null);
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [followListModal, setFollowListModal] = useState<{
     isOpen: boolean;
     type: 'followers' | 'following';
@@ -908,12 +910,13 @@ export default function ActorProfilePage() {
                       </>
                     )}
                     {isOwnProfile && (
-                      <Link
-                        href="/settings"
+                      <button
+                        type="button"
+                        onClick={() => setEditProfileModalOpen(true)}
                         className="rounded-full border border-border px-4 py-2 font-bold transition-colors hover:bg-muted/50"
                       >
                         Edit profile
-                      </Link>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1185,6 +1188,14 @@ export default function ActorProfilePage() {
           }
           userId={actorInfo.id}
           type={followListModal.type}
+        />
+      )}
+
+      {/* Edit Profile Modal (own profile only) */}
+      {isOwnProfile && (
+        <EditProfileModal
+          isOpen={editProfileModalOpen}
+          onClose={() => setEditProfileModalOpen(false)}
         />
       )}
     </PageContainer>
