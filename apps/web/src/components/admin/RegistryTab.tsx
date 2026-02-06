@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@babylon/shared';
+import { cn, getActorProfileUrl, getUserProfileUrl } from '@babylon/shared';
 import {
   AlertCircle,
   Ban,
@@ -220,14 +220,17 @@ export function RegistryTab() {
       }
     };
 
-    const getProfileUrl = () => {
-      if (entity.type === 'user' && entity.username) {
-        return `/profile/${entity.username}`;
+    const getEntityProfileUrl = () => {
+      if (entity.type === 'user') {
+        return getUserProfileUrl(entity.id, entity.username);
+      }
+      if (entity.type === 'actor') {
+        return getActorProfileUrl(entity.id);
       }
       return null;
     };
 
-    const profileUrl = getProfileUrl();
+    const profileUrl = getEntityProfileUrl();
 
     const cardContent = (
       <>

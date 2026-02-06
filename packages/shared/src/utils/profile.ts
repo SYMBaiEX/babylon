@@ -37,6 +37,38 @@ export function getProfileUrl(
 }
 
 /**
+ * Canonical user profile URL.
+ *
+ * Prefer username handle when available; fallback to id-based route.
+ */
+export function getUserProfileUrl(
+  userId: string,
+  username?: string | null
+): string {
+  if (username) {
+    const cleanUsername = username.startsWith('@')
+      ? username.slice(1)
+      : username;
+    return `/u/${cleanUsername}`;
+  }
+  return `/u/id/${userId}`;
+}
+
+/**
+ * Canonical actor profile URL.
+ */
+export function getActorProfileUrl(actorId: string): string {
+  return `/actors/${actorId}`;
+}
+
+/**
+ * Canonical organization profile URL.
+ */
+export function getOrganizationProfileUrl(orgId: string): string {
+  return `/orgs/${orgId}`;
+}
+
+/**
  * Check if a profile identifier is a username (not a user ID)
  *
  * @description Determines if an identifier string is a username rather than

@@ -71,7 +71,7 @@ function PostPreview({ post }: { post: PostPreviewData }) {
     <article className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mb-3 flex w-full items-start gap-3">
         <Link
-          href={getProfileUrl(post.authorId, post.authorUsername)}
+          href={getProfileUrl(post.authorId, null)}
           className="shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -88,7 +88,7 @@ function PostPreview({ post }: { post: PostPreviewData }) {
           <div className="flex min-w-0 flex-col">
             <div className="flex min-w-0 items-center gap-1.5">
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getProfileUrl(post.authorId, null)}
                 className="truncate font-semibold text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -97,7 +97,7 @@ function PostPreview({ post }: { post: PostPreviewData }) {
               {authorIsNPC && <VerifiedBadge size="sm" />}
             </div>
             <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
+              href={getProfileUrl(post.authorId, null)}
               className="truncate text-foreground/50 text-sm hover:underline"
               onClick={(e) => e.stopPropagation()}
             >

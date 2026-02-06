@@ -3,8 +3,10 @@
 import { cn, logger } from '@babylon/shared';
 import {
   AlertCircle,
+  Camera,
   CheckCircle2,
   Key,
+  Link as LinkIcon,
   Monitor,
   Moon,
   Palette,
@@ -18,12 +20,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useMemo, useState } from 'react';
 import { LoginButton } from '@/components/auth/LoginButton';
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal';
 import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 import { BillingTab } from '@/components/settings/BillingTab';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 import { SecurityTab } from '@/components/settings/SecurityTab';
+import { Avatar } from '@/components/shared/Avatar';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -84,11 +89,29 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false);
 
   // Profile settings state
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [username, setUsername] = useState(user?.username || '');
   const [bio, setBio] = useState(user?.bio || '');
+  const [profileImage, setProfileImage] = useState<{
+    file: File | null;
+    preview: string | null;
+  }>({ file: null, preview: null });
+  const [coverImage, setCoverImage] = useState<{
+    file: File | null;
+    preview: string | null;
+  }>({ file: null, preview: null });
+  const [socialVisibility, setSocialVisibility] = useState<{
+    twitter: boolean;
+    farcaster: boolean;
+    wallet: boolean;
+  }>({
+    twitter: user?.showTwitterPublic ?? true,
+    farcaster: user?.showFarcasterPublic ?? true,
+    wallet: user?.showWalletPublic ?? true,
+  });
 
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
@@ -158,16 +181,106 @@ export default function SettingsPage() {
     setDisplayName(user?.displayName ?? '');
     setUsername(user?.username ?? '');
     setBio(user?.bio ?? '');
-  }, [user?.displayName, user?.username, user?.bio]);
+    setSocialVisibility({
+      twitter: user?.showTwitterPublic ?? true,
+      farcaster: user?.showFarcasterPublic ?? true,
+      wallet: user?.showWalletPublic ?? true,
+    });
+  }, [
+    user?.displayName,
+    user?.username,
+    user?.bio,
+    user?.showTwitterPublic,
+    user?.showFarcasterPublic,
+    user?.showWalletPublic,
+  ]);
+
+  const currentProfileImageUrl =
+    profileImage.preview || user?.profileImageUrl || null;
+  const currentCoverImageUrl =
+    coverImage.preview || user?.coverImageUrl || null;
+
+  const handleImageSelect = (file: File, type: 'profile' | 'cover'): void => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      setErrorMessage('Please select a valid image file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage('File size must be less than 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (type === 'profile') {
+        setProfileImage({ file, preview: reader.result as string });
+      } else {
+        setCoverImage({ file, preview: reader.result as string });
+      }
+      setErrorMessage(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const updateSocialVisibility = async (
+    platform: 'twitter' | 'farcaster' | 'wallet',
+    visible: boolean
+  ) => {
+    if (!user?.id) return;
+    const token = await getAccessToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/update-visibility`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ platform, visible }),
+      }
+    );
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      visibility?: { twitter?: boolean; farcaster?: boolean; wallet?: boolean };
+      error?: { message?: string };
+    };
+
+    if (!response.ok || !payload.visibility) {
+      const message =
+        payload?.error?.message || 'Unable to update visibility preferences.';
+      setErrorMessage(message);
+      return;
+    }
+
+    setSocialVisibility({
+      twitter: payload.visibility.twitter ?? socialVisibility.twitter,
+      farcaster: payload.visibility.farcaster ?? socialVisibility.farcaster,
+      wallet: payload.visibility.wallet ?? socialVisibility.wallet,
+    });
+
+    setUser({
+      ...user,
+      showTwitterPublic: payload.visibility.twitter ?? user.showTwitterPublic,
+      showFarcasterPublic:
+        payload.visibility.farcaster ?? user.showFarcasterPublic,
+      showWalletPublic: payload.visibility.wallet ?? user.showWalletPublic,
+    });
+  };
 
   const handleSave = async () => {
     if (!user?.id) return;
-    if (user.onChainRegistered !== true) {
-      setErrorMessage(
-        'Complete your on-chain registration before editing your profile.'
-      );
-      return;
-    }
 
     setSaving(true);
     setSaved(false);
@@ -189,6 +302,50 @@ export default function SettingsPage() {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    let nextProfileImageUrl: string | null = null;
+    let nextCoverImageUrl: string | null = null;
+
+    // Upload images first (if any were changed).
+    if (profileImage.file) {
+      const formData = new FormData();
+      formData.append('file', profileImage.file);
+      formData.append('type', 'profile');
+      const uploadResponse = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
+        url?: string;
+      };
+      if (!uploadResponse.ok || !uploadPayload.url) {
+        setErrorMessage('Failed to upload profile image.');
+        setSaving(false);
+        return;
+      }
+      nextProfileImageUrl = uploadPayload.url;
+    }
+
+    if (coverImage.file) {
+      const formData = new FormData();
+      formData.append('file', coverImage.file);
+      formData.append('type', 'cover');
+      const uploadResponse = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
+        url?: string;
+      };
+      if (!uploadResponse.ok || !uploadPayload.url) {
+        setErrorMessage('Failed to upload cover image.');
+        setSaving(false);
+        return;
+      }
+      nextCoverImageUrl = uploadPayload.url;
+    }
+
     const response = await fetch(
       `/api/users/${encodeURIComponent(user.id)}/update-profile`,
       {
@@ -198,6 +355,10 @@ export default function SettingsPage() {
           displayName: trimmedDisplayName,
           username: trimmedUsername,
           bio: trimmedBio,
+          ...(nextProfileImageUrl
+            ? { profileImageUrl: nextProfileImageUrl }
+            : {}),
+          ...(nextCoverImageUrl ? { coverImageUrl: nextCoverImageUrl } : {}),
         }),
       }
     );
@@ -221,12 +382,17 @@ export default function SettingsPage() {
         username: payload.user.username,
         displayName: payload.user.displayName,
         bio: payload.user.bio,
+        profileImageUrl: payload.user.profileImageUrl ?? user.profileImageUrl,
+        coverImageUrl: payload.user.coverImageUrl ?? user.coverImageUrl,
         usernameChangedAt: payload.user.usernameChangedAt,
         referralCode: payload.user.referralCode,
         onChainRegistered:
           payload.user.onChainRegistered ?? user.onChainRegistered,
       });
     }
+
+    setProfileImage({ file: null, preview: null });
+    setCoverImage({ file: null, preview: null });
 
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -331,6 +497,82 @@ export default function SettingsPage() {
             {activeTab === 'profile' && (
               <div className="rounded-lg border border-border p-5">
                 <div className="space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-sm">Profile</div>
+                        <div className="text-muted-foreground text-xs">
+                          Update your public info and images.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowLinkAccountsModal(true)}
+                        className="flex min-h-[44px] items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/30"
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                        Link accounts
+                      </button>
+                    </div>
+
+                    <div className="overflow-hidden rounded-lg border border-border">
+                      <div className="relative h-28 bg-muted sm:h-36">
+                        {currentCoverImageUrl ? (
+                          <img
+                            src={currentCoverImageUrl}
+                            alt="Cover"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-primary/20 to-primary/5" />
+                        )}
+                        <label className="absolute right-3 bottom-3 inline-flex cursor-pointer items-center gap-2 rounded-full bg-background/80 px-3 py-2 text-xs backdrop-blur-sm transition-colors hover:bg-background">
+                          <Camera className="h-4 w-4" />
+                          Change cover
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              handleImageSelect(file, 'cover');
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div className="-mt-8 flex items-end justify-between gap-3 px-4 pb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-background bg-background">
+                            <Avatar
+                              id={user?.id || ''}
+                              name={user?.displayName || user?.email || 'User'}
+                              type="user"
+                              size="lg"
+                              src={currentProfileImageUrl || undefined}
+                              imageUrl={currentProfileImageUrl || undefined}
+                              className="h-full w-full"
+                            />
+                          </div>
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs transition-colors hover:bg-muted/30">
+                            <Camera className="h-4 w-4" />
+                            Change photo
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                handleImageSelect(file, 'profile');
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <label
                       htmlFor="displayName"
@@ -399,6 +641,68 @@ export default function SettingsPage() {
                       placeholder="Tell us about yourself..."
                     />
                   </div>
+
+                  <div className="rounded-lg border border-border p-4">
+                    <div className="mb-1 font-semibold text-sm">
+                      Social visibility
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      Control what shows publicly on your profile.
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">Twitter/X</div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            {user?.hasTwitter && user?.twitterUsername
+                              ? `@${user.twitterUsername}`
+                              : 'Not linked'}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={socialVisibility.twitter}
+                          onCheckedChange={(checked) =>
+                            void updateSocialVisibility('twitter', checked)
+                          }
+                          disabled={!user?.hasTwitter}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">Farcaster</div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            {user?.hasFarcaster && user?.farcasterUsername
+                              ? `@${user.farcasterUsername}`
+                              : 'Not linked'}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={socialVisibility.farcaster}
+                          onCheckedChange={(checked) =>
+                            void updateSocialVisibility('farcaster', checked)
+                          }
+                          disabled={!user?.hasFarcaster}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">Wallet</div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            {user?.walletAddress
+                              ? 'Connected'
+                              : 'Not connected'}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={socialVisibility.wallet}
+                          onCheckedChange={(checked) =>
+                            void updateSocialVisibility('wallet', checked)
+                          }
+                          disabled={!user?.walletAddress}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Save area */}
@@ -409,19 +713,10 @@ export default function SettingsPage() {
                       <p className="text-red-500 text-sm">{errorMessage}</p>
                     </div>
                   )}
-                  {user?.onChainRegistered !== true && !errorMessage && (
-                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-                      <p className="text-sm text-yellow-500">
-                        Complete your on-chain registration before editing your
-                        profile.
-                      </p>
-                    </div>
-                  )}
                   <div className="flex justify-end">
                     <button
                       onClick={handleSave}
-                      disabled={saving || user?.onChainRegistered !== true}
+                      disabled={saving}
                       className={cn(
                         'flex min-h-[44px] items-center gap-2 px-6 py-3 font-medium transition-all',
                         'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -441,6 +736,11 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            <LinkSocialAccountsModal
+              isOpen={showLinkAccountsModal}
+              onClose={() => setShowLinkAccountsModal(false)}
+            />
 
             {activeTab === 'theme' && (
               <div className="space-y-5">

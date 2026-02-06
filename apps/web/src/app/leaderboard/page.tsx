@@ -1,6 +1,10 @@
 'use client';
 
-import { formatCurrency } from '@babylon/shared';
+import {
+  formatCurrency,
+  getActorProfileUrl,
+  getUserProfileUrl,
+} from '@babylon/shared';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -257,7 +261,9 @@ export default function LeaderboardPage() {
             const isCurrentUser =
               authenticated && user && player.id === user.id;
             const isSelected = selectedUser?.id === player.id;
-            const profileUrl = `/profile/${player.username || player.id}`;
+            const profileUrl = player.isActor
+              ? getActorProfileUrl(player.id)
+              : getUserProfileUrl(player.id, player.username);
             const displayPoints =
               selectedTab === 'total'
                 ? player.totalPoints
