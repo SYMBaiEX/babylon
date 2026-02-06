@@ -3,7 +3,7 @@
 import {
   formatCurrency,
   getActorProfileUrl,
-  getUserProfileUrl,
+  getProfileUrl,
 } from '@babylon/shared';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -263,7 +263,7 @@ export default function LeaderboardPage() {
             const isSelected = selectedUser?.id === player.id;
             const profileUrl = player.isActor
               ? getActorProfileUrl(player.id)
-              : getUserProfileUrl(player.id, player.username);
+              : getProfileUrl(player.id, player.username);
             const displayPoints =
               selectedTab === 'total'
                 ? player.totalPoints

@@ -4,7 +4,7 @@ import {
   cn,
   formatCurrency as formatCurrencyShared,
   getActorProfileUrl,
-  getUserProfileUrl,
+  getProfileUrl,
   logger,
 } from '@babylon/shared';
 import {
@@ -511,7 +511,7 @@ const TradeCard = memo(function TradeCard({
   const profileUrl = user
     ? user.isActor
       ? getActorProfileUrl(user.id)
-      : getUserProfileUrl(user.id, user.username)
+      : getProfileUrl(user.id, user.username)
     : '#';
 
   return (

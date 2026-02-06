@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getActorProfileUrl, getUserProfileUrl } from '@babylon/shared';
+import { cn, getActorProfileUrl, getProfileUrl } from '@babylon/shared';
 import {
   AlertCircle,
   Ban,
@@ -222,7 +222,7 @@ export function RegistryTab() {
 
     const getEntityProfileUrl = () => {
       if (entity.type === 'user') {
-        return getUserProfileUrl(entity.id, entity.username);
+        return getProfileUrl(entity.id, entity.username);
       }
       if (entity.type === 'actor') {
         return getActorProfileUrl(entity.id);

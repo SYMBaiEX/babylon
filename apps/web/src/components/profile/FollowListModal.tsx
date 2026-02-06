@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, getUserProfileUrl } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { Loader2, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -323,7 +323,7 @@ export function FollowListModal({
                 const isOwnProfile = user?.id === followUser.id;
                 const isFollowing = followingStatus[followUser.id] || false;
                 const isLoadingThis = loadingFollow[followUser.id] || false;
-                const profileUrl = getUserProfileUrl(
+                const profileUrl = getProfileUrl(
                   followUser.id,
                   followUser.username
                 );

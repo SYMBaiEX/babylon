@@ -1,9 +1,9 @@
 'use client';
 
 import {
+  getProfileUrl,
   getReferralShareText,
   getReferralUrl,
-  getUserProfileUrl,
   POINTS,
 } from '@babylon/shared';
 import {
@@ -597,7 +597,7 @@ export default function RewardsPage() {
 
                       {/* View Profile */}
                       <a
-                        href={getUserProfileUrl(
+                        href={getProfileUrl(
                           referredUser.id,
                           referredUser.username
                         )}
@@ -910,7 +910,7 @@ export default function RewardsPage() {
 
                       {/* View Profile */}
                       <a
-                        href={getUserProfileUrl(
+                        href={getProfileUrl(
                           referredUser.id,
                           referredUser.username
                         )}
