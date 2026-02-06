@@ -4,7 +4,7 @@ import {
   cn,
   formatCompactCurrency,
   getActorProfileUrl,
-  getUserProfileUrl,
+  getProfileUrl,
 } from '@babylon/shared';
 import {
   ArrowDownRight,
@@ -516,7 +516,7 @@ function TransferTradeContent({
     if (trade.otherParty) {
       const href = trade.otherParty.isActor
         ? getActorProfileUrl(trade.otherParty.id)
-        : getUserProfileUrl(trade.otherParty.id, trade.otherParty.username);
+        : getProfileUrl(trade.otherParty.id, trade.otherParty.username);
       router.push(href);
     }
   };

@@ -3,7 +3,7 @@
 import {
   formatCurrency,
   getActorProfileUrl,
-  getUserProfileUrl,
+  getProfileUrl,
 } from '@babylon/shared';
 import { ExternalLink, TrendingUp, Trophy, Users } from 'lucide-react';
 import Link from 'next/link';
@@ -324,7 +324,7 @@ export function LeaderboardWidgetSidebar({
                   href={
                     selectedUser.isActor
                       ? getActorProfileUrl(selectedUser.id)
-                      : getUserProfileUrl(
+                      : getProfileUrl(
                           selectedUser.id,
                           selectedUser.username
                         )

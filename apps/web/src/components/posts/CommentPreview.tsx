@@ -1,7 +1,7 @@
 'use client';
 
 import type { CommentPreviewData } from '@babylon/shared';
-import { cn, getUserProfileUrl } from '@babylon/shared';
+import { cn, getProfileUrl } from '@babylon/shared';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -138,7 +138,7 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
       {/* Left column: Avatar */}
       <div className="flex flex-col items-center">
         <Link
-          href={getUserProfileUrl(comment.userId, comment.userUsername)}
+          href={getProfileUrl(comment.userId, comment.userUsername)}
           className="shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -158,7 +158,7 @@ const CommentPreviewItem = memo(function CommentPreviewItem({
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1">
             <Link
-              href={getUserProfileUrl(comment.userId, comment.userUsername)}
+              href={getProfileUrl(comment.userId, comment.userUsername)}
               className="truncate font-semibold text-[15px] text-foreground hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
