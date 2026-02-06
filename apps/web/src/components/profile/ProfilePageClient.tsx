@@ -64,6 +64,14 @@ export function ProfilePageClient({
   const router = useRouter();
   const isUsernameParam = mode === 'auto' ? isUsername(identifier) : false;
 
+  const handleBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/feed');
+    }
+  }, [router]);
+
   // In "auto" mode the identifier might be either username or userId.
   // In other modes we treat identifier as the primary lookup key for that route.
   const routeKey =
@@ -796,12 +804,14 @@ export function ProfilePageClient({
       <PageContainer noPadding className="flex flex-col">
         <div className="sticky top-0 z-10 bg-background">
           <div className="flex items-center gap-4 px-4 py-3">
-            <Link
-              href="/feed"
+            <button
+              type="button"
+              onClick={handleBack}
               className="rounded-full p-2 transition-colors hover:bg-muted/50"
+              aria-label="Go back"
             >
               <ArrowLeft className="h-5 w-5" />
-            </Link>
+            </button>
             <h1 className="font-bold text-xl">Profile Not Found</h1>
           </div>
         </div>
@@ -809,12 +819,13 @@ export function ProfilePageClient({
           <p className="text-muted-foreground">
             Profile &quot;{routeKey}&quot; not found
           </p>
-          <Link
-            href="/feed"
+          <button
+            type="button"
+            onClick={handleBack}
             className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90"
           >
             Back to Feed
-          </Link>
+          </button>
         </div>
       </PageContainer>
     );
@@ -828,12 +839,14 @@ export function ProfilePageClient({
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
             <div className="flex items-center gap-4 px-4 py-3">
-              <Link
-                href="/feed"
+              <button
+                type="button"
+                onClick={handleBack}
                 className="rounded-full p-2 transition-colors hover:bg-muted/50"
+                aria-label="Go back"
               >
                 <ArrowLeft className="h-5 w-5" />
-              </Link>
+              </button>
               <div className="flex-1">
                 <h1 className="font-bold text-xl">{actorInfo.name}</h1>
                 <p className="text-muted-foreground text-sm">
