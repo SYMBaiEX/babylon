@@ -1,7 +1,7 @@
 'use client';
 
 import type { CommentCardProps, CommentData } from '@babylon/shared';
-import { cn, getUserProfileUrl } from '@babylon/shared';
+import { cn, getProfileUrl, getUserProfileUrl } from '@babylon/shared';
 import {
   Edit2,
   MessageCircle,
