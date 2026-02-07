@@ -83,6 +83,7 @@ import { SystemHealthTab } from '@/components/admin/SystemHealthTab';
 import { TradingFeedTab } from '@/components/admin/TradingFeedTab';
 import { TrainingDataTab } from '@/components/admin/TrainingDataTab';
 import { UserManagementTab } from '@/components/admin/UserManagementTab';
+import { WhitelistTab } from '@/components/admin/WhitelistTab';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -115,7 +116,8 @@ type Tab =
   | 'escrow'
   | 'audit-logs'
   | 'alpha-groups'
-  | 'nft-whitelist';
+  | 'nft-whitelist'
+  | 'whitelist';
 
 /**
  * Admin Dashboard Component
@@ -258,6 +260,7 @@ export default function AdminDashboard() {
         { id: 'alpha-groups' as const, label: 'Alpha Groups', icon: Crown },
         { id: 'notifications' as const, label: 'Notifications', icon: Bell },
         { id: 'nft-whitelist' as const, label: 'NFT Whitelist', icon: Star },
+        { id: 'whitelist' as const, label: 'Access Whitelist', icon: Shield },
       ],
     },
     {
@@ -413,6 +416,7 @@ export default function AdminDashboard() {
         {activeTab === 'audit-logs' && <AuditLogsTab />}
         {activeTab === 'alpha-groups' && <AlphaGroupsTab />}
         {activeTab === 'nft-whitelist' && <NftWhitelistTab />}
+        {activeTab === 'whitelist' && <WhitelistTab />}
       </div>
     </PageContainer>
   );
