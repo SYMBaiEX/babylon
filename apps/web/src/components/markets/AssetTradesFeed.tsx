@@ -3,6 +3,8 @@
 import {
   cn,
   formatCurrency as formatCurrencyShared,
+  getActorProfileUrl,
+  getProfileUrl,
   logger,
 } from '@babylon/shared';
 import {
@@ -506,11 +508,11 @@ const TradeCard = memo(function TradeCard({
 }: TradeCardProps) {
   const user = trade.user;
   const compact = density === 'compact';
-  const profileUrl = user?.isActor
-    ? `/profile/${user.id}`
-    : user?.username
-      ? `/profile/${user.username}`
-      : '#';
+  const profileUrl = user
+    ? user.isActor
+      ? getActorProfileUrl(user.id)
+      : getProfileUrl(user.id, user.username)
+    : '#';
 
   return (
     <div

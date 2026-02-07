@@ -128,7 +128,7 @@ function OriginalPostCard({ post }: { post: PostData }) {
       >
         {/* Avatar */}
         <Link
-          href={getProfileUrl(post.authorId, post.authorUsername)}
+          href={getProfileUrl(post.authorId, null)}
           className="relative z-10 shrink-0 transition-opacity hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
@@ -146,7 +146,7 @@ function OriginalPostCard({ post }: { post: PostData }) {
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getProfileUrl(post.authorId, null)}
                 className="truncate font-semibold text-sm hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -156,7 +156,7 @@ function OriginalPostCard({ post }: { post: PostData }) {
                 <VerifiedBadge size="sm" className="-ml-1" />
               )}
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getProfileUrl(post.authorId, null)}
                 className="truncate text-muted-foreground text-xs hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >

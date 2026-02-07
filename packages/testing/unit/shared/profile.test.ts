@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'bun:test';
 import {
   extractUsername,
+  getActorProfileUrl,
+  getOrganizationProfileUrl,
   getProfileUrl,
+  getUserProfileUrl,
   isUsername,
 } from '@babylon/shared/utils/profile';
 
@@ -33,6 +36,35 @@ describe('Profile URL Utilities', () => {
     it('should handle empty string username as falsy', () => {
       const result = getProfileUrl('user_123', '');
       expect(result).toBe('/profile/user_123');
+    });
+  });
+
+  describe('getUserProfileUrl', () => {
+    it('should generate canonical user URL with username when provided', () => {
+      const result = getUserProfileUrl('user_123', 'alice');
+      expect(result).toBe('/u/alice');
+    });
+
+    it('should strip @ prefix from username', () => {
+      const result = getUserProfileUrl('user_123', '@alice');
+      expect(result).toBe('/u/alice');
+    });
+
+    it('should fall back to id-based URL when no username', () => {
+      const result = getUserProfileUrl('user_123', null);
+      expect(result).toBe('/u/id/user_123');
+    });
+  });
+
+  describe('getActorProfileUrl', () => {
+    it('should generate canonical actor URL', () => {
+      expect(getActorProfileUrl('actor_1')).toBe('/actors/actor_1');
+    });
+  });
+
+  describe('getOrganizationProfileUrl', () => {
+    it('should generate canonical organization URL', () => {
+      expect(getOrganizationProfileUrl('org_1')).toBe('/orgs/org_1');
     });
   });
 

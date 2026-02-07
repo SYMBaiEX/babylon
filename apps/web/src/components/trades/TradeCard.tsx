@@ -1,6 +1,11 @@
 'use client';
 
-import { cn, formatCompactCurrency } from '@babylon/shared';
+import {
+  cn,
+  formatCompactCurrency,
+  getActorProfileUrl,
+  getProfileUrl,
+} from '@babylon/shared';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -509,7 +514,10 @@ function TransferTradeContent({
   const handleOtherPartyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (trade.otherParty) {
-      router.push(`/profile/${trade.otherParty.id}`);
+      const href = trade.otherParty.isActor
+        ? getActorProfileUrl(trade.otherParty.id)
+        : getProfileUrl(trade.otherParty.id, trade.otherParty.username);
+      router.push(href);
     }
   };
 

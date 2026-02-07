@@ -3,8 +3,15 @@
  */
 
 import { PredictionPricing } from '@babylon/core/markets/prediction';
-import { db, markets, perpPositions, positions, users } from '@babylon/db';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import {
+  db,
+  markets,
+  perpPositions,
+  pointsTransactions,
+  positions,
+  users,
+} from '@babylon/db';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { FEE_CONFIG } from '../config/fees';
 
 export interface PortfolioBreakdownSnapshot {
@@ -85,6 +92,7 @@ function calculatePredictionPositionValue(position: {
  *
  * Total P/L formula:
  *   totalPnL = (agents + positions + wallet) - originalAmount
+ * where originalAmount includes net peer transfers.
  */
 export async function calculatePortfolioBreakdown(
   userId: string
@@ -177,7 +185,26 @@ export async function calculatePortfolioBreakdown(
 
   const totalDeposited = toNumber(user.totalDeposited);
   const totalWithdrawn = toNumber(user.totalWithdrawn);
-  const originalAmount = totalDeposited - totalWithdrawn;
+
+  // Exclude peer-to-peer point transfers from PnL baseline.
+  const transferResult = await db
+    .select({
+      netTransfers: sql<number>`COALESCE(SUM(${pointsTransactions.amount}), 0)`,
+    })
+    .from(pointsTransactions)
+    .where(
+      and(
+        eq(pointsTransactions.userId, userId),
+        inArray(pointsTransactions.reason, [
+          'transfer_sent',
+          'transfer_received',
+        ])
+      )
+    )
+    .limit(1);
+
+  const netTransfers = toNumber(transferResult[0]?.netTransfers);
+  const originalAmount = totalDeposited - totalWithdrawn + netTransfers;
 
   const available = wallet + agents;
   const totalAssets = wallet + agents + positionsValue;

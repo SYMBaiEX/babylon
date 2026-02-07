@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import { cn } from '@babylon/shared'
+import { cn } from '@babylon/shared';
 import {
   CheckCircle,
   Loader2,
@@ -8,78 +8,84 @@ import {
   RefreshCw,
   Trash2,
   Users,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-import { toast } from 'sonner'
-import { Skeleton } from '@/components/shared/Skeleton'
+} from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from 'react';
+import { toast } from 'sonner';
+import { Skeleton } from '@/components/shared/Skeleton';
 
 interface SnapshotEntry {
-  id: string
-  userId: string
-  walletAddress: string | null
-  rank: number
-  points: number
-  snapshotTakenAt: string
-  hasMinted: boolean
-  mintedTokenId: number | null
-  mintedAt: string | null
-  mintTxHash: string | null
-  username: string | null
+  id: string;
+  userId: string;
+  walletAddress: string | null;
+  rank: number;
+  points: number;
+  snapshotTakenAt: string;
+  hasMinted: boolean;
+  mintedTokenId: number | null;
+  mintedAt: string | null;
+  mintTxHash: string | null;
+  username: string | null;
 }
 
 interface SnapshotStats {
-  totalEligible: number
-  totalMinted: number
-  remaining: number
+  totalEligible: number;
+  totalMinted: number;
+  remaining: number;
 }
 
 export function NftWhitelistTab() {
-  const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
-  const [stats, setStats] = useState<SnapshotStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [addUserId, setAddUserId] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isPending, startTransition] = useTransition()
-  const [refreshing, setRefreshing] = useState(false)
-  const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+  const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
+  const [stats, setStats] = useState<SnapshotStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [addUserId, setAddUserId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [refreshing, setRefreshing] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   const filteredSnapshots = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!query) return snapshots
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return snapshots;
 
     return snapshots.filter((entry) => {
-      const username = (entry.username ?? '').toLowerCase()
-      const userId = entry.userId.toLowerCase()
-      const walletAddress = (entry.walletAddress ?? '').toLowerCase()
+      const username = (entry.username ?? '').toLowerCase();
+      const userId = entry.userId.toLowerCase();
+      const walletAddress = (entry.walletAddress ?? '').toLowerCase();
       return (
         username.includes(query) ||
         userId.includes(query) ||
         walletAddress.includes(query)
-      )
-    })
-  }, [searchQuery, snapshots])
+      );
+    });
+  }, [searchQuery, snapshots]);
 
   const fetchSnapshots = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/nft-snapshot')
-      if (!res.ok) throw new Error('Failed to fetch snapshots')
-      const data = await res.json()
-      setSnapshots(data.snapshots ?? [])
-      setStats(data.stats ?? null)
+      const res = await fetch('/api/admin/nft-snapshot');
+      if (!res.ok) throw new Error('Failed to fetch snapshots');
+      const data = await res.json();
+      setSnapshots(data.snapshots ?? []);
+      setStats(data.stats ?? null);
     } catch (err) {
-      toast.error('Failed to load NFT snapshot data')
-      console.error(err)
+      toast.error('Failed to load NFT snapshot data');
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchSnapshots()
-  }, [fetchSnapshots])
+    fetchSnapshots();
+  }, [fetchSnapshots]);
 
   function handleAddUser() {
-    if (!addUserId.trim()) return
+    if (!addUserId.trim()) return;
 
     startTransition(async () => {
       try {
@@ -87,71 +93,71 @@ export function NftWhitelistTab() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: addUserId.trim() }),
-        })
+        });
 
-        const data = await res.json()
+        const data = await res.json();
 
         if (!res.ok) {
-          toast.error(data.error ?? 'Failed to add user')
-          return
+          toast.error(data.error ?? 'Failed to add user');
+          return;
         }
 
-        toast.success('User added to snapshot')
-        setAddUserId('')
-        await fetchSnapshots()
+        toast.success('User added to snapshot');
+        setAddUserId('');
+        await fetchSnapshots();
       } catch {
-        toast.error('Failed to add user')
+        toast.error('Failed to add user');
       }
-    })
+    });
   }
 
   async function handleRemoveUser(userId: string) {
-    setRemovingUserId(userId)
+    setRemovingUserId(userId);
     try {
       const res = await fetch('/api/admin/nft-snapshot', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error ?? 'Failed to remove user')
-        return
+        toast.error(data.error ?? 'Failed to remove user');
+        return;
       }
 
-      toast.success('User removed from snapshot')
-      await fetchSnapshots()
+      toast.success('User removed from snapshot');
+      await fetchSnapshots();
     } catch {
-      toast.error('Failed to remove user')
+      toast.error('Failed to remove user');
     } finally {
-      setRemovingUserId(null)
+      setRemovingUserId(null);
     }
   }
 
   async function handleRefreshSnapshot() {
-    setRefreshing(true)
+    setRefreshing(true);
     try {
       const res = await fetch('/api/admin/nft-snapshot/refresh', {
         method: 'POST',
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error ?? 'Failed to refresh snapshot')
-        return
+        toast.error(data.error ?? 'Failed to refresh snapshot');
+        return;
       }
 
       toast.success(
         `Snapshot refreshed: ${data.newlyEligible} new, ${data.updated} updated, ${data.removed} removed`
-      )
-      await fetchSnapshots()
+      );
+      await fetchSnapshots();
     } catch {
-      toast.error('Failed to refresh snapshot')
+      toast.error('Failed to refresh snapshot');
     } finally {
-      setRefreshing(false)
+      setRefreshing(false);
     }
   }
 
@@ -161,7 +167,7 @@ export function NftWhitelistTab() {
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
-    )
+    );
   }
 
   return (
@@ -202,7 +208,9 @@ export function NftWhitelistTab() {
               type="text"
               value={addUserId}
               onChange={(e) => setAddUserId(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddUser() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddUser();
+              }}
               placeholder="User ID to add..."
               className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
@@ -241,9 +249,7 @@ export function NftWhitelistTab() {
             'hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
           )}
         >
-          <RefreshCw
-            className={cn('h-4 w-4', refreshing && 'animate-spin')}
-          />
+          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
           Refresh from Leaderboard
         </button>
       </div>
@@ -253,13 +259,27 @@ export function NftWhitelistTab() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-border border-b bg-muted/50">
-              <th className="px-4 py-3 font-medium text-muted-foreground">Rank</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">User</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Wallet</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Points</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Token ID</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Actions</th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Rank
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                User
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Wallet
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Points
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Status
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Token ID
+              </th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -269,17 +289,14 @@ export function NftWhitelistTab() {
                   colSpan={7}
                   className="px-4 py-8 text-center text-muted-foreground"
                 >
-                  {snapshots.length === 0
-                    ? (
-                      <>
-                        No snapshot entries. Click
-                        {' '}
-                        &quot;Refresh from Leaderboard&quot;
-                        {' '}
-                        to populate, or add users manually.
-                      </>
-                    )
-                    : 'No entries match your search.'}
+                  {snapshots.length === 0 ? (
+                    <>
+                      No snapshot entries. Click &quot;Refresh from
+                      Leaderboard&quot; to populate, or add users manually.
+                    </>
+                  ) : (
+                    'No entries match your search.'
+                  )}
                 </td>
               </tr>
             ) : (
@@ -304,9 +321,7 @@ export function NftWhitelistTab() {
                       ? `${entry.walletAddress.slice(0, 6)}...${entry.walletAddress.slice(-4)}`
                       : '—'}
                   </td>
-                  <td className="px-4 py-3">
-                    {entry.points.toLocaleString()}
-                  </td>
+                  <td className="px-4 py-3">{entry.points.toLocaleString()}</td>
                   <td className="px-4 py-3">
                     {entry.hasMinted ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 font-medium text-green-500 text-xs">
@@ -320,13 +335,21 @@ export function NftWhitelistTab() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {entry.mintedTokenId != null ? `#${entry.mintedTokenId}` : '—'}
+                    {entry.mintedTokenId != null
+                      ? `#${entry.mintedTokenId}`
+                      : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleRemoveUser(entry.userId)}
-                      disabled={entry.hasMinted || removingUserId === entry.userId}
-                      title={entry.hasMinted ? 'Cannot remove — already minted' : 'Remove from whitelist'}
+                      disabled={
+                        entry.hasMinted || removingUserId === entry.userId
+                      }
+                      title={
+                        entry.hasMinted
+                          ? 'Cannot remove — already minted'
+                          : 'Remove from whitelist'
+                      }
                       className={cn(
                         'flex h-7 w-7 items-center justify-center rounded-lg transition-colors',
                         entry.hasMinted
@@ -348,5 +371,5 @@ export function NftWhitelistTab() {
         </table>
       </div>
     </div>
-  )
+  );
 }
