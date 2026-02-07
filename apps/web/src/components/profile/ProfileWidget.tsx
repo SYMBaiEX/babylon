@@ -6,7 +6,7 @@ import type {
   PredictionPosition,
   UserProfileStats,
 } from '@babylon/shared';
-import { cn } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, cn } from '@babylon/shared';
 import {
   BarChart3,
   Coins,
@@ -34,7 +34,7 @@ const formatPercent = (value: number) => {
 };
 
 const formatPrice = (price: number) => {
-  return `$${price.toFixed(2)}`;
+  return `${BABYLON_POINTS_SYMBOL}${price.toFixed(2)}`;
 };
 
 function toNumber(value: unknown, fallback = 0): number {
