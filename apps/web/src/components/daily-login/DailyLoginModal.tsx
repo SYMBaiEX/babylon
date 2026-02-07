@@ -122,7 +122,7 @@ export function DailyLoginModal({ isOpen, onClose, claimResult }: Props) {
   } = claimResult;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center">
       {/* Backdrop - clicking closes modal */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"

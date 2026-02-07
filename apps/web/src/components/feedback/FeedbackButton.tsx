@@ -1,13 +1,14 @@
 /**
- * Floating Feedback Button Component
+ * Floating Feedback Button Component (Desktop Only)
  *
  * Provides a floating button that appears on all pages to allow users
  * to submit general game feedback. Opens the GameFeedbackModal when clicked.
  *
+ * Note: On mobile, the feedback button is shown in the MobileHeader instead.
+ *
  * Features:
- * - Fixed position in bottom-right corner
+ * - Fixed position in bottom-right corner (desktop only)
  * - Green color to stand out
- * - Responsive design
  * - Accessible
  * - Only shows when authenticated
  */
@@ -32,21 +33,23 @@ export function FeedbackButton() {
         type="button"
         onClick={() => setIsModalOpen(true)}
         className={cn(
-          // Fixed position in bottom-right corner, offset from edge on mobile for thumb reach
-          'fixed right-4 bottom-18 z-[100] md:right-6 md:bottom-6',
-          'flex items-center justify-center gap-2',
+          // Hidden on mobile (shown in header), visible on desktop
+          'hidden md:flex',
+          // Fixed position in bottom-right corner
+          'fixed right-6 bottom-6 z-[100]',
+          'items-center justify-center gap-2',
           // Green color to stand out as feedback
           'bg-emerald-500 hover:bg-emerald-600',
           'font-semibold text-white',
           'rounded-full',
           'transition-all duration-200',
           'shadow-lg hover:scale-105 hover:shadow-xl',
-          'h-14 w-14 md:h-16 md:w-16'
+          'h-16 w-16'
         )}
         aria-label="Submit Feedback"
         title="Submit Feedback"
       >
-        <MessageSquarePlus className="h-6 w-6 md:h-7 md:w-7" />
+        <MessageSquarePlus className="h-7 w-7" />
       </button>
       <GameFeedbackModal
         isOpen={isModalOpen}

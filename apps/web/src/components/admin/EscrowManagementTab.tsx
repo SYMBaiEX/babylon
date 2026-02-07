@@ -427,7 +427,7 @@ export function EscrowManagementTab() {
 
       {/* Refund Modal */}
       {showRefundModal && selectedEscrow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
             <h2 className="mb-4 flex items-center gap-2 font-bold text-xl">
               <ArrowLeftRight className="h-5 w-5 text-blue-500" />

@@ -91,8 +91,10 @@ export function MessageList({
         <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-8 bg-gradient-to-b from-background via-background/90 to-transparent" />
       )}
 
-      {/* Sentinel for infinite scroll */}
-      <div ref={topSentinelRef} className="h-1 w-full" />
+      {/* Sentinel for infinite scroll - only rendered when there are messages */}
+      {messages.length > 0 && (
+        <div ref={topSentinelRef} className="h-1 w-full" />
+      )}
 
       {/* Loading more messages indicator */}
       {isLoadingMore && (
@@ -174,6 +176,7 @@ export function MessageList({
         </div>
       )}
 
+      {/* Scroll anchor - always rendered for scroll-to-bottom functionality */}
       <div ref={messagesEndRef} />
     </>
   );

@@ -54,7 +54,9 @@ import { MessageCircle, PanelRight, Plus, Users, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { AgentCreate } from '@/components/agents/AgentCreate';
+import { AgentEditModal } from '@/components/agents/AgentEditModal';
 import { TeamChatView } from '@/components/chats';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Separator } from '@/components/shared/Separator';
@@ -63,7 +65,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTeamChat } from '@/hooks/useTeamChat';
 import { AgentPnL } from './AgentPnL';
 import { AgentPortfolio } from './AgentPortfolio';
-import { AgentSettingsPanel } from './AgentSettingsPanel';
 import {
   BOTTOM_PANEL_COLLAPSED_HEIGHT,
   BOTTOM_PANEL_DEFAULT_HEIGHT,
@@ -161,7 +162,7 @@ const UserActivity = dynamic(
 export default function TeamChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { ready, authenticated, user, login } = useAuth();
+  const { ready, authenticated, user, login, getAccessToken } = useAuth();
 
   const {
     teamChat,
@@ -234,6 +235,29 @@ export default function TeamChatPage() {
   // Create agent modal state
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false);
 
+  // Edit agent modal state - stores the agent ID to edit
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [editingAgentData, setEditingAgentData] = useState<{
+    id: string;
+    username?: string | null;
+    name: string;
+    description?: string;
+    profileImageUrl?: string;
+    coverImageUrl?: string;
+    system: string;
+    bio?: string[];
+    personality?: string;
+    tradingStrategy?: string;
+    modelTier: 'free' | 'pro';
+    isActive: boolean;
+    autonomousEnabled: boolean;
+    autonomousPosting?: boolean;
+    autonomousCommenting?: boolean;
+    autonomousDMs?: boolean;
+    autonomousGroupChats?: boolean;
+    a2aEnabled?: boolean;
+  } | null>(null);
+
   // Set default entity for bottom panel - defaults to user
   // Also validates that selected agent still exists (handles agent removal)
   useEffect(() => {
@@ -285,35 +309,38 @@ export default function TeamChatPage() {
     [bottomPanelTab]
   );
 
-  // Handle sidebar "Settings" - open in right sidebar
+  // Handle sidebar "Settings" - open edit modal
   const handleViewSettings = useCallback(
-    (agentId: string) => {
-      // Find agent name for tab title
-      const agent = teamChat?.agents.find((a) => a.id === agentId);
-      const agentName = agent?.displayName || agent?.username || 'Agent';
-      const tabId = `settings-${agentId}`;
+    async (agentId: string) => {
+      setEditingAgentId(agentId);
 
-      // Use functional update to check existing tabs without dependency
-      setRightSidebarTabs((prev) => {
-        const existingTab = prev.find((t) => t.id === tabId);
-        if (existingTab) {
-          return prev; // Tab exists, don't modify
+      // Fetch agent details for the edit modal
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error('Authentication required');
+        setEditingAgentId(null);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/agents/${agentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+          toast.error('Failed to fetch agent details');
+          setEditingAgentId(null);
+          return;
         }
-        // Add new tab
-        return [
-          ...prev,
-          {
-            id: tabId,
-            type: 'agent-settings' as const,
-            title: agentName,
-            agentId,
-          },
-        ];
-      });
-      setActiveRightTabId(tabId);
-      setRightSidebarOpen(true);
+
+        const data = await res.json();
+        setEditingAgentData(data.agent);
+      } catch {
+        toast.error('Failed to fetch agent details');
+        setEditingAgentId(null);
+      }
     },
-    [teamChat?.agents]
+    [getAccessToken]
   );
 
   // Close a right sidebar tab - auto-closes sidebar when last tab is closed
@@ -631,14 +658,14 @@ export default function TeamChatPage() {
 
           {/* Agents Header */}
           <div className="flex items-center justify-between p-3">
-            <h3 className="font-semibold text-foreground text-sm">Agents</h3>
+            <h2 className="font-bold text-foreground text-xl">Agents</h2>
             <button
               type="button"
               onClick={() => setShowCreateAgentModal(true)}
-              className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               aria-label="Add agent"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-5 w-5" />
             </button>
           </div>
 
@@ -721,14 +748,7 @@ export default function TeamChatPage() {
 
                 let content: React.ReactNode = null;
 
-                if (tab.type === 'agent-settings' && tab.agentId) {
-                  content = (
-                    <AgentSettingsPanel
-                      agentId={tab.agentId}
-                      onAgentUpdated={refreshTeamChat}
-                    />
-                  );
-                } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
+                if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
                   content = <PerpsPanel data={tab.data} />;
                 } else if (
                   tab.type === 'predictions' &&
@@ -828,16 +848,14 @@ export default function TeamChatPage() {
 
               {/* Agents Header */}
               <div className="flex items-center justify-between p-3">
-                <h3 className="font-semibold text-foreground text-sm">
-                  Agents
-                </h3>
+                <h2 className="font-bold text-foreground text-xl">Agents</h2>
                 <button
                   type="button"
                   onClick={() => setShowCreateAgentModal(true)}
-                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                   aria-label="Add agent"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-5 w-5" />
                 </button>
               </div>
 
@@ -904,7 +922,7 @@ export default function TeamChatPage() {
         {/* Spacer for right sidebar - only on desktop to make room for fixed sidebar */}
         {rightSidebarOpen && (
           <div
-            className="hidden shrink-0 transition-[width] duration-200 lg:block"
+            className="hidden shrink-0 lg:block"
             style={{ width: rightSidebarWidth }}
             aria-hidden="true"
           />
@@ -1040,14 +1058,7 @@ export default function TeamChatPage() {
                 // Render panel based on tab type
                 let content: React.ReactNode = null;
 
-                if (tab.type === 'agent-settings' && tab.agentId) {
-                  content = (
-                    <AgentSettingsPanel
-                      agentId={tab.agentId}
-                      onAgentUpdated={refreshTeamChat}
-                    />
-                  );
-                } else if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
+                if (tab.type === 'perps' && isPerpsTagData(tab.data)) {
                   content = <PerpsPanel data={tab.data} />;
                 } else if (
                   tab.type === 'predictions' &&
@@ -1105,6 +1116,20 @@ export default function TeamChatPage() {
             }
           }}
           compact
+        />
+      )}
+
+      {/* Edit Agent Modal */}
+      {editingAgentId && editingAgentData && (
+        <AgentEditModal
+          agent={editingAgentData}
+          onClose={() => {
+            setEditingAgentId(null);
+            setEditingAgentData(null);
+          }}
+          onUpdate={() => {
+            refreshTeamChat();
+          }}
         />
       )}
     </div>

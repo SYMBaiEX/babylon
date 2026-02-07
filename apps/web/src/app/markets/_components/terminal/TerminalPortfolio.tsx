@@ -60,12 +60,12 @@ function StatCard({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-md border border-white/10 bg-background/30 px-3 py-2">
+    <div className="rounded-md border border-white/10 bg-background/30 px-2 py-1.5">
       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
         {label}
       </div>
       <div
-        className={cn('mt-1 font-mono text-sm tabular-nums', valueClassName)}
+        className={cn('mt-0.5 font-mono text-sm tabular-nums', valueClassName)}
       >
         {value}
       </div>
@@ -163,7 +163,7 @@ export function TerminalPortfolio({
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-2 grid grid-cols-2 gap-1.5 lg:grid-cols-4">
           <StatCard
             label="Wallet (spendable)"
             value={balanceLoading ? '—' : formatBalance(balance)}
@@ -196,7 +196,7 @@ export function TerminalPortfolio({
           />
         </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5 lg:grid-cols-4">
           <StatCard
             label="Agents"
             value={formatPortfolioValue(

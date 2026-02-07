@@ -510,7 +510,7 @@ export function GroupManagementModal({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm md:p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             handleClose();
@@ -518,11 +518,11 @@ export function GroupManagementModal({
         }}
       >
         <div
-          className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-background shadow-2xl"
+          className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[85vh] md:w-auto md:min-w-[480px] md:max-w-lg md:rounded-xl md:border md:border-border md:shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-border border-b p-6">
+          <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
               <h2 className="font-bold text-xl">
@@ -532,7 +532,7 @@ export function GroupManagementModal({
             </div>
             <button
               onClick={handleClose}
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               disabled={!!actionLoading}
             >
               <X className="h-5 w-5" />
@@ -540,7 +540,7 @@ export function GroupManagementModal({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
             {error && (
               <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-red-500 text-sm">{error}</p>
@@ -829,7 +829,7 @@ export function GroupManagementModal({
       {/* Confirmation Dialog */}
       {confirmAction && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget && !actionLoading) {
               setConfirmAction(null);

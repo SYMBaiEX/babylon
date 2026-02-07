@@ -129,24 +129,32 @@ export function RatingModal({
   const ContextIcon = getContextIcon();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-background">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-lg md:rounded-xl md:border md:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
         {showThankYou ? (
           /* Thank You State */
-          <div className="space-y-4 p-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
-              <Star className="h-8 w-8 text-green-500" fill="currentColor" />
+          <div className="flex flex-1 items-center justify-center p-8">
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
+                <Star className="h-8 w-8 text-green-500" fill="currentColor" />
+              </div>
+              <h3 className="font-bold text-2xl text-foreground">Thank You!</h3>
+              <p className="text-muted-foreground">
+                Your feedback has been submitted and will help improve the
+                community.
+              </p>
             </div>
-            <h3 className="font-bold text-2xl text-foreground">Thank You!</h3>
-            <p className="text-muted-foreground">
-              Your feedback has been submitted and will help improve the
-              community.
-            </p>
           </div>
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between border-border border-b p-6">
+            <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1c9cf0]/20">
                   <ContextIcon className="h-5 w-5 text-[#1c9cf0]" />
@@ -164,7 +172,7 @@ export function RatingModal({
               </div>
               <button
                 onClick={onClose}
-                className="rounded-lg p-2 transition-colors hover:bg-muted"
+                className="rounded-full p-2 transition-colors hover:bg-muted"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -172,7 +180,7 @@ export function RatingModal({
             </div>
 
             {/* Content */}
-            <div className="space-y-6 p-6">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6">
               {/* User Info */}
               <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-4">
                 <div className="flex-1">

@@ -1933,7 +1933,7 @@ export function MarketsTradingTerminal({
                     !sellablePositions.hasSellableYes &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'yes'
-                    ? 'bg-blue-500 text-white shadow-sm'
+                    ? 'bg-green-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
@@ -1954,7 +1954,7 @@ export function MarketsTradingTerminal({
                     !sellablePositions.hasSellableNo &&
                     'cursor-not-allowed opacity-50 hover:text-muted-foreground',
                   predictionSide === 'no'
-                    ? 'bg-violet-500 text-white shadow-sm'
+                    ? 'bg-red-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 )}
               >
@@ -2130,7 +2130,7 @@ export function MarketsTradingTerminal({
               }
               className={cn(
                 'mt-5 w-full rounded py-3 font-semibold text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                predictionTradeMode === 'buy'
+                predictionTradeMode === 'buy' && predictionSide === 'yes'
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-red-600 hover:bg-red-700'
               )}
