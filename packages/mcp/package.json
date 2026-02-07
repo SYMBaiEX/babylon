@@ -29,7 +29,7 @@
     "@babylon/a2a": "workspace:*",
     "drizzle-orm": "^0.44.7",
     "ethers": "^6.15.0",
-    "zod": "^4.1.12"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
