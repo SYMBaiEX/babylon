@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, type MessageTag } from '@babylon/shared';
+import { COORDINATOR_SENDER_ID, cn, type MessageTag } from '@babylon/shared';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Response } from '@/components/chat/Response';
@@ -51,6 +51,8 @@ export function MessageBubble({
   const msgDate = new Date(message.createdAt);
   const senderName = sender?.displayName || 'Unknown';
   const compact = density === 'compact';
+  // Coordinator (Agent Commander) should not link to a profile page
+  const isCoordinator = sender?.id === COORDINATOR_SENDER_ID;
 
   return (
     <div
@@ -60,7 +62,7 @@ export function MessageBubble({
         isCurrentUser ? 'justify-end' : 'items-start'
       )}
     >
-      {!isCurrentUser && sender && (
+      {!isCurrentUser && sender && !isCoordinator && (
         <Link
           href={getProfilePath(sender)}
           className="shrink-0 transition-opacity hover:opacity-80"
@@ -74,6 +76,15 @@ export function MessageBubble({
           />
         </Link>
       )}
+      {!isCurrentUser && sender && isCoordinator && (
+        <Avatar
+          id={sender.id}
+          name={senderName}
+          type="user"
+          size={compact ? 'sm' : 'md'}
+          imageUrl={sender.profileImageUrl}
+        />
+      )}
       {!isCurrentUser && !sender && (
         <Avatar
           id={message.senderId}
@@ -84,12 +95,13 @@ export function MessageBubble({
       )}
       <div
         className={cn(
-          'flex min-w-0 max-w-[80%] flex-col',
+          'flex min-w-0 flex-col',
           isCurrentUser ? 'items-end' : 'items-start'
         )}
+        style={{ maxWidth: 'min(80%, 48rem)' }}
       >
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          {!isCurrentUser && sender && (
+          {!isCurrentUser && sender && !isCoordinator && (
             <Link
               href={getProfilePath(sender)}
               className={cn(
@@ -99,6 +111,16 @@ export function MessageBubble({
             >
               {senderName}
             </Link>
+          )}
+          {!isCurrentUser && sender && isCoordinator && (
+            <span
+              className={cn(
+                'font-bold text-foreground',
+                compact ? 'text-sm md:text-xs' : 'text-sm'
+              )}
+            >
+              {senderName}
+            </span>
           )}
           {!isCurrentUser && !sender && (
             <span
@@ -156,33 +178,30 @@ export function MessageBubble({
               />
             </div>
           ) : (
-            <>
-              <Response
-                className="text-foreground"
-                validMentions={validMentions}
-              >
-                {getDisplayContent(message.content)}
-              </Response>
-
-              {/* Action Tags - Pill-style chips */}
-              {message.metadata?.tags && message.metadata.tags.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2 border-muted/30 border-t pt-3">
-                  {message.metadata.tags.map((tag, i) => (
-                    <button
-                      key={`${tag.type}-${tag.entityId ?? i}`}
-                      type="button"
-                      onClick={() => onTagClick?.(tag, message.id)}
-                      className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
-                    >
-                      <span>{tag.label}</span>
-                      <ChevronRight className="h-3 w-3 opacity-50 transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+            <Response className="text-foreground" validMentions={validMentions}>
+              {getDisplayContent(message.content)}
+            </Response>
           )}
         </div>
+
+        {/* Action Tags - Pill-style chips (outside message bubble) */}
+        {!isThinking &&
+          message.metadata?.tags &&
+          message.metadata.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {message.metadata.tags.map((tag, i) => (
+                <button
+                  key={`${tag.type}-${tag.entityId ?? i}`}
+                  type="button"
+                  onClick={() => onTagClick?.(tag, message.id)}
+                  className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 py-1 pr-2 pl-3 font-medium text-primary text-xs transition-all hover:border-primary/40 hover:bg-primary/10"
+                >
+                  <span>{tag.label}</span>
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                </button>
+              ))}
+            </div>
+          )}
       </div>
     </div>
   );

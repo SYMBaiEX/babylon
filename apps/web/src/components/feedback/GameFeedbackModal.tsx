@@ -367,10 +367,10 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
   const config = feedbackType ? getFeedbackTypeConfig(feedbackType) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-background">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4">
+      <div className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-2xl md:rounded-xl md:border md:border-border">
         {/* Header */}
-        <div className="flex items-center justify-between border-border border-b p-6">
+        <div className="flex shrink-0 items-start justify-between border-border border-b p-4 md:p-6">
           <div>
             <h2 className="font-bold text-foreground text-xl">Game Feedback</h2>
             <p className="mt-1 text-muted-foreground text-sm">
@@ -389,7 +389,7 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
         </div>
 
         {/* Content */}
-        <div className="space-y-6 p-6">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 md:p-6">
           {!feedbackType ? (
             <FeedbackTypeSelector onSelect={setFeedbackType} />
           ) : (
@@ -440,54 +440,58 @@ export function GameFeedbackModal({ isOpen, onClose }: GameFeedbackModalProps) {
                   onRatingChange={setRating}
                 />
               )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={
-                    isSubmitting || (retryAfter !== null && retryAfter > 0)
-                  }
-                  className={cn(
-                    'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold transition-colors',
-                    'bg-[#1c9cf0] text-primary-foreground hover:bg-[#1c9cf0]/90',
-                    'disabled:cursor-not-allowed disabled:opacity-50'
-                  )}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : retryAfter !== null && retryAfter > 0 ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Rate limited. Retry in {retryAfter}s</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      <span>Submit Feedback</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  disabled={isSubmitting}
-                  className={cn(
-                    'rounded-lg px-4 py-3 font-semibold transition-colors',
-                    'bg-muted text-foreground hover:bg-muted/70',
-                    'disabled:cursor-not-allowed disabled:opacity-50'
-                  )}
-                >
-                  Cancel
-                </button>
-              </div>
             </>
           )}
         </div>
+
+        {/* Action Buttons - Fixed footer */}
+        {feedbackType && (
+          <div className="shrink-0 border-border border-t bg-background p-4 md:p-6">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={
+                  isSubmitting || (retryAfter !== null && retryAfter > 0)
+                }
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold transition-colors',
+                  'bg-[#1c9cf0] text-primary-foreground hover:bg-[#1c9cf0]/90',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : retryAfter !== null && retryAfter > 0 ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Rate limited. Retry in {retryAfter}s</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    <span>Submit Feedback</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className={cn(
+                  'rounded-lg px-4 py-3 font-semibold transition-colors',
+                  'bg-muted text-foreground hover:bg-muted/70',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

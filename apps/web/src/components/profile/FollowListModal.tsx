@@ -253,22 +253,19 @@ export function FollowListModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm md:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="follow-list-modal-title"
+      onClick={onClose}
     >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
       {/* Modal */}
-      <div className="relative flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-border bg-background shadow-xl">
+      <div
+        className="relative flex h-full w-full flex-col bg-background md:h-auto md:max-h-[80vh] md:w-auto md:min-w-[480px] md:max-w-md md:rounded-2xl md:border md:border-border md:shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-border border-b px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between border-border border-b px-6 py-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-muted-foreground" />
             <h2
@@ -293,7 +290,7 @@ export function FollowListModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

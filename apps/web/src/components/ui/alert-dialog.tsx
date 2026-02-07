@@ -33,14 +33,11 @@ export function AlertDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => onOpenChange?.(false)}
-      />
-      {/* Content */}
-      <div className="relative z-50">{children}</div>
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
+      onClick={() => onOpenChange?.(false)}
+    >
+      {children}
     </div>
   );
 }
@@ -66,7 +63,8 @@ export function AlertDialogContent({
   return (
     <div
       className={cn(
-        'mx-4 w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg',
+        'relative flex h-full w-full flex-col bg-background',
+        'md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[400px] md:max-w-md md:rounded-lg md:border md:border-border',
         'fade-in-0 zoom-in-95 animate-in duration-200',
         className
       )}
@@ -98,7 +96,7 @@ export function AlertDialogHeader({
   return (
     <div
       className={cn(
-        'flex flex-col space-y-2 text-center sm:text-left',
+        'shrink-0 border-border border-b p-4 text-center sm:text-left md:p-6',
         className
       )}
     >
@@ -176,7 +174,8 @@ export function AlertDialogFooter({
   return (
     <div
       className={cn(
-        'mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
+        'shrink-0 border-border border-t p-4 md:p-6',
+        'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
         className
       )}
     >
@@ -208,8 +207,8 @@ export function AlertDialogAction({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium text-sm',
-        'h-10 px-4 py-2',
+        'inline-flex w-full items-center justify-center rounded-lg font-semibold text-sm sm:w-auto',
+        'px-4 py-3',
         'bg-primary text-primary-foreground hover:bg-primary/90',
         'disabled:pointer-events-none disabled:opacity-50',
         'transition-colors',
@@ -245,8 +244,8 @@ export function AlertDialogCancel({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium text-sm',
-        'mt-2 h-10 px-4 py-2 sm:mt-0',
+        'inline-flex w-full items-center justify-center rounded-lg font-semibold text-sm sm:w-auto',
+        'px-4 py-3',
         'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         'transition-colors',
         className

@@ -96,7 +96,7 @@ export async function register() {
 
     // Initialize Agent0 blockchain reputation functions
     // CRITICAL: Must be called before any agent registration to prevent runtime crashes
-    const { initializeAgent0Services } = await import('./lib/agent0-init');
+    const { initializeAgent0Services } = await import('./src/lib/agent0-init');
     initializeAgent0Services();
   }
 

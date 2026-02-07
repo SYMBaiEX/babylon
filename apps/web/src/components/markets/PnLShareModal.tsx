@@ -360,16 +360,17 @@ export function PnLShareModal({
 
       {/* Modal */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
         onClick={onClose}
         role="dialog"
         aria-modal="true"
       >
         <div
-          className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-sidebar shadow-2xl"
+          className="flex h-full w-full flex-col bg-sidebar md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-4xl md:overflow-hidden md:rounded-2xl md:border md:border-border md:shadow-2xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-border border-b px-6 py-4">
+          {/* Header */}
+          <div className="flex shrink-0 items-start justify-between border-border border-b px-6 py-4">
             <div>
               <h2 className="font-semibold text-foreground text-xl">
                 {modalTitle}
@@ -379,14 +380,15 @@ export function PnLShareModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground"
+              className="rounded-full p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground"
               aria-label="Close share modal"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="flex flex-col gap-4 px-6 py-6">
+          {/* Content */}
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-6">
             {/* Preview Section */}
             <div className="relative aspect-[1200/630] w-full overflow-hidden rounded-xl border border-border bg-muted/30">
               {canShare ? (
@@ -481,7 +483,7 @@ export function PnLShareModal({
       {/* Twitter Confirmation Modal */}
       {showTwitterConfirm && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => !isPostingToTwitter && setShowTwitterConfirm(false)}
           role="dialog"
           aria-modal="true"

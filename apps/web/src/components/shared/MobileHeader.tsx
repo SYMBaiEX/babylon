@@ -17,6 +17,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { GameFeedbackModal } from '@/components/feedback/GameFeedbackModal';
 import { Avatar } from '@/components/shared/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuthToken } from '@/lib/auth';
@@ -42,6 +43,7 @@ function MobileHeaderContent() {
   } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const pathname = usePathname();
 
   // Hide mobile header when WAITLIST_MODE is enabled on home page
@@ -291,8 +293,18 @@ function MobileHeaderContent() {
             </Link>
           </div>
 
-          {/* Right: Empty space for balance */}
-          <div className="w-8 shrink-0" />
+          {/* Right: Feedback Button */}
+          <div className="shrink-0">
+            {authenticated && (
+              <button
+                type="button"
+                onClick={() => setShowFeedbackModal(true)}
+                className="rounded-md bg-emerald-500 px-3 py-1 font-medium text-white text-xs transition-colors hover:bg-emerald-600"
+              >
+                Feedback
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -452,6 +464,12 @@ function MobileHeaderContent() {
           </div>
         </>
       )}
+
+      {/* Feedback Modal */}
+      <GameFeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+      />
     </>
   );
 }

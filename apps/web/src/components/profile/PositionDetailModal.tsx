@@ -367,10 +367,16 @@ export function PositionDetailModal({
       : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background shadow-xl">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-2xl md:rounded-lg md:border md:border-border md:shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="sticky top-0 flex items-center justify-between border-border border-b bg-background p-4">
+        <div className="flex shrink-0 items-start justify-between border-border border-b bg-background p-4">
           <div className="flex items-center gap-3">
             <h2 className="font-bold text-foreground text-xl">
               {type === 'prediction' && 'Prediction'}
@@ -387,7 +393,7 @@ export function PositionDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1 transition-colors hover:bg-muted"
+            className="rounded-full p-2 transition-colors hover:bg-muted"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -431,7 +437,7 @@ export function PositionDetailModal({
         </div>
 
         {/* Content */}
-        <div className="space-y-6 p-4">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
           {activeTab === 'details' && (
             <>
               {/* Prediction Position Details */}
@@ -937,10 +943,10 @@ export function PositionDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 border-border border-t bg-background p-4">
+        <div className="shrink-0 border-border border-t bg-background p-4">
           <button
             onClick={onClose}
-            className="w-full rounded-lg bg-muted px-4 py-2 font-medium text-foreground transition-colors hover:bg-muted/80"
+            className="w-full rounded-lg bg-muted px-4 py-3 font-medium text-foreground transition-colors hover:bg-muted/80"
           >
             Close
           </button>

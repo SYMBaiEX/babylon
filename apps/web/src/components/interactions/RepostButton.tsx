@@ -203,7 +203,7 @@ export function RepostButton({
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm"
             onClick={() => {
               setShowConfirmation(false);
               setQuoteComment('');
@@ -211,7 +211,7 @@ export function RepostButton({
           />
 
           {/* Modal - Mobile */}
-          <div className="fixed inset-x-4 top-20 bottom-auto z-50 flex max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-border bg-sidebar shadow-2xl md:hidden">
+          <div className="fixed inset-x-4 top-20 bottom-auto z-[110] flex max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-border bg-sidebar shadow-2xl md:hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-border border-b px-6 py-4">
               <div className="flex items-center gap-3">
@@ -332,7 +332,7 @@ export function RepostButton({
           </div>
 
           {/* Modal - Desktop */}
-          <div className="fixed inset-0 z-50 hidden items-center justify-center p-4 md:flex">
+          <div className="fixed inset-0 z-[110] hidden items-center justify-center p-4 md:flex">
             <div className="flex max-h-[85vh] w-full max-w-[580px] flex-col overflow-hidden rounded-2xl border border-border bg-sidebar shadow-2xl">
               {/* Header */}
               <div className="flex items-center justify-between border-border border-b px-6 py-4">

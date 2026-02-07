@@ -627,7 +627,7 @@ function EvaluationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-card p-6">
         <h2 className="mb-4 font-bold text-xl">Report Evaluation</h2>
 
@@ -759,7 +759,7 @@ function ActionModal({ report, onClose, onAction }: ActionModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-6">
         <h2 className="mb-4 font-bold text-xl">Take Action on Report</h2>
 

@@ -317,7 +317,7 @@ export function AdminManagementTab() {
 
       {/* Add Admin Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-border bg-card p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-bold text-xl">Add Admin</h2>
@@ -408,7 +408,7 @@ export function AdminManagementTab() {
 
       {/* Remove Admin Confirmation Modal */}
       {showRemoveModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
             <div className="mb-4 flex items-center gap-3 text-orange-500">
               <AlertTriangle className="h-6 w-6" />

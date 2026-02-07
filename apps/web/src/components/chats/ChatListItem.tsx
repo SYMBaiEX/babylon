@@ -32,9 +32,7 @@ export function ChatListItem({
       onKeyDown={handleKeyDown}
       className={cn(
         'cursor-pointer px-4 py-3 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset',
-        isSelected
-          ? 'border-primary border-l-4 bg-sidebar-accent/50'
-          : 'border-transparent border-l-4 hover:bg-sidebar-accent/30'
+        isSelected ? 'bg-sidebar-accent/50' : 'hover:bg-sidebar-accent/30'
       )}
     >
       <div className="flex items-center gap-3">

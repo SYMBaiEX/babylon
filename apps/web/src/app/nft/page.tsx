@@ -292,7 +292,7 @@ export default function NftGalleryPage() {
 
       {/* Eligibility Modal */}
       {showEligibilityModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
             {isCheckingEligibility ? (
               <div className="py-8 text-center">

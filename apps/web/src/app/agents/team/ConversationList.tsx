@@ -130,14 +130,14 @@ export function ConversationList({
     <div className="space-y-2">
       {/* Header with New Chat button */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-foreground text-sm">Chats</h3>
+        <h2 className="font-bold text-foreground text-xl">Chats</h2>
         <button
           type="button"
           onClick={onNewChat}
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           aria-label="New chat"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-5 w-5" />
         </button>
       </div>
 
@@ -168,13 +168,6 @@ export function ConversationList({
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  conversation.isActive ? 'bg-primary' : 'bg-transparent'
-                )}
-              />
-
               {editingId === conversation.id ? (
                 // Inline edit mode
                 <div className="flex min-w-0 flex-1 items-center gap-1">

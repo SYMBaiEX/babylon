@@ -44,7 +44,7 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
   if (!isOpen || !nft) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-4">
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
@@ -73,7 +73,7 @@ export function RevealModal({ isOpen, nft, onClose }: RevealModalProps) {
         </div>
       )}
 
-      <div className="relative z-10 mx-4 w-full max-w-sm">
+      <div className="relative z-10 flex h-full w-full flex-col items-center justify-center p-4 md:h-auto md:w-auto md:max-w-sm">
         {/* Card with flip animation */}
         <div
           className="relative mx-auto aspect-square w-full"

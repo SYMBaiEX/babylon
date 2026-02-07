@@ -312,24 +312,27 @@ export function ShareEarnModal({
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-[110] bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-4">
+        <div
+          className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-md md:rounded-xl md:border md:border-border md:shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between border-border border-b p-6">
+          <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
             <h2 className="font-bold text-xl">Share & Earn</h2>
             <button
               onClick={onClose}
-              className="rounded-lg p-2 transition-colors hover:bg-muted"
+              className="rounded-full p-2 transition-colors hover:bg-muted"
             >
               <XIcon className="h-5 w-5 text-muted-foreground" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="space-y-4 p-6">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
             <p className="mb-4 text-muted-foreground text-sm">
               Share to earn +{POINTS.SHARE_ACTION} points (one-time reward)
             </p>
@@ -448,7 +451,7 @@ export function ShareEarnModal({
           </div>
 
           {/* Footer */}
-          <div className="border-border border-t p-6">
+          <div className="shrink-0 border-border border-t p-6">
             <p className="text-center text-muted-foreground text-xs">
               Points are awarded once per platform after verification
             </p>

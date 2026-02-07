@@ -214,7 +214,6 @@ export function MessageInput({
 
   const {
     isOpen,
-    position,
     selectedIndex,
     mentionStartIndex,
     filteredAgents,
@@ -328,15 +327,7 @@ export function MessageInput({
           const searchQuery = textAfterAt;
 
           if (!isOpen) {
-            const textarea = textareaRef.current;
-            if (textarea) {
-              const containerRect =
-                containerRef.current?.getBoundingClientRect();
-              const bottom = containerRect
-                ? containerRect.height + 8
-                : textarea.getBoundingClientRect().height + 8;
-              openAutocomplete(atIndex, { bottom, left: 0 });
-            }
+            openAutocomplete(atIndex);
           }
 
           updateQuery(searchQuery);
@@ -521,29 +512,27 @@ export function MessageInput({
   }
 
   return (
-    <div ref={containerRef} className={cn('relative', compact ? 'p-3' : 'p-4')}>
-      {/* Mention autocomplete dropdown */}
-      {mentionsEnabled && (
-        <MentionAutocomplete
-          agents={filteredAgents}
-          isOpen={isOpen}
-          position={position}
-          selectedIndex={selectedIndex}
-          onSelect={handleSelectMember}
-          onIndexChange={setSelectedIndex}
-          onClose={closeAutocomplete}
-        />
-      )}
-
+    <div ref={containerRef} className={cn(compact ? 'p-3' : 'p-4')}>
       {/* Composer shell */}
       <div
         className={cn(
-          'flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
+          'relative flex items-center gap-2 rounded-xl border border-border px-3 py-2 transition-shadow duration-200',
           'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/30',
           isFocused && 'shadow-sm',
           (sending || disabled) && 'opacity-60'
         )}
       >
+        {/* Mention autocomplete dropdown */}
+        {mentionsEnabled && (
+          <MentionAutocomplete
+            agents={filteredAgents}
+            isOpen={isOpen}
+            selectedIndex={selectedIndex}
+            onSelect={handleSelectMember}
+            onIndexChange={setSelectedIndex}
+            onClose={closeAutocomplete}
+          />
+        )}
         {/* Input area */}
         <div className="relative min-w-0 flex-1">
           {mentionsEnabled ? (

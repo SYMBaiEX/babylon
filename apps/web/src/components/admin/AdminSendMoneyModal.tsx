@@ -180,7 +180,7 @@ export function AdminSendMoneyModal({
 
   if (!recipientWalletAddress) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
         <div
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           onClick={onClose}
@@ -696,13 +696,16 @@ export function AdminSendMoneyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm md:p-4"
+      onClick={handleClose}
+    >
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-background shadow-xl">
-        <div className="flex items-center justify-between border-border border-b p-6">
+        className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-md md:rounded-2xl md:border md:border-border md:shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
           <h2 className="font-bold text-xl">Send Money (Escrow)</h2>
           <button
             onClick={handleClose}
@@ -712,7 +715,11 @@ export function AdminSendMoneyModal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="p-6">{renderContent()}</div>
+
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

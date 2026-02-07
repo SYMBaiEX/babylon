@@ -473,7 +473,7 @@ export function MarketOversightTab() {
 
       {/* Action Modal */}
       {showActionModal && selectedMarket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-4 font-bold text-xl">
               {actionType === 'resolve'

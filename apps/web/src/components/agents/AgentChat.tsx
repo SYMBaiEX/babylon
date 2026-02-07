@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@babylon/shared';
+import { BABYLON_POINTS_SYMBOL, logger } from '@babylon/shared';
 import { Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -486,14 +486,14 @@ export function AgentChat({
         {agent.virtualBalance !== undefined && (
           <div
             className="flex items-center justify-between border-border border-b bg-muted/30 px-4 py-2"
-            aria-label={`Agent balance: $${agent.virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            aria-label={`Agent balance: ${BABYLON_POINTS_SYMBOL}${agent.virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           >
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Wallet className="h-4 w-4" aria-hidden="true" />
               <span>Agent Balance</span>
             </div>
             <span className="font-medium font-mono text-sm">
-              {'$'}
+              {BABYLON_POINTS_SYMBOL}
               {agent.virtualBalance.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,

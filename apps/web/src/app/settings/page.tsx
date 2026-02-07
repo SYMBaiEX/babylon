@@ -310,11 +310,23 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append('file', profileImage.file);
       formData.append('type', 'profile');
-      const uploadResponse = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData,
-      });
+      let uploadResponse: Response;
+      try {
+        uploadResponse = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData,
+        });
+      } catch (err) {
+        logger.error(
+          'Profile image upload request failed',
+          { error: err },
+          'SettingsPage'
+        );
+        setErrorMessage('Failed to upload profile image.');
+        setSaving(false);
+        return;
+      }
       const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
         url?: string;
       };
@@ -330,11 +342,23 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append('file', coverImage.file);
       formData.append('type', 'cover');
-      const uploadResponse = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData,
-      });
+      let uploadResponse: Response;
+      try {
+        uploadResponse = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData,
+        });
+      } catch (err) {
+        logger.error(
+          'Cover image upload request failed',
+          { error: err },
+          'SettingsPage'
+        );
+        setErrorMessage('Failed to upload cover image.');
+        setSaving(false);
+        return;
+      }
       const uploadPayload = (await uploadResponse.json().catch(() => ({}))) as {
         url?: string;
       };
@@ -346,22 +370,34 @@ export default function SettingsPage() {
       nextCoverImageUrl = uploadPayload.url;
     }
 
-    const response = await fetch(
-      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          displayName: trimmedDisplayName,
-          username: trimmedUsername,
-          bio: trimmedBio,
-          ...(nextProfileImageUrl
-            ? { profileImageUrl: nextProfileImageUrl }
-            : {}),
-          ...(nextCoverImageUrl ? { coverImageUrl: nextCoverImageUrl } : {}),
-        }),
-      }
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            displayName: trimmedDisplayName,
+            username: trimmedUsername,
+            bio: trimmedBio,
+            ...(nextProfileImageUrl
+              ? { profileImageUrl: nextProfileImageUrl }
+              : {}),
+            ...(nextCoverImageUrl ? { coverImageUrl: nextCoverImageUrl } : {}),
+          }),
+        }
+      );
+    } catch (err) {
+      logger.error(
+        'Profile update request failed',
+        { error: err },
+        'SettingsPage'
+      );
+      setErrorMessage('Unable to save your changes.');
+      setSaving(false);
+      return;
+    }
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {

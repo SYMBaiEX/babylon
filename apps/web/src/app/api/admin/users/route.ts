@@ -100,6 +100,7 @@ import {
   eq,
   follows,
   inArray,
+  isNull,
   positions,
   reactions,
   reports,
@@ -108,6 +109,7 @@ import {
   userBlocks,
   userMutes,
   users,
+  whitelist,
 } from '@babylon/db';
 import { logger } from '@babylon/shared';
 import type { NextRequest } from 'next/server';
@@ -253,6 +255,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     blocksReceived,
     mutesReceived,
     reportsSent,
+    whitelistedUsers,
   ] =
     userIds.length > 0
       ? await Promise.all([
@@ -310,8 +313,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             .from(reports)
             .where(inArray(reports.reporterId, userIds))
             .groupBy(reports.reporterId),
+          // Whitelist status (active entries only).
+          // Wrapped in catch so a missing Whitelist table doesn't break the admin endpoint.
+          db
+            .select({ userId: whitelist.userId })
+            .from(whitelist)
+            .where(
+              and(
+                inArray(whitelist.userId, userIds),
+                isNull(whitelist.revokedAt)
+              )
+            )
+            .catch(() => [] as { userId: string }[]),
         ])
-      : [[], [], [], [], [], [], [], [], []];
+      : [[], [], [], [], [], [], [], [], [], []];
 
   // Build lookup maps
   const commentCountMap = new Map(
@@ -341,6 +356,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const reportsSentMap = new Map(
     reportsSent.filter((r) => r.userId).map((r) => [r.userId!, r.count])
   );
+  const whitelistedSet = new Set(whitelistedUsers.map((w) => w.userId));
 
   // Calculate moderation metrics and bad user scores
   const usersWithMetrics = usersResult.map((user) => {
@@ -363,6 +379,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     return {
       ...user,
+      isWhitelisted: whitelistedSet.has(user.id),
       _count: {
         comments: commentCountMap.get(user.id) || 0,
         reactions: reactionCountMap.get(user.id) || 0,

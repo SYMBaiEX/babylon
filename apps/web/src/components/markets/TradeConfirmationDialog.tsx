@@ -178,9 +178,9 @@ export function TradeConfirmationDialog({
       case 'close-perp':
         return `You're about to close your ${tradeDetails.leverage}x ${tradeDetails.side} position on $${tradeDetails.ticker}`;
       case 'buy-prediction':
-        return `You're about to buy ${tradeDetails.side} shares on this prediction market`;
+        return `You're about to buy ${tradeDetails.side} shares on this market`;
       case 'sell-prediction':
-        return `You're about to sell all your ${tradeDetails.side} shares`;
+        return `You're about to sell ${tradeDetails.side} shares on this market`;
     }
   };
 
@@ -481,16 +481,22 @@ export function TradeConfirmationDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="md:max-w-md">
         <AlertDialogHeader>
-          <div className="mb-2 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             {getIcon()}
             <AlertDialogTitle>{getTitle()}</AlertDialogTitle>
           </div>
-          <AlertDialogDescription>{getDescription()}</AlertDialogDescription>
+          {getDescription() && (
+            <AlertDialogDescription className="mt-2">
+              {getDescription()}
+            </AlertDialogDescription>
+          )}
         </AlertDialogHeader>
 
-        {renderDetails()}
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+          {renderDetails()}
+        </div>
 
         <AlertDialogFooter>
           <AlertDialogCancel

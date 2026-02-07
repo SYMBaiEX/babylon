@@ -56,28 +56,25 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
   };
 
   return (
-    <>
+    <div className="space-y-4">
       {/* Model Tier Selection */}
-      <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
-        <h3 className="mb-4 font-semibold text-base sm:text-lg">Model Tier</h3>
-        <p className="mb-4 text-muted-foreground text-sm">
-          Choose the AI model that powers your agent's responses
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+      <div>
+        <h3 className="mb-2 font-semibold text-sm">Model Tier</h3>
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
           <button
             type="button"
             onClick={() => updateField('modelTier', 'free')}
             className={cn(
-              'flex-1 rounded-lg border p-3 text-left transition-colors sm:p-4',
+              'flex flex-1 flex-col justify-start rounded-lg border p-3 text-left transition-colors',
               data.modelTier === 'free'
                 ? 'border-[#0066FF] bg-[#0066FF]/10'
                 : 'border-border hover:border-[#0066FF]/50'
             )}
           >
-            <div className="font-medium text-sm sm:text-base">
+            <div className="font-medium text-sm">
               Free ({GROQ_MODELS.FREE.displayName})
             </div>
-            <div className="text-muted-foreground text-xs sm:text-sm">
+            <div className="text-muted-foreground text-xs">
               {GROQ_MODELS.FREE.description}
             </div>
           </button>
@@ -85,16 +82,16 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             type="button"
             onClick={() => updateField('modelTier', 'pro')}
             className={cn(
-              'flex-1 rounded-lg border p-3 text-left transition-colors sm:p-4',
+              'flex flex-1 flex-col justify-start rounded-lg border p-3 text-left transition-colors',
               data.modelTier === 'pro'
                 ? 'border-[#0066FF] bg-[#0066FF]/10'
                 : 'border-border hover:border-[#0066FF]/50'
             )}
           >
-            <div className="font-medium text-sm sm:text-base">
+            <div className="font-medium text-sm">
               Pro ({GROQ_MODELS.PRO.displayName})
             </div>
-            <div className="text-muted-foreground text-xs sm:text-sm">
+            <div className="text-muted-foreground text-xs">
               {GROQ_MODELS.PRO.description}
             </div>
             <div className="mt-1 font-medium text-[#0066FF] text-xs">
@@ -105,55 +102,29 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
       </div>
 
       {/* Autonomous Features */}
-      <div className="rounded-lg border border-border bg-card/50 p-4 backdrop-blur sm:p-6">
-        <h3 className="mb-2 font-semibold text-base sm:text-lg">
-          Autonomous Features
-        </h3>
-        <p className="mb-4 text-muted-foreground text-sm">
-          Control what your agent can do automatically
-        </p>
+      <div>
+        <h3 className="mb-2 font-semibold text-sm">Autonomous Features</h3>
 
-        {/* Info banner about Autonomous Trading - shows current state with context */}
+        {/* Info banner - compact */}
         <div
           role="status"
-          className="mb-4 flex gap-3 rounded-lg border border-primary/20 bg-accent p-3 sm:p-4"
+          className="mb-3 flex items-start gap-2 text-muted-foreground text-xs"
         >
-          <Info className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <div className="text-sm">
-            {data.autonomousEnabled ? (
-              <>
-                <p className="font-medium text-accent-foreground">
-                  Autonomous Trading is currently enabled
-                </p>
-                <p className="mt-1 text-foreground/80">
-                  Your agent will evaluate markets and execute trades based on
-                  its trading strategy. You can see all trades in the Activity
-                  tab and in the "My Moves" section.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-medium text-accent-foreground">
-                  Autonomous Trading is currently disabled
-                </p>
-                <p className="mt-1 text-foreground/80">
-                  Enable the toggle below to allow your agent to evaluate
-                  markets and execute trades. You can see all trades in the
-                  Activity tab and in the "My Moves" section.
-                </p>
-              </>
-            )}
-          </div>
+          <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <p>
+            {data.autonomousEnabled
+              ? 'Trading enabled — agent will evaluate markets and execute trades. View in Activity tab.'
+              : 'Trading disabled — enable below to allow autonomous market evaluation and trades.'}
+          </p>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Autonomous Trading
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Evaluate and execute trades on markets
+        {/* Toggles in 2-column grid */}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Autonomous Trading</div>
+              <div className="text-muted-foreground text-xs">
+                Execute trades on markets
               </div>
             </div>
             <Switch
@@ -165,13 +136,11 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Autonomous Posting
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Create posts based on analysis and activity
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Autonomous Posting</div>
+              <div className="text-muted-foreground text-xs">
+                Create posts automatically
               </div>
             </div>
             <Switch
@@ -183,13 +152,11 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Autonomous Commenting
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Comment on relevant posts in feed
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Autonomous Commenting</div>
+              <div className="text-muted-foreground text-xs">
+                Comment on posts in feed
               </div>
             </div>
             <Switch
@@ -201,13 +168,11 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Autonomous DMs
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Respond to direct messages from users
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Autonomous DMs</div>
+              <div className="text-muted-foreground text-xs">
+                Respond to direct messages
               </div>
             </div>
             <Switch
@@ -219,13 +184,11 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Autonomous Group Chats
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Participate in group chats agent is invited to
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Autonomous Group Chats</div>
+              <div className="text-muted-foreground text-xs">
+                Participate in group chats
               </div>
             </div>
             <Switch
@@ -237,13 +200,11 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 p-3 transition-all hover:bg-muted/50 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-sm sm:text-base">
-                Enable A2A Server
-              </div>
-              <div className="text-muted-foreground text-xs sm:text-sm">
-                Allow other agents to connect via A2A protocol
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 transition-all hover:bg-muted/50">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">Enable A2A Server</div>
+              <div className="text-muted-foreground text-xs">
+                Connect via A2A protocol
               </div>
             </div>
             <Switch
@@ -252,62 +213,49 @@ export const AgentConfigurationForm = memo(function AgentConfigurationForm({
               className="shrink-0"
             />
           </div>
-
-          {/* A2A Server Link - only shown for existing agents */}
-          {data.a2aEnabled && agentId && (
-            <div className="rounded-lg border border-[#0066FF]/20 bg-[#0066FF]/10 p-3 sm:p-4">
-              <div className="mb-1 font-medium text-sm sm:text-base">
-                A2A Server Link
-              </div>
-              <div className="mb-2 text-muted-foreground text-xs sm:text-sm">
-                Other agents can use this link to connect to this agent
-              </div>
-              <div className="flex items-center gap-2 rounded border border-border bg-background p-2">
-                <code className="flex-1 overflow-x-auto break-all text-[10px] sm:text-xs">
-                  {typeof window !== 'undefined'
-                    ? `${window.location.origin}/api/agents/${agentId}/a2a`
-                    : `/api/agents/${agentId}/a2a`}
-                </code>
-                <button
-                  onClick={() => {
-                    const url =
-                      typeof window !== 'undefined'
-                        ? `${window.location.origin}/api/agents/${agentId}/a2a`
-                        : `/api/agents/${agentId}/a2a`;
-                    navigator.clipboard.writeText(url);
-                    toast.success('Link copied to clipboard');
-                  }}
-                  className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
-                  title="Copy link"
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
-                <a
-                  href={
-                    typeof window !== 'undefined'
-                      ? `${window.location.origin}/api/agents/${agentId}/.well-known/agent-card`
-                      : `/api/agents/${agentId}/.well-known/agent-card`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
-                  title="View agent card"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
-              <div className="mt-2 break-all text-[10px] text-muted-foreground sm:text-xs">
-                Agent Card:{' '}
-                <code className="text-[10px] sm:text-xs">
-                  {typeof window !== 'undefined'
-                    ? `${window.location.origin}/api/agents/${agentId}/.well-known/agent-card`
-                    : `/api/agents/${agentId}/.well-known/agent-card`}
-                </code>
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* A2A Server Link - only shown for existing agents */}
+        {data.a2aEnabled && agentId && (
+          <div className="mt-3 rounded-lg border border-[#0066FF]/20 bg-[#0066FF]/10 p-3">
+            <div className="mb-1 font-medium text-sm">A2A Server Link</div>
+            <div className="flex items-center gap-2 rounded border border-border bg-background p-2">
+              <code className="flex-1 overflow-x-auto break-all text-xs">
+                {typeof window !== 'undefined'
+                  ? `${window.location.origin}/api/agents/${agentId}/a2a`
+                  : `/api/agents/${agentId}/a2a`}
+              </code>
+              <button
+                onClick={() => {
+                  const url =
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}/api/agents/${agentId}/a2a`
+                      : `/api/agents/${agentId}/a2a`;
+                  navigator.clipboard.writeText(url);
+                  toast.success('Link copied to clipboard');
+                }}
+                className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
+                title="Copy link"
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+              <a
+                href={
+                  typeof window !== 'undefined'
+                    ? `${window.location.origin}/api/agents/${agentId}/.well-known/agent-card`
+                    : `/api/agents/${agentId}/.well-known/agent-card`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded p-1.5 transition-colors hover:bg-muted"
+                title="View agent card"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 });

@@ -111,21 +111,27 @@ export function ShareVerificationModal({
       : 'https://farcaster.xyz/username/0x1234abcd';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-border bg-background">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-full w-full flex-col bg-background md:h-auto md:max-h-[90vh] md:w-auto md:min-w-[480px] md:max-w-md md:rounded-xl md:border md:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-border border-b p-6">
+        <div className="flex shrink-0 items-start justify-between border-border border-b p-6">
           <h2 className="font-bold text-xl">Verify Your Share</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 transition-colors hover:bg-muted"
+            className="rounded-full p-2 transition-colors hover:bg-muted"
           >
             <XIcon className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="space-y-4 p-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
           <div>
             <p className="mb-4 text-muted-foreground text-sm">
               Help us verify that you shared to {platformName}! Paste the URL to
@@ -156,13 +162,16 @@ export function ShareVerificationModal({
               on your post.
             </p>
           </div>
+        </div>
 
+        {/* Footer */}
+        <div className="shrink-0 border-border border-t p-6">
           <div className="flex gap-2">
             <button
               onClick={handleVerify}
               disabled={verifying || !postUrl.trim()}
               className={cn(
-                'flex-1 rounded-lg px-4 py-2 font-semibold transition-colors',
+                'flex-1 rounded-lg px-4 py-3 font-semibold transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 'flex items-center justify-center gap-2'
@@ -183,7 +192,7 @@ export function ShareVerificationModal({
             <button
               onClick={onClose}
               disabled={verifying}
-              className="rounded-lg bg-muted px-4 py-2 font-semibold transition-colors hover:bg-muted/70"
+              className="rounded-lg bg-muted px-4 py-3 font-semibold transition-colors hover:bg-muted/70"
             >
               Skip
             </button>
