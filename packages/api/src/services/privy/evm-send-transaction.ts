@@ -1,6 +1,8 @@
 import { CHAIN, logger } from '@babylon/shared';
 import type { AuthorizationContext } from '@privy-io/node';
+import { decodeJwt, decodeProtectedHeader } from 'jose';
 import type { Address, Hex } from 'viem';
+import { z } from 'zod';
 import { getPrivyNodeClient } from './privy-node';
 
 export type SendSponsoredEvmTransactionInput = {
@@ -14,55 +16,50 @@ export type SendSponsoredEvmTransactionInput = {
 };
 
 /**
- * Expected structure of a Privy JWT payload.
+ * Runtime schema for a Privy JWT payload.
  * See: https://docs.privy.io/guide/server/authorization/verification
  */
-interface PrivyJwtPayload {
+export const PrivyJwtPayloadSchema = z.object({
   /** Audience - the Privy app ID this token was issued for */
-  aud: string | string[];
+  aud: z.union([z.string(), z.array(z.string())]),
   /** Subject - the Privy user ID (did:privy:...) */
-  sub: string;
+  sub: z.string(),
   /** Issuer - Privy's issuer URL */
-  iss: string;
+  iss: z.string(),
   /** Issued at timestamp (seconds since epoch) */
-  iat: number;
+  iat: z.number(),
   /** Expiration timestamp (seconds since epoch) */
-  exp: number;
+  exp: z.number(),
   /** Session ID */
-  sid?: string;
-}
+  sid: z.string().optional(),
+});
 
-interface JwtHeader {
-  alg: string;
-  typ?: string;
-  kid?: string;
-}
+export type PrivyJwtPayload = z.infer<typeof PrivyJwtPayloadSchema>;
 
 /**
- * Decodes a JWT header without verification.
+ * Safely decodes and validates a JWT header using `jose`.
+ * Returns null if the token is malformed.
  */
-function decodeJwtHeader(token: string): JwtHeader | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
+export function safeDecodeJwtHeader(token: string) {
   try {
-    const json = Buffer.from(parts[0] ?? '', 'base64url').toString('utf8');
-    return JSON.parse(json) as JwtHeader;
+    return decodeProtectedHeader(token);
   } catch {
     return null;
   }
 }
 
 /**
- * Decodes a JWT payload without verification.
+ * Safely decodes and validates a JWT payload using `jose` for decoding
+ * and Zod for runtime type validation.
+ *
  * Used only to extract claims for pre-flight validation before Privy API calls.
  * Actual token verification is performed by Privy's SDK.
  */
-function decodeJwtPayload(token: string): PrivyJwtPayload | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
+export function safeDecodeJwtPayload(token: string): PrivyJwtPayload | null {
   try {
-    const json = Buffer.from(parts[1] ?? '', 'base64url').toString('utf8');
-    return JSON.parse(json) as PrivyJwtPayload;
+    const raw = decodeJwt(token);
+    const result = PrivyJwtPayloadSchema.safeParse(raw);
+    return result.success ? result.data : null;
   } catch {
     return null;
   }
@@ -92,10 +89,10 @@ export async function sendSponsoredEvmTransaction({
   caip2 = `eip155:${CHAIN.id}`,
   chainId = CHAIN.id,
 }: SendSponsoredEvmTransactionInput): Promise<{ hash: Hex; caip2: string }> {
-  const payload = decodeJwtPayload(userJwt);
+  const payload = safeDecodeJwtPayload(userJwt);
   if (!payload) {
     throw new Error(
-      'Invalid Privy user JWT format: token must be a valid JWT with header.payload.signature structure'
+      'Invalid Privy user JWT: token must be a valid JWT with the expected Privy claims (aud, sub, iss, iat, exp)'
     );
   }
 
@@ -103,7 +100,7 @@ export async function sendSponsoredEvmTransaction({
     process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
   // Debug: Log JWT header + claims to diagnose auth issues (no sensitive identifiers)
-  const jwtHeader = decodeJwtHeader(userJwt);
+  const jwtHeader = safeDecodeJwtHeader(userJwt);
   logger.debug(
     'Privy JWT diagnostics',
     {

@@ -47,7 +47,7 @@
     "ioredis": "^5.6.1",
     "tiktoken": "^1.0.22",
     "uuid": "^13.0.0",
-    "zod": "^4.1.12"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
