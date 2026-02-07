@@ -29,7 +29,8 @@
     "@babylon/a2a": "workspace:*",
     "@babylon/db": "workspace:*",
     "@babylon/shared": "workspace:*",
-    "@babylon/contracts": "workspace:*"
+    "@babylon/contracts": "workspace:*",
+    "viem": "^2.45.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
