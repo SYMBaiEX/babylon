@@ -121,6 +121,15 @@ export async function sendSponsoredEvmTransaction({
     'sendSponsoredEvmTransaction'
   );
 
+  // Wallet operations are security-sensitive — reject tokens that lack an
+  // expiration claim. While `exp` is optional per RFC 7519, Privy tokens
+  // always include it, so a missing `exp` indicates a malformed or tampered token.
+  if (!payload.exp) {
+    throw new Error(
+      'Privy JWT is missing an expiration claim (exp). Cannot authorize wallet operations without a verifiable token lifetime.'
+    );
+  }
+
   // Reject tokens that are expired or about to expire.
   // The buffer is configurable via PRIVY_JWT_EXPIRY_BUFFER_SECONDS (default: 30s).
   // This catches stale tokens early with a clear error instead of letting them
@@ -128,7 +137,7 @@ export async function sendSponsoredEvmTransaction({
   const parsedBuffer = Number(process.env.PRIVY_JWT_EXPIRY_BUFFER_SECONDS);
   const expiryBuffer =
     Number.isFinite(parsedBuffer) && parsedBuffer > 0 ? parsedBuffer : 30;
-  if (payload.exp && payload.exp < Date.now() / 1000 + expiryBuffer) {
+  if (payload.exp < Date.now() / 1000 + expiryBuffer) {
     throw new Error(
       `Privy JWT is expired or about to expire (exp: ${new Date(payload.exp * 1000).toISOString()}). Please refresh your session.`
     );
