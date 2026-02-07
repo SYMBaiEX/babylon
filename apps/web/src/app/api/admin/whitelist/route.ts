@@ -15,7 +15,7 @@ import {
   listWhitelistEntries,
   removeFromWhitelist,
 } from '@babylon/api/services/whitelist-service';
-import { db, eq, users } from '@babylon/db';
+import { db, eq, or, sql, users } from '@babylon/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -52,11 +52,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: 'userId is required' }, { status: 400 });
   }
 
-  // Verify user exists
+  // Strip leading @ and resolve by userId or username
+  const identifier = userId.trim().replace(/^@/, '');
+
   const [user] = await db
     .select({ id: users.id, username: users.username })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(
+      or(
+        eq(users.id, identifier),
+        sql`lower(${users.username}) = lower(${identifier})`
+      )
+    )
     .limit(1);
 
   if (!user) {
@@ -64,7 +71,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const result = await addToWhitelist({
-    userId,
+    userId: user.id,
     source: source ?? 'admin_manual',
     reason,
     grantedBy: admin.dbUserId ?? undefined,

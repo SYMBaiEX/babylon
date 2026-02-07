@@ -438,7 +438,7 @@ export function WhitelistTab() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddUser();
               }}
-              placeholder="User ID to whitelist..."
+              placeholder="Username or User ID..."
               className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
             <input
